@@ -1,0 +1,52 @@
+[
+  {
+    "eventId": "evt-1001",
+    "bookmakers": [
+      {
+        "name": "DraftKings",
+        "markets": [
+          {
+            "name": "moneyline",
+            "outcomes": [
+              { "name": "Seattle Seahawks", "price": -145 },
+              { "name": "San Francisco 49ers", "price": 125 }
+            ]
+          },
+          {
+            "name": "spread",
+            "outcomes": [
+              { "name": "Seattle Seahawks", "price": -110, "point": -2.5 },
+              { "name": "San Francisco 49ers", "price": -110, "point": 2.5 }
+            ]
+          },
+          {
+            "name": "over/under",
+            "outcomes": [
+              { "name": "over", "price": -105, "total": 44.5 },
+              { "name": "under", "price": -115, "total": 44.5 }
+            ]
+          },
+          {
+            "name": "asian handicap corners",
+            "outcomes": [
+              { "name": "over", "price": -110, "point": 9.5 }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "FanDuel",
+        "markets": [
+          {
+            "name": "moneyline",
+            "outcomes": [
+              { "name": "Seattle Seahawks", "price": "-150" },
+              { "name": "San Francisco 49ers", "price": 130 },
+              { "name": "Bad Row", "price": 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

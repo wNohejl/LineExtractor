@@ -1,0 +1,43 @@
+{
+  "//": "The MLB shape as ESPN actually returns it: stat groups carry no 'name'. This is the case that made unconditional prefixing useless — there is no category to prefix with, and it is exactly where the label collisions are, because H is hits when batting and hits allowed when pitching.",
+  "boxscore": {
+    "players": [
+      {
+        "team": { "id": "12", "displayName": "Seattle Mariners" },
+        "statistics": [
+          {
+            "labels": [ "AB", "R", "H", "RBI" ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p-100",
+                  "displayName": "Shohei Ohtani",
+                  "position": { "abbreviation": "DH" }
+                },
+                "stats": [ "4", "1", "2", "3" ]
+              },
+              {
+                "athlete": {
+                  "id": "p-200",
+                  "displayName": "Cal Raleigh",
+                  "position": { "abbreviation": "C" }
+                },
+                "stats": [ "5", "0", "1", "0" ]
+              }
+            ]
+          },
+          {
+            "//": "The pitching group. The same two-way player appears again, and H now means hits allowed.",
+            "labels": [ "IP", "H", "ER", "K" ],
+            "athletes": [
+              {
+                "athlete": { "id": "p-100", "displayName": "Shohei Ohtani" },
+                "stats": [ "6.0", "5", "2", "9" ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

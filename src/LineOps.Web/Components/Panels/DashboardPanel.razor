@@ -1,0 +1,159 @@
+@using LineOps.Data
+@using LineOps.Ingestion.Services
+@using LineOps.Ingestion.Configuration
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+@inject IOptions<IngestionOptions> IngestionOptions
+
+<div class="row row--end" style="margin-bottom:12px">
+    <PullMenu OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
+</div>
+
+<div class="metrics" style="margin-bottom:16px">
+    <div class="metric metric--info">
+        <div class="metric__value">@_games.ToString("N0")</div>
+        <div class="metric__label">Games</div>
+    </div>
+    <div class="metric">
+        <div class="metric__value">@_snapshots.ToString("N0")</div>
+        <div class="metric__label">Price moves</div>
+        <div class="metric__note">stored, all time</div>
+    </div>
+    <div class="metric">
+        <div class="metric__value">@_today.ToString("N0")</div>
+        <div class="metric__label">Moves today</div>
+    </div>
+    <div class="metric @(_alerts > 0 ? "metric--warn" : "metric--good")">
+        <div class="metric__value">@_alerts</div>
+        <div class="metric__label">Open alerts</div>
+    </div>
+</div>
+
+<h3 class="panel-h">Upcoming slate</h3>
+
+@if (_rows.Count == 0)
+{
+    <p class="empty">
+        Nothing ingested yet. <strong>Ingest now</strong> pulls a slate — with no API keys
+        configured it uses the built-in demo source, so it works at no cost.
+    </p>
+}
+else
+{
+    <DeskGrid T="Row" Items="_rows" EmptyText="No games on the slate.">
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Game.Sport!.Name" Title="Sport">
+            <CellTemplate>
+                <span class="tag">@context.Item.Game.Sport?.Name</span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        @* The matchup is the cell you act from, so it carries the shortcut. Full names, because
+           this is where a game is identified rather than tallied. *@
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Game.HomeTeam!.Name" Title="Matchup">
+            <CellTemplate>
+                <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
+                    @Matchup(context.Item.Game)
+                </DeskLink>
+            </CellTemplate>
+        </PropertyColumn>
+
+        @* Sorts on the real instant, displays the date. Sorting a formatted string would put
+           April after August. *@
+        <PropertyColumn T="Row" TProperty="DateTimeOffset" Property="r => r.Game.StartsAt"
+                        Title="Starts" InitialDirection="SortDirection.Ascending">
+            <CellTemplate>
+                <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="GameStatus" Property="r => r.Game.Status" Title="State">
+            <CellTemplate>
+                <span class="tag @StateTag(context.Item.Game.Status)">@context.Item.Game.Status</span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="int?" Property="r => r.Away" Title="Away" Align="Align.Right">
+            <CellTemplate>@(context.Item.Away is { } a ? Price(a) : "—")</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="int?" Property="r => r.Home" Title="Home" Align="Align.Right">
+            <CellTemplate>@(context.Item.Home is { } h ? Price(h) : "—")</CellTemplate>
+        </PropertyColumn>
+    </DeskGrid>
+}
+
+@code {
+    private record Row(Game Game, int? Home, int? Away);
+
+    private List<Row> _rows = [];
+    private int _games;
+    private long _snapshots;
+    private long _today;
+    private int _alerts;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _games = await db.Games.CountAsync();
+        _snapshots = await db.OddsSnapshots.LongCountAsync();
+
+        var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        _today = await db.OddsSnapshots.Where(s => s.CapturedAt >= dayStart).LongCountAsync();
+        _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
+
+        var games = await db.Games
+            .Include(g => g.Sport).Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddHours(-6))
+            .OrderBy(g => g.StartsAt)
+            .Take(40)
+            .ToListAsync();
+
+        var ids = games.Select(g => g.Id).ToList();
+
+        // "Current price" is the newest observation, not a stored column.
+        var latest = await db.OddsSnapshots
+            .Where(s => ids.Contains(s.GameId) && s.Market == Markets.Moneyline)
+            .GroupBy(s => new { s.GameId, s.Outcome })
+            .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
+            .ToListAsync();
+
+        _rows = games.Select(g =>
+        {
+            var forGame = latest.Where(s => s.GameId == g.Id).ToList();
+            return new Row(g,
+                forGame.Where(s => Same(s.Outcome, g.HomeTeam?.Name)).Select(s => (int?)s.PriceAmerican).FirstOrDefault(),
+                forGame.Where(s => Same(s.Outcome, g.AwayTeam?.Name)).Select(s => (int?)s.PriceAmerican).FirstOrDefault());
+        }).ToList();
+
+        // The slate's own state: alerts are not this panel's business, freshness is.
+        Report(_rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+            _rows.Count == 0 ? null : $"{_rows.Count} games");
+    }
+
+    private static bool Same(string outcome, string? team)
+        => team is not null && string.Equals(outcome, team, StringComparison.OrdinalIgnoreCase);
+
+    private static string StateTag(GameStatus status) => status switch
+    {
+        GameStatus.Live => "tag--warn",
+        GameStatus.Final => "tag--good",
+        _ => "tag--info"
+    };
+
+    /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>
+    private void OnPullBusy(bool busy)
+    {
+        _busy = busy;
+
+        if (busy)
+            Report(PulseState.Active, "pulling");
+    }
+}

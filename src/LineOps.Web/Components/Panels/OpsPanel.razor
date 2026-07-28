@@ -1,0 +1,418 @@
+@using LineOps.Data
+@using LineOps.Reliability
+@using LineOps.Ingestion.Services
+@using LineOps.Core.Contracts
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+@inject IOptions<ReliabilityOptions> Options
+@inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
+
+<div class="row row--end" style="margin-bottom:12px">
+    <button class="btn" type="button" @onclick="EvaluateAsync" disabled="@_busy">
+        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Evaluate now
+    </button>
+</div>
+
+<div class="metrics" style="margin-bottom:16px">
+    <div class="metric @(_healthy == _health.Count ? "metric--good" : "metric--warn")">
+        <div class="metric__value">@_healthy/@_health.Count</div>
+        <div class="metric__label">Sources in SLO</div>
+    </div>
+    <div class="metric @(_criticals > 0 ? "metric--bad" : _alerts.Count > 0 ? "metric--warn" : "metric--good")">
+        <div class="metric__value">@_alerts.Count</div>
+        <div class="metric__label">Open alerts</div>
+        <div class="metric__note">@(_criticals > 0 ? $"{_criticals} critical" : "none critical")</div>
+    </div>
+    <div class="metric">
+        <div class="metric__value">@_rowsToday.ToString("N0")</div>
+        <div class="metric__label">Rows today</div>
+    </div>
+    <div class="metric @(_openIncidents > 0 ? "metric--bad" : "metric--good")">
+        <div class="metric__value">@_openIncidents</div>
+        <div class="metric__label">Open incidents</div>
+    </div>
+</div>
+
+@*
+    Odds feeds get their own section because their failure mode is silence: an unconfigured
+    provider is never registered, so it writes no runs and appears nowhere in source health.
+    "No prices" and "no feed" look identical without this.
+*@
+<h3 class="panel-h">Odds feeds</h3>
+
+@* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
+   here regardless would describe a schedule that is not running — the number would be real
+   arithmetic about an allowance nobody is spending. What is left still matters, because that is
+   what a press of Pull lines draws on. *@
+@if (!LinePolling.RunsUnattended)
+{
+    <p class="empty" style="padding:0 0 9px">
+        Lines are pulled on request only — nothing is fetched unasked.
+        @if (_plan?.ScansRemainingToday is { } available)
+        {
+            <text>
+                @* Credits, not requests. The two are equal on this desk — one sport, two
+                   markets — which is exactly why showing the wrong one would look right until
+                   a market or a sport is added. *@
+                <span class="mono">@available</span> pulls left in @_plan.WindowLabel allowance, at
+                <span class="mono">@(_plan.CreditsPerScan)</span> credits each.
+            </text>
+        }
+        Use <strong>Pull data → Pull lines</strong>.
+    </p>
+}
+else if (_plan is { } plan)
+{
+    <p class="empty" style="padding:0 0 9px">
+        Scanning every <span class="mono">@Cadence(plan.Interval)</span> at
+        <span class="mono">@plan.CostPerScan</span> requests a scan
+        @if (plan.ScansRemainingToday is { } left)
+        {
+            @* "today's" or "this month's" — the provider decides which, and saying the wrong
+               one turns a month's remaining allowance into an apparently generous day. *@
+            <text>— <span class="mono">@left</span> scans left in @plan.WindowLabel allowance</text>
+            @if (plan.BoundBy is { } bound)
+            {
+                <text>, paced by <span class="mono">@bound</span></text>
+            }
+        }
+        else
+        {
+            <text>— nothing metered, so this is the politeness floor rather than a budget</text>
+        }.
+    </p>
+}
+
+<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds providers configured.">
+    <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
+                    InitialDirection="SortDirection.Descending">
+        <CellTemplate>
+            @if (context.Item is { IsLive: true, IsReal: true })
+            {
+                <span class="tag tag--good">Live</span>
+            }
+            else if (context.Item.IsLive)
+            {
+                <span class="tag tag--warn">Demo</span>
+            }
+            else
+            {
+                <span class="tag">Off</span>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Name" Title="Provider" />
+
+    <TemplateColumn T="OddsProviderState" Title="Books" Sortable="false">
+        <CellTemplate>
+            <span class="dim">@string.Join(", ", context.Item.Books)</span>
+        </CellTemplate>
+    </TemplateColumn>
+
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Reason" Title="Notes">
+        <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+
+<h3 class="panel-h">Source health</h3>
+
+<DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered.">
+    @* The source name goes through to its runs — "why is this stale" is answered there. *@
+    <PropertyColumn T="SourceHealth" TProperty="string" Property="h => h.Source.Name" Title="Source">
+        <CellTemplate>
+            <DeskLink Destination="runs"
+                      Icon="@Icons.Material.Filled.History"
+                      OnClick="() => Manager.OpenRuns(context.Item.Source.Id, context.Item.Source.Name)">
+                @context.Item.Source.Name
+            </DeskLink>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind">
+        <CellTemplate><span class="dim">@context.Item.Source.Kind</span></CellTemplate>
+    </PropertyColumn>
+
+    @* Sorts on minutes, so "stalest first" is a click. A never-run source sorts as the worst
+       rather than as zero, which is the two-kinds-of-zero rule from ADR 0003. *@
+    <PropertyColumn T="SourceHealth" TProperty="double"
+                    Property="h => h.FreshnessMinutes ?? double.MaxValue"
+                    Title="Freshness" Align="Align.Right">
+        <CellTemplate>
+            <span class="@(IsStale(context.Item) ? "down" : null)">
+                @(context.Item.FreshnessMinutes is { } m ? Age(m) : "never")
+            </span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
+                    Title="Success 7d" Align="Align.Right">
+        <CellTemplate>
+            <span class="@(IsRateLow(context.Item) ? "warnc" : null)">@context.Item.SuccessRate.ToString("P0")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="int" Property="h => h.RowsToday"
+                    Title="Rows today" Align="Align.Right" />
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.VolumeRatio ?? -1"
+                    Title="Volume" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@(context.Item.VolumeRatio is { } v ? v.ToString("P0") : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <TemplateColumn T="SourceHealth" Title="State" Sortable="false">
+        <CellTemplate>
+            @if (context.Item.NeverRun)
+            {
+                <span class="tag">Not run</span>
+            }
+            else if (IsStale(context.Item))
+            {
+                <span class="tag tag--bad">Stale</span>
+            }
+            else if (IsRateLow(context.Item))
+            {
+                <span class="tag tag--warn">Degraded</span>
+            }
+            else
+            {
+                <span class="tag tag--good">Healthy</span>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+
+<h3 class="panel-h">Open alerts</h3>
+
+<DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
+    <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
+                    InitialDirection="SortDirection.Descending">
+        <CellTemplate>
+            <span class="tag @SeverityTag(context.Item.Severity)">@context.Item.Severity</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule">
+        <CellTemplate><span class="mono dim">@context.Item.RuleKey</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened">
+        <CellTemplate><span class="trunc" title="@context.Item.Message">@context.Item.Message</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="DateTimeOffset" Property="a => a.TriggeredAt" Title="Age" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@Age((DateTimeOffset.UtcNow - context.Item.TriggeredAt).TotalMinutes)</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <TemplateColumn T="Alert" Title="" Sortable="false" Align="Align.Right">
+        <CellTemplate>
+            @if (context.Item.IncidentId is null)
+            {
+                <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+                            OnClick="() => PromoteAsync(context.Item.Id)">
+                    Open incident
+                </DeskButton>
+            }
+            else
+            {
+                <DeskLink Destination="incident"
+                          Icon="@Icons.Material.Filled.ReportProblem"
+                          OnClick="() => Manager.OpenIncident(context.Item.IncidentId.Value)">
+                    <span class="mono">#@context.Item.IncidentId</span>
+                </DeskLink>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+
+<h3 class="panel-h">On-call drill</h3>
+<p class="note">
+    Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
+    one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
+</p>
+
+<div class="stack" style="margin-top:10px">
+    @foreach (var source in _injectable)
+    {
+        <div class="row">
+            <span style="min-width:170px">@source.Name</span>
+            <select class="field"
+                    value="@(source.FailureMode ?? "")"
+                    @onchange="e => SetModeAsync(source.Id, e.Value?.ToString())">
+                <option value="">Healthy</option>
+                <option value="error">Upstream 503</option>
+                <option value="timeout">Request timeout</option>
+                <option value="empty">Empty payload (silent)</option>
+            </select>
+            @if (source.FailureMode is not null)
+            {
+                <span class="tag tag--bad">Injecting</span>
+            }
+        </div>
+    }
+
+    <div class="row">
+        <button class="btn" type="button" @onclick="DrillAsync" disabled="@_busy">
+            <Glyph Icon="@Icons.Material.Filled.PlayArrow" /> Run ingest &amp; evaluate
+        </button>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<SourceHealth> _health = [];
+    private IReadOnlyList<OddsProviderState> _feeds = [];
+    private PollPlan? _plan;
+
+    private LineOps.Ingestion.Configuration.LinePollingOptions LinePolling => Ingestion.Value.LinePolling;
+
+    /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
+    private static string Cadence(TimeSpan interval)
+        => interval.TotalHours >= 1
+            ? $"{interval.TotalHours:0.#}h"
+            : $"{interval.TotalMinutes:0.#}m";
+    private IReadOnlyList<Alert> _alerts = [];
+    private List<Source> _injectable = [];
+    private int _healthy;
+    private int _criticals;
+    private int _openIncidents;
+    private long _rowsToday;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // Pulled out of the markup when the table became a grid: a cell template evaluates per
+    // render, and both of these were previously computed once per row in a foreach.
+    private bool IsStale(SourceHealth h)
+        => !h.NeverRun && h.IsStale(Options.Value.FreshnessSlo);
+
+    private bool IsRateLow(SourceHealth h)
+        => h.RunsInWindow >= 3 && h.SuccessRate < Options.Value.SuccessRateSlo;
+
+    private async Task LoadAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var kpi = scope.ServiceProvider.GetRequiredService<KpiCalculator>();
+        var alerts = scope.ServiceProvider.GetRequiredService<AlertEngine>();
+        var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        _feeds = scope.ServiceProvider.GetRequiredService<OddsFeedStatus>().Describe();
+
+        // Recomputed here rather than read off the scheduler: it is a pure function of the
+        // budget already spent, so the panel and the scheduler reach the same answer without
+        // the panel needing a handle on a background service.
+        _plan = await scope.ServiceProvider.GetRequiredService<LinePollPlanner>()
+            .PlanAsync(registry.OddsSources.Select(s => s.Key).ToList());
+
+        var o = Options.Value;
+
+        _health = await kpi.GetAllHealthAsync(o.SuccessRateWindow, o.VolumeBaselineDays);
+        _alerts = await alerts.GetOpenAlertsAsync();
+        _healthy = _health.Count(h => h.NeverRun || !h.IsStale(o.FreshnessSlo));
+        _criticals = _alerts.Count(a => a.Severity == AlertSeverity.Critical);
+        _openIncidents = await db.Incidents.CountAsync(i => i.Status != IncidentStatus.Resolved);
+
+        var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        _rowsToday = await db.IngestionRuns
+            .Where(r => r.StartedAt >= dayStart)
+            .SumAsync(r => (long?)r.RowsIngested) ?? 0;
+
+        var keys = registry.OddsSources.OfType<IFailureInjectable>().Cast<IOddsSource>().Select(s => s.Key)
+            .Concat(registry.StatsSources.OfType<IFailureInjectable>().Cast<IStatsSource>().Select(s => s.Key))
+            .ToList();
+
+        _injectable = await db.Sources.Where(s => keys.Contains(s.Key)).OrderBy(s => s.Name).ToListAsync();
+
+        // This window is the reason the pulse exists: it reports the platform's worst state,
+        // so a minimised Ops window still shows red when something breaches.
+        Report(
+            _criticals > 0 ? PulseState.Critical
+            : _alerts.Count > 0 ? PulseState.Warn
+            : PulseState.Healthy,
+            _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
+    }
+
+    private static string SeverityTag(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Critical => "tag--bad",
+        AlertSeverity.Warn => "tag--warn",
+        _ => "tag--info"
+    };
+
+    private async Task EvaluateAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "evaluating");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
+            await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SetModeAsync(int sourceId, string? mode)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        var source = await db.Sources.FirstAsync(s => s.Id == sourceId);
+        source.FailureMode = string.IsNullOrEmpty(mode) ? null : mode;
+        await db.SaveChangesAsync();
+
+        await LoadAsync();
+    }
+
+    private async Task DrillAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "drill running");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var ingestion = scope.ServiceProvider.GetRequiredService<OddsIngestionService>();
+
+            foreach (var source in registry.OddsSources)
+                await ingestion.IngestAsync(source, "nfl", "odds:drill", CancellationToken.None);
+
+            await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
+            await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task PromoteAsync(long alertId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var incidents = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+        await incidents.PromoteAsync(alertId);
+        await LoadAsync();
+
+        // Raise the incidents window so the promotion has somewhere visible to land.
+        var definition = WindowCatalog.Find(WindowCatalog.Incidents);
+        if (definition is not null)
+            Manager.Open(definition);
+    }
+}

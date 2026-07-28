@@ -1,0 +1,132 @@
+{
+  "//": "Trimmed ESPN /scoreboard payload, field-for-field as the real one. The point of this fixture is the competitor's team object: ESPN supplies a stable id and the official abbreviation next to the display name, and reading only the name is what made the resolver invent 'CR' for the Colorado Rockies.",
+  "events": [
+    {
+      "id": "401816200",
+      "date": "2026-07-25T17:10Z",
+      "competitions": [
+        {
+          "status": { "type": { "name": "STATUS_FINAL" } },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "2",
+              "team": { "id": "6", "abbreviation": "DET", "displayName": "Detroit Tigers" }
+            },
+            {
+              "homeAway": "away",
+              "score": "3",
+              "team": { "id": "7", "abbreviation": "KC", "displayName": "Kansas City Royals" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816201",
+      "date": "2026-07-25T23:05Z",
+      "competitions": [
+        {
+          "status": { "type": { "name": "STATUS_SCHEDULED" } },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "//": "No abbreviation and no id — the shape a leaner provider sends, which must still resolve on the name alone.",
+              "team": { "displayName": "San Francisco Giants" }
+            },
+            {
+              "homeAway": "away",
+              "team": { "id": "27", "abbreviation": "COL", "displayName": "Colorado Rockies" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816202",
+      "//": "A competitor with no usable name at all must drop the whole event rather than half-resolve it.",
+      "date": "2026-07-26T01:00Z",
+      "competitions": [
+        {
+          "status": { "type": { "name": "STATUS_SCHEDULED" } },
+          "competitors": [
+            { "homeAway": "home", "team": { "id": "99" } },
+            { "homeAway": "away", "team": { "id": "98", "displayName": "Seattle Mariners" } }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816203",
+      "//": "Spring training. Season type 1 on the event, while the payload root below still reports the regular season it was queried within — which is why the type has to be read from here.",
+      "date": "2026-03-24T20:05Z",
+      "season": { "year": 2026, "type": 1, "slug": "preseason" },
+      "competitions": [
+        {
+          "status": { "type": { "name": "STATUS_FINAL" } },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "8",
+              "team": { "id": "15", "abbreviation": "ATL", "displayName": "Atlanta Braves" }
+            },
+            {
+              "homeAway": "away",
+              "score": "1",
+              "team": { "id": "30", "abbreviation": "TB", "displayName": "Tampa Bay Rays" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816205",
+      "//": "The All-Star Game: an exhibition reported inside the regular season, on an ordinary July date. Only the competition type tells it apart, which is why that is read as well as the season's.",
+      "date": "2026-07-14T23:30Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "type": { "id": "4", "abbreviation": "ALLSTAR" },
+          "status": { "type": { "name": "STATUS_FINAL" } },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "6",
+              "team": { "id": "1000", "abbreviation": "NA", "displayName": "National All-Stars" }
+            },
+            {
+              "homeAway": "away",
+              "score": "4",
+              "team": { "id": "1001", "abbreviation": "AA", "displayName": "American All-Stars" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "401816204",
+      "//": "Opening day, the day after spring training. Type 2, competition STD — this one counts.",
+      "date": "2026-03-25T20:05Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "type": { "id": "1", "abbreviation": "STD" },
+          "status": { "type": { "name": "STATUS_FINAL" } },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "4",
+              "team": { "id": "26", "abbreviation": "SF", "displayName": "San Francisco Giants" }
+            },
+            {
+              "homeAway": "away",
+              "score": "5",
+              "team": { "id": "10", "abbreviation": "NYY", "displayName": "New York Yankees" }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "season": { "year": 2026, "type": { "id": "2", "type": 2, "name": "Regular Season" } }
+}

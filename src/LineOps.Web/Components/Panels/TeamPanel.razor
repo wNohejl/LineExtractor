@@ -1,0 +1,176 @@
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    A team on its own — the destination for following a name off any board, slate or game view.
+
+    Deliberately not scoped to any one game: the question a team name answers is "how has this
+    side actually been playing", and a game that led here is context for that question rather
+    than a boundary on it.
+*@
+
+@if (_form is null)
+{
+    <p class="empty">Loading @(_teamName ?? "the team")…</p>
+}
+else
+{
+    <div class="row" style="margin-bottom:2px; align-items:baseline">
+        <h3 class="panel-h" style="margin:0">@_form.Team.Name</h3>
+        <span class="tag">@_form.Team.Sport?.Name</span>
+    </div>
+
+    <div class="row" style="margin-bottom:14px">
+        <span class="dim" style="font-size:11.5px">
+            @_form.Wins-@_form.Losses over the last @_windowDays days
+            (@_form.Recent.Count @(_form.Recent.Count == 1 ? "game" : "games"))
+        </span>
+
+        <select class="field" style="max-width:130px; margin-left:auto" value="@_windowDays" @onchange="OnWindowChanged">
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+        </select>
+    </div>
+
+    <h4 class="panel-h">Recent games</h4>
+
+    @if (_form.Recent.Count == 0)
+    {
+        <p class="empty">No games recorded in this window.</p>
+    }
+    else
+    {
+        <div class="gridwrap" style="margin-bottom:16px"><table class="grid">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th class="r">Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var g in _form.Recent)
+                {
+                    <tr>
+                        <td class="dim">@Day(g.StartsAt)</td>
+                        <td>
+                            <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                                      OnClick="() => OpenGameAsync(g.GameId)">
+                                @(g.Home ? "vs" : "at") @g.Opponent
+                            </DeskLink>
+                        </td>
+                        <td class="r">
+                            <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")">
+                                @(g.ScoreFor is { } sf && g.ScoreAgainst is { } sa ? $"{sf}-{sa}" : g.Status.ToString())
+                            </span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+
+    <h4 class="panel-h">Roster form</h4>
+
+    @if (_form.Roster.Count == 0)
+    {
+        <p class="empty">No appearances on record for this roster in the window.</p>
+    }
+    else
+    {
+        var columns = ColumnsFor(_form.Roster);
+
+        <div class="gridwrap"><table class="grid">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Pos</th>
+                    <th class="r">GP</th>
+                    @foreach (var c in columns)
+                    {
+                        <th class="r">@c@(IsRate(_form.Roster, c) ? "/g" : "")</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _form.Roster)
+                {
+                    <tr>
+                        <td class="trunc" title="@p.Name">
+                            <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                      OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
+                        </td>
+                        <td class="dim">@(p.Position ?? "—")</td>
+                        <td class="r">@p.Appearances</td>
+                        @foreach (var c in columns)
+                        {
+                            <td class="r">
+                                @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+}
+
+@code {
+    /// <summary>
+    /// The team this view is about. Taken as an id rather than an object so the view can be
+    /// hosted as a desk window, which is rebuilt from its parameters and cannot carry a
+    /// reference.
+    /// </summary>
+    [Parameter, EditorRequired] public int TeamId { get; set; }
+
+    private TeamForm? _form;
+    private string? _teamName;
+    private int _windowDays = 30;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task OnWindowChanged(ChangeEventArgs e)
+    {
+        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+
+            _form = await lookup.GetTeamAsync(TeamId, TimeSpan.FromDays(_windowDays), maxPlayers: 15);
+            _teamName = _form?.Team.Name;
+        },
+        settle: () => _form is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _teamName);
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game);
+    }
+
+    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
+        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
+
+    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
+        => side.SelectMany(p => p.Totals.Keys)
+            .GroupBy(k => k)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => g.Key)
+            .Take(4)
+            .ToList();
+}

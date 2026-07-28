@@ -1,0 +1,62 @@
+@using LineOps.Web.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+
+@*
+    Fixed footer: the desk's operating conditions — column count, effective size, and
+    anything that was just closed to make room.
+*@
+
+<footer class="ftr">
+    <span class="ftr__spacer"></span>
+
+    @if (Manager.LastEviction is { } eviction)
+    {
+        @* A window that vanished must say so. Silent eviction reads as a bug, not a policy. *@
+        <div class="ftr__refusal" role="status">
+            <Glyph Icon="@Icons.Material.Filled.LayersClear" />
+            <span>@eviction</span>
+            <button class="ftr__dismiss" type="button" aria-label="Dismiss"
+                    @onclick="Manager.ClearEviction">
+                <Glyph Icon="@Icons.Material.Filled.Close" />
+            </button>
+        </div>
+    }
+
+    <span class="ftr__stat" title="Windows tile as a horizontal row">
+        @Manager.OpenCount @(Manager.OpenCount == 1 ? "column" : "columns")
+    </span>
+    <span class="ftr__divider"></span>
+    <span class="ftr__stat num" title="@ResolutionTitle">
+        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
+        @if (Manager.Settings.ResolutionMode == ResolutionMode.Fixed)
+        {
+            <span class="ftr__flag">fixed</span>
+        }
+    </span>
+    <span class="ftr__divider"></span>
+    <span class="ftr__stat num">@DateTime.Now.ToString("HH:mm")</span>
+</footer>
+
+@code {
+    private Timer? _clock;
+
+    private string ResolutionTitle => Manager.Settings.ResolutionMode == ResolutionMode.Fixed
+        ? $"Declared size. Browser is {(int)Manager.ViewportWidth}×{(int)Manager.ViewportHeight}."
+        : "Following the browser window.";
+
+    protected override void OnInitialized()
+    {
+        Manager.Changed += OnChanged;
+        _clock = new Timer(_ => InvokeAsync(StateHasChanged), null,
+            TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Manager.Changed -= OnChanged;
+        _clock?.Dispose();
+    }
+}

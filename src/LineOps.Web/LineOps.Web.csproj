@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\LineOps.Core\LineOps.Core.csproj" />
+    <ProjectReference Include="..\LineOps.Data\LineOps.Data.csproj" />
+    <ProjectReference Include="..\LineOps.Reliability\LineOps.Reliability.csproj" />
+    <ProjectReference Include="..\LineOps.Ingestion\LineOps.Ingestion.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>0b361d6c-6c85-4edc-a846-30fdbccc36d3</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

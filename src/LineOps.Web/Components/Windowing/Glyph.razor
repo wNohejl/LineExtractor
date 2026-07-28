@@ -1,0 +1,10 @@
+@* Renders a MudBlazor icon string as bare SVG, so custom chrome can use the same icon
+   set as the panels without dragging MudIcon's wrapper markup into every title bar. *@
+
+<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+    @((MarkupString)Icon)
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+}

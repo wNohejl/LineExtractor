@@ -1,0 +1,145 @@
+{
+  "dates": [
+    {
+      "games": [
+        {
+          "gamePk": 822868,
+          "gameDate": "2026-07-27T18:35:00Z",
+          "gameType": "R",
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "status": {
+            "detailedState": "Scheduled"
+          },
+          "teams": {
+            "home": {
+              "team": {
+                "id": 140,
+                "name": "Texas Rangers"
+              },
+              "probablePitcher": {
+                "id": 677958,
+                "fullName": "Kumar Rocker"
+              }
+            },
+            "away": {
+              "team": {
+                "id": 136,
+                "name": "Seattle Mariners"
+              },
+              "probablePitcher": {
+                "id": 669923,
+                "fullName": "George Kirby"
+              }
+            }
+          }
+        },
+        {
+          "gamePk": 824245,
+          "gameDate": "2026-07-27T22:40:00Z",
+          "gameType": "R",
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "status": {
+            "detailedState": "Scheduled"
+          },
+          "teams": {
+            "home": {
+              "team": {
+                "id": 116,
+                "name": "Detroit Tigers"
+              },
+              "probablePitcher": {
+                "id": 672456,
+                "fullName": "Keider Montero"
+              }
+            },
+            "away": {
+              "team": {
+                "id": 110,
+                "name": "Baltimore Orioles"
+              },
+              "probablePitcher": {
+                "id": 680694,
+                "fullName": "Kyle Bradish"
+              }
+            }
+          }
+        },
+        {
+          "gamePk": 999001,
+          "gameDate": "2026-03-24T20:05:00Z",
+          "gameType": "S",
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "home": {
+              "team": {
+                "name": "Atlanta Braves",
+                "id": 144
+              }
+            },
+            "away": {
+              "team": {
+                "name": "Tampa Bay Rays",
+                "id": 139
+              }
+            }
+          }
+        },
+        {
+          "gamePk": 999002,
+          "gameDate": "2026-07-14T23:30:00Z",
+          "gameType": "A",
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "home": {
+              "team": {
+                "name": "National League All-Stars",
+                "id": 159
+              }
+            },
+            "away": {
+              "team": {
+                "name": "American League All-Stars",
+                "id": 160
+              }
+            }
+          }
+        },
+        {
+          "gamePk": 999003,
+          "gameDate": "2026-07-27T23:10:00Z",
+          "gameType": "R",
+          "gameNumber": 2,
+          "doubleHeader": "S",
+          "status": {
+            "detailedState": "Scheduled"
+          },
+          "teams": {
+            "home": {
+              "team": {
+                "name": "Texas Rangers",
+                "id": 140
+              }
+            },
+            "away": {
+              "team": {
+                "name": "Seattle Mariners",
+                "id": 136
+              }
+            }
+          }
+        }
+      ],
+      "date": "2026-07-27"
+    }
+  ]
+}

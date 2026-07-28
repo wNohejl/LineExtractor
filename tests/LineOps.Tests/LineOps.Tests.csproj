@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Recorded provider payloads, copied next to the test assembly so parsing is
+       verified against real response shapes without a network call. -->
+  <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LineOps.Core\LineOps.Core.csproj" />
+    <ProjectReference Include="..\..\src\LineOps.Data\LineOps.Data.csproj" />
+    <ProjectReference Include="..\..\src\LineOps.Reliability\LineOps.Reliability.csproj" />
+    <ProjectReference Include="..\..\src\LineOps.Ingestion\LineOps.Ingestion.csproj" />
+  </ItemGroup>
+
+</Project>

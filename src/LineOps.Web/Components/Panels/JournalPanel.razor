@@ -1,0 +1,326 @@
+@using LineOps.Data
+@using LineOps.Ingestion.Services
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+<p class="note" style="margin-bottom:12px">
+    LineOps does not place wagers and has no connection to any sportsbook. Entries here are
+    records of bets already placed elsewhere.
+</p>
+
+<div class="row" style="margin-bottom:12px">
+    <button class="btn btn--primary" type="button" @onclick="() => _showForm = !_showForm">
+        <Glyph Icon="@Icons.Material.Filled.Add" /> Log entry
+    </button>
+    <button class="btn" type="button" @onclick="SettleAsync" disabled="@_busy">
+        <Glyph Icon="@Icons.Material.Filled.Gavel" /> Settle finished games
+    </button>
+    @if (_message is not null)
+    {
+        <span class="dim" style="font-size:12px">@_message</span>
+    }
+</div>
+
+@if (_showForm)
+{
+    <div class="stack" style="padding:12px; background:var(--ink-600); border:1px solid var(--ink-500); border-radius:4px; margin-bottom:14px">
+        <h3 class="panel-h" style="margin:0">New entry</h3>
+
+        <div class="row">
+            <select class="field" style="max-width:260px"
+                    value="@_form.GameId" @onchange="e => _form.GameId = int.TryParse(e.Value?.ToString(), out var v) ? v : null">
+                <option value="">No game (future / other)</option>
+                @foreach (var g in _games)
+                {
+                    <option value="@g.Id">@MatchupWithDate(g)</option>
+                }
+            </select>
+
+            <select class="field"
+                    value="@_form.Market" @onchange="e => _form.Market = e.Value?.ToString() ?? Markets.Spread">
+                <option value="@Markets.Moneyline">Moneyline</option>
+                <option value="@Markets.Spread">Spread</option>
+                <option value="@Markets.Total">Total</option>
+                <option value="@FreeText">Other (describe)</option>
+            </select>
+        </div>
+
+        @if (_form.Market == FreeText)
+        {
+            <input class="field"
+                   placeholder="e.g. Player X over 1.5 receiving TDs" @bind="_form.FreeTextMarket" />
+        }
+
+        <div class="row">
+            <input class="field" style="max-width:190px"
+                   placeholder="Selection" @bind="_form.Outcome" />
+            <input class="field num" style="max-width:90px" type="number" step="0.5"
+                   placeholder="Line" @bind="_form.LineTaken" />
+            <input class="field num" style="max-width:90px" type="number"
+                   placeholder="Price" @bind="_form.PriceTaken" />
+            <input class="field num" style="max-width:90px" type="number"
+                   placeholder="Stake" @bind="_form.Stake" />
+            <input class="field" style="max-width:130px"
+                   placeholder="Book" @bind="_form.Book" />
+        </div>
+
+        <div class="row">
+            <button class="btn btn--primary" type="button" @onclick="SaveAsync" disabled="@(!Valid)">
+                Save entry
+            </button>
+            <button class="btn btn--quiet" type="button" @onclick="() => _showForm = false">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (_entries.Count == 0)
+{
+    <p class="empty">No entries logged yet.</p>
+}
+else
+{
+    <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
+        <PropertyColumn T="JournalEntry" TProperty="DateTimeOffset" Property="e => e.PlacedAt" Title="Placed"
+                        Align="Align.Right" InitialDirection="SortDirection.Descending">
+            <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection">
+            <CellTemplate>
+                @if (!string.IsNullOrWhiteSpace(context.Item.FreeTextMarket))
+                {
+                    @context.Item.FreeTextMarket
+                }
+                else if (context.Item.GameId is { } gameId)
+                {
+                    @* An entry against a tracked game reaches its market. *@
+                    <DeskLink Destination="game" OnClick="() => OpenGameAsync(gameId)">
+                        @context.Item.Outcome
+                        @if (context.Item.LineTaken is { } l)
+                        {
+                            <span class="dim num"> @Line(l)</span>
+                        }
+                    </DeskLink>
+                }
+                else
+                {
+                    @context.Item.Outcome
+                    @if (context.Item.LineTaken is { } l)
+                    {
+                        <span class="dim num"> @Line(l)</span>
+                    }
+                }
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market">
+            <CellTemplate><span class="dim">@context.Item.Market</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book">
+            <CellTemplate><span class="dim">@context.Item.Book</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="int" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
+            <CellTemplate>@Price(context.Item.PriceTaken)</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right">
+            <CellTemplate>@context.Item.Stake.ToString("C0")</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result">
+            <CellTemplate><span class="tag @ResultTag(context.Item.Result)">@context.Item.Result</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right">
+            <CellTemplate>
+                <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
+                    @(context.Item.IsSettled ? context.Item.NetReturn.ToString("C0") : "—")
+                </span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        @* Sorts on the actual cents value, so "worst CLV" is a click — an unresolved entry
+           sorts below every real reading rather than as zero.
+
+           A TemplateColumn rather than a PropertyColumn because the sort key is computed:
+           PropertyColumn takes an expression tree, which cannot contain the null-propagating
+           operator this needs, while SortBy takes an ordinary delegate. *@
+        <TemplateColumn T="JournalEntry" Title="CLV" Align="Align.Right"
+                        SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
+            <CellTemplate>
+                @if (Clv(context.Item) is { } clv)
+                {
+                    <span class="@(clv.BeatClose ? "up" : "down")"
+                          title="Took @Price(context.Item.PriceTaken), closed @Price(context.Item.ClosingPrice!.Value)">
+                        @clv.CentsPercent.ToString("+0.0;-0.0")%
+                    </span>
+                }
+                else
+                {
+                    <span class="dim">—</span>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right">
+            <CellTemplate>
+                @if (!context.Item.IsSettled)
+                {
+                    <select class="field" style="height:24px"
+                            @onchange="e => SetResultAsync(context.Item.Id, e.Value?.ToString())">
+                        <option value="">Settle…</option>
+                        <option value="@EntryResult.Win">Win</option>
+                        <option value="@EntryResult.Loss">Loss</option>
+                        <option value="@EntryResult.Push">Push</option>
+                        <option value="@EntryResult.Void">Void</option>
+                    </select>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+    </DeskGrid>
+}
+
+@code {
+    private const string FreeText = "__free__";
+
+    private class Form
+    {
+        public int? GameId { get; set; }
+        public string Market { get; set; } = Markets.Spread;
+        public string? FreeTextMarket { get; set; }
+        public string Outcome { get; set; } = string.Empty;
+        public decimal? LineTaken { get; set; }
+        public int PriceTaken { get; set; } = -110;
+        public decimal Stake { get; set; } = 100m;
+        public string Book { get; set; } = "draftkings";
+    }
+
+    private List<JournalEntry> _entries = [];
+    private List<Game> _games = [];
+    private Form _form = new();
+    private bool _showForm;
+    private bool _busy;
+    private string? _message;
+
+    private bool Valid
+        => _form.Stake > 0 && _form.PriceTaken != 0
+           && (!string.IsNullOrWhiteSpace(_form.Outcome) || !string.IsNullOrWhiteSpace(_form.FreeTextMarket));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _entries = await db.JournalEntries
+            .Include(e => e.Game).ThenInclude(g => g!.HomeTeam)
+            .Include(e => e.Game).ThenInclude(g => g!.AwayTeam)
+            .OrderByDescending(e => e.PlacedAt)
+            .Take(200)
+            .ToListAsync();
+
+        _games = await db.Games
+            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddDays(-7))
+            .OrderBy(g => g.StartsAt).Take(80)
+            .ToListAsync();
+
+        var pending = _entries.Count(e => !e.IsSettled);
+
+        Report(pending > 0 ? PulseState.Warn : PulseState.Healthy,
+            _entries.Count == 0 ? null : $"{pending} pending");
+    }
+
+    private static ClvResult? Clv(JournalEntry entry)
+        => entry.ClosingPrice is { } close && entry.PriceTaken != 0
+            ? new ClvResult(entry.PriceTaken, close)
+            : null;
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var game = await db.Games
+            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game is not null)
+            Manager.OpenGame(game);
+    }
+
+    private static string ResultTag(EntryResult result) => result switch
+    {
+        EntryResult.Win => "tag--good",
+        EntryResult.Loss => "tag--bad",
+        EntryResult.Push => "tag--info",
+        EntryResult.Void => "",
+        _ => "tag--warn"
+    };
+
+    private async Task SaveAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var free = _form.Market == FreeText;
+
+        db.JournalEntries.Add(new JournalEntry
+        {
+            GameId = _form.GameId,
+            Market = free ? "other" : _form.Market,
+            FreeTextMarket = free ? _form.FreeTextMarket : null,
+            Outcome = string.IsNullOrWhiteSpace(_form.Outcome) ? "—" : _form.Outcome,
+            LineTaken = _form.LineTaken,
+            PriceTaken = _form.PriceTaken,
+            Stake = _form.Stake,
+            Book = _form.Book,
+            PlacedAt = DateTimeOffset.UtcNow,
+            Result = EntryResult.Pending
+        });
+
+        await db.SaveChangesAsync();
+
+        _form = new Form();
+        _showForm = false;
+        _message = "Entry logged.";
+
+        await LoadAsync();
+    }
+
+    private async Task SetResultAsync(int entryId, string? value)
+    {
+        if (!Enum.TryParse<EntryResult>(value, out var result))
+            return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
+
+        PerformanceAnalytics.ApplyResult(entry, result);
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+
+    private async Task SettleAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "settling");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var summary = await scope.ServiceProvider
+                .GetRequiredService<SettlementService>().SettleAsync();
+
+            _message = $"{summary.Graded} graded · {summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

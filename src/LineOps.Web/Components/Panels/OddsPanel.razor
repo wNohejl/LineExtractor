@@ -1,0 +1,304 @@
+@using LineOps.Data
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+<div class="row" style="margin-bottom:12px">
+    <select class="field" style="max-width:280px"
+            value="@_gameId" @onchange="OnGameChanged">
+        @foreach (var g in _games)
+        {
+            <option value="@g.Id">@MatchupWithDate(g)</option>
+        }
+    </select>
+
+    <select class="field"
+            value="@_market" @onchange="OnMarketChanged">
+        <option value="@Markets.Moneyline">Moneyline</option>
+        <option value="@Markets.Spread">Spread</option>
+        <option value="@Markets.Total">Total</option>
+    </select>
+</div>
+
+@if (_series.Count == 0)
+{
+    <p class="empty">
+        No stored moves for this game and market. Prices are only written when they change,
+        so a market that has not moved has nothing to plot.
+    </p>
+}
+else
+{
+    <MudChart T="double" ChartType="ChartType.Line" ChartSeries="_series"
+              XAxisLabels="@_labels" Width="100%" Height="240px" />
+
+    <h3 class="panel-h" style="margin-top:16px">Current market</h3>
+
+    <DeskGrid T="OddsSnapshot" Items="_current" EmptyText="No prices on this market.">
+        <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Book" Title="Book"
+                        InitialDirection="SortDirection.Ascending" />
+        <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Outcome" Title="Selection" />
+
+        <PropertyColumn T="OddsSnapshot" TProperty="decimal" Property="s => s.Line ?? 0" Title="Line" Align="Align.Right">
+            <CellTemplate>@(context.Item.Line is { } l ? Line(l) : "—")</CellTemplate>
+        </PropertyColumn>
+
+        @* Sorting on price is how you find the best number across books. *@
+        <PropertyColumn T="OddsSnapshot" TProperty="int" Property="s => s.PriceAmerican" Title="Price" Align="Align.Right">
+            <CellTemplate>@Price(context.Item.PriceAmerican)</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="OddsSnapshot" TProperty="double"
+                        Property="@(s => OddsMath.ImpliedProbability(s.PriceAmerican))"
+                        Title="Implied" Align="Align.Right">
+            <CellTemplate>
+                <span class="dim">@OddsMath.ImpliedProbability(context.Item.PriceAmerican).ToString("P1")</span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="OddsSnapshot" TProperty="DateTimeOffset" Property="s => s.CapturedAt"
+                        Title="Observed" Align="Align.Right">
+            <CellTemplate><span class="dim">@Starts(context.Item.CapturedAt)</span></CellTemplate>
+        </PropertyColumn>
+    </DeskGrid>
+
+    <p class="note" style="margin-top:14px">
+        @_moveCount price @(_moveCount == 1 ? "move" : "moves") recorded across
+        @_current.Count book/selection @(_current.Count == 1 ? "pair" : "pairs").
+    </p>
+}
+
+@*
+    The cross-reference. Odds say what the market thinks; these say what actually happened.
+    Read live from the stats history by reference — nothing here is copied onto the odds tier,
+    because form changes daily and a stored copy would go stale without saying so.
+*@
+
+<h3 class="panel-h" style="margin-top:18px">Recent form</h3>
+
+@if (_form is null)
+{
+    <p class="empty">Select a game to cross-reference its players against their history.</p>
+}
+else if (_form.IsEmpty)
+{
+    <p class="empty">
+        No appearances on record for either roster in the last @_windowDays days. History is
+        gathered separately — open the History window to backfill it.
+    </p>
+}
+else
+{
+    <div class="row" style="margin-bottom:9px">
+        <select class="field" value="@_windowDays" @onchange="OnWindowChanged">
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+        </select>
+        <span class="dim" style="font-size:11.5px">
+            @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
+        </span>
+    </div>
+
+    @RenderSide(_form.Away, _form.Game.AwayTeam?.Name ?? "Away")
+    @RenderSide(_form.Home, _form.Game.HomeTeam?.Name ?? "Home")
+}
+
+@code {
+    /// <summary>Set when opened from the slate; otherwise the first upcoming game is shown.</summary>
+    [Parameter] public int? GameId { get; set; }
+
+    private List<Game> _games = [];
+    private List<OddsSnapshot> _current = [];
+    private List<ChartSeries<double>> _series = [];
+    private string[] _labels = [];
+    private int? _gameId;
+    private string _market = Markets.Moneyline;
+    private int _moveCount;
+
+    private MatchupForm? _form;
+    private int _windowDays = 30;
+
+    /// <summary>
+    /// Columns are derived from the data rather than declared, because stat keys differ per
+    /// sport and per source. The busiest keys across the roster are the ones worth the width.
+    /// </summary>
+    /// <summary>A stat is a rate if anyone on this side recorded a fractional value for it.</summary>
+    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
+        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
+
+    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
+        => side.SelectMany(p => p.Totals.Keys)
+            .GroupBy(k => k)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => g.Key)
+            .Take(5)
+            .ToList();
+
+    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
+        @if (side.Count > 0)
+        {
+            var columns = ColumnsFor(side);
+
+            <h4 class="panel-h" style="margin-top:12px; color:var(--haze)">@teamName</h4>
+            <div class="gridwrap"><table class="grid">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Pos</th>
+                        <th class="r">GP</th>
+                        @foreach (var c in columns)
+                        {
+                            @* Rates are averaged, counts are totalled, and the header says
+                               which so a number is never ambiguous. *@
+                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
+                        }
+                        <th class="r">Last</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in side)
+                    {
+                        <tr>
+                            <td class="trunc" title="@p.Name">@p.Name</td>
+                            <td class="dim">@(p.Position ?? "—")</td>
+                            <td class="r">@p.Appearances</td>
+                            @foreach (var c in columns)
+                            {
+                                <td class="r">
+                                    @* A player with no reading for this key gets a dash, not a
+                                       zero — they are different facts. *@
+                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
+                                </td>
+                            }
+                            <td class="r dim">@p.LastPlayed.ToLocalTime().ToString("MMM d")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </text>;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _games = await db.Games
+            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddDays(-14))
+            .OrderBy(g => g.StartsAt)
+            .Take(120)
+            .ToListAsync();
+
+        _gameId = GameId ?? _games.FirstOrDefault()?.Id;
+        await LoadAsync();
+    }
+
+    private async Task OnGameChanged(ChangeEventArgs e)
+    {
+        _gameId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        await LoadAsync();
+    }
+
+    private async Task OnMarketChanged(ChangeEventArgs e)
+    {
+        _market = e.Value?.ToString() ?? Markets.Moneyline;
+        await LoadAsync();
+    }
+
+    private async Task OnWindowChanged(ChangeEventArgs e)
+    {
+        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        await LoadFormAsync();
+    }
+
+    /// <summary>
+    /// The cross-reference read. Separate from the odds load because the two answer different
+    /// questions about the same game and only one of them changes when the market does.
+    /// </summary>
+    private async Task LoadFormAsync()
+    {
+        _form = null;
+
+        if (_gameId is not { } gameId)
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+
+        _form = await lookup.GetAsync(gameId, TimeSpan.FromDays(_windowDays));
+    }
+
+    private async Task LoadAsync()
+    {
+        _series = [];
+        _labels = [];
+        _current = [];
+        _moveCount = 0;
+
+        await LoadFormAsync();
+
+        if (_gameId is not { } gameId)
+        {
+            Report(PulseState.Idle);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var snapshots = await db.OddsSnapshots
+            .Where(s => s.GameId == gameId && s.Market == _market)
+            .OrderBy(s => s.CapturedAt)
+            .ToListAsync();
+
+        _moveCount = snapshots.Count;
+
+        if (snapshots.Count == 0)
+        {
+            Report(PulseState.Idle, "no moves");
+            return;
+        }
+
+        var times = snapshots.Select(s => s.CapturedAt).Distinct().OrderBy(t => t).ToList();
+        var stride = Math.Max(1, times.Count / 6);
+
+        _labels = times
+            .Select((t, i) => i % stride == 0 ? t.ToLocalTime().ToString("dd HH:mm") : string.Empty)
+            .ToArray();
+
+        foreach (var group in snapshots.GroupBy(s => new { s.Book, s.Outcome }))
+        {
+            var ordered = group.OrderBy(s => s.CapturedAt).ToList();
+            var data = new double[times.Count];
+            var cursor = 0;
+            double last = ordered[0].PriceAmerican;
+
+            for (var i = 0; i < times.Count; i++)
+            {
+                // A gap means "unchanged", not "unknown", so the last price carries forward.
+                while (cursor < ordered.Count && ordered[cursor].CapturedAt <= times[i])
+                    last = ordered[cursor++].PriceAmerican;
+
+                data[i] = last;
+            }
+
+            _series.Add(new ChartSeries<double>
+            {
+                Name = $"{group.Key.Outcome} · {group.Key.Book}",
+                Data = data
+            });
+        }
+
+        _current = snapshots
+            .GroupBy(s => new { s.Book, s.Outcome })
+            .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
+            .OrderBy(s => s.Book).ThenBy(s => s.Outcome)
+            .ToList();
+
+        Report(PulseState.Healthy, $"{_moveCount} moves");
+    }
+}

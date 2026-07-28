@@ -1,0 +1,188 @@
+@using LineOps.Web.Windowing
+@inherits PanelBase
+
+@*
+    Desk configuration. Every control here changes the desk immediately — there is no Save,
+    because the desk behind this window *is* the preview.
+*@
+
+<div class="metrics" style="margin-bottom:16px">
+    <div class="metric metric--info">
+        <div class="metric__value">@Manager.OpenCount/@S.MaxConcurrentWindows</div>
+        <div class="metric__label">Windows open</div>
+        <div class="metric__note">ceiling you set</div>
+    </div>
+    <div class="metric">
+        <div class="metric__value">@((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)</div>
+        <div class="metric__label">Desk</div>
+        <div class="metric__note">@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")</div>
+    </div>
+    <div class="metric @(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? "metric--warn" : "metric--good")">
+        <div class="metric__value">@Manager.RecommendedCapacity</div>
+        <div class="metric__label">Fits readably</div>
+        <div class="metric__note">at this size and layout</div>
+    </div>
+</div>
+
+@if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
+{
+    <p class="note note--warn" style="margin-bottom:16px">
+        Your ceiling is above what this desk fits at a readable width. Columns hold at
+        @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
+    </p>
+}
+
+<p class="note" style="margin-bottom:16px">
+    Windows always tile as one horizontal row — every window is its own tab. Drag a title
+    bar past a neighbour to reorder them, or the divider between two to resize them.
+</p>
+
+<h3 class="panel-h">Concurrent windows</h3>
+<div class="row">
+    <button class="btn" type="button" @onclick="() => AdjustMax(-1)" disabled="@(S.MaxConcurrentWindows <= 1)">
+        <Glyph Icon="@Icons.Material.Filled.Remove" />
+    </button>
+    <span class="num" style="min-width:2.5ch; text-align:center; font-size:19px">@S.MaxConcurrentWindows</span>
+    <button class="btn" type="button" @onclick="() => AdjustMax(1)" disabled="@(S.MaxConcurrentWindows >= 12)">
+        <Glyph Icon="@Icons.Material.Filled.Add" />
+    </button>
+    <button class="btn btn--quiet" type="button" @onclick="MatchRecommended">
+        Match this desk (@Manager.RecommendedCapacity)
+    </button>
+</div>
+<p class="empty" style="padding-top:6px">
+    Opening past this closes the least recently used window — named in the footer when it
+    happens, and in the launcher before it does.
+</p>
+
+<h3 class="panel-h">Primary window</h3>
+<div class="row">
+    <select class="field" style="min-width:200px"
+            value="@(S.PrimaryWindowKey ?? "")"
+            @onchange="OnPrimaryChanged">
+        <option value="">None — every window equal</option>
+        @foreach (var definition in WindowCatalog.All)
+        {
+            <option value="@definition.Key">@definition.Title</option>
+        }
+    </select>
+</div>
+
+@if (S.PrimaryWindowKey is not null)
+{
+    <div class="row" style="margin-top:10px">
+        <span class="dim" style="min-width:70px; font-size:12px">Share</span>
+        <input type="range" min="20" max="80" step="5"
+               value="@((int)(S.PrimaryShare * 100))"
+               @oninput="OnShareChanged"
+               style="flex:1; max-width:240px; accent-color: var(--iris)" />
+        <span class="num" style="min-width:4ch">@((int)(S.PrimaryShare * 100))%</span>
+    </div>
+    <p class="empty" style="padding-top:6px">
+        The primary window takes this share of the row wherever it sits — it does not force
+        its position, so dragging it to reorder the row is never fought. It is also what
+        opens on an empty desk. Dragging a divider overrides the share until you
+        <button class="btn btn--quiet" type="button" style="height:22px" @onclick="Manager.ResetWidths">
+            reset widths
+        </button>.
+    </p>
+}
+
+<h3 class="panel-h">Resolution</h3>
+<div class="row">
+    <button class="btn @(S.ResolutionMode == ResolutionMode.Auto ? "btn--primary" : null)"
+            type="button" @onclick="UseAuto">
+        Follow browser
+    </button>
+    <button class="btn @(S.ResolutionMode == ResolutionMode.Fixed ? "btn--primary" : null)"
+            type="button" @onclick="UseFixed">
+        Declare a size
+    </button>
+</div>
+
+@if (S.ResolutionMode == ResolutionMode.Fixed)
+{
+    <div class="row" style="margin-top:10px">
+        @foreach (var preset in Presets)
+        {
+            <button class="btn @(S.CustomWidth == preset.W && S.CustomHeight == preset.H ? "btn--primary" : null)"
+                    type="button" @onclick="() => ApplyPreset(preset.W, preset.H)">
+                @preset.Label
+            </button>
+        }
+    </div>
+
+    <div class="row" style="margin-top:10px">
+        <span class="dim" style="min-width:70px; font-size:12px">Custom</span>
+        <input class="field num" type="number" min="640" max="7680" step="10" style="max-width:100px"
+               value="@S.CustomWidth" @onchange="OnWidthChanged" />
+        <span class="dim">×</span>
+        <input class="field num" type="number" min="480" max="4320" step="10" style="max-width:100px"
+               value="@S.CustomHeight" @onchange="OnHeightChanged" />
+    </div>
+
+    <p class="note" style="margin-top:10px">
+        The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your browser is
+        @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange a desk for the screen
+        you will run it on, not the one you are configuring it from — the view scrolls if the
+        declared size is larger.
+    </p>
+}
+
+@code {
+    private DeskSettings S => Manager.Settings;
+
+    private static readonly (string Label, int W, int H)[] Presets =
+    [
+        ("1280×720", 1280, 720),
+        ("1920×1080", 1920, 1080),
+        ("2560×1440", 2560, 1440),
+        ("3440×1440", 3440, 1440)
+    ];
+
+    protected override void OnInitialized()
+        => Report(PulseState.Idle, $"{Manager.OpenCount}/{S.MaxConcurrentWindows}");
+
+    private void AdjustMax(int delta) => Manager.UpdateSettings(s =>
+        s.MaxConcurrentWindows = Math.Clamp(s.MaxConcurrentWindows + delta, 1, 12));
+
+    private void MatchRecommended()
+    {
+        var target = Manager.RecommendedCapacity;
+        Manager.UpdateSettings(s => s.MaxConcurrentWindows = target);
+    }
+
+    private void OnPrimaryChanged(ChangeEventArgs e)
+    {
+        var key = e.Value?.ToString();
+        Manager.UpdateSettings(s => s.PrimaryWindowKey = string.IsNullOrEmpty(key) ? null : key);
+    }
+
+    private void OnShareChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var percent))
+            Manager.UpdateSettings(s => s.PrimaryShare = percent / 100d);
+    }
+
+    private void UseAuto() => Manager.UpdateSettings(s => s.ResolutionMode = ResolutionMode.Auto);
+
+    private void UseFixed() => Manager.UpdateSettings(s => s.ResolutionMode = ResolutionMode.Fixed);
+
+    private void ApplyPreset(int width, int height) => Manager.UpdateSettings(s =>
+    {
+        s.CustomWidth = width;
+        s.CustomHeight = height;
+    });
+
+    private void OnWidthChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+            Manager.UpdateSettings(s => s.CustomWidth = Math.Clamp(value, 640, 7680));
+    }
+
+    private void OnHeightChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+            Manager.UpdateSettings(s => s.CustomHeight = Math.Clamp(value, 480, 4320));
+    }
+}

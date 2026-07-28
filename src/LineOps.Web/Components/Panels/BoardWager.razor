@@ -1,0 +1,207 @@
+@using LineOps.Core.Analytics
+@using LineOps.Core.Entities
+@using LineOps.Data
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Logging a wager from the board.
+
+    The point of placing from here is that everything except the stake is already known — the
+    game, the market, the side, the price and the book that has it. Retyping any of it is an
+    opportunity to record a bet you did not make, so the form starts filled and the operator
+    only supplies what the board cannot: how much.
+*@
+
+<div class="stack" style="gap:10px">
+    <div>
+        <div class="panel-h" style="margin-bottom:6px">Selection</div>
+        <div class="row">
+            @foreach (var choice in _choices)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Tone="@(IsChosen(choice) ? DeskTone.Action : DeskTone.Neutral)"
+                            OnClick="() => Choose(choice)">
+                    @choice.Label
+                </DeskButton>
+            }
+        </div>
+    </div>
+
+    @if (_chosen is { } chosen)
+    {
+        <div class="metrics">
+            <div class="metric metric--info">
+                <div class="metric__value num">@Price(chosen.Offer.PriceAmerican)</div>
+                <div class="metric__label">Price</div>
+                <div class="metric__note">best of @chosen.Offer.Rungs.Count</div>
+            </div>
+            <div class="metric">
+                <div class="metric__value num">@chosen.Offer.Book</div>
+                <div class="metric__label">Book</div>
+            </div>
+            <div class="metric @(_stake > 0 ? "metric--good" : null)">
+                <div class="metric__value num">@Payout.ToString("C0")</div>
+                <div class="metric__label">Returns</div>
+                <div class="metric__note">stake plus profit</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <input class="field num" type="number" step="5" min="0" style="max-width:130px"
+                   placeholder="Stake" @bind="_stake" @bind:event="oninput" />
+
+            @foreach (var quick in new[] { 25m, 50m, 100m })
+            {
+                <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _stake = quick">
+                    @quick.ToString("C0")
+                </DeskButton>
+            }
+        </div>
+
+        <input class="field" placeholder="Note (optional)" @bind="_note" />
+
+        @if (_error is not null)
+        {
+            <p class="note note--warn" style="margin:0">@_error</p>
+        }
+
+        <div class="row row--end">
+            <DeskButton Tone="DeskTone.Go"
+                        Icon="@Icons.Material.Filled.Bolt"
+                        Busy="@_saving"
+                        Disabled="@(_stake <= 0)"
+                        OnClick="PlaceAsync">
+                Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
+            </DeskButton>
+        </div>
+
+        <p class="empty" style="padding:0">
+            Logged against the price shown. CLV resolves on its own once the game starts and the
+            closing line is recorded.
+        </p>
+    }
+    else
+    {
+        <p class="empty">Pick a side to price it.</p>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than a row so the view can be hosted
+    /// as a desk window, which is rebuilt from its parameters and cannot carry an object.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    [Parameter] public EventCallback OnPlaced { get; set; }
+
+    private BoardRow? Row;
+
+    private sealed record Choice(string Label, string Market, BestOffer Offer);
+
+    private List<Choice> _choices = [];
+    private Choice? _chosen;
+    private decimal _stake;
+    private string? _note;
+    private string? _error;
+    private bool _saving;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        Row = await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+
+        _choices = Build().ToList();
+
+        // Default to the market with the most to gain from shopping — the reason this game is
+        // worth looking at is usually the one with the widest spread between books.
+        _chosen = _choices
+            .OrderByDescending(c => c.Offer.EdgePoints ?? 0)
+            .FirstOrDefault();
+    }
+
+    private IEnumerable<Choice> Build()
+    {
+        if (Row is null)
+            yield break;
+
+        foreach (var (pair, name) in new[]
+        {
+            (Row.Moneyline, "ML"),
+            (Row.Spread, "Spread"),
+            (Row.Total, "Total")
+        })
+        {
+            if (pair.First is { } first)
+                yield return new Choice($"{name} · {Short(first.Outcome)}{LineOf(first)}", pair.Market, first);
+
+            if (pair.Second is { } second)
+                yield return new Choice($"{name} · {Short(second.Outcome)}{LineOf(second)}", pair.Market, second);
+        }
+    }
+
+    private static string LineOf(BestOffer offer)
+        => offer.Line is { } l ? " " + OddsMath.FormatLine(l, offer.Outcome) : "";
+
+    /// <summary>Team names are long and these are buttons; the last word identifies a club.</summary>
+    private static string Short(string outcome)
+        => outcome.Contains(' ') && !outcome.Equals("over", StringComparison.OrdinalIgnoreCase)
+           && !outcome.Equals("under", StringComparison.OrdinalIgnoreCase)
+            ? outcome[(outcome.LastIndexOf(' ') + 1)..]
+            : outcome;
+
+    private bool IsChosen(Choice choice)
+        => _chosen is { } c && c.Market == choice.Market && c.Offer.Outcome == choice.Offer.Outcome;
+
+    private void Choose(Choice choice) => _chosen = choice;
+
+    private decimal Payout
+        => _chosen is null || _stake <= 0
+            ? 0
+            : OddsMath.PayoutOnWin(_chosen.Offer.PriceAmerican, _stake);
+
+    private async Task PlaceAsync()
+    {
+        if (_chosen is not { } chosen || Row is null || _stake <= 0)
+            return;
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            db.JournalEntries.Add(new JournalEntry
+            {
+                GameId = Row.Game.Id,
+                Market = chosen.Market,
+                Outcome = chosen.Offer.Outcome,
+                Book = chosen.Offer.Book,
+                PriceTaken = chosen.Offer.PriceAmerican,
+                LineTaken = chosen.Offer.Line,
+                Stake = _stake,
+                PlacedAt = DateTimeOffset.UtcNow,
+                Result = EntryResult.Pending,
+                Note = string.IsNullOrWhiteSpace(_note) ? null : _note
+            });
+
+            await db.SaveChangesAsync();
+            await OnPlaced.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Not logged: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string Price(int american) => OddsMath.FormatPrice(american);
+}

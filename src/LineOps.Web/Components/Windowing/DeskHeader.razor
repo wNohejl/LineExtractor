@@ -1,0 +1,140 @@
+@using LineOps.Web.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+
+@*
+    Fixed header: identity, the things that create or arrange windows, and the desk's own
+    state. Windows are their own tabs in the row below, so there is nothing here to relocate.
+*@
+
+<header class="hdr">
+    <span class="hdr__brand">LINE<em>OPS</em></span>
+    <span class="hdr__sub">sports-data ingestion &amp; analytics operations</span>
+
+    <span class="hdr__divider"></span>
+
+    <RailMenu @ref="_launcher" Icon="@Icons.Material.Filled.AddBox" Label="Open a window" Accent="true">
+        <div class="launcher">
+            @foreach (var group in WindowCatalog.All.GroupBy(d => d.Group))
+            {
+                <div class="launcher__group">@group.Key</div>
+                @foreach (var definition in group)
+                {
+                    var isOpen = Manager.Windows.Any(w => w.Definition.Key == definition.Key);
+
+                    <button class="launcher__item" type="button" role="menuitem"
+                            @onclick="() => Open(definition)">
+                        <Glyph Icon="@definition.Icon" />
+                        <span>
+                            @definition.Title
+                            @if (isOpen)
+                            {
+                                <span class="launcher__open">open</span>
+                            }
+                            <span class="launcher__desc">@definition.Description</span>
+                        </span>
+                    </button>
+                }
+            }
+
+            @* Nothing is ever refused, so the note warns rather than blocks: it names the
+               window that is about to be closed, before the click that closes it. *@
+            @if (Manager.AtCapacity && NextEviction is { } victim)
+            {
+                <p class="launcher__note">
+                    Desk is full at @Manager.Settings.MaxConcurrentWindows.
+                    Opening another closes <strong>@victim</strong> — least recently used.
+                </p>
+            }
+        </div>
+    </RailMenu>
+
+    <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces">
+        <div class="launcher">
+            <div class="launcher__group">Workspaces</div>
+            @foreach (var workspace in WindowCatalog.Workspaces)
+            {
+                <button class="launcher__item" type="button" role="menuitem"
+                        @onclick="() => Apply(workspace)">
+                    <Glyph Icon="@Icons.Material.Filled.Dashboard" />
+                    <span>
+                        @workspace.Name
+                        <span class="launcher__desc">@workspace.Description</span>
+                    </span>
+                </button>
+            }
+
+            <div class="launcher__group">Clear</div>
+            <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
+                <Glyph Icon="@Icons.Material.Filled.ClearAll" />
+                <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
+            </button>
+        </div>
+    </RailMenu>
+
+    <button class="rail__btn" type="button" title="Reset column widths"
+            aria-label="Reset column widths"
+            disabled="@(Manager.OpenCount == 0)"
+            @onclick="Manager.ResetWidths">
+        <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
+    </button>
+
+    <span class="hdr__spacer"></span>
+
+    <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
+          title="Open windows against your ceiling">
+        @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
+    </span>
+
+    <button class="rail__btn" type="button" title="Window manager" aria-label="Window manager"
+            @onclick="OpenSettings">
+        <Glyph Icon="@Icons.Material.Filled.Tune" />
+    </button>
+</header>
+
+@code {
+    private RailMenu? _launcher;
+    private RailMenu? _workspaces;
+
+    // Owns its refresh: reads mutable manager state (open count, capacity), so it must
+    // re-render whenever the manager changes rather than waiting on a parent to.
+    protected override void OnInitialized() => Manager.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Manager.Changed -= OnChanged;
+
+    /// <summary>
+    /// Which window the next open would close. Shown before the click rather than after, so
+    /// eviction is never a surprise.
+    /// </summary>
+    private string? NextEviction => Manager.Windows
+        .OrderByDescending(w => w.Minimised)
+        .ThenBy(w => w.LastFocusedAt)
+        .FirstOrDefault()?.Title;
+
+    private void Open(WindowDefinition definition)
+    {
+        Manager.Open(definition);
+        _launcher?.Close();
+    }
+
+    private void Apply(Workspace workspace)
+    {
+        Manager.ApplyWorkspace(workspace);
+        _workspaces?.Close();
+    }
+
+    private void CloseAll()
+    {
+        Manager.CloseAll();
+        _workspaces?.Close();
+    }
+
+    private void OpenSettings()
+    {
+        var definition = WindowCatalog.Find(WindowCatalog.Desk);
+        if (definition is not null)
+            Manager.Open(definition);
+    }
+}

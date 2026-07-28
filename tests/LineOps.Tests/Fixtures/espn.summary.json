@@ -1,0 +1,56 @@
+{
+  "//": "Trimmed ESPN /summary payload. The shape that matters is a player reported under more than one stat group, since storage allows one line per player per game. Group names are present here (NHL/NFL style); see espn.summary.unnamed.json for the MLB style, where ESPN names no group at all.",
+  "boxscore": {
+    "players": [
+      {
+        "team": { "id": "12", "displayName": "Seattle Seahawks" },
+        "statistics": [
+          {
+            "name": "passing",
+            "labels": [ "C/ATT", "YDS", "TD", "INT" ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p-100",
+                  "displayName": "Sam Darnold",
+                  "position": { "abbreviation": "QB" }
+                },
+                "stats": [ "22/31", "289", "3", "1" ]
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "//": "Same player again. YDS means something different here, so it collides and both sides must survive. TD agrees with nothing — it is a genuine second value.",
+            "labels": [ "CAR", "YDS", "TD" ],
+            "athletes": [
+              {
+                "athlete": { "id": "p-100", "displayName": "Sam Darnold" },
+                "stats": [ "4", "17", "0" ]
+              },
+              {
+                "athlete": {
+                  "id": "p-200",
+                  "displayName": "Kenneth Walker",
+                  "position": { "abbreviation": "RB" }
+                },
+                "stats": [ "18", "94", "1" ]
+              }
+            ]
+          },
+          {
+            "name": "kicking",
+            "//": "A player listed with no recorded values must not produce an empty line.",
+            "labels": [ "FG", "PCT" ],
+            "athletes": [
+              {
+                "athlete": { "id": "p-300", "displayName": "Jason Myers" },
+                "stats": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

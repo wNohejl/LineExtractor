@@ -1,0 +1,12 @@
+# Development overlay. Publishes Postgres to the host so you can run `dotnet run` against
+# it, or connect with psql / a GUI client.
+#
+#   docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres
+#
+# Still bound to 127.0.0.1: convenient locally, never reachable from the network.
+# Deliberately a separate file rather than the default, so the exposed-database case is
+# something you opt into rather than something you forget is on.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5433:5432"

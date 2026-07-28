@@ -1,0 +1,44 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Windowing
+
+@*
+    A grid cell that names something with a window of its own.
+
+    The desk's rule is that highlighting tells you what a click will do — a key lifts toward
+    the light. A cell cannot lift without disturbing the row it sits in, so it says the same
+    thing the other way: highlight it and the shortcut appears, naming where the click goes.
+    Nothing moves, nothing reflows, and a column of these reads as ordinary text until you put
+    the pointer on one.
+
+    The shortcut is reserved rather than revealed — its width is always there, just invisible —
+    because a label that appears by widening its own cell would shove the rest of the row
+    sideways every time the pointer crossed it.
+*@
+
+<button type="button"
+        class="desklink @Class"
+        @onclick="OnClick"
+        @onclick:stopPropagation="true"
+        title="@(Tooltip ?? $"Open {Destination}")">
+    <span class="desklink__label">@ChildContent</span>
+    <span class="desklink__shortcut" aria-hidden="true">
+        <Glyph Icon="@Icon" />@Destination
+    </span>
+</button>
+
+@code {
+    /// <summary>What the cell says. Usually the entity's name.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Where the click goes, in the operator's words — "movement", "player", "runs".</summary>
+    [Parameter, EditorRequired] public string Destination { get; set; } = string.Empty;
+
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.ArrowOutward;
+
+    /// <summary>Overrides the default "Open {Destination}" title.</summary>
+    [Parameter] public string? Tooltip { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+}

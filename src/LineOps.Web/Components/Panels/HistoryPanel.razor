@@ -1,0 +1,219 @@
+@using LineOps.Core.Entities
+@using LineOps.Data
+@using LineOps.Ingestion.Services
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@implements IDisposable
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject HistoryBackfillService Backfill
+@inject BackfillCoordinator Coordinator
+
+@*
+    The history backfill, as an operator sees it.
+
+    The walk itself lives in BackfillCoordinator and outlives this window, so everything here
+    is a view onto something already running: close the window mid-backfill and it keeps
+    going; reopen it and this reattaches.
+*@
+
+<p class="note" style="margin-bottom:12px">
+    The daily schedule can only learn one day per day. This reaches back over past days to
+    build the record analytics need — one request per sport per day, against an unmetered
+    provider only.
+</p>
+
+@if (_eligibility.Count > 0)
+{
+    <h3 class="panel-h">Sources</h3>
+    <div class="stack" style="gap:6px; margin-bottom:4px">
+        @foreach (var source in _eligibility)
+        {
+            <div class="row" style="gap:9px">
+                <span class="tag @(source.Eligible ? "tag--good" : "tag--warn")">
+                    @(source.Eligible ? "Free" : "Refused")
+                </span>
+                <span class="mono" style="font-size:12px">@source.Key</span>
+                <span class="dim" style="font-size:11.5px">@source.Reason</span>
+            </div>
+        }
+    </div>
+
+    @if (!_eligibility.Any(s => s.Eligible))
+    {
+        <p class="note note--warn">
+            Nothing to walk. Backfill runs against unmetered providers only, so a metered one
+            cannot be used here even when it is configured and working — its quota is what the
+            live schedule spends.
+        </p>
+    }
+}
+
+<h3 class="panel-h">Coverage</h3>
+
+@if (_coverage is { } c)
+{
+    <div class="metrics">
+        <div class="metric @(c.Completed > 0 ? "metric--good" : "")">
+            <div class="metric__value num">@c.Completed</div>
+            <div class="metric__label">Days held</div>
+            <div class="metric__note">of @c.TargetDayFetches wanted</div>
+        </div>
+        <div class="metric metric--info">
+            <div class="metric__value num">@c.GamesFound</div>
+            <div class="metric__label">Games</div>
+        </div>
+        <div class="metric metric--info">
+            <div class="metric__value num">@c.RowsIngested</div>
+            <div class="metric__label">Rows</div>
+        </div>
+        <div class="metric @(c.Failed > 0 ? "metric--warn" : "")">
+            <div class="metric__value num">@c.Failed</div>
+            <div class="metric__label">Days failed</div>
+        </div>
+    </div>
+
+    <p class="empty" style="padding:9px 0 0">
+        @if (c.EarliestCovered is { } earliest && c.LatestCovered is { } latest)
+        {
+            <text>Reaches back to <span class="mono">@earliest.ToString("yyyy-MM-dd")</span>,
+                forward to <span class="mono">@latest.ToString("yyyy-MM-dd")</span>.
+                @c.RequestsMade requests spent, 0 credits.</text>
+        }
+        else
+        {
+            <text>No history gathered yet.</text>
+        }
+    </p>
+}
+
+<h3 class="panel-h">Run</h3>
+
+<div class="row" style="margin-bottom:8px">
+    @if (Coordinator.IsRunning)
+    {
+        <DeskButton Tone="DeskTone.Go" Busy="true">Walking</DeskButton>
+        <DeskButton Tone="DeskTone.Stop" Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+            Stop
+        </DeskButton>
+    }
+    else
+    {
+        <DeskButton Tone="DeskTone.Go"
+                    Icon="@Icons.Material.Filled.History"
+                    Disabled="@(!_eligibility.Any(s => s.Eligible))"
+                    OnClick="Start">
+            Gather history
+        </DeskButton>
+        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+            Refresh
+        </DeskButton>
+    }
+</div>
+
+@if (Coordinator.Progress is { } p)
+{
+    <div class="note" style="margin-bottom:8px">
+        <span class="mono">@p.SourceKey · @p.SportKey · @p.Date.ToString("yyyy-MM-dd")</span><br />
+        @p.Walked walked · @p.Skipped already held · @p.Failed failed ·
+        @p.GamesFound games · @p.RowsIngested rows
+    </div>
+}
+
+@if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
+{
+    <div class="note @(r.StoppedBecause is null ? "" : "note--warn")" style="margin-bottom:8px">
+        Finished: @r.Walked days walked, @r.Skipped already held, @r.Failed failed,
+        @r.GamesFound games, @r.RowsIngested rows.
+        @if (r.StoppedBecause is not null)
+        {
+            <br />
+
+            @r.StoppedBecause
+        }
+    </div>
+}
+
+<h3 class="panel-h">Recent days</h3>
+
+<DeskGrid T="BackfillCheckpoint" Items="_recent"
+          EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">
+    <PropertyColumn T="BackfillCheckpoint" TProperty="DateOnly" Property="c => c.Date" Title="Day"
+                    InitialDirection="SortDirection.Descending">
+        <CellTemplate><span class="mono">@context.Item.Date.ToString("yyyy-MM-dd")</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="string" Property="c => c.Sport!.Name" Title="Sport">
+        <CellTemplate><span class="dim">@(context.Item.Sport?.Name ?? "—")</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.GamesFound"
+                    Title="Games" Align="Align.Right" />
+
+    <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.RowsIngested"
+                    Title="Rows" Align="Align.Right" />
+
+    @* Sorting by state is how you find the days that need a retry pass. *@
+    <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State">
+        <CellTemplate>
+            @if (context.Item.Error is null)
+            {
+                <span class="tag tag--good">Held</span>
+            }
+            else
+            {
+                <span class="tag tag--bad" title="@context.Item.Error">Failed</span>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+
+@code {
+    private IReadOnlyList<SourceEligibility> _eligibility = [];
+    private BackfillCoverage? _coverage;
+    private List<BackfillCheckpoint> _recent = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Coordinator.Changed += OnCoordinatorChanged;
+        await LoadAsync();
+    }
+
+    // The coordinator raises Changed from its own worker thread, so the hop onto the
+    // renderer's context is mandatory rather than defensive.
+    private void OnCoordinatorChanged() => InvokeAsync(async () =>
+    {
+        await LoadAsync();
+        StateHasChanged();
+    });
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            _eligibility = await Backfill.GetEligibilityAsync(CancellationToken.None);
+            _coverage = await Backfill.GetCoverageAsync(CancellationToken.None);
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _recent = await db.BackfillCheckpoints
+                .Include(c => c.Sport)
+                .OrderByDescending(c => c.CompletedAt)
+                .Take(40)
+                .ToListAsync();
+        },
+        settle: () => Coordinator.IsRunning ? PulseState.Active
+            : _coverage is { Failed: > 0 } ? PulseState.Warn
+            : _coverage is { Completed: > 0 } ? PulseState.Healthy
+            : PulseState.Idle,
+        status: () => Coordinator.IsRunning
+            ? $"{Coordinator.Progress?.Walked ?? 0} days"
+            : _coverage is { Completed: > 0 } ? $"{_coverage.Completed} days held" : "no history");
+    }
+
+    private void Start() => Coordinator.TryStart();
+
+    private void Stop() => Coordinator.Stop();
+
+    public void Dispose() => Coordinator.Changed -= OnCoordinatorChanged;
+}

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LineOps.Core/LineOps.Core.csproj" />
+    <Project Path="src/LineOps.Data/LineOps.Data.csproj" />
+    <Project Path="src/LineOps.Ingestion/LineOps.Ingestion.csproj" />
+    <Project Path="src/LineOps.Reliability/LineOps.Reliability.csproj" />
+    <Project Path="src/LineOps.Web/LineOps.Web.csproj" />
+    <Project Path="src/LineOps.Worker/LineOps.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LineOps.Tests/LineOps.Tests.csproj" />
+  </Folder>
+</Solution>

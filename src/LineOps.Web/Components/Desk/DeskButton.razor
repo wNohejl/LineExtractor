@@ -1,0 +1,107 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Windowing
+
+@*
+    A key.
+
+    This is the desk's button, and the reason it wraps MudBlazor rather than sitting
+    beside it. Panels will hold a lot of these, and a call site that has to remember
+    Variant, Color, Ripple, DropShadow and a class string is a call site that will
+    drift from the one next to it. Here the caller states two things — what the key
+    does (Tone) and how much room it deserves (Size) — and the moulding is not their
+    problem.
+
+    The MudButton underneath is deliberately its plainest variant: Text + Inherit,
+    which contributes almost no visual rules of its own, plus Ripple off because the
+    desk answers a press with travel and two answers is one too many. Everything a key
+    looks like comes from .desk-key in lineops.css. See css/mud-bridge.css for why that
+    stack resolves the way it does.
+*@
+
+<MudButton Class="@Classes"
+           Variant="Variant.Text"
+           Color="Color.Inherit"
+           Ripple="false"
+           DropShadow="false"
+           ButtonType="@ButtonType"
+           Disabled="@(Disabled || Busy)"
+           OnClick="OnClick"
+           aria-busy="@(Busy ? "true" : null)"
+           title="@Title"
+           @attributes="Extra">
+    @if (Icon is not null)
+    {
+        <Glyph Icon="@Icon" />
+    }
+    @ChildContent
+</MudButton>
+
+@code {
+    /// <summary>The key's label. Omit it for an icon-only key — then <see cref="Title"/> is required.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>A MudBlazor icon string, drawn bare through <c>Glyph</c> so keys use the same icon set as the chrome.</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>What pressing this does. See <see cref="DeskTone"/> — name the consequence, not the colour.</summary>
+    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+
+    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+
+    /// <summary>
+    /// Renders flat and still — a link wearing a hit area rather than a key. For the
+    /// escape from a thing (Cancel, Close, Back), which should not compete with the key
+    /// beside it that commits.
+    /// </summary>
+    [Parameter] public bool Quiet { get; set; }
+
+    /// <summary>
+    /// Work this key started is still running. Shows the pulse sweep and refuses further
+    /// presses, without going grey — an occupied key is not an inert one.
+    /// </summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Tooltip, and the accessible name when there is no label to read.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public ButtonType ButtonType { get; set; } = ButtonType.Button;
+
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "desk-key";
+
+        yield return Tone switch
+        {
+            DeskTone.Action => "desk-key--action",
+            DeskTone.Go => "desk-key--go",
+            DeskTone.Stop => "desk-key--stop",
+            DeskTone.Caution => "desk-key--caution",
+            _ => "desk-key--neutral"
+        };
+
+        yield return Size switch
+        {
+            DeskKeySize.Small => "desk-key--sm",
+            DeskKeySize.Large => "desk-key--lg",
+            _ => null
+        };
+
+        // An icon with no label is a square cap, so it does not read as a clipped button.
+        yield return Icon is not null && ChildContent is null ? "desk-key--icon" : null;
+        yield return Quiet ? "desk-key--quiet" : null;
+        yield return Busy ? "desk-key--busy" : null;
+        yield return Class;
+    }
+}

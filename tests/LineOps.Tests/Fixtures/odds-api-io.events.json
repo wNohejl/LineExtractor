@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "id": "evt-1001",
+      "home": "Seattle Seahawks",
+      "away": "San Francisco 49ers",
+      "date": "2026-09-13T20:05:00Z",
+      "status": "pending"
+    },
+    {
+      "id": "evt-1002",
+      "home": { "name": "Green Bay Packers" },
+      "away": { "name": "Dallas Cowboys" },
+      "startTime": "2026-09-14T00:20:00Z",
+      "status": "pending"
+    },
+    {
+      "id": "evt-1003",
+      "away": "Buffalo Bills",
+      "date": "2026-09-14T17:00:00Z"
+    }
+  ]
+}

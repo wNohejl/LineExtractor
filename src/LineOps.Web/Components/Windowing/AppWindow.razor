@@ -1,0 +1,117 @@
+@using LineOps.Web.Windowing
+@inject WindowManager Manager
+
+@*
+    One tab in the row: chrome, pulse strip, and the hosted panel.
+
+    Full height, positioned only horizontally — the manager owns X and Width. The title bar
+    doubles as the tab: dragging it past a neighbour reorders the row (see windowing.js);
+    dragging the divider at its edge resizes it. Collapsed, only the bar and pulse render —
+    there is no separate list a collapsed window moves into, it just gets narrow.
+
+    The panel inside receives its window id as a cascading value so it can report status
+    upward, and that is the only coupling to the window system.
+*@
+
+<div class="win @(IsFocused ? "win--focused" : null) @(Window.Minimised ? "win--collapsed" : null)"
+     id="@ElementId"
+     style="left:@Px(Window.X); width:@Px(Window.Width);"
+     data-min-width="@Window.Definition.MinWidth"
+     role="region"
+     aria-label="@Window.Title"
+     @onpointerdown="OnPointerDown">
+
+    <div class="win__bar" data-tab-handle @ondblclick="OnBarDoubleClick" @onclick="OnBarClick">
+        <span class="win__icon">
+            <Glyph Icon="@Window.Definition.Icon" />
+        </span>
+
+        @if (!Window.Minimised)
+        {
+            <span class="win__title">@Window.Title</span>
+
+            @if (!string.IsNullOrEmpty(Window.StatusText))
+            {
+                <span class="win__status">@Window.StatusText</span>
+            }
+
+            <span class="win__spacer"></span>
+
+            <div class="win__controls">
+                <button class="win__ctl" type="button" data-window-control
+                        title="Minimise" aria-label="Minimise @Window.Title"
+                        @onclick="Minimise">
+                    <Glyph Icon="@Icons.Material.Filled.Remove" />
+                </button>
+                <button class="win__ctl" type="button" data-window-control
+                        title="@(Window.Maximised ? "Restore the row" : "Take the whole row")"
+                        aria-label="@(Window.Maximised ? "Restore" : "Maximise") @Window.Title"
+                        @onclick="Maximise">
+                    <Glyph Icon="@(Window.Maximised
+                                   ? Icons.Material.Filled.FilterNone
+                                   : Icons.Material.Filled.CropSquare)" />
+                </button>
+                <button class="win__ctl win__ctl--close" type="button" data-window-control
+                        title="Close" aria-label="Close @Window.Title"
+                        @onclick="Close">
+                    <Glyph Icon="@Icons.Material.Filled.Close" />
+                </button>
+            </div>
+        }
+    </div>
+
+    @* SIGNATURE: this window's own state, readable without focusing it — including collapsed. *@
+    <div class="pulse @PulseClass" role="status"
+         aria-label="@Window.Title status: @Window.Pulse"></div>
+
+    @if (!Window.Minimised)
+    {
+        <div class="win__body">
+            <CascadingValue Value="@Window.Id" Name="WindowId">
+                <DynamicComponent Type="Window.Definition.ComponentType"
+                                  Parameters="Window.Parameters" />
+            </CascadingValue>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WindowInstance Window { get; set; } = default!;
+    [Parameter] public bool IsFocused { get; set; }
+
+    private string ElementId => $"win-{Window.Id}";
+
+    private string PulseClass => Window.Pulse switch
+    {
+        PulseState.Healthy => "pulse--healthy",
+        PulseState.Warn => "pulse--warn",
+        PulseState.Critical => "pulse--critical",
+        PulseState.Active => "pulse--active",
+        _ => "pulse--idle"
+    };
+
+    private static string Px(double value)
+        => $"{value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}px";
+
+    // Pointer-down anywhere marks this window as most recently used, which is what keeps it
+    // safe from eviction. Using pointerdown rather than click means the bookkeeping happens
+    // before a drag even starts.
+    private void OnPointerDown() => Manager.Focus(Window.Id);
+
+    // A collapsed tab has no controls to click — the whole bar is "expand".
+    private void OnBarClick()
+    {
+        if (Window.Minimised)
+            Manager.Focus(Window.Id);
+    }
+
+    private void OnBarDoubleClick()
+    {
+        if (!Window.Minimised)
+            Maximise();
+    }
+
+    private void Minimise() => Manager.ToggleMinimise(Window.Id);
+    private void Maximise() => Manager.ToggleMaximise(Window.Id);
+    private void Close() => Manager.Close(Window.Id);
+}

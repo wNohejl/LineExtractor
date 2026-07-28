@@ -1,0 +1,19 @@
+# Build outputs must never enter the context: they bloat the upload and can shadow
+# the container's own restore with host-built binaries.
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.claude/
+**/.git/
+**/.github/
+**/node_modules/
+
+tests/
+docs/
+*.md
+
+# Never bake local secrets into an image layer.
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+**/.env

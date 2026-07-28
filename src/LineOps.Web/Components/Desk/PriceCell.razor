@@ -1,0 +1,113 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Core.Analytics
+@using LineOps.Data.CrossReference
+
+@*
+    One market's best offer, and where the rest of the market stands.
+
+    The rail is the point. Each tick is a book, placed by its implied probability between the
+    best and worst on offer, so the width of the group *is* the value of shopping. Books that
+    agree collapse to one mark. Nothing has to be read to see whether a game repays the work.
+*@
+
+@if (Offer is null)
+{
+    <span class="dim">—</span>
+}
+else
+{
+    <div class="price" title="@Tooltip">
+        <div class="price__top">
+            @if (Offer.Line is { } line)
+            {
+                <span class="price__line">@FormatLine(line, Offer.Outcome)</span>
+            }
+            <span class="price__odds">@FormatPrice(Offer.PriceAmerican)</span>
+            <span class="price__book">@Monogram(Offer.Book)</span>
+        </div>
+
+        @if (Offer.Rungs.Count > 1)
+        {
+            <div class="rail">
+                @foreach (var rung in Offer.Rungs)
+                {
+                    <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
+                          style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
+                          title="@Monogram(rung.Book): @FormatPrice(rung.PriceAmerican)"></span>
+                }
+            </div>
+
+            @* The line varying outranks the price gap: books quoting -110 on totals of 7, 8
+               and 9 have a price spread of zero and the largest real difference on the board. *@
+            <span class="price__edge @(IsWide ? "price__edge--wide" : null)">@EdgeLabel</span>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public BestOffer? Offer { get; set; }
+
+    /// <summary>
+    /// What shopping is worth here, said plainly. A differing line is reported as such rather
+    /// than folded into a price gap it does not appear in.
+    /// </summary>
+    private string EdgeLabel
+    {
+        get
+        {
+            if (Offer is null)
+                return string.Empty;
+
+            var edge = Offer.EdgePoints ?? 0;
+
+            return Offer.LinesVary
+                ? edge < 0.05 ? "line varies" : $"line varies · +{edge:0.0} pts"
+                : edge < 0.05 ? "books agree" : $"+{edge:0.0} pts vs worst";
+        }
+    }
+
+    private bool IsWide => Offer is not null && (Offer.LinesVary || (Offer.EdgePoints ?? 0) >= 2);
+
+    /// <summary>
+    /// A book's two-character mark. Colour means state on this desk, so a book is identified
+    /// typographically instead — see ADR 0008.
+    /// </summary>
+    private static string Monogram(string book) => book.ToLowerInvariant() switch
+    {
+        "draftkings" => "DK",
+        "fanduel" => "FD",
+        "bet365" => "B3",
+        "betmgm" => "MG",
+        "caesars" => "CZ",
+        "pointsbet" => "PB",
+        "demo" => "DM",
+        _ => book.Length >= 2 ? book[..2].ToUpperInvariant() : book.ToUpperInvariant()
+    };
+
+    /// <summary>
+    /// Where a book's tick sits, 0% at the best price and 100% at the worst. When every book
+    /// quotes the same number the range collapses and they all land on the left — which is the
+    /// correct picture: there is nothing to shop for.
+    /// </summary>
+    private double Position(BookPrice rung)
+    {
+        if (Offer is null || Offer.Rungs.Count < 2)
+            return 0;
+
+        var best = Offer.Rungs.Min(r => r.Implied);
+        var worst = Offer.Rungs.Max(r => r.Implied);
+        var span = worst - best;
+
+        return span <= 0 ? 0 : (rung.Implied - best) / span * 100;
+    }
+
+    private string Tooltip
+        => Offer is null
+            ? string.Empty
+            : string.Join("   ", Offer.Rungs.Select(r =>
+                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
+
+    private static string FormatPrice(int american) => OddsMath.FormatPrice(american);
+
+    private static string FormatLine(decimal line, string outcome) => OddsMath.FormatLine(line, outcome);
+}

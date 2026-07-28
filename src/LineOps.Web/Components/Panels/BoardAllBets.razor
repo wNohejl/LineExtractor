@@ -1,0 +1,139 @@
+@using LineOps.Core.Analytics
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Every book's number on every market for one game.
+
+    The board deliberately shows one price per market — the best — because a board that showed
+    four would be four boards. This is where the rest of it lives: the same data the rail
+    summarises, laid out to be read rather than scanned.
+*@
+
+@if (Row is null)
+{
+    <p class="empty">Loading the market…</p>
+}
+else if (Row.Unpriced is { } reason)
+{
+    <p class="note note--warn">@reason</p>
+}
+else
+{
+
+<p class="note" style="margin-bottom:12px">
+    Best price on each line is lit. Everything else is what you would be giving up by taking it
+    somewhere else.
+</p>
+
+@foreach (var market in Markets())
+{
+    <h3 class="panel-h">@MarketName(market.Market)</h3>
+
+    @if (!market.IsPriced)
+    {
+        <p class="empty" style="padding:6px 0 12px">Not priced by any book yet.</p>
+    }
+    else
+    {
+        <div class="gridwrap" style="margin-bottom:14px"><table class="grid">
+            <thead>
+                <tr>
+                    <th>Book</th>
+                    <th class="r">@SideName(market, first: true)</th>
+                    <th class="r">@SideName(market, first: false)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var book in BooksIn(market))
+                {
+                    <tr>
+                        <td class="mono dim">@book</td>
+                        <td class="r">@Cell(market.First, book)</td>
+                        <td class="r">@Cell(market.Second, book)</td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+}
+
+}
+
+@code {
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than a row so the view can be hosted
+    /// as a desk window, which is rebuilt from its parameters and cannot carry an object.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? Row;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        Row = await board.GetRowAsync(GameId);
+    }
+
+    private IEnumerable<MarketPair> Markets()
+    {
+        if (Row is null)
+            yield break;
+
+        yield return Row.Moneyline;
+        yield return Row.Spread;
+        yield return Row.Total;
+    }
+
+    private static string MarketName(string market) => market switch
+    {
+        LineOps.Core.Entities.Markets.Moneyline => "Moneyline",
+        LineOps.Core.Entities.Markets.Spread => "Spread",
+        LineOps.Core.Entities.Markets.Total => "Total",
+        _ => market
+    };
+
+    private string SideName(MarketPair market, bool first)
+    {
+        var offer = first ? market.First : market.Second;
+
+        if (offer is not null)
+            return offer.Outcome;
+
+        return market.Market == LineOps.Core.Entities.Markets.Total
+            ? (first ? "Over" : "Under")
+            : (first ? Row.Game.HomeTeam?.Name ?? "Home" : Row.Game.AwayTeam?.Name ?? "Away");
+    }
+
+    /// <summary>Every book quoting either side, so a book missing one side still gets a row.</summary>
+    private static IReadOnlyList<string> BooksIn(MarketPair market)
+        => (market.First?.Rungs.Select(r => r.Book) ?? [])
+            .Concat(market.Second?.Rungs.Select(r => r.Book) ?? [])
+            .Distinct()
+            .OrderBy(b => b)
+            .ToList();
+
+    private RenderFragment Cell(BestOffer? offer, string book) => builder =>
+    {
+        var rung = offer?.Rungs.FirstOrDefault(r => r.Book == book);
+
+        if (offer is null || rung is null)
+        {
+            builder.AddContent(0, "—");
+            return;
+        }
+
+        var isBest = book == offer.Book;
+
+        builder.OpenElement(1, "span");
+        builder.AddAttribute(2, "class", isBest ? "up" : "dim");
+
+        var line = rung.Line is { } l ? OddsMath.FormatLine(l, offer.Outcome) + " " : "";
+        builder.AddContent(3, line + OddsMath.FormatPrice(rung.PriceAmerican));
+
+        builder.CloseElement();
+    };
+}

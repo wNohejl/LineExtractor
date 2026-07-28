@@ -1,0 +1,124 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Ingestion.Services
+@using LineOps.Web.Components.Windowing
+@inject IngestionJobs Jobs
+
+@*
+    The desk's one manual control over ingestion.
+
+    It replaces a button called "Ingest now", which ran every odds source across every sport
+    and nothing else — so the operator could not fetch today's games or last night's results
+    with it, and had no idea what pressing it would spend. A menu of named pulls says what each
+    one does and what it costs before it is chosen.
+
+    Every entry runs the same job the scheduler runs. Nothing here is a second implementation.
+*@
+
+<div class="pullmenu">
+    <DeskButton Tone="DeskTone.Action"
+                Icon="@Icons.Material.Filled.CloudDownload"
+                Busy="@(_running is not null)"
+                OnClick="Toggle">
+        @(_running is null ? "Pull data" : _runningLabel)
+    </DeskButton>
+
+    @if (_open)
+    {
+        <div class="pullmenu__backdrop" @onclick="Close"></div>
+
+        <div class="pullmenu__panel">
+            @foreach (var job in _jobs)
+            {
+                <button type="button"
+                        class="pullmenu__item @(job.Available ? null : "pullmenu__item--blocked")"
+                        disabled="@(!job.Available || _running is not null)"
+                        @onclick="() => RunAsync(job)">
+                    <span class="pullmenu__row">
+                        <span class="pullmenu__label">@job.Label</span>
+                        @* Credits where the provider bills in them, because that is the number
+                           that runs out — a call costing one request can cost several credits. *@
+                        <span class="pullmenu__cost">
+                            @(job.EstimatedCredits > 0
+                                ? $"{job.EstimatedCredits} credits"
+                                : job.EstimatedRequests == 0 ? "no requests" : $"~{job.EstimatedRequests} req")
+                        </span>
+                    </span>
+                    <span class="pullmenu__desc">
+                        @(job.Available ? job.Description : job.Unavailable)
+                    </span>
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@if (_result is not null)
+{
+    <p class="note @(_result.Succeeded ? null : "note--warn")" style="margin:10px 0 0">
+        @_result.Summary
+    </p>
+}
+
+@code {
+    /// <summary>Raised after a pull so the hosting panel can reload what it shows.</summary>
+    [Parameter] public EventCallback OnPulled { get; set; }
+
+    /// <summary>Lets the panel drive its own pulse from the pull.</summary>
+    [Parameter] public EventCallback<bool> OnBusyChanged { get; set; }
+
+    private record Result(bool Succeeded, string Summary);
+
+    private IReadOnlyList<IngestionJob> _jobs = [];
+    private bool _open;
+    private string? _running;
+    private string _runningLabel = "Pulling";
+    private Result? _result;
+
+    protected override async Task OnInitializedAsync()
+        => _jobs = await Jobs.DescribeAsync();
+
+    private async Task Toggle()
+    {
+        _open = !_open;
+
+        // Costs move with the season — a sport coming in changes every estimate — so the menu
+        // re-reads them on open rather than trusting what it loaded once.
+        if (_open)
+            _jobs = await Jobs.DescribeAsync();
+    }
+
+    private void Close() => _open = false;
+
+    private async Task RunAsync(IngestionJob job)
+    {
+        _open = false;
+        _running = job.Key;
+        _runningLabel = job.Label;
+        _result = null;
+
+        await OnBusyChanged.InvokeAsync(true);
+
+        try
+        {
+            var outcome = await Jobs.RunAsync(job.Key);
+
+            _result = new Result(
+                outcome.Succeeded,
+                outcome.Detail
+                ?? (outcome.Succeeded
+                    ? $"{job.Label}: {outcome.Rows:N0} rows."
+                    : $"{job.Label}: {outcome.Failures} source failed."));
+
+            await OnPulled.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _result = new Result(false, $"{job.Label} failed: {ex.Message}");
+        }
+        finally
+        {
+            _running = null;
+            await OnBusyChanged.InvokeAsync(false);
+        }
+    }
+}

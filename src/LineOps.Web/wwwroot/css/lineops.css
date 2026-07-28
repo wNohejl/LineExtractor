@@ -1,0 +1,1494 @@
+/* ============================================================================
+   LineOps — "The Desk"
+   A single-operator sports-data operations console.
+
+   Colour is a semantic dial, never decoration: every hue below means a state.
+   The base is graphite with a blue undertone rather than near-black, so the
+   surface reads as an instrument panel instead of a terminal.
+   ============================================================================ */
+
+:root {
+    /* Surface — cool graphite, five steps */
+    --ink-900: #0E1119; /* desk void */
+    --ink-800: #141926; /* rail */
+    --ink-700: #1B2231; /* window body */
+    --ink-600: #232C3E; /* title bars, raised rows */
+    --ink-500: #2E3950; /* borders, dividers */
+    --ink-400: #3C4A66; /* hover borders */
+
+    /* Text */
+    --chalk: #E6EBF4;
+    --haze: #8695B0;
+    --haze-dim: #5D6B85;
+
+    /* The dial. Hue = state, always. */
+    --steam: #35E0A1; /* healthy · moved your way · win */
+    --drift: #FF6B81; /* breached · moved against you · loss */
+    --flag: #FFB84D; /* warn · budget pressure · pending */
+    --iris: #7C8CFF; /* interactive · focus · selection */
+
+    --steam-dim: rgba(53, 224, 161, .14);
+    --drift-dim: rgba(255, 107, 129, .14);
+    --flag-dim: rgba(255, 184, 77, .14);
+    --iris-dim: rgba(124, 140, 255, .16);
+
+    /* Type: one variable family for chrome, one mono for every number. */
+    --face-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+    --face-data: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+    --rail-size: 46px;
+    --titlebar-h: 34px;
+    --radius: 6px;
+
+    --shadow-win: 0 12px 28px -12px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .35);
+    --shadow-float: 0 24px 60px -18px rgba(0, 0, 0, .85), 0 3px 10px rgba(0, 0, 0, .45);
+
+    /* Layer scale. The desk is deliberately low so that anything floating above it —
+       modals, popovers, toasts, drag ghosts — has room to sit without competing with a
+       window's z-index. Use these rather than inventing numbers. */
+    --z-window: 10;
+    --z-divider: 40;
+    --z-chrome: 8000; /* header, footer, side rail */
+    --z-popover: 9000; /* menus anchored to chrome */
+    --z-modal: 9500; /* modal scrim and dialog */
+    --z-toast: 9800; /* transient notices, always on top */
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* the desk manages its own scrolling, per window */
+    background: var(--ink-900);
+    color: var(--chalk);
+    font-family: var(--face-ui);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers are read in columns, so they get tabular figures everywhere. */
+.num, .mono {
+    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+}
+
+/* --------------------------------------------------------------- shell ---- */
+
+/* Header and footer are fixed rows; everything else lives between them. */
+.shell {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.shell__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.hdr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 10px;
+    background: var(--ink-800);
+    border-bottom: 1px solid var(--ink-500);
+    flex: 0 0 auto;
+    z-index: 8000;
+}
+
+.hdr__brand {
+    font-weight: 700;
+    font-stretch: 115%;
+    font-size: 13px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.hdr__brand em { font-style: normal; color: var(--iris); }
+
+.hdr__sub {
+    font-size: 11px;
+    color: var(--haze-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) { .hdr__sub { display: none; } }
+
+.hdr__divider { width: 1px; height: 22px; background: var(--ink-500); flex: 0 0 auto; }
+.hdr__spacer { flex: 1 1 auto; }
+
+.hdr__count {
+    font-size: 12px;
+    color: var(--haze);
+    padding: 0 4px;
+    white-space: nowrap;
+}
+
+.hdr__count--full { color: var(--flag); }
+
+/* Segmented control: one visible choice among a few, which is what a layout mode is. */
+.segment {
+    display: flex;
+    border: 1px solid var(--ink-500);
+    border-radius: 4px;
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+
+.segment__btn {
+    width: 30px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    background: var(--ink-700);
+    border: 0;
+    border-right: 1px solid var(--ink-500);
+    color: var(--haze-dim);
+    cursor: pointer;
+    padding: 0;
+}
+
+.segment__btn:last-child { border-right: 0; }
+.segment__btn:hover { background: var(--ink-600); color: var(--chalk); }
+.segment__btn--on { background: var(--iris); color: #10131C; }
+.segment__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.segment__btn svg { width: 15px; height: 15px; }
+
+/* --------------------------------------------------------------- footer --- */
+
+.ftr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 10px;
+    background: var(--ink-800);
+    border-top: 1px solid var(--ink-500);
+    flex: 0 0 auto;
+    z-index: 8000;
+}
+
+.ftr__spacer { flex: 1 1 auto; }
+.ftr__divider { width: 1px; height: 16px; background: var(--ink-500); flex: 0 0 auto; }
+
+.ftr__stat {
+    font-size: 11px;
+    color: var(--haze-dim);
+    white-space: nowrap;
+    letter-spacing: .04em;
+    flex: 0 0 auto;
+}
+
+.ftr__flag {
+    color: var(--iris);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-left: 4px;
+}
+
+/* A refusal appears next to the taskbar, where the click that failed was aimed. */
+.ftr__refusal {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 4px 3px 9px;
+    border: 1px solid var(--flag);
+    background: var(--flag-dim);
+    border-radius: 4px;
+    color: var(--flag);
+    font-size: 11.5px;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.ftr__refusal svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.ftr__refusal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ftr__dismiss {
+    background: none; border: 0; padding: 2px;
+    color: var(--flag); cursor: pointer;
+    display: grid; place-items: center;
+}
+
+.ftr__dismiss svg { width: 13px; height: 13px; }
+.ftr__dismiss:hover { color: var(--chalk); }
+
+/* ---------------------------------------------------------------- desk ---- */
+
+.desk {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+
+    /* A faint dot grid. Windows read as *placed* rather than floating, and it gives
+       the eye a reference when dragging. Deliberately near-invisible. */
+    background-color: var(--ink-900);
+    background-image: radial-gradient(var(--ink-500) 1px, transparent 1px);
+    background-size: 22px 22px;
+    background-position: -1px -1px;
+}
+
+/* Windows position against this, so a declared resolution gets a real surface of that
+   size and the desk scrolls to it, rather than layout pretending the screen is bigger. */
+.desk__surface {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+/* Empty desk: an invitation to act, not a shrug. */
+.desk-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+    padding: 24px;
+}
+
+.desk-empty__mark {
+    font-family: var(--face-ui);
+    font-size: clamp(38px, 7vw, 78px);
+    font-weight: 700;
+    font-stretch: 112%;
+    letter-spacing: -.03em;
+    line-height: .9;
+    color: var(--ink-500);
+    text-transform: uppercase;
+}
+
+.desk-empty__mark em {
+    font-style: normal;
+    color: var(--iris);
+}
+
+.desk-empty__hint {
+    color: var(--haze);
+    max-width: 44ch;
+    line-height: 1.55;
+}
+
+/* -------------------------------------------------------------- window ---- */
+
+/* A column. Positioned and sized horizontally only — top and bottom are the row. */
+.win {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--ink-700);
+    border: 1px solid var(--ink-500);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-win);
+    overflow: hidden;
+    z-index: var(--z-window);
+    /* left/width transition is what makes the row "settle" after a reorder, a resize
+       commit, an eviction, or a close — every tab slides to its new slot instead of
+       jumping. Suppressed during the two live gestures below, where a transition would
+       lag a frame behind the pointer instead of tracking it. */
+    transition: border-color .12s ease, left .16s ease, width .16s ease;
+}
+
+body.splitting .win, body.tab-dragging .win { transition: none; user-select: none; }
+
+.win--focused { border-color: var(--ink-400); }
+
+/* The dragged tab floats in front of whatever it passes over while it looks for a slot —
+   this is the interaction the row is built around: a window is its own tab, and moving it
+   is a direct, physical drag, not a trip through a menu. */
+.win--dragging-tab {
+    z-index: var(--z-divider);
+    box-shadow: var(--shadow-float);
+    cursor: grabbing;
+}
+
+body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
+
+/* Collapsed: a slim, title-only tab. Still a full member of the row — there is no other
+   list it could be sitting in instead. */
+.win--collapsed {
+    min-width: 0;
+}
+
+.win--collapsed .win__bar {
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 0;
+    cursor: pointer;
+}
+
+.win--collapsed .win__icon { color: var(--haze); }
+
+/* Focus is signalled by the border and the pulse strip only — no ambient glow. */
+.win--focused .win__title {
+    color: var(--chalk);
+}
+
+.win:not(.win--focused) .win__bar {
+    background: var(--ink-700);
+}
+
+.win:not(.win--focused) .win__title {
+    color: var(--haze);
+}
+
+.win__bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--titlebar-h);
+    padding: 0 4px 0 10px;
+    background: var(--ink-600);
+    flex: 0 0 auto;
+}
+
+.win__icon {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    color: var(--haze-dim);
+}
+
+.win__icon svg { width: 15px; height: 15px; }
+
+.win__title {
+    font-size: 11px;
+    font-weight: 600;
+    font-stretch: 108%;
+    letter-spacing: .085em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+}
+
+.win__status {
+    font-family: var(--face-data);
+    font-size: 10.5px;
+    color: var(--haze-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: .02em;
+}
+
+.win__spacer { flex: 1 1 auto; min-width: 8px; }
+
+.win__controls {
+    display: flex;
+    gap: 1px;
+    flex: 0 0 auto;
+}
+
+.win__ctl {
+    width: 26px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    border-radius: 3px;
+    color: var(--haze-dim);
+    cursor: pointer;
+    padding: 0;
+}
+
+.win__ctl:hover { background: var(--ink-500); color: var(--chalk); }
+.win__ctl--close:hover { background: var(--drift); color: var(--ink-900); }
+.win__ctl:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.win__ctl svg { width: 14px; height: 14px; }
+
+/* ---- SIGNATURE: the pulse strip ------------------------------------------
+   A 2px live band under every title bar, mirrored on the window's rail chip.
+   It reports that window's own state, so an unfocused — or minimised — window
+   can still tell you something changed. This is the reason to run a desk of
+   windows instead of a stack of tabs, so it is the one element allowed to be
+   loud, and everything around it stays quiet.
+   ------------------------------------------------------------------------- */
+
+.pulse {
+    height: 2px;
+    flex: 0 0 auto;
+    background: var(--ink-500);
+    position: relative;
+    overflow: hidden;
+}
+
+.pulse--healthy { background: var(--steam); }
+.pulse--warn { background: var(--flag); }
+.pulse--critical { background: var(--drift); }
+.pulse--idle { background: var(--ink-500); }
+
+/* Active is the only animated state: it means work is genuinely in flight. */
+.pulse--active { background: var(--iris-dim); }
+
+.pulse--active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 34%;
+    background: linear-gradient(90deg, transparent, var(--iris), transparent);
+    animation: pulse-sweep 1.15s linear infinite;
+}
+
+@keyframes pulse-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(320%); }
+}
+
+/* Critical earns a slow breath — it is the one state you must not miss. */
+.pulse--critical { animation: pulse-breathe 1.9s ease-in-out infinite; }
+
+@keyframes pulse-breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .42; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pulse--active::after { animation: none; opacity: .85; }
+    .pulse--critical { animation: none; }
+}
+
+.win__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-400) transparent;
+}
+
+.win__body::-webkit-scrollbar { width: 10px; height: 10px; }
+.win__body::-webkit-scrollbar-thumb {
+    background: var(--ink-400);
+    border-radius: 6px;
+    border: 3px solid var(--ink-700);
+}
+
+/* ------------------------------------------------------------- divider ---- */
+
+/* The only geometry an operator can change: where two adjacent columns meet.
+   Sits in the 8px gutter between them, with a hit area wider than it looks. */
+.divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 14px;
+    margin-left: -3px; /* centres the 14px target on the 8px gutter */
+    z-index: var(--z-divider);
+    cursor: col-resize;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 0;
+    touch-action: none; /* the pointer gesture owns the drag, not the browser's scroll */
+}
+
+.divider__grip {
+    width: 2px;
+    height: 34px;
+    border-radius: 1px;
+    background: var(--ink-500);
+    transition: background-color .12s ease, height .12s ease;
+}
+
+.divider:hover .divider__grip,
+.divider--active .divider__grip {
+    background: var(--iris);
+    height: 64px;
+}
+
+.divider:focus-visible { outline: none; }
+
+.divider:focus-visible .divider__grip {
+    background: var(--iris);
+    height: 100%;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px var(--iris);
+}
+
+/* While splitting, the whole desk shows the resize cursor — the pointer often leaves the
+   14px handle mid-drag and a flickering cursor reads as the gesture breaking. */
+body.splitting, body.splitting * { cursor: col-resize !important; }
+
+/* ---------------------------------------------------------------- rail ---- */
+
+.rail__btn {
+    width: 32px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--haze);
+    cursor: pointer;
+    padding: 0;
+}
+
+.rail__btn:hover { background: var(--ink-700); border-color: var(--ink-400); color: var(--chalk); }
+.rail__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: 1px; }
+.rail__btn--accent { color: var(--iris); }
+.rail__btn svg { width: 17px; height: 17px; }
+
+/* ------------------------------------------------------- rail popover ---- */
+
+.railmenu { position: relative; display: flex; }
+
+.railmenu__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    /* Invisible, but it must catch the press so dismissing the menu does not also
+       click whatever window is underneath. */
+    background: transparent;
+}
+
+.railmenu__panel {
+    position: absolute;
+    z-index: 9600;
+    background: var(--ink-700);
+    border: 1px solid var(--ink-400);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-win);
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-400) transparent;
+}
+
+/* Each panel opens away from the rail it belongs to. */
+.railmenu__panel--bottom { bottom: calc(100% + 8px); left: 0; }
+.railmenu__panel--top { top: calc(100% + 8px); left: 0; }
+.railmenu__panel--left { left: calc(100% + 8px); top: 0; }
+.railmenu__panel--right { right: calc(100% + 8px); top: 0; }
+
+/* Near a screen edge a left-anchored panel would overflow; nudge the horizontal
+   ones to stay inside the viewport. */
+@media (max-width: 520px) {
+    .railmenu__panel--bottom, .railmenu__panel--top { left: auto; right: 0; }
+}
+
+/* ------------------------------------------------------------ launcher ---- */
+
+.launcher {
+    min-width: 300px;
+    padding: 6px;
+}
+
+.launcher__group {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    padding: 10px 10px 5px;
+}
+
+.launcher__item {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    width: 100%;
+    padding: 8px 10px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--chalk);
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.launcher__item:hover { background: var(--ink-600); }
+.launcher__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.launcher__item svg { width: 17px; height: 17px; color: var(--haze); margin-top: 1px; flex: 0 0 auto; }
+.launcher__desc { display: block; color: var(--haze-dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+
+.launcher__note {
+    padding: 8px 11px;
+    margin: 4px 0 0;
+    border-top: 1px solid var(--ink-500);
+    color: var(--flag);
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+/* Already open: clicking still focuses it, so this informs rather than disables. */
+.launcher__open {
+    font-size: 9px;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--steam);
+    margin-left: 7px;
+    vertical-align: 1px;
+}
+
+/* Refused by the ceiling — dimmed and inert, with the reason stated below the list. */
+.launcher__item--blocked { opacity: .38; cursor: not-allowed; }
+.launcher__item--blocked:hover { background: none; }
+
+/* --------------------------------------------------- panel typography ---- */
+
+.panel-h {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    margin: 0 0 9px;
+}
+
+.panel-h + .panel-h { margin-top: 18px; }
+
+/* Metric: the number leads, the label explains. Not the other way round. */
+.metric {
+    padding: 11px 13px;
+    background: var(--ink-600);
+    border: 1px solid var(--ink-500);
+    border-radius: 4px;
+    border-left-width: 2px;
+    border-left-color: var(--ink-400);
+}
+
+.metric--good { border-left-color: var(--steam); }
+.metric--warn { border-left-color: var(--flag); }
+.metric--bad { border-left-color: var(--drift); }
+.metric--info { border-left-color: var(--iris); }
+
+.metric__value {
+    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -.02em;
+}
+
+.metric--good .metric__value { color: var(--steam); }
+.metric--warn .metric__value { color: var(--flag); }
+.metric--bad .metric__value { color: var(--drift); }
+
+.metric__label {
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--haze);
+    margin-top: 5px;
+}
+
+.metric__note { font-size: 11px; color: var(--haze-dim); margin-top: 2px; }
+
+/* Data tables: dense, hairline-separated, numbers right-aligned and tabular. */
+.grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.grid th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    padding: 0 10px 7px;
+    border-bottom: 1px solid var(--ink-500);
+    white-space: nowrap;
+    position: sticky;
+    top: -14px; /* cancels .win__body padding so the header pins while scrolling */
+    background: var(--ink-700);
+    z-index: 1;
+}
+
+.grid td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--ink-600);
+    color: var(--chalk);
+    vertical-align: middle;
+}
+
+.grid tbody tr:hover td { background: var(--ink-600); }
+.grid .r { text-align: right; font-family: var(--face-data); font-variant-numeric: tabular-nums; }
+.grid .dim { color: var(--haze-dim); }
+
+/* A long message in a narrow window must not turn one row into six. Truncate and keep
+   the full text in the title attribute — row rhythm is what makes a dense table scannable. */
+.grid .trunc {
+    max-width: 1px; /* forces the cell to take its share and no more */
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Wide tables scroll inside their own window rather than pushing the layout. */
+.gridwrap {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-400) transparent;
+}
+
+.gridwrap .grid { min-width: 100%; }
+
+/* ---- SIGNATURE III: the price cell and its spread rail ---------------------
+   The board's whole reason to exist is that four books disagree and the
+   disagreement is money. So a price cell shows one number — the best one — the
+   book holding it, and a hairline rail beneath showing where every other book
+   sits.
+
+   The rail is positional, not decorative: each tick is placed by that book's
+   implied probability between the best and worst on offer. Books that agree
+   collapse into one mark; a market worth shopping visibly spreads out. You can
+   scan a column and see which games repay the work before reading a number.
+
+   Books get a monogram rather than a colour, because on this desk hue means
+   state and nothing else (ADR 0008). Identity is carried typographically.
+   --------------------------------------------------------------------------- */
+
+.price {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-end;
+    min-width: 84px;
+}
+
+.price__top {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.price__line {
+    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    color: var(--haze);
+}
+
+.price__odds {
+    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--chalk);
+}
+
+/* The book that holds the best number, in two letters. */
+.price__book {
+    font-family: var(--face-data);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    color: var(--iris);
+    border: 1px solid var(--iris-dim);
+    border-radius: 2px;
+    padding: 0 3px;
+}
+
+.rail {
+    position: relative;
+    width: 72px;
+    height: 7px;
+    flex: 0 0 auto;
+}
+
+/* The line the ticks sit on. Faint — it is a ruler, not a reading. */
+.rail::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 3px;
+    height: 1px;
+    background: var(--ink-500);
+}
+
+.rail__tick {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 7px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--ink-400);
+}
+
+.rail__tick--best {
+    background: var(--iris);
+    box-shadow: 0 0 0 2px var(--iris-dim);
+}
+
+/* How much the best price is worth against the worst, in points of implied
+   probability. Shown on the row you are actually reading, so a column of numbers
+   does not compete with the ticks. */
+.price__edge {
+    font-family: var(--face-data);
+    font-size: 9.5px;
+    letter-spacing: .04em;
+    color: var(--haze-dim);
+    opacity: 0;
+    transition: opacity .1s ease;
+}
+
+.mud-table-row:hover .price__edge,
+.board__row--open .price__edge { opacity: 1; }
+
+.price__edge--wide { color: var(--steam); }
+
+/* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
+   a fixture nobody quoted, and a game already under way — only one of which is
+   worth acting on, so the row says which. */
+.board__gap {
+    margin-top: 3px;
+    color: var(--flag);
+    font-size: 11px;
+    line-height: 1.35;
+    max-width: 34ch;
+}
+
+/* Row actions: revealed by opening a row, so the board stays the working surface
+   and the next thing you do is one press away rather than a navigation. */
+.board__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 9px 10px 11px;
+    background: var(--ink-800);
+    border-bottom: 1px solid var(--ink-500);
+}
+
+.board__actions-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    margin-right: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .price__edge { transition: none; }
+}
+
+/* ---- Floating dialog -------------------------------------------------------
+   The layer ADR 0007 reserved and never built: arbitrary placement, above the
+   desk, for the things a tiled row cannot hold. Deliberately not modal — several
+   stay open at once and get dragged into an arrangement, because the workflow
+   this serves is comparison. A scrim would make that impossible.
+
+   It wears the window's chrome so it reads as part of the desk.
+   --------------------------------------------------------------------------- */
+
+.deskdialog {
+    position: fixed;
+    top: 90px;
+    left: 120px;
+    display: flex;
+    flex-direction: column;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    background: var(--ink-700);
+    border: 1px solid var(--ink-400);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-float);
+    overflow: hidden;
+    animation: dialog-in .12s ease-out;
+}
+
+@keyframes dialog-in {
+    from { opacity: 0; transform: scale(.985); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.deskdialog__bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: var(--titlebar-h);
+    padding: 0 4px 0 10px;
+    background: var(--ink-600);
+    border-bottom: 1px solid var(--ink-500);
+    flex: 0 0 auto;
+    cursor: grab;
+    touch-action: none; /* the pointer gesture owns the drag, not the browser's scroll */
+    user-select: none;
+}
+
+.deskdialog--dragging { box-shadow: var(--shadow-float), 0 0 0 1px var(--ink-400); }
+.deskdialog--dragging .deskdialog__bar { cursor: grabbing; }
+body.dialog-dragging { user-select: none; }
+
+.deskdialog__icon { display: grid; place-items: center; color: var(--haze-dim); flex: 0 0 auto; }
+.deskdialog__icon svg { width: 15px; height: 15px; }
+
+.deskdialog__title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .085em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.deskdialog__sub {
+    font-family: var(--face-data);
+    font-size: 10.5px;
+    color: var(--haze-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.deskdialog__spacer { flex: 1 1 auto; min-width: 8px; }
+
+.deskdialog__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink-400) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .deskdialog { animation: none; }
+}
+
+/* A dialog that fills the screen on a phone is just a page, which is the right
+   answer there — dragging panels around needs a pointer and a desk. */
+@media (max-width: 720px) {
+    .deskdialog {
+        top: 8px !important;
+        left: 8px !important;
+        width: calc(100vw - 16px) !important;
+    }
+
+    .deskdialog__bar { cursor: default; }
+}
+
+/* ---- Pull menu -------------------------------------------------------------
+   The manual ingestion control. Built here rather than with MudMenu for the same
+   reason the launcher is (ADR 0007): it anchors to desk chrome and must not
+   inherit another library's positioning and z-index rules.
+   --------------------------------------------------------------------------- */
+
+.pullmenu { position: relative; display: inline-flex; }
+
+.pullmenu__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-popover);
+    /* Invisible, but it must catch the press so dismissing does not also click
+       whatever is underneath. */
+    background: transparent;
+}
+
+.pullmenu__panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: calc(var(--z-popover) + 1);
+    min-width: 290px;
+    padding: 5px;
+    background: var(--ink-700);
+    border: 1px solid var(--ink-400);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-win);
+}
+
+.pullmenu__item {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--chalk);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pullmenu__item:hover { background: var(--ink-600); }
+.pullmenu__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+
+.pullmenu__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pullmenu__label { font-size: 13px; }
+
+/* The price is stated before the click, not discovered afterwards. */
+.pullmenu__cost {
+    flex: 0 0 auto;
+    font-family: var(--face-data);
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+}
+
+.pullmenu__desc {
+    display: block;
+    margin-top: 2px;
+    color: var(--haze-dim);
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+/* Unavailable states the reason in place of the description, so the menu explains
+   itself rather than just refusing. */
+.pullmenu__item--blocked { cursor: not-allowed; }
+.pullmenu__item--blocked:hover { background: none; }
+.pullmenu__item--blocked .pullmenu__label { color: var(--haze-dim); }
+.pullmenu__item--blocked .pullmenu__desc { color: var(--flag); }
+
+/* ---- Linked cell -----------------------------------------------------------
+   A cell naming something with a window of its own. The desk answers "what will
+   this click do?" by moving a key toward the light; a cell cannot move without
+   disturbing its row, so it answers by naming the destination on highlight.
+
+   The shortcut's width is reserved and its opacity toggled, never its display —
+   revealing it by laying it out would push the rest of the row sideways every
+   time the pointer crossed a link.
+   --------------------------------------------------------------------------- */
+
+.desklink {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 3px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.desklink__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-bottom: 1px dotted transparent;
+    transition: border-color .1s ease, color .1s ease;
+}
+
+.desklink__shortcut {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    opacity: 0;
+    color: var(--iris);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    transition: opacity .1s ease;
+}
+
+.desklink__shortcut svg { width: 11px; height: 11px; }
+
+/* The row is the unit an operator scans, so the dotted rule appears across the
+   whole row's links — "these are the ways out of here" — while the destination
+   name only resolves on the one actually under the pointer. */
+.grid tbody tr:hover .desklink__label,
+.mud-table-row:hover .desklink__label {
+    border-bottom-color: var(--ink-400);
+}
+
+.desklink:hover .desklink__label,
+.desklink:focus-visible .desklink__label {
+    color: var(--iris);
+    border-bottom-color: var(--iris);
+}
+
+.desklink:hover .desklink__shortcut,
+.desklink:focus-visible .desklink__shortcut { opacity: 1; }
+
+.desklink:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .desklink__label, .desklink__shortcut { transition: none; }
+}
+
+.up { color: var(--steam); }
+.down { color: var(--drift); }
+.warnc { color: var(--flag); }
+
+/* Tag: a small state word. Border-only so a table of them stays calm. */
+.tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border: 1px solid var(--ink-400);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--haze);
+    white-space: nowrap;
+}
+
+.tag--good { border-color: var(--steam); color: var(--steam); background: var(--steam-dim); }
+.tag--warn { border-color: var(--flag); color: var(--flag); background: var(--flag-dim); }
+.tag--bad { border-color: var(--drift); color: var(--drift); background: var(--drift-dim); }
+.tag--info { border-color: var(--iris); color: var(--iris); background: var(--iris-dim); }
+
+/* ---- SIGNATURE II: the key ------------------------------------------------
+   Everything on the desk is matte except the things you press. Gloss is not
+   decoration here — it is the *affordance* channel, exactly as hue is the state
+   channel. A surface that catches the light can be clicked; one that does not,
+   cannot. That single rule pays for itself twice: a disabled key loses its sheen
+   outright rather than merely fading, and a field is its own inverse — recessed,
+   unlit, obviously a place to type rather than a thing to hit.
+
+   A key is a moulded cap seated in the panel. It has a crown highlight along its
+   top edge, a shadow line where the cap meets its seat, and 2px of real throw:
+   seated at rest, up 1px when highlighted, down 1px under the press. Highlighting
+   lifts the cap toward the light, which is the answer to "what will this click
+   hit?" — and :focus-visible lifts it identically, so the keyboard gets the same
+   answer the pointer does.
+
+   The whole recipe is driven by two custom properties. A new tone is two lines,
+   and it applies to a native <button class="btn"> and a <MudButton> alike — see
+   Components/Desk/DeskButton.razor and css/mud-bridge.css.
+   ------------------------------------------------------------------------- */
+
+.btn,
+.desk-key {
+    /* The two dials. Everything below is derived from them. */
+    --key-tint: var(--ink-600);
+    --key-ink: var(--chalk);
+
+    /* Cap state: how far it stands off the panel, and how hard it is lit. */
+    --key-lift: 0px;
+    --key-sheen: .10;
+    --key-crown: rgba(255, 255, 255, .26);
+
+    position: relative;
+    overflow: hidden; /* clips the busy sweep to the cap */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    min-width: 0;
+    padding: 0 12px;
+    box-sizing: border-box;
+
+    border: 1px solid color-mix(in oklab, var(--key-tint) 58%, #000);
+    border-radius: 5px;
+
+    /* Tint underneath, moulding on top. The light falls from above, so the sheen
+       is strongest at the crown and turns over into shade past the midline. */
+    background-color: var(--key-tint);
+    background-image: linear-gradient(180deg,
+        rgba(255, 255, 255, calc(var(--key-sheen) * 2.2)) 0%,
+        rgba(255, 255, 255, calc(var(--key-sheen) * .5)) 46%,
+        rgba(0, 0, 0, calc(var(--key-sheen) * .85)) 100%);
+
+    box-shadow:
+        inset 0 1px 0 var(--key-crown), /* crown */
+        inset 0 -1px 0 rgba(0, 0, 0, .30), /* where cap meets seat */
+        0 1px 0 rgba(0, 0, 0, .45), /* the seat itself */
+        0 2px 4px -2px rgba(0, 0, 0, .65); /* cast onto the panel */
+
+    color: var(--key-ink);
+    font-family: var(--face-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+
+    transform: translateY(var(--key-lift));
+    transition: transform .09s ease-out, box-shadow .09s ease-out,
+                background-color .09s ease-out, border-color .09s ease-out;
+}
+
+.btn svg,
+.desk-key svg { width: 14px; height: 14px; flex: 0 0 auto; }
+
+/* Highlighted — the cap rises into the light. Pointer and keyboard, same signal. */
+.btn:hover, .btn:focus-visible,
+.desk-key:hover, .desk-key:focus-visible {
+    --key-lift: -1px;
+    --key-sheen: .17;
+    --key-crown: rgba(255, 255, 255, .42);
+    border-color: color-mix(in oklab, var(--key-tint) 55%, #fff);
+    box-shadow:
+        inset 0 1px 0 var(--key-crown),
+        inset 0 -1px 0 rgba(0, 0, 0, .32),
+        0 2px 0 rgba(0, 0, 0, .45),
+        0 7px 13px -6px rgba(0, 0, 0, .8),
+        0 4px 16px -8px var(--key-tint); /* the cap bleeds a little onto the panel */
+}
+
+/* The ring is chalk, not iris: an iris ring on an iris key is invisible. */
+.btn:focus-visible,
+.desk-key:focus-visible {
+    outline: 2px solid var(--chalk);
+    outline-offset: 2px;
+}
+
+/* Pressed — past the light line, into its own seat. */
+.btn:active, .desk-key:active {
+    --key-lift: 1px;
+    --key-crown: rgba(255, 255, 255, .08);
+    background-image: linear-gradient(180deg, rgba(0, 0, 0, .18), rgba(255, 255, 255, .05));
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, .55),
+        inset 0 1px 0 rgba(0, 0, 0, .3);
+    transition-duration: .04s;
+}
+
+/* Unmoulded plastic: no sheen, no travel, nothing to catch the eye or the light. */
+.btn:disabled, .btn[disabled],
+.desk-key:disabled, .desk-key[disabled] {
+    --key-lift: 0px;
+    background-image: none;
+    background-color: var(--ink-600);
+    border-color: var(--ink-500);
+    color: var(--haze-dim);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Tones. Hue still means what it means everywhere else on the desk, so a key's
+   colour states its consequence: go, stop, proceed with care. */
+.btn--primary, .desk-key--action { --key-tint: var(--iris); --key-ink: #0C1020; }
+.desk-key--go { --key-tint: var(--steam); --key-ink: #06170F; }
+.desk-key--stop { --key-tint: var(--drift); --key-ink: #1E070C; }
+.desk-key--caution { --key-tint: var(--flag); --key-ink: #1C1204; }
+.desk-key--neutral { --key-tint: var(--ink-600); --key-ink: var(--chalk); }
+
+/* Quiet: a link wearing a button's hit area. Not a key, so it does not catch the
+   light and does not move — the gloss rule stays honest. */
+/* Ink goes through --key-ink rather than `color` so that one declaration in the
+   base rule stays the only place a key's text colour is set. A quiet key is not
+   a tone, but it is still a key, so it spends the same dial. */
+.btn--quiet, .desk-key--quiet {
+    --key-ink: var(--haze);
+    background-image: none;
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn--quiet:hover, .btn--quiet:focus-visible,
+.desk-key--quiet:hover, .desk-key--quiet:focus-visible {
+    --key-ink: var(--chalk);
+    background-color: var(--ink-600);
+    border-color: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn--quiet:active, .desk-key--quiet:active {
+    background-image: none;
+    background-color: var(--ink-500);
+    box-shadow: none;
+    transform: none;
+}
+
+/* Sizes. The cap changes height and padding; the moulding does not rescale. */
+.desk-key--sm { height: 22px; padding: 0 9px; font-size: 10px; gap: 4px; }
+.desk-key--sm svg { width: 12px; height: 12px; }
+.desk-key--lg { height: 34px; padding: 0 16px; font-size: 12px; }
+
+/* Icon-only: square, so the cap reads as a key rather than a clipped button. */
+.desk-key--icon { padding: 0; width: 28px; }
+.desk-key--icon.desk-key--sm { width: 22px; }
+.desk-key--icon.desk-key--lg { width: 34px; }
+
+/* Working. A key that has started something borrows the pulse strip's sweep
+   rather than inventing a spinner — the desk already has one word for "in
+   flight", and this is it.
+
+   A busy key is also a disabled key, so that the keyboard cannot fire it twice.
+   That would hand it the unmoulded look above, which says the wrong thing: it is
+   not inert, it is occupied. These rules out-specify :disabled to put the cap
+   and its light back, and only the travel stays gone. */
+.desk-key--busy,
+.desk-key--busy:disabled {
+    pointer-events: none;
+    background-color: var(--key-tint);
+    background-image: linear-gradient(180deg,
+        rgba(255, 255, 255, calc(var(--key-sheen) * 2.2)) 0%,
+        rgba(255, 255, 255, calc(var(--key-sheen) * .5)) 46%,
+        rgba(0, 0, 0, calc(var(--key-sheen) * .85)) 100%);
+    border-color: color-mix(in oklab, var(--key-tint) 58%, #000);
+    color: var(--key-ink);
+    box-shadow:
+        inset 0 1px 0 var(--key-crown),
+        inset 0 -1px 0 rgba(0, 0, 0, .3),
+        0 1px 0 rgba(0, 0, 0, .45);
+    cursor: progress;
+}
+
+.desk-key--busy::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 38%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .3), transparent);
+    animation: pulse-sweep 1.15s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* The lift is the affordance, so it stays — it just arrives without travel.
+       The sweep, which is ambient rather than informative, stops. */
+    .btn, .desk-key { transition: box-shadow .09s ease-out, background-color .09s ease-out; }
+    .desk-key--busy::after { animation: none; opacity: .5; }
+}
+
+/* ---- The field ------------------------------------------------------------
+   The key's inverse, and the reason the gloss rule is worth having: a field is
+   cut *into* the panel. Same metrics so a row of controls lines up, opposite
+   light. Previously these wore .btn, which under the rule above would have made
+   every text box look pressable.
+   --------------------------------------------------------------------------- */
+
+.field {
+    height: 28px;
+    min-width: 0;
+    padding: 0 9px;
+    box-sizing: border-box;
+    background: var(--ink-800);
+    border: 1px solid var(--ink-500);
+    border-radius: 5px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
+    color: var(--chalk);
+    font-family: var(--face-ui);
+    font-size: 12.5px;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.field::placeholder { color: var(--haze-dim); }
+.field:hover { border-color: var(--ink-400); }
+
+.field:focus, .field:focus-visible {
+    outline: none;
+    border-color: var(--iris);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45), 0 0 0 2px var(--iris-dim);
+}
+
+.field:disabled { color: var(--haze-dim); cursor: not-allowed; background: var(--ink-700); }
+
+/* Numbers in a field are still numbers. */
+.field.num { font-family: var(--face-data); font-variant-numeric: tabular-nums; }
+
+textarea.field { height: auto; padding: 7px 9px; line-height: 1.5; resize: vertical; }
+
+/* The caret is drawn rather than native, so the control matches on every OS. */
+select.field {
+    appearance: none;
+    padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--haze) 50%),
+                      linear-gradient(135deg, var(--haze) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+select.field option { background: var(--ink-700); color: var(--chalk); }
+
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row--end { justify-content: flex-end; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
+
+.note {
+    padding: 9px 11px;
+    border: 1px solid var(--ink-500);
+    border-left: 2px solid var(--iris);
+    border-radius: 4px;
+    background: var(--ink-600);
+    color: var(--haze);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.note--warn { border-left-color: var(--flag); }
+.empty { color: var(--haze-dim); font-size: 12.5px; padding: 14px 2px; line-height: 1.55; }
+
+/* ------------------------------------------------------------ a11y --------- */
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+
+/* A horizontal row of tabs cannot host itself usefully on a narrow screen — there is no
+   room to drag a tab past a neighbour with a thumb. Windows stack into a single scrolling
+   column instead: same components, same state, a layout that fits the hand. Reordering and
+   resizing are both pointer gestures for a wide desk, so neither applies here. */
+@media (max-width: 720px) {
+    .shell__body { flex-direction: column !important; }
+
+    .desk {
+        overflow-y: auto;
+        padding: 8px;
+        background-image: none;
+    }
+
+    .desk__surface {
+        width: auto !important;
+        height: auto !important;
+    }
+
+    .hdr { height: auto; flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
+    .ftr__stat:not(:last-child), .ftr__divider { display: none; }
+
+    .win {
+        position: relative !important;
+        left: auto !important;
+        width: auto !important;
+        max-height: 78vh;
+        margin-bottom: 8px;
+    }
+
+    .win--collapsed { max-height: none; }
+
+    .divider { display: none; }
+}

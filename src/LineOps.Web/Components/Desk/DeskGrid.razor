@@ -1,0 +1,89 @@
+@namespace LineOps.Web.Components.Desk
+@typeparam T
+@using MudBlazor
+
+@*
+    The desk's table.
+
+    Every panel had its own hand-written <table class="grid">, which was fine while a table was
+    a thing you read and nothing more. It stopped being fine once the desk started holding a
+    season: a column you cannot sort is a column you have to scan, and a row you cannot act on
+    is a dead end in an application whose whole idea is moving between connected views.
+
+    So the markup moves to MudDataGrid — for the sorting, and for the room to grow into
+    filtering, grouping and virtualisation — and the appearance stays exactly where it was.
+    Nothing here restates the desk's table styling; css/mud-bridge.css already teaches
+    MudBlazor's table classes the same hairline, dense, tabular rhythm .grid uses, so a
+    converted panel looks unchanged and a future Mud component arrives already matching.
+
+    Columns are declared by the caller as ordinary MudDataGrid columns:
+
+        <DeskGrid Items="_rows" Context="row">
+            <PropertyColumn Property="x => x.Name" Title="Player" />
+            <TemplateColumn Title="Team">...</TemplateColumn>
+        </DeskGrid>
+*@
+
+<div class="deskgrid @(Dense ? "deskgrid--dense" : null) @Class">
+    <MudDataGrid T="T"
+                 Items="@Items"
+                 Dense="true"
+                 Hover="true"
+                 Bordered="false"
+                 Striped="false"
+                 Elevation="0"
+                 SortMode="@(Sortable ? SortMode.Multiple : SortMode.None)"
+                 Filterable="false"
+                 FixedHeader="@FixedHeader"
+                 Height="@Height"
+                 RowClick="@OnRowClick"
+                 RowClass="@RowClass"
+                 Loading="@Loading"
+                 Virtualize="@Virtualize">
+        <Columns>
+            @ChildContent
+        </Columns>
+        <NoRecordsContent>
+            <div class="empty">@EmptyText</div>
+        </NoRecordsContent>
+    </MudDataGrid>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<T> Items { get; set; } = [];
+
+    /// <summary>The column definitions — MudDataGrid's own, not a wrapper of them.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Multi-column sort by default. A desk operator comparing sources or books wants "worst
+    /// success rate, then oldest" without giving up one to get the other.
+    /// </summary>
+    [Parameter] public bool Sortable { get; set; } = true;
+
+    [Parameter] public bool Dense { get; set; } = true;
+
+    /// <summary>
+    /// Pins the header while the body scrolls. Off by default: a window body already scrolls,
+    /// and a grid that manages its own height inside one has two scrollbars competing.
+    /// </summary>
+    [Parameter] public bool FixedHeader { get; set; }
+
+    [Parameter] public string? Height { get; set; }
+
+    [Parameter] public bool Loading { get; set; }
+
+    /// <summary>
+    /// Only worth it past a few hundred rows — it costs the browser's find-in-page, which on a
+    /// grid of players is a real loss.
+    /// </summary>
+    [Parameter] public bool Virtualize { get; set; }
+
+    [Parameter] public string EmptyText { get; set; } = "Nothing to show.";
+
+    [Parameter] public EventCallback<DataGridRowClickEventArgs<T>> OnRowClick { get; set; }
+
+    [Parameter] public string? RowClass { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+}

@@ -1,0 +1,57 @@
+@using LineOps.Web.Windowing
+
+@*
+    A small popover the rail owns outright.
+
+    Deliberately not MudMenu: this is the primary way windows get created, so it should not
+    inherit another library's positioning and z-index rules — especially when it has to open
+    away from a rail that can be on any of four edges. It also gives us Escape-to-close and
+    a real backdrop without fighting anyone.
+*@
+
+<div class="railmenu">
+    <button class="rail__btn @(Accent ? "rail__btn--accent" : null)"
+            type="button"
+            title="@Label"
+            aria-label="@Label"
+            aria-haspopup="true"
+            aria-expanded="@_open.ToString().ToLowerInvariant()"
+            @onclick="Toggle">
+        <Glyph Icon="@Icon" />
+    </button>
+
+    @if (_open)
+    {
+        @* Backdrop closes on any outside press, and swallows the press so it does not
+           also land on a window underneath. *@
+        <div class="railmenu__backdrop" @onclick="Close"></div>
+
+        @* Always opens downward: these live in the fixed header, so there is no edge to
+           open away from any more. *@
+        <div class="railmenu__panel railmenu__panel--top"
+             role="menu"
+             @onkeydown="OnKeyDown"
+             tabindex="-1">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public bool Accent { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _open;
+
+    private void Toggle() => _open = !_open;
+
+    public void Close() => _open = false;
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            Close();
+    }
+}

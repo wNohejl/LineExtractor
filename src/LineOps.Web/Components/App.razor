@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <base href="/" />
+    <ResourcePreloader />
+
+    @*
+        Archivo for chrome — industrial signage letterforms, and a width axis the title bars
+        use. JetBrains Mono for every number, because odds are read in columns and need
+        tabular figures.
+    *@
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+
+    @*
+        Order is load-bearing. MudBlazor first, so it can be overridden; lineops.css next,
+        because it defines the tokens; mud-bridge.css last, because it spends them on
+        MudBlazor's variables and out-specifies what MudBlazor hard-codes.
+    *@
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="@Assets["css/lineops.css"]" />
+    <link rel="stylesheet" href="@Assets["css/mud-bridge.css"]" />
+    @* Scoped-component styles — ReconnectModal relies on these. *@
+    <link rel="stylesheet" href="@Assets["LineOps.Web.styles.css"]" />
+    <ImportMap />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+</body>
+
+</html>

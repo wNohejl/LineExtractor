@@ -1,0 +1,278 @@
+@using LineOps.Reliability
+@using LineOps.Web.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@if (_selected is null)
+{
+    <div class="metrics" style="margin-bottom:16px">
+        <div class="metric @(_open > 0 ? "metric--bad" : "metric--good")">
+            <div class="metric__value">@_open</div>
+            <div class="metric__label">Open</div>
+        </div>
+        <div class="metric metric--good">
+            <div class="metric__value">@_resolved</div>
+            <div class="metric__label">Resolved</div>
+        </div>
+        <div class="metric">
+            <div class="metric__value">@_mttr</div>
+            <div class="metric__label">Median resolve</div>
+        </div>
+    </div>
+
+    @if (_incidents.Count == 0)
+    {
+        <p class="empty">
+            No incidents recorded. Use the on-call drill in the Ops window to exercise the
+            detect → alert → incident → RCA loop.
+        </p>
+    }
+    else
+    {
+        <DeskGrid T="Incident" Items="_incidents" Class="deskgrid--clickable"
+                  OnRowClick="@(e => SelectAsync(e.Item.Id))"
+                  EmptyText="No incidents match this filter.">
+            <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right">
+                <CellTemplate><span class="mono dim">@context.Item.Id</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
+                <CellTemplate>
+                    <span class="tag @(context.Item.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+                        @context.Item.Severity
+                    </span>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
+                <CellTemplate>
+                    <DeskLink Destination="RCA"
+                              Icon="@Icons.Material.Filled.Description"
+                              OnClick="() => SelectAsync(context.Item.Id)">
+                        @context.Item.Title
+                    </DeskLink>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
+                <CellTemplate><span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
+                            Align="Align.Right" InitialDirection="SortDirection.Descending">
+                <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
+            </PropertyColumn>
+
+            @* Sorted, because "which incidents still owe an RCA" is the discipline this
+               window exists to enforce. *@
+            <PropertyColumn T="Incident" TProperty="bool"
+                            Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
+                <CellTemplate>
+                    @if (string.IsNullOrWhiteSpace(context.Item.RootCause))
+                    {
+                        <span class="tag tag--warn">Missing</span>
+                    }
+                    else
+                    {
+                        <span class="tag tag--good">Written</span>
+                    }
+                </CellTemplate>
+            </PropertyColumn>
+        </DeskGrid>
+    }
+}
+else
+{
+    <div class="row" style="margin-bottom:10px">
+        <button class="btn btn--quiet" type="button" @onclick="() => _selected = null">
+            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> All incidents
+        </button>
+        <span class="tag @(_selected.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+            @_selected.Severity
+        </span>
+        <span class="tag @StatusTag(_selected.Status)">@_selected.Status</span>
+    </div>
+
+    <h3 class="panel-h">#@_selected.Id — @_selected.Title</h3>
+
+    <h3 class="panel-h">Timeline</h3>
+    <div class="stack">
+        @foreach (var note in _timeline)
+        {
+            <div>
+                <div class="mono dim" style="font-size:10.5px">
+                    @note.At.ToLocalTime().ToString("MMM d HH:mm:ss")
+                </div>
+                <div style="font-size:12.5px">@note.Note</div>
+            </div>
+        }
+    </div>
+
+    <div class="row" style="margin-top:10px">
+        <input class="field" style="flex:1; min-width:180px"
+               placeholder="Add a timeline note" @bind="_newNote" @bind:event="oninput" />
+        <button class="btn" type="button" @onclick="AddNoteAsync"
+                disabled="@string.IsNullOrWhiteSpace(_newNote)">
+            Add
+        </button>
+    </div>
+
+    <h3 class="panel-h" style="margin-top:20px">Root-cause analysis</h3>
+    <p class="note @(_selected.Status == IncidentStatus.Resolved ? null : "note--warn")">
+        Both fields are required to resolve. An incident without a cause and a fix teaches
+        nothing later.
+    </p>
+
+    <div class="stack" style="margin-top:10px">
+        <textarea class="field" rows="4"
+                  placeholder="What actually broke, and why did it break now?"
+                  @bind="_rootCause"></textarea>
+
+        <textarea class="field" rows="4"
+                  placeholder="What change prevents a recurrence? Reference the commit."
+                  @bind="_corrective"></textarea>
+
+        @if (_error is not null)
+        {
+            <p class="note note--warn">@_error</p>
+        }
+
+        <div class="row">
+            <button class="btn btn--primary" type="button" @onclick="ResolveAsync" disabled="@(!CanResolve)">
+                <Glyph Icon="@Icons.Material.Filled.TaskAlt" /> Resolve incident
+            </button>
+
+            @if (_selected.Status == IncidentStatus.Open)
+            {
+                <button class="btn" type="button" @onclick="MitigateAsync">Mark mitigated</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Set when opened from an alert's incident reference elsewhere on the desk.</summary>
+    [Parameter] public int? IncidentId { get; set; }
+
+    private IReadOnlyList<Incident> _incidents = [];
+    private Incident? _selected;
+    private IReadOnlyList<TimelineNote> _timeline = [];
+    private string _rootCause = string.Empty;
+    private string _corrective = string.Empty;
+    private string _newNote = string.Empty;
+    private string? _error;
+    private int _open;
+    private int _resolved;
+    private string _mttr = "—";
+
+    private bool CanResolve
+        => !string.IsNullOrWhiteSpace(_rootCause)
+           && !string.IsNullOrWhiteSpace(_corrective)
+           && _selected?.Status != IncidentStatus.Resolved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+
+        // Following an alert's incident number lands on that incident's RCA, not the list.
+        if (IncidentId is { } id)
+            await SelectAsync(id);
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+        _incidents = await service.GetAllAsync();
+        _open = _incidents.Count(i => i.Status != IncidentStatus.Resolved);
+        _resolved = _incidents.Count(i => i.Status == IncidentStatus.Resolved);
+
+        var durations = _incidents
+            .Where(i => i.TimeToResolve is not null)
+            .Select(i => i.TimeToResolve!.Value)
+            .OrderBy(t => t).ToList();
+
+        _mttr = durations.Count == 0 ? "—" : Duration(durations[durations.Count / 2]);
+
+        Report(_open > 0 ? PulseState.Critical : PulseState.Healthy,
+            _open > 0 ? $"{_open} open" : "none open");
+    }
+
+    private async Task SelectAsync(int id)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
+
+        _selected = await service.GetAsync(id);
+        _error = null;
+
+        if (_selected is not null)
+        {
+            _timeline = IncidentService.Deserialise(_selected.Timeline);
+            _rootCause = _selected.RootCause ?? string.Empty;
+            _corrective = _selected.CorrectiveActions ?? string.Empty;
+        }
+    }
+
+    private async Task AddNoteAsync()
+    {
+        if (_selected is null)
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IncidentService>()
+            .AddNoteAsync(_selected.Id, _newNote);
+
+        _newNote = string.Empty;
+        await SelectAsync(_selected.Id);
+    }
+
+    private async Task ResolveAsync()
+    {
+        if (_selected is null)
+            return;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .ResolveAsync(_selected.Id, _rootCause, _corrective);
+
+            _error = null;
+            var id = _selected.Id;
+            await LoadAsync();
+            await SelectAsync(id);
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task MitigateAsync()
+    {
+        if (_selected is null)
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IncidentService>()
+            .SetStatusAsync(_selected.Id, IncidentStatus.Mitigated);
+
+        await SelectAsync(_selected.Id);
+    }
+
+    private static string StatusTag(IncidentStatus status) => status switch
+    {
+        IncidentStatus.Open => "tag--bad",
+        IncidentStatus.Mitigated => "tag--warn",
+        _ => "tag--good"
+    };
+
+    private static string Duration(TimeSpan t) => t.TotalMinutes switch
+    {
+        < 60 => $"{t.TotalMinutes:F0}m",
+        < 1440 => $"{t.TotalHours:F1}h",
+        _ => $"{t.TotalDays:F1}d"
+    };
+}

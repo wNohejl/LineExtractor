@@ -1,0 +1,223 @@
+@using LineOps.Web.Windowing
+@implements IAsyncDisposable
+@inject WindowManager Manager
+@inject IJSRuntime JS
+
+@*
+    Header and footer are fixed chrome. Between them sits the desk: one horizontal row of
+    full-height tabs — every window is its own tab, so there is no separate taskbar — with a
+    draggable divider wherever two expanded ones meet.
+*@
+<div class="shell">
+
+    <DeskHeader />
+
+    <div class="shell__body">
+        <div class="desk" data-desk>
+            @* A declared resolution gets a real surface of that size and the desk scrolls to
+               it, rather than layout pretending the screen is bigger than it is. *@
+            <div class="desk__surface"
+                 style="@(Fixed ? $"width:{Manager.DeskWidth}px; height:{Manager.DeskHeight}px" : null)">
+
+                @if (Row.Count == 0)
+                {
+                    <div class="desk-empty">
+                        <div class="desk-empty__mark">LINE<em>OPS</em></div>
+                        <p class="desk-empty__hint">
+                            An empty desk. Windows open as tabs in a row — @PrimaryHint
+                            Drag a tab past another to reorder them.
+                        </p>
+                        <div class="row">
+                            <button class="btn btn--primary" type="button" @onclick="OpenPrimary">
+                                <Glyph Icon="@Icons.Material.Filled.AddBox" /> Open @PrimaryTitle
+                            </button>
+                            <button class="btn" type="button" @onclick="OpenTriage">
+                                <Glyph Icon="@Icons.Material.Filled.Workspaces" /> Morning triage
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                @foreach (var window in Rendered)
+                {
+                    @* Keyed by id so Blazor reuses the element rather than recreating it and
+                       losing the drag/divider bindings that point at it. *@
+                    <AppWindow @key="window.Id"
+                               Window="window"
+                               IsFocused="Manager.FocusedId == window.Id" />
+                }
+
+                @* One divider per adjacent pair of expanded tabs. Suppressed next to a
+                   collapsed tab (nothing to resize there) and while a window holds the whole
+                   row (there is no split to adjust). *@
+                @if (!Maximised)
+                {
+                    @for (var i = 0; i < Row.Count - 1; i++)
+                    {
+                        var left = Row[i];
+                        var right = Row[i + 1];
+
+                        if (left.Minimised || right.Minimised)
+                        {
+                            continue;
+                        }
+
+                        var key = $"{left.Id}|{right.Id}";
+
+                        <div class="divider"
+                             @key="key"
+                             style="left:@Px(left.X + left.Width)"
+                             role="separator"
+                             aria-orientation="vertical"
+                             aria-label="@($"Resize {left.Title} and {right.Title}")"
+                             tabindex="0"
+                             @onkeydown="e => OnDividerKey(e, left, right)"
+                             @ref="_dividerHandles[key]">
+                            <span class="divider__grip"></span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <DeskFooter />
+</div>
+
+@code {
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<Desk>? _self;
+    private readonly Dictionary<string, ElementReference> _dividerHandles = [];
+    private string _wiredDividers = string.Empty;
+    private string _wiredTabs = string.Empty;
+
+    private List<WindowInstance> Row =>
+        Manager.Windows.OrderBy(w => w.X).ToList();
+
+    private bool Maximised => Manager.Windows.Any(w => w.Maximised && !w.Minimised);
+
+    /// <summary>A maximised window is the only one rendered; otherwise every tab in the row is.</summary>
+    private List<WindowInstance> Rendered =>
+        Maximised
+            ? Manager.Windows.Where(w => w.Maximised && !w.Minimised).ToList()
+            : Row;
+
+    private bool Fixed => Manager.Settings.ResolutionMode == ResolutionMode.Fixed;
+
+    private WindowDefinition? Primary
+        => WindowCatalog.Find(Manager.Settings.PrimaryWindowKey ?? WindowCatalog.Ops);
+
+    private string PrimaryTitle => Primary?.Title ?? "a window";
+
+    private string PrimaryHint => Manager.Settings.PrimaryWindowKey is null
+        ? "every tab gets an equal share."
+        : $"{PrimaryTitle} is primary, so it takes the larger share wherever it sits.";
+
+    private static string Px(double value)
+        => $"{value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}px";
+
+    protected override void OnInitialized() => Manager.Changed += OnManagerChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/windowing.js");
+            _self = DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("initialise", _self);
+        }
+
+        if (_module is null)
+            return;
+
+        // Rebind dividers only when the set of adjacent pairs actually changes — a drag
+        // causes renders, and rewiring mid-gesture would drop it.
+        var dividerSignature = string.Join(",", _dividerHandles.Keys);
+        if (dividerSignature != _wiredDividers)
+        {
+            _wiredDividers = dividerSignature;
+
+            foreach (var (key, handle) in _dividerHandles)
+            {
+                var ids = key.Split('|');
+                await _module.InvokeVoidAsync("attachDivider", handle, ids[0], ids[1]);
+            }
+        }
+
+        // Tab-drag wiring only needs the id, not neighbours, so it only needs rebinding
+        // when the set of open windows changes — not on every reorder or resize render.
+        var tabSignature = string.Join(",", Row.Select(w => w.Id));
+        if (tabSignature != _wiredTabs)
+        {
+            _wiredTabs = tabSignature;
+            await _module.InvokeVoidAsync("attachAllTabs", "[data-desk]");
+        }
+    }
+
+    /// <summary>Called from JS when a divider drag ends. See windowing.js.</summary>
+    [JSInvokable]
+    public void OnSplitCommitted(string leftId, string rightId, double leftWidth, double rightWidth)
+        => Manager.AdjustSplit(leftId, rightId, leftWidth, rightWidth);
+
+    /// <summary>Called from JS when a tab drag ends with the row's new left-to-right order.</summary>
+    [JSInvokable]
+    public void OnReordered(string[] orderedIds)
+        => Manager.Reorder(orderedIds);
+
+    [JSInvokable]
+    public void OnViewportChanged(double width, double height)
+        => Manager.SetViewport(width, height);
+
+    /// <summary>
+    /// Keyboard equivalent of a divider drag. A pointer-only resize would put column widths
+    /// out of reach for anyone not using a mouse.
+    /// </summary>
+    private void OnDividerKey(KeyboardEventArgs e, WindowInstance left, WindowInstance right)
+    {
+        var step = e.ShiftKey ? 48d : 16d;
+
+        var delta = e.Key switch
+        {
+            "ArrowLeft" => -step,
+            "ArrowRight" => step,
+            _ => 0d
+        };
+
+        if (delta == 0)
+            return;
+
+        var leftWidth = Math.Max(left.Definition.MinWidth, left.Width + delta);
+        var rightWidth = Math.Max(right.Definition.MinWidth, right.Width - delta);
+
+        Manager.AdjustSplit(left.Id, right.Id, leftWidth, rightWidth);
+    }
+
+    private void OpenTriage() => Manager.ApplyWorkspace(WindowCatalog.Workspaces[0]);
+
+    private void OpenPrimary()
+    {
+        if (Primary is not null)
+            Manager.Open(Primary);
+    }
+
+    private void OnManagerChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Manager.Changed -= OnManagerChanged;
+
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already gone; nothing to release in the browser.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}

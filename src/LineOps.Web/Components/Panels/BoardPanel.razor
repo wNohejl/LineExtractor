@@ -1,0 +1,323 @@
+@using LineOps.Data
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    The board.
+
+    Today's slate with the best number available on each market and the book holding it. Open a
+    row and its actions appear on it — more bets, place a wager, check form. Each adds a window
+    to the desk while there is room, and floats above it once there is not, so following one up
+    never costs the board an operator is working from.
+*@
+
+<div class="row" style="margin-bottom:12px">
+    <select class="field" style="max-width:170px" value="@_sport" @onchange="OnSportChanged">
+        <option value="">All sports</option>
+        @foreach (var s in _sports)
+        {
+            <option value="@s.Key">@s.Name</option>
+        }
+    </select>
+
+    <select class="field" style="max-width:150px" value="@_windowHours" @onchange="OnWindowChanged">
+        <option value="12">Next 12 hours</option>
+        <option value="24">Next 24 hours</option>
+        <option value="48">Next 48 hours</option>
+    </select>
+
+    <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
+
+    <span class="ftr__spacer"></span>
+
+    @* Coverage is stated, not implied. "12 games" beside a board of dashes says nothing about
+       whether the feed is working. *@
+    <span class="dim" style="font-size:11.5px">
+        @_priced of @_rows.Count priced
+        @if (_bookCount > 0)
+        {
+            <text> · best of @_bookCount @(_bookCount == 1 ? "book" : "books")</text>
+        }
+        @* "Last move", not "oldest". Prices are stored on change (ADR 0001), so an old
+           timestamp means the line has not moved — not that the data is stale. Labelling it
+           as age would send an operator chasing a still market. *@
+        @if (_oldest is { } quiet && quiet > TimeSpan.FromMinutes(1))
+        {
+            <text> · quietest line @Age(quiet.TotalMinutes) unmoved</text>
+        }
+    </span>
+</div>
+
+@if (_rows.Count > 0 && _priced < _rows.Count)
+{
+    <p class="note note--warn" style="margin-bottom:12px">
+        @(_rows.Count - _priced) of @_rows.Count fixtures have no price. Open a row to see why —
+        a gap is usually a fixture the scan did not cover, not a broken feed.
+    </p>
+}
+
+@if (_rows.Count == 0)
+{
+    <p class="empty">
+        No games priced in this window. Use <strong>Pull data → Fresh lines</strong> on the
+        Slate window, or widen the window above.
+    </p>
+}
+else
+{
+    <DeskGrid T="BoardRow" Items="_rows" Class="deskgrid--clickable"
+              OnRowClick="@(e => Toggle(e.Item))"
+              EmptyText="No games priced in this window.">
+
+        <TemplateColumn T="BoardRow" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
+            <CellTemplate>
+                <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
+            </CellTemplate>
+        </TemplateColumn>
+
+        @*
+            The matchup cell carries the row's actions.
+
+            They belong on the row rather than in a menu or a detail pane — the operator has
+            just decided *this game* is interesting and the next move should be one press away.
+            Putting them in the widest column means no dead width for the rows that are closed,
+            and only the open row changes height.
+        *@
+        <TemplateColumn T="BoardRow" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
+            <CellTemplate>
+                <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
+                    @Matchup(context.Item.Game)
+                </DeskLink>
+
+                @if (context.Item.Unpriced is { } reason)
+                {
+                    <div class="board__gap" title="@reason">@reason</div>
+                }
+
+                @if (_open?.Game.Id == context.Item.Game.Id)
+                {
+                    <div class="board__actions">
+                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral"
+                                    Icon="@Icons.Material.Filled.ViewList"
+                                    OnClick="() => OpenAsync(DialogKind.AllBets, context.Item)">
+                            More bets
+                        </DeskButton>
+
+                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
+                                    Icon="@Icons.Material.Filled.Bolt"
+                                    OnClick="() => OpenAsync(DialogKind.Wager, context.Item)">
+                            Place wager
+                        </DeskButton>
+
+                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral"
+                                    Icon="@Icons.Material.Filled.QueryStats"
+                                    OnClick="() => OpenAsync(DialogKind.Form, context.Item)">
+                            Form
+                        </DeskButton>
+                    </div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* Home/over first in every market, so a column reads down consistently. *@
+        <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Moneyline.First" /></CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="BoardRow" Title="" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Moneyline.Second" /></CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Spread.First" /></CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="BoardRow" Title="" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Spread.Second" /></CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Total.First" /></CellTemplate>
+        </TemplateColumn>
+
+        <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Total.Second" /></CellTemplate>
+        </TemplateColumn>
+
+    </DeskGrid>
+}
+
+@* Dialogs live above the desk and outlive the row that opened them, so several games can be
+   compared at once. Ordered by when each was last raised. *@
+@foreach (var (dialog, index) in _dialogs.Select((d, i) => (d, i)))
+{
+    <DeskDialog Title="@dialog.Title"
+                Subtitle="@dialog.Subtitle"
+                Icon="@dialog.Icon"
+                Width="@dialog.Width"
+                Index="index"
+                ZIndex="@(9500 + dialog.Order)"
+                OnClose="() => Close(dialog)"
+                OnRaise="() => Raise(dialog)">
+
+        @switch (dialog.Kind)
+        {
+            case DialogKind.AllBets:
+                <BoardAllBets GameId="dialog.Row.Game.Id" />
+                break;
+
+            case DialogKind.Wager:
+                <BoardWager GameId="dialog.Row.Game.Id" OnPlaced="OnWagerPlaced" />
+                break;
+
+            case DialogKind.Form:
+                <BoardForm GameId="dialog.Row.Game.Id" />
+                break;
+        }
+    </DeskDialog>
+}
+
+@code {
+    private enum DialogKind { AllBets, Wager, Form }
+
+    private sealed class OpenDialog
+    {
+        public required DialogKind Kind { get; init; }
+        public required BoardRow Row { get; init; }
+        public required string Title { get; init; }
+        public required string Subtitle { get; init; }
+        public required string Icon { get; init; }
+        public required string Width { get; init; }
+        public int Order { get; set; }
+    }
+
+    private List<BoardRow> _rows = [];
+    private List<Sport> _sports = [];
+    private readonly List<OpenDialog> _dialogs = [];
+    private BoardRow? _open;
+    private string _sport = string.Empty;
+    private int _windowHours = 24;
+    private int _bookCount;
+    private int _priced;
+    private TimeSpan? _oldest;
+    private int _raiseCounter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _sports = await db.Sports.OrderBy(s => s.Name).ToListAsync();
+
+        await LoadAsync();
+    }
+
+    private async Task OnSportChanged(ChangeEventArgs e)
+    {
+        _sport = e.Value?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnWindowChanged(ChangeEventArgs e)
+    {
+        _windowHours = int.TryParse(e.Value?.ToString(), out var hours) ? hours : 24;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+            _rows = (await board.GetAsync(
+                string.IsNullOrEmpty(_sport) ? null : _sport,
+                TimeSpan.FromHours(_windowHours))).ToList();
+
+            _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
+            _priced = _rows.Count(r => r.HasPrices);
+            _oldest = _rows.Select(r => r.Age).Where(a => a is not null).DefaultIfEmpty().Max();
+        },
+        settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+        status: () => _rows.Count == 0 ? "no prices" : $"{_rows.Count} games");
+    }
+
+    /// <summary>
+    /// Opening a row is what reveals its actions. One at a time: two open rows would push the
+    /// board around and the actions would stop being obviously attached to a game.
+    /// </summary>
+    private void Toggle(BoardRow row)
+        => _open = _open?.Game.Id == row.Game.Id ? null : row;
+
+    /// <summary>
+    /// Opens a follow-up as a desk window, falling back to the floating layer when the desk is
+    /// full.
+    ///
+    /// <para>
+    /// A window is the better home: it tiles, it keeps its place in the row, and it survives
+    /// being scrolled past. But the desk enforces a ceiling by <i>evicting</i> the
+    /// least-recently-used window (ADR 0007), and silently closing the board an operator is
+    /// working from to make room for a price table is exactly the wrong trade. So the ceiling
+    /// becomes the switch: while there is room, follow-ups are windows; once there is not, they
+    /// float above the desk instead of pushing something off it.
+    /// </para>
+    /// </summary>
+    private Task OpenAsync(DialogKind kind, BoardRow row)
+    {
+        var (key, title, icon, width) = kind switch
+        {
+            DialogKind.AllBets => (WindowCatalog.Bets, "Every book", Icons.Material.Filled.ViewList, "680px"),
+            DialogKind.Wager => (WindowCatalog.Wager, "Place wager", Icons.Material.Filled.Bolt, "480px"),
+            _ => (WindowCatalog.Form, "Recent form", Icons.Material.Filled.QueryStats, "720px")
+        };
+
+        if (!Manager.AtCapacity && WindowCatalog.Find(key) is { } definition)
+        {
+            Manager.Open(
+                definition,
+                new Dictionary<string, object> { ["GameId"] = row.Game.Id },
+                $"{title} · {Matchup(row.Game)}");
+
+            return Task.CompletedTask;
+        }
+
+        // Re-opening the same view for the same game raises what is already there rather than
+        // stacking a duplicate on top of it.
+        var existing = _dialogs.FirstOrDefault(d => d.Kind == kind && d.Row.Game.Id == row.Game.Id);
+
+        if (existing is not null)
+        {
+            Raise(existing);
+            return Task.CompletedTask;
+        }
+
+        _dialogs.Add(new OpenDialog
+        {
+            Kind = kind,
+            Row = row,
+            Title = title,
+            Subtitle = Matchup(row.Game),
+            Icon = icon,
+            Width = width,
+            Order = ++_raiseCounter
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private void Raise(OpenDialog dialog) => dialog.Order = ++_raiseCounter;
+
+    private void Close(OpenDialog dialog) => _dialogs.Remove(dialog);
+
+    private async Task OnWagerPlaced()
+    {
+        // The board does not change when a wager is logged, but the journal does — and the
+        // operator's next move is usually the next game, so the dialog closes itself.
+        _dialogs.RemoveAll(d => d.Kind == DialogKind.Wager);
+        await LoadAsync();
+    }
+}

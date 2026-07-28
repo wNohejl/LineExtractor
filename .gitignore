@@ -1,0 +1,22 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local agent/editor tooling. Machine-specific and nobody else's business.
+.claude/
+
+# Local secrets: API keys belong in user-secrets or environment variables, never in the repo.
+# .env holds the database and certificate passwords; .env.example is the committed template.
+appsettings.Local.json
+appsettings.*.Local.json
+.env
+!.env.example
+
+# Certificates must never be committed, whatever the extension.
+*.pfx
+*.p12
+*.key
+*.pem

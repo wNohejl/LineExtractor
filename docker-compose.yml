@@ -1,0 +1,136 @@
+# Full stack over HTTPS: `docker compose up -d`, then https://localhost:9443
+#
+# Security posture, and why:
+#
+#   * Every published port binds to 127.0.0.1, never 0.0.0.0. A bare "9443:9443" would
+#     publish the app to every machine on the LAN — and Docker writes its own iptables
+#     rules, so the host firewall does not necessarily save you.
+#   * Postgres is not published at all by default. The app reaches it over the compose
+#     network, so the database needs no host-facing port. Use compose.dev.yml when you
+#     want it reachable for psql or host-side `dotnet run`.
+#   * HTTPS only. There is no HTTP listener to downgrade to or forget about.
+#   * Secrets come from .env (gitignored), never from this file.
+#   * Containers run non-root, with a read-only root filesystem, all capabilities dropped,
+#     and no-new-privileges — so a compromise inside the app has very little to work with.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lineops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lineops
+      POSTGRES_USER: lineops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Require SCRAM rather than trust/md5 for any connection, including over the
+      # compose network — defence in depth if that network is ever shared.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - lineops-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lineops -d lineops"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # Postgres needs CHOWN/SETUID/SETGID/DAC_OVERRIDE to drop to the postgres user at init.
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER]
+    tmpfs:
+      - /tmp
+      - /run
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  web:
+    build:
+      # Root context: the Dockerfile needs Directory.Packages.props and every referenced project.
+      context: .
+      dockerfile: src/LineOps.Web/Dockerfile
+    container_name: lineops-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # Wait for readiness, not just start: the app migrates on boot and would otherwise
+        # race an unready server.
+        condition: service_healthy
+    environment:
+      # Service name and internal port — container-to-container, not localhost.
+      # SSL Mode=Prefer negotiates TLS if the server offers it and still works if not.
+      ConnectionStrings__LineOps: "Host=postgres;Port=5432;Database=lineops;Username=lineops;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};SSL Mode=Prefer;Trust Server Certificate=true"
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # HTTPS only — no HTTP endpoint exists to be redirected from or accidentally used.
+      ASPNETCORE_URLS: "https://+:9443"
+      # Kestrel reads the PFX from the read-only mount below. The certificate is never
+      # baked into the image: that would break dev/prod parity and risk disclosing it.
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/LineOps.Web.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ${CERT_PASSWORD:?set CERT_PASSWORD in .env}
+
+      # Keys persist on a volume so replacing the container does not invalidate live
+      # Blazor circuits and antiforgery tokens.
+      DataProtection__KeyPath: /keys
+
+      # Demo sources stay on so a fresh stack works with no API keys and no spend.
+      Ingestion__Demo__Enabled: "true"
+      # Populate the dashboard on first boot instead of waiting for the 09:00 slate job.
+      Ingestion__RunOnStartup: "true"
+
+      # Real providers: fill the keys in .env and flip Enabled.
+      Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
+      Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
+      Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+    ports:
+      # 127.0.0.1 prefix is the important part — loopback only, not the LAN.
+      - "127.0.0.1:${HTTPS_PORT:-9443}:9443"
+    volumes:
+      - ${CERT_PATH:?set CERT_PATH in .env}:/https:ro
+      - lineops-keys:/keys
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # The app writes only to /keys (a volume) and /tmp (tmpfs below), so the image
+    # filesystem itself can be immutable.
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Only starts with `--profile worker`. Use it to run ingestion as its own process;
+  # set Ingestion__HostScheduler=false on `web` at the same time so they don't both poll.
+  worker:
+    build:
+      context: .
+      dockerfile: src/LineOps.Worker/Dockerfile
+    container_name: lineops-worker
+    restart: unless-stopped
+    profiles: ["worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__LineOps: "Host=postgres;Port=5432;Database=lineops;Username=lineops;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};SSL Mode=Prefer;Trust Server Certificate=true"
+      DOTNET_ENVIRONMENT: Production
+      Ingestion__Demo__Enabled: "true"
+      Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
+      Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
+      Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+volumes:
+  lineops-pgdata:
+  lineops-keys:

@@ -1,0 +1,158 @@
+@using LineOps.Data
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+
+<p class="note" style="margin-bottom:12px">
+    Every execution lands here, successful or not — this table is the only feed the KPIs and
+    alerts are computed from.
+</p>
+
+<div class="row" style="margin-bottom:12px">
+    <select class="field"
+            value="@_sourceFilter" @onchange="OnSourceChanged">
+        <option value="">All sources</option>
+        @foreach (var s in _sources)
+        {
+            <option value="@s.Id">@s.Name</option>
+        }
+    </select>
+
+    <select class="field"
+            value="@_statusFilter" @onchange="OnStatusChanged">
+        <option value="">Any state</option>
+        @foreach (var s in Enum.GetValues<RunStatus>())
+        {
+            <option value="@s">@s</option>
+        }
+    </select>
+
+    <button class="btn btn--quiet" type="button" @onclick="LoadAsync">
+        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Refresh
+    </button>
+</div>
+
+<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">
+    <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
+        <CellTemplate>
+            <span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* A source's runs are its own window, so the name is the way through to them. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Source!.Name" Title="Source">
+        <CellTemplate>
+            <DeskLink Destination="source"
+                      Icon="@Icons.Material.Filled.MonitorHeart"
+                      OnClick="() => Manager.OpenRuns(context.Item.SourceId, context.Item.Source?.Name)">
+                @context.Item.Source?.Name
+            </DeskLink>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job">
+        <CellTemplate><span class="mono dim">@context.Item.JobKey</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
+                    Title="Started" Align="Align.Right" InitialDirection="SortDirection.Descending">
+        <CellTemplate>
+            <span class="dim">@context.Item.StartedAt.ToLocalTime().ToString("MMM d HH:mm:ss")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* Sorts on the real duration so "slowest run" is one click, not a scan of formatted text. *@
+    <PropertyColumn T="IngestionRun" TProperty="double?"
+                    Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
+                    Title="Took" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" />
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right">
+        <CellTemplate><span class="dim">@context.Item.RequestsMade</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Error!" Title="Detail">
+        <CellTemplate>
+            <span class="trunc dim" title="@context.Item.Error">@context.Item.Error</span>
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+
+@code {
+    /// <summary>Set when opened from a source's name elsewhere on the desk.</summary>
+    [Parameter] public int? SourceId { get; set; }
+
+    private List<IngestionRun> _runs = [];
+    private List<Source> _sources = [];
+    private string _sourceFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
+
+        // Arriving via a shortcut lands on that source rather than on everything, which is the
+        // whole point of following one — the filter then stays under the operator's control.
+        if (SourceId is { } id)
+            _sourceFilter = id.ToString();
+
+        await LoadAsync();
+    }
+
+    private async Task OnSourceChanged(ChangeEventArgs e)
+    {
+        _sourceFilter = e.Value?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        _statusFilter = e.Value?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var query = db.IngestionRuns.Include(r => r.Source).AsQueryable();
+
+        if (int.TryParse(_sourceFilter, out var sourceId))
+            query = query.Where(r => r.SourceId == sourceId);
+
+        if (Enum.TryParse<RunStatus>(_statusFilter, out var status))
+            query = query.Where(r => r.Status == status);
+
+        _runs = await query.OrderByDescending(r => r.StartedAt).Take(200).ToListAsync();
+
+        // Recent failures are what this window is for, so they drive its pulse.
+        var recentFailures = _runs.Take(20).Count(r => r.Status == RunStatus.Failed);
+
+        Report(
+            recentFailures > 4 ? PulseState.Critical
+            : recentFailures > 0 ? PulseState.Warn
+            : PulseState.Healthy,
+            recentFailures > 0 ? $"{recentFailures} recent fails" : $"{_runs.Count} runs");
+    }
+
+    private static string StatusTag(RunStatus status) => status switch
+    {
+        RunStatus.Success => "tag--good",
+        RunStatus.Partial => "tag--warn",
+        RunStatus.Failed => "tag--bad",
+        _ => "tag--info"
+    };
+}

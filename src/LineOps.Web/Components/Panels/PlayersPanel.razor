@@ -1,0 +1,303 @@
+@using System.Text.Json
+@using LineOps.Data
+@using LineOps.Ingestion.Services
+@using LineOps.Ingestion.Configuration
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+@inject IOptions<IngestionOptions> IngestionOptions
+
+@if (_player is null)
+{
+    <div class="row" style="margin-bottom:12px">
+        <select class="field"
+                value="@_sport" @onchange="OnSportChanged">
+            <option value="">All sports</option>
+            @foreach (var s in _sports)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
+
+        <input class="field" style="flex:1; min-width:150px"
+               placeholder="Search players" value="@_search" @oninput="OnSearchChanged" />
+
+        <button class="btn" type="button" @onclick="SyncAsync" disabled="@_busy">
+            <Glyph Icon="@Icons.Material.Filled.Sync" /> @(_busy ? "Syncing" : "Sync stats")
+        </button>
+    </div>
+
+    @if (_rows.Count == 0)
+    {
+        <p class="empty">
+            No players yet. <strong>Sync stats</strong> pulls rosters and box scores — ESPN
+            needs no key, so this works at no cost.
+        </p>
+    }
+    else
+    {
+        <DeskGrid T="Row" Items="_rows" Class="deskgrid--clickable"
+                  OnRowClick="@(e => SelectAsync(e.Item.Player.Id))"
+                  EmptyText="No players match this filter.">
+            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.FullName" Title="Player"
+                            InitialDirection="SortDirection.Ascending">
+                <CellTemplate>
+                    <DeskLink Destination="game log"
+                              Icon="@Icons.Material.Filled.MenuBook"
+                              OnClick="() => SelectAsync(context.Item.Player.Id)">
+                        @context.Item.Player.FullName
+                    </DeskLink>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
+                <CellTemplate><span class="tag">@context.Item.Player.Sport?.Name</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
+                <CellTemplate><span class="dim">@(context.Item.Player.Position ?? "—")</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Team!.Name" Title="Team">
+                <CellTemplate><span class="dim">@(context.Item.Player.Team?.Name ?? "—")</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="Row" TProperty="int" Property="r => r.Games" Title="Games" Align="Align.Right" />
+        </DeskGrid>
+    }
+}
+else
+{
+    <div class="row" style="margin-bottom:10px">
+        <button class="btn btn--quiet" type="button" @onclick="() => _player = null">
+            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> Players
+        </button>
+        <span class="tag">@_player.Sport?.Name</span>
+        @if (_player.Position is not null)
+        {
+            <span class="tag">@_player.Position</span>
+        }
+    </div>
+
+    <h3 class="panel-h">@_player.FullName — game log</h3>
+
+    @if (_log.Count == 0)
+    {
+        <p class="empty">No per-game statistics recorded for this player yet.</p>
+    }
+    else
+    {
+        <DeskGrid T="LogRow" Items="_log" EmptyText="No games recorded.">
+            <PropertyColumn T="LogRow" TProperty="DateTimeOffset" Property="r => r.Date" Title="Date"
+                            Align="Align.Right" InitialDirection="SortDirection.Descending">
+                <CellTemplate><span class="dim">@Day(context.Item.Date)</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="LogRow" TProperty="string" Property="r => r.Matchup" Title="Matchup">
+                <CellTemplate>
+                    @if (context.Item.GameId is { } gameId)
+                    {
+                        <DeskLink Destination="game"
+                                  OnClick="() => OpenGameAsync(gameId)">@context.Item.Matchup</DeskLink>
+                    }
+                    else
+                    {
+                        @context.Item.Matchup
+                    }
+                </CellTemplate>
+            </PropertyColumn>
+
+            @* Stat keys differ per sport and source, so the columns are built from the data
+               rather than declared. Each still sorts, on the numeric value where there is one. *@
+            @foreach (var column in _columns)
+            {
+                <TemplateColumn T="LogRow" Title="@column" Align="Align.Right"
+                                SortBy="@(r => SortValue(r, column))">
+                    <CellTemplate>@context.Item.Stats.GetValueOrDefault(column, "—")</CellTemplate>
+                </TemplateColumn>
+            }
+        </DeskGrid>
+    }
+}
+
+@code {
+    /// <summary>Set when opened from a player's name elsewhere on the desk.</summary>
+    [Parameter] public int? PlayerId { get; set; }
+
+    private record Row(Player Player, int Games);
+    private record LogRow(DateTimeOffset Date, string Matchup, int? GameId, Dictionary<string, string> Stats);
+
+    private List<Row> _rows = [];
+    private List<Sport> _sports = [];
+    private Player? _player;
+    private List<LogRow> _log = [];
+    private List<string> _columns = [];
+    private string _sport = string.Empty;
+    private string _search = string.Empty;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _sports = await db.Sports.OrderBy(s => s.Name).ToListAsync();
+        await LoadAsync();
+
+        // Arriving via a shortcut opens straight onto that player's game log rather than the
+        // list they would then have to find them in.
+        if (PlayerId is { } id)
+            await SelectAsync(id);
+    }
+
+    /// <summary>
+    /// Sorts a derived stat column. Numeric where the value parses, alphabetical otherwise, so
+    /// a column of times or compound values still orders predictably instead of not at all.
+    /// </summary>
+    private static object SortValue(LogRow row, string column)
+    {
+        var raw = row.Stats.GetValueOrDefault(column);
+
+        if (raw is null)
+            return double.MinValue;
+
+        return double.TryParse(raw, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var value)
+            ? value
+            : raw;
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var game = await db.Games
+            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+            .FirstOrDefaultAsync(g => g.Id == gameId);
+
+        if (game is not null)
+            Manager.OpenGame(game);
+    }
+
+    private async Task OnSportChanged(ChangeEventArgs e)
+    {
+        _sport = e.Value?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var query = db.Players.Include(p => p.Sport).Include(p => p.Team).AsQueryable();
+
+        if (int.TryParse(_sport, out var sportId))
+            query = query.Where(p => p.SportId == sportId);
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{_search}%"));
+
+        var players = await query.OrderBy(p => p.FullName).Take(150).ToListAsync();
+        var ids = players.Select(p => p.Id).ToList();
+
+        var counts = await db.PlayerGameStats
+            .Where(s => ids.Contains(s.PlayerId))
+            .GroupBy(s => s.PlayerId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count);
+
+        _rows = players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList();
+
+        Report(_rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+            _rows.Count == 0 ? null : $"{_rows.Count} players");
+    }
+
+    private async Task SelectAsync(int playerId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _player = await db.Players
+            .Include(p => p.Sport).Include(p => p.Team)
+            .FirstOrDefaultAsync(p => p.Id == playerId);
+
+        if (_player is null)
+            return;
+
+        var stats = await db.PlayerGameStats
+            .Include(s => s.Game).ThenInclude(g => g!.HomeTeam)
+            .Include(s => s.Game).ThenInclude(g => g!.AwayTeam)
+            .Where(s => s.PlayerId == playerId)
+            .OrderByDescending(s => s.Game!.StartsAt)
+            .Take(50)
+            .ToListAsync();
+
+        _log = stats.Select(s => new LogRow(
+            s.Game?.StartsAt ?? s.CapturedAt,
+            Matchup(s.Game),
+            s.GameId,
+            Parse(s.StatLine))).ToList();
+
+        // Stat shapes differ per sport and source, so columns come from the data.
+        _columns = _log
+            .SelectMany(r => r.Stats.Keys)
+            .Where(k => k != "category")
+            .Distinct().OrderBy(k => k).Take(8)
+            .ToList();
+    }
+
+    private static Dictionary<string, string> Parse(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private async Task SyncAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "syncing");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            var rows = 0;
+
+            foreach (var source in registry.StatsSources)
+            {
+                foreach (var sport in IngestionOptions.Value.EffectiveSports)
+                {
+                    var outcome = await stats.IngestAsync(
+                        source, sport, "stats:manual", yesterday, CancellationToken.None);
+                    rows += outcome.RowsIngested;
+                }
+            }
+
+            await LoadAsync();
+            Report(PulseState.Healthy, $"+{rows:N0} rows");
+        }
+        catch (Exception ex)
+        {
+            Report(PulseState.Critical, ex.GetType().Name);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

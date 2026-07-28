@@ -1,0 +1,283 @@
+@using LineOps.Core.Entities
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    The consolidated game view: lines, team data and players, in the order that matters right
+    now.
+
+    A pregame game is read top-down — what's the number, who's playing, how have they been
+    playing — because nothing on the board has happened yet. A live game is read the other way:
+    the score is the headline, "top bets" means what's still open rather than what closed, and
+    team/player form is read as "does the game so far match the form" rather than a preview.
+    Same three sections either way; only the order changes, because the question being asked of
+    them changes.
+
+    Team and player names are the way into their own history — following one is what "building
+    on form" means: a flat aggregate here, a game log or a recent-record one click away.
+*@
+
+@if (_row is null)
+{
+    <p class="empty">Loading the game…</p>
+}
+else
+{
+    var game = _row.Game;
+    var isLive = game.Status == GameStatus.Live;
+    var showScore = game.HomeScore is not null || game.AwayScore is not null;
+
+    <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
+        <h3 class="panel-h" style="margin:0">
+            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                      OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
+                @(game.AwayTeam?.Name ?? "Away")
+            </DeskLink>
+            @if (showScore)
+            {
+                <span class="mono" style="margin:0 6px">@(game.AwayScore ?? 0)</span>
+            }
+            <span class="dim" style="margin:0 4px">at</span>
+            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                      OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name)">
+                @(game.HomeTeam?.Name ?? "Home")
+            </DeskLink>
+            @if (showScore)
+            {
+                <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
+            }
+        </h3>
+        <span class="tag @StateTag(game.Status)">@StatusLabel(game)</span>
+    </div>
+
+    <div class="row" style="margin-bottom:14px">
+        <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
+
+        <select class="field" style="max-width:130px; margin-left:auto" value="@_windowDays" @onchange="OnWindowChanged">
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+        </select>
+
+        <button class="btn btn--quiet" type="button"
+                @onclick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
+            <Glyph Icon="@Icons.Material.Filled.ShowChart" /> Movement
+        </button>
+    </div>
+
+    @if (isLive)
+    {
+        @RenderMarkets("Top bets")
+        @RenderTeamData()
+        @RenderPlayers()
+    }
+    else
+    {
+        @RenderMarkets("Lines")
+        @RenderTeamData()
+        @RenderPlayers()
+    }
+}
+
+@code {
+    /// <summary>
+    /// The game this view is about. Taken as an id rather than an object so the view can be
+    /// hosted as a desk window, which is rebuilt from its parameters and cannot carry a
+    /// reference.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? _row;
+    private MatchupForm? _matchup;
+    private TeamForm? _homeTeam;
+    private TeamForm? _awayTeam;
+    private int _windowDays = 30;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task OnWindowChanged(ChangeEventArgs e)
+    {
+        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+
+            _row = await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+
+            if (_row is null)
+                return;
+
+            var window = TimeSpan.FromDays(_windowDays);
+            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+
+            _matchup = await lookup.GetAsync(GameId, window, maxPlayersPerTeam: 8);
+
+            // Only the recent record is wanted here — the roster comes from the matchup lookup
+            // above, which resolves both sides in one query rather than two.
+            _homeTeam = await lookup.GetTeamAsync(_row.Game.HomeTeamId, window, maxPlayers: 0);
+            _awayTeam = await lookup.GetTeamAsync(_row.Game.AwayTeamId, window, maxPlayers: 0);
+        },
+        settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _row is null ? "not found" : Matchup(_row.Game));
+    }
+
+    private static string StatusLabel(Game game) => game.Status switch
+    {
+        GameStatus.Live => "Live",
+        GameStatus.Final => "Final",
+        GameStatus.Postponed => "Postponed",
+        _ => Starts(game.StartsAt)
+    };
+
+    private static string StateTag(GameStatus status) => status switch
+    {
+        GameStatus.Live => "tag--warn",
+        GameStatus.Final => "tag--good",
+        _ => "tag--info"
+    };
+
+    private RenderFragment RenderMarkets(string heading) => @<text>
+        @if (_row!.Unpriced is { } reason)
+        {
+            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
+            <p class="note note--warn">@reason</p>
+        }
+        else
+        {
+            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
+            <div class="row" style="gap:18px; margin-bottom:14px; flex-wrap:wrap">
+                <div>
+                    <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
+                    <div class="row" style="gap:8px">
+                        <PriceCell Offer="_row.Moneyline.First" />
+                        <PriceCell Offer="_row.Moneyline.Second" />
+                    </div>
+                </div>
+                <div>
+                    <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
+                    <div class="row" style="gap:8px">
+                        <PriceCell Offer="_row.Spread.First" />
+                        <PriceCell Offer="_row.Spread.Second" />
+                    </div>
+                </div>
+                <div>
+                    <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
+                    <div class="row" style="gap:8px">
+                        <PriceCell Offer="_row.Total.First" />
+                        <PriceCell Offer="_row.Total.Second" />
+                    </div>
+                </div>
+            </div>
+        }
+    </text>;
+
+    private RenderFragment RenderTeamData() => @<text>
+        <h4 class="panel-h" style="margin-top:6px">Team data</h4>
+        <div class="row" style="gap:24px; margin-bottom:14px; flex-wrap:wrap">
+            @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away")
+            @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home")
+        </div>
+    </text>;
+
+    private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name) => @<text>
+        <div>
+            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                      OnClick="() => Manager.OpenTeam(teamId, name)">@name</DeskLink>
+
+            @if (form is null || form.Recent.Count == 0)
+            {
+                <div class="dim" style="font-size:11.5px">No games recorded in the window.</div>
+            }
+            else
+            {
+                <div class="dim" style="font-size:11.5px">
+                    @form.Wins-@form.Losses over @form.Recent.Count games
+                </div>
+                <div class="row" style="gap:3px; margin-top:3px">
+                    @foreach (var g in form.Recent.Take(5))
+                    {
+                        <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")"
+                              title="@(g.Home ? "vs" : "at") @g.Opponent — @Day(g.StartsAt)">
+                            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </text>;
+
+    private RenderFragment RenderPlayers() => @<text>
+        <h4 class="panel-h" style="margin-top:6px">Players</h4>
+
+        @if (_matchup is null || _matchup.IsEmpty)
+        {
+            <p class="empty">No appearances on record for either roster in this window.</p>
+        }
+        else
+        {
+            @RenderRoster(_matchup.Away, _row!.Game.AwayTeam?.Name ?? "Away")
+            @RenderRoster(_matchup.Home, _row.Game.HomeTeam?.Name ?? "Home")
+        }
+    </text>;
+
+    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
+        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
+
+    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
+        => side.SelectMany(p => p.Totals.Keys)
+            .GroupBy(k => k)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key)
+            .Select(g => g.Key)
+            .Take(4)
+            .ToList();
+
+    private RenderFragment RenderRoster(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
+        @if (side.Count > 0)
+        {
+            var columns = ColumnsFor(side);
+
+            <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
+            <div class="gridwrap"><table class="grid">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Pos</th>
+                        <th class="r">GP</th>
+                        @foreach (var c in columns)
+                        {
+                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in side)
+                    {
+                        <tr>
+                            <td class="trunc" title="@p.Name">
+                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                          OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
+                            </td>
+                            <td class="dim">@(p.Position ?? "—")</td>
+                            <td class="r">@p.Appearances</td>
+                            @foreach (var c in columns)
+                            {
+                                <td class="r">
+                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </text>;
+}

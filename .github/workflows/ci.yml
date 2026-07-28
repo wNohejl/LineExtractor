@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Verify formatting
+        run: dotnet format --verify-no-changes --no-restore
+
+      # Integration tests start their own PostgreSQL via Testcontainers, using the
+      # Docker daemon already present on the runner — no service container needed.
+      - name: Test
+        run: dotnet test --no-build --configuration Release --logger "console;verbosity=normal"
+
+  migrations:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install EF tools
+        run: dotnet tool install --global dotnet-ef
+
+      # --no-build below means exactly that, so the build has to happen here. Without these two
+      # steps the job failed on every run with "Assets file not found" — it was checking nothing
+      # and reporting it in red.
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      # Fails if an entity change was made without a matching migration — the most common
+      # way a schema drifts away from its model between environments.
+      - name: Check for pending model changes
+        run: dotnet ef migrations has-pending-model-changes --project src/LineOps.Data --no-build
