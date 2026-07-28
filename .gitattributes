@@ -1,0 +1,24 @@
+# Line endings are normalised to LF in the repository and checked out native.
+#
+# Without this, a Windows clone with core.autocrlf=true gets CRLF working files while the repo
+# holds LF, and `dotnet format --verify-no-changes` fails locally on whitespace that does not
+# exist in any commit — a failure that cannot be fixed, because there is nothing wrong to fix.
+# It cost a debugging session: the formatter reported errors, running it "fixed" them, and git
+# reported no change, because there had never been one. CI on Linux passed throughout.
+#
+# Declaring it here makes the repo's line endings a property of the repo rather than of whoever
+# cloned it.
+* text=auto
+
+# Shell scripts must keep LF wherever they are checked out — CRLF breaks the shebang.
+*.sh text eol=lf
+
+# Windows-only scripts are the mirror case.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary, so never touched.
+*.png binary
+*.pfx binary
+*.p12 binary
