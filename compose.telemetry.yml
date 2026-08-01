@@ -1,0 +1,57 @@
+# Telemetry overlay: OpenTelemetry out of both hosts, into the Aspire dashboard.
+#
+#   docker compose -f docker-compose.yml -f compose.telemetry.yml up -d
+#   then http://localhost:18888
+#
+# A separate file rather than the default, for the same reason compose.dev.yml is: the base
+# stack has to stay something a reviewer can run with no keys, no extra containers, and no
+# explaining. Telemetry is worth turning on, not worth making mandatory.
+#
+# The exporter is off in appsettings.json and switched on here, so a `dotnet run` with no
+# collector listening does not spend its life retrying a connection to nothing.
+services:
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.4.2
+    container_name: lineops-aspire
+    restart: unless-stopped
+    environment:
+      # Anonymous access, deliberately, and only because of the binding below: the dashboard
+      # is reachable from this machine and nothing else. Its normal auth is a bearer token
+      # printed to the container log, which for a local-only diagnostic view buys nothing but
+      # a step where someone is tempted to disable it permanently. See ADR 0015.
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      # Loopback only, exactly as ADR 0006 requires of every other published port. The
+      # dashboard shows request contents and connection strings in span attributes, so this
+      # binding is doing real work, not ceremony.
+      - "127.0.0.1:18888:18888"   # UI
+      - "127.0.0.1:18889:18889"   # OTLP/gRPC ingest
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  web:
+    environment:
+      Observability__Enabled: "true"
+      Observability__ServiceName: lineops-web
+      # Container-to-container over the compose network, not localhost.
+      Observability__OtlpEndpoint: "http://aspire-dashboard:18889"
+    depends_on:
+      aspire-dashboard:
+        # Start order only. Telemetry must never be a precondition for the app being up —
+        # a collector that fails to start would otherwise take the platform down with it,
+        # which is the monitoring system causing the outage it exists to report.
+        condition: service_started
+
+  worker:
+    environment:
+      Observability__Enabled: "true"
+      Observability__ServiceName: lineops-worker
+      Observability__OtlpEndpoint: "http://aspire-dashboard:18889"

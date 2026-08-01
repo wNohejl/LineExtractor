@@ -265,6 +265,12 @@ The daily bulk ingest includes a **player/stats pass**: roster upsert by externa
 
 **Ops Center UI:** KPI tiles with SLO status, per-source health cards, drill panel, open-alert feed with one-click incident promotion, incident list + timeline + RCA editor, filterable ingestion-run history.
 
+**The runbook is in the tool, not beside it.** `docs/runbook.md` is embedded in `LineOps.Reliability` and rendered inside the incident that raised the rule, so triage steps are in front of whoever is working it. And the relationship is a **test**: `RunbookCoverageTests` asserts a bijection between the `AlertRules` constants and the runbook's rule headings, in both directions. This came from a real failure — `budget_pressure` shipped documented, configured, and unreachable, because the budget data lived in `LineOps.Ingestion` and the reference direction is `Ingestion → Reliability`, so the alert engine structurally could not see it. The fix split *measuring* consumption (`BudgetCalculator`, in the reliability layer) from *enforcing* it (`CreditBudgetGuard`, still in ingestion), and made the drift a red build rather than a thing to remember.
+
+**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `LineOps.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `LineOps.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`lineops.source.freshness_minutes`, `lineops.budget.utilisation`, `lineops.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops Center uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
+
+**Liveness and readiness are different questions.** `/health` depends on nothing, so a database outage cannot get a container killed and restarted into the same outage. `/ready` reports Postgres reachable *and* schema at the expected version — a process pointed at a database with pending migrations starts, accepts traffic, and fails every request, and no restart fixes that. Verified by stopping Postgres: `/health` stayed 200, `/ready` returned 503, and it recovered on its own.
+
 ---
 
 ## 6. Interface — a desk, not a set of pages
@@ -528,6 +534,8 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
 | 80 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
 | 6 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
+| OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
 | Blazor/MudBlazor Ops UI on .NET 10 | "UI components" + reinforces the resume's headline stack |
 | Container hardening, HTTPS, no committed secrets | "secure, scalable, durable" outcomes |
 | *(not covered — by design)* | COTS extension → answered in interview with MudBlazor extension work, Jenkins, IIS, Okta at Aristocrat |

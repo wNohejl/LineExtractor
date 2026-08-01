@@ -1,8 +1,10 @@
 using LineOps.Data;
 using LineOps.Ingestion;
+using LineOps.Observability;
 using LineOps.Reliability;
 using LineOps.Web.Components;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +37,8 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
 builder.Services.AddLineOpsReliability(builder.Configuration);
+builder.Services.AddLineOpsObservability(builder.Configuration);
+builder.Services.AddLineOpsHealthChecks();
 
 // Single-process deployment: the web app also hosts the schedule and the evaluator, so a
 // personal instance is one `dotnet run`. Both are opt-in registrations, so splitting the
@@ -64,6 +68,16 @@ if (!app.Environment.IsDevelopment())
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseAntiforgery();
+
+// Liveness answers for the process only, so a database outage never gets the container killed
+// and restarted into the same outage. Readiness is what compose and any orchestrator gate on.
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false })
+    .AllowAnonymous();
+
+app.MapHealthChecks("/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(ObservabilityServiceCollectionExtensions.ReadyTag)
+}).AllowAnonymous();
 
 app.MapStaticAssets();
 

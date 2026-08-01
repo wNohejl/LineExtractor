@@ -155,12 +155,30 @@ Update this as work lands so a fresh session can resume without re-deriving anyt
 - [x] A3 — runbook ↔ `AlertRules` bijection test (`RunbookCoverageTests`, 4 tests)
 - [x] A4 — runbook triage rendered in `IncidentsPanel` via `RunbookSteps` + embedded `Runbook`
 - [x] A5 — `IncidentService` test coverage (`IncidentServiceTests`, 10 tests)
-- [ ] B1 — `LineOps.Observability` project + `AddLineOpsTelemetry`
-- [ ] B2 — ActivitySource + Meter instrumentation
-- [ ] B3 — Aspire dashboard in compose
-- [ ] B4 — `/health` + `/ready` + compose healthcheck
-- [ ] B5 — ADR 0015
-- [ ] Docs — update `runbook.md` (severity ladder), `DESIGN.md` §5/§11/§12, `README.md`
+- [x] B1 — `LineOps.Observability` + `AddLineOpsObservability`; telemetry *names* in `LineOps.Core.Diagnostics`
+- [x] B2 — ActivitySource on ingestion runs, counters, KPI observable gauges via snapshot cache
+- [x] B3 — Aspire dashboard 13.4.2 in `compose.telemetry.yml` overlay
+- [x] B4 — `/health` + `/ready` (no compose healthcheck — see below)
+- [x] B5 — ADR 0015
+- [x] Docs — `runbook.md` severity ladder, `DESIGN.md` §5 and §12
+- [ ] Docs — `README.md` telemetry section (remaining)
+
+### B4 note — no compose healthcheck, deliberately
+
+`mcr.microsoft.com/dotnet/aspnet:10.0` ships no `curl` and no `wget` (verified by running the image,
+not assumed), and a Docker healthcheck must execute inside the container. Adding an HTTP client to
+satisfy a local convenience would enlarge the attack surface of an image that is otherwise
+read-only, non-root and capability-dropped. `/health` and `/ready` are shaped for an orchestrator
+probing over HTTP from outside the container, which is where they actually matter.
+
+### Verified
+
+- `dotnet build` clean, `dotnet test` 257/257 green.
+- `/health` 200 and `/ready` 200 against a live database.
+- Postgres stopped: `/health` stayed **200**, `/ready` returned **503**, and recovered unattended.
+  This is the whole point of the split — the liveness probe must not invite a restart into an
+  outage no restart can fix.
+- `docker compose -f docker-compose.yml -f compose.telemetry.yml config` validates.
 
 ---
 
@@ -180,6 +198,17 @@ on a date nobody changed anything on:
 Also worth noting: `CreditBudgetGuard.GetUsageAsync` had **no callers at all**. The budget tiles DESIGN.md
 §5 describes were never wired up, so the same gap existed in two places. The new alert rule is its first
 real consumer.
+
+**A runtime bug found by actually running the app**, in `OddsRetentionService.DropEmptyPartitionsAsync`.
+`ExecuteSqlRawAsync` runs its SQL through `string.Format` to bind parameters, so the partition-name
+regex written with braced repeat counts was read as parameter placeholders — with none supplied, the
+statement threw before Postgres ever saw it. The empty-partition housekeeping had therefore **never
+once run**, failing silently every scheduler pass into the catch that keeps housekeeping from
+stopping ingestion. No test called the method, which is why it survived. Fixed by spelling the
+pattern out one character class at a time, and pinned by a new test.
+
+A second flaw in the same method is left open and tracked separately: it declares `Task<int>` and is
+treated as a count, but a Postgres `DO` block reports no rows affected, so it always returns -1.
 
 A third fix went into `AlertEngine.ReconcileAsync`: it refreshed an open alert's message but not its
 severity, so a rule that escalates in place — which `budget_pressure` does, Info at 80% to Warn at 100% —
