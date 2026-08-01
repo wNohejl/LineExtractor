@@ -27,6 +27,7 @@ public static class AlertRules
 public class AlertEngine(
     LineOpsDbContext db,
     KpiCalculator kpi,
+    BudgetCalculator budget,
     IOptions<ReliabilityOptions> options,
     ILogger<AlertEngine> logger)
 {
@@ -73,10 +74,47 @@ public class AlertEngine(
                     $"{source.Name}: today's volume is {ratio:P0} of the trailing median — "
                     + "possible upstream schema drift."));
             }
+
+            if (await BudgetPressureAsync(source, ct) is { } pressure)
+                candidates.Add(pressure);
         }
 
         await ReconcileAsync(candidates, ct);
         return candidates;
+    }
+
+    /// <summary>
+    /// Raises budget pressure for a provider approaching or past its free-tier ceiling.
+    ///
+    /// Two severities, because they are two different situations. At the warn threshold the
+    /// budget is merely tight and the lever is scheduling. At 100% it is spent, which means
+    /// <c>CreditBudgetGuard</c> is already refusing runs — data has stopped arriving, and that
+    /// is a degradation rather than a heads-up.
+    ///
+    /// Neither is Critical, so neither auto-opens an incident: exhausting a free tier is a
+    /// planned consequence of the cost model, not an outage to be paged on.
+    /// </summary>
+    private async Task<AlertCandidate?> BudgetPressureAsync(Source source, CancellationToken ct)
+    {
+        var usage = await budget.GetUsageAsync(source, ct);
+
+        // An unmetered provider has no ceiling to press against. Reporting it as 0% used would
+        // read as healthy, which is a different claim from "this does not apply".
+        if (usage.IsUnmetered || usage.Worst is not { } worst)
+            return null;
+
+        if (worst.Ratio < _options.BudgetWarnThreshold)
+            return null;
+
+        var exhausted = worst.Ratio >= 1.0;
+        var dimension = BudgetUsage.Describe(worst.Dimension);
+
+        return new AlertCandidate(
+            AlertRules.BudgetPressure, source.Id,
+            exhausted ? AlertSeverity.Warn : AlertSeverity.Info,
+            exhausted
+                ? $"{source.Name}: {dimension} budget exhausted ({worst.Used}/{worst.Limit}) — runs are being refused."
+                : $"{source.Name}: {worst.Ratio:P0} of the {dimension} budget used ({worst.Used}/{worst.Limit}).");
     }
 
     /// <summary>
@@ -97,6 +135,12 @@ public class AlertEngine(
             {
                 // Keep the message current — the numbers in it drift as the outage continues.
                 existing.Message = candidate.Message;
+
+                // And the severity with it. A rule can escalate in place — budget pressure at
+                // 80% and a budget that is spent are the same (rule, source) pair — so pinning
+                // severity at whatever it was when the alert opened would under-report the
+                // condition for as long as it lasts.
+                existing.Severity = candidate.Severity;
                 continue;
             }
 

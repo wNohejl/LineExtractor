@@ -20,7 +20,11 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
     };
 
     /// <summary>Each test gets its own source so runs never bleed across cases.</summary>
-    private async Task<Source> NewSourceAsync(LineOpsDbContext db, string? failureMode = null)
+    private async Task<Source> NewSourceAsync(
+        LineOpsDbContext db,
+        string? failureMode = null,
+        int? dailyRequestLimit = null,
+        int? monthlyCreditLimit = null)
     {
         var source = new Source
         {
@@ -29,7 +33,9 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
             Kind = SourceKind.Odds,
             BaseUrl = "local://test",
             Enabled = true,
-            FailureMode = failureMode
+            FailureMode = failureMode,
+            RateLimitPerDay = dailyRequestLimit,
+            MonthlyCreditBudget = monthlyCreditLimit
         };
 
         db.Sources.Add(source);
@@ -49,8 +55,8 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
         };
 
     private static AlertEngine CreateEngine(LineOpsDbContext db)
-        => new(db, new KpiCalculator(db), new OptionsWrapper<ReliabilityOptions>(Options),
-            NullLogger<AlertEngine>.Instance);
+        => new(db, new KpiCalculator(db), new BudgetCalculator(db),
+            new OptionsWrapper<ReliabilityOptions>(Options), NullLogger<AlertEngine>.Instance);
 
     [Fact]
     public async Task FreshnessIsMeasuredFromTheLastSuccessfulRun()
@@ -227,6 +233,147 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
 
         // Two days of history cannot establish a median; guessing would produce false alerts.
         Assert.Null(await new KpiCalculator(db).GetVolumeRatioAsync(source.Id, 7));
+    }
+
+    /// <summary>A run that consumed budget. Requests are what the metered dimensions count.</summary>
+    private static IngestionRun Spend(int sourceId, int requests, int credits = 0)
+        => new()
+        {
+            SourceId = sourceId,
+            JobKey = "test",
+            StartedAt = DateTimeOffset.UtcNow,
+            FinishedAt = DateTimeOffset.UtcNow,
+            Status = RunStatus.Success,
+            RowsIngested = 10,
+            RequestsMade = requests,
+            CreditsSpent = credits
+        };
+
+    [Fact]
+    public async Task ApproachingAProvidersCeilingRaisesBudgetPressure()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db, dailyRequestLimit: 100);
+
+        db.IngestionRuns.Add(Spend(source.Id, requests: 85));
+        await db.SaveChangesAsync();
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+
+        var alert = Assert.Single(candidates,
+            c => c.RuleKey == AlertRules.BudgetPressure && c.SourceId == source.Id);
+
+        // Informational while there is still headroom — nothing has stopped working yet.
+        Assert.Equal(AlertSeverity.Info, alert.Severity);
+
+        // The runbook's first triage step asks which dimension is under pressure, so the alert
+        // has to answer that from its own text.
+        Assert.Contains("daily requests", alert.Message);
+        Assert.Contains("85/100", alert.Message);
+    }
+
+    [Fact]
+    public async Task AnExhaustedBudgetIsWarnRatherThanInfo()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db, dailyRequestLimit: 100);
+
+        db.IngestionRuns.Add(Spend(source.Id, requests: 100));
+        await db.SaveChangesAsync();
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+        var alert = Assert.Single(candidates,
+            c => c.RuleKey == AlertRules.BudgetPressure && c.SourceId == source.Id);
+
+        // At the ceiling the guard is refusing runs, so data has stopped arriving. That is a
+        // degradation, not a heads-up.
+        Assert.Equal(AlertSeverity.Warn, alert.Severity);
+        Assert.Contains("refused", alert.Message);
+    }
+
+    [Fact]
+    public async Task PressureEscalatesInPlaceRatherThanOpeningASecondAlert()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db, dailyRequestLimit: 100);
+
+        db.IngestionRuns.Add(Spend(source.Id, requests: 85));
+        await db.SaveChangesAsync();
+
+        var engine = CreateEngine(db);
+        await engine.EvaluateAsync();
+
+        db.IngestionRuns.Add(Spend(source.Id, requests: 15));
+        await db.SaveChangesAsync();
+        await engine.EvaluateAsync();
+
+        var alerts = await db.Alerts
+            .Where(a => a.SourceId == source.Id && a.RuleKey == AlertRules.BudgetPressure)
+            .ToListAsync();
+
+        // One alert, escalated — not two. Severity has to follow the condition, or the feed keeps
+        // reporting Info about a budget that is already spent.
+        var alert = Assert.Single(alerts);
+        Assert.Equal(AlertSeverity.Warn, alert.Severity);
+    }
+
+    [Fact]
+    public async Task AnUnmeteredSourceNeverRaisesBudgetPressure()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db);
+
+        db.IngestionRuns.Add(Spend(source.Id, requests: 5_000));
+        await db.SaveChangesAsync();
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+
+        // No ceiling means utilisation is undefined, not zero. Treating it as 0% would report an
+        // unmetered provider as comfortably healthy, which is a claim we cannot make.
+        Assert.DoesNotContain(candidates,
+            c => c.RuleKey == AlertRules.BudgetPressure && c.SourceId == source.Id);
+    }
+
+    [Fact]
+    public async Task CreditPressureIsMeasuredSeparatelyFromRequestPressure()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db, dailyRequestLimit: 1_000, monthlyCreditLimit: 500);
+
+        // Few requests, but each one cost credits — the dimension under pressure is the one the
+        // provider actually bills on.
+        db.IngestionRuns.Add(Spend(source.Id, requests: 10, credits: 450));
+        await db.SaveChangesAsync();
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+        var alert = Assert.Single(candidates,
+            c => c.RuleKey == AlertRules.BudgetPressure && c.SourceId == source.Id);
+
+        Assert.Contains("monthly credits", alert.Message);
+    }
+
+    [Fact]
+    public async Task BudgetPressureClearsOnceConsumptionRollsOff()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db, dailyRequestLimit: 100);
+
+        // Spent yesterday, outside the trailing-24h window the daily ceiling counts over.
+        db.IngestionRuns.Add(new IngestionRun
+        {
+            SourceId = source.Id,
+            JobKey = "test",
+            StartedAt = DateTimeOffset.UtcNow.AddHours(-30),
+            FinishedAt = DateTimeOffset.UtcNow.AddHours(-30),
+            Status = RunStatus.Success,
+            RequestsMade = 95
+        });
+        await db.SaveChangesAsync();
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+
+        Assert.DoesNotContain(candidates,
+            c => c.RuleKey == AlertRules.BudgetPressure && c.SourceId == source.Id);
     }
 
     [Fact]

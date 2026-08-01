@@ -17,6 +17,7 @@ public static class ReliabilityServiceCollectionExtensions
         services.Configure<ReliabilityOptions>(configuration.GetSection(ReliabilityOptions.SectionName));
 
         services.AddScoped<KpiCalculator>();
+        services.AddScoped<BudgetCalculator>();
         services.AddScoped<AlertEngine>();
         services.AddScoped<IncidentService>();
 

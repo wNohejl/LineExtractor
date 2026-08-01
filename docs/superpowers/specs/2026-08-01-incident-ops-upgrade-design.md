@@ -150,17 +150,40 @@ the code it describes.
 
 Update this as work lands so a fresh session can resume without re-deriving anything.
 
-- [ ] A1 — `BudgetCalculator` + `BudgetUsage` moved to Reliability; `CreditBudgetGuard` rewritten on top
-- [ ] A2 — `budget_pressure` rule in `AlertEngine` with Info/Warn ladder and named dimension
-- [ ] A3 — runbook ↔ `AlertRules` bijection test
+- [x] A1 — `BudgetCalculator` + `BudgetUsage` moved to Reliability; `CreditBudgetGuard` rewritten on top
+- [x] A2 — `budget_pressure` rule in `AlertEngine` with Info/Warn ladder and named dimension
+- [x] A3 — runbook ↔ `AlertRules` bijection test (`RunbookCoverageTests`, 4 tests)
 - [ ] A4 — runbook triage rendered in `IncidentsPanel`
-- [ ] A5 — `IncidentService` test coverage
+- [x] A5 — `IncidentService` test coverage (`IncidentServiceTests`, 10 tests)
 - [ ] B1 — `LineOps.Observability` project + `AddLineOpsTelemetry`
 - [ ] B2 — ActivitySource + Meter instrumentation
 - [ ] B3 — Aspire dashboard in compose
 - [ ] B4 — `/health` + `/ready` + compose healthcheck
 - [ ] B5 — ADR 0015
 - [ ] Docs — update `runbook.md` (severity ladder), `DESIGN.md` §5/§11/§12, `README.md`
+
+---
+
+## Found while implementing
+
+**Two pre-existing calendar-dependent test bugs**, unrelated to the design but caught because this
+work ran on the 1st of a month. Both were latent in `LinePollPlannerTests` and would have turned CI red
+on a date nobody changed anything on:
+
+1. `BudgetInterval` assertions compared against the *unclamped* ideal spacing. Early in a 31-day month,
+   500 credits spread evenly is 3.72h, which the planner clamps to the 3h `MaximumInterval`. Fixed with a
+   `PacedHoursThisMonth` helper that applies the same clamp.
+2. Runs seeded at `UtcNow.AddDays(-1)` to represent "credits already spent" land in the *previous* month
+   when the test runs on the 1st, so the spend correctly reads as zero and the assertion fails. Fixed
+   with an `EarlierThisMonth` helper that floors the timestamp at the month boundary.
+
+Also worth noting: `CreditBudgetGuard.GetUsageAsync` had **no callers at all**. The budget tiles DESIGN.md
+§5 describes were never wired up, so the same gap existed in two places. The new alert rule is its first
+real consumer.
+
+A third fix went into `AlertEngine.ReconcileAsync`: it refreshed an open alert's message but not its
+severity, so a rule that escalates in place — which `budget_pressure` does, Info at 80% to Warn at 100% —
+would have reported the opening severity for as long as the condition lasted.
 
 ---
 
