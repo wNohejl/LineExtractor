@@ -1,0 +1,87 @@
+@using LineOps.Reliability
+
+@*
+    The triage procedure for one alert rule, rendered where the incident is being worked.
+
+    An on-call engineer should not have to leave the tool to find out what the alert they are
+    holding actually means. The text is the repository's runbook verbatim — embedded in
+    LineOps.Reliability rather than restated here, so there is no second copy to fall out of date.
+*@
+
+@if (_entry is null)
+{
+    <p class="note note--warn">
+        No runbook section for <span class="mono">@RuleKey</span>. That is a gap in the
+        documentation, not in the alert.
+    </p>
+}
+else
+{
+    <details class="runbook" open="@Open">
+        <summary class="runbook__summary">
+            <Glyph Icon="@Icons.Material.Filled.MenuBook" /> Runbook — @_entry.Heading
+        </summary>
+
+        <div class="runbook__body">
+            @foreach (var line in _lines)
+            {
+                @if (line.IsStep)
+                {
+                    <div class="runbook__step">@Spans(line)</div>
+                }
+                else
+                {
+                    <p class="runbook__line">@Spans(line)</p>
+                }
+            }
+        </div>
+    </details>
+}
+
+@code {
+    /// <summary>The alert rule whose section to show, e.g. "freshness".</summary>
+    [Parameter, EditorRequired] public string RuleKey { get; set; } = string.Empty;
+
+    /// <summary>Expanded by default while an incident is open; collapsed once it is resolved.</summary>
+    [Parameter] public bool Open { get; set; } = true;
+
+    private RunbookEntry? _entry;
+    private IReadOnlyList<RunbookLine> _lines = [];
+
+    protected override void OnParametersSet()
+    {
+        _entry = Runbook.Find(RuleKey);
+        _lines = _entry is null ? [] : _entry.Body.Select(Runbook.ParseLine).ToList();
+    }
+
+    /// <summary>
+    /// Emphasis as elements rather than as a markup string. Razor escapes the text of each span
+    /// on its own, so nothing in the runbook can turn into markup here no matter what it says.
+    /// </summary>
+    private static RenderFragment Spans(RunbookLine line) => builder =>
+    {
+        var sequence = 0;
+
+        foreach (var span in line.Spans)
+        {
+            switch (span.Kind)
+            {
+                case RunbookSpanKind.Bold:
+                    builder.OpenElement(sequence++, "strong");
+                    builder.AddContent(sequence++, span.Text);
+                    builder.CloseElement();
+                    break;
+
+                case RunbookSpanKind.Code:
+                    builder.OpenElement(sequence++, "code");
+                    builder.AddContent(sequence++, span.Text);
+                    builder.CloseElement();
+                    break;
+
+                default:
+                    builder.AddContent(sequence++, span.Text);
+                    break;
+            }
+        }
+    };
+}

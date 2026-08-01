@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
 using LineOps.Reliability;
 
 namespace LineOps.Tests.Reliability;
@@ -17,12 +16,6 @@ namespace LineOps.Tests.Reliability;
 /// </summary>
 public class RunbookCoverageTests
 {
-    /// <summary>Rule headings look like "## `freshness` — Critical". The backticked key is the contract.</summary>
-    private static readonly Regex RuleHeading = new(@"^##\s+`(?<key>[a-z_]+)`", RegexOptions.Multiline);
-
-    private static string RunbookPath
-        => Path.Combine(AppContext.BaseDirectory, "runbook.md");
-
     /// <summary>Every public const string on <see cref="AlertRules"/>, read rather than restated.</summary>
     private static IReadOnlyList<string> DeclaredRules
         => typeof(AlertRules)
@@ -33,18 +26,7 @@ public class RunbookCoverageTests
             .ToList();
 
     private static IReadOnlyList<string> DocumentedRules
-        => RuleHeading.Matches(File.ReadAllText(RunbookPath))
-            .Select(m => m.Groups["key"].Value)
-            .OrderBy(k => k)
-            .ToList();
-
-    [Fact]
-    public void TheRunbookIsWhereTheTestExpectsIt()
-    {
-        // Fail loudly rather than let a missing file turn the assertions below into vacuous passes.
-        Assert.True(File.Exists(RunbookPath),
-            $"runbook.md was not copied to the test output ({RunbookPath}). Check LineOps.Tests.csproj.");
-    }
+        => Runbook.All.Keys.OrderBy(k => k).ToList();
 
     [Fact]
     public void EveryAlertRuleHasARunbookSection()
@@ -69,9 +51,22 @@ public class RunbookCoverageTests
     [Fact]
     public void AlertRulesAreNotEmpty()
     {
-        // Guards the two assertions above: if reflection silently returned nothing, both would
-        // pass against an empty set and the whole test class would be decorative.
+        // Guards the two assertions above: if reflection or the embedded resource silently
+        // returned nothing, both would pass against an empty set and this class would be
+        // decorative — which is the exact failure it was written to prevent.
         Assert.NotEmpty(DeclaredRules);
         Assert.NotEmpty(DocumentedRules);
+    }
+
+    [Fact]
+    public void EverySectionCarriesTriageStepsRatherThanJustADefinition()
+    {
+        // The panel renders these while an incident is being worked. A section that says what the
+        // alert means but not what to do about it is not a runbook entry.
+        foreach (var entry in Runbook.All.Values)
+        {
+            Assert.NotEmpty(entry.Body);
+            Assert.Contains(entry.Body, line => line.Contains("**Triage**", StringComparison.Ordinal));
+        }
     }
 }

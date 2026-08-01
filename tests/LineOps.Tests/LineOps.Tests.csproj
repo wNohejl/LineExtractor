@@ -25,13 +25,6 @@
     <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- The runbook is copied next to the test assembly so RunbookCoverageTests can assert that
-       every alert rule is documented and every documented rule exists. Referenced by path on
-       purpose: if the runbook moves, this fails the build rather than silently skipping. -->
-  <ItemGroup>
-    <None Include="..\..\docs\runbook.md" Link="runbook.md" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\src\LineOps.Core\LineOps.Core.csproj" />
     <ProjectReference Include="..\..\src\LineOps.Data\LineOps.Data.csproj" />

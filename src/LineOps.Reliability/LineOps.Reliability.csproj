@@ -10,6 +10,14 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
   </ItemGroup>
 
+  <!-- The runbook travels with the library that raises the alerts it documents. Embedded rather
+       than copied so the triage steps are available to the incident UI in a container without
+       the docs folder having to be published alongside it, and so there is exactly one copy to
+       keep true. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\runbook.md" LogicalName="LineOps.Reliability.runbook.md" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

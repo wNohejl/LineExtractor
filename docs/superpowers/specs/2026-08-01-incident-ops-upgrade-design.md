@@ -153,7 +153,7 @@ Update this as work lands so a fresh session can resume without re-deriving anyt
 - [x] A1 — `BudgetCalculator` + `BudgetUsage` moved to Reliability; `CreditBudgetGuard` rewritten on top
 - [x] A2 — `budget_pressure` rule in `AlertEngine` with Info/Warn ladder and named dimension
 - [x] A3 — runbook ↔ `AlertRules` bijection test (`RunbookCoverageTests`, 4 tests)
-- [ ] A4 — runbook triage rendered in `IncidentsPanel`
+- [x] A4 — runbook triage rendered in `IncidentsPanel` via `RunbookSteps` + embedded `Runbook`
 - [x] A5 — `IncidentService` test coverage (`IncidentServiceTests`, 10 tests)
 - [ ] B1 — `LineOps.Observability` project + `AddLineOpsTelemetry`
 - [ ] B2 — ActivitySource + Meter instrumentation

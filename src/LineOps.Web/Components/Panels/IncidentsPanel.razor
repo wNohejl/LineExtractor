@@ -95,6 +95,13 @@ else
 
     <h3 class="panel-h">#@_selected.Id — @_selected.Title</h3>
 
+    @* The procedure before the workspace: an incident is opened to be worked, and the first thing
+       the person working it needs is the triage steps for the rule that raised it. *@
+    @foreach (var rule in _rules)
+    {
+        <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
+    }
+
     <h3 class="panel-h">Timeline</h3>
     <div class="stack">
         @foreach (var note in _timeline)
@@ -157,6 +164,10 @@ else
     private IReadOnlyList<Incident> _incidents = [];
     private Incident? _selected;
     private IReadOnlyList<TimelineNote> _timeline = [];
+
+    /// <summary>Distinct rules behind this incident. Usually one, but a source failing two ways at
+    /// once is promoted from whichever alert was clicked and can accumulate more.</summary>
+    private IReadOnlyList<string> _rules = [];
     private string _rootCause = string.Empty;
     private string _corrective = string.Empty;
     private string _newNote = string.Empty;
@@ -212,6 +223,12 @@ else
             _timeline = IncidentService.Deserialise(_selected.Timeline);
             _rootCause = _selected.RootCause ?? string.Empty;
             _corrective = _selected.CorrectiveActions ?? string.Empty;
+
+            _rules = _selected.Alerts
+                .Select(a => a.RuleKey)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToList();
         }
     }
 
