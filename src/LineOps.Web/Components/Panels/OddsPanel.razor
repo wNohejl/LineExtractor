@@ -15,12 +15,8 @@
         }
     </select>
 
-    <select class="field"
-            value="@_market" @onchange="OnMarketChanged">
-        <option value="@Markets.Moneyline">Moneyline</option>
-        <option value="@Markets.Spread">Spread</option>
-        <option value="@Markets.Total">Total</option>
-    </select>
+    <DeskSwitch Options="_marketOptions" Label="Market"
+                Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
 </div>
 
 @if (_series.Count == 0)
@@ -93,11 +89,8 @@ else if (_form.IsEmpty)
 else
 {
     <div class="row" style="margin-bottom:9px">
-        <select class="field" value="@_windowDays" @onchange="OnWindowChanged">
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-        </select>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="dim" style="font-size:11.5px">
             @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
@@ -118,6 +111,13 @@ else
     private int? _gameId;
     private string _market = Markets.Moneyline;
     private int _moveCount;
+
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _marketOptions =
+    [
+        new(Markets.Moneyline, "Moneyline"),
+        new(Markets.Spread, "Spread"),
+        new(Markets.Total, "Total")
+    ];
 
     private MatchupForm? _form;
     private int _windowDays = 30;
@@ -204,15 +204,15 @@ else
         await LoadAsync();
     }
 
-    private async Task OnMarketChanged(ChangeEventArgs e)
+    private async Task SetMarketAsync(string market)
     {
-        _market = e.Value?.ToString() ?? Markets.Moneyline;
+        _market = market;
         await LoadAsync();
     }
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int days)
     {
-        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        _windowDays = days;
         await LoadFormAsync();
     }
 

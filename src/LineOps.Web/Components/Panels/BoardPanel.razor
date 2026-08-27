@@ -1,6 +1,7 @@
 @using LineOps.Data
 @using LineOps.Data.CrossReference
 @using LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @using Microsoft.EntityFrameworkCore
 @inherits PanelBase
@@ -25,11 +26,8 @@
         }
     </select>
 
-    <select class="field" style="max-width:150px" value="@_windowHours" @onchange="OnWindowChanged">
-        <option value="12">Next 12 hours</option>
-        <option value="24">Next 24 hours</option>
-        <option value="48">Next 48 hours</option>
-    </select>
+    <DeskSwitch Options="_horizons" Label="Slate horizon" Mono="true"
+                Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
 
     <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
 
@@ -70,7 +68,8 @@
 }
 else
 {
-    <DeskGrid T="BoardRow" Items="_rows" Class="deskgrid--clickable"
+    <DeskGrid T="BoardRow" Items="_rows" Class="deskgrid--clickable deskgrid--board"
+              RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
               EmptyText="No games priced in this window.">
 
@@ -101,112 +100,87 @@ else
 
                 @if (_open?.Game.Id == context.Item.Game.Id)
                 {
-                    <div class="board__actions">
-                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral"
-                                    Icon="@Icons.Material.Filled.ViewList"
-                                    OnClick="() => OpenAsync(DialogKind.AllBets, context.Item)">
-                            More bets
-                        </DeskButton>
-
-                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
-                                    Icon="@Icons.Material.Filled.Bolt"
-                                    OnClick="() => OpenAsync(DialogKind.Wager, context.Item)">
-                            Place wager
-                        </DeskButton>
-
-                        <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral"
-                                    Icon="@Icons.Material.Filled.QueryStats"
-                                    OnClick="() => OpenAsync(DialogKind.Form, context.Item)">
-                            Form
-                        </DeskButton>
-                    </div>
+                    @* Keyed by the game so moving to another row is a fresh strip rather than
+                       one still showing the previous game's snippet. *@
+                    <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item)" />
                 }
             </CellTemplate>
         </TemplateColumn>
 
         @* Home/over first in every market, so a column reads down consistently. *@
         <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Moneyline.First" /></CellTemplate>
+            <CellTemplate><PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)" /></CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Moneyline.Second" /></CellTemplate>
+        <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)" /></CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Spread.First" /></CellTemplate>
+            <CellTemplate><PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)" /></CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Spread.Second" /></CellTemplate>
+        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
+            <CellTemplate><PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)" /></CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Total.First" /></CellTemplate>
+            <CellTemplate><PriceCell Offer="context.Item.Total.First" Selection="O" /></CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Total.Second" /></CellTemplate>
+            <CellTemplate><PriceCell Offer="context.Item.Total.Second" Selection="U" /></CellTemplate>
         </TemplateColumn>
 
     </DeskGrid>
 }
 
-@* Dialogs live above the desk and outlive the row that opened them, so several games can be
-   compared at once. Ordered by when each was last raised. *@
-@foreach (var (dialog, index) in _dialogs.Select((d, i) => (d, i)))
-{
-    <DeskDialog Title="@dialog.Title"
-                Subtitle="@dialog.Subtitle"
-                Icon="@dialog.Icon"
-                Width="@dialog.Width"
-                Index="index"
-                ZIndex="@(9500 + dialog.Order)"
-                OnClose="() => Close(dialog)"
-                OnRaise="() => Raise(dialog)">
-
-        @switch (dialog.Kind)
-        {
-            case DialogKind.AllBets:
-                <BoardAllBets GameId="dialog.Row.Game.Id" />
-                break;
-
-            case DialogKind.Wager:
-                <BoardWager GameId="dialog.Row.Game.Id" OnPlaced="OnWagerPlaced" />
-                break;
-
-            case DialogKind.Form:
-                <BoardForm GameId="dialog.Row.Game.Id" />
-                break;
-        }
-    </DeskDialog>
-}
+@* Follow-ups live above the desk and outlive the row that opened them, so several games can
+   be compared at once. *@
+<FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
-    private enum DialogKind { AllBets, Wager, Form }
-
-    private sealed class OpenDialog
-    {
-        public required DialogKind Kind { get; init; }
-        public required BoardRow Row { get; init; }
-        public required string Title { get; init; }
-        public required string Subtitle { get; init; }
-        public required string Icon { get; init; }
-        public required string Width { get; init; }
-        public int Order { get; set; }
-    }
-
     private List<BoardRow> _rows = [];
     private List<Sport> _sports = [];
-    private readonly List<OpenDialog> _dialogs = [];
+    private readonly FollowUpLauncher _followUps = new();
     private BoardRow? _open;
     private string _sport = string.Empty;
     private int _windowHours = 24;
     private int _bookCount;
+
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> _horizons =
+    [
+        new(12, "12h", "Next 12 hours"),
+        new(24, "24h", "Next 24 hours"),
+        new(48, "48h", "Next 48 hours")
+    ];
     private int _priced;
     private TimeSpan? _oldest;
-    private int _raiseCounter;
 
+
+    /// <summary>
+    /// Which side a price column is for, as the team's own short form.
+    ///
+    /// <para>
+    /// The board orders every market home-first so a column reads down consistently, but that
+    /// ordering is only a convention until it is written on the cell. Abbreviations are right
+    /// here — this is a dense grid where the same names repeat down the column, which is exactly
+    /// where a short form belongs rather than where a game is being identified.
+    /// </para>
+    ///
+    /// <para>
+    /// Falls back to "H"/"A" for a team with no abbreviation on record, which is better than a
+    /// blank: the reader still learns which side they are looking at.
+    /// </para>
+    /// </summary>
+    private static string Side(BoardRow row, bool home)
+    {
+        var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;
+
+        return string.IsNullOrWhiteSpace(team?.Abbrev)
+            ? home ? "H" : "A"
+            : team!.Abbrev;
+    }
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -221,9 +195,9 @@ else
         await LoadAsync();
     }
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int hours)
     {
-        _windowHours = int.TryParse(e.Value?.ToString(), out var hours) ? hours : 24;
+        _windowHours = hours;
         await LoadAsync();
     }
 
@@ -254,70 +228,70 @@ else
         => _open = _open?.Game.Id == row.Game.Id ? null : row;
 
     /// <summary>
-    /// Opens a follow-up as a desk window, falling back to the floating layer when the desk is
-    /// full.
+    /// What this row can do, in the order an operator reaches for them.
     ///
     /// <para>
-    /// A window is the better home: it tiles, it keeps its place in the row, and it survives
-    /// being scrolled past. But the desk enforces a ceiling by <i>evicting</i> the
-    /// least-recently-used window (ADR 0007), and silently closing the board an operator is
-    /// working from to make room for a price table is exactly the wrong trade. So the ceiling
-    /// becomes the switch: while there is room, follow-ups are windows; once there is not, they
-    /// float above the desk instead of pushing something off it.
+    /// The first three answer their question on the row — a price, a fixture's history, both
+    /// sides' form — because none of them is worth evicting a window for. The last two are
+    /// destinations: a full book-by-book table and a wager form are things you work in, and a
+    /// snippet of either would be a worse version of the window.
     /// </para>
     /// </summary>
-    private Task OpenAsync(DialogKind kind, BoardRow row)
+    private List<RowAction> ActionsFor(BoardRow row)
     {
-        var (key, title, icon, width) = kind switch
-        {
-            DialogKind.AllBets => (WindowCatalog.Bets, "Every book", Icons.Material.Filled.ViewList, "680px"),
-            DialogKind.Wager => (WindowCatalog.Wager, "Place wager", Icons.Material.Filled.Bolt, "480px"),
-            _ => (WindowCatalog.Form, "Recent form", Icons.Material.Filled.QueryStats, "720px")
-        };
+        var id = row.Game.Id;
+        var name = Matchup(row.Game);
 
-        if (!Manager.AtCapacity && WindowCatalog.Find(key) is { } definition)
-        {
-            Manager.Open(
-                definition,
-                new Dictionary<string, object> { ["GameId"] = row.Game.Id },
-                $"{title} · {Matchup(row.Game)}");
-
-            return Task.CompletedTask;
-        }
-
-        // Re-opening the same view for the same game raises what is already there rather than
-        // stacking a duplicate on top of it.
-        var existing = _dialogs.FirstOrDefault(d => d.Kind == kind && d.Row.Game.Id == row.Game.Id);
-
-        if (existing is not null)
-        {
-            Raise(existing);
-            return Task.CompletedTask;
-        }
-
-        _dialogs.Add(new OpenDialog
-        {
-            Kind = kind,
-            Row = row,
-            Title = title,
-            Subtitle = Matchup(row.Game),
-            Icon = icon,
-            Width = width,
-            Order = ++_raiseCounter
-        });
-
-        return Task.CompletedTask;
+        return
+        [
+            new RowAction
+            {
+                Key = "odds",
+                Label = "Odds",
+                Icon = Icons.Material.Filled.ShowChart,
+                Snippet = @<OddsSnippet GameId="id" />,
+                OpenLabel = "Movement",
+                OpenWindow = () => Launch(WindowCatalog.Odds, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "h2h",
+                Label = "H2H",
+                Icon = Icons.Material.Filled.CompareArrows,
+                Snippet = @<HeadToHeadSnippet GameId="id" />,
+                OpenLabel = "Full history",
+                OpenWindow = () => Launch(WindowCatalog.HeadToHead, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "form",
+                Label = "Form",
+                Icon = Icons.Material.Filled.QueryStats,
+                Snippet = @<FormSnippet GameId="id" />,
+                OpenLabel = "Both rosters",
+                OpenWindow = () => Launch(WindowCatalog.Form, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "bets",
+                Label = "More bets",
+                Icon = Icons.Material.Filled.ViewList,
+                OpenWindow = () => Launch(WindowCatalog.Bets, "GameId", id, name, "680px")
+            },
+            new RowAction
+            {
+                Key = "wager",
+                Label = "Place wager",
+                Icon = Icons.Material.Filled.Bolt,
+                Tone = DeskTone.Action,
+                OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
+            }
+        ];
     }
 
-    private void Raise(OpenDialog dialog) => dialog.Order = ++_raiseCounter;
-
-    private void Close(OpenDialog dialog) => _dialogs.Remove(dialog);
-
-    private async Task OnWagerPlaced()
+    private Task Launch(string key, string parameter, int id, string name, string width = "640px")
     {
-        // The board does not change when a wager is logged, but the journal does — and the
-        // operator's next move is usually the next game, so the dialog closes itself.
-        _dialogs.RemoveAll(d => d.Kind == DialogKind.Wager);
-        await LoadAsync();
+        _followUps.Launch(Manager, key, parameter, id, name, width);
+        return Task.CompletedTask;
     }
 }

@@ -1,0 +1,120 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    A player's last few games, line by line.
+
+    This is the thing a roster aggregate was averaged from, and the reason to want it is that
+    the average hides the shape: four quiet games and one enormous one produce the same mean as
+    five steady ones, and only one of those is a player in form.
+
+    Columns are derived from the lines themselves rather than fixed, because a stat line is
+    per-sport jsonb and there is no column set that fits baseball and hockey both. The most
+    widely reported keys win, which keeps the snippet narrow enough to sit under a row.
+*@
+
+@if (_loading)
+{
+    <p class="empty" style="padding:6px 0">Reading recent games…</p>
+}
+else if (_error is not null)
+{
+    <p class="note note--warn" style="margin:0">@_error</p>
+}
+else if (_rows.Count == 0)
+{
+    <p class="empty" style="padding:6px 0">No appearances on record for this player.</p>
+}
+else
+{
+    <div class="gridwrap"><table class="grid grid--tight">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Opponent</th>
+                <th class="r">Result</th>
+                @foreach (var c in _columns)
+                {
+                    <th class="r">@c</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td class="dim">@row.StartsAt.ToLocalTime().ToString("MMM d")</td>
+                    <td class="trunc">@(row.Home ? "vs" : "at") @row.Opponent</td>
+                    <td class="r">
+                        @if (row.Won is { } won)
+                        {
+                            <span class="tag @(won ? "tag--good" : "tag--bad")">
+                                @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="dim">—</span>
+                        }
+                    </td>
+                    @foreach (var c in _columns)
+                    {
+                        <td class="r mono">@(row.Stats.TryGetValue(c, out var v) ? v : "—")</td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int PlayerId { get; set; }
+
+    /// <summary>Games shown before the full log is worth opening.</summary>
+    [Parameter] public int Take { get; set; } = 5;
+
+    /// <summary>Stat columns to derive. Kept low so the table fits under a row.</summary>
+    [Parameter] public int MaxColumns { get; set; } = 5;
+
+    private IReadOnlyList<PlayerGameRow> _rows = [];
+    private List<string> _columns = [];
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            _rows = await log.PlayerGameLogAsync(PlayerId, Take);
+            _columns = DeriveColumns(_rows, MaxColumns);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not read recent games: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// The keys reported most often across these games, so a column is one that is mostly
+    /// filled rather than one that happened to appear once.
+    /// </summary>
+    internal static List<string> DeriveColumns(IReadOnlyList<PlayerGameRow> rows, int max)
+        => rows.SelectMany(r => r.Stats.Keys)
+            .GroupBy(k => k)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Key)
+            .Take(max)
+            .ToList();
+}

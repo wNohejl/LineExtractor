@@ -25,14 +25,44 @@ public static class Grading
         if (!string.IsNullOrWhiteSpace(entry.FreeTextMarket))
             return null;
 
-        return entry.Market switch
+        return GradeOutcome(
+            entry.Market, entry.Outcome, entry.LineTaken,
+            homeTeamName, awayTeamName, homeScore, awayScore);
+    }
+
+    /// <summary>
+    /// The rules themselves, applied to a priced outcome rather than to a recorded entry.
+    ///
+    /// <para>
+    /// A journal entry is one thing that can be graded; a closing line is another. "Did this
+    /// team cover" on a game log is the same arithmetic as "did my spread bet win" — the only
+    /// difference is where the handicap came from. Keeping the rules here and taking the four
+    /// values they actually need means the game log and the journal cannot drift apart, which a
+    /// second implementation of the push cases certainly would.
+    /// </para>
+    ///
+    /// <para>
+    /// Returns null when the outcome cannot be graded automatically: an unknown market, a side
+    /// that maps to neither team, or a handicap market with no line. Null is "no reading", which
+    /// is distinct from <see cref="EntryResult.Push"/> — a game with no stored line did not tie
+    /// against the number, it never had one.
+    /// </para>
+    /// </summary>
+    public static EntryResult? GradeOutcome(
+        string market,
+        string outcome,
+        decimal? line,
+        string homeTeamName,
+        string awayTeamName,
+        int homeScore,
+        int awayScore)
+        => market switch
         {
-            Markets.Moneyline => GradeMoneyline(entry.Outcome, homeTeamName, awayTeamName, homeScore, awayScore),
-            Markets.Spread => GradeSpread(entry, homeTeamName, awayTeamName, homeScore, awayScore),
-            Markets.Total => GradeTotal(entry, homeScore, awayScore),
+            Markets.Moneyline => GradeMoneyline(outcome, homeTeamName, awayTeamName, homeScore, awayScore),
+            Markets.Spread => GradeSpread(outcome, line, homeTeamName, awayTeamName, homeScore, awayScore),
+            Markets.Total => GradeTotal(outcome, line, homeScore, awayScore),
             _ => null
         };
-    }
 
     private static EntryResult? GradeMoneyline(
         string outcome, string home, string away, int homeScore, int awayScore)
@@ -51,12 +81,12 @@ public static class Grading
     }
 
     private static EntryResult? GradeSpread(
-        JournalEntry entry, string home, string away, int homeScore, int awayScore)
+        string outcome, decimal? lineTaken, string home, string away, int homeScore, int awayScore)
     {
-        if (entry.LineTaken is not { } line)
+        if (lineTaken is not { } line)
             return null;
 
-        var side = ResolveSide(entry.Outcome, home, away);
+        var side = ResolveSide(outcome, home, away);
         if (side is null)
             return null;
 
@@ -73,14 +103,15 @@ public static class Grading
         };
     }
 
-    private static EntryResult? GradeTotal(JournalEntry entry, int homeScore, int awayScore)
+    private static EntryResult? GradeTotal(
+        string outcome, decimal? lineTaken, int homeScore, int awayScore)
     {
-        if (entry.LineTaken is not { } line)
+        if (lineTaken is not { } line)
             return null;
 
         var total = homeScore + awayScore;
-        var isOver = entry.Outcome.Equals("over", StringComparison.OrdinalIgnoreCase);
-        var isUnder = entry.Outcome.Equals("under", StringComparison.OrdinalIgnoreCase);
+        var isOver = outcome.Equals("over", StringComparison.OrdinalIgnoreCase);
+        var isUnder = outcome.Equals("under", StringComparison.OrdinalIgnoreCase);
 
         if (!isOver && !isUnder)
             return null;

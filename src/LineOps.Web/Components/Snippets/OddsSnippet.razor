@@ -1,0 +1,126 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    The current market on one game, at a glance.
+
+    Best number per market and the book holding it — the same reading the Board gives, brought
+    to a row on a surface that does not carry price columns. The Slate lists the day; this is
+    how a game on it gets priced without opening anything.
+
+    Deliberately not the movement chart. "What is the number now" and "how did it get here" are
+    different questions, and the second one is what the window behind this answers.
+*@
+
+@if (_loading)
+{
+    <p class="empty" style="padding:6px 0">Reading the market…</p>
+}
+else if (_error is not null)
+{
+    <p class="note note--warn" style="margin:0">@_error</p>
+}
+else if (_row is null || _row.Unpriced is { } reason)
+{
+    <p class="note note--warn" style="margin:0">@(_row?.Unpriced ?? "This game is not on the board.")</p>
+}
+else
+{
+    <div class="snippet__markets">
+        @RenderMarket("Moneyline", _row.Moneyline)
+        @RenderMarket("Spread", _row.Spread)
+        @RenderMarket("Total", _row.Total)
+    </div>
+
+    @* How many books this "best" was chosen from, and when the market last moved. A best price
+       drawn from one book is a price; drawn from five it is a market, and the reader cannot
+       tell which they are looking at unless it is said. "Unmoved" rather than "old": prices are
+       stored on change (ADR 0001), so an old timestamp means a still market, not a stale feed. *@
+    <p class="snippet__coverage">
+        best of @_row.BookCount @(_row.BookCount == 1 ? "book" : "books")
+        @if (_row.Age is { } age)
+        {
+            <text> · last move @Age(age.TotalMinutes) ago</text>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    private BoardRow? _row;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+            _row = await board.GetRowAsync(GameId);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not read the market: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Same wording as the panels use, so one reading is not two vocabularies.</summary>
+    private static string Age(double minutes) => minutes switch
+    {
+        < 1 => "just now",
+        < 60 => $"{minutes:F0}m",
+        < 1440 => $"{minutes / 60:F1}h",
+        _ => $"{minutes / 1440:F1}d"
+    };
+
+    private RenderFragment RenderMarket(string name, MarketPair pair) => @<text>
+        <div class="snippet__market">
+            <div class="snippet__market-name">@name</div>
+            @if (!pair.IsPriced)
+            {
+                <div class="dim mono">—</div>
+            }
+            else
+            {
+                <div class="snippet__sides">
+                    @RenderSide(pair.First)
+                    @RenderSide(pair.Second)
+                </div>
+            }
+        </div>
+    </text>;
+
+    private RenderFragment RenderSide(BestOffer? offer) => @<text>
+        @if (offer is null)
+        {
+            <div class="snippet__side snippet__side--empty mono">—</div>
+        }
+        else
+        {
+            <div class="snippet__side" title="@offer.Outcome — @offer.Book">
+                <span class="snippet__sel trunc">@offer.Outcome</span>
+                @if (offer.Line is { } l)
+                {
+                    <span class="snippet__line mono">@Line(l)</span>
+                }
+                <span class="snippet__price mono">@Price(offer.PriceAmerican)</span>
+                <span class="snippet__book dim">@offer.Book</span>
+            </div>
+        }
+    </text>;
+
+    private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
+
+    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+}

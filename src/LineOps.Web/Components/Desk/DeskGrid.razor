@@ -38,6 +38,7 @@
                  Height="@Height"
                  RowClick="@OnRowClick"
                  RowClass="@RowClass"
+                 RowClassFunc="@RowClassFunc"
                  Loading="@Loading"
                  Virtualize="@Virtualize">
         <Columns>
@@ -83,7 +84,17 @@
 
     [Parameter] public EventCallback<DataGridRowClickEventArgs<T>> OnRowClick { get; set; }
 
+    /// <summary>One class for every row. See <see cref="RowClassFunc"/> for per-row state.</summary>
     [Parameter] public string? RowClass { get; set; }
+
+    /// <summary>
+    /// A class per row, so a row can show its own state.
+    ///
+    /// The desk.s rule is that a row you opened should look opened — otherwise the only sign
+    /// is the action strip further down the cell, which is invisible once the row scrolls under
+    /// the header. <c>RowClass</c> alone cannot express this: it applies to every row equally.
+    /// </summary>
+    [Parameter] public Func<T, int, string>? RowClassFunc { get; set; }
 
     [Parameter] public string? Class { get; set; }
 }

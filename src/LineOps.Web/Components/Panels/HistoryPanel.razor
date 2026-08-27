@@ -109,6 +109,32 @@
         <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
             Refresh
         </DeskButton>
+
+        @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
+           confirm because it is slow — every day walked again, one request per finished game —
+           not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
+        @if (_confirmRewalk)
+        {
+            <span class="ftr__spacer"></span>
+            <span class="dim" style="font-size:11.5px">
+                Walk @(_coverage?.Completed ?? 0) held @((_coverage?.Completed ?? 0) == 1 ? "day" : "days") again?
+            </span>
+            <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+                        Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
+                Yes, re-walk
+            </DeskButton>
+            <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _confirmRewalk = false">
+                Cancel
+            </DeskButton>
+        }
+        else
+        {
+            <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Restore"
+                        Disabled="@(_coverage is null or { Completed: 0 })"
+                        OnClick="() => _confirmRewalk = true">
+                Re-walk held days
+            </DeskButton>
+        }
     }
 </div>
 
@@ -210,6 +236,26 @@
             ? $"{Coordinator.Progress?.Walked ?? 0} days"
             : _coverage is { Completed: > 0 } ? $"{_coverage.Completed} days held" : "no history");
     }
+
+    private bool _confirmRewalk;
+
+    /// <summary>
+    /// Clears the held-day bookkeeping and starts a fresh walk.
+    ///
+    /// This is the operation that previously required editing the database by hand: the walk
+    /// skips days it has already recorded, so a day stored by code that has since been fixed
+    /// could never be corrected from inside the app.
+    /// </summary>
+    private async Task RewalkAsync()
+    {
+        _confirmRewalk = false;
+
+        await Backfill.ForgetAsync(null, CancellationToken.None);
+        await LoadAsync();
+
+        Coordinator.TryStart();
+    }
+
 
     private void Start() => Coordinator.TryStart();
 

@@ -1,0 +1,134 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Both sides' recent record, as the five results each.
+
+    The shortest honest answer to "who is playing well". W/L tags rather than a percentage
+    because five games is too few for a rate to mean anything, and a run of results carries
+    shape that a number flattens — three straight losses after two wins reads differently from
+    the same 2-3 scattered.
+
+    Ordered newest first, left to right, which is the direction a form line is read in.
+*@
+
+@if (_loading)
+{
+    <p class="empty" style="padding:6px 0">Reading recent form…</p>
+}
+else if (_error is not null)
+{
+    <p class="note note--warn" style="margin:0">@_error</p>
+}
+else
+{
+    <div class="snippet__form">
+        @RenderSide(_away, _awayName)
+        @RenderSide(_home, _homeName)
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>How far back recent form reaches. Matches the panels' default.</summary>
+    [Parameter] public int WindowDays { get; set; } = 30;
+
+    private IReadOnlyList<TeamGameLogRow> _home = [];
+    private IReadOnlyList<TeamGameLogRow> _away = [];
+    private string _homeName = "Home";
+    private string _awayName = "Away";
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            if (await board.GetRowAsync(GameId) is not { } row)
+            {
+                _error = "This game is not on the board.";
+                return;
+            }
+
+            var game = row.Game;
+            _homeName = game.HomeTeam?.Name ?? "Home";
+            _awayName = game.AwayTeam?.Name ?? "Away";
+
+            var window = TimeSpan.FromDays(WindowDays);
+
+            _home = GameLogSplits.Apply(
+                await log.TeamGameLogAsync(game.HomeTeamId, window), GameLogSplits.Split.Last5);
+
+            _away = GameLogSplits.Apply(
+                await log.TeamGameLogAsync(game.AwayTeamId, window), GameLogSplits.Split.Last5);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not read recent form: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>
+    /// The whole game behind one W/L tag, for its tooltip — venue, opponent, date and score.
+    /// A form run is five characters wide, so everything that identifies the game it stands
+    /// for has to live in the title.
+    /// </summary>
+    private static string Describe(TeamGameLogRow g)
+    {
+        var venue = g.Home ? "vs" : "at";
+        var day = g.StartsAt.ToLocalTime().ToString("MMM d");
+        var score = g.HasScore ? $" ({g.ScoreFor}-{g.ScoreAgainst})" : string.Empty;
+
+        return $"{venue} {g.Opponent} — {day}{score}";
+    }
+
+    private RenderFragment RenderSide(IReadOnlyList<TeamGameLogRow> log, string name) => @<text>
+        <div class="snippet__formside">
+            <div class="snippet__formname trunc" title="@name">@name</div>
+
+            @if (log.Count == 0)
+            {
+                <span class="dim" style="font-size:11.5px">No games in the last @WindowDays days.</span>
+            }
+            else
+            {
+                var (wins, losses) = GameLogSplits.Record(log);
+                var (covers, fails, pushes) = GameLogSplits.AtsRecord(log);
+
+                <span class="dim mono" style="font-size:11.5px">@wins-@losses</span>
+
+                <span class="snippet__formrun">
+                    @foreach (var g in log)
+                    {
+                        <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")"
+                              title="@Describe(g)">
+                            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
+                        </span>
+                    }
+                </span>
+
+                @* Only stated when there is market data behind it. An ATS record of 0-0-0
+                   would read as "never covered" rather than "never priced". *@
+                @if (covers + fails + pushes > 0)
+                {
+                    <span class="dim" style="font-size:11px">
+                        @covers-@fails@(pushes > 0 ? $"-{pushes}" : "") ATS
+                    </span>
+                }
+            }
+        </div>
+    </text>;
+}

@@ -64,6 +64,48 @@
     <DeskButton Size="DeskKeySize.Large" Tone="DeskTone.Action">Large</DeskButton>
 </div>
 
+<h3 class="panel-h">Gate switch</h3>
+<p class="empty" style="padding:0 0 9px">
+    One visible choice among a few — a market, a lookback, a mode. The cap is a key
+    that never leaves its channel: it slides to the position you press, and arrows
+    move it from the keyboard. Use it for 2–5 fixed positions; past that, a field
+    select is the honest control.
+</p>
+
+<div class="row" style="margin-bottom:6px">
+    <DeskSwitch Options="_gateMarkets" Label="Demo market" @bind-Value="_gateMarket" />
+    <DeskSwitch Options="GateOptions.LookbackDays" Label="Demo lookback" Mono="true"
+                @bind-Value="_gateDays" />
+    <DeskSwitch Options="GateOptions.LookbackDays" Label="Demo lookback, small" Mono="true"
+                Size="DeskKeySize.Small" @bind-Value="_gateDays" />
+</div>
+
+<p class="empty" style="padding:2px 0 0">
+    <span class="mono">GateOptions.LookbackDays</span> is shared — a lookback window
+    reads "14d / 30d / 90d" in every window, not two spellings of the same question.
+</p>
+
+<h3 class="panel-h">Tab bar</h3>
+<p class="empty" style="padding:0 0 9px">
+    The same marble, doing the other job. A gate changes what one reading is made of;
+    tabs change which reading you are looking at, so they are flat — nothing here is a
+    key you press down. A section with nothing behind it is never offered, and one
+    section on its own renders with no bar at all.
+</p>
+
+<DeskTabs TValue="string" Tabs="_demoTabs" Label="Demo sections" @bind-Value="_demoTab">
+    <p class="note" style="margin:0 0 10px">
+        Showing <span class="mono">@context</span>. The third tab is marked unavailable,
+        so it is not on the bar — flip it to see the marble re-measure itself.
+    </p>
+</DeskTabs>
+
+<div class="row">
+    <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _thirdTab = !_thirdTab">
+        @(_thirdTab ? "Take the third section away" : "Give the third section content")
+    </DeskButton>
+</div>
+
 <h3 class="panel-h">Fields</h3>
 <p class="empty" style="padding:0 0 9px">
     The key's inverse, cut into the panel instead of standing off it. Same height, so a
@@ -148,6 +190,26 @@
         ("pulse--warn", "Warn — degraded, or under budget pressure."),
         ("pulse--critical", "Critical — the one state you must not miss."),
         ("pulse--idle", "Idle — nothing has run yet.")
+    ];
+
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _gateMarkets =
+    [
+        new("moneyline", "Moneyline"),
+        new("spread", "Spread"),
+        new("total", "Total")
+    ];
+
+    private string _gateMarket = "moneyline";
+    private int _gateDays = 30;
+
+    private string _demoTab = "Lines";
+    private bool _thirdTab;
+
+    private IReadOnlyList<DeskTab<string>> _demoTabs =>
+    [
+        new("Lines", "Lines"),
+        new("Team data", "Team data"),
+        new("Box score", "Box score", _thirdTab)
     ];
 
     private bool _busy;

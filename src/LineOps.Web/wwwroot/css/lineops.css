@@ -40,6 +40,29 @@
     --titlebar-h: 34px;
     --radius: 6px;
 
+    /* Motion. One vocabulary of travel, so the marble, the glide plate and a
+       window all move like parts of the same machine rather than three
+       animations that happen to share a screen.
+
+       The marble overshoots a hair and settles, the way a real slide switch
+       does. The glide tracks a pointer, which never overshoots, so it does
+       not either. */
+    --ease-marble: cubic-bezier(.32, 1.32, .36, 1);
+    --ease-glide: cubic-bezier(.3, .9, .3, 1);
+    --dur-marble: .26s;
+    --dur-glide: .16s;
+
+    /* Materials. Chrome is a pane held above the desk rather than a band
+       painted onto it: it takes its colour from whatever passes underneath and
+       blurs it, so a window running under the header reads as depth instead of
+       as a seam. Anything floating — menus, dialogs — is the raised grade.
+
+       Both fall back to solid ink where the browser has no backdrop-filter;
+       see the @supports rule under the shell. */
+    --material-chrome: rgba(20, 25, 38, .74);
+    --material-raised: rgba(27, 34, 49, .84);
+    --material-blur: saturate(180%) blur(20px);
+
     --shadow-win: 0 12px 28px -12px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .35);
     --shadow-float: 0 24px 60px -18px rgba(0, 0, 0, .85), 0 3px 10px rgba(0, 0, 0, .45);
 
@@ -95,10 +118,28 @@ html, body {
     gap: 8px;
     height: 44px;
     padding: 0 10px;
-    background: var(--ink-800);
+    background: var(--material-chrome);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
     border-bottom: 1px solid var(--ink-500);
     flex: 0 0 auto;
     z-index: 8000;
+}
+
+/* No blur available means no translucency either — a flat 74% wash over the
+   desk would just look like a mistake. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .hdr, .ftr { background: var(--ink-800); }
+    .railmenu__panel { background: var(--ink-700); }
+}
+
+/* The header's own controls, as one cluster: the plate slides between them
+   rather than each button lighting itself. */
+.hdr__tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
 }
 
 .hdr__brand {
@@ -125,6 +166,174 @@ html, body {
 .hdr__divider { width: 1px; height: 22px; background: var(--ink-500); flex: 0 0 auto; }
 .hdr__spacer { flex: 1 1 auto; }
 
+/* ---- Window tabs ----------------------------------------------------------
+   The desk's columns, laid out along the toolbar.
+
+   Every window is already a tab — a full-height column you drag to reorder and
+   resize. That works while you are looking at one, and stops working the
+   moment a window is collapsed to a sliver or pushed off the end of a busy
+   row: a column with no room for its title cannot tell you what it is.
+
+   So the same set runs horizontally up here as well. Same order as the row, so
+   the strip is a map of the desk rather than a second arrangement to keep in
+   your head, and the marble sits on whichever column has focus. Clicking one
+   focuses it, and restores it if it was collapsed — which is the thing the
+   collapsed column itself is too narrow to offer.
+
+   Each tab carries its window's own pulse along the bottom edge, the same 2px
+   band the title bar wears, so state stays readable from up here too.
+   ------------------------------------------------------------------------- */
+
+/* The toolbar proper: the groups spread across the bar rather than bunching at
+   one end, so the eye has fixed places to go back to. */
+.bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A group of the toolbar, and the track its marble runs in. Same recessed
+   channel as the gate switch — it is not pressable, so it does not catch the
+   light — which is what makes the marble inside read as the same object doing
+   the same job in a third place. */
+.bar__group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    min-width: 0;
+    background: var(--ink-800);
+    border: 1px solid var(--ink-500);
+    border-radius: 7px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+/* Never let a crowded group break the bar; it scrolls inside its own channel. */
+.bar__group--windows {
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 0 1 auto;
+}
+
+.bar__group--windows::-webkit-scrollbar { display: none; }
+
+/* Hairline between catalogue groups, so twelve icons read as four short runs. */
+.bar__split {
+    width: 1px;
+    height: 16px;
+    margin: 0 3px;
+    background: var(--ink-500);
+    flex: 0 0 auto;
+}
+
+/* An icon-only key in the bar. No label: the windows group is the only one that
+   spells names out, because a window's name is the thing you are looking for
+   and an action's icon is the thing you already know. */
+.bar__key {
+    position: relative; /* the pulse of an open window is pinned to it */
+    width: 26px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--haze);
+    cursor: pointer;
+}
+
+.bar__key:hover { color: var(--chalk); }
+.bar__key:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.bar__key svg { width: 16px; height: 16px; }
+
+/* Open, so it wears its column's name. Widens to fit, with a ceiling — a game
+   called "Boston Red Sox at Miami Marlins" does not get to own the bar. */
+.bar__key--named {
+    width: auto;
+    max-width: 190px;
+    gap: 6px;
+    padding: 0 9px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    color: var(--haze);
+    font-family: var(--face-ui);
+    font-size: 11.5px;
+    overflow: hidden;
+}
+
+.bar__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Which one am I in? ---------------------------------------------------
+   The marble answers "which am I on" and travels on hover, so it cannot also
+   answer this: the moment you reach for anything else, the answer would leave
+   with the pointer. The current window is therefore filled and lit, and stays
+   that way wherever the marble has got to. Fill means selected, outline means
+   hovered, and the two read at a glance because they are different channels.
+   ------------------------------------------------------------------------- */
+.bar__key--current {
+    background: var(--ink-600);
+    color: var(--chalk);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+
+.bar__key--current svg { color: var(--iris); }
+
+/* Collapsed down on the desk. Still listed — that is the point — but stated as
+   put away rather than as another column you are looking at. */
+.bar__key--collapsed { color: var(--haze-dim); font-style: italic; }
+.bar__key--collapsed svg { opacity: .5; }
+
+/* The window's pulse, mirrored from its title bar so state is readable up here
+   too. Wears the pulse--* modifiers but not .pulse itself — that base class is
+   a positioned flex item, which is right in a title bar and wrong in a key. */
+.bar__pulse {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    bottom: 2px;
+    height: 2px;
+    border-radius: 1px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* A rail button inside a channel is just another key: it drops its own box, or
+   it reads as a control nested inside a control. */
+.bar__group .rail__btn {
+    width: 26px;
+    height: 24px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--haze);
+}
+
+.bar__group .rail__btn:hover { background: none; color: var(--chalk); }
+.bar__group .rail__btn svg { width: 16px; height: 16px; }
+
+.bar__key:disabled {
+    color: var(--haze-dim);
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+/* The count sits in the controls channel, so it needs the channel's rhythm
+   rather than the header's. */
+.bar__group .hdr__count { padding: 0 5px 0 3px; }
+
+
 .hdr__count {
     font-size: 12px;
     color: var(--haze);
@@ -134,33 +343,250 @@ html, body {
 
 .hdr__count--full { color: var(--flag); }
 
-/* Segmented control: one visible choice among a few, which is what a layout mode is. */
-.segment {
-    display: flex;
-    border: 1px solid var(--ink-500);
-    border-radius: 4px;
-    overflow: hidden;
-    flex: 0 0 auto;
+/* ---- The marble -----------------------------------------------------------
+   The travel shared by every control that holds one choice among a few: the
+   selection slides to the position you picked instead of blinking to it, so
+   the eye keeps hold of where it went. The gate switch and the tab bar below
+   are both this plus a skin — one idiom, two roles.
+
+   Two custom properties drive it. --n is how many positions there are, --i is
+   which one is current. A control whose value matches no position sets --i to
+   -1 and renders no marble at all, rather than parking it on a position that
+   is not the answer.
+
+   The ease overshoots a touch: a real slide switch lands with a settle, not a
+   stop.
+   ------------------------------------------------------------------------- */
+
+/* The step is one column *plus the gap between columns*. Travelling by its own
+   width alone looks right at two positions and drifts by a pixel per position
+   after that, which shows up as a marble that no longer quite sits on the last
+   tab. --gap defaults to 0, so hosts that do not space their positions are
+   unaffected by the arithmetic. */
+.marble {
+    position: absolute;
+    z-index: 0;
+    box-sizing: border-box;
+    transform: translateX(calc(var(--i, 0) * (100% + var(--gap, 0px))));
+    transition: transform var(--dur-marble) var(--ease-marble);
 }
 
-.segment__btn {
-    width: 30px;
-    height: 26px;
+/* One column's share of the row, gaps taken out first. */
+.marble--track {
+    width: calc((100% - (var(--n) - 1) * var(--gap, 0px)) / var(--n));
+}
+
+/* Every marble host lays its positions out as equal columns. The flow is
+   `column` rather than an explicit `repeat(var(--n), …)` template so that the
+   row can never collapse into a stack if --n fails to arrive — the track count
+   follows the children, and only the marble's own width needs the number. */
+.marble-row {
+    --gap: 0px;
+    position: relative;
     display: grid;
-    place-items: center;
-    background: var(--ink-700);
-    border: 0;
-    border-right: 1px solid var(--ink-500);
-    color: var(--haze-dim);
-    cursor: pointer;
-    padding: 0;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--gap);
+    box-sizing: border-box;
 }
 
-.segment__btn:last-child { border-right: 0; }
-.segment__btn:hover { background: var(--ink-600); color: var(--chalk); }
-.segment__btn--on { background: var(--iris); color: #10131C; }
-.segment__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.segment__btn svg { width: 15px; height: 15px; }
+.marble-row > :not(.marble) { position: relative; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble { transition: none; }
+}
+
+/* ---- The gate switch ------------------------------------------------------
+   One visible choice among a few. The channel is cut into the panel under the
+   field's light rules — it cannot be pressed, so it does not catch the light.
+   The cap is a key that never leaves the channel: it keeps the crown sheen and
+   seat shadow of every other key. Rendered by Components/Desk/DeskSwitch.
+   ------------------------------------------------------------------------- */
+
+.gate {
+    --n: 1;
+    --i: 0;
+    display: inline-grid;
+    height: 28px;
+    padding: 3px;
+    flex: 0 0 auto;
+    background: var(--ink-800);
+    border: 1px solid var(--ink-500);
+    border-radius: 5px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
+}
+
+.gate__cap {
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc((100% - 6px) / var(--n));
+    border-radius: 3px;
+    background-color: var(--ink-600);
+    background-image: linear-gradient(180deg,
+        rgba(255, 255, 255, .16) 0%,
+        rgba(255, 255, 255, .04) 46%,
+        rgba(0, 0, 0, .10) 100%);
+    border: 1px solid var(--ink-400);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .22),
+        0 1px 2px rgba(0, 0, 0, .5);
+}
+
+.gate__opt {
+    position: relative; /* above the cap */
+    min-width: 0;
+    padding: 0 11px;
+    background: none;
+    border: 0;
+    border-radius: 3px;
+    color: var(--haze);
+    font-family: var(--face-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.gate__opt:hover { color: var(--chalk); }
+.gate__opt--on { color: var(--chalk); cursor: default; }
+.gate__opt:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+
+/* Positions that are read as numbers line up as numbers. */
+.gate--num .gate__opt {
+    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .03em;
+}
+
+.gate--sm { height: 22px; padding: 2px; }
+.gate--sm .gate__cap { top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / var(--n)); }
+.gate--sm .gate__opt { padding: 0 8px; font-size: 9.5px; }
+.gate--lg { height: 34px; }
+.gate--lg .gate__opt { font-size: 11px; padding: 0 14px; }
+
+/* ---- The tab bar ----------------------------------------------------------
+   Navigation, not a control: these switch which part of a window you are
+   looking at, where the gate above switches what a single reading is made of.
+   The distinction is worth keeping visible, so a tab is flat — nothing here
+   catches the light, because nothing here is a key you press down — and the
+   marble it shares with the gate wears the desk's plainest statement of "this
+   one is active": iris tint behind, iris hairline around, chalk on the label.
+
+   Sits under a rule, the way a toolbar separates itself from the work below.
+   A window whose sections do not fit its column is the problem this solves:
+   three stacked sections make a very tall panel, and a tall panel in a
+   narrow tab is a scroll rather than a layout.
+
+   Rendered by Components/Desk/DeskTabs, which omits any section with nothing
+   in it and hides the whole bar when that leaves fewer than two.
+   ------------------------------------------------------------------------- */
+
+.tabs {
+    --n: 1;
+    --i: 0;
+    width: 100%;
+    padding: 3px 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--ink-500);
+}
+
+.tabs__marble {
+    top: 3px;
+    bottom: 3px;
+    left: 0;
+    background: var(--iris-dim);
+    border: 1px solid var(--iris);
+    border-radius: 4px;
+}
+
+.tabs__tab {
+    min-width: 0;
+    height: 26px;
+    padding: 0 10px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--haze);
+    font-family: var(--face-ui);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color .12s ease;
+}
+
+.tabs__tab:hover { color: var(--chalk); }
+.tabs__tab--on { color: var(--chalk); cursor: default; }
+.tabs__tab:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tabs__tab { transition: none; }
+}
+
+/* ---- The glide ------------------------------------------------------------
+   One highlight plate per cluster of flat controls, slid between them by
+   js/desk-glide.js, instead of each control flashing its own background. Any
+   container opts in with data-glide; a child that wants the plate in a tone
+   states it with data-glide-tone (close buttons say "stop"). The plate only
+   exists while a pointer or focus is inside, so there is nothing to keep in
+   sync when Blazor re-renders the cluster.
+   ------------------------------------------------------------------------- */
+
+[data-glide] { position: relative; }
+[data-glide] > :not(.glide-plate) { position: relative; z-index: 1; }
+
+.glide-plate {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    box-sizing: border-box; /* the marble flavour has a border to fit inside */
+    border-radius: 4px;
+    background: var(--ink-500);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--dur-glide) var(--ease-glide),
+        width var(--dur-glide) var(--ease-glide),
+        height var(--dur-glide) var(--ease-glide),
+        background-color var(--dur-glide) ease,
+        opacity .1s ease;
+}
+
+[data-glide-live] > .glide-plate { opacity: 1; }
+
+/* Appearing under the first control it meets, the plate arrives in place —
+   sliding in from the container's corner would draw a line nobody made. */
+.glide-plate--still { transition: opacity .1s ease; }
+
+.glide-plate[data-tone="stop"] { background: var(--drift); }
+
+/* The marble, measured. Same travel as the CSS-variable one on the gate, but it
+   takes the size of whatever it lands on, which is what lets the toolbar hold
+   tabs of honest widths instead of forcing every window to the same column. */
+.glide-plate--marble {
+    background: var(--iris-dim);
+    border: 1px solid var(--iris);
+    border-radius: 5px;
+}
+
+/* While the plate is live it is the hover signal, so the per-control
+   backgrounds stand down. Ink changes stay — they are the label's answer. */
+[data-glide-live] .win__ctl:hover { background: transparent; }
+[data-glide-live] .launcher__item:hover { background: transparent; }
+[data-glide-live] .btn--quiet:hover { background-color: transparent; }
+[data-glide-live] .rail__btn:hover { background: transparent; border-color: var(--ink-500); }
+
+@media (prefers-reduced-motion: reduce) {
+    .glide-plate { transition: opacity .1s ease; }
+}
 
 /* --------------------------------------------------------------- footer --- */
 
@@ -170,7 +596,9 @@ html, body {
     gap: 8px;
     height: 38px;
     padding: 0 10px;
-    background: var(--ink-800);
+    background: var(--material-chrome);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
     border-top: 1px solid var(--ink-500);
     flex: 0 0 auto;
     z-index: 8000;
@@ -566,10 +994,12 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .railmenu__panel {
     position: absolute;
     z-index: 9600;
-    background: var(--ink-700);
+    background: var(--material-raised);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
     border: 1px solid var(--ink-400);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    box-shadow: var(--shadow-float);
     max-height: min(70vh, 560px);
     overflow-y: auto;
     scrollbar-width: thin;
@@ -1548,3 +1978,365 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
 
     .divider { display: none; }
 }
+
+/* ---- Two-stage disclosure: row actions, snippets, log rows -----------------
+   Opening a row shows what you can do with it; pressing one of those answers
+   the question in place. Only if the answer is not enough does a window get
+   spent — which matters because spending one evicts something (ADR 0007), and
+   browsing must never rearrange the desk out from under the operator.
+
+   Everything here is built to sit *inside* a table cell without disturbing the
+   row rhythm around it: the strip is the width of its own column, and only the
+   open row changes height.
+   -------------------------------------------------------------------------- */
+
+.rowacts {
+    margin-top: 8px;
+    border-top: 1px solid var(--ink-500);
+}
+
+.rowacts__keys {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 9px 0 2px;
+}
+
+/* The key whose snippet is showing. Held down rather than merely highlighted,
+   because it is a state the operator is in, not a hover. */
+.desk-key--on {
+    background: var(--iris-dim) !important;
+    border-color: var(--iris) !important;
+    color: var(--chalk) !important;
+}
+
+/* The inline answer. Inset from the row so it reads as belonging to it rather
+   than as the next row along. */
+.snippet {
+    margin: 8px 0 4px;
+    background: var(--ink-800);
+    border: 1px solid var(--ink-500);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.snippet__bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 9px;
+    background: var(--ink-600);
+    border-bottom: 1px solid var(--ink-500);
+    font-size: 11px;
+}
+
+.snippet__icon { display: inline-flex; color: var(--haze); }
+
+.snippet__title {
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--haze);
+}
+
+.snippet__note { color: var(--haze-dim); font-size: 10.5px; }
+.snippet__spacer { flex: 1 1 auto; }
+
+/* The escape hatch. Quiet by default — the snippet is usually the answer, and a
+   loud "open window" would suggest otherwise. */
+.snippet__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--haze);
+    font: inherit;
+    font-size: 10.5px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease;
+}
+
+.snippet__open:hover { color: var(--iris); border-color: var(--ink-400); }
+
+.snippet__body { padding: 9px; }
+
+/* Odds snippet: three markets side by side, wrapping on a narrow window. */
+.snippet__markets { display: flex; gap: 18px; flex-wrap: wrap; }
+
+.snippet__market-name {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    margin-bottom: 4px;
+}
+
+.snippet__sides { display: flex; flex-direction: column; gap: 3px; }
+
+.snippet__side {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.snippet__side--empty { color: var(--haze-dim); }
+.snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snippet__line { color: var(--haze); }
+.snippet__price { color: var(--chalk); font-weight: 600; }
+.snippet__book { font-size: 10.5px; }
+
+/* Form snippet: one run of results per side. */
+.snippet__form { display: flex; gap: 22px; flex-wrap: wrap; }
+.snippet__formside { display: flex; flex-direction: column; gap: 3px; }
+
+.snippet__formname {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--chalk);
+    max-width: 22ch;
+}
+
+.snippet__formrun { display: flex; gap: 3px; }
+
+/* A row of labelled readings, for a single game expanded. */
+.snippet__facts {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.fact__label {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--haze-dim);
+    margin-bottom: 3px;
+}
+
+.fact__value { font-size: 12.5px; color: var(--chalk); }
+.fact__value .good { color: var(--steam); }
+.fact__value .bad { color: var(--drift); }
+
+/* A tighter grid, for tables that live inside a snippet rather than a window. */
+.grid--tight { font-size: 12px; }
+.grid--tight th { padding: 0 7px 5px; position: static; }
+.grid--tight td { padding: 5px 7px; }
+
+/* ---- Splits strip ----------------------------------------------------------
+   Filters over rows already loaded, so these are instant. Deliberately keys
+   rather than a select: the whole set is worth seeing at once, and which one is
+   active is the question being asked of the log below.
+   -------------------------------------------------------------------------- */
+
+.splits {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+}
+
+.splits__key {
+    background: transparent;
+    border: 1px solid var(--ink-500);
+    border-radius: 4px;
+    color: var(--haze);
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.splits__key:hover { color: var(--chalk); border-color: var(--ink-400); }
+
+.splits__pick { max-width: 190px; margin-left: auto; font-size: 11px; }
+
+/* ---- Log rows --------------------------------------------------------------
+   A game or a player, expandable in place. Not a table, because the expanded
+   body is a block rather than more cells — and a colspan row that pretends
+   otherwise breaks every column alignment above it.
+   -------------------------------------------------------------------------- */
+
+.logrow {
+    border: 1px solid var(--ink-500);
+    border-radius: var(--radius);
+    background: var(--ink-800);
+    overflow: hidden;
+}
+
+.logrow--open { border-color: var(--ink-400); }
+
+.logrow__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: 0;
+    color: var(--chalk);
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s ease;
+}
+
+.logrow__head:hover { background: var(--ink-600); }
+
+.logrow__date { font-size: 11.5px; min-width: 7ch; }
+
+.logrow__opp {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.logrow__score { color: var(--haze); min-width: 6ch; text-align: right; }
+
+/* Turns to point down when the row is open, so the control states which way it
+   goes rather than only that it is a control. */
+.logrow__chev {
+    display: inline-flex;
+    color: var(--haze-dim);
+    transition: transform .14s ease;
+}
+
+.logrow--open .logrow__chev { transform: rotate(180deg); }
+
+.logrow__body {
+    padding: 10px;
+    border-top: 1px solid var(--ink-500);
+    background: var(--ink-700);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logrow__chev, .logrow__head, .splits__key, .snippet__open { transition: none; }
+}
+
+/* Coverage, stated under the thing it qualifies. A column of dashes is ambiguous
+   between "no data held" and "nothing to report", and only one of those is worth
+   acting on — so the snippet says which rather than leaving it to be inferred. */
+.snippet__coverage {
+    margin: 8px 0 0;
+    padding-top: 7px;
+    border-top: 1px solid var(--ink-600);
+    color: var(--haze-dim);
+    font-size: 10.5px;
+    line-height: 1.5;
+}
+
+/* A row that opens has to look like one. Without this, "click a row for its
+   actions" is a rule you can only learn by accident: the pointer is the only
+   hint, and it arrives after you have already decided not to try. The rail is
+   drawn on hover and held while the row is open. */
+.deskgrid--clickable .mud-table-row { cursor: pointer; }
+
+.deskgrid--clickable .mud-table-row > td:first-child {
+    position: relative;
+    border-left: 2px solid transparent;
+    transition: border-color .12s ease;
+}
+
+.deskgrid--clickable .mud-table-row:hover > td:first-child { border-left-color: var(--ink-400); }
+.deskgrid--clickable .mud-table-row:focus-within > td:first-child { border-left-color: var(--iris); }
+.board__row--open > td:first-child { border-left-color: var(--iris) !important; }
+
+/* Keyboard focus is visible on every new control. The desk answers a press with
+   travel, which a keyboard user never sees — so focus gets its own ring rather
+   than relying on the hover treatment. */
+.logrow__head:focus-visible,
+.splits__key:focus-visible,
+.snippet__open:focus-visible {
+    outline: 2px solid var(--iris);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .deskgrid--clickable .mud-table-row > td:first-child { transition: none; }
+}
+
+/* Which side a price is for. Two prices sit side by side in every market and the
+   board orders them home-first — but an ordering the reader cannot see is not an
+   ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
+   difference. Set in the data face so it reads as an identifier rather than prose. */
+.price__sel {
+    font-family: var(--face-data);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--haze);
+    background: var(--ink-600);
+    border: 1px solid var(--ink-500);
+    border-radius: 3px;
+    padding: 0 4px;
+    margin-right: 4px;
+}
+
+/* A destination window — one that is about a game, a team or a player. Listed so
+   the view is discoverable, but not openable, because without a subject it has
+   nothing to show. Dimmed rather than hidden, with the route to it in place of
+   the description. */
+.launcher__item--destination {
+    opacity: .55;
+    cursor: default;
+}
+
+.launcher__item--destination:hover { background: transparent; }
+
+.launcher__item--destination .launcher__desc { font-style: italic; }
+
+/* ---- The board's column rhythm ---------------------------------------------
+   Eight columns spread evenly across a wide desk pushed every price to the far
+   right of its own column, leaving a void between the matchup and the numbers
+   and putting each price further from the header naming it. The numbers are the
+   point of this screen; they should sit together and be read as a block.
+
+   So every column shrinks to its content — width:1% with nowrap is the standard
+   way to say "as narrow as you can" — and the matchup absorbs all the slack,
+   which it can use: it is the column that holds the row's action strip.
+   -------------------------------------------------------------------------- */
+
+.deskgrid--board table { width: 100%; }
+
+.deskgrid--board th,
+.deskgrid--board td {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/* The one column that grows. It also carries the open row's actions, so the
+   space is not merely absorbed — it is used. */
+.deskgrid--board th:nth-child(2),
+.deskgrid--board td:nth-child(2) {
+    width: auto;
+    white-space: normal;
+}
+
+/* Each market is two columns that belong together — home and away, over and
+   under. A hairline before the first of each pair groups them, so the eye reads
+   three markets rather than six unrelated numbers. */
+.deskgrid--board th:nth-child(3),
+.deskgrid--board td:nth-child(3),
+.deskgrid--board th:nth-child(5),
+.deskgrid--board td:nth-child(5),
+.deskgrid--board th:nth-child(7),
+.deskgrid--board td:nth-child(7) {
+    border-left: 1px solid var(--ink-600);
+}
+
+/* A market's second column repeats its name in the header. Dim the repeat so the
+   pair reads as one heading spanning two columns rather than as two headings. */
+.deskgrid--board th:nth-child(4),
+.deskgrid--board th:nth-child(6) { color: transparent; }
+
+.deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }

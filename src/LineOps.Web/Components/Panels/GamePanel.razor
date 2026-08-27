@@ -1,6 +1,7 @@
 @using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
 @using LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
@@ -56,30 +57,43 @@ else
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
 
-        <select class="field" style="max-width:130px; margin-left:auto" value="@_windowDays" @onchange="OnWindowChanged">
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-        </select>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    style="margin-left:auto"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
 
-        <button class="btn btn--quiet" type="button"
-                @onclick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
-            <Glyph Icon="@Icons.Material.Filled.ShowChart" /> Movement
-        </button>
+        @* The two views this game opens onto, kept together as one cluster: they are the
+           same kind of thing — a related window, one click away — and the glide plate
+           slides between them rather than each lighting itself. *@
+        <div class="row" style="gap:4px" data-glide>
+            <button class="btn btn--quiet" type="button"
+                    @onclick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
+                <Glyph Icon="@Icons.Material.Filled.ShowChart" /> Movement
+            </button>
+
+            @* How these two have gone against each other, which is a different question from
+               how either has been playing — and the one the team blocks cannot answer. *@
+            <button class="btn btn--quiet" type="button"
+                    @onclick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game))">
+                <Glyph Icon="@Icons.Material.Filled.CompareArrows" /> Head to head
+            </button>
+        </div>
     </div>
 
-    @if (isLive)
-    {
-        @RenderMarkets("Top bets")
-        @RenderTeamData()
-        @RenderPlayers()
-    }
-    else
-    {
-        @RenderMarkets("Lines")
-        @RenderTeamData()
-        @RenderPlayers()
-    }
+    <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
+              @bind-Value="_section">
+        @if (context == Section.Markets)
+        {
+            @RenderMarkets()
+        }
+        else if (context == Section.TeamData)
+        {
+            @RenderTeamData()
+        }
+        else
+        {
+            @RenderPlayers()
+        }
+    </DeskTabs>
 }
 
 @code {
@@ -94,13 +108,56 @@ else
     private MatchupForm? _matchup;
     private TeamForm? _homeTeam;
     private TeamForm? _awayTeam;
+
+    /// <summary>Which of the three readings is on screen. See <see cref="SectionsFor"/>.</summary>
+    private enum Section { Markets, TeamData, Players }
+
+    private Section _section = Section.Markets;
+
+    private bool HasBox => _box is not null && !_box.IsEmpty;
+
+    private bool HasRoster => _matchup is not null && !_matchup.IsEmpty;
+
+    private bool HasTeamData
+        => (_homeTeam?.Recent.Count ?? 0) > 0 || (_awayTeam?.Recent.Count ?? 0) > 0;
+
+    /// <summary>
+    /// The sections this game actually has.
+    ///
+    /// <para>
+    /// Markets is always offered: an unpriced game still answers "what is the number" —
+    /// with the reason there isn't one. The other two are dropped when the window holds
+    /// nothing for them, so a tab never opens onto an empty panel.
+    /// </para>
+    ///
+    /// <para>
+    /// Only the first label turns on whether the game is under way. Before a game the
+    /// prices are the lines being offered; during one, what is still open to bet — same
+    /// section, different question, and the tab is where that gets said.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<DeskTab<Section>> SectionsFor(bool isLive) =>
+    [
+        new(Section.Markets, isLive ? "Top bets" : "Lines"),
+        new(Section.TeamData, "Team data", HasTeamData),
+        new(Section.Players, HasBox ? "Box score" : "Players", HasBox || HasRoster)
+    ];
+
+    /// <summary>This game's box score. Null until the game has produced one.</summary>
+    private GameBoxScore? _box;
     private int _windowDays = 30;
+
+    /// <summary>The roster row showing its recent games. One at a time, like every other row.</summary>
+    private int? _openPlayer;
+
+    private void TogglePlayer(int playerId)
+        => _openPlayer = _openPlayer == playerId ? null : playerId;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int days)
     {
-        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        _windowDays = days;
         await LoadAsync();
     }
 
@@ -118,6 +175,13 @@ else
             var window = TimeSpan.FromDays(_windowDays);
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
 
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            // The box score is the answer once there is one; the window aggregate is the
+            // fallback for a game that has not been played. Both are loaded because the
+            // fallback has to be ready the moment the box score turns out to be empty.
+            _box = await log.BoxScoreAsync(GameId);
+
             _matchup = await lookup.GetAsync(GameId, window, maxPlayersPerTeam: 8);
 
             // Only the recent record is wanted here — the roster comes from the matchup lookup
@@ -127,6 +191,14 @@ else
         },
         settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _row is null ? "not found" : Matchup(_row.Game));
+    }
+
+    /// <summary>Which side a price is for, as the team short form. See BoardPanel.Side.</summary>
+    private string Side(bool home)
+    {
+        var team = home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam;
+
+        return string.IsNullOrWhiteSpace(team?.Abbrev) ? home ? "H" : "A" : team!.Abbrev;
     }
 
     private static string StatusLabel(Game game) => game.Status switch
@@ -144,35 +216,34 @@ else
         _ => "tag--info"
     };
 
-    private RenderFragment RenderMarkets(string heading) => @<text>
+    @* The tab bar names each of these now, so none of them repeats it as a heading. *@
+    private RenderFragment RenderMarkets() => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
             <p class="note note--warn">@reason</p>
         }
         else
         {
-            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
             <div class="row" style="gap:18px; margin-bottom:14px; flex-wrap:wrap">
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Moneyline.First" />
-                        <PriceCell Offer="_row.Moneyline.Second" />
+                        <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" />
+                        <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Spread.First" />
-                        <PriceCell Offer="_row.Spread.Second" />
+                        <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" />
+                        <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Total.First" />
-                        <PriceCell Offer="_row.Total.Second" />
+                        <PriceCell Offer="_row.Total.First" Selection="O" />
+                        <PriceCell Offer="_row.Total.Second" Selection="U" />
                     </div>
                 </div>
             </div>
@@ -180,7 +251,6 @@ else
     </text>;
 
     private RenderFragment RenderTeamData() => @<text>
-        <h4 class="panel-h" style="margin-top:6px">Team data</h4>
         <div class="row" style="gap:24px; margin-bottom:14px; flex-wrap:wrap">
             @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away")
             @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home")
@@ -214,17 +284,64 @@ else
         </div>
     </text>;
 
+    /// <summary>
+    /// Who is playing, or what they did.
+    ///
+    /// <para>
+    /// Before a game these are two rosters and their recent form, because that is the only
+    /// evidence there is. Once it is under way the box score exists, and showing a thirty-day
+    /// average instead would be answering a question nobody asked while looking at a specific
+    /// game — the line that matters is the one from this one.
+    /// </para>
+    /// </summary>
     private RenderFragment RenderPlayers() => @<text>
-        <h4 class="panel-h" style="margin-top:6px">Players</h4>
-
-        @if (_matchup is null || _matchup.IsEmpty)
+        @if (HasBox)
         {
-            <p class="empty">No appearances on record for either roster in this window.</p>
+            @RenderBoxSide(_box!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
+            @RenderBoxSide(_box.Home, _row.Game.HomeTeam?.Name ?? "Home")
         }
         else
         {
-            @RenderRoster(_matchup.Away, _row!.Game.AwayTeam?.Name ?? "Away")
+            @RenderRoster(_matchup!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
             @RenderRoster(_matchup.Home, _row.Game.HomeTeam?.Name ?? "Home")
+        }
+    </text>;
+
+    /// <summary>One side of the box score. Columns are derived from the lines themselves.</summary>
+    private RenderFragment RenderBoxSide(IReadOnlyList<BoxScoreLine> side, string teamName) => @<text>
+        @if (side.Count > 0)
+        {
+            var columns = GameBoxScore.ColumnsFor(side);
+
+            <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
+            <div class="gridwrap"><table class="grid">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Pos</th>
+                        @foreach (var c in columns)
+                        {
+                            <th class="r">@c</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in side)
+                    {
+                        <tr>
+                            <td class="trunc" title="@p.Name">
+                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                          OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
+                            </td>
+                            <td class="dim">@(p.Position ?? "—")</td>
+                            @foreach (var c in columns)
+                            {
+                                <td class="r mono">@(p.Stats.TryGetValue(c, out var v) ? v : "—")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
         }
     </text>;
 
@@ -256,12 +373,13 @@ else
                         {
                             <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
                         }
+                        <th class="r"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var p in side)
                     {
-                        <tr>
+                        <tr class="@(_openPlayer == p.PlayerId ? "grid__row--open" : "")">
                             <td class="trunc" title="@p.Name">
                                 <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
                                           OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
@@ -274,7 +392,24 @@ else
                                     @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
                                 </td>
                             }
+                            @* The averages above are what these games produced; this opens the
+                               games themselves, because the mean hides the shape. *@
+                            <td class="r">
+                                <button type="button" class="splits__key" title="Recent games"
+                                        @onclick="() => TogglePlayer(p.PlayerId)">
+                                    @(_openPlayer == p.PlayerId ? "Hide" : "Last 5")
+                                </button>
+                            </td>
                         </tr>
+
+                        @if (_openPlayer == p.PlayerId)
+                        {
+                            <tr>
+                                <td colspan="@(columns.Count + 4)" style="padding:0 10px 10px">
+                                    <PlayerRecentSnippet PlayerId="p.PlayerId" />
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table></div>

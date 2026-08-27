@@ -74,10 +74,17 @@ public sealed record RowAction
 }
 ```
 
-Parameters: `Actions`, `OpenKey` (the selected action, or null), `OnSelected`.
+Parameters: `Actions`, and an optional `Label`.
 
 The host panel builds the action list. That keeps `RowActions` ignorant of markets, games and
 players — it renders buttons and one snippet, and can be understood without reading any panel.
+
+**Which snippet is open is the control's own state, not a bound parameter.** This was designed
+as `OpenKey`/`OpenKeyChanged` and changed during implementation, for two reasons. The round trip
+was pointless — no panel does anything with the answer — and it did not work: the strip lives
+inside a MudBlazor cell template, and the parameter written back by the parent never reached the
+child again, so pressing an action set the state and rendered nothing. Callers pass
+`@key="<row id>"` so moving to another row is a new strip with nothing open.
 
 ### `SnippetShell` — `src/LineOps.Web/Components/Desk/`
 
@@ -199,6 +206,17 @@ reading e.g. *12 of 30 games have a closing line*.
 
 A later ESPN historical-odds backfill fills this column with no UI change — the column is
 already there and already labelled.
+
+### Two kinds of zero, again
+
+An unplayed fixture stores `0`–`0` rather than nulls, so a null check alone renders a scheduled
+game as a nil-nil draw. Running the team log showed exactly that: a scheduled game reporting
+`Result: 0-0`.
+
+The row records therefore expose `HasScore`, which requires the status to be `Final` or `Live`
+as well as the scores to be present, and every display site reads it rather than checking the
+scores itself. A genuine nil-nil that was played still shows; a fixture that has not happened
+shows its status. Pinned by tests over all four statuses.
 
 ## Error and empty states
 

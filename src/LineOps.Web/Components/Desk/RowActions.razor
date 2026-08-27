@@ -1,0 +1,107 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Windowing
+
+@*
+    The action strip on an open row, and the snippet it reveals.
+
+    Two-stage disclosure: opening a row shows what you can do with it, and pressing one of
+    those answers the question in place. Only if the answer is not enough does a window get
+    spent. The strip started life inside the Board, which meant the Board was the only surface
+    where a row led anywhere; it is a control so the Slate, the Team window and the Game window
+    behave identically — one interaction to learn, and it holds all the way down.
+
+    One snippet at a time. Selecting another swaps it, rather than stacking, for the same reason
+    the Board only opens one row: a row that grows without bound pushes the rest of the slate off
+    screen and the snippet stops reading as attached to its game.
+
+    Which snippet is open is this control's own business, not the host panel's. It was a bound
+    parameter first, and the round trip through the parent was both pointless — no panel does
+    anything with the answer — and fragile, because the strip lives inside a data grid's cell
+    template and depended on that grid choosing to re-render it. Callers give it a @key of
+    whatever the row is about, so moving to another row is a new strip with nothing open.
+*@
+
+@* Escape returns the row to its keys. A snippet is a thing you opened, and every other thing
+   you can open on this desk closes the same way. *@
+<div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true">
+    <div class="rowacts__keys">
+        @if (Label is not null)
+        {
+            <span class="board__actions-label">@Label</span>
+        }
+
+        @foreach (var action in Actions)
+        {
+            var isOpen = action.Key == _open;
+
+            @* A snippet key is a toggle and reports pressed state; a key that opens a window is
+               an ordinary command and must not claim to be one, or a screen reader announces a
+               pressed/unpressed state that never changes. *@
+            <DeskButton Size="DeskKeySize.Small"
+                        Tone="@action.Tone"
+                        Icon="@action.Icon"
+                        Class="@(isOpen ? "desk-key--on" : null)"
+                        OnClick="@(() => SelectAsync(action))"
+                        aria-pressed="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
+                        aria-expanded="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
+                        aria-controls="@(action.Snippet is null ? null : SnippetId)">
+                @action.Label
+            </DeskButton>
+        }
+    </div>
+
+    @if (Selected is { Snippet: not null } open)
+    {
+        <SnippetShell Id="@SnippetId"
+                      Title="@open.Label"
+                      Icon="@open.Icon"
+                      OpenLabel="@open.OpenLabel"
+                      OnOpen="@open.OpenWindow">
+            @open.Snippet
+        </SnippetShell>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<RowAction> Actions { get; set; } = [];
+
+    /// <summary>Optional caption for the strip, e.g. "ACTIONS".</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>The action showing its snippet, or null when only the keys are up.</summary>
+    private string? _open;
+
+    /// <summary>
+    /// Ties the key to the region it controls. Per instance, because several strips can be on
+    /// one page — the Team window has a stack of them — and a duplicated id would point every
+    /// key at the first snippet on the page.
+    /// </summary>
+    private readonly string SnippetId = $"snip-{Guid.NewGuid():N}";
+
+    private RowAction? Selected => Actions.FirstOrDefault(a => a.Key == _open);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && _open is not null)
+            _open = null;
+    }
+
+    /// <summary>
+    /// A snippet action toggles its snippet; a window-only action just goes.
+    ///
+    /// Pressing the open action again closes it, so a row can be returned to its keys without
+    /// having to pick a different one to escape through.
+    /// </summary>
+    private async Task SelectAsync(RowAction action)
+    {
+        if (action.Snippet is null)
+        {
+            if (action.OpenWindow is not null)
+                await action.OpenWindow();
+
+            return;
+        }
+
+        _open = action.Key == _open ? null : action.Key;
+    }
+}

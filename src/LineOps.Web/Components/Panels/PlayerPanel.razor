@@ -1,0 +1,216 @@
+@using LineOps.Data
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@using Microsoft.EntityFrameworkCore
+@inherits PanelBase
+@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    A player on their own — the bottom of the drilldown chain, and until now the piece that was
+    missing.
+
+    Following a player's name used to open the Players <i>list</i> focused on them, which is a
+    roster view: it answers "who is on this team", not "how has this player been going". The
+    game log is the answer to the second question, and it is the data every roster aggregate on
+    the desk was already computed from without ever being shown.
+
+    Columns are derived from the lines rather than fixed, because stat lines are per-sport jsonb
+    and no fixed column set fits baseball and hockey both.
+*@
+
+@if (_player is null)
+{
+    <p class="empty">Loading the player…</p>
+}
+else
+{
+    <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
+        <h3 class="panel-h" style="margin:0">@_player.FullName</h3>
+        @if (_player.Position is { } position)
+        {
+            <span class="tag">@position</span>
+        }
+        @if (_player.Team?.Name is { } team)
+        {
+            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                      OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team)">@team</DeskLink>
+        }
+    </div>
+
+    <div class="row" style="margin-bottom:14px">
+        <span class="dim" style="font-size:11.5px">
+            @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") on record
+        </span>
+
+        <DeskSwitch Options="_takes" Label="Games shown" Mono="true"
+                    style="margin-left:auto"
+                    Value="_take" ValueChanged="@((int take) => SetTakeAsync(take))" />
+    </div>
+
+    @if (_rows.Count == 0)
+    {
+        <p class="empty">
+            No appearances on record. A player enters the desk through a box score, so one with
+            no games has been named on a roster but not yet played inside the history held.
+        </p>
+    }
+    else
+    {
+        <h4 class="panel-h">Averages</h4>
+
+        @* The aggregate every other view shows, kept here beside the games behind it so the
+           two can be read against each other rather than one standing in for the other. *@
+        <div class="snippet__facts" style="margin-bottom:16px">
+            @foreach (var column in _columns.Take(6))
+            {
+                <div class="fact">
+                    <div class="fact__label">@column</div>
+                    <div class="fact__value mono">@Average(column)</div>
+                </div>
+            }
+        </div>
+
+        <h4 class="panel-h">Game log</h4>
+
+        <div class="gridwrap"><table class="grid">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Opponent</th>
+                    <th class="r">Result</th>
+                    @foreach (var c in _columns)
+                    {
+                        <th class="r">@c</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <td class="dim">@Day(row.StartsAt)</td>
+                        <td>
+                            <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                                      OnClick="() => OpenGameAsync(row.GameId)">
+                                @(row.Home ? "vs" : "at") @row.Opponent
+                            </DeskLink>
+                        </td>
+                        <td class="r">
+                            @if (row.Won is { } won)
+                            {
+                                <span class="tag @(won ? "tag--good" : "tag--bad")">
+                                    @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="dim">—</span>
+                            }
+                        </td>
+                        @foreach (var c in _columns)
+                        {
+                            <td class="r mono">@(row.Stats.TryGetValue(c, out var v) ? v : "—")</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+}
+
+@code {
+    /// <summary>
+    /// The player this view is about. Taken as an id rather than an object so the view can be
+    /// hosted as a desk window, which is rebuilt from its parameters and cannot carry a
+    /// reference.
+    /// </summary>
+    [Parameter, EditorRequired] public int PlayerId { get; set; }
+
+    private Core.Entities.Player? _player;
+    private IReadOnlyList<PlayerGameRow> _rows = [];
+    private List<string> _columns = [];
+    private int _take = 25;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> _takes =
+    [
+        new(10, "10", "Last 10 games"),
+        new(25, "25", "Last 25 games"),
+        new(60, "60", "Last 60 games")
+    ];
+
+    private async Task SetTakeAsync(int take)
+    {
+        _take = take;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            _player = await db.Players
+                .Include(p => p.Team)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == PlayerId);
+
+            if (_player is null)
+                return;
+
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            _rows = await log.PlayerGameLogAsync(PlayerId, _take);
+
+            // Wider than the snippet's, because a window has the room and the whole point of
+            // opening it was that the snippet did not show enough.
+            _columns = Snippets.PlayerRecentSnippet.DeriveColumns(_rows, 8);
+        },
+        settle: () => _player is null ? PulseState.Idle : PulseState.Healthy,
+        status: () => _player is null ? "not found" : $"{_rows.Count} games");
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game);
+    }
+
+    /// <summary>
+    /// The mean of a stat across the games listed.
+    ///
+    /// Only numeric values are averaged; a line that reports "6.0 IP" or a time of "39:09"
+    /// shows a dash rather than being coerced, on the same reasoning the aggregate side uses —
+    /// a wrong number is worse than a missing one.
+    /// </summary>
+    private string Average(string key)
+    {
+        var values = _rows
+            .Select(r => r.Stats.TryGetValue(key, out var raw)
+                && double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v)
+                ? (double?)v
+                : null)
+            .Where(v => v is not null)
+            .Select(v => v!.Value)
+            .ToList();
+
+        if (values.Count == 0)
+            return "—";
+
+        // Whole numbers every time means this counts things, and a per-game mean is the right
+        // summary. A fractional value anywhere means it is already a rate.
+        var mean = values.Average();
+        var counting = values.All(v => Math.Abs(v % 1) < 1e-9);
+
+        return mean.ToString(counting ? "0.##" : "0.000");
+    }
+}

@@ -24,11 +24,8 @@ else if (_form.IsEmpty)
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <select class="field" value="@_windowDays" @onchange="OnWindowChanged">
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-        </select>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="dim" style="font-size:11.5px">
             @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
@@ -51,9 +48,9 @@ else
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int days)
     {
-        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        _windowDays = days;
         await LoadAsync();
     }
 

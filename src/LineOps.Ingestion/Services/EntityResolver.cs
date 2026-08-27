@@ -152,6 +152,10 @@ public class EntityResolver(LineOpsDbContext db)
         var game = candidates.FirstOrDefault(g =>
             g.ExternalIds.TryGetValue(sourceKey, out var id) && id == canonical.SourceGameId);
 
+        // Whether the provider is talking about a fixture it has already named. Only then is
+        // it authoritative about when that fixture starts — see the refresh below.
+        var knownToThisProvider = game is not null;
+
         // Team identity is refreshed even when the game is already known.
         //
         // It used to happen only while creating a game, which meant a provider that started
@@ -178,11 +182,23 @@ public class EntityResolver(LineOpsDbContext db)
             var away = await ResolveTeamAsync(
                 sport, sourceKey, canonical.Away ?? new CanonicalTeamRef(canonical.AwayTeamName), ct);
 
-            // Slow path: same matchup on the same day is the same game, regardless of provider.
+            // Slow path: the same fixture as a *different* provider named it.
+            //
+            // This exists to unify one game across sources, so it must never merge two games
+            // from the same source. A candidate already carrying a different id from this
+            // provider is, by that provider's own reckoning, a different fixture — and the
+            // fast path above has already ruled out it being this one.
+            //
+            // Without that exclusion the time window decides, and no window is safe: a series
+            // puts the same two teams eighteen hours apart, a doubleheader puts them four.
+            // Both are inside any window wide enough to absorb the scheduling drift this is
+            // meant to tolerate, and the result was one fixture per series silently overwritten
+            // by the next — its start time, its score and its identifier all replaced.
             game = candidates.FirstOrDefault(g =>
                 g.HomeTeamId == home.Id
                 && g.AwayTeamId == away.Id
-                && Math.Abs((g.StartsAt - canonical.StartsAt).TotalHours) < 24);
+                && Math.Abs((g.StartsAt - canonical.StartsAt).TotalHours) < 24
+                && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId));
 
             if (game is null)
             {
@@ -208,6 +224,18 @@ public class EntityResolver(LineOpsDbContext db)
         // Scores and status arrive later than the fixture itself, so always refresh them.
         var changed = false;
 
+        // So does the schedule. A game can be moved, and a provider correcting the start time
+        // of a fixture it has already named is the most reliable statement about it available —
+        // so it is taken, where a second provider mentioning the same game in passing is not.
+        //
+        // This also repairs rows written before series resolution was fixed, whose start times
+        // were overwritten by the neighbouring game they were merged with.
+        if (knownToThisProvider && game!.StartsAt != canonical.StartsAt)
+        {
+            game.StartsAt = canonical.StartsAt;
+            changed = true;
+        }
+
         if (canonical.HomeScore is not null && game.HomeScore != canonical.HomeScore)
         {
             game.HomeScore = canonical.HomeScore;
@@ -232,6 +260,16 @@ public class EntityResolver(LineOpsDbContext db)
 
         return game;
     }
+
+    /// <summary>
+    /// Whether this row is already spoken for by a different fixture from the same provider.
+    ///
+    /// A provider's own identifier is the one thing that distinguishes two games it reports
+    /// between the same teams at nearly the same time. Once a row carries one, no other id from
+    /// that provider may claim it.
+    /// </summary>
+    private static bool ClaimedByAnotherGameFrom(Game game, string sourceKey, string sourceGameId)
+        => game.ExternalIds.TryGetValue(sourceKey, out var existing) && existing != sourceGameId;
 
     private static GameStatus MapStatus(string? raw) => raw?.ToLowerInvariant() switch
     {

@@ -1,6 +1,8 @@
 @using LineOps.Data
 @using LineOps.Ingestion.Services
 @using LineOps.Ingestion.Configuration
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Options
@@ -44,20 +46,30 @@
 }
 else
 {
-    <DeskGrid T="Row" Items="_rows" EmptyText="No games on the slate.">
+    <DeskGrid T="Row" Items="_rows" Class="deskgrid--clickable"
+              RowClassFunc="@((r, _) => _open == r.Game.Id ? "board__row--open" : string.Empty)"
+              OnRowClick="@(e => Toggle(e.Item))"
+              EmptyText="No games on the slate.">
         <PropertyColumn T="Row" TProperty="string" Property="r => r.Game.Sport!.Name" Title="Sport">
             <CellTemplate>
                 <span class="tag">@context.Item.Game.Sport?.Name</span>
             </CellTemplate>
         </PropertyColumn>
 
-        @* The matchup is the cell you act from, so it carries the shortcut. Full names, because
-           this is where a game is identified rather than tallied. *@
+        @* The matchup is the cell you act from, so it carries the shortcut and the row's
+           actions. Full names, because this is where a game is identified rather than tallied. *@
         <PropertyColumn T="Row" TProperty="string" Property="r => r.Game.HomeTeam!.Name" Title="Matchup">
             <CellTemplate>
                 <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
                     @Matchup(context.Item.Game)
                 </DeskLink>
+
+                @if (_open == context.Item.Game.Id)
+                {
+                    @* Keyed by the game so moving to another row is a fresh strip rather than
+                       one still showing the previous game's snippet. *@
+                    <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item.Game)" />
+                }
             </CellTemplate>
         </PropertyColumn>
 
@@ -86,15 +98,107 @@ else
     </DeskGrid>
 }
 
+@* Follow-ups float above the desk once it is full, so browsing the slate never evicts it. *@
+<FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
+
 @code {
     private record Row(Game Game, int? Home, int? Away);
 
     private List<Row> _rows = [];
+    private readonly FollowUpLauncher _followUps = new();
+    private int? _open;
     private int _games;
     private long _snapshots;
     private long _today;
     private int _alerts;
     private bool _busy;
+
+    /// <summary>
+    /// One open row at a time. Two would push the slate around and the actions would stop being
+    /// obviously attached to a game.
+    /// </summary>
+    private void Toggle(Row row) => _open = _open == row.Game.Id ? null : row.Game.Id;
+
+    /// <summary>
+    /// What a slate row can do.
+    ///
+    /// <para>
+    /// Deliberately not the Board's set. The slate is where a day is read, not where a price is
+    /// shopped — so the three glances are here, and <c>Place wager</c> is not. Wagering belongs
+    /// on the Board, which has the best number on screen to wager against; offering it from a
+    /// row showing one moneyline would invite betting a price the operator has not actually
+    /// compared.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>Teams</c> is the one action with no snippet. Team data is somewhere to work rather
+    /// than something to peek at, so it opens both sides directly.
+    /// </para>
+    /// </summary>
+    private List<RowAction> ActionsFor(Game game)
+    {
+        var id = game.Id;
+        var name = Matchup(game);
+
+        return
+        [
+            new RowAction
+            {
+                Key = "odds",
+                Label = "Odds",
+                Icon = Icons.Material.Filled.ShowChart,
+                Snippet = @<OddsSnippet GameId="id" />,
+                OpenLabel = "Movement",
+                OpenWindow = () => Launch(WindowCatalog.Odds, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "h2h",
+                Label = "H2H",
+                Icon = Icons.Material.Filled.CompareArrows,
+                Snippet = @<HeadToHeadSnippet GameId="id" />,
+                OpenLabel = "Full history",
+                OpenWindow = () => Launch(WindowCatalog.HeadToHead, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "form",
+                Label = "Form",
+                Icon = Icons.Material.Filled.QueryStats,
+                Snippet = @<FormSnippet GameId="id" />,
+                OpenLabel = "Game view",
+                OpenWindow = () => Launch(WindowCatalog.Game, "GameId", id, name)
+            },
+            new RowAction
+            {
+                Key = "teams",
+                Label = "Teams",
+                Icon = Icons.Material.Filled.Shield,
+                OpenWindow = () => OpenTeams(game)
+            }
+        ];
+    }
+
+    private Task Launch(string key, string parameter, int id, string name, string width = "640px")
+    {
+        _followUps.Launch(Manager, key, parameter, id, name, width);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Both sides at once. Opening one and making the operator go back for the other is the
+    /// slower half of every comparison they were about to make.
+    /// </summary>
+    private Task OpenTeams(Game game)
+    {
+        _followUps.Launch(Manager, WindowCatalog.Team, "TeamId", game.AwayTeamId,
+            game.AwayTeam?.Name ?? "Away", "480px");
+
+        _followUps.Launch(Manager, WindowCatalog.Team, "TeamId", game.HomeTeamId,
+            game.HomeTeam?.Name ?? "Home", "480px");
+
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

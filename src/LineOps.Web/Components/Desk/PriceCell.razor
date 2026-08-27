@@ -18,6 +18,10 @@ else
 {
     <div class="price" title="@Tooltip">
         <div class="price__top">
+            @if (Selection is { Length: > 0 } selection)
+            {
+                <span class="price__sel">@selection</span>
+            }
             @if (Offer.Line is { } line)
             {
                 <span class="price__line">@FormatLine(line, Offer.Outcome)</span>
@@ -46,6 +50,24 @@ else
 
 @code {
     [Parameter] public BestOffer? Offer { get; set; }
+
+    /// <summary>
+    /// Which side this price is for — a team monogram, or O/U on a total.
+    ///
+    /// <para>
+    /// Two prices sit next to each other in every market and the board orders them home-first,
+    /// but a convention the reader cannot see is not a convention. A moneyline pair of +331 and
+    /// -380 is a heavy favourite beside a long underdog, and taking the wrong one of those is
+    /// not a cosmetic mistake.
+    /// </para>
+    ///
+    /// <para>
+    /// Supplied by the caller rather than derived here, because the short form of a team lives
+    /// on the team — ESPN supplies the official abbreviation (ADR 0011) — and this control only
+    /// ever sees an outcome string.
+    /// </para>
+    /// </summary>
+    [Parameter] public string? Selection { get; set; }
 
     /// <summary>
     /// What shopping is worth here, said plainly. A differing line is reported as such rather

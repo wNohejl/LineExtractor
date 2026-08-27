@@ -61,7 +61,9 @@
             value="@(S.PrimaryWindowKey ?? "")"
             @onchange="OnPrimaryChanged">
         <option value="">None — every window equal</option>
-        @foreach (var definition in WindowCatalog.All)
+        @* A destination cannot be opened on its own, so it cannot be the window that opens
+           on an empty desk either. *@
+        @foreach (var definition in WindowCatalog.All.Where(d => !d.RequiresSubject))
         {
             <option value="@definition.Key">@definition.Title</option>
         }
@@ -90,26 +92,18 @@
 
 <h3 class="panel-h">Resolution</h3>
 <div class="row">
-    <button class="btn @(S.ResolutionMode == ResolutionMode.Auto ? "btn--primary" : null)"
-            type="button" @onclick="UseAuto">
-        Follow browser
-    </button>
-    <button class="btn @(S.ResolutionMode == ResolutionMode.Fixed ? "btn--primary" : null)"
-            type="button" @onclick="UseFixed">
-        Declare a size
-    </button>
+    <DeskSwitch Options="_modes" Label="Resolution mode"
+                Value="S.ResolutionMode" ValueChanged="@((ResolutionMode mode) => SetMode(mode))" />
 </div>
 
 @if (S.ResolutionMode == ResolutionMode.Fixed)
 {
     <div class="row" style="margin-top:10px">
-        @foreach (var preset in Presets)
-        {
-            <button class="btn @(S.CustomWidth == preset.W && S.CustomHeight == preset.H ? "btn--primary" : null)"
-                    type="button" @onclick="() => ApplyPreset(preset.W, preset.H)">
-                @preset.Label
-            </button>
-        }
+        @* A custom size typed below matches no preset, and then the gate's cap simply
+           is not there — no position pretends to be the one you are on. *@
+        <DeskSwitch Options="_presets" Label="Preset size" Mono="true"
+                    Value="(S.CustomWidth, S.CustomHeight)"
+                    ValueChanged="@(((int W, int H) size) => ApplyPreset(size.W, size.H))" />
     </div>
 
     <div class="row" style="margin-top:10px">
@@ -132,12 +126,18 @@
 @code {
     private DeskSettings S => Manager.Settings;
 
-    private static readonly (string Label, int W, int H)[] Presets =
+    private static readonly IReadOnlyList<DeskSwitchOption<ResolutionMode>> _modes =
     [
-        ("1280×720", 1280, 720),
-        ("1920×1080", 1920, 1080),
-        ("2560×1440", 2560, 1440),
-        ("3440×1440", 3440, 1440)
+        new(ResolutionMode.Auto, "Follow browser"),
+        new(ResolutionMode.Fixed, "Declare a size")
+    ];
+
+    private static readonly IReadOnlyList<DeskSwitchOption<(int W, int H)>> _presets =
+    [
+        new((1280, 720), "1280×720"),
+        new((1920, 1080), "1920×1080"),
+        new((2560, 1440), "2560×1440"),
+        new((3440, 1440), "3440×1440")
     ];
 
     protected override void OnInitialized()
@@ -164,9 +164,8 @@
             Manager.UpdateSettings(s => s.PrimaryShare = percent / 100d);
     }
 
-    private void UseAuto() => Manager.UpdateSettings(s => s.ResolutionMode = ResolutionMode.Auto);
-
-    private void UseFixed() => Manager.UpdateSettings(s => s.ResolutionMode = ResolutionMode.Fixed);
+    private void SetMode(ResolutionMode mode)
+        => Manager.UpdateSettings(s => s.ResolutionMode = mode);
 
     private void ApplyPreset(int width, int height) => Manager.UpdateSettings(s =>
     {

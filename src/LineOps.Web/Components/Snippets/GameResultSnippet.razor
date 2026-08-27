@@ -1,0 +1,92 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Core.Entities
+@using LineOps.Data.CrossReference
+
+@*
+    One game from a team's log, expanded.
+
+    The row above already carries the score; this is what the row could not fit — how the game
+    sat against the number, and who on that roster actually played in it. Taken as a row rather
+    than fetched, because the log that opened it has already read everything here.
+*@
+
+<div class="snippet__facts">
+    <div class="fact">
+        <div class="fact__label">Result</div>
+        <div class="fact__value mono">
+            @* A fixture not yet played carries zeroes rather than nulls, so the status is what
+               says whether the score means anything (ADR 0003). *@
+            @if (Row.HasScore)
+            {
+                <span class="@(Row.Won == true ? "good" : Row.Won == false ? "bad" : "")">
+                    @Row.ScoreFor-@Row.ScoreAgainst
+                </span>
+            }
+            else
+            {
+                <span class="dim">@Row.Status</span>
+            }
+        </div>
+    </div>
+
+    <div class="fact">
+        <div class="fact__label">Venue</div>
+        <div class="fact__value">@(Row.Home ? "Home" : "Away")</div>
+    </div>
+
+    <div class="fact">
+        <div class="fact__label">Closing spread</div>
+        <div class="fact__value mono">@(Row.ClosingSpread is { } s ? Line(s) : "—")</div>
+    </div>
+
+    <div class="fact">
+        <div class="fact__label">Against the spread</div>
+        <div class="fact__value">
+            @if (Row.AtsResult is { } ats)
+            {
+                <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                    @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Did not cover" : "Push")
+                </span>
+            }
+            else
+            {
+                <span class="dim">—</span>
+            }
+        </div>
+    </div>
+
+    <div class="fact">
+        <div class="fact__label">Closing total</div>
+        <div class="fact__value mono">@(Row.ClosingTotal is { } t ? t.ToString() : "—")</div>
+    </div>
+
+    <div class="fact">
+        <div class="fact__label">Over / under</div>
+        <div class="fact__value">
+            @if (Row.TotalResult is { } total)
+            {
+                <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                    @(total == EntryResult.Win ? "Over" : total == EntryResult.Loss ? "Under" : "Push")
+                </span>
+            }
+            else
+            {
+                <span class="dim">—</span>
+            }
+        </div>
+    </div>
+</div>
+
+@if (!Row.HasClosingLine)
+{
+    @* Said once, plainly, rather than left as four dashes to interpret. *@
+    <p class="note" style="margin:8px 0 0">
+        No closing line was captured for this game, so it cannot be graded against the number.
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public TeamGameLogRow Row { get; set; } = default!;
+
+    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+}

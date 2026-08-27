@@ -164,6 +164,45 @@ public class HistoryBackfillService(
     /// analytics actually read, and finishing "last month" beats getting a third of the way
     /// through a year that starts eleven months ago.
     /// </summary>
+    /// <summary>
+    /// Forgets which days have been walked, so the next run fetches them again.
+    ///
+    /// <para>
+    /// A checkpoint means "this day is held", and the walk skips held days — which is what makes
+    /// resuming an interrupted backfill cheap. It also means a day walked by a version of the
+    /// code that stored it wrongly stays wrong for ever: the walk that would fix it never runs.
+    /// That is not hypothetical. Game resolution used to merge consecutive fixtures in a series,
+    /// and recovering them needed every affected day fetched a second time.
+    /// </para>
+    ///
+    /// <para>
+    /// This deletes bookkeeping, not data. Games, stat lines and closing lines are keyed by
+    /// their provider ids and are re-resolved onto the rows that already exist, so a re-walk
+    /// corrects and adds rather than duplicating. The cost is time and requests against a free
+    /// provider, which is why it is a deliberate action rather than something the schedule does.
+    /// </para>
+    /// </summary>
+    /// <param name="since">Earliest day to forget. Null forgets every day held.</param>
+    /// <returns>How many checkpoints were cleared.</returns>
+    public async Task<int> ForgetAsync(DateOnly? since, CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        var query = db.BackfillCheckpoints.AsQueryable();
+
+        if (since is { } from)
+            query = query.Where(c => c.Date >= from);
+
+        var count = await query.ExecuteDeleteAsync(ct);
+
+        logger.LogWarning(
+            "Backfill: {Count} checkpoints cleared{Scope}; those days will be walked again",
+            count, since is { } d ? $" from {d:yyyy-MM-dd}" : string.Empty);
+
+        return count;
+    }
+
     public async Task<BackfillReport> RunAsync(
         IProgress<BackfillProgress>? progress,
         CancellationToken ct)
