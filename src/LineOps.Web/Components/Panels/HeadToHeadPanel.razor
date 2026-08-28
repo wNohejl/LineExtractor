@@ -32,7 +32,7 @@ else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
         <h3 class="panel-h" style="margin:0">@_awayName v @_homeName</h3>
-        <span class="tag tag--info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</span>
+        <Tag Tone="DeskTone.Action">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
     </div>
 
     @* Coverage is stated rather than implied: a column of dashes beside a record says nothing
@@ -79,9 +79,9 @@ else
                     <td class="r">
                         @if (row.SubjectWon is { } won)
                         {
-                            <span class="tag @(won ? "tag--good" : "tag--bad")">
+                            <Tag Tone="@TagTones.Won(won)">
                                 @(won ? _homeName : _awayName)
-                            </span>
+                            </Tag>
                         }
                         else
                         {
@@ -92,10 +92,10 @@ else
                     <td class="r">
                         @if (row.AtsResult is { } ats)
                         {
-                            <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
-                                  title="@_homeName against the closing spread">
+                            <Tag Tone="@TagTones.Result(ats)"
+                                 Title="@($"{_homeName} against the closing spread")">
                                 @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
-                            </span>
+                            </Tag>
                         }
                         else
                         {
@@ -105,9 +105,9 @@ else
                     <td class="r">
                         @if (row.TotalResult is { } total && row.ClosingTotal is { } line)
                         {
-                            <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                            <Tag Tone="@TagTones.Result(total)">
                                 @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
-                            </span>
+                            </Tag>
                         }
                         else
                         {

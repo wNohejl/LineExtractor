@@ -118,7 +118,7 @@ else
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
 
-                            <Tag Tone="@WonTone(row.Won)">
+                            <Tag Tone="@TagTones.Won(row.Won)">
                                 @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
                             </Tag>
 
@@ -126,7 +126,7 @@ else
                                scans for, and hiding it behind an expand would defeat the log. *@
                             @if (row.AtsResult is { } ats)
                             {
-                                <Tag Tone="@AtsTone(ats)"
+                                <Tag Tone="@TagTones.Result(ats)"
                                      Title="@($"Against a closing spread of {row.ClosingSpread}")">
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
                                 </Tag>
@@ -228,17 +228,6 @@ else
     /// </summary>
     private static readonly IReadOnlyList<DeskSwitchOption<GameLogSplits.Split?>> _splitOptions =
         [.. _splits.Select(s => new DeskSwitchOption<GameLogSplits.Split?>(s, GameLogSplits.Label(s)))];
-
-    /// <summary>
-    /// The against-the-spread badge's tone. A push is neither a cover nor a failure to cover,
-    /// so it takes Action rather than being rounded toward either outcome.
-    /// </summary>
-    private static DeskTone AtsTone(EntryResult ats) => ats switch
-    {
-        EntryResult.Win => DeskTone.Go,
-        EntryResult.Loss => DeskTone.Stop,
-        _ => DeskTone.Action
-    };
 
     private readonly FollowUpLauncher _followUps = new();
 
