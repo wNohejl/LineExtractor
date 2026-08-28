@@ -36,9 +36,39 @@
     --face-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
     --face-data: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
 
+    /* Type styles. Named for the job, not the size — a call site that says
+       --text-caption keeps meaning the right thing when 11px stops being 11px.
+       These are the four sizes the desk actually uses today; adding a fifth
+       should need an argument, not a preference. */
+    --text-title: 10.5px; /* panel headings — uppercase, tracked, quiet */
+    --text-caption: 11px; /* labels, units, secondary annotation */
+    --text-body: 13px; /* the default reading size for chrome */
+    --text-callout: 14px; /* a line that must be read before the ones near it */
+
+    --leading-title: 1.4;
+    --leading-caption: 1.45;
+    --leading-body: 1.5;
+    --leading-callout: 1.45;
+
+    /* Spacing. One 4px ramp, not a per-component habit. Steps skip where the eye
+       cannot tell the difference, so every gap on the desk is a named rung. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+
     --rail-size: 46px;
     --titlebar-h: 34px;
+
+    /* Radius. --radius is the desk's default and does not move; the other two are
+       for things smaller or larger than a window's chrome. */
+    --radius-sm: 4px; /* inset chips, metrics, notes */
     --radius: 6px;
+    --radius-lg: 10px; /* floating surfaces — dialogs, popovers */
 
     /* Motion. One vocabulary of travel, so the marble, the glide plate and a
        window all move like parts of the same machine rather than three
@@ -1860,9 +1890,28 @@ select.field {
 
 select.field option { background: var(--ink-700); color: var(--chalk); }
 
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Row and stack read their gap from --desk-gap so a component can set one rung of
+   the spacing ramp inline without a modifier class per step. The fallback is the
+   gap they have always had, so a bare .row / .stack is unchanged.
+
+   The `--desk-gap: initial` is load-bearing, not tidiness: custom properties inherit,
+   so without it a plain row nested inside a spaced one would silently adopt its
+   parent's gap. Setting it to the guaranteed-invalid value makes var() fall through
+   to the default, while an inline --desk-gap on the element still wins. */
+.row { --desk-gap: initial; display: flex; align-items: center; gap: var(--desk-gap, var(--space-2)); flex-wrap: wrap; }
 .row--end { justify-content: flex-end; }
-.stack { display: flex; flex-direction: column; gap: 8px; }
+.row--start { justify-content: flex-start; }
+.row--center { justify-content: center; }
+.row--between { justify-content: space-between; }
+.row--top { align-items: flex-start; }
+.row--bottom { align-items: flex-end; }
+.row--stretch { align-items: stretch; }
+.row--baseline { align-items: baseline; }
+.row--nowrap { flex-wrap: nowrap; }
+.stack { --desk-gap: initial; display: flex; flex-direction: column; gap: var(--desk-gap, var(--space-2)); }
+.stack--start { align-items: flex-start; }
+.stack--center { align-items: center; }
+.stack--end { align-items: flex-end; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
 .note {
