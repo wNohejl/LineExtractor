@@ -36,7 +36,7 @@
 <DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">
     <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
         <CellTemplate>
-            <span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span>
+            <Tag Tone="@StatusTone(context.Item.Status)">@context.Item.Status</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -148,11 +148,11 @@
             recentFailures > 0 ? $"{recentFailures} recent fails" : $"{_runs.Count} runs");
     }
 
-    private static string StatusTag(RunStatus status) => status switch
+    private static DeskTone StatusTone(RunStatus status) => status switch
     {
-        RunStatus.Success => "tag--good",
-        RunStatus.Partial => "tag--warn",
-        RunStatus.Failed => "tag--bad",
-        _ => "tag--info"
+        RunStatus.Success => DeskTone.Go,
+        RunStatus.Partial => DeskTone.Caution,
+        RunStatus.Failed => DeskTone.Stop,
+        _ => DeskTone.Action
     };
 }

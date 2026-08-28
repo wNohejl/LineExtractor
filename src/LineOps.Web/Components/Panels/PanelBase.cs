@@ -60,6 +60,20 @@ public abstract class PanelBase : ComponentBase
     protected static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("MMM d");
 
     /// <summary>
+    /// Won, lost, or neither — the tone for a recent-form badge.
+    ///
+    /// Every panel that shows a form strip reaches the same conclusion about a result, so it is
+    /// decided once here. Null is not a loss: a game that has not finished is <c>Action</c>, the
+    /// same neutral-but-noticed tone the desk uses for a row you picked.
+    /// </summary>
+    protected static Desk.DeskTone WonTone(bool? won) => won switch
+    {
+        true => Desk.DeskTone.Go,
+        false => Desk.DeskTone.Stop,
+        _ => Desk.DeskTone.Action
+    };
+
+    /// <summary>
     /// A game named in full: "Colorado Rockies at San Francisco Giants".
     ///
     /// Abbreviations are fine in a dense grid where the column is three characters wide and the

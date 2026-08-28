@@ -52,7 +52,7 @@ else
               EmptyText="No games on the slate.">
         <PropertyColumn T="Row" TProperty="string" Property="r => r.Game.Sport!.Name" Title="Sport">
             <CellTemplate>
-                <span class="tag">@context.Item.Game.Sport?.Name</span>
+                <Tag>@context.Item.Game.Sport?.Name</Tag>
             </CellTemplate>
         </PropertyColumn>
 
@@ -84,7 +84,7 @@ else
 
         <PropertyColumn T="Row" TProperty="GameStatus" Property="r => r.Game.Status" Title="State">
             <CellTemplate>
-                <span class="tag @StateTag(context.Item.Game.Status)">@context.Item.Game.Status</span>
+                <Tag Tone="@StateTone(context.Item.Game.Status)">@context.Item.Game.Status</Tag>
             </CellTemplate>
         </PropertyColumn>
 
@@ -245,11 +245,11 @@ else
     private static bool Same(string outcome, string? team)
         => team is not null && string.Equals(outcome, team, StringComparison.OrdinalIgnoreCase);
 
-    private static string StateTag(GameStatus status) => status switch
+    private static DeskTone StateTone(GameStatus status) => status switch
     {
-        GameStatus.Live => "tag--warn",
-        GameStatus.Final => "tag--good",
-        _ => "tag--info"
+        GameStatus.Live => DeskTone.Caution,
+        GameStatus.Final => DeskTone.Go,
+        _ => DeskTone.Action
     };
 
     /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>
