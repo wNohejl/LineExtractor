@@ -13,7 +13,7 @@
 
 @if (Row is null)
 {
-    <p class="empty">Loading the market…</p>
+    <EmptyState>Loading the market…</EmptyState>
 }
 else if (Row.Unpriced is { } reason)
 {
@@ -33,7 +33,7 @@ else
 
     @if (!market.IsPriced)
     {
-        <p class="empty" style="padding:6px 0 12px">Not priced by any book yet.</p>
+        <EmptyState Kind="EmptyStateKind.New" Style="padding:6px 0 12px">Not priced by any book yet.</EmptyState>
     }
     else
     {

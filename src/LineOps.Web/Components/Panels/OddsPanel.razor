@@ -21,10 +21,10 @@
 
 @if (_series.Count == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.Filtered">
         No stored moves for this game and market. Prices are only written when they change,
         so a market that has not moved has nothing to plot.
-    </p>
+    </EmptyState>
 }
 else
 {
@@ -77,14 +77,14 @@ else
 
 @if (_form is null)
 {
-    <p class="empty">Select a game to cross-reference its players against their history.</p>
+    <EmptyState Kind="EmptyStateKind.New">Select a game to cross-reference its players against their history.</EmptyState>
 }
 else if (_form.IsEmpty)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.Filtered">
         No appearances on record for either roster in the last @_windowDays days. History is
         gathered separately — open the History window to backfill it.
-    </p>
+    </EmptyState>
 }
 else
 {

@@ -6,10 +6,10 @@
 
 @if (_summary.SettledCount == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.New">
         No settled entries yet. Log entries in the Journal window and settle them once games
         finish — closing-line value resolves at the same time.
-    </p>
+    </EmptyState>
 }
 else
 {
@@ -45,7 +45,7 @@ else
     }
     else
     {
-        <p class="empty">Two settled entries are needed to plot a curve.</p>
+        <EmptyState Kind="EmptyStateKind.New">Two settled entries are needed to plot a curve.</EmptyState>
     }
 
     <h3 class="panel-h">By market</h3>
@@ -103,7 +103,7 @@ else
     private RenderFragment Breakdown(IReadOnlyDictionary<string, PerformanceSummary> data) => @<text>
         @if (data.Count == 0)
         {
-            <p class="empty">No settled entries.</p>
+            <EmptyState Kind="EmptyStateKind.Filtered">No settled entries.</EmptyState>
         }
         else
         {

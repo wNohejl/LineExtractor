@@ -12,14 +12,14 @@
 
 @if (_form is null)
 {
-    <p class="empty">Reading the last @_windowDays days…</p>
+    <EmptyState>Reading the last @_windowDays days…</EmptyState>
 }
 else if (_form.IsEmpty)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.Filtered">
         No appearances on record for either roster in the last @_windowDays days. History is
         gathered separately — open the History window to backfill it.
-    </p>
+    </EmptyState>
 }
 else
 {

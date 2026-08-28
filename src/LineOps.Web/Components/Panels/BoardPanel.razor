@@ -61,10 +61,10 @@
 
 @if (_rows.Count == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.Filtered">
         No games priced in this window. Use <strong>Pull data → Fresh lines</strong> on the
         Slate window, or widen the window above.
-    </p>
+    </EmptyState>
 }
 else
 {

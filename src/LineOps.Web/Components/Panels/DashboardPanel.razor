@@ -39,10 +39,10 @@
 
 @if (_rows.Count == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.New">
         Nothing ingested yet. <strong>Ingest now</strong> pulls a slate — with no API keys
         configured it uses the built-in demo source, so it works at no cost.
-    </p>
+    </EmptyState>
 }
 else
 {

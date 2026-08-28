@@ -22,7 +22,7 @@
 
 @if (_player is null)
 {
-    <p class="empty">Loading the player…</p>
+    <EmptyState>Loading the player…</EmptyState>
 }
 else
 {
@@ -51,10 +51,10 @@ else
 
     @if (_rows.Count == 0)
     {
-        <p class="empty">
+        <EmptyState Kind="EmptyStateKind.New">
             No appearances on record. A player enters the desk through a box score, so one with
             no games has been named on a roster but not yet played inside the history held.
-        </p>
+        </EmptyState>
     }
     else
     {

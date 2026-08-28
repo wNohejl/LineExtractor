@@ -32,10 +32,10 @@
 
     @if (_rows.Count == 0)
     {
-        <p class="empty">
+        <EmptyState Kind="EmptyStateKind.New">
             No players yet. <strong>Sync stats</strong> pulls rosters and box scores — ESPN
             needs no key, so this works at no cost.
-        </p>
+        </EmptyState>
     }
     else
     {
@@ -86,7 +86,7 @@ else
 
     @if (_log.Count == 0)
     {
-        <p class="empty">No per-game statistics recorded for this player yet.</p>
+        <EmptyState Kind="EmptyStateKind.New">No per-game statistics recorded for this player yet.</EmptyState>
     }
     else
     {
