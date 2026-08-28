@@ -145,41 +145,48 @@ else
             var columns = ColumnsFor(side);
 
             <h4 class="panel-h" style="margin-top:12px; color:var(--haze)">@teamName</h4>
-            <div class="gridwrap"><table class="grid">
-                <thead>
-                    <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th class="r">GP</th>
-                        @foreach (var c in columns)
-                        {
-                            @* Rates are averaged, counts are totalled, and the header says
-                               which so a number is never ambiguous. *@
-                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
-                        }
-                        <th class="r">Last</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in side)
+            <div class="gridwrap">
+                <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                                    Title="GP" Align="Align.Right" />
+
+                    @foreach (var c in columns)
                     {
-                        <tr>
-                            <td class="trunc" title="@p.Name">@p.Name</td>
-                            <td class="dim">@(p.Position ?? "—")</td>
-                            <td class="r">@p.Appearances</td>
-                            @foreach (var c in columns)
-                            {
-                                <td class="r">
-                                    @* A player with no reading for this key gets a dash, not a
-                                       zero — they are different facts. *@
-                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
-                                </td>
-                            }
-                            <td class="r dim">@p.LastPlayed.ToLocalTime().ToString("MMM d")</td>
-                        </tr>
+                        var key = c;
+
+                        @* Rates are averaged, counts are totalled, and the header says
+                           which so a number is never ambiguous. A player with no reading
+                           sorts below every real one rather than beside the zeroes. *@
+                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                                        Align="Align.Right"
+                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                            <CellTemplate>
+                                @* A player with no reading for this key gets a dash, not a
+                                   zero — they are different facts. *@
+                                @(context.Item.Summary(key) is { } v
+                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </tbody>
-            </table></div>
+
+                    <PropertyColumn T="PlayerForm" TProperty="DateTimeOffset" Property="p => p.LastPlayed"
+                                    Title="Last" Align="Align.Right">
+                        <CellTemplate>
+                            <span class="dim">@context.Item.LastPlayed.ToLocalTime().ToString("MMM d")</span>
+                        </CellTemplate>
+                    </PropertyColumn>
+                </DeskGrid>
+            </div>
         }
     </text>;
 

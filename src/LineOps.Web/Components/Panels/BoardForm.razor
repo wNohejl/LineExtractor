@@ -82,37 +82,42 @@ else
             var columns = ColumnsFor(side);
 
             <h4 class="panel-h" style="margin-top:10px; color:var(--haze)">@teamName</h4>
-            <div class="gridwrap"><table class="grid">
-                <thead>
-                    <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th class="r">GP</th>
-                        @foreach (var c in columns)
-                        {
-                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
-                        }
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in side)
+            <div class="gridwrap">
+                <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                                    Title="GP" Align="Align.Right" />
+
+                    @* Stat keys differ per sport and per source, so the columns are derived from
+                       the data rather than declared. A player with no reading sorts below every
+                       real one rather than beside the zeroes — sorting a stat descending is how
+                       you find the top of it, and a blank is not a nought. *@
+                    @foreach (var c in columns)
                     {
-                        <tr>
-                            <td class="trunc" title="@p.Name">@p.Name</td>
-                            <td class="dim">@(p.Position ?? "—")</td>
-                            <td class="r">@p.Appearances</td>
-                            @foreach (var c in columns)
-                            {
-                                <td class="r">
-                                    @* A dash where a player has no reading, not a zero — they
-                                       are different facts. *@
-                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
-                                </td>
-                            }
-                        </tr>
+                        var key = c;
+
+                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                                        Align="Align.Right"
+                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                            <CellTemplate>
+                                @* A dash where a player has no reading, not a zero — they
+                                   are different facts. *@
+                                @(context.Item.Summary(key) is { } v
+                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </tbody>
-            </table></div>
+                </DeskGrid>
+            </div>
         }
     </text>;
 }

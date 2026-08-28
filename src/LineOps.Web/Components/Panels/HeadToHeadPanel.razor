@@ -50,74 +50,94 @@ else
         </p>
     }
 
-    <div class="gridwrap"><table class="grid">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Meeting</th>
-                <th class="r">Score</th>
-                <th class="r">Winner</th>
-                <th class="r">Line</th>
-                <th class="r">ATS</th>
-                <th class="r">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var row in _rows)
-            {
-                <tr>
-                    <td class="dim">@Day(row.StartsAt)</td>
-                    <td>
-                        <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
-                                  OnClick="() => OpenGameAsync(row.GameId)">
-                            @row.AwayTeam at @row.HomeTeam
-                        </DeskLink>
-                    </td>
-                    <td class="r mono">
-                        @(row.HasScore ? $"{row.AwayScore}-{row.HomeScore}" : "—")
-                    </td>
-                    <td class="r">
-                        @if (row.SubjectWon is { } won)
-                        {
-                            <span class="tag @(won ? "tag--good" : "tag--bad")">
-                                @(won ? _homeName : _awayName)
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="dim">—</span>
-                        }
-                    </td>
-                    <td class="r mono">@(row.ClosingSpread is { } s ? Line(s) : "—")</td>
-                    <td class="r">
-                        @if (row.AtsResult is { } ats)
-                        {
-                            <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
-                                  title="@_homeName against the closing spread">
-                                @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="dim">—</span>
-                        }
-                    </td>
-                    <td class="r">
-                        @if (row.TotalResult is { } total && row.ClosingTotal is { } line)
-                        {
-                            <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
-                                @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="dim">—</span>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table></div>
+    @* Sorting is the reason this is a grid rather than a list. A twenty-meeting record is only
+       a claim about the matchup once you can pull the covers together, or read it newest first. *@
+    <div class="gridwrap">
+        <DeskGrid T="HeadToHeadRow" Items="_rows"
+                  EmptyText="No previous meeting on record between these sides.">
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
+                            Title="Date" InitialDirection="SortDirection.Descending">
+                <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="string" Property="r => r.HomeTeam" Title="Meeting">
+                <CellTemplate>
+                    <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                              OnClick="() => OpenGameAsync(context.Item.GameId)">
+                        @context.Item.AwayTeam at @context.Item.HomeTeam
+                    </DeskLink>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Score" Align="Align.Right" Sortable="false">
+                <CellTemplate>
+                    <span class="mono">
+                        @(context.Item.HasScore ? $"{context.Item.AwayScore}-{context.Item.HomeScore}" : "—")
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* A meeting with no result sorts between the losses and the wins rather than with
+               either — it is not evidence for one side, and burying it with the losses would
+               make it read as one. *@
+            <TemplateColumn T="HeadToHeadRow" Title="Winner" Align="Align.Right"
+                            SortBy="@(r => r.SubjectWon is { } w ? (w ? 2 : 0) : 1)">
+                <CellTemplate>
+                    @if (context.Item.SubjectWon is { } won)
+                    {
+                        <span class="tag @(won ? "tag--good" : "tag--bad")">
+                            @(won ? _homeName : _awayName)
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Line" Align="Align.Right"
+                            SortBy="@(r => r.ClosingSpread ?? decimal.MinValue)">
+                <CellTemplate>
+                    <span class="mono">@(context.Item.ClosingSpread is { } s ? Line(s) : "—")</span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="ATS" Align="Align.Right"
+                            SortBy="@(r => r.AtsResult is { } a ? (int)a : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.AtsResult is { } ats)
+                    {
+                        <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
+                              title="@_homeName against the closing spread">
+                            @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Total" Align="Align.Right"
+                            SortBy="@(r => r.TotalResult is { } t ? (int)t : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line)
+                    {
+                        <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                            @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+    </div>
 }
 
 @code {
