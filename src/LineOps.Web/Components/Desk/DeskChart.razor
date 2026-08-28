@@ -1,0 +1,156 @@
+@namespace LineOps.Web.Components.Desk
+@using MudBlazor
+
+@*
+    The desk's chart, and the last Mud component to get a seam.
+
+    ADR 0008 drew the line: a panel states what it wants, and MudBlazor's opinions are
+    somebody else's problem. Charts were the one place still crossing it — two panels
+    reached for <MudChart> directly and each had to remember T, ChartType, Width and
+    Height, which is exactly how the third chart ends up 40px shorter than the other two.
+
+    Three things move out of the call sites and into here.
+
+    Colour. Left alone MudBlazor paints series from its own twenty-colour Material ramp,
+    which shares nothing with the desk. A chart now names its DeskChartFamily — what kind
+    of number this is — and the palette follows from DeskChartPalette. That is the desk's
+    standing rule (name the meaning, not the colour) applied to a legend.
+
+    The headline. Apple's guidance is to headline the takeaway rather than the mechanism:
+    a chart titled "Bankroll" makes the reader do the reading. Headline and Takeaway are a
+    caption slot for saying what the picture shows, and they render as a <figcaption> so
+    the association is structural rather than proximity on screen.
+
+    The label. Descriptive text is not an accessibility label — a screen reader following
+    the figure lands on an SVG full of unlabelled paths. Description is required, sits on
+    the plot as role="img"/aria-label, and is the one sentence somebody who cannot see the
+    lines gets instead.
+
+        <DeskChart Series="_series" Labels="_labels" Height="240px"
+                   Family="DeskChartFamily.Movement"
+                   Headline="Steelers pulled two points"
+                   Description="Price over time for each book and outcome." />
+*@
+
+<figure class="deskchart @Class" @attributes="Rest">
+    @if (Headline is not null || Takeaway is not null)
+    {
+        <figcaption class="deskchart__cap">
+            @if (Headline is not null)
+            {
+                <span class="deskchart__headline">@Headline</span>
+            }
+            @if (Takeaway is not null)
+            {
+                <span class="deskchart__takeaway">@Takeaway</span>
+            }
+        </figcaption>
+    }
+
+    @* role="img" collapses the SVG's unlabelled internals to one described object. *@
+    <div class="deskchart__plot" role="img" aria-label="@Description">
+        <MudChart T="double"
+                  ChartType="@Type"
+                  ChartSeries="@_series"
+                  XAxisLabels="@Labels"
+                  ChartOptions="@_options"
+                  Width="@Width"
+                  Height="@Height" />
+    </div>
+</figure>
+
+@code {
+    /// <summary>
+    /// The data. <c>double</c> rather than a type parameter on purpose: every number the
+    /// desk plots is already a double by the time it leaves the analytics layer, and a
+    /// generic chart would push MudBlazor's numeric constraints out to every call site
+    /// for no reader's benefit.
+    /// </summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ChartSeries<double>> Series { get; set; } = [];
+
+    /// <summary>
+    /// One label per point on the X axis. Blanks are expected — a dense time series labels
+    /// every nth tick and leaves the rest empty so the axis stays readable.
+    /// </summary>
+    [Parameter] public string[] Labels { get; set; } = [];
+
+    /// <summary>The shape. Line unless there is a reason — see <see cref="DeskChartKind"/>.</summary>
+    [Parameter] public DeskChartKind Kind { get; set; } = DeskChartKind.Line;
+
+    /// <summary>
+    /// What kind of number this is. Decides the series colours, once, for every chart
+    /// plotting the same thing. See <see cref="DeskChartFamily"/>.
+    /// </summary>
+    [Parameter] public DeskChartFamily Family { get; set; } = DeskChartFamily.Movement;
+
+    /// <summary>
+    /// The takeaway, in the voice a person would use saying it out loud — "Steelers pulled
+    /// two points", not "Line movement". Optional, but a chart worth showing usually has one.
+    /// </summary>
+    [Parameter] public string? Headline { get; set; }
+
+    /// <summary>The supporting line under the headline: what is plotted, over what window.</summary>
+    [Parameter] public string? Takeaway { get; set; }
+
+    /// <summary>
+    /// The accessible name for the plot. Required, and not satisfied by
+    /// <see cref="Headline"/> — a headline states the conclusion, this states what is
+    /// drawn so somebody who cannot see it can picture the same thing.
+    /// </summary>
+    [Parameter, EditorRequired] public string Description { get; set; } = string.Empty;
+
+    [Parameter] public string Height { get; set; } = "240px";
+
+    [Parameter] public string Width { get; set; } = "100%";
+
+    /// <summary>
+    /// Draws the series legend. On by default, and worth turning off for a single series
+    /// that the headline has already named.
+    /// </summary>
+    [Parameter] public bool ShowLegend { get; set; } = true;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Everything else the caller put on the tag. `class` is excluded deliberately: Blazor
+    /// applies splatted attributes last, so a caller passing one would replace this
+    /// element's own classes outright rather than adding to them — the bug DeskSwitch
+    /// shipped with. Class is the supported way in.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private static readonly string[] Excluded = ["class"];
+
+    private IEnumerable<KeyValuePair<string, object>>? Rest =>
+        Extra?.Where(a => !Excluded.Contains(a.Key, StringComparer.OrdinalIgnoreCase));
+
+    private ChartType Type => Kind switch
+    {
+        DeskChartKind.Bar => ChartType.Bar,
+        DeskChartKind.StackedBar => ChartType.StackedBar,
+        DeskChartKind.Donut => ChartType.Donut,
+        _ => ChartType.Line
+    };
+
+    // Both of these are rebuilt in OnParametersSet rather than computed in the markup.
+    // MudChart diffs its ChartSeries and ChartOptions by reference and redraws when either
+    // changes, so a fresh instance per render would rebuild the whole SVG every time an
+    // unrelated part of the panel updated.
+    private List<ChartSeries<double>> _series = [];
+    private ChartOptions _options = new();
+
+    protected override void OnParametersSet()
+    {
+        // MudChart wants a List it can hold; the parameter is a read-only view so a panel
+        // can hand over an array without the component being able to scribble on its data.
+        _series = [.. Series];
+
+        _options = new ChartOptions
+        {
+            ChartPalette = DeskChartPalette.For(Family),
+            ShowLegend = ShowLegend
+        };
+    }
+}

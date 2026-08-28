@@ -296,6 +296,57 @@
 .mud-chart text { font-family: var(--face-data); font-size: 10px; fill: var(--haze); }
 .mud-charts-grid-line { stroke: var(--ink-500); }
 
+/* ----------------------------------------------------------------- charts ---- */
+
+/* DeskChart wraps MudChart in a <figure>, which browsers give a 1em side margin by
+   default — enough to pull a chart out of alignment with the panel heading above it.
+   Everything else here is the caption, which is desk text rather than Mud's, and the
+   plot's own box; the series colours come from DeskChartPalette in C#, because Mud
+   writes them into SVG attributes and its legend markup where a var() cannot reach. */
+.deskchart {
+    margin: 0 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* The caption comes first in the source so a screen reader hears the takeaway before
+   it reaches the plot, and `order` is not used to move it — reading order is the point. */
+.deskchart__cap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+/* Headline the takeaway, at the weight of a panel sub-heading rather than a title:
+   the window already said what this panel is. */
+.deskchart__headline {
+    color: var(--chalk);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.deskchart__takeaway {
+    color: var(--haze-dim);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+/* role="img" on the plot means the SVG's internals are one described object; the box
+   still has to reserve its own height so the panel does not jump as data arrives. */
+.deskchart__plot { min-width: 0; }
+
+/* Mud's legend is a list of series names, which on the desk is chrome: small, tracked,
+   haze, and not competing with the lines it labels. */
+.deskchart .mud-chart-legend-item,
+.deskchart .mud-chart-legend {
+    color: var(--haze);
+    font-family: var(--face-ui);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+}
+
 /* Ripple is Material's press feedback, and it contradicts the desk's: a key
    travels. Two answers to the same question is one too many, so the ripple goes.
    DeskButton also passes Ripple="false"; this catches Mud components that press
