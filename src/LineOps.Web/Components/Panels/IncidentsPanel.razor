@@ -125,10 +125,11 @@ else
     </div>
 
     <h3 class="panel-h" style="margin-top:20px">Root-cause analysis</h3>
-    <p class="note @(_selected.Status == IncidentStatus.Resolved ? null : "note--warn")">
+    <Note Tone="@(_selected.Status == IncidentStatus.Resolved ? DeskTone.Neutral : DeskTone.Caution)"
+          Style="margin:12px 0">
         Both fields are required to resolve. An incident without a cause and a fix teaches
         nothing later.
-    </p>
+    </Note>
 
     <div class="stack" style="margin-top:10px">
         <textarea class="field" rows="4"
@@ -141,7 +142,7 @@ else
 
         @if (_error is not null)
         {
-            <p class="note note--warn">@_error</p>
+            <Note Tone="DeskTone.Caution" Style="margin:12px 0">@_error</Note>
         }
 
         <div class="row">

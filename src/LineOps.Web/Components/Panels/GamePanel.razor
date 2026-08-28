@@ -220,7 +220,7 @@ else
     private RenderFragment RenderMarkets() => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <p class="note note--warn">@reason</p>
+            <Note Tone="DeskTone.Caution" Style="margin:12px 0">@reason</Note>
         }
         else
         {
