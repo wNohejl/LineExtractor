@@ -59,8 +59,11 @@ else
     private PerformanceSummary _summary;
     private double[] _bankroll = [];
     private string[] _labels = [];
-    private IReadOnlyDictionary<string, PerformanceSummary> _byMarket = new Dictionary<string, PerformanceSummary>();
-    private IReadOnlyDictionary<string, PerformanceSummary> _byBook = new Dictionary<string, PerformanceSummary>();
+    // Held flat rather than as the dictionaries the analytics return: a grid binds to rows, and
+    // rebuilding that list inside the render would hand MudDataGrid a new collection every time,
+    // throwing away the sort the operator had just clicked.
+    private List<BreakdownRow> _byMarket = [];
+    private List<BreakdownRow> _byBook = [];
     private string _beatRate = "—";
     private double _avgClv;
 
@@ -70,8 +73,8 @@ else
         var entries = await db.JournalEntries.ToListAsync();
 
         _summary = PerformanceAnalytics.Summarise(entries);
-        _byMarket = PerformanceAnalytics.SummariseBy(entries, e => e.Market);
-        _byBook = PerformanceAnalytics.SummariseBy(entries, e => e.Book);
+        _byMarket = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Market));
+        _byBook = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Book));
 
         var curve = PerformanceAnalytics.BankrollCurve(entries);
         _bankroll = curve.Select(p => (double)p.Cumulative).ToArray();
@@ -100,36 +103,45 @@ else
             _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
     }
 
-    private RenderFragment Breakdown(IReadOnlyDictionary<string, PerformanceSummary> data) => @<text>
+    private static List<BreakdownRow> Rows(IReadOnlyDictionary<string, PerformanceSummary> data)
+        => data.Select(kv => new BreakdownRow(kv.Key, kv.Value)).ToList();
+
+    private RenderFragment Breakdown(List<BreakdownRow> data) => @<text>
         @if (data.Count == 0)
         {
             <p class="empty">No settled entries.</p>
         }
         else
         {
-            <table class="grid">
-                <thead>
-                    <tr>
-                        <th>Key</th>
-                        <th class="r">Bets</th>
-                        <th class="r">Net</th>
-                        <th class="r">ROI</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var (key, summary) in data.OrderByDescending(kv => kv.Value.NetProfit))
-                    {
-                        <tr>
-                            <td>@key</td>
-                            <td class="r dim">@summary.SettledCount</td>
-                            <td class="r @(summary.NetProfit > 0 ? "up" : summary.NetProfit < 0 ? "down" : null)">
-                                @summary.NetProfit.ToString("C0")
-                            </td>
-                            <td class="r dim">@summary.Roi.ToString("P1")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            <DeskGrid T="BreakdownRow"
+                      Items="data"
+                      EmptyText="No settled entries.">
+                <PropertyColumn T="BreakdownRow" TProperty="string" Property="r => r.Key" Title="Key" />
+
+                <PropertyColumn T="BreakdownRow" TProperty="int" Property="r => r.Summary.SettledCount"
+                                Title="Bets" Align="Align.Right">
+                    <CellTemplate><span class="dim">@context.Item.Summary.SettledCount</span></CellTemplate>
+                </PropertyColumn>
+
+                @* Best-earning first was the hand-written order; sorting keeps it as the default
+                   rather than as the only one. *@
+                <PropertyColumn T="BreakdownRow" TProperty="decimal" Property="r => r.Summary.NetProfit"
+                                Title="Net" Align="Align.Right" InitialDirection="SortDirection.Descending">
+                    <CellTemplate>
+                        <span class="@(context.Item.Summary.NetProfit > 0 ? "up" : context.Item.Summary.NetProfit < 0 ? "down" : null)">
+                            @context.Item.Summary.NetProfit.ToString("C0")
+                        </span>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="BreakdownRow" TProperty="decimal" Property="r => r.Summary.Roi"
+                                Title="ROI" Align="Align.Right">
+                    <CellTemplate><span class="dim">@context.Item.Summary.Roi.ToString("P1")</span></CellTemplate>
+                </PropertyColumn>
+            </DeskGrid>
         }
     </text>;
+
+    /// <summary>One breakdown line. The dictionary is flattened because a grid sorts rows.</summary>
+    private sealed record BreakdownRow(string Key, PerformanceSummary Summary);
 }

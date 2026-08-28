@@ -238,6 +238,20 @@
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
 
+/* The two cell modifiers .grid defines, said again for the grid that replaced it. They were
+   scoped `.grid .dim` / `.grid .trunc` and so quietly stopped applying the moment a panel
+   moved to DeskGrid — a converted panel kept the markup and lost the styling, which is the
+   one failure mode this file exists to prevent. */
+.deskgrid .dim { color: var(--haze-dim); }
+
+.deskgrid .trunc {
+    max-width: 1px; /* forces the cell to take its share and no more */
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Numbers are read down a column, so they align right and use the number face. Mud marks
    these with its own alignment class; the desk's own tables use .r for the same thing. */
 .deskgrid .mud-table-cell.mud-align-right,
