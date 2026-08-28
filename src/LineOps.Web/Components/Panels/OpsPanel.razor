@@ -16,25 +16,20 @@
     </button>
 </div>
 
-<div class="metrics" style="margin-bottom:16px">
-    <div class="metric @(_healthy == _health.Count ? "metric--good" : "metric--warn")">
-        <div class="metric__value">@_healthy/@_health.Count</div>
-        <div class="metric__label">Sources in SLO</div>
-    </div>
-    <div class="metric @(_criticals > 0 ? "metric--bad" : _alerts.Count > 0 ? "metric--warn" : "metric--good")">
-        <div class="metric__value">@_alerts.Count</div>
-        <div class="metric__label">Open alerts</div>
-        <div class="metric__note">@(_criticals > 0 ? $"{_criticals} critical" : "none critical")</div>
-    </div>
-    <div class="metric">
-        <div class="metric__value">@_rowsToday.ToString("N0")</div>
-        <div class="metric__label">Rows today</div>
-    </div>
-    <div class="metric @(_openIncidents > 0 ? "metric--bad" : "metric--good")">
-        <div class="metric__value">@_openIncidents</div>
-        <div class="metric__label">Open incidents</div>
-    </div>
-</div>
+<MetricRow Style="margin-bottom:16px">
+    <Metric Label="Sources in SLO"
+            Tone="@(_healthy == _health.Count ? DeskTone.Go : DeskTone.Caution)">
+        @_healthy/@_health.Count
+    </Metric>
+    <Metric Label="Open alerts"
+            Value="@_alerts.Count.ToString()"
+            Note='@(_criticals > 0 ? $"{_criticals} critical" : "none critical")'
+            Tone="@(_criticals > 0 ? DeskTone.Stop : _alerts.Count > 0 ? DeskTone.Caution : DeskTone.Go)" />
+    <Metric Label="Rows today" Value='@_rowsToday.ToString("N0")' />
+    <Metric Label="Open incidents"
+            Value="@_openIncidents.ToString()"
+            Tone="@(_openIncidents > 0 ? DeskTone.Stop : DeskTone.Go)" />
+</MetricRow>
 
 @*
     Odds feeds get their own section because their failure mode is silence: an unconfigured

@@ -13,28 +13,23 @@
 }
 else
 {
-    <div class="metrics" style="margin-bottom:16px">
-        <div class="metric @(_summary.Roi > 0 ? "metric--good" : _summary.Roi < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_summary.Roi.ToString("P1")</div>
-            <div class="metric__label">ROI</div>
-            <div class="metric__note">@_summary.SettledCount settled</div>
-        </div>
-        <div class="metric @(_summary.NetProfit > 0 ? "metric--good" : _summary.NetProfit < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_summary.NetProfit.ToString("C0")</div>
-            <div class="metric__label">Net</div>
-            <div class="metric__note">on @_summary.TotalStaked.ToString("C0") staked</div>
-        </div>
-        <div class="metric">
-            <div class="metric__value">@_summary.WinRate.ToString("P0")</div>
-            <div class="metric__label">Win rate</div>
-            <div class="metric__note">@_summary.Wins W · @_summary.Losses L · @_summary.Pushes P</div>
-        </div>
-        <div class="metric @(_avgClv > 0 ? "metric--good" : _avgClv < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_beatRate</div>
-            <div class="metric__label">Beat the close</div>
-            <div class="metric__note">avg @_avgClv.ToString("+0.00;-0.00")%</div>
-        </div>
-    </div>
+    <MetricRow Style="margin-bottom:16px">
+        <Metric Label="ROI"
+                Value='@_summary.Roi.ToString("P1")'
+                Note='@($"{_summary.SettledCount} settled")'
+                Tone="@(_summary.Roi > 0 ? DeskTone.Go : _summary.Roi < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+        <Metric Label="Net"
+                Value='@_summary.NetProfit.ToString("C0")'
+                Note='@($"on {_summary.TotalStaked.ToString("C0")} staked")'
+                Tone="@(_summary.NetProfit > 0 ? DeskTone.Go : _summary.NetProfit < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+        <Metric Label="Win rate"
+                Value='@_summary.WinRate.ToString("P0")'
+                Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
+        <Metric Label="Beat the close"
+                Value="@_beatRate"
+                Note='@($"avg {_avgClv.ToString("+0.00;-0.00")}%")'
+                Tone="@(_avgClv > 0 ? DeskTone.Go : _avgClv < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+    </MetricRow>
 
     <h3 class="panel-h">Bankroll</h3>
     @if (_bankroll.Length > 1)

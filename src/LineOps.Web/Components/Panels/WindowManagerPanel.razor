@@ -6,23 +6,18 @@
     because the desk behind this window *is* the preview.
 *@
 
-<div class="metrics" style="margin-bottom:16px">
-    <div class="metric metric--info">
-        <div class="metric__value">@Manager.OpenCount/@S.MaxConcurrentWindows</div>
-        <div class="metric__label">Windows open</div>
-        <div class="metric__note">ceiling you set</div>
-    </div>
-    <div class="metric">
-        <div class="metric__value">@((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)</div>
-        <div class="metric__label">Desk</div>
-        <div class="metric__note">@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")</div>
-    </div>
-    <div class="metric @(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? "metric--warn" : "metric--good")">
-        <div class="metric__value">@Manager.RecommendedCapacity</div>
-        <div class="metric__label">Fits readably</div>
-        <div class="metric__note">at this size and layout</div>
-    </div>
-</div>
+<MetricRow Style="margin-bottom:16px">
+    <Metric Label="Windows open" Note="ceiling you set" Tone="DeskTone.Action">
+        @Manager.OpenCount/@S.MaxConcurrentWindows
+    </Metric>
+    <Metric Label="Desk" Note='@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")'>
+        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
+    </Metric>
+    <Metric Label="Fits readably"
+            Value="@Manager.RecommendedCapacity.ToString()"
+            Note="at this size and layout"
+            Tone="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskTone.Caution : DeskTone.Go)" />
+</MetricRow>
 
 @if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
 {

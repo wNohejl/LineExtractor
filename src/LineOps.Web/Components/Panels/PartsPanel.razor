@@ -135,25 +135,12 @@
 
 <h3 class="panel-h">Metrics</h3>
 
-<div class="metrics">
-    <div class="metric metric--good">
-        <div class="metric__value num">98.4%</div>
-        <div class="metric__label">Uptime</div>
-        <div class="metric__note">30-day rolling</div>
-    </div>
-    <div class="metric metric--warn">
-        <div class="metric__value num">412</div>
-        <div class="metric__label">Credits left</div>
-    </div>
-    <div class="metric metric--bad">
-        <div class="metric__value num">-2.1%</div>
-        <div class="metric__label">CLV</div>
-    </div>
-    <div class="metric metric--info">
-        <div class="metric__value num">6</div>
-        <div class="metric__label">Sources</div>
-    </div>
-</div>
+<MetricRow>
+    <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" Tone="DeskTone.Go" Numeric="true" />
+    <Metric Label="Credits left" Value="412" Tone="DeskTone.Caution" Numeric="true" />
+    <Metric Label="CLV" Value="-2.1%" Tone="DeskTone.Stop" Numeric="true" />
+    <Metric Label="Sources" Value="6" Tone="DeskTone.Action" Numeric="true" />
+</MetricRow>
 
 <h3 class="panel-h">Pulse</h3>
 <p class="empty" style="padding:0 0 9px">

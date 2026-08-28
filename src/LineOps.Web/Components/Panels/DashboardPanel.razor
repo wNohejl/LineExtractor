@@ -15,25 +15,14 @@
     <PullMenu OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
 </div>
 
-<div class="metrics" style="margin-bottom:16px">
-    <div class="metric metric--info">
-        <div class="metric__value">@_games.ToString("N0")</div>
-        <div class="metric__label">Games</div>
-    </div>
-    <div class="metric">
-        <div class="metric__value">@_snapshots.ToString("N0")</div>
-        <div class="metric__label">Price moves</div>
-        <div class="metric__note">stored, all time</div>
-    </div>
-    <div class="metric">
-        <div class="metric__value">@_today.ToString("N0")</div>
-        <div class="metric__label">Moves today</div>
-    </div>
-    <div class="metric @(_alerts > 0 ? "metric--warn" : "metric--good")">
-        <div class="metric__value">@_alerts</div>
-        <div class="metric__label">Open alerts</div>
-    </div>
-</div>
+<MetricRow Style="margin-bottom:16px">
+    <Metric Label="Games" Value='@_games.ToString("N0")' Tone="DeskTone.Action" />
+    <Metric Label="Price moves" Value='@_snapshots.ToString("N0")' Note="stored, all time" />
+    <Metric Label="Moves today" Value='@_today.ToString("N0")' />
+    <Metric Label="Open alerts"
+            Value="@_alerts.ToString()"
+            Tone="@(_alerts > 0 ? DeskTone.Caution : DeskTone.Go)" />
+</MetricRow>
 
 <h3 class="panel-h">Upcoming slate</h3>
 
