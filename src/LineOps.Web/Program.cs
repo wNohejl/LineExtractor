@@ -5,6 +5,7 @@ using LineOps.Reliability;
 using LineOps.Web.Components;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using MudBlazor;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,10 +19,37 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(options =>
+{
+    // Toasts land bottom-right, clear of the side rail and of the pulse strip in the header.
+    // Newest on top so a burst reads in the order it happened from the corner inwards.
+    options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight;
+    options.SnackbarConfiguration.NewestOnTop = true;
+    // Duplicates are allowed, against MudBlazor's default. A desk notice is derived from an
+    // outcome, so pressing Evaluate twice on an unchanged platform produces the same string
+    // twice — and suppressing the second one recreates the "did that actually run?" doubt the
+    // toast exists to remove.
+    options.SnackbarConfiguration.PreventDuplicates = false;
+    options.SnackbarConfiguration.MaxDisplayedSnackbars = 4;
+
+    // Transient means transient: it goes on its own, and the operator never has to dismiss
+    // one. The close button stays because a notice that lands over something being read
+    // should be removable without waiting it out.
+    options.SnackbarConfiguration.VisibleStateDuration = 4000;
+    options.SnackbarConfiguration.ShowCloseIcon = true;
+
+    // Material fades a snackbar in over half a second, which reads as the notice arriving
+    // late. The desk's own transitions are ~120ms; match them.
+    options.SnackbarConfiguration.ShowTransitionDuration = 120;
+    options.SnackbarConfiguration.HideTransitionDuration = 200;
+});
 
 // One desk per circuit: window layout is per-session state, not per-request.
 builder.Services.AddScoped<LineOps.Web.Windowing.WindowManager>();
+
+// The toast seam. Scoped because ISnackbar is: a notice belongs to the circuit that raised
+// it. Panels take DeskToasts, never ISnackbar — see Components/Desk/DeskToasts.cs.
+builder.Services.AddScoped<LineOps.Web.Components.Desk.DeskToasts>();
 
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor

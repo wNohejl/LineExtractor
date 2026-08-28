@@ -291,6 +291,68 @@
     transition: none;
 }
 
+/* ----------------------------------------------------------------- toasts --- */
+
+/* A toast is the desk's transient tier — see Components/Desk/DeskToasts.cs, which is the
+   only thing allowed to raise one. Material's snackbar is a floating card in a filled
+   severity colour with a three-layer shadow; the desk's is the same raised surface a window
+   title bar uses, with the tone carried on one edge rather than across the whole notice. A
+   wash of drift in the corner of the screen would out-shout the pulse strip, which is the
+   one element ADR 0007 lets be loud.
+
+   `.desk-toast` comes from SnackbarOptions.SnackbarTypeClass, so it lands *instead of*
+   MudBlazor's own `.mud-alert-filled-*` class rather than alongside it — nothing here is
+   fighting a severity colour, it simply never arrives. Two classes deep out-specifies
+   `.mud-snackbar` for the base geometry. */
+.mud-snackbar.desk-toast {
+    background: var(--ink-600);
+    border: 1px solid var(--ink-400);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-float);
+    color: var(--chalk);
+    font-family: var(--face-ui);
+    font-size: 12.5px;
+    font-weight: 400; /* .mud-alert-filled-* asks for 500; nothing else on the desk does */
+    letter-spacing: .01em;
+    padding: 4px 12px;
+}
+
+/* The tone is a lit edge, the way a metric states its state. --toast-accent is the one
+   custom property a tone sets, so a new tone is one line here and one arm in DeskToasts. */
+.mud-snackbar.desk-toast { border-left: 2px solid var(--toast-accent, var(--ink-400)); }
+.mud-snackbar.desk-toast .mud-snackbar-icon { color: var(--toast-accent, var(--haze)); }
+
+.desk-toast--go { --toast-accent: var(--steam); }
+.desk-toast--stop { --toast-accent: var(--drift); }
+.desk-toast--caution { --toast-accent: var(--flag); }
+.desk-toast--action { --toast-accent: var(--iris); }
+.desk-toast--neutral { --toast-accent: var(--ink-400); }
+
+/* Material's icon is 22px and sits at 90% opacity, which makes it the loudest thing in a
+   notice whose job is to be read once and forgotten. Bring it down to the chrome's size. */
+.mud-snackbar.desk-toast .mud-snackbar-icon {
+    padding: 0;
+    margin-right: 9px;
+    margin-inline-end: 9px;
+    opacity: 1;
+}
+
+.mud-snackbar.desk-toast .mud-snackbar-icon .mud-icon-root { font-size: 16px; }
+
+/* The close button is an escape, not a key — flat, dim, and it brightens rather than
+   travels. Giving it the moulding would make the notice look pressable.
+
+   Note the class: the snackbar's dismiss is `.mud-snackbar-close-button`, not MudAlert's
+   `.mud-alert-close-button`. The two components share a look but not a class name, and the
+   alert's name is the one that reads as obvious. */
+.mud-snackbar.desk-toast .mud-snackbar-close-button {
+    color: var(--haze-dim);
+    transition: color .12s ease;
+}
+
+.mud-snackbar.desk-toast .mud-snackbar-close-button:hover { color: var(--chalk); }
+.mud-snackbar.desk-toast .mud-snackbar-close-button .mud-icon-root { font-size: 15px; }
+
 /* Charts are the one thing MudBlazor was already trusted with. Their labels are
    numbers, so they get the number face. */
 .mud-chart text { font-family: var(--face-data); font-size: 10px; fill: var(--haze); }

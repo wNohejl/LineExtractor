@@ -1,6 +1,7 @@
 @using LineOps.Web.Components.Desk
 @using LineOps.Web.Windowing
 @inherits PanelBase
+@inject DeskToasts Toasts
 
 @*
     The parts bin: every reusable control the desk owns, in one window you can open
@@ -232,3 +233,47 @@
         Report(PulseState.Healthy, "reference");
     }
 }
+
+@* ============================================================== toasts ==== *@
+
+@*
+    The transient tier, demonstrated. It is last in the bin because it is the only part
+    here that does not render in place — a toast lands in the corner of the desk rather
+    than in this column, so the point of the section is the press, not the layout.
+*@
+
+<h3 class="panel-h">Toasts</h3>
+<p class="empty" style="padding:0 0 9px">
+    A toast reports that something finished while you were looking somewhere else:
+    non-critical, auto-dismissing, and recoverable from the panel that raised it. Anything
+    needing a decision stays inline instead, because a notice that has dismissed itself
+    cannot be acted on. Raise one with <span class="mono">Toasts.Success(...)</span> —
+    panels take <span class="mono">DeskToasts</span>, never <span class="mono">ISnackbar</span>.
+</p>
+
+<div class="row" style="gap:8px; flex-wrap:wrap">
+    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Go"
+                OnClick="@(() => Toasts.Success("Evaluated — every source inside its SLO."))">
+        Success
+    </DeskButton>
+
+    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
+                OnClick="@(() => Toasts.Info("Layout saved to this browser."))">
+        Info
+    </DeskButton>
+
+    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+                OnClick="@(() => Toasts.Warn("Pull finished — 12 pulls left in today's allowance."))">
+        Warn
+    </DeskButton>
+
+    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Stop"
+                OnClick="@(() => Toasts.Fail("Scheduled pull failed — the provider timed out."))">
+        Fail
+    </DeskButton>
+
+    <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                OnClick="@(() => Toasts.Show("Nothing to report."))">
+        Neutral
+    </DeskButton>
+</div>
