@@ -31,7 +31,7 @@ else if (_rows.Count == 0)
 else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
-        <h3 class="panel-h" style="margin:0">@_awayName v @_homeName</h3>
+        <PanelHeader Tight>@_awayName v @_homeName</PanelHeader>
         <span class="tag tag--info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</span>
     </div>
 

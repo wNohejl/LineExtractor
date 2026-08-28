@@ -29,7 +29,7 @@
 else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline">
-        <h3 class="panel-h" style="margin:0">@_team.Name</h3>
+        <PanelHeader Tight>@_team.Name</PanelHeader>
         <span class="tag">@_team.Sport?.Name</span>
     </div>
 
@@ -44,7 +44,7 @@ else
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
     </div>
 
-    <h4 class="panel-h">Recent games</h4>
+    <PanelHeader Level="4">Recent games</PanelHeader>
 
     @if (_log.Count == 0)
     {
@@ -161,7 +161,7 @@ else
         }
     }
 
-    <h4 class="panel-h">Roster form</h4>
+    <PanelHeader Level="4">Roster form</PanelHeader>
 
     @if (_roster.Count == 0)
     {

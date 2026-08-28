@@ -31,7 +31,7 @@ else
     <MudChart T="double" ChartType="ChartType.Line" ChartSeries="_series"
               XAxisLabels="@_labels" Width="100%" Height="240px" />
 
-    <h3 class="panel-h" style="margin-top:16px">Current market</h3>
+    <PanelHeader Gap="PanelHeaderGap.Section">Current market</PanelHeader>
 
     <DeskGrid T="OddsSnapshot" Items="_current" EmptyText="No prices on this market.">
         <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Book" Title="Book"
@@ -73,7 +73,7 @@ else
     because form changes daily and a stored copy would go stale without saying so.
 *@
 
-<h3 class="panel-h" style="margin-top:18px">Recent form</h3>
+<PanelHeader Gap="PanelHeaderGap.Section">Recent form</PanelHeader>
 
 @if (_form is null)
 {
@@ -144,7 +144,7 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h4 class="panel-h" style="margin-top:12px; color:var(--haze)">@teamName</h4>
+            <PanelHeader Level="4" Gap="PanelHeaderGap.Nested" Muted>@teamName</PanelHeader>
             <div class="gridwrap"><table class="grid">
                 <thead>
                     <tr>

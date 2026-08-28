@@ -36,7 +36,7 @@ else
         </div>
     </div>
 
-    <h3 class="panel-h">Bankroll</h3>
+    <PanelHeader>Bankroll</PanelHeader>
     @if (_bankroll.Length > 1)
     {
         <MudChart T="double" ChartType="ChartType.Line"
@@ -48,10 +48,10 @@ else
         <p class="empty">Two settled entries are needed to plot a curve.</p>
     }
 
-    <h3 class="panel-h">By market</h3>
+    <PanelHeader>By market</PanelHeader>
     @Breakdown(_byMarket)
 
-    <h3 class="panel-h">By book</h3>
+    <PanelHeader>By book</PanelHeader>
     @Breakdown(_byBook)
 }
 
