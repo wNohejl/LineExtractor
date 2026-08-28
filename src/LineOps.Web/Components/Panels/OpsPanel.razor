@@ -243,14 +243,14 @@ else if (_plan is { } plan)
     {
         <div class="row">
             <span style="min-width:170px">@source.Name</span>
-            <select class="field"
-                    value="@(source.FailureMode ?? "")"
-                    @onchange="e => SetModeAsync(source.Id, e.Value?.ToString())">
+            <DeskSelect TValue="string"
+                        Value="@(source.FailureMode ?? "")"
+                        ValueChanged="v => SetModeAsync(source.Id, v)">
                 <option value="">Healthy</option>
                 <option value="error">Upstream 503</option>
                 <option value="timeout">Request timeout</option>
                 <option value="empty">Empty payload (silent)</option>
-            </select>
+            </DeskSelect>
             @if (source.FailureMode is not null)
             {
                 <span class="tag tag--bad">Injecting</span>

@@ -51,8 +51,11 @@
         </div>
 
         <div class="row">
-            <input class="field num" type="number" step="5" min="0" style="max-width:130px"
-                   placeholder="Stake" @bind="_stake" @bind:event="oninput" />
+            @* Immediate: the payout beside it recomputes as you type, so this is a field
+               whose typing is the action rather than one waiting to be validated. *@
+            <DeskField TValue="decimal" Mono="true" Immediate="true"
+                       type="number" step="5" min="0" style="max-width:130px"
+                       placeholder="Stake" @bind-Value="_stake" />
 
             @foreach (var quick in new[] { 25m, 50m, 100m })
             {
@@ -62,7 +65,7 @@
             }
         </div>
 
-        <input class="field" placeholder="Note (optional)" @bind="_note" />
+        <DeskField TValue="string" placeholder="Note (optional)" @bind-Value="_note" />
 
         @if (_error is not null)
         {

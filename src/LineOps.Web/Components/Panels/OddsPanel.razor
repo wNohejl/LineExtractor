@@ -7,13 +7,13 @@
 @inject IServiceScopeFactory ScopeFactory
 
 <div class="row" style="margin-bottom:12px">
-    <select class="field" style="max-width:280px"
-            value="@_gameId" @onchange="OnGameChanged">
+    <DeskSelect TValue="int?" style="max-width:280px"
+                Value="_gameId" ValueChanged="OnGameChanged">
         @foreach (var g in _games)
         {
             <option value="@g.Id">@MatchupWithDate(g)</option>
         }
-    </select>
+    </DeskSelect>
 
     <DeskSwitch Options="_marketOptions" Label="Market"
                 Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
@@ -198,9 +198,9 @@ else
         await LoadAsync();
     }
 
-    private async Task OnGameChanged(ChangeEventArgs e)
+    private async Task OnGameChanged(int? id)
     {
-        _gameId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        _gameId = id;
         await LoadAsync();
     }
 

@@ -30,41 +30,39 @@
         <h3 class="panel-h" style="margin:0">New entry</h3>
 
         <div class="row">
-            <select class="field" style="max-width:260px"
-                    value="@_form.GameId" @onchange="e => _form.GameId = int.TryParse(e.Value?.ToString(), out var v) ? v : null">
+            <DeskSelect TValue="int?" style="max-width:260px" @bind-Value="_form.GameId">
                 <option value="">No game (future / other)</option>
                 @foreach (var g in _games)
                 {
                     <option value="@g.Id">@MatchupWithDate(g)</option>
                 }
-            </select>
+            </DeskSelect>
 
-            <select class="field"
-                    value="@_form.Market" @onchange="e => _form.Market = e.Value?.ToString() ?? Markets.Spread">
+            <DeskSelect TValue="string" @bind-Value="_form.Market">
                 <option value="@Markets.Moneyline">Moneyline</option>
                 <option value="@Markets.Spread">Spread</option>
                 <option value="@Markets.Total">Total</option>
                 <option value="@FreeText">Other (describe)</option>
-            </select>
+            </DeskSelect>
         </div>
 
         @if (_form.Market == FreeText)
         {
-            <input class="field"
-                   placeholder="e.g. Player X over 1.5 receiving TDs" @bind="_form.FreeTextMarket" />
+            <DeskField TValue="string"
+                       placeholder="e.g. Player X over 1.5 receiving TDs" @bind-Value="_form.FreeTextMarket" />
         }
 
         <div class="row">
-            <input class="field" style="max-width:190px"
-                   placeholder="Selection" @bind="_form.Outcome" />
-            <input class="field num" style="max-width:90px" type="number" step="0.5"
-                   placeholder="Line" @bind="_form.LineTaken" />
-            <input class="field num" style="max-width:90px" type="number"
-                   placeholder="Price" @bind="_form.PriceTaken" />
-            <input class="field num" style="max-width:90px" type="number"
-                   placeholder="Stake" @bind="_form.Stake" />
-            <input class="field" style="max-width:130px"
-                   placeholder="Book" @bind="_form.Book" />
+            <DeskField TValue="string" style="max-width:190px"
+                       placeholder="Selection" @bind-Value="_form.Outcome" />
+            <DeskField TValue="decimal?" Mono="true" style="max-width:90px" type="number" step="0.5"
+                       placeholder="Line" @bind-Value="_form.LineTaken" />
+            <DeskField TValue="int" Mono="true" style="max-width:90px" type="number"
+                       placeholder="Price" @bind-Value="_form.PriceTaken" />
+            <DeskField TValue="decimal" Mono="true" style="max-width:90px" type="number"
+                       placeholder="Stake" @bind-Value="_form.Stake" />
+            <DeskField TValue="string" style="max-width:130px"
+                       placeholder="Book" @bind-Value="_form.Book" />
         </div>
 
         <div class="row">
@@ -171,14 +169,16 @@ else
             <CellTemplate>
                 @if (!context.Item.IsSettled)
                 {
-                    <select class="field" style="height:24px"
-                            @onchange="e => SetResultAsync(context.Item.Id, e.Value?.ToString())">
+                    @* An action rather than a value: nothing is bound, so the control keeps
+                       showing "Settle…" and the pick is the whole event. *@
+                    <DeskSelect TValue="string" style="height:24px"
+                                ValueChanged="v => SetResultAsync(context.Item.Id, v)">
                         <option value="">Settle…</option>
                         <option value="@EntryResult.Win">Win</option>
                         <option value="@EntryResult.Loss">Loss</option>
                         <option value="@EntryResult.Push">Push</option>
                         <option value="@EntryResult.Void">Void</option>
-                    </select>
+                    </DeskSelect>
                 }
             </CellTemplate>
         </TemplateColumn>

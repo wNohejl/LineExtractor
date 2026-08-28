@@ -47,13 +47,13 @@ public static class GameLogSplits
     /// </summary>
     public static IReadOnlyList<TeamGameLogRow> Apply(
         IReadOnlyList<TeamGameLogRow> log, Split split) => split switch
-    {
-        Split.Home => log.Where(r => r.Home).ToList(),
-        Split.Away => log.Where(r => !r.Home).ToList(),
-        Split.Last5 => Played(log).Take(5).ToList(),
-        Split.Last10 => Played(log).Take(10).ToList(),
-        _ => log
-    };
+        {
+            Split.Home => log.Where(r => r.Home).ToList(),
+            Split.Away => log.Where(r => !r.Home).ToList(),
+            Split.Last5 => Played(log).Take(5).ToList(),
+            Split.Last10 => Played(log).Take(10).ToList(),
+            _ => log
+        };
 
     /// <summary>Games against one opponent, by name. Separate because it is parameterised.</summary>
     public static IReadOnlyList<TeamGameLogRow> VersusOpponent(

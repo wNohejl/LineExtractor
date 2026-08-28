@@ -116,8 +116,10 @@ else
     </div>
 
     <div class="row" style="margin-top:10px">
-        <input class="field" style="flex:1; min-width:180px"
-               placeholder="Add a timeline note" @bind="_newNote" @bind:event="oninput" />
+        @* Immediate: the Add key beside it is disabled until there is text, so the key has
+           to learn about the first keystroke rather than about the blur. *@
+        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
+                   placeholder="Add a timeline note" @bind-Value="_newNote" />
         <button class="btn" type="button" @onclick="AddNoteAsync"
                 disabled="@string.IsNullOrWhiteSpace(_newNote)">
             Add
@@ -131,13 +133,13 @@ else
     </p>
 
     <div class="stack" style="margin-top:10px">
-        <textarea class="field" rows="4"
-                  placeholder="What actually broke, and why did it break now?"
-                  @bind="_rootCause"></textarea>
+        <DeskTextArea rows="4"
+                      placeholder="What actually broke, and why did it break now?"
+                      @bind-Value="_rootCause" />
 
-        <textarea class="field" rows="4"
-                  placeholder="What change prevents a recurrence? Reference the commit."
-                  @bind="_corrective"></textarea>
+        <DeskTextArea rows="4"
+                      placeholder="What change prevents a recurrence? Reference the commit."
+                      @bind-Value="_corrective" />
 
         @if (_error is not null)
         {

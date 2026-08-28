@@ -57,9 +57,9 @@
 
 <h3 class="panel-h">Primary window</h3>
 <div class="row">
-    <select class="field" style="min-width:200px"
-            value="@(S.PrimaryWindowKey ?? "")"
-            @onchange="OnPrimaryChanged">
+    <DeskSelect TValue="string" style="min-width:200px"
+                Value="@(S.PrimaryWindowKey ?? "")"
+                ValueChanged="OnPrimaryChanged">
         <option value="">None — every window equal</option>
         @* A destination cannot be opened on its own, so it cannot be the window that opens
            on an empty desk either. *@
@@ -67,7 +67,7 @@
         {
             <option value="@definition.Key">@definition.Title</option>
         }
-    </select>
+    </DeskSelect>
 </div>
 
 @if (S.PrimaryWindowKey is not null)
@@ -108,11 +108,15 @@
 
     <div class="row" style="margin-top:10px">
         <span class="dim" style="min-width:70px; font-size:12px">Custom</span>
-        <input class="field num" type="number" min="640" max="7680" step="10" style="max-width:100px"
-               value="@S.CustomWidth" @onchange="OnWidthChanged" />
+        @* int? rather than int so that clearing the box is "no number yet" rather than a
+           zero the clamp would turn into 640. *@
+        <DeskField TValue="int?" Mono="true" type="number" min="640" max="7680" step="10"
+                   style="max-width:100px"
+                   Value="S.CustomWidth" ValueChanged="OnWidthChanged" />
         <span class="dim">×</span>
-        <input class="field num" type="number" min="480" max="4320" step="10" style="max-width:100px"
-               value="@S.CustomHeight" @onchange="OnHeightChanged" />
+        <DeskField TValue="int?" Mono="true" type="number" min="480" max="4320" step="10"
+                   style="max-width:100px"
+                   Value="S.CustomHeight" ValueChanged="OnHeightChanged" />
     </div>
 
     <p class="note" style="margin-top:10px">
@@ -152,11 +156,8 @@
         Manager.UpdateSettings(s => s.MaxConcurrentWindows = target);
     }
 
-    private void OnPrimaryChanged(ChangeEventArgs e)
-    {
-        var key = e.Value?.ToString();
-        Manager.UpdateSettings(s => s.PrimaryWindowKey = string.IsNullOrEmpty(key) ? null : key);
-    }
+    private void OnPrimaryChanged(string key)
+        => Manager.UpdateSettings(s => s.PrimaryWindowKey = string.IsNullOrEmpty(key) ? null : key);
 
     private void OnShareChanged(ChangeEventArgs e)
     {
@@ -173,15 +174,15 @@
         s.CustomHeight = height;
     });
 
-    private void OnWidthChanged(ChangeEventArgs e)
+    private void OnWidthChanged(int? value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var value))
-            Manager.UpdateSettings(s => s.CustomWidth = Math.Clamp(value, 640, 7680));
+        if (value is { } width)
+            Manager.UpdateSettings(s => s.CustomWidth = Math.Clamp(width, 640, 7680));
     }
 
-    private void OnHeightChanged(ChangeEventArgs e)
+    private void OnHeightChanged(int? value)
     {
-        if (int.TryParse(e.Value?.ToString(), out var value))
-            Manager.UpdateSettings(s => s.CustomHeight = Math.Clamp(value, 480, 4320));
+        if (value is { } height)
+            Manager.UpdateSettings(s => s.CustomHeight = Math.Clamp(height, 480, 4320));
     }
 }
