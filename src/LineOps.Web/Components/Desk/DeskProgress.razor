@@ -1,0 +1,108 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    A slim bar for work that takes long enough to need reporting.
+
+    Where the pulse strip says "this window is busy", the progress bar says how far along a
+    named piece of work is. It is the same 3px band, in the same iris, so the desk keeps one
+    idiom for "in flight" rather than acquiring a spinner as well.
+
+    Three rules, all from Apple's HIG on loading:
+
+    1. **Prefer determinate whenever the duration is knowable.** If you are walking 6 books
+       or 240 games, you know the denominator — pass it. An indeterminate bar tells the
+       operator nothing they could not already see from the pulse strip.
+
+    2. **Never switch mode mid-flight.** A bar that starts indeterminate and becomes
+       determinate reads as a restart. Mode is a parameter of one component precisely so
+       that the choice is made once, before the work begins, and held.
+
+    3. **The label names the action, never the wait.** "Loading…" is forbidden: it describes
+       the operator's experience, which they already have, instead of the system's work,
+       which they do not. Write the verb and its object — "Fetching odds from 6 books",
+       "Backfilling 2024 box scores", "Reconciling 412 open wagers". If you cannot name what
+       is happening, that is a signal the caller does not know either, and the fix is
+       upstream of this component.
+
+    Matte, per ADR 0008: a progress bar reports, it does not invite a press, so it catches
+    no light. Under <c>prefers-reduced-motion</c> the indeterminate sweep stops and the
+    track fills to a steady dim band — the "something is happening" state survives without
+    the travel, and a determinate bar simply stops animating between values.
+*@
+
+<div class="@Classes" style="@Styles" @attributes="Rest">
+    @if (Label is { Length: > 0 })
+    {
+        <div class="prog__label">
+            <span>@Label</span>
+            @if (!Indeterminate && ShowValue)
+            {
+                <span class="prog__pct num">@($"{Percent:0}%")</span>
+            }
+        </div>
+    }
+    <div class="prog__track"
+         role="progressbar"
+         aria-label="@Label"
+         aria-valuemin="@(Indeterminate ? null : "0")"
+         aria-valuemax="@(Indeterminate ? null : Max.ToString("0.###"))"
+         aria-valuenow="@(Indeterminate ? null : Clamped.ToString("0.###"))">
+        <div class="prog__fill" style="@FillStyle"></div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Run without a known endpoint. Use only when the duration genuinely cannot be known —
+    /// see the note above; determinate is the default for a reason.
+    /// </summary>
+    [Parameter] public bool Indeterminate { get; set; }
+
+    /// <summary>How much of the work is done, in the same units as <see cref="Max"/>.</summary>
+    [Parameter] public double Value { get; set; }
+
+    [Parameter] public double Max { get; set; } = 100;
+
+    /// <summary>
+    /// A specific action phrase — the verb and its object. Not "Loading…", not "Please wait".
+    /// Doubles as the bar's accessible name.
+    /// </summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Prints the percentage beside the label. Determinate only.</summary>
+    [Parameter] public bool ShowValue { get; set; } = true;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra inline declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Everything else the caller passed. <c>style</c> and <c>class</c> are held back so a
+    /// splat cannot overwrite the component's own — see <c>DeskSkeleton</c> for the history.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private IReadOnlyDictionary<string, object>? Rest =>
+        Extra?.Where(kv => !kv.Key.Equals("style", StringComparison.OrdinalIgnoreCase)
+                        && !kv.Key.Equals("class", StringComparison.OrdinalIgnoreCase))
+              .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+    private double Clamped => Max <= 0 ? 0 : Math.Clamp(Value, 0, Max);
+
+    private double Percent => Max <= 0 ? 0 : Clamped / Max * 100;
+
+    private string? FillStyle =>
+        Indeterminate ? null : $"width:{Percent.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";
+
+    private string Classes => string.Join(' ', new[]
+    {
+        "prog",
+        Indeterminate ? "prog--indeterminate" : "prog--determinate",
+        Class
+    }.Where(p => p is { Length: > 0 }));
+
+    private string? Styles => Style is { Length: > 0 } ? Style : null;
+}
