@@ -84,9 +84,9 @@
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <button class="btn btn--quiet" type="button" @onclick="() => _selected = null">
-            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> All incidents
-        </button>
+        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
+            All incidents
+        </DeskButton>
         <span class="tag @(_selected.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
             @_selected.Severity
         </span>
@@ -118,10 +118,10 @@ else
     <div class="row" style="margin-top:10px">
         <input class="field" style="flex:1; min-width:180px"
                placeholder="Add a timeline note" @bind="_newNote" @bind:event="oninput" />
-        <button class="btn" type="button" @onclick="AddNoteAsync"
-                disabled="@string.IsNullOrWhiteSpace(_newNote)">
+        <DeskButton OnClick="AddNoteAsync"
+                    Disabled="@string.IsNullOrWhiteSpace(_newNote)">
             Add
-        </button>
+        </DeskButton>
     </div>
 
     <h3 class="panel-h" style="margin-top:20px">Root-cause analysis</h3>
@@ -145,13 +145,14 @@ else
         }
 
         <div class="row">
-            <button class="btn btn--primary" type="button" @onclick="ResolveAsync" disabled="@(!CanResolve)">
-                <Glyph Icon="@Icons.Material.Filled.TaskAlt" /> Resolve incident
-            </button>
+            <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.TaskAlt"
+                        OnClick="ResolveAsync" Disabled="@(!CanResolve)">
+                Resolve incident
+            </DeskButton>
 
             @if (_selected.Status == IncidentStatus.Open)
             {
-                <button class="btn" type="button" @onclick="MitigateAsync">Mark mitigated</button>
+                <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
             }
         </div>
     </div>

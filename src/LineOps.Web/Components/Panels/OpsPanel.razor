@@ -11,9 +11,9 @@
 @inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
 
 <div class="row row--end" style="margin-bottom:12px">
-    <button class="btn" type="button" @onclick="EvaluateAsync" disabled="@_busy">
-        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Evaluate now
-    </button>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="EvaluateAsync" Disabled="@_busy">
+        Evaluate now
+    </DeskButton>
 </div>
 
 <div class="metrics" style="margin-bottom:16px">
@@ -259,9 +259,9 @@ else if (_plan is { } plan)
     }
 
     <div class="row">
-        <button class="btn" type="button" @onclick="DrillAsync" disabled="@_busy">
-            <Glyph Icon="@Icons.Material.Filled.PlayArrow" /> Run ingest &amp; evaluate
-        </button>
+        <DeskButton Icon="@Icons.Material.Filled.PlayArrow" OnClick="DrillAsync" Disabled="@_busy">
+            Run ingest &amp; evaluate
+        </DeskButton>
     </div>
 </div>
 

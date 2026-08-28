@@ -12,12 +12,12 @@
 </p>
 
 <div class="row" style="margin-bottom:12px">
-    <button class="btn btn--primary" type="button" @onclick="() => _showForm = !_showForm">
-        <Glyph Icon="@Icons.Material.Filled.Add" /> Log entry
-    </button>
-    <button class="btn" type="button" @onclick="SettleAsync" disabled="@_busy">
-        <Glyph Icon="@Icons.Material.Filled.Gavel" /> Settle finished games
-    </button>
+    <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.Add" OnClick="() => _showForm = !_showForm">
+        Log entry
+    </DeskButton>
+    <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Disabled="@_busy">
+        Settle finished games
+    </DeskButton>
     @if (_message is not null)
     {
         <span class="dim" style="font-size:12px">@_message</span>
@@ -68,10 +68,10 @@
         </div>
 
         <div class="row">
-            <button class="btn btn--primary" type="button" @onclick="SaveAsync" disabled="@(!Valid)">
+            <DeskButton Tone="DeskTone.Action" OnClick="SaveAsync" Disabled="@(!Valid)">
                 Save entry
-            </button>
-            <button class="btn btn--quiet" type="button" @onclick="() => _showForm = false">Cancel</button>
+            </DeskButton>
+            <DeskButton Quiet="true" OnClick="() => _showForm = false">Cancel</DeskButton>
         </div>
     </div>
 }

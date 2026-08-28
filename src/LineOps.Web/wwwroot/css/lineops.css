@@ -581,7 +581,7 @@ html, body {
    backgrounds stand down. Ink changes stay — they are the label's answer. */
 [data-glide-live] .win__ctl:hover { background: transparent; }
 [data-glide-live] .launcher__item:hover { background: transparent; }
-[data-glide-live] .btn--quiet:hover { background-color: transparent; }
+[data-glide-live] .desk-key--quiet:hover { background-color: transparent; }
 [data-glide-live] .rail__btn:hover { background: transparent; border-color: var(--ink-500); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1610,12 +1610,12 @@ body.dialog-dragging { user-select: none; }
    hit?" — and :focus-visible lifts it identically, so the keyboard gets the same
    answer the pointer does.
 
-   The whole recipe is driven by two custom properties. A new tone is two lines,
-   and it applies to a native <button class="btn"> and a <MudButton> alike — see
-   Components/Desk/DeskButton.razor and css/mud-bridge.css.
+   The whole recipe is driven by two custom properties. A new tone is two lines.
+   Every key on the desk goes through Components/Desk/DeskButton.razor, which
+   renders a <MudButton> wearing .desk-key — see css/mud-bridge.css for why that
+   stack resolves the way it does.
    ------------------------------------------------------------------------- */
 
-.btn,
 .desk-key {
     /* The two dials. Everything below is derived from them. */
     --key-tint: var(--ink-600);
@@ -1669,11 +1669,9 @@ body.dialog-dragging { user-select: none; }
                 background-color .09s ease-out, border-color .09s ease-out;
 }
 
-.btn svg,
 .desk-key svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
 /* Highlighted — the cap rises into the light. Pointer and keyboard, same signal. */
-.btn:hover, .btn:focus-visible,
 .desk-key:hover, .desk-key:focus-visible {
     --key-lift: -1px;
     --key-sheen: .17;
@@ -1688,14 +1686,13 @@ body.dialog-dragging { user-select: none; }
 }
 
 /* The ring is chalk, not iris: an iris ring on an iris key is invisible. */
-.btn:focus-visible,
 .desk-key:focus-visible {
     outline: 2px solid var(--chalk);
     outline-offset: 2px;
 }
 
 /* Pressed — past the light line, into its own seat. */
-.btn:active, .desk-key:active {
+.desk-key:active {
     --key-lift: 1px;
     --key-crown: rgba(255, 255, 255, .08);
     background-image: linear-gradient(180deg, rgba(0, 0, 0, .18), rgba(255, 255, 255, .05));
@@ -1706,7 +1703,6 @@ body.dialog-dragging { user-select: none; }
 }
 
 /* Unmoulded plastic: no sheen, no travel, nothing to catch the eye or the light. */
-.btn:disabled, .btn[disabled],
 .desk-key:disabled, .desk-key[disabled] {
     --key-lift: 0px;
     background-image: none;
@@ -1720,7 +1716,7 @@ body.dialog-dragging { user-select: none; }
 
 /* Tones. Hue still means what it means everywhere else on the desk, so a key's
    colour states its consequence: go, stop, proceed with care. */
-.btn--primary, .desk-key--action { --key-tint: var(--iris); --key-ink: #0C1020; }
+.desk-key--action { --key-tint: var(--iris); --key-ink: #0C1020; }
 .desk-key--go { --key-tint: var(--steam); --key-ink: #06170F; }
 .desk-key--stop { --key-tint: var(--drift); --key-ink: #1E070C; }
 .desk-key--caution { --key-tint: var(--flag); --key-ink: #1C1204; }
@@ -1731,7 +1727,7 @@ body.dialog-dragging { user-select: none; }
 /* Ink goes through --key-ink rather than `color` so that one declaration in the
    base rule stays the only place a key's text colour is set. A quiet key is not
    a tone, but it is still a key, so it spends the same dial. */
-.btn--quiet, .desk-key--quiet {
+.desk-key--quiet {
     --key-ink: var(--haze);
     background-image: none;
     background-color: transparent;
@@ -1740,7 +1736,6 @@ body.dialog-dragging { user-select: none; }
     transform: none;
 }
 
-.btn--quiet:hover, .btn--quiet:focus-visible,
 .desk-key--quiet:hover, .desk-key--quiet:focus-visible {
     --key-ink: var(--chalk);
     background-color: var(--ink-600);
@@ -1749,7 +1744,7 @@ body.dialog-dragging { user-select: none; }
     transform: none;
 }
 
-.btn--quiet:active, .desk-key--quiet:active {
+.desk-key--quiet:active {
     background-image: none;
     background-color: var(--ink-500);
     box-shadow: none;
@@ -1805,7 +1800,7 @@ body.dialog-dragging { user-select: none; }
 @media (prefers-reduced-motion: reduce) {
     /* The lift is the affordance, so it stays — it just arrives without travel.
        The sweep, which is ambient rather than informative, stops. */
-    .btn, .desk-key { transition: box-shadow .09s ease-out, background-color .09s ease-out; }
+    .desk-key { transition: box-shadow .09s ease-out, background-color .09s ease-out; }
     .desk-key--busy::after { animation: none; opacity: .5; }
 }
 

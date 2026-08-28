@@ -25,9 +25,9 @@
         <input class="field" style="flex:1; min-width:150px"
                placeholder="Search players" value="@_search" @oninput="OnSearchChanged" />
 
-        <button class="btn" type="button" @onclick="SyncAsync" disabled="@_busy">
-            <Glyph Icon="@Icons.Material.Filled.Sync" /> @(_busy ? "Syncing" : "Sync stats")
-        </button>
+        <DeskButton Icon="@Icons.Material.Filled.Sync" OnClick="SyncAsync" Disabled="@_busy">
+            @(_busy ? "Syncing" : "Sync stats")
+        </DeskButton>
     </div>
 
     @if (_rows.Count == 0)
@@ -72,9 +72,9 @@
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <button class="btn btn--quiet" type="button" @onclick="() => _player = null">
-            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> Players
-        </button>
+        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _player = null">
+            Players
+        </DeskButton>
         <span class="tag">@_player.Sport?.Name</span>
         @if (_player.Position is not null)
         {

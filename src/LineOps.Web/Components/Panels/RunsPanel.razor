@@ -28,9 +28,9 @@
         }
     </select>
 
-    <button class="btn btn--quiet" type="button" @onclick="LoadAsync">
-        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Refresh
-    </button>
+    <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        Refresh
+    </DeskButton>
 </div>
 
 <DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">

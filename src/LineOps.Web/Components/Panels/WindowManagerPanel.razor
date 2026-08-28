@@ -39,16 +39,18 @@
 
 <h3 class="panel-h">Concurrent windows</h3>
 <div class="row">
-    <button class="btn" type="button" @onclick="() => AdjustMax(-1)" disabled="@(S.MaxConcurrentWindows <= 1)">
+    <DeskButton Title="One fewer window" aria-label="One fewer window"
+                OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= 1)">
         <Glyph Icon="@Icons.Material.Filled.Remove" />
-    </button>
+    </DeskButton>
     <span class="num" style="min-width:2.5ch; text-align:center; font-size:19px">@S.MaxConcurrentWindows</span>
-    <button class="btn" type="button" @onclick="() => AdjustMax(1)" disabled="@(S.MaxConcurrentWindows >= 12)">
+    <DeskButton Title="One more window" aria-label="One more window"
+                OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= 12)">
         <Glyph Icon="@Icons.Material.Filled.Add" />
-    </button>
-    <button class="btn btn--quiet" type="button" @onclick="MatchRecommended">
+    </DeskButton>
+    <DeskButton Quiet="true" OnClick="MatchRecommended">
         Match this desk (@Manager.RecommendedCapacity)
-    </button>
+    </DeskButton>
 </div>
 <p class="empty" style="padding-top:6px">
     Opening past this closes the least recently used window — named in the footer when it
@@ -84,9 +86,9 @@
         The primary window takes this share of the row wherever it sits — it does not force
         its position, so dragging it to reorder the row is never fought. It is also what
         opens on an empty desk. Dragging a divider overrides the share until you
-        <button class="btn btn--quiet" type="button" style="height:22px" @onclick="Manager.ResetWidths">
+        <DeskButton Quiet="true" style="height:22px" OnClick="@(_ => Manager.ResetWidths())">
             reset widths
-        </button>.
+        </DeskButton>.
     </p>
 }
 
