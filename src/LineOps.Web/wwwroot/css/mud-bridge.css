@@ -154,15 +154,32 @@
    MudTable to the same rhythm so a Mud-driven table and a hand-written one can
    sit in adjacent windows without looking like different products. */
 .mud-table { background-color: transparent; border: 0; }
-.mud-table-cell { border-bottom: 1px solid var(--surface-2); padding: 7px 10px; font-size: 12.5px; }
+
+/* No zebra striping — rows separate with a hairline and nothing else. Row
+   height is 28px: --space-1 top and bottom around a 20px line box at
+   --text-body.
+
+   tabular-nums lands here rather than only on .mud-align-right/.mud-align-end: MudDataGrid's
+   Align enum does not reliably emit those classes for a PropertyColumn/TemplateColumn (a known
+   MudBlazor limitation — see MudBlazor#12530), so a column that never wraps its value in .mono
+   or .num would otherwise read with proportional figures. Tabular figures cost nothing on text
+   cells, so every cell gets them rather than betting on a hook that sometimes never fires. */
+.mud-table-cell {
+    border-bottom: 1px solid var(--separator);
+    padding: var(--space-1) 10px;
+    font-size: var(--text-body);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+}
 
 .mud-table-head .mud-table-cell {
+    background: var(--surface-2);
     border-bottom: 1px solid var(--separator);
-    color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
+    letter-spacing: normal;
 }
 
 .mud-table-row:hover > .mud-table-cell { background-color: var(--surface-2); }
@@ -170,33 +187,38 @@
 /* ------------------------------------------------------------- data grid ---- */
 
 /* DeskGrid replaced every hand-written table on the desk, so MudDataGrid has to land on the
-   same rhythm .grid already had — dense rows, hairline separators, uppercase tracked headers,
-   numbers right-aligned and tabular. None of that is restated in the component; it lives here,
-   so a Mud table dropped in by hand matches without anyone styling it. */
+   same rhythm .grid already had — dense rows, hairline separators, a quiet sans-tracking
+   header, numbers right-aligned and tabular. None of that is restated in the component; it
+   lives here, so a Mud table dropped in by hand matches without anyone styling it. */
 
 .deskgrid .mud-table-container { overflow: visible; }
-.deskgrid .mud-table-root { border-spacing: 0; font-size: 12.5px; }
+.deskgrid .mud-table-root { border-spacing: 0; font-size: var(--text-body); }
 .deskgrid .mud-paper { background: transparent; border: 0; }
 
 .deskgrid .mud-table-head .mud-table-cell {
-    padding: 0 10px 7px;
+    padding: var(--space-1) 10px;
     border-bottom: 1px solid var(--separator);
-    background: var(--surface-1);
-    color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
     line-height: 1.2;
-    text-transform: uppercase;
     white-space: nowrap;
+    text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
+    letter-spacing: normal;
 }
 
+/* Row height is 28px — --space-1 top and bottom around a 20px line box at --text-body. Density
+   is the point of this console and survives the restyle intact. Tabular figures are set here
+   too, on every cell, not only .mud-align-right/.mud-align-end — see the plain .mud-table-cell
+   rule above for why that hook cannot be trusted alone. */
 .deskgrid .mud-table-body .mud-table-cell {
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--surface-2);
+    padding: var(--space-1) 10px;
+    border-bottom: 1px solid var(--separator);
     color: var(--text-primary);
-    font-size: 12.5px;
-    line-height: 1.35;
+    font-size: var(--text-body);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
 }
 
 /* A sortable header is a control, so it gets the same highlight language as everything else:
@@ -248,12 +270,12 @@
     white-space: nowrap;
 }
 
-/* Numbers are read down a column, so they align right and use the number face. Mud marks
-   these with its own alignment class; the desk's own tables use .r for the same thing. */
+/* Numbers are read down a column, so they align right and carry tabular figures. Mud marks
+   these with its own alignment class; the desk's own tables use .r for the same thing. There
+   is only one family on the desk now, so nothing restates it here. */
 .deskgrid .mud-table-cell.mud-align-right,
 .deskgrid .mud-table-cell.mud-align-end {
     text-align: right;
-    font-family: var(--face-ui);
     font-variant-numeric: tabular-nums;
 }
 
@@ -279,6 +301,20 @@
 
 /* A grid whose rows go somewhere says so on the row, not just in a cell. */
 .deskgrid--clickable .mud-table-body .mud-table-row { cursor: pointer; }
+
+.deskgrid--clickable .mud-table-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* The row the operator opened for its actions stays lit — an accent wash on the row, the
+   same treatment "selected" uses anywhere on the desk, never a border or a left-edge bar
+   (that was the retired dial's habit). Specificity has to clear the plain hover rule above
+   so an open row does not go dark the moment the pointer leaves it. */
+.deskgrid--clickable .mud-table-row.board__row--open > .mud-table-cell {
+    background: var(--accent-wash);
+    color: var(--text-primary);
+}
 
 /* Dialogs sit above the desk, so they take the window's own shell rather than a
    Material card's. */

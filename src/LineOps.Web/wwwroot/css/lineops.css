@@ -1332,39 +1332,41 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     .metric--action:hover, .metric--action:active { transform: none; }
 }
 
-/* Data tables: dense, hairline-separated, numbers right-aligned and tabular. */
+/* Data tables: dense, hairline-separated, numbers right-aligned and tabular.
+   No zebra striping — rows separate with a hairline and nothing else, the same
+   rule .deskgrid holds MudDataGrid to below. */
 .grid {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: var(--text-body);
 }
 
 .grid th {
     text-align: left;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--haze-dim);
-    padding: 0 10px 7px;
-    border-bottom: 1px solid var(--ink-500);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+    padding: var(--space-1) 10px;
+    border-bottom: 1px solid var(--separator);
     white-space: nowrap;
     position: sticky;
     top: -14px; /* cancels .win__body padding so the header pins while scrolling */
-    background: var(--ink-700);
+    background: var(--surface-2);
     z-index: 1;
 }
 
 .grid td {
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--ink-600);
-    color: var(--chalk);
+    padding: var(--space-1) 10px;
+    line-height: 20px; /* + the padding above = a 28px row */
+    border-bottom: 1px solid var(--separator);
+    color: var(--text-primary);
     vertical-align: middle;
+    font-variant-numeric: tabular-nums; /* costs nothing on prose; guarantees every number lines up without hunting for .r */
 }
 
-.grid tbody tr:hover td { background: var(--ink-600); }
-.grid .r { text-align: right; font-family: var(--face-data); font-variant-numeric: tabular-nums; }
-.grid .dim { color: var(--haze-dim); }
+.grid tbody tr:hover td { background: var(--surface-2); }
+.grid .r { text-align: right; font-variant-numeric: tabular-nums; }
+.grid .dim { color: var(--text-tertiary); }
 
 /* A long message in a narrow window must not turn one row into six. Truncate and keep
    the full text in the title attribute — row rhythm is what makes a dense table scannable. */
@@ -1380,7 +1382,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .gridwrap {
     overflow-x: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 .gridwrap .grid { min-width: 100%; }
@@ -1416,27 +1418,24 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 .price__line {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 11px;
-    color: var(--haze);
+    color: var(--text-secondary);
 }
 
 .price__odds {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 13px;
-    color: var(--chalk);
+    color: var(--text-primary);
 }
 
 /* The book that holds the best number, in two letters. */
 .price__book {
-    font-family: var(--face-data);
     font-size: 9px;
     font-weight: 500;
     letter-spacing: .1em;
-    color: var(--iris);
-    border: 1px solid var(--iris-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent-wash);
     border-radius: 2px;
     padding: 0 3px;
 }
@@ -1481,10 +1480,10 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    probability. Shown on the row you are actually reading, so a column of numbers
    does not compete with the ticks. */
 .price__edge {
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 9.5px;
     letter-spacing: .04em;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     opacity: 0;
     transition: opacity .1s ease;
 }
@@ -1492,14 +1491,14 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .mud-table-row:hover .price__edge,
 .board__row--open .price__edge { opacity: 1; }
 
-.price__edge--wide { color: var(--steam); }
+.price__edge--wide { color: var(--state-positive); }
 
 /* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
    a fixture nobody quoted, and a game already under way — only one of which is
    worth acting on, so the row says which. */
 .board__gap {
     margin-top: 3px;
-    color: var(--flag);
+    color: var(--state-warning);
     font-size: 11px;
     line-height: 1.35;
     max-width: 34ch;
@@ -1513,8 +1512,8 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     gap: 8px;
     flex-wrap: wrap;
     padding: 9px 10px 11px;
-    background: var(--ink-800);
-    border-bottom: 1px solid var(--ink-500);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--separator);
 }
 
 .board__actions-label {
@@ -1522,7 +1521,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .12em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin-right: 2px;
 }
 
@@ -1760,7 +1759,7 @@ body.dialog-dragging { user-select: none; }
    name only resolves on the one actually under the pointer. */
 .grid tbody tr:hover .desklink__label,
 .mud-table-row:hover .desklink__label {
-    border-bottom-color: var(--ink-400);
+    border-bottom-color: var(--surface-3);
 }
 
 .desklink:hover .desklink__label,
@@ -1778,9 +1777,9 @@ body.dialog-dragging { user-select: none; }
     .desklink__label, .desklink__shortcut { transition: none; }
 }
 
-.up { color: var(--steam); }
-.down { color: var(--drift); }
-.warnc { color: var(--flag); }
+.up { color: var(--state-positive); }
+.down { color: var(--state-negative); }
+.warnc { color: var(--state-warning); }
 
 /* Tag: a small state word. Border-only so a table of them stays calm. */
 .tag {
@@ -2640,19 +2639,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 /* A row that opens has to look like one. Without this, "click a row for its
    actions" is a rule you can only learn by accident: the pointer is the only
-   hint, and it arrives after you have already decided not to try. The rail is
-   drawn on hover and held while the row is open. */
+   hint, and it arrives after you have already decided not to try. The open
+   row gets the same accent wash "selected" uses everywhere else — see
+   mud-bridge.css's .board__row--open rule — never a border or a left-edge
+   bar, which was the retired dial's habit. */
 .deskgrid--clickable .mud-table-row { cursor: pointer; }
-
-.deskgrid--clickable .mud-table-row > td:first-child {
-    position: relative;
-    border-left: 2px solid transparent;
-    transition: border-color .12s ease;
-}
-
-.deskgrid--clickable .mud-table-row:hover > td:first-child { border-left-color: var(--ink-400); }
-.deskgrid--clickable .mud-table-row:focus-within > td:first-child { border-left-color: var(--iris); }
-.board__row--open > td:first-child { border-left-color: var(--iris) !important; }
 
 /* Keyboard focus is visible on every new control. The desk answers a press with
    travel, which a keyboard user never sees — so focus gets its own ring rather
@@ -2665,22 +2656,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border-radius: 4px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .deskgrid--clickable .mud-table-row > td:first-child { transition: none; }
-}
-
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an
    ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
    difference. Set in the data face so it reads as an identifier rather than prose. */
 .price__sel {
-    font-family: var(--face-data);
     font-size: 10px;
     font-weight: 600;
     letter-spacing: .04em;
-    color: var(--haze);
-    background: var(--ink-600);
-    border: 1px solid var(--ink-500);
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
     border-radius: 3px;
     padding: 0 4px;
     margin-right: 4px;
