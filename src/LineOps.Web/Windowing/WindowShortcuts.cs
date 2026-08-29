@@ -102,6 +102,23 @@ public static class WindowShortcuts
             sourceName is null ? null : $"Runs · {sourceName}");
     }
 
+    /// <summary>
+    /// Operations — source health, the open alerts, and the drill.
+    ///
+    /// <para>
+    /// Takes no subject: alerts are about the desk rather than about a game, so there is
+    /// nothing to narrow it to. It exists so a panel counting alerts can hand the reader
+    /// the window that lists them instead of leaving them to find it on the rail.
+    /// </para>
+    /// </summary>
+    public static void OpenOps(this WindowManager manager)
+    {
+        if (WindowCatalog.Find(WindowCatalog.Ops) is not { } definition)
+            return;
+
+        manager.Open(definition);
+    }
+
     /// <summary>Incidents, opened on one incident.</summary>
     public static void OpenIncident(this WindowManager manager, int incidentId, string? title = null)
     {

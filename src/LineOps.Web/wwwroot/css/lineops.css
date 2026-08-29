@@ -1163,6 +1163,40 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .metric__note { font-size: 11px; color: var(--haze-dim); margin-top: 2px; }
 
+/* A tile that is also the way to the thing it counts.
+   Gloss is the desk's affordance channel (ADR 0008), so the tile that leads somewhere is
+   the one that lifts under the pointer; a tile that only reports stays matte. The chevron
+   carries the same message without motion or hover, for a touch pointer and for anyone
+   running reduced motion. */
+.metric--action {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: background var(--dur-glide) var(--ease-glide),
+                border-color var(--dur-glide) var(--ease-glide),
+                transform var(--dur-glide) var(--ease-glide);
+}
+
+.metric--action:hover { background: var(--ink-500); transform: translateY(-1px); }
+.metric--action:active { transform: translateY(0); }
+
+.metric--action:focus-visible {
+    outline: none;
+    border-color: var(--iris);
+    box-shadow: 0 0 0 2px var(--iris-dim);
+}
+
+.metric__go { float: right; font-size: 15px; line-height: 1; color: var(--haze-dim); }
+.metric--action:hover .metric__go { color: var(--chalk); }
+
+@media (prefers-reduced-motion: reduce) {
+    .metric--action { transition: background var(--dur-glide) linear; }
+    .metric--action:hover, .metric--action:active { transform: none; }
+}
+
 /* Data tables: dense, hairline-separated, numbers right-aligned and tabular. */
 .grid {
     width: 100%;
@@ -2359,6 +2393,14 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
 }
 
 .snippet__formrun { display: flex; gap: 3px; }
+
+/* A form run: oldest on the left, newest on the right, like every other time axis here.
+   The newest tag is underlined in the desk's interactive hue rather than recoloured — the
+   tag's own hue is already spent saying won or lost, and a second meaning on the same
+   channel would make a recent win and a recent loss look like the same kind of thing. */
+.formrun { display: inline-flex; gap: 3px; align-items: center; }
+
+.formrun__latest { box-shadow: inset 0 -2px 0 var(--iris); }
 
 /* A row of labelled readings, for a single game expanded. */
 .snippet__facts {

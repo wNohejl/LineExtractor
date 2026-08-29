@@ -109,6 +109,12 @@
     /// </summary>
     [Parameter] public bool ShowLegend { get; set; } = true;
 
+    // No Y-axis unit parameter: MudBlazor 9.7 keeps YAxisFormat on
+    // MudBlazor.Charts.IAxisChartOptions, which MudChart does not accept through
+    // ChartOptions, so a caller cannot label the axis without reaching around the seam.
+    // Until that moves, the unit belongs in Takeaway — which is where a reader looks for
+    // what is being counted anyway.
+
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
 

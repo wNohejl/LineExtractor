@@ -12,14 +12,22 @@
     say it in words too — so the tile still reads when the colour does not land.
 *@
 
-<div class="@Classes" style="@Styles" @attributes="Extra">
-    <div class="@ValueClasses">@ValueContent</div>
-    <div class="metric__label">@Label</div>
-    @if (Note is { Length: > 0 })
-    {
-        <div class="metric__note">@Note</div>
-    }
-</div>
+@if (Actionable)
+{
+    @* A tile that is also the way to the thing it counts. It is a real button, so it is
+       reachable by keyboard and announced as pressable rather than as decoration. *@
+    <button type="button" class="@Classes" style="@Styles" title="@ActionHint"
+            @onclick="OnClick" @attributes="Extra">
+        <span class="metric__go" aria-hidden="true">›</span>
+        @Body
+    </button>
+}
+else
+{
+    <div class="@Classes" style="@Styles" @attributes="Extra">
+        @Body
+    </div>
+}
 
 @code {
     /// <summary>What the figure is, in the operator's words. Sits under the number.</summary>
@@ -43,6 +51,25 @@
     /// <summary>Sets the figure in the tabular data face, for counts and prices that must line up.</summary>
     [Parameter] public bool Numeric { get; set; }
 
+    /// <summary>
+    /// Where the figure leads. Set it and the tile becomes a button that opens whatever the
+    /// number is counting.
+    ///
+    /// <para>
+    /// A count that reports a problem without a way to reach it makes the reader hunt for
+    /// what the desk already knows. Apple's feedback guidance is to put status next to the
+    /// thing it describes and to make the next step obvious; here the status <i>is</i> the
+    /// next step.
+    /// </para>
+    /// </summary>
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>
+    /// What pressing the tile does, in words — "Open the Ops window on these alerts". Shown
+    /// as the tooltip, because the chevron says there is somewhere to go but not where.
+    /// </summary>
+    [Parameter] public string? ActionHint { get; set; }
+
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
 
@@ -58,11 +85,26 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Attributes { get; set; }
 
+    private bool Actionable => OnClick.HasDelegate;
+
     private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
 
     private string ValueClasses => Numeric ? "metric__value num" : "metric__value";
 
     private RenderFragment ValueContent => ChildContent ?? (builder => builder.AddContent(0, Value));
+
+    /// <summary>
+    /// The tile's contents, held apart from its box so the button and the plain div render
+    /// exactly the same thing rather than two copies that drift.
+    /// </summary>
+    private RenderFragment Body => @<text>
+        <div class="@ValueClasses">@ValueContent</div>
+        <div class="metric__label">@Label</div>
+        @if (Note is { Length: > 0 })
+        {
+            <div class="metric__note">@Note</div>
+        }
+    </text>;
 
     private IEnumerable<string?> Parts()
     {
@@ -76,6 +118,8 @@
             DeskTone.Action => "metric--info",
             _ => null
         };
+
+        yield return Actionable ? "metric--action" : null;
 
         yield return Class;
     }

@@ -19,18 +19,53 @@
     <Metric Label="Games" Value='@_games.ToString("N0")' Tone="DeskTone.Action" />
     <Metric Label="Price moves" Value='@_snapshots.ToString("N0")' Note="stored, all time" />
     <Metric Label="Moves today" Value='@_today.ToString("N0")' />
+
+    @* The count is the way in. An alert tile that only says "2" leaves the reader to find
+       the window that lists them, which the desk already knows — so the tile opens it, and
+       the note says what kind of trouble it is before they get there. *@
     <Metric Label="Open alerts"
             Value="@_alerts.ToString()"
-            Tone="@(_alerts > 0 ? DeskTone.Caution : DeskTone.Go)" />
+            Note="@AlertNote"
+            Tone="@AlertTone"
+            OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
+            ActionHint="Open the Ops window on source health and the open alerts" />
 </MetricRow>
 
-<PanelHeader>Upcoming slate</PanelHeader>
+<div class="row" style="margin-bottom:10px">
+    <PanelHeader Tight>Upcoming slate</PanelHeader>
 
-@if (_rows.Count == 0)
+    @* Requested sports, not merely the ones with games. A league the desk was told to poll
+       and has nothing for is a different fact from a league nobody asked about, and the
+       option says which — see ADR 0003 on the two kinds of zero. *@
+    @if (_sportOptions.Count > 1)
+    {
+        <DeskSwitch Options="_sportOptions" Label="Sport"
+                    style="margin-left:auto"
+                    Value="_sport" ValueChanged="@((string s) => SetSport(s))" />
+    }
+</div>
+
+@if (_all.Count == 0)
 {
     <EmptyState Kind="EmptyStateKind.New">
         Nothing ingested yet. <strong>Ingest now</strong> pulls a slate — with no API keys
         configured it uses the built-in demo source, so it works at no cost.
+    </EmptyState>
+}
+else if (_rows.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        <ChildContent>
+            No @SportLabel(_sport) games on this slate. The league is being polled; there is
+            just nothing scheduled in the window the slate covers.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                        Icon="@Icons.Material.Filled.FilterAltOff"
+                        OnClick="() => SetSport(AnySport)">
+                Show every sport
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else
@@ -93,14 +128,74 @@ else
 @code {
     private record Row(Game Game, int? Home, int? Away);
 
-    private List<Row> _rows = [];
+    /// <summary>The filter's "no filter" position. Empty rather than null so it binds cleanly.</summary>
+    private const string AnySport = "";
+
+    private List<Row> _all = [];
     private readonly FollowUpLauncher _followUps = new();
     private int? _open;
     private int _games;
     private long _snapshots;
     private long _today;
     private int _alerts;
+    private int _criticalAlerts;
     private bool _busy;
+
+    private string _sport = AnySport;
+    private List<DeskSwitchOption<string>> _sportOptions = [];
+
+    /// <summary>
+    /// The slate under the current filter.
+    ///
+    /// <para>
+    /// Held as a field and rebuilt only when the filter or the data changes, never computed in
+    /// the markup: the grid diffs its item collection by reference, so handing it a freshly
+    /// projected list every render would discard whatever column the operator had sorted by.
+    /// </para>
+    /// </summary>
+    private List<Row> _rows = [];
+
+    /// <summary>
+    /// Applies the league filter in memory rather than re-querying. The rows are already
+    /// loaded and there are at most a couple of hundred, so switching leagues happens at the
+    /// speed the operator can read it — the reasoning <c>GameLogSplits</c> uses for splits.
+    /// </summary>
+    private void ApplyFilter()
+        => _rows = _sport == AnySport
+            ? [.. _all]
+            : _all.Where(r => string.Equals(Key(r.Game), _sport, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private void SetSport(string sport)
+    {
+        _sport = sport;
+
+        // A row left open from another league would linger as a detached strip.
+        _open = null;
+        ApplyFilter();
+    }
+
+    private static string Key(Game game) => game.Sport?.Key ?? string.Empty;
+
+    /// <summary>The league's own name where the desk knows it, and the key where it does not.</summary>
+    private string SportLabel(string key)
+        => _all.Select(r => r.Game.Sport)
+            .FirstOrDefault(s => s is not null && s.Key == key)?.Name
+           ?? key.ToUpperInvariant();
+
+    /// <summary>
+    /// Severity, not just a count. "2 open" says something is wrong; "1 critical" says whether
+    /// it is worth interrupting what you were doing, which is the question actually being asked
+    /// of this tile.
+    /// </summary>
+    private string AlertNote => _alerts == 0
+        ? "all clear"
+        : _criticalAlerts > 0
+            ? $"{_criticalAlerts} critical — open Ops"
+            : "none critical — open Ops";
+
+    private DeskTone AlertTone => _criticalAlerts > 0
+        ? DeskTone.Stop
+        : _alerts > 0 ? DeskTone.Caution : DeskTone.Go;
 
     /// <summary>
     /// One open row at a time. Two would push the slate around and the actions would stop being
@@ -200,13 +295,19 @@ else
 
         var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
         _today = await db.OddsSnapshots.Where(s => s.CapturedAt >= dayStart).LongCountAsync();
-        _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
 
+        _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
+        _criticalAlerts = await db.Alerts
+            .CountAsync(a => a.ResolvedAt == null && a.Severity == AlertSeverity.Critical);
+
+        // Wider than the 40 that fit on screen, because the slate is now filtered by league:
+        // taking 40 first and filtering after would show a handful of MLB games and call it
+        // the MLB slate.
         var games = await db.Games
             .Include(g => g.Sport).Include(g => g.HomeTeam).Include(g => g.AwayTeam)
             .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddHours(-6))
             .OrderBy(g => g.StartsAt)
-            .Take(40)
+            .Take(200)
             .ToListAsync();
 
         var ids = games.Select(g => g.Id).ToList();
@@ -218,7 +319,7 @@ else
             .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
             .ToListAsync();
 
-        _rows = games.Select(g =>
+        _all = games.Select(g =>
         {
             var forGame = latest.Where(s => s.GameId == g.Id).ToList();
             return new Row(g,
@@ -226,9 +327,72 @@ else
                 forGame.Where(s => Same(s.Outcome, g.AwayTeam?.Name)).Select(s => (int?)s.PriceAmerican).FirstOrDefault());
         }).ToList();
 
+        BuildSportOptions();
+        ApplyFilter();
+
         // The slate's own state: alerts are not this panel's business, freshness is.
-        Report(_rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
-            _rows.Count == 0 ? null : $"{_rows.Count} games");
+        Report(_all.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+            _all.Count == 0 ? null : $"{_all.Count} games");
+    }
+
+    /// <summary>
+    /// The filter's positions: every requested league, plus any league that turned up on the
+    /// slate without being asked for.
+    ///
+    /// <para>
+    /// Built from configuration rather than from the data so a league the desk is polling still
+    /// appears on a day it has no fixtures — the operator asked for it, and an option that
+    /// vanishes when the answer is "none" cannot be told apart from one that was never offered.
+    /// The count rides in the tooltip so the empty ones say so before they are pressed.
+    /// </para>
+    ///
+    /// <para>
+    /// A gate switch holds five positions comfortably (the four majors and All). Past that it
+    /// stops being a row of choices and becomes a list, so the options are dropped and the
+    /// filter hides rather than degrading into an unreadable strip.
+    /// </para>
+    /// </summary>
+    private void BuildSportOptions()
+    {
+        var counts = _all
+            .GroupBy(r => Key(r.Game))
+            .Where(g => g.Key.Length > 0)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        var requested = IngestionOptions.Value.EffectiveSports;
+
+        var keys = requested
+            .Concat(counts.Keys)
+            .Where(k => k.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (keys.Count < 2 || keys.Count > 4)
+        {
+            _sportOptions = [];
+            _sport = AnySport;
+            return;
+        }
+
+        _sportOptions =
+        [
+            new(AnySport, "All", $"Every sport — {_all.Count} games"),
+            .. keys.Select(k =>
+            {
+                var n = counts.TryGetValue(k, out var c) ? c : 0;
+
+                return new DeskSwitchOption<string>(k, SportLabel(k),
+                    n == 0
+                        ? $"{SportLabel(k)} — polled, nothing on this slate"
+                        : $"{SportLabel(k)} — {n} game{(n == 1 ? "" : "s")}");
+            })
+        ];
+
+        // A filter left pointing at a league that has dropped off the slate would show an
+        // empty grid for a reason the operator did not choose.
+        if (_sport != AnySport && !keys.Contains(_sport, StringComparer.OrdinalIgnoreCase))
+            _sport = AnySport;
     }
 
     private static bool Same(string outcome, string? team)

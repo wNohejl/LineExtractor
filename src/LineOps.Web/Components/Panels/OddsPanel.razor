@@ -28,11 +28,25 @@
 }
 else
 {
-    <DeskChart Series="_series" Labels="@_labels" Height="240px"
-               Family="DeskChartFamily.Movement"
-               Headline="Line movement"
-               Takeaway="Each book and outcome, from the first stored price to the latest."
-               Description="Line chart of American price over time, one line per book and outcome." />
+    @* One observation per book is a reading, not a trend. Apple's charting guidance is to use
+       a table where no analysis is being asked for, and a line chart of a single point draws a
+       flat line that looks like a market holding steady rather than one nobody has watched
+       twice yet. The table below says the same thing without the false shape. *@
+    @if (_points < 2)
+    {
+        <Note Style="margin:0 0 12px">
+            Only one observation stored so far, so there is nothing to plot yet — the current
+            numbers are below. A second pull is what turns these into movement.
+        </Note>
+    }
+    else
+    {
+        <DeskChart Series="_series" Labels="@_labels" Height="240px"
+                   Family="DeskChartFamily.Movement"
+                   Headline="@_headline"
+                   Takeaway="@_takeaway"
+                   Description="@_description" />
+    }
 
     <PanelHeader Gap="PanelHeaderGap.Section">Current market</PanelHeader>
 
@@ -50,11 +64,15 @@ else
             <CellTemplate>@Price(context.Item.PriceAmerican)</CellTemplate>
         </PropertyColumn>
 
+        @* The quantity the chart above plots, so the picture and the table agree on what
+           moved. A row with no usable price sorts last rather than as a certainty. *@
         <PropertyColumn T="OddsSnapshot" TProperty="double"
-                        Property="@(s => OddsMath.ImpliedProbability(s.PriceAmerican))"
+                        Property="@(s => Implied(s.PriceAmerican) ?? -1)"
                         Title="Implied" Align="Align.Right">
             <CellTemplate>
-                <span class="dim">@OddsMath.ImpliedProbability(context.Item.PriceAmerican).ToString("P1")</span>
+                <span class="dim">
+                    @(Implied(context.Item.PriceAmerican) is { } p ? p.ToString("P1") : "—")
+                </span>
             </CellTemplate>
         </PropertyColumn>
 
@@ -114,6 +132,16 @@ else
     private int? _gameId;
     private string _market = Markets.Moneyline;
     private int _moveCount;
+
+    /// <summary>Distinct observation times. Below two there is a reading but no trend.</summary>
+    private int _points;
+
+    /// <summary>Whether the y-axis is the handicap rather than implied probability. See <see cref="Plot"/>.</summary>
+    private bool _plotsHandicap;
+
+    private string _headline = string.Empty;
+    private string _takeaway = string.Empty;
+    private string _description = string.Empty;
 
     private static readonly IReadOnlyList<DeskSwitchOption<string>> _marketOptions =
     [
@@ -249,6 +277,7 @@ else
         _labels = [];
         _current = [];
         _moveCount = 0;
+        _points = 0;
 
         await LoadFormAsync();
 
@@ -274,24 +303,31 @@ else
         }
 
         var times = snapshots.Select(s => s.CapturedAt).Distinct().OrderBy(t => t).ToList();
+        _points = times.Count;
+
         var stride = Math.Max(1, times.Count / 6);
 
         _labels = times
             .Select((t, i) => i % stride == 0 ? t.ToLocalTime().ToString("dd HH:mm") : string.Empty)
             .ToArray();
 
+        // What the y-axis is made of. Handicap markets move the number; the moneyline has no
+        // number to move, so it moves the price. See Plot for why the price itself is never
+        // what gets plotted.
+        _plotsHandicap = _market != Markets.Moneyline && snapshots.All(s => s.Line is not null);
+
         foreach (var group in snapshots.GroupBy(s => new { s.Book, s.Outcome }))
         {
             var ordered = group.OrderBy(s => s.CapturedAt).ToList();
             var data = new double[times.Count];
             var cursor = 0;
-            double last = ordered[0].PriceAmerican;
+            var last = Plot(ordered[0]);
 
             for (var i = 0; i < times.Count; i++)
             {
-                // A gap means "unchanged", not "unknown", so the last price carries forward.
+                // A gap means "unchanged", not "unknown", so the last reading carries forward.
                 while (cursor < ordered.Count && ordered[cursor].CapturedAt <= times[i])
-                    last = ordered[cursor++].PriceAmerican;
+                    last = Plot(ordered[cursor++]);
 
                 data[i] = last;
             }
@@ -309,6 +345,108 @@ else
             .OrderBy(s => s.Book).ThenBy(s => s.Outcome)
             .ToList();
 
+        // After _current, which the caption counts.
+        BuildCaption(snapshots, times);
+
         Report(PulseState.Healthy, $"{_moveCount} moves");
+    }
+
+    /// <summary>
+    /// One snapshot as a plottable number.
+    ///
+    /// <para>
+    /// A handicap market plots its handicap: -1.5 to -2.0 is the move, and the price beside it
+    /// is the juice charged for it.
+    /// </para>
+    ///
+    /// <para>
+    /// Everything else plots implied probability, and never the American price. American odds
+    /// are discontinuous across zero — +110 and -110 are neighbours in probability, 3.6 points
+    /// apart, but 220 units apart as numbers, and nothing at all exists between -100 and +100.
+    /// Plotting them raw draws a canyon down the middle of the chart between the favourite and
+    /// the underdog, then flattens the movement inside each against an axis stretched to span
+    /// that gap. Probability is continuous, is what actually moved, and puts both sides of a
+    /// market on one scale that can be read against the other.
+    /// </para>
+    /// </summary>
+    private double Plot(OddsSnapshot s)
+        => _plotsHandicap
+            ? (double)(s.Line ?? 0m)
+            : (Implied(s.PriceAmerican) ?? 0) * 100;
+
+    /// <summary>
+    /// Implied probability, or null where the price cannot carry one.
+    ///
+    /// <para>
+    /// Zero is not a price — there is no American odds value between -100 and +100 — so
+    /// <c>OddsMath.ImpliedProbability</c> rejects it rather than inventing an answer. That
+    /// contract is right, and it is deliberately not softened there. But it means a single
+    /// malformed row from a provider would otherwise take down the whole window: the throw
+    /// lands in the load, not in one cell. A stored zero is a broken reading, so it is shown
+    /// as one and the rest of the market still renders.
+    /// </para>
+    /// </summary>
+    private static double? Implied(int american)
+        => american == 0 ? null : OddsMath.ImpliedProbability(american);
+
+    /// <summary>
+    /// Says what the chart shows, in the voice a person would use saying it out loud.
+    ///
+    /// <para>
+    /// Apple's charting guidance is to headline the takeaway rather than name the mechanism: a
+    /// chart captioned "Line movement" makes the reader do the reading it was drawn to save.
+    /// The biggest single move is the thing worth saying, so it is found and stated — including
+    /// when there isn't one, because "nothing moved" is also a finding.
+    /// </para>
+    /// </summary>
+    private void BuildCaption(List<OddsSnapshot> snapshots, List<DateTimeOffset> times)
+    {
+        _description = _plotsHandicap
+            ? "Line chart of the handicap over time, one line per book and selection."
+            : "Line chart of implied probability over time, one line per book and selection. "
+              + "Probability rather than American price, so both sides share one continuous scale.";
+
+        // The axis carries bare numbers — MudBlazor keeps its Y-axis formatter behind the
+        // seam — so the unit is stated here, immediately above the plot.
+        var unit = _plotsHandicap ? "Handicap" : "Implied probability (%)";
+
+        var span = times.Count > 1
+            ? $"{times[0].ToLocalTime():MMM d HH:mm} to {times[^1].ToLocalTime():HH:mm}"
+            : times[0].ToLocalTime().ToString("MMM d HH:mm");
+
+        _takeaway = $"{unit}, {span} · {_current.Count} book/selection "
+                    + $"{(_current.Count == 1 ? "pair" : "pairs")}";
+
+        // The largest first-to-last change across every book and selection.
+        var biggest = snapshots
+            .GroupBy(s => new { s.Book, s.Outcome })
+            .Select(g =>
+            {
+                var ordered = g.OrderBy(s => s.CapturedAt).ToList();
+                return (g.Key.Outcome, g.Key.Book, First: ordered[0], Last: ordered[^1]);
+            })
+            .OrderByDescending(x => Math.Abs(Plot(x.Last) - Plot(x.First)))
+            .FirstOrDefault();
+
+        if (biggest.First is null || Math.Abs(Plot(biggest.Last) - Plot(biggest.First)) < 0.01)
+        {
+            _headline = "Every book is holding its opening number";
+            return;
+        }
+
+        if (_plotsHandicap)
+        {
+            _headline = $"{biggest.Outcome} moved {Line(biggest.First.Line ?? 0m)} to "
+                        + $"{Line(biggest.Last.Line ?? 0m)} at {biggest.Book}";
+            return;
+        }
+
+        // Shortened or drifted, said the way the desk would say it: a price whose implied
+        // probability rose is one the market got more confident about.
+        var shortened = Plot(biggest.Last) > Plot(biggest.First);
+
+        _headline = $"{biggest.Outcome} {(shortened ? "shortened" : "drifted")} "
+                    + $"{Price(biggest.First.PriceAmerican)} to {Price(biggest.Last.PriceAmerican)} "
+                    + $"at {biggest.Book}";
     }
 }

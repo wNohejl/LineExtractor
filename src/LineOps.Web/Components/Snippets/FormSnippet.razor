@@ -10,7 +10,8 @@
     shape that a number flattens — three straight losses after two wins reads differently from
     the same 2-3 scattered.
 
-    Ordered newest first, left to right, which is the direction a form line is read in.
+    The run itself is a FormRun, which owns the reading direction — oldest on the left, newest
+    on the right, the same way time runs on every chart here.
 *@
 
 @if (_loading)
@@ -81,20 +82,6 @@ else
         }
     }
 
-    /// <summary>
-    /// The whole game behind one W/L tag, for its tooltip — venue, opponent, date and score.
-    /// A form run is five characters wide, so everything that identifies the game it stands
-    /// for has to live in the title.
-    /// </summary>
-    private static string Describe(TeamGameLogRow g)
-    {
-        var venue = g.Home ? "vs" : "at";
-        var day = g.StartsAt.ToLocalTime().ToString("MMM d");
-        var score = g.HasScore ? $" ({g.ScoreFor}-{g.ScoreAgainst})" : string.Empty;
-
-        return $"{venue} {g.Opponent} — {day}{score}";
-    }
-
     private RenderFragment RenderSide(IReadOnlyList<TeamGameLogRow> log, string name) => @<text>
         <div class="snippet__formside">
             <div class="snippet__formname trunc" title="@name">@name</div>
@@ -110,14 +97,7 @@ else
 
                 <span class="dim mono" style="font-size:11.5px">@wins-@losses</span>
 
-                <span class="snippet__formrun">
-                    @foreach (var g in log)
-                    {
-                        <Tag Tone="@TagTones.Won(g.Won)" Title="@Describe(g)">
-                            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
-                        </Tag>
-                    }
-                </span>
+                <FormRun Log="@FormResult.From(log)" />
 
                 @* Only stated when there is market data behind it. An ATS record of 0-0-0
                    would read as "never covered" rather than "never priced". *@
