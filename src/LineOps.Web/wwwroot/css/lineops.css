@@ -672,7 +672,7 @@ html, body {
    [data-glide-live] ...:hover { background: transparent }), so this repoint only restores
    the intended --surface-3 fill for them too — no consumer goes from working to broken.
    The marble variant (.glide-plate--marble, used by the tab bar) sets its own background
-   after this rule and is untouched. */
+   after this rule — see below, it is no longer untouched either. */
 .glide-plate {
     position: absolute;
     top: 0;
@@ -702,17 +702,25 @@ html, body {
    glide plate sits behind the button and the button's own background stands down while
    the plate is live (see the comment above). Left pointing at a deleted token, Close's
    "fills --state-negative on its own hover" requirement would be true in the stylesheet
-   and false on screen. The plate's other tones (default, marble) still carry other
-   deleted tokens and belong to whichever task owns the toolbar/glide system generally. */
+   and false on screen. */
 .glide-plate[data-tone="stop"] { background: var(--state-negative); }
 
 /* The marble, measured. Same travel as the CSS-variable one on the gate, but it
    takes the size of whatever it lands on, which is what lets the toolbar hold
-   tabs of honest widths instead of forcing every window to the same column. */
+   tabs of honest widths instead of forcing every window to the same column.
+
+   Narrowly repointed here too, by explicit authorisation: this is a hover plate that
+   follows the pointer, not a selection indicator, and in this system accent means
+   selection — an accent-tinted plate chasing the cursor across the tab bar would read as
+   claiming whatever it happens to sit under. So it takes the same neutral hover fill as
+   the default plate rather than the mapping table's literal --iris-dim -> --accent-wash.
+   The border is dropped outright: hairlines in this system separate, they never outline,
+   and a filled plate with no border reads as a fill rather than an outlined chip. The tab
+   bar's own selected-state styling (.bar__key--current) is untouched and still carries its
+   own deleted tokens — that remains Task 10's, this is only the plate underneath it. */
 .glide-plate--marble {
-    background: var(--iris-dim);
-    border: 1px solid var(--iris);
-    border-radius: 5px;
+    background: var(--surface-3);
+    border-radius: var(--radius);
 }
 
 /* While the plate is live it is the hover signal, so the per-control
@@ -720,7 +728,8 @@ html, body {
 [data-glide-live] .win__ctl:hover { background: transparent; }
 [data-glide-live] .launcher__item:hover { background: transparent; }
 [data-glide-live] .desk-btn--plain:hover { background-color: transparent; }
-[data-glide-live] .rail__btn:hover { background: transparent; border-color: var(--ink-500); }
+/* border-color dropped: rail buttons no longer carry a border for this to recolour. */
+[data-glide-live] .rail__btn:hover { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
     .glide-plate { transition: opacity .1s ease; }
