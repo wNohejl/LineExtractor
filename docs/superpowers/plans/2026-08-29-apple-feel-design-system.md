@@ -2929,7 +2929,7 @@ Remove the `TODO(Task 17)` marker left in Task 5 and rebuild the sections so eac
 - **Switch** — on and off.
 - **Tags** — neutral and each semantic wash.
 - **Display** — metric, price cell, progress, skeleton, empty state.
-- **Modality** — three live buttons: one opening a `DeskDialog`, one a `DeskSheet`, one calling `Alerts.ConfirmAsync` with `destructive: true`. Under them, the decision rule in full, because this window is where someone building a panel will actually read it.
+- **Modality** — three live buttons: one opening a `DeskDialog`, one a `DeskSheet`, one calling `Alerts.ConfirmAsync` with `destructive: true`. Under them, the decision rule in full, because this window is where someone building a panel will actually read it. **The sheet demo must read the `DialogResult` rather than rely on `OnCancel`** — Escape and backdrop dismissal go through Mud's own cancel path and never raise `OnCancel`, a gap found in Task 13; the demo is where that correct usage pattern gets demonstrated for every future call site.
 
 ADR 0008's argument for the catalog being a window rather than a document still holds: it renders at the same column width, on the same surface, under the same theme as the panel being built beside it, so "does this fit?" is answered by looking.
 
