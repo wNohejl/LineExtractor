@@ -72,7 +72,7 @@
 
 **Interfaces:**
 - Consumes: nothing (first task).
-- Produces: the full token vocabulary every later task spends — `--surface-0..3`, `--separator`, `--separator-strong`, `--text-primary/secondary/tertiary`, `--accent`, `--accent-hover`, `--accent-wash`, `--on-accent`, `--state-positive`, `--state-negative`, `--state-warning` and their `-wash` variants, `--material-ultrathin/thin/regular/thick`, `--material-blur`, `--face-ui`, `--face-data`, `--text-largetitle/title1/title2/title3/headline/body/subheadline/footnote/caption`, `--weight-regular/medium/semibold`, `--space-1..16`, `--radius-sm/radius/radius-panel/radius-sheet`, `--dur-fast/base/slow`, `--ease-standard/spring/exit`, `--shadow-1/2/3`, `--z-*`, `--rail-size`, `--titlebar-h`.
+- Produces: the full token vocabulary every later task spends — `--surface-0..3`, `--separator`, `--separator-strong`, `--text-primary/secondary/tertiary`, `--accent`, `--accent-hover`, `--accent-wash`, `--on-accent`, `--state-positive`, `--state-negative`, `--state-warning` and their `-wash` variants, `--chart-neutral`, `--chart-neutral-dim`, `--material-ultrathin/thin/regular/thick`, `--material-blur`, `--face-ui`, `--face-data`, `--text-largetitle/title1/title2/title3/headline/body/subheadline/footnote/caption`, `--weight-regular/medium/semibold`, `--space-1..16`, `--radius-sm/radius/radius-panel/radius-sheet`, `--dur-fast/base/slow`, `--ease-standard/spring/exit`, `--shadow-1/2/3`, `--z-*`, `--rail-size`, `--titlebar-h`.
 
 - [ ] **Step 1: Download the Inter variable font**
 
@@ -155,6 +155,14 @@ In `src/LineOps.Web/wwwroot/css/lineops.css`, replace everything from line 1 thr
     --state-positive-wash: rgba(48, 209, 88, .15);
     --state-negative-wash: rgba(255, 69, 58, .15);
     --state-warning-wash: rgba(255, 159, 10, .15);
+
+    /* Chart ink. Opaque on purpose: a translucent series colour composites
+       against whatever is drawn beneath it — gridlines, another series — and
+       stops being one colour. These are Apple's systemGray and systemGray2,
+       the same ramp the surfaces come from (systemGray5 and systemGray6 are
+       --surface-2 and --surface-0). */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #636366;
 
     /* --- Materials ----------------------------------------------------------
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
@@ -473,9 +481,9 @@ Replace the colour constants (the `Ink900`…`OnFlag` block, roughly lines 26–
     public const string Surface3 = "#38383A"; // hover fills, pressed states
 
     // Text. White at opacity tiers, so it keeps its relationship to any material.
-    public const string TextPrimary = "rgba(255,255,255,0.92)";
-    public const string TextSecondary = "rgba(255,255,255,0.55)";
-    public const string TextTertiary = "rgba(255,255,255,0.30)";
+    public const string TextPrimary = "rgba(255, 255, 255, .92)";
+    public const string TextSecondary = "rgba(255, 255, 255, .55)";
+    public const string TextTertiary = "rgba(255, 255, 255, .30)";
 
     // One accent. Interactivity, focus, selection — nothing else.
     public const string Accent = "#0A84FF";
@@ -488,7 +496,13 @@ Replace the colour constants (the `Ink900`…`OnFlag` block, roughly lines 26–
     public const string StateNegative = "#FF453A";
     public const string StateWarning = "#FF9F0A";
 
-    public const string Separator = "rgba(255,255,255,0.10)";
+    // Chart ink. Opaque on purpose — a translucent series colour composites against
+    // whatever is drawn beneath it and stops being one colour. Apple's systemGray and
+    // systemGray2, from the same ramp the surfaces come from.
+    public const string ChartNeutral = "#8E8E93";
+    public const string ChartNeutralDim = "#636366";
+
+    public const string Separator = "rgba(255, 255, 255, .10)";
 ```
 
 Then build the theme:
