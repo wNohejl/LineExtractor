@@ -1666,28 +1666,72 @@ body.dialog-dragging { user-select: none; }
     z-index: calc(var(--z-popover) + 1);
     min-width: 290px;
     padding: 5px;
-    background: var(--surface-1);
-    border: 1px solid var(--separator-strong);
-    border-radius: var(--radius);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    /* The one place a hairline is allowed: a floating material surface needs an
+       edge to separate it from whatever it is floating over. */
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
     box-shadow: var(--shadow-3);
+
+    /* Anchored entrance: the panel's own right edge sits under its trigger (see
+       `right: 0` above), so it opens out of the button's corner rather than
+       fading in place. --pullmenu-origin lets a future caller override the
+       corner if the trigger ever anchors from the left instead. */
+    transform-origin: var(--pullmenu-origin, top right);
+    animation: pullmenu-in var(--dur-fast) var(--ease-spring);
+}
+
+@keyframes pullmenu-in {
+    from { opacity: 0; transform: scale(.92); }
+    to { opacity: 1; transform: scale(1); }
 }
 
 .pullmenu__item {
     display: block;
     width: 100%;
-    padding: 8px 10px;
+    min-height: 26px;
+    padding: 4px var(--space-2);
     background: none;
     border: 0;
     border-radius: 4px;
     color: var(--text-primary);
     font-family: inherit;
+    font-size: var(--text-body);
     text-align: left;
     cursor: pointer;
 }
 
-/* Neutral. A menu row under the pointer is hovered, not chosen. */
-.pullmenu__item:hover { background: var(--surface-3); }
+/* Accent, not neutral — deliberately different from the launcher's and the glide
+   plates' hover, which stay neutral under "accent means selection, not hover"
+   (see the launcher rule above). A menu is the one place that rule inverts: the
+   hovered row in a real menu IS a provisional selection, because releasing the
+   pointer commits it — that is what macOS's own menus do, and what makes this
+   read as a menu rather than a hover-follow strip. Do not "fix" this back to
+   --surface-3 in a future sweep. */
+.pullmenu__item:hover { background: var(--accent-wash); color: var(--accent); }
 .pullmenu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* A selected item states itself with a leading glyph, not a wash — the wash is
+   spent on hover above, and stacking both would blur which one is true. Not
+   currently exercised by any job (none of PullMenu's entries are a picker), but
+   established here so a future selectable row has the right answer waiting. */
+.pullmenu__item--selected { position: relative; padding-left: calc(var(--space-2) + 16px); }
+.pullmenu__item--selected::before {
+    content: "\2713";
+    position: absolute;
+    left: var(--space-2);
+    color: var(--accent);
+}
+
+/* Destructive: the same red-text/red-wash pairing as a destructive button. */
+.pullmenu__item--destructive { color: var(--state-negative); }
+.pullmenu__item--destructive:hover { background: var(--state-negative-wash); color: var(--state-negative); }
+
+@media (prefers-reduced-motion: reduce) {
+    .pullmenu__panel { animation: none; }
+}
 
 .pullmenu__row {
     display: flex;
@@ -1719,7 +1763,7 @@ body.dialog-dragging { user-select: none; }
 /* Unavailable states the reason in place of the description, so the menu explains
    itself rather than just refusing. */
 .pullmenu__item--blocked { cursor: not-allowed; }
-.pullmenu__item--blocked:hover { background: none; }
+.pullmenu__item--blocked:hover { background: none; color: var(--text-primary); }
 .pullmenu__item--blocked .pullmenu__label { color: var(--text-tertiary); }
 .pullmenu__item--blocked .pullmenu__desc { color: var(--state-warning); }
 
@@ -2958,10 +3002,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    it is chrome that happens to float. The modal sheet falls back the same way as
    the floating dialog — it is the same kind of surface, just one that takes the
    desk hostage — and it keeps both classes so it still clears the bridge's
-   single-class .mud-dialog, which source order alone would not do. */
+   single-class .mud-dialog, which source order alone would not do. The pull menu
+   falls back to the raised-row tier, --surface-2 — a menu resting on the desk
+   like a control, not a window body like the rail's popover. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
     .railmenu__panel { background: var(--surface-1); }
     .deskdialog { background: var(--surface-2); }
     .mud-dialog.desk-sheet { background: var(--surface-2); }
+    .pullmenu__panel { background: var(--surface-2); }
 }
