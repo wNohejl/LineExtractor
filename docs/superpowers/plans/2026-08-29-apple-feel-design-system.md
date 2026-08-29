@@ -1938,14 +1938,35 @@ git commit -m "feat(desk): macOS-list density for grids and tables"
 
 ---
 
-### Task 10: Tags, badges, skeletons, progress, empty states
+### Task 10: Display primitives, and the residual token sweep
 
 **Files:**
-- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — the blocks behind `Tag.razor`, `DeskProgress.razor`, `DeskSkeleton.razor`, `EmptyState.razor`, `Note.razor`, `Metric.razor`, `MetricRow.razor`, `PriceCell.razor`.
+- Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — the blocks behind `Tag.razor`, `DeskProgress.razor`, `DeskSkeleton.razor`, `EmptyState.razor`, `Note.razor`, `Metric.razor`, `MetricRow.razor`, `PriceCell.razor`, **plus every remaining block still using retired tokens** — the runbook, the launcher, the `.glide-plate` hover system, and whatever residue Tasks 8 and 9 leave behind.
 
 **Interfaces:**
 - Consumes: tokens from Task 1.
 - Produces: restyled display primitives; no API changes.
+
+**This task is also the catch-all**, and that is a bigger job than its title suggests. Tasks 4, 6, 7, 8 and 9 each own a named region; every remaining block in `lineops.css` that still speaks the retired vocabulary is yours. As of Task 8 that is roughly 200 lines across these sections, none of which any other task claims:
+
+| Section | Retired-token lines | Notes |
+|---|---|---|
+| panel typography (~1230–1783) | ~81 | tags, metrics, notes, snippets — minus whatever Task 9 took for grids |
+| shell (~219–717) | ~30 | the residue Task 8 left: the `.glide-plate` hover system, toolbar rules |
+| runbook (~2102–2313) | ~24 | owned by no earlier task |
+| launcher (~1170–1229) | ~9 | owned by no earlier task |
+| window / desk (~780–1056) | ~12 | residue Task 8 left behind |
+
+Take an inventory before you start, so you are working from the real number rather than this estimate:
+
+```bash
+grep -cE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/LineOps.Web/wwwroot/css/lineops.css
+```
+
+For every block outside the five named in Step 1, the work is a faithful re-point using Task 6's mapping table, not a redesign — you are finishing a migration, not restyling a subsystem nobody asked you to touch. Two judgment calls recur:
+
+- **`--face-data`** has no replacement token: the system collapsed to one family with `font-variant-numeric: tabular-nums`. Drop the family declaration and make sure tabular numerals survive wherever numbers are read in a column.
+- **`.glide-plate` and the toolbar** are a JS-driven hover system whose tone attributes (`data-tone="stop"` and friends) still resolve through retired state tokens. Re-point them to the role-named ones. Task 8 already fixed the one instance that was visibly defeating the close button's hover; the rest are the same shape.
 
 - [ ] **Step 1: Restyle each, following these rules**
 
