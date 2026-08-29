@@ -83,9 +83,10 @@
        SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
        on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
        metrics, and shipping it locally stops Windows falling through to Segoe.
-       One family for everything — Apple sets numbers in SF too. */
+       One family for everything — Apple sets numbers in SF too, so there is no
+       second "data" face to name: a column of figures is this face plus
+       font-variant-numeric: tabular-nums, which is what .num and .mono below set. */
     --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
-    --face-data: var(--face-ui);
 
     /* The HIG text-style ramp. A call site names the style, never the pixels. */
     --text-largetitle: 26px;
@@ -320,7 +321,12 @@ html, body {
 /* A group of the toolbar, and the track its marble runs in. Same recessed
    channel as the gate switch — it is not pressable, so it does not catch the
    light — which is what makes the marble inside read as the same object doing
-   the same job in a third place. */
+   the same job in a third place.
+
+   The fill is --surface-0, where the retired ramp's recessed tier would have mapped
+   to --surface-1: the header is --material-thin over the desk void, which composites to
+   --surface-1, so a --surface-1 channel would be a channel nobody can see. The
+   gate switch this block names solves the same problem the same way. */
 .bar__group {
     position: relative;
     display: flex;
@@ -328,8 +334,8 @@ html, body {
     gap: 2px;
     padding: 3px;
     min-width: 0;
-    background: var(--ink-800);
-    border: 1px solid var(--ink-500);
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
     border-radius: 7px;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
 }
@@ -348,7 +354,7 @@ html, body {
     width: 1px;
     height: 16px;
     margin: 0 3px;
-    background: var(--ink-500);
+    background: var(--separator);
     flex: 0 0 auto;
 }
 
@@ -366,12 +372,12 @@ html, body {
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     cursor: pointer;
 }
 
-.bar__key:hover { color: var(--chalk); }
-.bar__key:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.bar__key:hover { color: var(--text-primary); }
+.bar__key:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .bar__key svg { width: 16px; height: 16px; }
 
 /* Open, so it wears its column's name. Widens to fit, with a ceiling — a game
@@ -384,7 +390,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    color: var(--haze);
+    color: var(--text-secondary);
     font-family: var(--face-ui);
     font-size: 11.5px;
     overflow: hidden;
@@ -400,21 +406,25 @@ html, body {
 /* ---- Which one am I in? ---------------------------------------------------
    The marble answers "which am I on" and travels on hover, so it cannot also
    answer this: the moment you reach for anything else, the answer would leave
-   with the pointer. The current window is therefore filled and lit, and stays
-   that way wherever the marble has got to. Fill means selected, outline means
-   hovered, and the two read at a glance because they are different channels.
-   ------------------------------------------------------------------------- */
+   with the pointer. The current window is therefore filled, and stays that way
+   wherever the marble has got to. The two read at a glance because they are
+   different channels: the hover plate behind is a neutral --surface-3 fill, and
+   selection is the accent wash — the same "selected reads as a wash, not a
+   border" recipe .rail__btn--accent and a Tinted button already use. Neutral for
+   selection would lose to its own hover plate, which is a step lighter.
+
+   The old inset crown highlight is gone with the gloss channel ADR 0016 retired;
+   nothing in the bar catches the light any more. */
 .bar__key--current {
-    background: var(--ink-600);
-    color: var(--chalk);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+    background: var(--accent-wash);
+    color: var(--text-primary);
 }
 
-.bar__key--current svg { color: var(--iris); }
+.bar__key--current svg { color: var(--accent); }
 
 /* Collapsed down on the desk. Still listed — that is the point — but stated as
    put away rather than as another column you are looking at. */
-.bar__key--collapsed { color: var(--haze-dim); font-style: italic; }
+.bar__key--collapsed { color: var(--text-tertiary); font-style: italic; }
 .bar__key--collapsed svg { opacity: .5; }
 
 /* The window's pulse, mirrored from its title bar so state is readable up here
@@ -445,7 +455,7 @@ html, body {
 .bar__group .rail__btn svg { width: 16px; height: 16px; }
 
 .bar__key:disabled {
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     opacity: .45;
     cursor: not-allowed;
 }
@@ -489,7 +499,7 @@ html, body {
     z-index: 0;
     box-sizing: border-box;
     transform: translateX(calc(var(--i, 0) * (100% + var(--gap, 0px))));
-    transition: transform var(--dur-marble) var(--ease-marble);
+    transition: transform var(--dur-base) var(--ease-spring);
 }
 
 /* One column's share of the row, gaps taken out first. */
@@ -592,7 +602,7 @@ html, body {
    The distinction is worth keeping visible, so a tab is flat — nothing here
    catches the light, because nothing here is a key you press down — and the
    marble it shares with the gate wears the desk's plainest statement of "this
-   one is active": iris tint behind, iris hairline around, chalk on the label.
+   one is active": the accent wash behind, --text-primary on the label.
 
    Sits under a rule, the way a toolbar separates itself from the work below.
    A window whose sections do not fit its column is the problem this solves:
@@ -609,15 +619,19 @@ html, body {
     width: 100%;
     padding: 3px 0;
     margin-bottom: 12px;
-    border-bottom: 1px solid var(--ink-500);
+    border-bottom: 1px solid var(--separator);
 }
 
+/* This marble is a *selection* indicator — it is placed off --i, the index of the
+   open section — so unlike the pointer-following plate in the toolbar it does take
+   the accent. The hairline around it is dropped for the same reason Task 8 dropped
+   it from .glide-plate--marble: hairlines in this system separate, they never
+   outline, and a washed plate with no border reads as a fill rather than a chip. */
 .tabs__marble {
     top: 3px;
     bottom: 3px;
     left: 0;
-    background: var(--iris-dim);
-    border: 1px solid var(--iris);
+    background: var(--accent-wash);
     border-radius: 4px;
 }
 
@@ -628,7 +642,7 @@ html, body {
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     font-family: var(--face-ui);
     font-size: 10.5px;
     font-weight: 600;
@@ -641,9 +655,9 @@ html, body {
     transition: color .12s ease;
 }
 
-.tabs__tab:hover { color: var(--chalk); }
-.tabs__tab--on { color: var(--chalk); cursor: default; }
-.tabs__tab:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.tabs__tab:hover { color: var(--text-primary); }
+.tabs__tab--on { color: var(--text-primary); cursor: default; }
+.tabs__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
     .tabs__tab { transition: none; }
@@ -663,16 +677,11 @@ html, body {
 
 /* The default (untoned) fill has to agree with the fill every plain hover uses when the
    plate is not there to do the job instead — see .desk-btn--plain:hover's own
-   --btn-fill: var(--surface-3). Narrowly repointed for the same reason as the "stop" tone
-   above: this is Task 8's own window-control hover (minimise, maximise both fall to this
-   default), and left on the deleted --ink-500 it renders nothing. Checked the other
-   consumers of the untoned default before making this change, per instruction: GamePanel's
-   Movement/Head-to-head row and the Workspaces launcher's items are both currently in the
-   same broken state (their own hover rules are already suppressed by
-   [data-glide-live] ...:hover { background: transparent }), so this repoint only restores
-   the intended --surface-3 fill for them too — no consumer goes from working to broken.
-   The marble variant (.glide-plate--marble, used by the tab bar) sets its own background
-   after this rule — see below, it is no longer untouched either. */
+   --btn-fill: var(--surface-3). Its consumers are the window controls (minimise and
+   maximise both fall to this default), GamePanel's Movement/Head-to-head row, and the
+   Workspaces launcher's items, whose own :hover rules stand down while the plate is live
+   (see the transparent overrides below). The marble variant (.glide-plate--marble) sets
+   its own background after this rule. */
 .glide-plate {
     position: absolute;
     top: 0;
@@ -684,10 +693,10 @@ html, body {
     opacity: 0;
     pointer-events: none;
     transition:
-        transform var(--dur-glide) var(--ease-glide),
-        width var(--dur-glide) var(--ease-glide),
-        height var(--dur-glide) var(--ease-glide),
-        background-color var(--dur-glide) ease,
+        transform var(--dur-fast) var(--ease-standard),
+        width var(--dur-fast) var(--ease-standard),
+        height var(--dur-fast) var(--ease-standard),
+        background-color var(--dur-fast) ease,
         opacity .1s ease;
 }
 
@@ -709,15 +718,13 @@ html, body {
    takes the size of whatever it lands on, which is what lets the toolbar hold
    tabs of honest widths instead of forcing every window to the same column.
 
-   Narrowly repointed here too, by explicit authorisation: this is a hover plate that
-   follows the pointer, not a selection indicator, and in this system accent means
-   selection — an accent-tinted plate chasing the cursor across the tab bar would read as
-   claiming whatever it happens to sit under. So it takes the same neutral hover fill as
-   the default plate rather than the mapping table's literal --iris-dim -> --accent-wash.
-   The border is dropped outright: hairlines in this system separate, they never outline,
-   and a filled plate with no border reads as a fill rather than an outlined chip. The tab
-   bar's own selected-state styling (.bar__key--current) is untouched and still carries its
-   own deleted tokens — that remains Task 10's, this is only the plate underneath it. */
+   This is a hover plate that follows the pointer, not a selection indicator, and in this
+   system accent means selection — an accent-tinted plate chasing the cursor across the
+   toolbar would read as claiming whatever it happens to sit under. So it takes the same
+   neutral hover fill as the default plate. The border is dropped outright: hairlines in
+   this system separate, they never outline, and a filled plate with no border reads as a
+   fill rather than an outlined chip. The selected key it slides past keeps its own accent
+   wash (.bar__key--current), and sits a layer above this plate. */
 .glide-plate--marble {
     background: var(--surface-3);
     border-radius: var(--radius);
@@ -807,8 +814,8 @@ html, body {
 
     /* A faint dot grid. Windows read as *placed* rather than floating, and it gives
        the eye a reference when dragging. Deliberately near-invisible. */
-    background-color: var(--ink-900);
-    background-image: radial-gradient(var(--ink-500) 1px, transparent 1px);
+    background-color: var(--surface-0);
+    background-image: radial-gradient(var(--surface-3) 1px, transparent 1px);
     background-size: 22px 22px;
     background-position: -1px -1px;
 }
@@ -843,17 +850,17 @@ html, body {
     font-stretch: 112%;
     letter-spacing: -.03em;
     line-height: .9;
-    color: var(--ink-500);
+    color: var(--surface-3);
     text-transform: uppercase;
 }
 
 .desk-empty__mark em {
     font-style: normal;
-    color: var(--iris);
+    color: var(--accent);
 }
 
 .desk-empty__hint {
-    color: var(--haze);
+    color: var(--text-secondary);
     max-width: 44ch;
     line-height: 1.55;
 }
@@ -1018,25 +1025,25 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 .pulse {
     height: 2px;
     flex: 0 0 auto;
-    background: var(--ink-500);
+    background: var(--surface-3);
     position: relative;
     overflow: hidden;
 }
 
-.pulse--healthy { background: var(--steam); }
-.pulse--warn { background: var(--flag); }
-.pulse--critical { background: var(--drift); }
-.pulse--idle { background: var(--ink-500); }
+.pulse--healthy { background: var(--state-positive); }
+.pulse--warn { background: var(--state-warning); }
+.pulse--critical { background: var(--state-negative); }
+.pulse--idle { background: var(--surface-3); }
 
 /* Active is the only animated state: it means work is genuinely in flight. */
-.pulse--active { background: var(--iris-dim); }
+.pulse--active { background: var(--accent-wash); }
 
 .pulse--active::after {
     content: '';
     position: absolute;
     inset: 0;
     width: 34%;
-    background: linear-gradient(90deg, transparent, var(--iris), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
     animation: pulse-sweep 1.15s linear infinite;
 }
 
@@ -1097,23 +1104,28 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     width: 2px;
     height: 34px;
     border-radius: 1px;
-    background: var(--ink-500);
+    background: var(--surface-3);
     transition: background-color .12s ease, height .12s ease;
 }
 
+/* Accent, not the neutral hover fill, and deliberately: this is not a plate behind a
+   row, it is the grip itself, and the same declaration serves --active (the live drag)
+   and :focus-visible. Splitting hover off to a neutral would either land on the grip's
+   own resting --surface-3 — a hover that paints nothing — or flip colour the instant a
+   drag began. The desk's one accent is what "you have hold of this" looks like. */
 .divider:hover .divider__grip,
 .divider--active .divider__grip {
-    background: var(--iris);
+    background: var(--accent);
     height: 64px;
 }
 
 .divider:focus-visible { outline: none; }
 
 .divider:focus-visible .divider__grip {
-    background: var(--iris);
+    background: var(--accent);
     height: 100%;
     border-radius: 0;
-    box-shadow: 0 0 0 1px var(--iris);
+    box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* While splitting, the whole desk shows the resize cursor — the pointer often leaves the
@@ -1199,7 +1211,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     padding: 10px 10px 5px;
 }
 
@@ -1212,23 +1224,26 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--chalk);
+    color: var(--text-primary);
     text-align: left;
     cursor: pointer;
     font-family: inherit;
     font-size: 13px;
 }
 
-.launcher__item:hover { background: var(--ink-600); }
-.launcher__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.launcher__item svg { width: 17px; height: 17px; color: var(--haze); margin-top: 1px; flex: 0 0 auto; }
-.launcher__desc { display: block; color: var(--haze-dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+/* Neutral, not accent: a launcher row lights under the pointer, it is not selected.
+   It also has to agree with the glide plate that paints in its place while the pointer
+   is inside the list — see .glide-plate's own --surface-3. */
+.launcher__item:hover { background: var(--surface-3); }
+.launcher__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.launcher__item svg { width: 17px; height: 17px; color: var(--text-secondary); margin-top: 1px; flex: 0 0 auto; }
+.launcher__desc { display: block; color: var(--text-tertiary); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
 
 .launcher__note {
     padding: 8px 11px;
     margin: 4px 0 0;
-    border-top: 1px solid var(--ink-500);
-    color: var(--flag);
+    border-top: 1px solid var(--separator);
+    color: var(--state-warning);
     font-size: 11.5px;
     line-height: 1.45;
 }
@@ -1238,7 +1253,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: 9px;
     letter-spacing: .11em;
     text-transform: uppercase;
-    color: var(--steam);
+    color: var(--state-positive);
     margin-left: 7px;
     vertical-align: 1px;
 }
@@ -1254,49 +1269,46 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin: 0 0 9px;
 }
 
 .panel-h + .panel-h { margin-top: 18px; }
 
-/* Metric: the number leads, the label explains. Not the other way round. */
+/* Metric: the number leads, the label explains. Not the other way round.
+   State lands on the number and nowhere else — the tile itself stays neutral. The
+   old left-edge bar was a second place to read the same fact, and it had to be
+   scanned separately from the figure it qualified; a red number is read at the
+   moment the number is. */
 .metric {
     padding: 11px 13px;
-    background: var(--ink-600);
-    border: 1px solid var(--ink-500);
-    border-radius: 4px;
-    border-left-width: 2px;
-    border-left-color: var(--ink-400);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
 }
 
-.metric--good { border-left-color: var(--steam); }
-.metric--warn { border-left-color: var(--flag); }
-.metric--bad { border-left-color: var(--drift); }
-.metric--info { border-left-color: var(--iris); }
-
 .metric__value {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 22px;
-    font-weight: 500;
+    font-weight: var(--weight-medium);
     line-height: 1.05;
     letter-spacing: -.02em;
 }
 
-.metric--good .metric__value { color: var(--steam); }
-.metric--warn .metric__value { color: var(--flag); }
-.metric--bad .metric__value { color: var(--drift); }
+.metric--good .metric__value { color: var(--state-positive); }
+.metric--warn .metric__value { color: var(--state-warning); }
+.metric--bad .metric__value { color: var(--state-negative); }
+.metric--info .metric__value { color: var(--accent); }
 
 .metric__label {
     font-size: 10.5px;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: var(--haze);
+    color: var(--text-secondary);
     margin-top: 5px;
 }
 
-.metric__note { font-size: 11px; color: var(--haze-dim); margin-top: 2px; }
+.metric__note { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
 
 /* A tile that is also the way to the thing it counts.
    Gloss is the desk's affordance channel (ADR 0008), so the tile that leads somewhere is
@@ -1310,25 +1322,24 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font: inherit;
     color: inherit;
     cursor: pointer;
-    transition: background var(--dur-glide) var(--ease-glide),
-                border-color var(--dur-glide) var(--ease-glide),
-                transform var(--dur-glide) var(--ease-glide);
+    transition: background var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
 }
 
-.metric--action:hover { background: var(--ink-500); transform: translateY(-1px); }
+.metric--action:hover { background: var(--surface-3); transform: translateY(-1px); }
 .metric--action:active { transform: translateY(0); }
 
 .metric--action:focus-visible {
     outline: none;
-    border-color: var(--iris);
-    box-shadow: 0 0 0 2px var(--iris-dim);
+    box-shadow: var(--focus-ring);
 }
 
-.metric__go { float: right; font-size: 15px; line-height: 1; color: var(--haze-dim); }
-.metric--action:hover .metric__go { color: var(--chalk); }
+.metric__go { float: right; font-size: 15px; line-height: 1; color: var(--text-tertiary); }
+.metric--action:hover .metric__go { color: var(--text-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-    .metric--action { transition: background var(--dur-glide) linear; }
+    .metric--action { transition: background var(--dur-fast) linear; }
     .metric--action:hover, .metric--action:active { transform: none; }
 }
 
@@ -1367,6 +1378,15 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .grid tbody tr:hover td { background: var(--surface-2); }
 .grid .r { text-align: right; font-variant-numeric: tabular-nums; }
 .grid .dim { color: var(--text-tertiary); }
+
+/* Quieter than the row, still readable as data. --text-tertiary is the right tier for
+   an annotation nobody has to read — a hint, a placeholder, a unit — and it measures
+   2.70:1 on --surface-1, which is below AA and correct for exactly that job. A cell an
+   operator has to read is not that job: a timestamp, a duration, a job key and a credit
+   count are the reading. So they get --text-secondary (5.71:1, passes AA) and stay a
+   step under the row's --text-primary. Set bare rather than under .grid so it works in
+   a DeskGrid cell template too, where the .grid descendant selectors never match. */
+.quiet { color: var(--text-secondary); }
 
 /* A long message in a narrow window must not turn one row into six. Truncate and keep
    the full text in the title attribute — row rhythm is what makes a dense table scannable. */
@@ -1546,10 +1566,10 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     flex-direction: column;
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
+    background: var(--surface-1);
+    border: 1px solid var(--separator-strong);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-sheet);
     overflow: hidden;
     animation: dialog-in .12s ease-out;
 }
@@ -1565,19 +1585,19 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     gap: 8px;
     height: var(--titlebar-h);
     padding: 0 4px 0 10px;
-    background: var(--ink-600);
-    border-bottom: 1px solid var(--ink-500);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     cursor: grab;
     touch-action: none; /* the pointer gesture owns the drag, not the browser's scroll */
     user-select: none;
 }
 
-.deskdialog--dragging { box-shadow: var(--shadow-float), 0 0 0 1px var(--ink-400); }
+.deskdialog--dragging { box-shadow: var(--shadow-sheet), 0 0 0 1px var(--separator-strong); }
 .deskdialog--dragging .deskdialog__bar { cursor: grabbing; }
 body.dialog-dragging { user-select: none; }
 
-.deskdialog__icon { display: grid; place-items: center; color: var(--haze-dim); flex: 0 0 auto; }
+.deskdialog__icon { display: grid; place-items: center; color: var(--text-tertiary); flex: 0 0 auto; }
 .deskdialog__icon svg { width: 15px; height: 15px; }
 
 .deskdialog__title {
@@ -1589,10 +1609,12 @@ body.dialog-dragging { user-select: none; }
     flex: 0 0 auto;
 }
 
+/* Carries ids, counts and timestamps beside the title, so it keeps tabular figures
+   even though there is no second family left to set them in. */
 .deskdialog__sub {
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 10.5px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1606,7 +1628,7 @@ body.dialog-dragging { user-select: none; }
     overflow: auto;
     padding: 14px;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1649,10 +1671,10 @@ body.dialog-dragging { user-select: none; }
     z-index: calc(var(--z-popover) + 1);
     min-width: 290px;
     padding: 5px;
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
+    background: var(--surface-1);
+    border: 1px solid var(--separator-strong);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    box-shadow: var(--shadow-3);
 }
 
 .pullmenu__item {
@@ -1662,14 +1684,15 @@ body.dialog-dragging { user-select: none; }
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--chalk);
+    color: var(--text-primary);
     font-family: inherit;
     text-align: left;
     cursor: pointer;
 }
 
-.pullmenu__item:hover { background: var(--ink-600); }
-.pullmenu__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+/* Neutral. A menu row under the pointer is hovered, not chosen. */
+.pullmenu__item:hover { background: var(--surface-3); }
+.pullmenu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .pullmenu__row {
     display: flex;
@@ -1683,17 +1706,17 @@ body.dialog-dragging { user-select: none; }
 /* The price is stated before the click, not discovered afterwards. */
 .pullmenu__cost {
     flex: 0 0 auto;
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 10px;
     letter-spacing: .06em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
 }
 
 .pullmenu__desc {
     display: block;
     margin-top: 2px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     font-size: 11.5px;
     line-height: 1.4;
 }
@@ -1702,8 +1725,8 @@ body.dialog-dragging { user-select: none; }
    itself rather than just refusing. */
 .pullmenu__item--blocked { cursor: not-allowed; }
 .pullmenu__item--blocked:hover { background: none; }
-.pullmenu__item--blocked .pullmenu__label { color: var(--haze-dim); }
-.pullmenu__item--blocked .pullmenu__desc { color: var(--flag); }
+.pullmenu__item--blocked .pullmenu__label { color: var(--text-tertiary); }
+.pullmenu__item--blocked .pullmenu__desc { color: var(--state-warning); }
 
 /* ---- Linked cell -----------------------------------------------------------
    A cell naming something with a window of its own. The desk answers "what will
@@ -1744,7 +1767,7 @@ body.dialog-dragging { user-select: none; }
     gap: 3px;
     flex: 0 0 auto;
     opacity: 0;
-    color: var(--iris);
+    color: var(--accent);
     font-size: 9.5px;
     font-weight: 600;
     letter-spacing: .1em;
@@ -1762,16 +1785,19 @@ body.dialog-dragging { user-select: none; }
     border-bottom-color: var(--surface-3);
 }
 
+/* Accent on the label, not a neutral: this is a link resolving, not a row lighting
+   under the pointer — the accent is on the text and the rule under it, there is no
+   fill, and the same declaration serves :focus-visible. */
 .desklink:hover .desklink__label,
 .desklink:focus-visible .desklink__label {
-    color: var(--iris);
-    border-bottom-color: var(--iris);
+    color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
 .desklink:hover .desklink__shortcut,
 .desklink:focus-visible .desklink__shortcut { opacity: 1; }
 
-.desklink:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+.desklink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
     .desklink__label, .desklink__shortcut { transition: none; }
@@ -1781,24 +1807,33 @@ body.dialog-dragging { user-select: none; }
 .down { color: var(--state-negative); }
 .warnc { color: var(--state-warning); }
 
-/* Tag: a small state word. Border-only so a table of them stays calm. */
+/* Tag: a small state word, set as a capsule.
+
+   The outlined chip is gone. An outline is a second edge inside a table that is
+   already ruled by hairlines, and a column of them read as a column of little boxes
+   rather than as a column of states. A capsule has one edge — its own fill — so a
+   table of them settles: the shape says "label", the wash says which state, and the
+   ink is that state's own colour so the word and its fill agree.
+
+   Neutral is --surface-3 under --text-secondary: still a capsule, no state claimed. */
 .tag {
     display: inline-block;
-    padding: 2px 7px;
-    border: 1px solid var(--ink-400);
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
+    padding: 2px var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    font-size: var(--text-caption);
+    font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--haze);
+    background: var(--surface-3);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
-.tag--good { border-color: var(--steam); color: var(--steam); background: var(--steam-dim); }
-.tag--warn { border-color: var(--flag); color: var(--flag); background: var(--flag-dim); }
-.tag--bad { border-color: var(--drift); color: var(--drift); background: var(--drift-dim); }
-.tag--info { border-color: var(--iris); color: var(--iris); background: var(--iris-dim); }
+.tag--good { background: var(--state-positive-wash); color: var(--state-positive); }
+.tag--warn { background: var(--state-warning-wash); color: var(--state-warning); }
+.tag--bad { background: var(--state-negative-wash); color: var(--state-negative); }
+.tag--info { background: var(--accent-wash); color: var(--accent); }
 
 /* ------------------------------------------------------------------ buttons ---
    Apple's three-level hierarchy, and nothing else. ADR 0008 made gloss mean
@@ -2092,25 +2127,41 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .note {
     padding: 9px 11px;
-    border: 1px solid var(--ink-500);
-    border-left: 2px solid var(--iris);
+    border: 1px solid var(--separator);
+    border-left: 2px solid var(--accent);
     border-radius: 4px;
-    background: var(--ink-600);
-    color: var(--haze);
+    background: var(--surface-2);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.5;
 }
 
-.note--warn { border-left-color: var(--flag); }
-.empty { color: var(--haze-dim); font-size: 12.5px; padding: 14px 2px; line-height: 1.55; }
+.note--warn { border-left-color: var(--state-warning); }
 
-/* The Desk/EmptyState kinds. New and Filtered are the base line unchanged — they differ
-   in what they say, not in how they look, and a panel that has nothing in it is the last
-   place to spend contrast. Error is the exception: "the load failed" and "nothing here
-   yet" are indistinguishable as grey sentences, so it takes a rule in --flag *and* the
-   inset that rule creates — hue plus shape, never hue alone. See ADR 0008. */
+/* An empty state is an absence, not a card: no border, no fill, no box — just a line
+   of --text-secondary at the desk's body size. The old --text-tertiary was the tier for
+   an annotation nobody has to read, and a panel explaining why it has nothing in it is
+   the opposite of that: it is the only thing on the screen.
+
+   .empty is also the desk's plain quiet-note class — the Parts window sets whole
+   paragraphs of prose in it — so the base stays in the flow it was written for and only
+   the two genuine "there is nothing here" kinds below centre themselves. */
+.empty { color: var(--text-secondary); font-size: var(--text-body); padding: 14px 2px; line-height: 1.55; }
+
+/* Nothing yet, or nothing matching. Centred in the space it is failing to fill, which is
+   what makes it read as the absence rather than as the first line of something. */
+.empty--new,
+.empty--filtered {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+}
+
+/* Error is the exception: "the load failed" and "nothing here yet" are indistinguishable
+   as grey sentences, so it takes a rule in --state-warning *and* the inset that rule
+   creates — hue plus shape, never hue alone. See ADR 0008. It stays left-aligned, because
+   a rule down the left of centred text is an edge with nothing to align to. */
 .empty--error {
-    border-left: 2px solid var(--flag);
+    border-left: 2px solid var(--state-warning);
     padding-left: 10px;
 }
 
@@ -2119,21 +2170,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .empty__action { display: block; margin-top: 8px; }
 
 /* ------------------------------------------------------- runbook ----------
-   The triage procedure, shown inside the incident that needs it. Iris on the
+   The triage procedure, shown inside the incident that needs it. The accent on the
    left edge because it is a thing you act on, not a state being reported. */
 
 .runbook {
-    border: 1px solid var(--ink-500);
-    border-left: 2px solid var(--iris);
+    border: 1px solid var(--separator);
+    border-left: 2px solid var(--accent);
     border-radius: 4px;
-    background: var(--ink-600);
+    background: var(--surface-2);
     margin: 14px 0;
 }
 
 .runbook__summary {
     padding: 8px 11px;
     cursor: pointer;
-    color: var(--chalk);
+    color: var(--text-primary);
     font-size: 12px;
     font-weight: 600;
     list-style: none;
@@ -2143,12 +2194,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 .runbook__summary::-webkit-details-marker { display: none; }
-.runbook__summary:hover { color: var(--iris); }
+
+/* The mark is an icon, not an illustration. Without a size the inline SVG arrives with
+   no intrinsic dimensions, stretches to the flex line, and renders roughly 385px square
+   — found in the browser, not in the stylesheet, because nothing here was wrong to read.
+   Same 15px the dialog's title mark takes. */
+.runbook__summary svg { width: 15px; height: 15px; flex: 0 0 auto; }
+/* Accent on the text, not a fill behind it: the summary is already --text-primary at
+   rest, so a neutral hover would paint nothing, and the disclosure is a control you
+   follow — the same reading .desklink gets. */
+.runbook__summary:hover { color: var(--accent); }
 
 .runbook__body {
     padding: 2px 11px 11px;
-    border-top: 1px solid var(--ink-500);
-    color: var(--haze);
+    border-top: 1px solid var(--separator);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.55;
 }
@@ -2160,18 +2220,22 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .runbook__step {
     margin: 5px 0 0 12px;
     padding-left: 9px;
-    border-left: 1px solid var(--ink-400);
+    border-left: 1px solid var(--separator-strong);
 }
 
-.runbook__body strong { color: var(--chalk); font-weight: 600; }
+.runbook__body strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
 
+/* The one place a second family survives the collapse to --face-ui. A runbook's code
+   spans are literal things to type — a job key, a flag, a path — and a monospace face
+   is what says "this is the exact string", which no weight or colour can. It is the
+   platform stack, not a bundled font: nothing here has to match Inter's metrics. */
 .runbook__body code {
-    font-family: var(--face-data);
+    font-family: ui-monospace, monospace;
     font-size: 11px;
-    background: var(--ink-700);
+    background: var(--surface-1);
     padding: 1px 4px;
     border-radius: 3px;
-    color: var(--chalk);
+    color: var(--text-primary);
 }
 
 /* ============================================================================
@@ -2187,8 +2251,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    pressable, so neither has a crown highlight or a seat shadow. The shimmer
    travels *through* a flat surface; it is not a sheen sitting on one.
 
-   Motion spends the desk's shared tokens — --ease-glide and --dur-glide — so a
-   bar advancing and a marble sliding are the same gesture at different sizes.
+   Motion spends the desk's shared tokens — --ease-standard and --dur-fast — so a
+   bar advancing and a marble sliding are the same gesture at different sizes, and
+   the skeleton's sweep is literally the button's: both run desk-btn-sheen, because
+   "this surface is occupied" should look the same whatever the surface is.
    ============================================================================ */
 
 .skel {
@@ -2208,11 +2274,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
     /* One step up from the window body, so a placeholder reads as an absence in
        the surface rather than a new element painted on it. */
-    background: var(--ink-600);
+    background: var(--surface-2);
 }
 
+/* A radius per thing stood in for: a line of prose is nearly square-cut, a block is a
+   tile or a chart and takes the control radius those wear. */
 .skel__line { height: 9px; width: 100%; }
-.skel__block { height: var(--skel-h, 9px); width: 100%; border-radius: 4px; }
+.skel__block { height: var(--skel-h, 9px); width: 100%; border-radius: var(--radius); }
 
 /* The travelling band. Wide and low-contrast: this is a hint that the surface is
    live, not a second pulse strip competing with the real one. */
@@ -2221,9 +2289,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(230, 235, 244, .07), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .07), transparent);
     transform: translateX(-100%);
-    animation: skel-shimmer 1.5s var(--ease-glide) infinite;
+    animation: desk-btn-sheen 1.5s var(--ease-standard) infinite;
 }
 
 /* Staggered so a stack of lines reads as one surface being swept, not as three
@@ -2231,11 +2299,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .skel--lines .skel__line:nth-child(2)::after { animation-delay: .12s; }
 .skel--lines .skel__line:nth-child(3)::after { animation-delay: .24s; }
 .skel--lines .skel__line:nth-child(n+4)::after { animation-delay: .36s; }
-
-@keyframes skel-shimmer {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(100%); }
-}
 
 /* ---- Grid rows ------------------------------------------------------------
    Same row rhythm and hairline as .deskgrid's real body (see mud-bridge.css), so
@@ -2252,14 +2315,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     height: 30px;
     padding: 0 8px;
     box-sizing: border-box;
-    border-bottom: 1px solid var(--ink-500);
+    border-bottom: 1px solid var(--separator);
 }
 
 .deskgrid__skeleton-row:last-child { border-bottom: 0; }
 
 /* ---- The progress bar -----------------------------------------------------
-   The pulse strip's band, given a denominator. Same iris, same slimness, so the
+   The pulse strip's band, given a denominator. Same accent, same slimness, so the
    desk keeps one word for "in flight" rather than acquiring a spinner too.
+
+   A 4px neutral track with a fully rounded accent fill, and no seat shadow cut into
+   it: the track is not a well, it is the part of the journey not yet made.
    --------------------------------------------------------------------------- */
 
 .prog { display: block; min-width: 0; }
@@ -2270,43 +2336,43 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 5px;
-    color: var(--haze);
+    color: var(--text-secondary);
     font-family: var(--face-ui);
     font-size: 11.5px;
     line-height: 1.3;
 }
 
-.prog__pct { color: var(--chalk); font-size: 11.5px; flex: 0 0 auto; }
+.prog__pct { color: var(--text-primary); font-size: 11.5px; flex: 0 0 auto; }
 
 .prog__track {
-    height: 3px;
-    border-radius: 2px;
+    height: 4px;
+    border-radius: 999px;
     overflow: hidden;
-    background: var(--ink-600);
-    box-shadow: inset 0 1px 1px rgba(0, 0, 0, .4);
+    background: var(--surface-3);
 }
 
 .prog__fill {
     height: 100%;
-    border-radius: 2px;
-    background: var(--iris);
+    border-radius: 999px;
+    background: var(--accent);
 }
 
 /* Determinate travel uses the desk's glide, so the bar advances the way every
    other moving thing on the surface does. */
 .prog--determinate .prog__fill {
     width: 0;
-    transition: width var(--dur-glide) var(--ease-glide);
+    transition: width var(--dur-fast) var(--ease-standard);
 }
 
-/* Indeterminate borrows the pulse strip's sweep outright — one idiom, not two. */
+/* Indeterminate borrows the pulse strip's sweep outright — one idiom, not two. It
+   slides; it does not pulse. The track underneath stays the same neutral the
+   determinate one uses, so the two bars are one bar in two states rather than two
+   different objects. */
 .prog--indeterminate .prog__fill {
     width: 34%;
-    background: linear-gradient(90deg, transparent, var(--iris), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
     animation: prog-sweep 1.15s linear infinite;
 }
-
-.prog--indeterminate .prog__track { background: var(--iris-dim); }
 
 @keyframes prog-sweep {
     from { transform: translateX(-100%); }
@@ -2325,7 +2391,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     .prog--indeterminate .prog__fill {
         animation: none;
         width: 100%;
-        background: var(--iris);
+        background: var(--accent);
         opacity: .5;
     }
 }
@@ -2338,7 +2404,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
-:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* A horizontal row of tabs cannot host itself usefully on a narrow screen — there is no
    room to drag a tab past a neighbour with a thumb. Windows stack into a single scrolling
@@ -2387,7 +2453,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .rowacts {
     margin-top: 8px;
-    border-top: 1px solid var(--ink-500);
+    border-top: 1px solid var(--separator);
 }
 
 .rowacts__keys {
@@ -2407,11 +2473,18 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 /* The inline answer. Inset from the row so it reads as belonging to it rather
-   than as the next row along. */
+   than as the next row along.
+
+   --surface-0 rather than --surface-1, which is where the retired ramp's recessed tier
+   would have landed: that tier sat *below* the panel body, and the panel body is now
+   --surface-1, so the literal mapping would put the snippet at exactly the colour it
+   opens on top of. The whole point of the
+   block is that it reads as cut into the row. Its own bar and its open body keep the two
+   steps above it, so the three tiers stay three tiers. */
 .snippet {
     margin: 8px 0 4px;
-    background: var(--ink-800);
-    border: 1px solid var(--ink-500);
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
     border-radius: var(--radius);
     overflow: hidden;
 }
@@ -2421,21 +2494,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     align-items: center;
     gap: 7px;
     padding: 6px 9px;
-    background: var(--ink-600);
-    border-bottom: 1px solid var(--ink-500);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--separator);
     font-size: 11px;
 }
 
-.snippet__icon { display: inline-flex; color: var(--haze); }
+.snippet__icon { display: inline-flex; color: var(--text-secondary); }
 
 .snippet__title {
-    font-weight: 600;
+    font-weight: var(--weight-semibold);
     letter-spacing: .06em;
     text-transform: uppercase;
-    color: var(--haze);
+    color: var(--text-secondary);
 }
 
-.snippet__note { color: var(--haze-dim); font-size: 10.5px; }
+.snippet__note { color: var(--text-tertiary); font-size: 10.5px; }
 .snippet__spacer { flex: 1 1 auto; }
 
 /* The escape hatch. Quiet by default — the snippet is usually the answer, and a
@@ -2447,7 +2520,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     background: transparent;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     font: inherit;
     font-size: 10.5px;
     padding: 2px 6px;
@@ -2455,7 +2528,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     transition: color .12s ease, border-color .12s ease;
 }
 
-.snippet__open:hover { color: var(--iris); border-color: var(--ink-400); }
+/* Neutral: the button brightens under the pointer, the way every plain control on the
+   desk does. Accent here would say "chosen", and nothing has been chosen yet. */
+.snippet__open:hover { color: var(--text-primary); border-color: var(--separator-strong); }
 
 .snippet__body { padding: 9px; }
 
@@ -2466,7 +2541,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-size: 10px;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin-bottom: 4px;
 }
 
@@ -2479,10 +2554,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-size: 12px;
 }
 
-.snippet__side--empty { color: var(--haze-dim); }
+.snippet__side--empty { color: var(--text-tertiary); }
 .snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.snippet__line { color: var(--haze); }
-.snippet__price { color: var(--chalk); font-weight: 600; }
+.snippet__line { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.snippet__price { color: var(--text-primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
 .snippet__book { font-size: 10.5px; }
 
 /* Form snippet: one run of results per side. */
@@ -2491,20 +2566,23 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .snippet__formname {
     font-size: 12px;
-    font-weight: 600;
-    color: var(--chalk);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
     max-width: 22ch;
 }
 
 .snippet__formrun { display: flex; gap: 3px; }
 
 /* A form run: oldest on the left, newest on the right, like every other time axis here.
-   The newest tag is underlined in the desk's interactive hue rather than recoloured — the
+   The newest tag is ringed in the desk's interactive hue rather than recoloured — the
    tag's own hue is already spent saying won or lost, and a second meaning on the same
-   channel would make a recent win and a recent loss look like the same kind of thing. */
+   channel would make a recent win and a recent loss look like the same kind of thing.
+
+   A ring rather than the underline this used to carry: a tag is a capsule now, and an
+   inset bottom band inside a 999px radius reads as a smeared crescent, not a rule. */
 .formrun { display: inline-flex; gap: 3px; align-items: center; }
 
-.formrun__latest { box-shadow: inset 0 -2px 0 var(--iris); }
+.formrun__latest { box-shadow: inset 0 0 0 1px var(--accent); }
 
 /* A row of labelled readings, for a single game expanded. */
 .snippet__facts {
@@ -2517,13 +2595,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-size: 10px;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin-bottom: 3px;
 }
 
-.fact__value { font-size: 12.5px; color: var(--chalk); }
-.fact__value .good { color: var(--steam); }
-.fact__value .bad { color: var(--drift); }
+.fact__value { font-size: 12.5px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.fact__value .good { color: var(--state-positive); }
+.fact__value .bad { color: var(--state-negative); }
 
 /* A tighter grid, for tables that live inside a snippet rather than a window. */
 .grid--tight { font-size: 12px; }
@@ -2546,9 +2624,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .splits__key {
     background: transparent;
-    border: 1px solid var(--ink-500);
+    border: 1px solid var(--separator);
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     font: inherit;
     font-size: 11px;
     padding: 3px 9px;
@@ -2556,7 +2634,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     transition: color .12s ease, border-color .12s ease, background .12s ease;
 }
 
-.splits__key:hover { color: var(--chalk); border-color: var(--ink-400); }
+.splits__key:hover { color: var(--text-primary); border-color: var(--separator-strong); }
 
 .splits__pick { max-width: 190px; margin-left: auto; font-size: 11px; }
 
@@ -2566,14 +2644,16 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    otherwise breaks every column alignment above it.
    -------------------------------------------------------------------------- */
 
+/* Same three-tier reading as .snippet above: the closed row is cut into the panel
+   (--surface-0), and opening it reveals a body one step back up. */
 .logrow {
-    border: 1px solid var(--ink-500);
+    border: 1px solid var(--separator);
     border-radius: var(--radius);
-    background: var(--ink-800);
+    background: var(--surface-0);
     overflow: hidden;
 }
 
-.logrow--open { border-color: var(--ink-400); }
+.logrow--open { border-color: var(--separator-strong); }
 
 .logrow__head {
     display: flex;
@@ -2583,7 +2663,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     padding: 7px 10px;
     background: transparent;
     border: 0;
-    color: var(--chalk);
+    color: var(--text-primary);
     font: inherit;
     font-size: 12.5px;
     text-align: left;
@@ -2591,9 +2671,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     transition: background .12s ease;
 }
 
-.logrow__head:hover { background: var(--ink-600); }
+/* Neutral, and the same --surface-3 every other hover fill on the desk uses. The row
+   is being pointed at, not opened — opening it is what .logrow--open reports. */
+.logrow__head:hover { background: var(--surface-3); }
 
-.logrow__date { font-size: 11.5px; min-width: 7ch; }
+.logrow__date { font-size: 11.5px; min-width: 7ch; font-variant-numeric: tabular-nums; }
 
 .logrow__opp {
     flex: 1 1 auto;
@@ -2603,13 +2685,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     white-space: nowrap;
 }
 
-.logrow__score { color: var(--haze); min-width: 6ch; text-align: right; }
+.logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Turns to point down when the row is open, so the control states which way it
    goes rather than only that it is a control. */
 .logrow__chev {
     display: inline-flex;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     transition: transform .14s ease;
 }
 
@@ -2617,8 +2699,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .logrow__body {
     padding: 10px;
-    border-top: 1px solid var(--ink-500);
-    background: var(--ink-700);
+    border-top: 1px solid var(--separator);
+    background: var(--surface-1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2631,8 +2713,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__coverage {
     margin: 8px 0 0;
     padding-top: 7px;
-    border-top: 1px solid var(--ink-600);
-    color: var(--haze-dim);
+    border-top: 1px solid var(--separator);
+    color: var(--text-tertiary);
     font-size: 10.5px;
     line-height: 1.5;
 }
@@ -2651,7 +2733,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .logrow__head:focus-visible,
 .splits__key:focus-visible,
 .snippet__open:focus-visible {
-    outline: 2px solid var(--iris);
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
     border-radius: 4px;
 }
@@ -2659,10 +2741,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an
    ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
-   difference. Set in the data face so it reads as an identifier rather than prose. */
+   difference. Tracked and capsuled so it reads as an identifier rather than prose. */
 .price__sel {
     font-size: 10px;
-    font-weight: 600;
+    font-weight: var(--weight-semibold);
     letter-spacing: .04em;
     color: var(--text-secondary);
     background: var(--surface-2);

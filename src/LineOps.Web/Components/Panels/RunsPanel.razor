@@ -4,6 +4,11 @@
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 
+@* The quiet columns here are .quiet, not .dim. .dim is --text-tertiary — the tier for an
+   annotation nobody has to read — and it measures 2.70:1 on the panel, below WCAG AA. A job
+   key, a start time, a duration, a request count and a failure message are the reading, not
+   an aside: they sit a step under the row at --text-secondary (5.71:1), which passes. *@
+
 <Note Style="margin:12px 0">
     Every execution lands here, successful or not — this table is the only feed the KPIs and
     alerts are computed from.
@@ -52,13 +57,13 @@
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job">
-        <CellTemplate><span class="mono dim">@context.Item.JobKey</span></CellTemplate>
+        <CellTemplate><span class="mono quiet">@context.Item.JobKey</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
                     Title="Started" Align="Align.Right" InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <span class="dim">@context.Item.StartedAt.ToLocalTime().ToString("MMM d HH:mm:ss")</span>
+            <span class="quiet">@context.Item.StartedAt.ToLocalTime().ToString("MMM d HH:mm:ss")</span>
         </CellTemplate>
     </PropertyColumn>
 
@@ -67,25 +72,25 @@
                     Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
                     Title="Took" Align="Align.Right">
         <CellTemplate>
-            <span class="dim">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
+            <span class="quiet">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" />
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right">
-        <CellTemplate><span class="dim">@context.Item.RequestsMade</span></CellTemplate>
+        <CellTemplate><span class="quiet">@context.Item.RequestsMade</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right">
         <CellTemplate>
-            <span class="dim">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
+            <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Error!" Title="Detail">
         <CellTemplate>
-            <span class="trunc dim" title="@context.Item.Error">@context.Item.Error</span>
+            <span class="trunc quiet" title="@context.Item.Error">@context.Item.Error</span>
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
