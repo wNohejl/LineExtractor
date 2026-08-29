@@ -516,76 +516,74 @@ html, body {
     .marble { transition: none; }
 }
 
-/* ---- The gate switch ------------------------------------------------------
-   One visible choice among a few. The channel is cut into the panel under the
-   field's light rules — it cannot be pressed, so it does not catch the light.
-   The cap is a key that never leaves the channel: it keeps the crown sheen and
-   seat shadow of every other key. Rendered by Components/Desk/DeskSwitch.
-   ------------------------------------------------------------------------- */
+/* A segmented control: a recessed track holding a raised cap that slides to the
+   selected position. The platform's answer to "one of a few, all visible", and the
+   right shape for a control that was already a cap travelling in a channel — only
+   the moulding changes, not the mechanism. Rendered by Components/Desk/DeskSwitch.
 
-.gate {
-    --n: 1;
-    --i: 0;
+   The cap is placed off --i and sized off --n, both set inline by the component.
+   Cursor and opt--on's font-weight are the only states the old block carried that
+   this recipe still needs — see below. */
+.marble-row.gate {
+    position: relative;
     display: inline-grid;
-    height: 28px;
-    padding: 3px;
+    grid-template-columns: repeat(var(--n), 1fr);
+    align-items: center;
     flex: 0 0 auto;
-    background: var(--ink-800);
-    border: 1px solid var(--ink-500);
-    border-radius: 5px;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
+    padding: 2px;
+    background: var(--surface-0);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--separator);
 }
 
-.gate__cap {
-    top: 3px;
-    bottom: 3px;
-    left: 3px;
-    width: calc((100% - 6px) / var(--n));
-    border-radius: 3px;
-    background-color: var(--ink-600);
-    background-image: linear-gradient(180deg,
-        rgba(255, 255, 255, .16) 0%,
-        rgba(255, 255, 255, .04) 46%,
-        rgba(0, 0, 0, .10) 100%);
-    border: 1px solid var(--ink-400);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, .22),
-        0 1px 2px rgba(0, 0, 0, .5);
+.marble.gate__cap {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--surface-3);
+    box-shadow: var(--shadow-1);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-base) var(--ease-spring);
+    pointer-events: none;
 }
 
 .gate__opt {
     position: relative; /* above the cap */
-    min-width: 0;
-    padding: 0 11px;
-    background: none;
-    border: 0;
-    border-radius: 3px;
-    color: var(--haze);
+    z-index: 1;
+    padding: 0 var(--space-3);
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .07em;
-    text-transform: uppercase;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
     white-space: nowrap;
     cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 
-.gate__opt:hover { color: var(--chalk); }
-.gate__opt--on { color: var(--chalk); cursor: default; }
-.gate__opt:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+.gate__opt:hover { color: var(--text-primary); }
 
-/* Positions that are read as numbers line up as numbers. */
-.gate--num .gate__opt {
-    font-family: var(--face-data);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: .03em;
+/* The selected position is not pressable again — same "cursor: default" the old
+   block used, carried across since the segmented-control recipe doesn't restate it. */
+.gate__opt--on { color: var(--text-primary); font-weight: var(--weight-semibold); cursor: default; }
+
+.gate__opt:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: calc(var(--radius) - 2px); }
+
+.gate--num .gate__opt { font-variant-numeric: tabular-nums; }
+
+.gate--sm .gate__opt { height: 20px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble.gate__cap { transition: none; }
 }
-
-.gate--sm { height: 22px; padding: 2px; }
-.gate--sm .gate__cap { top: 2px; bottom: 2px; left: 2px; width: calc((100% - 4px) / var(--n)); }
-.gate--sm .gate__opt { padding: 0 8px; font-size: 9.5px; }
-.gate--lg { height: 34px; }
-.gate--lg .gate__opt { font-size: 11px; padding: 0 14px; }
 
 /* ---- The tab bar ----------------------------------------------------------
    Navigation, not a control: these switch which part of a window you are
@@ -1914,56 +1912,72 @@ body.dialog-dragging { user-select: none; }
     .desk-btn:active:not(:disabled), .btn:active:not(:disabled) { transform: none; }
 }
 
-/* ---- The field ------------------------------------------------------------
-   The key's inverse, and the reason the gloss rule is worth having: a field is
-   cut *into* the panel. Same metrics so a row of controls lines up, opposite
-   light. Previously these wore .btn, which under the rule above would have made
-   every text box look pressable.
+/* ------------------------------------------------------------------- fields ---
+   A field is a place to put something, so it is cut into the surface rather than
+   raised off it: a darker well, a hairline, and no fill of its own. ADR 0008 had
+   fields inheriting a button recipe with text-transform patched off at every call
+   site; that inversion is gone with the gloss it was correcting.
    --------------------------------------------------------------------------- */
 
 .field {
+    display: block;
+    width: 100%;
     height: 28px;
-    min-width: 0;
-    padding: 0 9px;
+    padding: 0 var(--space-2);
     box-sizing: border-box;
-    background: var(--ink-800);
-    border: 1px solid var(--ink-500);
-    border-radius: 5px;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
-    color: var(--chalk);
+
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+
+    color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 12.5px;
-    transition: border-color .12s ease, box-shadow .12s ease;
+    font-size: var(--text-body);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0;
+    text-transform: none;
+
+    transition: border-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
 }
 
-.field::placeholder { color: var(--haze-dim); }
-.field:hover { border-color: var(--ink-400); }
+.field::placeholder { color: var(--text-tertiary); }
+
+.field:hover:not(:disabled) { border-color: var(--separator-strong); }
 
 .field:focus, .field:focus-visible {
     outline: none;
-    border-color: var(--iris);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45), 0 0 0 2px var(--iris-dim);
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
 }
 
-.field:disabled { color: var(--haze-dim); cursor: not-allowed; background: var(--ink-700); }
+.field:disabled {
+    opacity: .40;
+    cursor: not-allowed;
+}
 
-/* Numbers in a field are still numbers. */
-.field.num { font-family: var(--face-data); font-variant-numeric: tabular-nums; }
+.field.num { font-variant-numeric: tabular-nums; }
 
-textarea.field { height: auto; padding: 7px 9px; line-height: 1.5; resize: vertical; }
+textarea.field {
+    height: auto;
+    padding: var(--space-1) var(--space-2);
+    line-height: var(--leading-body);
+    resize: vertical;
+}
 
-/* The caret is drawn rather than native, so the control matches on every OS. */
 select.field {
     appearance: none;
-    padding-right: 26px;
-    background-image: linear-gradient(45deg, transparent 50%, var(--haze) 50%),
-                      linear-gradient(135deg, var(--haze) 50%, transparent 50%);
-    background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px;
+    padding-right: var(--space-6);
+    cursor: pointer;
+    /* The chevron is drawn rather than imported, so it takes the text colour. */
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+                      linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
 }
 
-select.field option { background: var(--ink-700); color: var(--chalk); }
+select.field option { background: var(--surface-2); color: var(--text-primary); }
 
 /* Row and stack read their gap from --desk-gap so a component can set one rung of
    the spacing ramp inline without a modifier class per step. The fallback is the
@@ -1983,35 +1997,34 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
    it, so max-width on the wrapper still means what the caller meant.
    --------------------------------------------------------------------------- */
 
-.field-set { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field-set { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .field-set > .field { width: 100%; }
 
 .field-lbl {
-    color: var(--haze);
-    font-family: var(--face-ui);
-    font-size: 11.5px;
-    letter-spacing: .01em;
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    letter-spacing: 0;
+    text-transform: none;
 }
 
-/* The mark is the drift tone at its quietest: this is not an error yet, it is a
-   note that one is possible. */
-.field-req { color: var(--drift); margin-left: 3px; }
+.field-req { color: var(--state-negative); margin-left: 3px; }
 
 .field-err {
+    /* Carried across from the old block: .field-err renders as a <p> in
+       DeskField/DeskSelect/DeskTextArea, whose default margin would otherwise
+       reopen the vertical rhythm .field-set's gap is meant to own. */
     margin: 0;
-    color: var(--drift);
-    font-family: var(--face-ui);
-    font-size: 11.5px;
+    font-size: var(--text-footnote);
+    color: var(--state-negative);
 }
 
-/* An invalid field says so in the border too, so the error is findable from the
-   control rather than only from the text under it. */
-.field[aria-invalid="true"] { border-color: var(--drift); }
+.field[aria-invalid="true"] { border-color: var(--state-negative); }
 
 .field[aria-invalid="true"]:focus,
 .field[aria-invalid="true"]:focus-visible {
-    border-color: var(--drift);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45), 0 0 0 2px var(--drift-dim);
+    border-color: var(--state-negative);
+    box-shadow: 0 0 0 3px var(--state-negative-wash), 0 0 0 1px var(--state-negative);
 }
 .row--end { justify-content: flex-end; }
 .row--start { justify-content: flex-start; }
