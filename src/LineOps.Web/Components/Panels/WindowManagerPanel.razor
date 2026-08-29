@@ -21,16 +21,16 @@
 
 @if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
 {
-    <p class="note note--warn" style="margin-bottom:16px">
+    <Note Tone="DeskTone.Caution" Style="margin:12px 0 16px">
         Your ceiling is above what this desk fits at a readable width. Columns hold at
         @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
-    </p>
+    </Note>
 }
 
-<p class="note" style="margin-bottom:16px">
+<Note Style="margin:12px 0 16px">
     Windows always tile as one horizontal row — every window is its own tab. Drag a title
     bar past a neighbour to reorder them, or the divider between two to resize them.
-</p>
+</Note>
 
 <h3 class="panel-h">Concurrent windows</h3>
 <div class="row">
@@ -110,12 +110,12 @@
                value="@S.CustomHeight" @onchange="OnHeightChanged" />
     </div>
 
-    <p class="note" style="margin-top:10px">
+    <Note Style="margin:10px 0 12px">
         The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your browser is
         @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange a desk for the screen
         you will run it on, not the one you are configuring it from — the view scrolls if the
         declared size is larger.
-    </p>
+    </Note>
 }
 
 @code {

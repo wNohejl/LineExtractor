@@ -14,10 +14,10 @@
     by looking rather than guessing.
 *@
 
-<p class="note" style="margin-bottom:14px">
+<Note Style="margin:12px 0 14px">
     Everything here is live. Hover a key to see it lift, press it to feel the throw, and
     tab through the row to check that the keyboard gets the same signal the pointer does.
-</p>
+</Note>
 
 <h3 class="panel-h">Keys — tone</h3>
 <p class="empty" style="padding:0 0 9px">
@@ -95,10 +95,10 @@
 </p>
 
 <DeskTabs TValue="string" Tabs="_demoTabs" Label="Demo sections" @bind-Value="_demoTab">
-    <p class="note" style="margin:0 0 10px">
+    <Note Style="margin:0 0 10px">
         Showing <span class="mono">@context</span>. The third tab is marked unavailable,
         so it is not on the bar — flip it to see the marble re-measure itself.
-    </p>
+    </Note>
 </DeskTabs>
 
 <div class="row">
@@ -159,15 +159,36 @@
     }
 </div>
 
+@* ---------------------------------------------------------------- Note ----- *@
+
 <h3 class="panel-h">Notices</h3>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">&lt;Note&gt;</span> is the ambient tier of feedback: it sits beside the
+    thing it describes and stays as long as the thing is true. No dismiss control, no timer —
+    if it needs acknowledging it is a dialog, and if it should vanish it is a toast.
+</p>
 
 <div class="stack">
-    <p class="note" style="margin:0">
+    <Note Style="margin:0">
         A note carries context the operator needs but did not ask for.
-    </p>
-    <p class="note note--warn" style="margin:0">
+    </Note>
+    <Note Tone="DeskTone.Caution" Style="margin:0">
         A warning carries a cost. State what it is, and what to do instead.
-    </p>
+    </Note>
+</div>
+
+<p class="empty" style="padding:9px 0 0">
+    Only <span class="mono">Tone.Caution</span> changes the skin, because a cost is the one
+    thing an operator has to act on. The rule from ADR 0008 still holds inside the box: the
+    flag rule never carries the message on its own — the sentence says what the cost is, and
+    the hue only makes it findable.
+</p>
+
+<div class="row" style="gap:8px; margin-top:9px">
+    <span class="dim" style="font-size:11.5px">At word scale, inside a row or cell:</span>
+    <span class="mono" style="font-size:12px">
+        <Note Inline Tone="DeskTone.Caution">62%</Note>
+    </span>
 </div>
 
 @* ======================================================================

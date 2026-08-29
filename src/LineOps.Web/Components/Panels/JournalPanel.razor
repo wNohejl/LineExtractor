@@ -6,10 +6,10 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 
-<p class="note" style="margin-bottom:12px">
+<Note Style="margin:12px 0">
     LineOps does not place wagers and has no connection to any sportsbook. Entries here are
     records of bets already placed elsewhere.
-</p>
+</Note>
 
 <div class="row" style="margin-bottom:12px">
     <button class="btn btn--primary" type="button" @onclick="() => _showForm = !_showForm">

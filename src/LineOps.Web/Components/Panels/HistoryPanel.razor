@@ -18,11 +18,11 @@
     going; reopen it and this reattaches.
 *@
 
-<p class="note" style="margin-bottom:12px">
+<Note Style="margin:12px 0">
     The daily schedule can only learn one day per day. This reaches back over past days to
     build the record analytics need — one request per sport per day, against an unmetered
     provider only.
-</p>
+</Note>
 
 @if (_eligibility.Count > 0)
 {
@@ -42,11 +42,11 @@
 
     @if (!_eligibility.Any(s => s.Eligible))
     {
-        <p class="note note--warn">
+        <Note Tone="DeskTone.Caution" Style="margin:12px 0">
             Nothing to walk. Backfill runs against unmetered providers only, so a metered one
             cannot be used here even when it is configured and working — its quota is what the
             live schedule spends.
-        </p>
+        </Note>
     }
 }
 
@@ -134,16 +134,16 @@
 
 @if (Coordinator.Progress is { } p)
 {
-    <div class="note" style="margin-bottom:8px">
+    <Note Style="margin-bottom:8px">
         <span class="mono">@p.SourceKey · @p.SportKey · @p.Date.ToString("yyyy-MM-dd")</span><br />
         @p.Walked walked · @p.Skipped already held · @p.Failed failed ·
         @p.GamesFound games · @p.RowsIngested rows
-    </div>
+    </Note>
 }
 
 @if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
 {
-    <div class="note @(r.StoppedBecause is null ? "" : "note--warn")" style="margin-bottom:8px">
+    <Note Tone="@(r.StoppedBecause is null ? DeskTone.Neutral : DeskTone.Caution)" Style="margin-bottom:8px">
         Finished: @r.Walked days walked, @r.Skipped already held, @r.Failed failed,
         @r.GamesFound games, @r.RowsIngested rows.
         @if (r.StoppedBecause is not null)
@@ -152,7 +152,7 @@
 
             @r.StoppedBecause
         }
-    </div>
+    </Note>
 }
 
 <h3 class="panel-h">Recent days</h3>

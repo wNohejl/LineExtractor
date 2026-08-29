@@ -17,15 +17,15 @@
 }
 else if (Row.Unpriced is { } reason)
 {
-    <p class="note note--warn">@reason</p>
+    <Note Tone="DeskTone.Caution" Style="margin:12px 0">@reason</Note>
 }
 else
 {
 
-<p class="note" style="margin-bottom:12px">
+<Note Style="margin:12px 0">
     Best price on each line is lit. Everything else is what you would be giving up by taking it
     somewhere else.
-</p>
+</Note>
 
 @foreach (var market in Markets())
 {

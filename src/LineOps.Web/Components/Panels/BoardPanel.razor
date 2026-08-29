@@ -53,10 +53,10 @@
 
 @if (_rows.Count > 0 && _priced < _rows.Count)
 {
-    <p class="note note--warn" style="margin-bottom:12px">
+    <Note Tone="DeskTone.Caution" Style="margin:12px 0">
         @(_rows.Count - _priced) of @_rows.Count fixtures have no price. Open a row to see why —
         a gap is usually a fixture the scan did not cover, not a broken feed.
-    </p>
+    </Note>
 }
 
 @if (_rows.Count == 0)
