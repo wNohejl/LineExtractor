@@ -52,6 +52,9 @@
        channel that tinted every control on the desk. */
     --state-positive: #30D158;
     --state-negative: #FF453A;
+    /* Exists so a destructive fill can lighten on hover the same way --accent-hover
+       lets the accent one — a lit state colour, not a mix computed at the call site. */
+    --state-negative-hover: #FF6961;
     --state-warning: #FF9F0A;
     --state-positive-wash: rgba(48, 209, 88, .15);
     --state-negative-wash: rgba(255, 69, 58, .15);
@@ -1761,9 +1764,11 @@ body.dialog-dragging { user-select: none; }
    transparent until pointed at. Red is reserved for Role.Destructive and is the
    only place a button borrows a state colour.
 
-   .desk-btn and .btn share the recipe, so the hand-written buttons scattered
-   through the panels migrate without being touched and there is never a period
-   where two button languages coexist.
+   .btn is kept in the selector so that any hand-written .btn markup picks up the
+   same recipe rather than needing its own rule; none currently exists on the
+   desk; every hand-written button has already been migrated to DeskButton. The
+   selector stays cheap insurance against a stray .btn reappearing with its own,
+   second button language.
    --------------------------------------------------------------------------- */
 
 .desk-btn, .btn {
@@ -1861,10 +1866,13 @@ body.dialog-dragging { user-select: none; }
     --btn-fill: color-mix(in oklab, var(--state-negative) 24%, transparent);
 }
 
-.desk-btn--destructive.desk-btn--filled { --btn-fill: var(--state-negative); --btn-ink: #FFFFFF; }
+/* --on-accent is the ink for any saturated fill, not only the accent one — a
+   destructive fill is exactly as saturated, so it spends the same token rather
+   than restating white. */
+.desk-btn--destructive.desk-btn--filled { --btn-fill: var(--state-negative); --btn-ink: var(--on-accent); }
 
 .desk-btn--destructive.desk-btn--filled:hover:not(:disabled) {
-    --btn-fill: color-mix(in oklab, var(--state-negative) 85%, #fff);
+    --btn-fill: var(--state-negative-hover);
 }
 
 /* --- Sizes. The control changes height and padding; the recipe does not. --- */
