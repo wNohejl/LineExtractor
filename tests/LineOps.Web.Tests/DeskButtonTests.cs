@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Components.Web;
 namespace LineOps.Web.Tests;
 
 /// <summary>
-/// What a key promises, checked at the seam. See ADR 0008: the caller says what the key
-/// does (Tone) and the class list is the contract that carries it into CSS.
+/// What a button promises, checked at the seam. Per ADR 0016 the caller states two
+/// things — how loud (Emphasis) and whether it destroys (Role) — and the class list is
+/// the contract that carries both into CSS.
 /// </summary>
 public class DeskButtonTests : DeskTestContext
 {
@@ -20,34 +21,58 @@ public class DeskButtonTests : DeskTestContext
     }
 
     [Theory]
-    [InlineData(DeskTone.Neutral, "desk-key--neutral")]
-    [InlineData(DeskTone.Action, "desk-key--action")]
-    [InlineData(DeskTone.Go, "desk-key--go")]
-    [InlineData(DeskTone.Stop, "desk-key--stop")]
-    [InlineData(DeskTone.Caution, "desk-key--caution")]
-    public void Tone_maps_to_its_class(DeskTone tone, string expected)
+    [InlineData(DeskEmphasis.Plain, "desk-btn--plain")]
+    [InlineData(DeskEmphasis.Tinted, "desk-btn--tinted")]
+    [InlineData(DeskEmphasis.Filled, "desk-btn--filled")]
+    public void Emphasis_maps_to_its_class(DeskEmphasis emphasis, string expected)
     {
         var cut = RenderComponent<DeskButton>(p => p
-            .Add(x => x.Tone, tone)
+            .Add(x => x.Emphasis, emphasis)
             .AddChildContent("Go"));
 
         var classes = ClassList(cut);
 
-        Assert.Contains("desk-key", classes);
+        Assert.Contains("desk-btn", classes);
         Assert.Contains(expected, classes);
     }
 
+    /// <summary>
+    /// Plain is the default because most buttons on a dense console are chrome. A
+    /// default of Filled would make every panel shout.
+    /// </summary>
     [Fact]
-    public void Default_tone_is_neutral()
+    public void Default_emphasis_is_plain()
     {
         var cut = RenderComponent<DeskButton>(p => p.AddChildContent("Go"));
 
-        Assert.Contains("desk-key--neutral", ClassList(cut));
+        Assert.Contains("desk-btn--plain", ClassList(cut));
+    }
+
+    [Fact]
+    public void Destructive_is_marked_independently_of_emphasis()
+    {
+        var cut = RenderComponent<DeskButton>(p => p
+            .Add(x => x.Emphasis, DeskEmphasis.Filled)
+            .Add(x => x.Role, DeskRole.Destructive)
+            .AddChildContent("Delete"));
+
+        var classes = ClassList(cut);
+
+        Assert.Contains("desk-btn--filled", classes);
+        Assert.Contains("desk-btn--destructive", classes);
+    }
+
+    [Fact]
+    public void A_normal_button_says_nothing_about_role()
+    {
+        var cut = RenderComponent<DeskButton>(p => p.AddChildContent("Save"));
+
+        Assert.DoesNotContain("desk-btn--destructive", ClassList(cut));
     }
 
     [Theory]
-    [InlineData(DeskKeySize.Small, "desk-key--sm")]
-    [InlineData(DeskKeySize.Large, "desk-key--lg")]
+    [InlineData(DeskKeySize.Small, "desk-btn--sm")]
+    [InlineData(DeskKeySize.Large, "desk-btn--lg")]
     public void Size_maps_to_its_class(DeskKeySize size, string expected)
     {
         var cut = RenderComponent<DeskButton>(p => p
@@ -66,57 +91,38 @@ public class DeskButtonTests : DeskTestContext
 
         var classes = ClassList(cut);
 
-        Assert.DoesNotContain("desk-key--sm", classes);
-        Assert.DoesNotContain("desk-key--lg", classes);
-    }
-
-    [Fact]
-    public void Quiet_marks_the_key_as_an_escape()
-    {
-        var cut = RenderComponent<DeskButton>(p => p
-            .Add(x => x.Quiet, true)
-            .AddChildContent("Cancel"));
-
-        Assert.Contains("desk-key--quiet", ClassList(cut));
-    }
-
-    [Fact]
-    public void Quiet_is_off_by_default()
-    {
-        var cut = RenderComponent<DeskButton>(p => p.AddChildContent("Cancel"));
-
-        Assert.DoesNotContain("desk-key--quiet", ClassList(cut));
+        Assert.DoesNotContain("desk-btn--sm", classes);
+        Assert.DoesNotContain("desk-btn--lg", classes);
     }
 
     /// <summary>
-    /// ADR 0008, "busy is not disabled": an occupied key keeps its cap and its tone. It
-    /// refuses further presses, but it must not fall back to the grey of a dead control —
-    /// so the tone class stays and a busy class is added alongside it.
+    /// Busy is not disabled. A button that has started work keeps its emphasis and
+    /// refuses further presses — it must not fall back to the grey of a dead control.
     /// </summary>
     [Fact]
-    public void Busy_keeps_its_tone_and_is_announced_as_busy()
+    public void Busy_keeps_its_emphasis_and_is_announced_as_busy()
     {
         var cut = RenderComponent<DeskButton>(p => p
-            .Add(x => x.Tone, DeskTone.Go)
+            .Add(x => x.Emphasis, DeskEmphasis.Filled)
             .Add(x => x.Busy, true)
             .AddChildContent("Ingesting"));
 
         var button = cut.Find("button");
 
-        Assert.Contains("desk-key--busy", button.GetAttribute("class"));
-        Assert.Contains("desk-key--go", button.GetAttribute("class"));
+        Assert.Contains("desk-btn--busy", button.GetAttribute("class"));
+        Assert.Contains("desk-btn--filled", button.GetAttribute("class"));
         Assert.Equal("true", button.GetAttribute("aria-busy"));
     }
 
     [Fact]
-    public void A_key_that_is_not_busy_says_nothing_about_it()
+    public void A_button_that_is_not_busy_says_nothing_about_it()
     {
         var cut = RenderComponent<DeskButton>(p => p.AddChildContent("Ingest"));
 
         var button = cut.Find("button");
 
         Assert.Null(button.GetAttribute("aria-busy"));
-        Assert.DoesNotContain("desk-key--busy", button.GetAttribute("class"));
+        Assert.DoesNotContain("desk-btn--busy", button.GetAttribute("class"));
     }
 
     [Fact]
@@ -135,7 +141,7 @@ public class DeskButtonTests : DeskTestContext
     }
 
     [Fact]
-    public void An_idle_key_reports_its_press()
+    public void An_idle_button_reports_its_press()
     {
         var presses = 0;
 
@@ -163,9 +169,8 @@ public class DeskButtonTests : DeskTestContext
         Assert.Equal(0, presses);
     }
 
-    /// <summary>An icon with no label is a square cap, not a clipped button.</summary>
     [Fact]
-    public void An_icon_without_a_label_becomes_a_cap()
+    public void An_icon_without_a_label_becomes_a_square()
     {
         var cut = RenderComponent<DeskButton>(p => p
             .Add(x => x.Icon, MudBlazor.Icons.Material.Filled.Refresh)
@@ -173,32 +178,32 @@ public class DeskButtonTests : DeskTestContext
 
         var button = cut.Find("button");
 
-        Assert.Contains("desk-key--icon", button.GetAttribute("class"));
+        Assert.Contains("desk-btn--icon", button.GetAttribute("class"));
         Assert.Equal("Refresh", button.GetAttribute("title"));
     }
 
     [Fact]
-    public void An_icon_beside_a_label_is_not_a_cap()
+    public void An_icon_beside_a_label_is_not_a_square()
     {
         var cut = RenderComponent<DeskButton>(p => p
             .Add(x => x.Icon, MudBlazor.Icons.Material.Filled.Refresh)
             .AddChildContent("Refresh"));
 
-        Assert.DoesNotContain("desk-key--icon", ClassList(cut));
+        Assert.DoesNotContain("desk-btn--icon", ClassList(cut));
     }
 
     [Fact]
     public void A_one_off_class_is_appended_last_so_it_can_win()
     {
         var cut = RenderComponent<DeskButton>(p => p
-            .Add(x => x.Tone, DeskTone.Action)
+            .Add(x => x.Emphasis, DeskEmphasis.Filled)
             .Add(x => x.Class, "panel__commit")
             .AddChildContent("Save"));
 
         var classes = ClassList(cut);
 
         Assert.EndsWith("panel__commit", classes.Trim());
-        Assert.Contains("desk-key--action", classes);
+        Assert.Contains("desk-btn--filled", classes);
     }
 
     [Fact]
@@ -212,7 +217,7 @@ public class DeskButtonTests : DeskTestContext
     }
 
     [Fact]
-    public void Button_type_defaults_to_button_so_a_key_never_submits_by_accident()
+    public void Button_type_defaults_to_button_so_a_press_never_submits_by_accident()
     {
         var cut = RenderComponent<DeskButton>(p => p.AddChildContent("Save"));
 
