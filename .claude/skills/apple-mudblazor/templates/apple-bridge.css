@@ -284,15 +284,32 @@
     letter-spacing: .02em;
 }
 
-/* Chips carry state words, which this system already spells with .tag. */
+/* Chips carry state words, which this system already spells with .tag — so a chip
+   is a capsule, and it is the same capsule.
+
+   Not an outlined chip. Hairlines separate; they never outline, so a border around
+   a chip is the Material habit this system replaces. An outline is also a second
+   edge inside a table already ruled by hairlines, and a column of them reads as a
+   column of little boxes rather than as a column of states. A capsule has one edge
+   — its own fill — so a table of them settles.
+
+   Neutral is --surface-3 under --text-secondary, exactly as .tag's neutral is. The
+   uppercase tracking is kept because .tag carries it: that is the deliberate
+   typographic treatment of a small state word at --text-caption, not MudBlazor's
+   ambient button tracking leaking in.
+
+   Only the base chip is restated. Mud's own colour variants resolve through the
+   theme palette, which AppleTheme.cs already points at your colours. */
 .mud-chip {
     height: 20px;
     margin: 2px;
-    padding: 0 7px;
-    border: 1px solid var(--surface-3);
-    border-radius: var(--radius-sm);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    background-color: var(--surface-3);
+    color: var(--text-secondary);
     font-size: var(--text-caption);
-    font-weight: var(--weight-semibold);
+    font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
     transition: none;

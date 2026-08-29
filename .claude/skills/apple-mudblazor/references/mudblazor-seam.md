@@ -192,9 +192,15 @@ killed in the token block, not per-component:
 --mud-typography-button-text-transform: none;
 ```
 
-The same trap sits on `.mud-table-head` (Mud's `subtitle2` default is tracked) and
-on `.mud-chip`. Reset `letter-spacing: normal` alongside `text-transform: none`
-wherever you restyle a Mud text role.
+The same trap sits on `.mud-table-head`, whose `subtitle2` default is tracked.
+Reset `letter-spacing: normal` alongside `text-transform: none` wherever you
+restyle a Mud text role.
+
+Do not confuse an inherited trap with a deliberate treatment. `.mud-chip` in the
+bridge *sets* `.07em` uppercase on purpose, because a chip is a capsule and
+matches `.tag` — that tracking is the typographic treatment of a small state word,
+not Mud's ambient tracking leaking in. Reset the tracking that arrives by
+inheritance; keep the tracking you chose.
 
 ### Bonus: `Align="Align.Right"` emits no class
 

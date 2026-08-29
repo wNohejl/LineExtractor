@@ -173,9 +173,16 @@ public static class DeskTheme
             // Only the default face is set here. Per-role sizing and tracking live in
             // mud-bridge.css next to the rest of the type, so there is one file to read
             // when the type scale changes rather than two that can disagree.
+            //
+            // This mirrors --face-ui in lineops.css, and it is not decoration: the bridge
+            // re-points --mud-typography-*-family at --face-ui for every role it knows
+            // about, but a role it misses falls through to whatever is named here. That
+            // used to be Archivo, which no longer loads, so the fallback was silently
+            // Segoe UI on Windows — the exact failure the bundled Inter exists to prevent.
+            // FontSize matches --text-body (13px).
             Default = new DefaultTypography
             {
-                FontFamily = ["Archivo", "Segoe UI", "system-ui", "sans-serif"],
+                FontFamily = ["-apple-system", "BlinkMacSystemFont", "Inter var", "Inter", "Segoe UI", "system-ui", "sans-serif"],
                 FontSize = "13px"
             }
         }
