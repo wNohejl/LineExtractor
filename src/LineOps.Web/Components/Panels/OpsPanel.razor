@@ -37,7 +37,7 @@
     provider is never registered, so it writes no runs and appears nowhere in source health.
     "No prices" and "no feed" look identical without this.
 *@
-<h3 class="panel-h">Odds feeds</h3>
+<PanelHeader>Odds feeds</PanelHeader>
 
 @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
    here regardless would describe a schedule that is not running — the number would be real
@@ -114,7 +114,7 @@ else if (_plan is { } plan)
     </PropertyColumn>
 </DeskGrid>
 
-<h3 class="panel-h">Source health</h3>
+<PanelHeader>Source health</PanelHeader>
 
 <DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered.">
     @* The source name goes through to its runs — "why is this stale" is answered there. *@
@@ -183,7 +183,7 @@ else if (_plan is { } plan)
     </TemplateColumn>
 </DeskGrid>
 
-<h3 class="panel-h">Open alerts</h3>
+<PanelHeader>Open alerts</PanelHeader>
 
 <DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
@@ -228,7 +228,7 @@ else if (_plan is { } plan)
     </TemplateColumn>
 </DeskGrid>
 
-<h3 class="panel-h">On-call drill</h3>
+<PanelHeader>On-call drill</PanelHeader>
 <Note Style="margin:12px 0">
     Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
     one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.

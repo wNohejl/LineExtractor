@@ -87,7 +87,7 @@ else
         <Tag Tone="@StatusTone(_selected.Status)">@_selected.Status</Tag>
     </div>
 
-    <h3 class="panel-h">#@_selected.Id — @_selected.Title</h3>
+    <PanelHeader>#@_selected.Id — @_selected.Title</PanelHeader>
 
     @* The procedure before the workspace: an incident is opened to be worked, and the first thing
        the person working it needs is the triage steps for the rule that raised it. *@
@@ -96,7 +96,7 @@ else
         <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
     }
 
-    <h3 class="panel-h">Timeline</h3>
+    <PanelHeader>Timeline</PanelHeader>
     <div class="stack">
         @foreach (var note in _timeline)
         {
@@ -120,7 +120,7 @@ else
         </button>
     </div>
 
-    <h3 class="panel-h" style="margin-top:20px">Root-cause analysis</h3>
+    <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
     <Note Tone="@(_selected.Status == IncidentStatus.Resolved ? DeskTone.Neutral : DeskTone.Caution)"
           Style="margin:12px 0">
         Both fields are required to resolve. An incident without a cause and a fix teaches

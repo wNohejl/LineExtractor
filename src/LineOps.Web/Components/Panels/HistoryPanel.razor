@@ -26,7 +26,7 @@
 
 @if (_eligibility.Count > 0)
 {
-    <h3 class="panel-h">Sources</h3>
+    <PanelHeader>Sources</PanelHeader>
     <div class="stack" style="gap:6px; margin-bottom:4px">
         @foreach (var source in _eligibility)
         {
@@ -50,7 +50,7 @@
     }
 }
 
-<h3 class="panel-h">Coverage</h3>
+<PanelHeader>Coverage</PanelHeader>
 
 @if (_coverage is { } c)
 {
@@ -82,7 +82,7 @@
     </p>
 }
 
-<h3 class="panel-h">Run</h3>
+<PanelHeader>Run</PanelHeader>
 
 <div class="row" style="margin-bottom:8px">
     @if (Coordinator.IsRunning)
@@ -155,7 +155,7 @@
     </Note>
 }
 
-<h3 class="panel-h">Recent days</h3>
+<PanelHeader>Recent days</PanelHeader>
 
 <DeskGrid T="BackfillCheckpoint" Items="_recent"
           EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">

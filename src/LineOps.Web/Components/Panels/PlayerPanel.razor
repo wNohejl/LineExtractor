@@ -27,7 +27,7 @@
 else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
-        <h3 class="panel-h" style="margin:0">@_player.FullName</h3>
+        <PanelHeader Tight>@_player.FullName</PanelHeader>
         @if (_player.Position is { } position)
         {
             <Tag>@position</Tag>
@@ -58,7 +58,7 @@ else
     }
     else
     {
-        <h4 class="panel-h">Averages</h4>
+        <PanelHeader Level="4">Averages</PanelHeader>
 
         @* The aggregate every other view shows, kept here beside the games behind it so the
            two can be read against each other rather than one standing in for the other. *@
@@ -72,7 +72,7 @@ else
             }
         </div>
 
-        <h4 class="panel-h">Game log</h4>
+        <PanelHeader Level="4">Game log</PanelHeader>
 
         <div class="gridwrap"><table class="grid">
             <thead>

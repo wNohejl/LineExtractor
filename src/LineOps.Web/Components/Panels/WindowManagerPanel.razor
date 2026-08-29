@@ -32,7 +32,7 @@
     bar past a neighbour to reorder them, or the divider between two to resize them.
 </Note>
 
-<h3 class="panel-h">Concurrent windows</h3>
+<PanelHeader>Concurrent windows</PanelHeader>
 <div class="row">
     <button class="btn" type="button" @onclick="() => AdjustMax(-1)" disabled="@(S.MaxConcurrentWindows <= 1)">
         <Glyph Icon="@Icons.Material.Filled.Remove" />
@@ -50,7 +50,7 @@
     happens, and in the launcher before it does.
 </p>
 
-<h3 class="panel-h">Primary window</h3>
+<PanelHeader>Primary window</PanelHeader>
 <div class="row">
     <DeskSelect TValue="string" style="min-width:200px"
                 Value="@(S.PrimaryWindowKey ?? "")"
@@ -85,7 +85,7 @@
     </p>
 }
 
-<h3 class="panel-h">Resolution</h3>
+<PanelHeader>Resolution</PanelHeader>
 <div class="row">
     <DeskSwitch Options="_modes" Label="Resolution mode"
                 Value="S.ResolutionMode" ValueChanged="@((ResolutionMode mode) => SetMode(mode))" />

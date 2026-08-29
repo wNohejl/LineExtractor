@@ -19,7 +19,7 @@
     tab through the row to check that the keyboard gets the same signal the pointer does.
 </Note>
 
-<h3 class="panel-h">Keys — tone</h3>
+<PanelHeader>Keys — tone</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     Gloss is the desk's affordance channel: a surface that catches the light can be
     clicked. Tone then states the consequence, using the same dial as everything else.
@@ -39,7 +39,7 @@
     neither is.
 </p>
 
-<h3 class="panel-h">Keys — state</h3>
+<PanelHeader>Keys — state</PanelHeader>
 
 <div class="row" style="margin-bottom:6px">
     <DeskButton Tone="DeskTone.Go" Busy="@_busy" OnClick="RunAsync">
@@ -57,7 +57,7 @@
     so it cannot compete with the key beside it that commits.
 </p>
 
-<h3 class="panel-h">Keys — size</h3>
+<PanelHeader>Keys — size</PanelHeader>
 
 <div class="row">
     <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral">Small</DeskButton>
@@ -65,7 +65,7 @@
     <DeskButton Size="DeskKeySize.Large" Tone="DeskTone.Action">Large</DeskButton>
 </div>
 
-<h3 class="panel-h">Gate switch</h3>
+<PanelHeader>Gate switch</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     One visible choice among a few — a market, a lookback, a mode. The cap is a key
     that never leaves its channel: it slides to the position you press, and arrows
@@ -86,7 +86,7 @@
     reads "14d / 30d / 90d" in every window, not two spellings of the same question.
 </p>
 
-<h3 class="panel-h">Tab bar</h3>
+<PanelHeader>Tab bar</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     The same marble, doing the other job. A gate changes what one reading is made of;
     tabs change which reading you are looking at, so they are flat — nothing here is a
@@ -107,7 +107,7 @@
     </DeskButton>
 </div>
 
-<h3 class="panel-h">Fields</h3>
+<PanelHeader>Fields</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     The key's inverse, cut into the panel instead of standing off it. Same height, so a
     row of mixed controls still lines up.
@@ -153,7 +153,7 @@
                   @bind-Value="_prose" />
 </div>
 
-<h3 class="panel-h">State words</h3>
+<PanelHeader>State words</PanelHeader>
 
 <div class="row">
     <Tag>Neutral</Tag>
@@ -163,7 +163,7 @@
     <Tag Tone="DeskTone.Action">Selected</Tag>
 </div>
 
-<h3 class="panel-h">Metrics</h3>
+<PanelHeader>Metrics</PanelHeader>
 
 <MetricRow>
     <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" Tone="DeskTone.Go" Numeric="true" />
@@ -172,7 +172,7 @@
     <Metric Label="Sources" Value="6" Tone="DeskTone.Action" Numeric="true" />
 </MetricRow>
 
-<h3 class="panel-h">Pulse</h3>
+<PanelHeader>Pulse</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     The desk's other loud element, and the one a key's busy sweep borrows from. Set it
     from a panel with <span class="mono">Report(PulseState.Active)</span>.
@@ -190,7 +190,7 @@
 
 @* ---------------------------------------------------------------- Note ----- *@
 
-<h3 class="panel-h">Notices</h3>
+<PanelHeader>Notices</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     <span class="mono">&lt;Note&gt;</span> is the ambient tier of feedback: it sits beside the
     thing it describes and stays as long as the thing is true. No dismiss control, no timer —
@@ -661,4 +661,38 @@
             <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh">Retry</DeskButton>
         </Action>
     </EmptyState>
+</div>
+
+@* ----------------------------------------------------------- PanelHeader ---- *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Panel headings</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Every rule on this page is a <code>PanelHeader</code>. It owns the spacing, so call
+    sites no longer spell that as an inline margin — the three intentions that had
+    collected six different pixel values between them are <code>Tight</code>,
+    <code>Gap</code> and <code>Muted</code>.
+</p>
+
+<PanelHeader>Default — opens a section</PanelHeader>
+<p class="empty" style="padding:0 0 9px">The stylesheet's own rhythm, nothing added.</p>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Section — after content that has ended</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The same air two stacked headings already give each other.
+</p>
+
+<PanelHeader Level="4" Gap="PanelHeaderGap.Nested">Nested — belongs to the block above</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Rank 4, so the outline stays honest. Every rank looks the same; only a screen reader
+    can tell them apart.
+</p>
+
+<PanelHeader Level="4" Gap="PanelHeaderGap.Nested" Muted>Muted — names a thing, not a section</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Brighter ink, for a heading carrying a team or an opponent rather than a label.
+</p>
+
+<div class="row" style="align-items:baseline; margin-top:10px">
+    <PanelHeader Tight>Tight — the row is already spacing it</PanelHeader>
+    <span class="tag">live</span>
 </div>

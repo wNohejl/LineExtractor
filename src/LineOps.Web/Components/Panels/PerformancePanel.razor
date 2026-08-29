@@ -31,7 +31,7 @@ else
                 Tone="@(_avgClv > 0 ? DeskTone.Go : _avgClv < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
     </MetricRow>
 
-    <h3 class="panel-h">Bankroll</h3>
+    <PanelHeader>Bankroll</PanelHeader>
     @if (_bankroll.Length > 1)
     {
         <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
@@ -45,10 +45,10 @@ else
         <EmptyState Kind="EmptyStateKind.New">Two settled entries are needed to plot a curve.</EmptyState>
     }
 
-    <h3 class="panel-h">By market</h3>
+    <PanelHeader>By market</PanelHeader>
     @Breakdown(_byMarket)
 
-    <h3 class="panel-h">By book</h3>
+    <PanelHeader>By book</PanelHeader>
     @Breakdown(_byBook)
 }
 

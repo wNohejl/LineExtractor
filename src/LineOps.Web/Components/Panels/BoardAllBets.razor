@@ -29,7 +29,7 @@ else
 
 @foreach (var market in Markets())
 {
-    <h3 class="panel-h">@MarketName(market.Market)</h3>
+    <PanelHeader>@MarketName(market.Market)</PanelHeader>
 
     @if (!market.IsPriced)
     {
