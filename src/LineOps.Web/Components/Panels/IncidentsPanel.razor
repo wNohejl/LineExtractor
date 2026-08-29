@@ -32,9 +32,9 @@
 
             <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
                 <CellTemplate>
-                    <span class="tag @(context.Item.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+                    <Tag Tone="@SeverityTone(context.Item.Severity)">
                         @context.Item.Severity
-                    </span>
+                    </Tag>
                 </CellTemplate>
             </PropertyColumn>
 
@@ -49,7 +49,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
-                <CellTemplate><span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span></CellTemplate>
+                <CellTemplate><Tag Tone="@StatusTone(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
@@ -64,11 +64,11 @@
                 <CellTemplate>
                     @if (string.IsNullOrWhiteSpace(context.Item.RootCause))
                     {
-                        <span class="tag tag--warn">Missing</span>
+                        <Tag Tone="DeskTone.Caution">Missing</Tag>
                     }
                     else
                     {
-                        <span class="tag tag--good">Written</span>
+                        <Tag Tone="DeskTone.Go">Written</Tag>
                     }
                 </CellTemplate>
             </PropertyColumn>
@@ -81,10 +81,10 @@ else
         <button class="btn btn--quiet" type="button" @onclick="() => _selected = null">
             <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> All incidents
         </button>
-        <span class="tag @(_selected.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+        <Tag Tone="@SeverityTone(_selected.Severity)">
             @_selected.Severity
-        </span>
-        <span class="tag @StatusTag(_selected.Status)">@_selected.Status</span>
+        </Tag>
+        <Tag Tone="@StatusTone(_selected.Status)">@_selected.Status</Tag>
     </div>
 
     <h3 class="panel-h">#@_selected.Id — @_selected.Title</h3>
@@ -283,12 +283,16 @@ else
         await SelectAsync(_selected.Id);
     }
 
-    private static string StatusTag(IncidentStatus status) => status switch
+    private static DeskTone StatusTone(IncidentStatus status) => status switch
     {
-        IncidentStatus.Open => "tag--bad",
-        IncidentStatus.Mitigated => "tag--warn",
-        _ => "tag--good"
+        IncidentStatus.Open => DeskTone.Stop,
+        IncidentStatus.Mitigated => DeskTone.Caution,
+        _ => DeskTone.Go
     };
+
+    /// <summary>Critical reads as Stop; anything below it is Caution.</summary>
+    private static DeskTone SeverityTone(AlertSeverity severity)
+        => severity == AlertSeverity.Critical ? DeskTone.Stop : DeskTone.Caution;
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch
     {

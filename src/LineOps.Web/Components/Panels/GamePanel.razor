@@ -51,7 +51,7 @@ else
                 <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
             }
         </h3>
-        <span class="tag @StateTag(game.Status)">@StatusLabel(game)</span>
+        <Tag Tone="@StateTone(game.Status)">@StatusLabel(game)</Tag>
     </div>
 
     <div class="row" style="margin-bottom:14px">
@@ -209,11 +209,11 @@ else
         _ => Starts(game.StartsAt)
     };
 
-    private static string StateTag(GameStatus status) => status switch
+    private static DeskTone StateTone(GameStatus status) => status switch
     {
-        GameStatus.Live => "tag--warn",
-        GameStatus.Final => "tag--good",
-        _ => "tag--info"
+        GameStatus.Live => DeskTone.Caution,
+        GameStatus.Final => DeskTone.Go,
+        _ => DeskTone.Action
     };
 
     @* The tab bar names each of these now, so none of them repeats it as a heading. *@
@@ -274,10 +274,10 @@ else
                 <div class="row" style="gap:3px; margin-top:3px">
                     @foreach (var g in form.Recent.Take(5))
                     {
-                        <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")"
-                              title="@(g.Home ? "vs" : "at") @g.Opponent — @Day(g.StartsAt)">
+                        <Tag Tone="@TagTones.Won(g.Won)"
+                             Title="@($"{(g.Home ? "vs" : "at")} {g.Opponent} — {Day(g.StartsAt)}")">
                             @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
-                        </span>
+                        </Tag>
                     }
                 </div>
             }

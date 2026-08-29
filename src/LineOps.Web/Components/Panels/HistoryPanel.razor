@@ -31,9 +31,9 @@
         @foreach (var source in _eligibility)
         {
             <div class="row" style="gap:9px">
-                <span class="tag @(source.Eligible ? "tag--good" : "tag--warn")">
+                <Tag Tone="@(source.Eligible ? DeskTone.Go : DeskTone.Caution)">
                     @(source.Eligible ? "Free" : "Refused")
-                </span>
+                </Tag>
                 <span class="mono" style="font-size:12px">@source.Key</span>
                 <span class="dim" style="font-size:11.5px">@source.Reason</span>
             </div>
@@ -179,11 +179,11 @@
         <CellTemplate>
             @if (context.Item.Error is null)
             {
-                <span class="tag tag--good">Held</span>
+                <Tag Tone="DeskTone.Go">Held</Tag>
             }
             else
             {
-                <span class="tag tag--bad" title="@context.Item.Error">Failed</span>
+                <Tag Tone="DeskTone.Stop" Title="@context.Item.Error">Failed</Tag>
             }
         </CellTemplate>
     </PropertyColumn>

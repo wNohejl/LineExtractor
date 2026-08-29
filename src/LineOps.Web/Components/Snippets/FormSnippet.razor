@@ -113,10 +113,9 @@ else
                 <span class="snippet__formrun">
                     @foreach (var g in log)
                     {
-                        <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")"
-                              title="@Describe(g)">
+                        <Tag Tone="@TagTones.Won(g.Won)" Title="@Describe(g)">
                             @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
-                        </span>
+                        </Tag>
                     }
                 </span>
 

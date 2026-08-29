@@ -49,9 +49,9 @@ else
                     <td class="r">
                         @if (row.Won is { } won)
                         {
-                            <span class="tag @(won ? "tag--good" : "tag--bad")">
+                            <Tag Tone="@TagTones.Won(won)">
                                 @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
-                            </span>
+                            </Tag>
                         }
                         else
                         {

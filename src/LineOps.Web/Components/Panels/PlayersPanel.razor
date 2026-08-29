@@ -54,7 +54,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
-                <CellTemplate><span class="tag">@context.Item.Player.Sport?.Name</span></CellTemplate>
+                <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
@@ -75,10 +75,10 @@ else
         <button class="btn btn--quiet" type="button" @onclick="() => _player = null">
             <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> Players
         </button>
-        <span class="tag">@_player.Sport?.Name</span>
+        <Tag>@_player.Sport?.Name</Tag>
         @if (_player.Position is not null)
         {
-            <span class="tag">@_player.Position</span>
+            <Tag>@_player.Position</Tag>
         }
     </div>
 

@@ -88,15 +88,15 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item is { IsLive: true, IsReal: true })
             {
-                <span class="tag tag--good">Live</span>
+                <Tag Tone="DeskTone.Go">Live</Tag>
             }
             else if (context.Item.IsLive)
             {
-                <span class="tag tag--warn">Demo</span>
+                <Tag Tone="DeskTone.Caution">Demo</Tag>
             }
             else
             {
-                <span class="tag">Off</span>
+                <Tag>Off</Tag>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -165,19 +165,19 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item.NeverRun)
             {
-                <span class="tag">Not run</span>
+                <Tag>Not run</Tag>
             }
             else if (IsStale(context.Item))
             {
-                <span class="tag tag--bad">Stale</span>
+                <Tag Tone="DeskTone.Stop">Stale</Tag>
             }
             else if (IsRateLow(context.Item))
             {
-                <span class="tag tag--warn">Degraded</span>
+                <Tag Tone="DeskTone.Caution">Degraded</Tag>
             }
             else
             {
-                <span class="tag tag--good">Healthy</span>
+                <Tag Tone="DeskTone.Go">Healthy</Tag>
             }
         </CellTemplate>
     </TemplateColumn>
@@ -189,7 +189,7 @@ else if (_plan is { } plan)
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <span class="tag @SeverityTag(context.Item.Severity)">@context.Item.Severity</span>
+            <Tag Tone="@SeverityTone(context.Item.Severity)">@context.Item.Severity</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -249,7 +249,7 @@ else if (_plan is { } plan)
             </select>
             @if (source.FailureMode is not null)
             {
-                <span class="tag tag--bad">Injecting</span>
+                <Tag Tone="DeskTone.Stop">Injecting</Tag>
             }
         </div>
     }
@@ -343,11 +343,11 @@ else if (_plan is { } plan)
 
     private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
 
-    private static string SeverityTag(AlertSeverity severity) => severity switch
+    private static DeskTone SeverityTone(AlertSeverity severity) => severity switch
     {
-        AlertSeverity.Critical => "tag--bad",
-        AlertSeverity.Warn => "tag--warn",
-        _ => "tag--info"
+        AlertSeverity.Critical => DeskTone.Stop,
+        AlertSeverity.Warn => DeskTone.Caution,
+        _ => DeskTone.Action
     };
 
     private async Task EvaluateAsync()

@@ -127,11 +127,11 @@
 <h3 class="panel-h">State words</h3>
 
 <div class="row">
-    <span class="tag">Neutral</span>
-    <span class="tag tag--good">Healthy</span>
-    <span class="tag tag--warn">Degraded</span>
-    <span class="tag tag--bad">Breached</span>
-    <span class="tag tag--info">Selected</span>
+    <Tag>Neutral</Tag>
+    <Tag Tone="DeskTone.Go">Healthy</Tag>
+    <Tag Tone="DeskTone.Caution">Degraded</Tag>
+    <Tag Tone="DeskTone.Stop">Breached</Tag>
+    <Tag Tone="DeskTone.Action">Selected</Tag>
 </div>
 
 <h3 class="panel-h">Metrics</h3>
@@ -532,3 +532,33 @@
         Neutral
     </DeskButton>
 </div>
+@* ===== Desk/Tag demo — appended section, do not interleave ===================== *@
+
+<h3 class="panel-h">Tag</h3>
+
+<p class="dim" style="font-size:12px;max-width:56ch">
+    The state word, as a component. A call site names the consequence and the modifier
+    follows: Go for a healthy outcome, Caution for a cost worth knowing, Stop for a
+    breach, Action for the row you picked, Neutral for a label that carries no state at
+    all. The tag always says its word — hue is the second channel here, never the only one.
+</p>
+
+<div class="row">
+    @foreach (var (tone, word) in TagDemoTones)
+    {
+        <Tag Tone="@tone">@word</Tag>
+    }
+</div>
+
+@code {
+    private static readonly (DeskTone Tone, string Word)[] TagDemoTones =
+    [
+        (DeskTone.Neutral, "Neutral"),
+        (DeskTone.Action, "Action"),
+        (DeskTone.Go, "Go"),
+        (DeskTone.Stop, "Stop"),
+        (DeskTone.Caution, "Caution")
+    ];
+}
+
+@* ===== end Desk/Tag demo ====================================================== *@

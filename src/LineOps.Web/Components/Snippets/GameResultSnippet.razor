@@ -44,9 +44,9 @@
         <div class="fact__value">
             @if (Row.AtsResult is { } ats)
             {
-                <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                <Tag Tone="@TagTones.Result(ats)">
                     @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Did not cover" : "Push")
-                </span>
+                </Tag>
             }
             else
             {
@@ -65,9 +65,9 @@
         <div class="fact__value">
             @if (Row.TotalResult is { } total)
             {
-                <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                <Tag Tone="@TagTones.Result(total)">
                     @(total == EntryResult.Win ? "Over" : total == EntryResult.Loss ? "Under" : "Push")
-                </span>
+                </Tag>
             }
             else
             {

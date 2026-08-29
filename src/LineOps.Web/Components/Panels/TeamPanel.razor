@@ -30,7 +30,7 @@ else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline">
         <h3 class="panel-h" style="margin:0">@_team.Name</h3>
-        <span class="tag">@_team.Sport?.Name</span>
+        <Tag>@_team.Sport?.Name</Tag>
     </div>
 
     <div class="row" style="margin-bottom:12px">
@@ -118,18 +118,18 @@ else
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
 
-                            <span class="tag @(row.Won == true ? "tag--good" : row.Won == false ? "tag--bad" : "tag--info")">
+                            <Tag Tone="@TagTones.Won(row.Won)">
                                 @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
-                            </span>
+                            </Tag>
 
                             @* The ATS tag rides on the closed row: it is the column an operator
                                scans for, and hiding it behind an expand would defeat the log. *@
                             @if (row.AtsResult is { } ats)
                             {
-                                <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
-                                      title="Against a closing spread of @(row.ClosingSpread)">
+                                <Tag Tone="@TagTones.Result(ats)"
+                                     Title="@($"Against a closing spread of {row.ClosingSpread}")">
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
-                                </span>
+                                </Tag>
                             }
 
                             <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
