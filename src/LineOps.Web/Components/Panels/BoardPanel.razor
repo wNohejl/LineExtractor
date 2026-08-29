@@ -18,13 +18,13 @@
 *@
 
 <div class="row" style="margin-bottom:12px">
-    <select class="field" style="max-width:170px" value="@_sport" @onchange="OnSportChanged">
+    <DeskSelect TValue="string" style="max-width:170px" Value="_sport" ValueChanged="OnSportChanged">
         <option value="">All sports</option>
         @foreach (var s in _sports)
         {
             <option value="@s.Key">@s.Name</option>
         }
-    </select>
+    </DeskSelect>
 
     <DeskSwitch Options="_horizons" Label="Slate horizon" Mono="true"
                 Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
@@ -189,9 +189,9 @@ else
         await LoadAsync();
     }
 
-    private async Task OnSportChanged(ChangeEventArgs e)
+    private async Task OnSportChanged(string value)
     {
-        _sport = e.Value?.ToString() ?? string.Empty;
+        _sport = value ?? string.Empty;
         await LoadAsync();
     }
 

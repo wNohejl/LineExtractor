@@ -64,13 +64,14 @@ else
 
             @if (_opponents.Count > 1)
             {
-                <select class="field splits__pick" value="@(_opponent ?? "")" @onchange="OnOpponentChanged">
+                <DeskSelect TValue="string" Class="splits__pick"
+                            Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
                     <option value="">vs anyone</option>
                     @foreach (var name in _opponents)
                     {
                         <option value="@name">vs @name</option>
                     }
-                </select>
+                </DeskSelect>
             }
         </div>
 
@@ -288,9 +289,8 @@ else
         ApplySplit();
     }
 
-    private void OnOpponentChanged(ChangeEventArgs e)
+    private void OnOpponentChanged(string value)
     {
-        var value = e.Value?.ToString();
         _opponent = string.IsNullOrEmpty(value) ? null : value;
 
         // An opponent filter is its own view of the log rather than a refinement of "last 5",

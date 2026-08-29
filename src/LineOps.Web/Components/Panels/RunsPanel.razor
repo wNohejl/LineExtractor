@@ -10,23 +10,23 @@
 </Note>
 
 <div class="row" style="margin-bottom:12px">
-    <select class="field"
-            value="@_sourceFilter" @onchange="OnSourceChanged">
+    <DeskSelect TValue="string"
+                Value="_sourceFilter" ValueChanged="OnSourceChanged">
         <option value="">All sources</option>
         @foreach (var s in _sources)
         {
             <option value="@s.Id">@s.Name</option>
         }
-    </select>
+    </DeskSelect>
 
-    <select class="field"
-            value="@_statusFilter" @onchange="OnStatusChanged">
+    <DeskSelect TValue="string"
+                Value="_statusFilter" ValueChanged="OnStatusChanged">
         <option value="">Any state</option>
         @foreach (var s in Enum.GetValues<RunStatus>())
         {
             <option value="@s">@s</option>
         }
-    </select>
+    </DeskSelect>
 
     <button class="btn btn--quiet" type="button" @onclick="LoadAsync">
         <Glyph Icon="@Icons.Material.Filled.Refresh" /> Refresh
@@ -112,15 +112,15 @@
         await LoadAsync();
     }
 
-    private async Task OnSourceChanged(ChangeEventArgs e)
+    private async Task OnSourceChanged(string value)
     {
-        _sourceFilter = e.Value?.ToString() ?? string.Empty;
+        _sourceFilter = value ?? string.Empty;
         await LoadAsync();
     }
 
-    private async Task OnStatusChanged(ChangeEventArgs e)
+    private async Task OnStatusChanged(string value)
     {
-        _statusFilter = e.Value?.ToString() ?? string.Empty;
+        _statusFilter = value ?? string.Empty;
         await LoadAsync();
     }
 

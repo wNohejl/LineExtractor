@@ -13,17 +13,18 @@
 @if (_player is null)
 {
     <div class="row" style="margin-bottom:12px">
-        <select class="field"
-                value="@_sport" @onchange="OnSportChanged">
+        <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
             <option value="">All sports</option>
             @foreach (var s in _sports)
             {
                 <option value="@s.Id">@s.Name</option>
             }
-        </select>
+        </DeskSelect>
 
-        <input class="field" style="flex:1; min-width:150px"
-               placeholder="Search players" value="@_search" @oninput="OnSearchChanged" />
+        @* Immediate: the list filters as you type, which is the one case where per-keystroke
+           is the point rather than an interruption. *@
+        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
+                   placeholder="Search players" Value="_search" ValueChanged="OnSearchChanged" />
 
         <button class="btn" type="button" @onclick="SyncAsync" disabled="@_busy">
             <Glyph Icon="@Icons.Material.Filled.Sync" /> @(_busy ? "Syncing" : "Sync stats")
@@ -180,15 +181,15 @@ else
             Manager.OpenGame(game);
     }
 
-    private async Task OnSportChanged(ChangeEventArgs e)
+    private async Task OnSportChanged(string value)
     {
-        _sport = e.Value?.ToString() ?? string.Empty;
+        _sport = value ?? string.Empty;
         await LoadAsync();
     }
 
-    private async Task OnSearchChanged(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value ?? string.Empty;
         await LoadAsync();
     }
 

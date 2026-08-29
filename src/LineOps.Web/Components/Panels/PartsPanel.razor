@@ -113,15 +113,44 @@
     row of mixed controls still lines up.
 </p>
 
+@* Bare: no Label and no Error, so each control renders as a plain element with no
+   wrapper and sits straight in the row. This is what all eleven migrated panels look
+   like — the frame below is the addition, not the new baseline. *@
 <div class="row">
-    <input class="field" placeholder="Book" style="max-width:150px" @bind="_text" />
-    <input class="field num" type="number" placeholder="Price" style="max-width:100px" @bind="_number" />
-    <select class="field" @bind="_choice">
+    <DeskField TValue="string" placeholder="Book" style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Price"
+               style="max-width:100px" @bind-Value="_number" />
+    <DeskSelect TValue="string" @bind-Value="_choice">
         <option value="spread">Spread</option>
         <option value="total">Total</option>
         <option value="moneyline">Moneyline</option>
-    </select>
-    <input class="field" placeholder="Disabled" disabled style="max-width:120px" />
+    </DeskSelect>
+    <DeskField TValue="string" placeholder="Disabled" disabled style="max-width:120px" />
+</div>
+
+<p class="empty" style="padding:9px 0">
+    Given a label, the field grows a frame: a real <code>&lt;label for&gt;</code> that stays
+    put once there is text in the box, the required mark, and the error sitting under the
+    control it is about rather than somewhere else on the panel.
+</p>
+
+<div class="row" style="align-items:flex-start">
+    <DeskField TValue="string" Label="Book" Required="true" placeholder="Pinnacle"
+               style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Label="Price" Mono="true" type="number" placeholder="-110"
+               style="max-width:100px" @bind-Value="_number"
+               Error="@(_number is null ? "A price is required to grade this." : null)" />
+    <DeskSelect TValue="string" Label="Market" style="max-width:150px" @bind-Value="_choice">
+        <option value="spread">Spread</option>
+        <option value="total">Total</option>
+        <option value="moneyline">Moneyline</option>
+    </DeskSelect>
+</div>
+
+<div class="stack" style="margin-top:9px">
+    <DeskTextArea Label="Why this entry" rows="3"
+                  placeholder="Prose, so it commits on blur rather than per keystroke."
+                  @bind-Value="_prose" />
 </div>
 
 <h3 class="panel-h">State words</h3>
@@ -440,6 +469,7 @@
     private string? _text;
     private decimal? _number;
     private string _choice = "spread";
+    private string? _prose;
 
     protected override void OnInitialized() => Report(PulseState.Idle, "reference");
 
