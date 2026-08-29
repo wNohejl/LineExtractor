@@ -25,35 +25,29 @@ namespace LineOps.Web.Theming;
 /// </summary>
 public static class DeskTheme
 {
-    // Surface — cool graphite, five steps. Mirrors --ink-900 … --ink-400.
-    public const string Ink900 = "#0E1119"; // desk void
-    public const string Ink800 = "#141926"; // rail
-    public const string Ink700 = "#1B2231"; // window body
-    public const string Ink600 = "#232C3E"; // title bars, raised rows
-    public const string Ink500 = "#2E3950"; // borders, dividers
-    public const string Ink400 = "#3C4A66"; // hover borders
+    // Surfaces — a true-neutral elevation ramp. Mirrors --surface-0 … --surface-3.
+    public const string Surface0 = "#1C1C1E"; // desk void
+    public const string Surface1 = "#232326"; // panel and window body
+    public const string Surface2 = "#2C2C2E"; // title bars, raised rows, resting controls
+    public const string Surface3 = "#38383A"; // hover fills, pressed states
 
-    // Text.
-    public const string Chalk = "#E6EBF4";
-    public const string Haze = "#8695B0";
-    public const string HazeDim = "#5D6B85";
+    // Text. White at opacity tiers, so it keeps its relationship to any material.
+    public const string TextPrimary = "rgba(255,255,255,0.92)";
+    public const string TextSecondary = "rgba(255,255,255,0.55)";
+    public const string TextTertiary = "rgba(255,255,255,0.30)";
 
-    // The dial. Hue = state, always.
-    public const string Steam = "#35E0A1"; // healthy · moved your way · win
-    public const string Drift = "#FF6B81"; // breached · moved against you · loss
-    public const string Flag = "#FFB84D"; // warn · budget pressure · pending
-    public const string Iris = "#7C8CFF"; // interactive · focus · selection
+    // One accent. Interactivity, focus, selection — nothing else.
+    public const string Accent = "#0A84FF";
+    public const string AccentHover = "#3D9BFF";
+    public const string OnAccent = "#FFFFFF";
 
-    /// <summary>
-    /// Ink for text sitting on a saturated key. The dial colours are light enough that
-    /// only a near-black label clears contrast on them, and each is tinted toward its
-    /// own hue so the cap reads as one moulded piece rather than a sticker on a colour.
-    /// Kept in step with the <c>--key-ink</c> values in lineops.css.
-    /// </summary>
-    public const string OnIris = "#0C1020";
-    public const string OnSteam = "#06170F";
-    public const string OnDrift = "#1E070C";
-    public const string OnFlag = "#1C1204";
+    // Semantic state. Apple's dark-mode system colours, applied where a state
+    // genuinely needs a colour rather than as an always-on channel.
+    public const string StatePositive = "#30D158";
+    public const string StateNegative = "#FF453A";
+    public const string StateWarning = "#FF9F0A";
+
+    public const string Separator = "rgba(255,255,255,0.10)";
 
     /// <summary>
     /// The spacing ramp. One 4px scale for the whole desk, mirroring <c>--space-1</c> …
@@ -98,75 +92,78 @@ public static class DeskTheme
     /// <summary>
     /// The single theme instance. Static because it never varies per circuit — the desk
     /// is dark, and a light palette would have to answer what gloss means on paper.
+    ///
+    /// <para>
+    /// Only colour lives here — radii, type, elevation and z-index are remapped in
+    /// wwwroot/css/mud-bridge.css, because CSS can express them and one place beats two.
+    /// </para>
     /// </summary>
     public static readonly MudTheme Instance = new()
     {
         PaletteDark = new PaletteDark
         {
-            Black = Ink900,
-            White = Chalk,
+            Black = Surface0,
+            White = TextPrimary,
 
-            Background = Ink900,
-            BackgroundGray = Ink800,
-            Surface = Ink700,
-            DrawerBackground = Ink800,
-            AppbarBackground = Ink800,
+            Background = Surface0,
+            BackgroundGray = Surface0,
+            Surface = Surface1,
+            DrawerBackground = Surface1,
+            AppbarBackground = Surface2,
 
-            DrawerText = Chalk,
-            DrawerIcon = Haze,
-            AppbarText = Chalk,
+            DrawerText = TextPrimary,
+            DrawerIcon = TextSecondary,
+            AppbarText = TextPrimary,
 
-            TextPrimary = Chalk,
-            TextSecondary = Haze,
-            TextDisabled = HazeDim,
+            TextPrimary = TextPrimary,
+            TextSecondary = TextSecondary,
+            TextDisabled = TextTertiary,
 
-            // MudBlazor forces the disabled colour with !important, which is the one
-            // place its stylesheet cannot be out-specified. Setting it to the desk's dim
-            // text is how a disabled key ends up the right colour instead of Material's.
-            ActionDefault = Haze,
-            ActionDisabled = HazeDim,
-            ActionDisabledBackground = Ink600,
+            // Cannot be out-specified: .mud-button-root:disabled sets colour with
+            // !important. Agreeing with the desk beats fighting the stylesheet.
+            ActionDefault = TextSecondary,
+            ActionDisabled = TextTertiary,
+            ActionDisabledBackground = Surface2,
 
-            LinesDefault = Ink500,
-            LinesInputs = Ink400,
-            Divider = Ink500,
-            DividerLight = Ink600,
-            TableLines = Ink600,
-            TableStriped = Ink600,
-            TableHover = Ink600,
+            LinesDefault = Separator,
+            LinesInputs = Separator,
+            Divider = Separator,
+            DividerLight = Separator,
+            TableLines = Separator,
+            TableStriped = Surface2,
+            TableHover = Surface2,
 
-            OverlayDark = "rgba(8,10,16,0.62)",
+            OverlayDark = "rgba(0,0,0,0.62)",
 
-            GrayDefault = Ink500,
-            GrayLight = Ink400,
-            GrayLighter = Haze,
-            GrayDark = Ink600,
-            GrayDarker = Ink700,
+            GrayDefault = Surface2,
+            GrayLight = Surface3,
+            GrayLighter = TextSecondary,
+            GrayDark = Surface2,
+            GrayDarker = Surface1,
 
-            // The dial. A Mud component that colours itself Success is saying "healthy",
-            // which is the same sentence a green pulse strip makes.
-            Primary = Iris,
-            PrimaryContrastText = OnIris,
-            Info = Iris,
-            InfoContrastText = OnIris,
-            Success = Steam,
-            SuccessContrastText = OnSteam,
-            Error = Drift,
-            ErrorContrastText = OnDrift,
-            Warning = Flag,
-            WarningContrastText = OnFlag,
+            // One accent. Interactivity, focus, selection — nothing else.
+            Primary = Accent,
+            PrimaryContrastText = OnAccent,
+            Info = Accent,
+            InfoContrastText = OnAccent,
+            Success = StatePositive,
+            SuccessContrastText = OnAccent,
+            Error = StateNegative,
+            ErrorContrastText = OnAccent,
+            Warning = StateWarning,
+            WarningContrastText = OnAccent,
 
             // Secondary and Tertiary have no meaning on this desk — there is no second
-            // brand colour, only states. Pointing them at the neutral cap means a
-            // component that reaches for one degrades to graphite rather than importing
-            // Material's pink.
-            Secondary = Ink600,
-            SecondaryContrastText = Chalk,
-            Tertiary = Ink600,
-            TertiaryContrastText = Chalk,
+            // brand colour, only states. Pointing them at the accent means a component
+            // that reaches for one degrades to the desk's one interactive colour rather
+            // than importing Material's pink.
+            Secondary = Accent,
+            SecondaryContrastText = OnAccent,
+            Tertiary = Accent,
+            TertiaryContrastText = OnAccent,
 
-            Dark = Ink600,
-            DarkContrastText = Chalk
+            Dark = Surface2,
+            DarkContrastText = TextPrimary
         },
 
         Typography = new Typography

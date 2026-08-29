@@ -56,20 +56,20 @@ public enum DeskChartFamily
 public static class DeskChartPalette
 {
     /// <summary>Cycled once the named colours run out — the dial is four wide, a game is not.</summary>
-    private const string Haze = DeskTheme.Haze;
-    private const string HazeDim = DeskTheme.HazeDim;
+    private const string TextSecondary = DeskTheme.TextSecondary;
+    private const string TextTertiary = DeskTheme.TextTertiary;
 
     private static readonly string[] Movement =
-        [DeskTheme.Iris, DeskTheme.Steam, DeskTheme.Flag, DeskTheme.Drift, Haze, HazeDim];
+        [DeskTheme.Accent, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, TextSecondary, TextTertiary];
 
     private static readonly string[] Ledger =
-        [DeskTheme.Steam, DeskTheme.Drift, DeskTheme.Iris, DeskTheme.Flag, Haze, HazeDim];
+        [DeskTheme.StatePositive, DeskTheme.StateNegative, DeskTheme.Accent, DeskTheme.StateWarning, TextSecondary, TextTertiary];
 
     private static readonly string[] Health =
-        [DeskTheme.Steam, DeskTheme.Flag, DeskTheme.Drift, DeskTheme.Iris, Haze, HazeDim];
+        [DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, DeskTheme.Accent, TextSecondary, TextTertiary];
 
     private static readonly string[] Volume =
-        [Haze, DeskTheme.Iris, HazeDim, DeskTheme.Steam, DeskTheme.Flag, DeskTheme.Drift];
+        [TextSecondary, DeskTheme.Accent, TextTertiary, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative];
 
     /// <summary>The colour order for a family. The array is shared, so treat it as read-only.</summary>
     public static string[] For(DeskChartFamily family) => family switch
