@@ -153,6 +153,39 @@ else
     private void TogglePlayer(int playerId)
         => _openPlayer = _openPlayer == playerId ? null : playerId;
 
+    /// <summary>
+    /// What an open roster row offers.
+    ///
+    /// <para>
+    /// One action, because there is one question. The averages in the row are what these games
+    /// produced, and the mean hides the shape — four quiet games and one enormous one read the
+    /// same as five steady ones. So the snippet is the games themselves, and the escape is the
+    /// player's own window for anyone who wants more than five.
+    /// </para>
+    /// </summary>
+    private List<RowAction> ActionsFor(PlayerForm player)
+    {
+        var id = player.PlayerId;
+        var name = player.Name;
+
+        return
+        [
+            new RowAction
+            {
+                Key = "recent",
+                Label = "Last 5",
+                Icon = Icons.Material.Filled.Timeline,
+                Snippet = @<PlayerRecentSnippet PlayerId="id" />,
+                OpenLabel = "Player window",
+                OpenWindow = () =>
+                {
+                    Manager.OpenPlayer(id, name);
+                    return Task.CompletedTask;
+                }
+            }
+        ];
+    }
+
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
     private async Task SetWindowAsync(int days)
@@ -314,34 +347,38 @@ else
             var columns = GameBoxScore.ColumnsFor(side);
 
             <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
-            <div class="gridwrap"><table class="grid">
-                <thead>
-                    <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        @foreach (var c in columns)
-                        {
-                            <th class="r">@c</th>
-                        }
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in side)
-                    {
-                        <tr>
-                            <td class="trunc" title="@p.Name">
+            <div class="gridwrap">
+                <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
+                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate>
+                            <span title="@context.Item.Name">
                                 <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
-                            </td>
-                            <td class="dim">@(p.Position ?? "—")</td>
-                            @foreach (var c in columns)
-                            {
-                                <td class="r mono">@(p.Stats.TryGetValue(c, out var v) ? v : "—")</td>
-                            }
-                        </tr>
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                            </span>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    @* Box score values arrive as strings straight off the line, so they sort as
+                       strings — coercing them to numbers here would invent a reading the source
+                       did not give. *@
+                    @foreach (var c in columns)
+                    {
+                        var key = c;
+
+                        <TemplateColumn T="BoxScoreLine" Title="@key" Align="Align.Right"
+                                        SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
+                            <CellTemplate>
+                                <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </tbody>
-            </table></div>
+                </DeskGrid>
+            </div>
         }
     </text>;
 
@@ -363,56 +400,64 @@ else
             var columns = ColumnsFor(side);
 
             <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
-            <div class="gridwrap"><table class="grid">
-                <thead>
-                    <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th class="r">GP</th>
-                        @foreach (var c in columns)
-                        {
-                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
-                        }
-                        <th class="r"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in side)
-                    {
-                        <tr class="@(_openPlayer == p.PlayerId ? "grid__row--open" : "")">
-                            <td class="trunc" title="@p.Name">
-                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
-                            </td>
-                            <td class="dim">@(p.Position ?? "—")</td>
-                            <td class="r">@p.Appearances</td>
-                            @foreach (var c in columns)
-                            {
-                                <td class="r">
-                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
-                                </td>
-                            }
-                            @* The averages above are what these games produced; this opens the
-                               games themselves, because the mean hides the shape. *@
-                            <td class="r">
-                                <button type="button" class="splits__key" title="Recent games"
-                                        @onclick="() => TogglePlayer(p.PlayerId)">
-                                    @(_openPlayer == p.PlayerId ? "Hide" : "Last 5")
-                                </button>
-                            </td>
-                        </tr>
+            @*
+                The row opens the way every other row on the desk opens.
 
-                        @if (_openPlayer == p.PlayerId)
-                        {
-                            <tr>
-                                <td colspan="@(columns.Count + 4)" style="padding:0 10px 10px">
-                                    <PlayerRecentSnippet PlayerId="p.PlayerId" />
-                                </td>
-                            </tr>
-                        }
+                This table had its own disclosure — a bare "Last 5" key in a trailing column and
+                a second <tr> underneath — written before RowActions existed. Converting the
+                table is the moment to stop having two of those: the keys and the snippet now
+                come from the shared strip, in the widest cell, exactly as the Board does it.
+                That is the row-drilldown spec's "one interaction to learn, and it holds all the
+                way down" being cashed in rather than restated.
+            *@
+            <div class="gridwrap">
+                <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
+                          RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
+                          OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"
+                          EmptyText="No appearances on record.">
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate>
+                            <span title="@context.Item.Name">
+                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                            </span>
+
+                            @if (_openPlayer == context.Item.PlayerId)
+                            {
+                                @* Keyed by the player so moving to another row is a fresh strip
+                                   rather than one still showing the previous player's snippet. *@
+                                <RowActions @key="context.Item.PlayerId" Actions="ActionsFor(context.Item)" />
+                            }
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                                    Title="GP" Align="Align.Right" />
+
+                    @* A player with no reading for a key sorts below every real one rather than
+                       beside the zeroes — the same distinction the dash makes in the cell. *@
+                    @foreach (var c in columns)
+                    {
+                        var key = c;
+
+                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                                        Align="Align.Right"
+                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                            <CellTemplate>
+                                @(context.Item.Summary(key) is { } v
+                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </tbody>
-            </table></div>
+                </DeskGrid>
+            </div>
         }
     </text>;
 }

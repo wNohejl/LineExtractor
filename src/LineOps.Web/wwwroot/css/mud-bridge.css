@@ -247,6 +247,21 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* The two cell classes a hand-written .grid carried inside its own cells. Both were written as
+   .grid .dim and .grid .trunc and nowhere else, so a panel lost them at the moment it was
+   converted — a dimmed cell came back full-strength chalk, a truncated one started wrapping.
+   Same declarations, same reasons, restated for the grid that replaced it. */
+.deskgrid .mud-table-body .mud-table-cell .dim { color: var(--haze-dim); }
+
+/* Applied to the cell itself, through a column's CellClass — the same place .grid put it. */
+.deskgrid .mud-table-body .mud-table-cell.trunc {
+    max-width: 1px; /* forces the cell to take its share and no more */
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* MudDataGrid's footer, pager and selection column are all off in DeskGrid; if one is turned
    on later it should still sit on the desk's surface rather than Material's. */
 .deskgrid .mud-table-foot .mud-table-cell { border-top: 1px solid var(--ink-500); color: var(--haze); }
