@@ -2808,6 +2808,102 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
 
+/* -------------------------------------------------------------------- sheet ---
+   A modal sheet. Rises from slightly below and settles — the motion says it came
+   from the task, not from the edge of the screen.
+
+   Every surface rule here is written as .mud-dialog.desk-sheet, two classes, on
+   purpose. MudBlazor's own stylesheet declares .mud-dialog (background, radius,
+   shadow, and a mud-open-dialog-center animation) at one class, and mud-bridge.css
+   re-declares .mud-dialog at one class for ordinary Mud dialogs. mud-bridge.css
+   loads AFTER this file, so a single-class rule here would lose the tie to the
+   bridge on source order and never reach the screen. Two classes settle it on
+   specificity instead, in both directions, and leave the bridge's plain dialog
+   styling intact for the dialogs that are not sheets.
+
+   The scrim is deliberately absent: .mud-overlay-dialog already carries the desk's
+   own scrim in mud-bridge.css, and a second declaration here would both duplicate
+   it and lose to it. */
+
+.mud-dialog.desk-sheet { /* Mud owns the surface; the desk owns how it looks. */
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-sheet);
+    animation: desk-sheet-in var(--dur-base) var(--ease-spring);
+}
+
+@keyframes desk-sheet-in {
+    from { opacity: 0; transform: translateY(12px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Mud pads its own title, content and actions wrappers (16px/24px, at two classes
+   each). The sheet's head, body and foot carry the desk's spacing themselves, so
+   those wrappers are emptied out — three classes, which clears Mud's two — or the
+   padding would be applied twice and the sheet would read as loose. */
+.mud-dialog.desk-sheet .mud-dialog-title,
+.mud-dialog.desk-sheet .mud-dialog-content,
+.mud-dialog.desk-sheet .mud-dialog-actions {
+    padding: 0;
+    letter-spacing: normal;
+}
+
+.desk-sheet__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.desk-sheet__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.desk-sheet__title {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.desk-sheet__sub { font-size: var(--text-subheadline); color: var(--text-secondary); }
+
+.desk-sheet__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.desk-sheet__close:hover { background: var(--state-negative); color: var(--on-accent); }
+.desk-sheet__close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.desk-sheet__close svg { width: 14px; height: 14px; }
+
+.desk-sheet__body { padding: 0 var(--space-4) var(--space-4); }
+
+.desk-sheet__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--separator);
+    width: 100%;
+}
+
+/* The entrance is the only motion the sheet has, so neutralising it is the whole of
+   the reduced-motion story. Two classes again, to match the rule it is undoing. */
+@media (prefers-reduced-motion: reduce) {
+    .mud-dialog.desk-sheet { animation: none; }
+}
+
 /* ---- Material fallbacks -----------------------------------------------------
    Opaque fallbacks for every material surface. This block must stay LAST in the
    file: @supports adds no specificity, so these single-class rules beat their
@@ -2819,9 +2915,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    would just look like a mistake. Chrome falls back to the same opaque tier as
    a title bar; the rail's own popover falls back one tier down, to the tier a
    panel body rests on; the dialog falls back to the same tier as chrome, since
-   it is chrome that happens to float. */
+   it is chrome that happens to float. The modal sheet falls back the same way as
+   the floating dialog — it is the same kind of surface, just one that takes the
+   desk hostage — and it keeps both classes so it still clears the bridge's
+   single-class .mud-dialog, which source order alone would not do. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
     .railmenu__panel { background: var(--surface-1); }
     .deskdialog { background: var(--surface-2); }
+    .mud-dialog.desk-sheet { background: var(--surface-2); }
 }
