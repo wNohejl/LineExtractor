@@ -72,7 +72,7 @@
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
        for things that float — menus, dialogs, sheets, the rail. Flat panel
        bodies stay opaque, because data legibility beats depth.
-       See the @supports rule under the shell for the no-backdrop-filter path. */
+       See the @supports rule at the end of this file for the no-backdrop-filter path. */
     --material-ultrathin: rgba(44, 44, 46, .55);
     --material-thin: rgba(40, 40, 42, .70);
     --material-regular: rgba(36, 36, 38, .82);
@@ -245,16 +245,6 @@ html, body {
     border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: 8000;
-}
-
-/* No blur available means no translucency either — a flat wash over the desk
-   would just look like a mistake. Chrome falls back to the same opaque tier as
-   a title bar; the rail's own popover falls back one tier down, to the tier a
-   panel body rests on. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .hdr, .ftr { background: var(--surface-2); }
-    .railmenu__panel { background: var(--surface-1); }
-    .deskdialog { background: var(--surface-2); }
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
@@ -1637,7 +1627,7 @@ body.dialog-dragging { user-select: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .deskdialog { animation: none; opacity: 1; transform: none; }
+    .deskdialog { animation: none; }
 }
 
 /* A dialog that fills the screen on a phone is just a page, which is the right
@@ -2817,3 +2807,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .deskgrid--board th:nth-child(6) { color: transparent; }
 
 .deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
+
+/* ---- Material fallbacks -----------------------------------------------------
+   Opaque fallbacks for every material surface. This block must stay LAST in the
+   file: @supports adds no specificity, so these single-class rules beat their
+   unconditional counterparts only on source order. A rule added above this line
+   is a rule that works; a material added below it needs its fallback added here
+   and re-tested.
+
+   No blur available means no translucency either — a flat wash over the desk
+   would just look like a mistake. Chrome falls back to the same opaque tier as
+   a title bar; the rail's own popover falls back one tier down, to the tier a
+   panel body rests on; the dialog falls back to the same tier as chrome, since
+   it is chrome that happens to float. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .hdr, .ftr { background: var(--surface-2); }
+    .railmenu__panel { background: var(--surface-1); }
+    .deskdialog { background: var(--surface-2); }
+}
