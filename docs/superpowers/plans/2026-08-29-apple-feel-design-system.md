@@ -1562,8 +1562,38 @@ For each rule: if it references a deleted token (`--ink-*`, `--chalk`, `--haze`,
 | `--ease-glide` | `--ease-standard` |
 | `--dur-marble` | `--dur-base` |
 | `--dur-glide` | `--dur-fast` |
+| `--key-ink` | `--btn-ink` (set by the recipe in `lineops.css`) |
+| `--key-tint` | `--btn-fill` (set by the recipe in `lineops.css`) |
+| `.desk-key` | `.desk-btn` |
 
 Delete outright any rule whose only job was flattening a Material shadow into the old hard, short desk shadow — the new elevation ramp above already produces soft Apple shadows, so those rules now fight the system rather than serve it.
+
+- [ ] **Step 2b: Port the button companion rules to `.desk-btn` — this one is load-bearing**
+
+The file currently carries three rules whose only job is stopping MudBlazor from overriding the desk's own button styling. They still name `.desk-key` and the retired `--key-ink` / `--key-tint`:
+
+```bash
+grep -n "desk-key" src/LineOps.Web/wwwroot/css/mud-bridge.css
+```
+
+**Why these cannot simply be deleted:** MudBlazor renders `Variant.Text` + `Color.Inherit` with `class="mud-button-text mud-button-text-inherit"`, and its stylesheet has `.mud-button-text.mud-button-text-inherit { color: inherit; }` — a compound selector with specificity 0,2,0. The new recipe in `lineops.css` sets `color: var(--btn-ink)` on the bare `.desk-btn, .btn` selector, specificity 0,1,0. **Specificity is compared before source order, so MudBlazor wins and every button loses its ink colour.** This is exactly the problem the `.desk-key` versions of these rules were written to solve; the rename does not make it go away.
+
+Rewrite all three for the new class and custom properties:
+
+```css
+.desk-btn.mud-button-text { color: var(--btn-ink); }
+
+.desk-btn.mud-button:hover,
+.desk-btn.mud-button:focus-visible,
+.desk-btn.mud-button:active { background-color: var(--btn-fill); }
+
+/* Icon-only buttons would otherwise inherit MudBlazor's 64px minimum. */
+.desk-btn.mud-button { min-width: 0; }
+```
+
+Keep the explanatory comment that sits above them — update its class names, but its specificity explanation is still the reason the rules exist and is worth more than the rules themselves.
+
+On the hover rule specifically: the new recipe already changes `--btn-fill` on hover via custom property, so check whether MudBlazor's own hover background still needs suppressing before keeping that rule as-is. If it does not, say so in your report rather than carrying a rule that does nothing.
 
 - [ ] **Step 3: Verify the constraint holds**
 
