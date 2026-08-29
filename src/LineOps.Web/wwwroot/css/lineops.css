@@ -254,6 +254,7 @@ html, body {
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
     .railmenu__panel { background: var(--surface-1); }
+    .deskdialog { background: var(--surface-2); }
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
@@ -1566,16 +1567,20 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     flex-direction: column;
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
-    background: var(--surface-1);
-    border: 1px solid var(--separator-strong);
-    border-radius: var(--radius);
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    /* The one place a hairline is allowed: a floating material surface needs an
+       edge to separate it from whatever it is floating over. */
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sheet);
     box-shadow: var(--shadow-sheet);
     overflow: hidden;
-    animation: dialog-in .12s ease-out;
+    animation: deskdialog-in var(--dur-base) var(--ease-spring);
 }
 
-@keyframes dialog-in {
-    from { opacity: 0; transform: scale(.985); }
+@keyframes deskdialog-in {
+    from { opacity: 0; transform: scale(.96); }
     to { opacity: 1; transform: scale(1); }
 }
 
@@ -1585,7 +1590,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     gap: 8px;
     height: var(--titlebar-h);
     padding: 0 4px 0 10px;
-    background: var(--surface-2);
+    background: transparent;
     border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     cursor: grab;
@@ -1601,8 +1606,8 @@ body.dialog-dragging { user-select: none; }
 .deskdialog__icon svg { width: 15px; height: 15px; }
 
 .deskdialog__title {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
     letter-spacing: .085em;
     text-transform: uppercase;
     white-space: nowrap;
@@ -1632,7 +1637,7 @@ body.dialog-dragging { user-select: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .deskdialog { animation: none; }
+    .deskdialog { animation: none; opacity: 1; transform: none; }
 }
 
 /* A dialog that fills the screen on a phone is just a page, which is the right
