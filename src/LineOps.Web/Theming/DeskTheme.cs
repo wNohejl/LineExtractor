@@ -80,21 +80,12 @@ public static class DeskTheme
         _ => "var(--space-2)"
     };
 
-    // Type styles. Named for the job, never the size. Mirrors --text-* / --leading-*.
-    public const string TextTitle = "10.5px";   // panel headings
-    public const string TextCaption = "11px";   // labels, units, annotation
-    public const string TextBody = "13px";      // the default reading size
-    public const string TextCallout = "14px";   // read this before its neighbours
-
-    public const string LeadingTitle = "1.4";
-    public const string LeadingCaption = "1.45";
-    public const string LeadingBody = "1.5";
-    public const string LeadingCallout = "1.45";
-
-    // Radii. Radius is the desk default and does not move. Mirrors --radius-*.
-    public const string RadiusSm = "4px";
-    public const string Radius = "6px";
-    public const string RadiusLg = "10px";
+    // Type and radii used to be mirrored here as C# constants. They are not any more, and
+    // deliberately so: nothing outside a colour needs to cross into C#, because MudBlazor
+    // derives nothing from a font size or a radius the way it derives -hover and -darken
+    // from a palette colour. Type and radius live once, in lineops.css, and reach Mud
+    // through mud-bridge.css. A second copy here only ever drifts — the copy this comment
+    // replaces had gone stale in nine values and was read by nothing.
 
     /// <summary>
     /// The single theme instance. Static because it never varies per circuit — the desk
@@ -135,7 +126,13 @@ public static class DeskTheme
             TableStriped = Surface2,
             TableHover = Surface2,
 
-            OverlayDark = "rgba(8,10,16,0.62)",
+            // The modal scrim, and the only place it can be set. MudBlazor paints it on
+            // .mud-overlay-scrim.mud-overlay-dark, whose background-color is literally
+            // var(--mud-palette-overlay-dark) — this value. The overlay root carries
+            // .mud-overlay-dialog, but that class only sets z-index and the scrim child
+            // covers it edge to edge, so a bridge rule aimed there paints nothing. The
+            // desk void at 62%, matching Surface0 channel for channel.
+            OverlayDark = "rgba(28, 28, 30, .62)",
 
             GrayDefault = Surface2,
             GrayLight = Surface3,

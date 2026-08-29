@@ -105,7 +105,13 @@ public static class AppleTheme
             TableStriped = Surface2,
             TableHover = Surface2,
 
-            OverlayDark = "rgba(8,10,16,0.62)",
+            // The modal scrim, and the only place it can be set. MudBlazor paints it on
+            // .mud-overlay-scrim.mud-overlay-dark, whose background-color is literally
+            // var(--mud-palette-overlay-dark) — this value. The overlay root carries
+            // .mud-overlay-dialog, but that class only sets z-index and the scrim child
+            // covers it edge to edge, so a bridge rule aimed there paints nothing. The
+            // void at 62%, matching Surface0 channel for channel.
+            OverlayDark = "rgba(28, 28, 30, .62)",
 
             GrayDefault = Surface2,
             GrayLight = Surface3,

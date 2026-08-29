@@ -208,7 +208,9 @@
     letter-spacing: normal;
 }
 
-/* Row height is 28px — --space-1 top and bottom around a 20px line box at --text-body. Density
+/* Row height is 29px — --space-1 top and bottom around a 20px line box at --text-body, plus
+   the hairline below. Measured, not derived: a cell whose content overflows that 20px line box
+   takes the row with it, which is why .tag in lineops.css pins its own line-height. Density
    is the point of this console and survives the restyle intact. Tabular figures are set here
    too, on every cell, not only .mud-align-right/.mud-align-end — see the plain .mud-table-cell
    rule above for why that hook cannot be trusted alone. */
@@ -325,19 +327,36 @@
     box-shadow: var(--shadow-sheet);
 }
 
-.mud-dialog-title { font-size: 13px; font-weight: 600; letter-spacing: .05em; }
+.mud-dialog-title { font-size: var(--text-headline); font-weight: var(--weight-semibold); letter-spacing: .05em; }
 
-/* The scrim is the desk void at partial strength, mixed down to transparent rather
-   than written as a literal translucent colour — see .desk-btn--destructive
-   .desk-btn--tinted:hover in lineops.css for the same color-mix idiom. */
-.mud-overlay-dialog { background-color: color-mix(in oklab, var(--surface-0) 62%, transparent); }
+/* No scrim rule here, on purpose. The scrim is not styleable from this file: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   and that child covers the overlay root edge to edge, so a rule aimed at the root's
+   own .mud-overlay-dialog class (which Mud uses for z-index and nothing else) is
+   painted over before it is seen. The scrim lives in DeskTheme.cs's OverlayDark. */
 
+/* A tooltip floats, and the desk's floating surfaces are materials — but this one is
+   opaque, for two reasons that are specific to a Mud-injected tooltip.
+
+   Mud renders it inside .mud-popover, which fades in with `opacity: 0 -> 1`. An
+   element at opacity < 1 forms a backdrop root, so a backdrop-filter here would have
+   nothing to sample for the whole of every fade and then snap into focus at the end.
+
+   And the opaque fallback could not be registered where the desk's other materials
+   register theirs. lineops.css's terminal @supports block loads BEFORE this file, so a
+   single-class .mud-tooltip fallback there loses to this rule on source order — it
+   would need a specificity hack keyed to Mud's popover DOM to land.
+
+   So: --surface-3, the same tier .tag's neutral capsule rests on. No border — hairlines
+   on this desk separate, they never outline, and a floating chip does not need an edge
+   drawn around its own fill. */
 .mud-tooltip {
-    background-color: var(--surface-2);
-    border: 1px solid var(--surface-3);
+    background-color: var(--surface-3);
+    border: 0;
+    border-radius: var(--radius);
     color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 11.5px;
+    font-size: var(--text-footnote);
     letter-spacing: .02em;
 }
 

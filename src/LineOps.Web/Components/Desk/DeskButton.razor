@@ -2,7 +2,9 @@
 @using LineOps.Web.Components.Windowing
 
 @*
-    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
+    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor. One dependency does not travel:
+    <Glyph> is LineOps-local (it is how the desk draws a bare icon from Mud's set), so the
+    extracted template substitutes <MudIcon> for it. Everything else here is portable.
 
     The desk's button, and the reason it wraps MudBlazor rather than sitting beside it.
     Panels hold a lot of these, and a call site that has to remember Variant, Color,

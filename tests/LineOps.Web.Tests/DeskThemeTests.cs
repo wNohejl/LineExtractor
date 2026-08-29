@@ -87,6 +87,18 @@ public class DeskThemeTests
         Assert.Equal(ColorValue(DeskTheme.StatePositive), dark.Success.Value, ignoreCase: true);
         Assert.Equal(ColorValue(DeskTheme.StateNegative), dark.Error.Value, ignoreCase: true);
         Assert.Equal(ColorValue(DeskTheme.StateWarning), dark.Warning.Value, ignoreCase: true);
+
+        // The modal scrim. There is no bridge rule for it and there cannot usefully be one:
+        // MudBlazor paints .mud-overlay-scrim.mud-overlay-dark straight from
+        // --mud-palette-overlay-dark, so this palette entry IS the scrim every DeskSheet
+        // and DeskAlert opens over. Pinned to the desk void's own channels at 62% — the
+        // pre-migration value was a blue graphite (8,10,16) and differs in all three, so a
+        // regression cannot slip past a semantic MudColor comparison.
+        Assert.Equal(ColorValue("rgba(28, 28, 30, .62)"), ColorValue(dark.OverlayDark), ignoreCase: true);
+
+        var scrim = new MudColor(dark.OverlayDark);
+        var voidTier = new MudColor(DeskTheme.Surface0);
+        Assert.Equal((voidTier.R, voidTier.G, voidTier.B), (scrim.R, scrim.G, scrim.B));
     }
 
     /// <summary>

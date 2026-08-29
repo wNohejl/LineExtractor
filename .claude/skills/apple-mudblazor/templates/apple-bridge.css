@@ -271,16 +271,34 @@
 
 .mud-dialog-title { font-size: var(--text-body); font-weight: var(--weight-semibold); letter-spacing: .05em; }
 
-/* The scrim is the void at partial strength, mixed down to transparent rather
-   than written as a literal translucent colour. */
-.mud-overlay-dialog { background-color: color-mix(in oklab, var(--surface-0) 62%, transparent); }
+/* No scrim rule here, on purpose. The scrim is not styleable from this file: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   and that child covers the overlay root edge to edge, so a rule aimed at the root's
+   own .mud-overlay-dialog class (which Mud uses for z-index and nothing else) is
+   painted over before it is seen. The scrim lives in AppleTheme.cs's OverlayDark. */
 
+/* A tooltip floats, and this system's floating surfaces are materials — but this one is
+   opaque, for two reasons specific to a Mud-injected tooltip.
+
+   Mud renders it inside .mud-popover, which fades in with `opacity: 0 -> 1`. An element
+   at opacity < 1 forms a backdrop root, so a backdrop-filter here would have nothing to
+   sample for the whole of every fade and then snap into focus at the end.
+
+   And the opaque fallback could not be registered where the other materials register
+   theirs. apple-components.css's terminal @supports block loads BEFORE this file, so a
+   single-class .mud-tooltip fallback there loses to this rule on source order — it would
+   need a specificity hack keyed to Mud's popover DOM to land.
+
+   So: --surface-3, the same tier .tag's neutral capsule rests on. No border — hairlines
+   here separate, they never outline, and a floating chip does not need an edge drawn
+   around its own fill. */
 .mud-tooltip {
-    background-color: var(--surface-2);
-    border: 1px solid var(--surface-3);
+    background-color: var(--surface-3);
+    border: 0;
+    border-radius: var(--radius);
     color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: var(--text-subheadline);
+    font-size: var(--text-footnote);
     letter-spacing: .02em;
 }
 

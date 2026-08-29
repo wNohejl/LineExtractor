@@ -1857,13 +1857,29 @@ body.dialog-dragging { user-select: none; }
    table of them settles: the shape says "label", the wash says which state, and the
    ink is that state's own colour so the word and its fill agree.
 
-   Neutral is --surface-3 under --text-secondary: still a capsule, no state claimed. */
+   Neutral is --surface-3 under --text-secondary: still a capsule, no state claimed.
+
+   The line-height is explicit and it is load-bearing. A tag is inline-block, so without
+   one it inherits the line-height of whatever it sits in; in a grid cell that is 20px,
+   which puts the capsule's own box at 24px with its 2px paddings and drags the row's
+   line box up with it. Measured in the History panel's Recent-days grid: a tag-bearing
+   row came out 33px against a plain row's 29px, and ten panels put tags in cells, so
+   density drifted panel to panel with no rule behind it.
+
+   14px puts the capsule at 18px, which is the largest box that still fits inside the
+   cell's 20px line box without pushing it — 20px (line-height 16px) measures 30px,
+   because an inline-block that exactly equals the strut still has to be positioned
+   within it and cannot be. The 1px vertical-align is the rest of the measurement, not
+   a guess: at baseline the capsule sat 6px from the cell's top and 4px from its bottom;
+   lifting it 1px reads 5/5, dead centre, and the row still measures 29px. */
 .tag {
     display: inline-block;
     padding: 2px var(--space-2);
     border: 0;
     border-radius: 999px;
     font-size: var(--text-caption);
+    line-height: 14px;
+    vertical-align: 1px;
     font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
@@ -2869,9 +2885,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    specificity instead, in both directions, and leave the bridge's plain dialog
    styling intact for the dialogs that are not sheets.
 
-   The scrim is deliberately absent: .mud-overlay-dialog already carries the desk's
-   own scrim in mud-bridge.css, and a second declaration here would both duplicate
-   it and lose to it. */
+   The scrim is deliberately absent, and it is not stylable from CSS at all: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   which is DeskTheme.cs's OverlayDark. That is the scrim — the desk void at 62%. */
 
 .mud-dialog.desk-sheet { /* Mud owns the surface; the desk owns how it looks. */
     background: var(--material-thick);

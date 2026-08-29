@@ -410,6 +410,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    Neutral is --surface-3 under --text-secondary: still a capsule, no state
    claimed. The word is always present, so the state survives the colour being
    removed.
+
+   The line-height is explicit and it is load-bearing. A tag is inline-block, so
+   without one it inherits the line-height of whatever it sits in; in a 20px grid
+   cell that puts the capsule's own box at 24px with its 2px paddings and drags the
+   row's line box up with it — measured, a tag-bearing row came out 33px against a
+   plain row's 29px, so density drifted panel to panel with no rule behind it.
+
+   14px puts the capsule at 18px, the largest box that still fits inside a 20px line
+   box without pushing it: a box that exactly equals the strut (line-height 16px)
+   still has to be positioned within it and cannot be, and measures a px taller. The
+   1px vertical-align centres the capsule in the cell — at baseline it sat 6px from
+   the top and 4px from the bottom; lifting 1px reads 5/5. Re-measure both numbers
+   if you change the grid's row padding or its body line-height.
    --------------------------------------------------------------------------- */
 
 .tag {
@@ -418,6 +431,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border: 0;
     border-radius: 999px;
     font-size: var(--text-caption);
+    line-height: 14px;
+    vertical-align: 1px;
     font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
@@ -444,9 +459,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    instead, in both directions, and leave the bridge's plain dialog styling intact
    for the dialogs that are not sheets.
 
-   The scrim is deliberately absent: .mud-overlay-dialog carries it in
-   apple-bridge.css, and a second declaration here would both duplicate it and
-   lose to it.
+   The scrim is deliberately absent, and it is not stylable from CSS at all:
+   MudBlazor paints .mud-overlay-scrim.mud-overlay-dark straight from
+   --mud-palette-overlay-dark, which is AppleTheme.cs's OverlayDark. That is the
+   scrim — the void at 62%.
    --------------------------------------------------------------------------- */
 
 .mud-dialog.app-sheet { /* Mud owns the surface; this owns how it looks. */
