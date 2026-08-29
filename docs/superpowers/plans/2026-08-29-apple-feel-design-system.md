@@ -2078,7 +2078,7 @@ Create `src/LineOps.Web/Components/Desk/DeskSheet.razor`:
     </TitleContent>
 
     <DialogContent>
-        <div class="desk-sheet__body">
+        <div class="desk-sheet desk-sheet__body" style="min-width:@Width">
             @ChildContent
         </div>
     </DialogContent>
@@ -2125,9 +2125,9 @@ Create `src/LineOps.Web/Components/Desk/DeskSheet.razor`:
 }
 ```
 
-Wrap the whole `<MudDialog>` in a `<div class="desk-sheet" style="width:@Width">`? No — MudDialog controls its own outer element. Instead, target it from CSS through the class Mud puts on the dialog surface, and pass `Width` through `DialogOptions` at the call site. Add this note to the component summary so the next reader does not try: the sheet's width is set by the caller's `DialogOptions.MaxWidth`, and `Width` here is advisory for the inner body only.
+**A note on where the width comes from, which will otherwise be re-litigated:** `MudDialog` owns its outer element, so the sheet cannot wrap itself in a sized container. The dialog's actual width is set by the caller through `DialogOptions.MaxWidth`; the `Width` parameter here applies `min-width` to the inner body so a sheet with little content still reads as a sheet rather than a tooltip. Say exactly that in the component's summary comment so the next reader does not try to hoist it.
 
-Apply `Width` to the body div: `<div class="desk-sheet__body" style="min-width:@Width">`.
+The surface itself — material, radius, shadow, entrance — is styled in Step 4 by targeting `.mud-dialog`, the class MudBlazor puts on that outer element.
 
 - [ ] **Step 4: Add the CSS**
 
