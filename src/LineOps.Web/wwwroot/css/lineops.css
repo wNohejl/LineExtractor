@@ -2721,7 +2721,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .deskgrid--board td:nth-child(5),
 .deskgrid--board th:nth-child(7),
 .deskgrid--board td:nth-child(7) {
-    border-left: 1px solid var(--ink-600);
+    border-left: 1px solid var(--separator);
 }
 
 /* A market's second column repeats its name in the header. Dim the repeat so the
