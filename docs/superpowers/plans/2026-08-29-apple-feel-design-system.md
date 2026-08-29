@@ -496,13 +496,13 @@ Replace the colour constants (the `Ink900`…`OnFlag` block, roughly lines 26–
     public const string StateNegative = "#FF453A";
     public const string StateWarning = "#FF9F0A";
 
+    public const string Separator = "rgba(255, 255, 255, .10)";
+
     // Chart ink. Opaque on purpose — a translucent series colour composites against
     // whatever is drawn beneath it and stops being one colour. Apple's systemGray and
     // systemGray2, from the same ramp the surfaces come from.
     public const string ChartNeutral = "#8E8E93";
     public const string ChartNeutralDim = "#636366";
-
-    public const string Separator = "rgba(255, 255, 255, .10)";
 ```
 
 Then build the theme:
