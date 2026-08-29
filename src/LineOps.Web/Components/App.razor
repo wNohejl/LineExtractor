@@ -9,16 +9,6 @@
     <ResourcePreloader />
 
     @*
-        Archivo for chrome — industrial signage letterforms, and a width axis the title bars
-        use. JetBrains Mono for every number, because odds are read in columns and need
-        tabular figures.
-    *@
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
-
-    @*
         Order is load-bearing. MudBlazor first, so it can be overridden; lineops.css next,
         because it defines the tokens; mud-bridge.css last, because it spends them on
         MudBlazor's variables and out-specifies what MudBlazor hard-codes.

@@ -2,56 +2,103 @@
    LineOps — "The Desk"
    A single-operator sports-data operations console.
 
-   Colour is a semantic dial, never decoration: every hue below means a state.
-   The base is graphite with a blue undertone rather than near-black, so the
-   surface reads as an instrument panel instead of a terminal.
+   The visual language follows Apple's Human Interface Guidelines: true-neutral
+   dark surfaces, one accent, translucent materials on anything that floats,
+   an SF-derived type ramp, and motion that says where a thing came from.
+
+   Every token below is semantic — it names a role, never a colour. That is what
+   lets a second theme be a second token block rather than a component rewrite.
+   The C# mirror of the colour tokens lives in Theming/DeskTheme.cs and must
+   agree with this block exactly; see ADR 0016.
    ============================================================================ */
 
-:root {
-    /* Surface — cool graphite, five steps */
-    --ink-900: #0E1119; /* desk void */
-    --ink-800: #141926; /* rail */
-    --ink-700: #1B2231; /* window body */
-    --ink-600: #232C3E; /* title bars, raised rows */
-    --ink-500: #2E3950; /* borders, dividers */
-    --ink-400: #3C4A66; /* hover borders */
+/* The default theme is apple-dark. A future theme adds a second block keyed on
+   its own [data-theme] value and changes nothing else in this file. */
+:root,
+[data-theme="apple-dark"] {
+    /* --- Surfaces -----------------------------------------------------------
+       A true-neutral elevation ramp. Warmth or a blue undertone would fight the
+       accent; macOS keeps its chrome neutral for exactly that reason. */
+    --surface-0: #1C1C1E; /* desk void — the ground everything sits on */
+    --surface-1: #232326; /* panel and window body */
+    --surface-2: #2C2C2E; /* title bars, raised rows, resting controls */
+    --surface-3: #38383A; /* hover fills, pressed states */
 
-    /* Text */
-    --chalk: #E6EBF4;
-    --haze: #8695B0;
-    --haze-dim: #5D6B85;
+    /* Hairlines separate; they never outline. A border around a panel is the
+       Material habit this system is replacing. */
+    --separator: rgba(255, 255, 255, .10);
+    --separator-strong: rgba(255, 255, 255, .16);
 
-    /* The dial. Hue = state, always. */
-    --steam: #35E0A1; /* healthy · moved your way · win */
-    --drift: #FF6B81; /* breached · moved against you · loss */
-    --flag: #FFB84D; /* warn · budget pressure · pending */
-    --iris: #7C8CFF; /* interactive · focus · selection */
+    /* --- Text ---------------------------------------------------------------
+       White at opacity tiers rather than three fixed greys, so text keeps its
+       relationship to whatever surface or material is underneath it. */
+    --text-primary: rgba(255, 255, 255, .92);
+    --text-secondary: rgba(255, 255, 255, .55);
+    --text-tertiary: rgba(255, 255, 255, .30);
 
-    --steam-dim: rgba(53, 224, 161, .14);
-    --drift-dim: rgba(255, 107, 129, .14);
-    --flag-dim: rgba(255, 184, 77, .14);
-    --iris-dim: rgba(124, 140, 255, .16);
+    /* --- Accent -------------------------------------------------------------
+       One accent, systemBlue. Interactivity, focus, and selection — nothing
+       else. A second accent is how an interface stops meaning anything. */
+    --accent: #0A84FF;
+    --accent-hover: #3D9BFF;
+    --accent-press: #0871DB;
+    --accent-wash: rgba(10, 132, 255, .15);
+    --accent-wash-strong: rgba(10, 132, 255, .24);
+    --on-accent: #FFFFFF;
 
-    /* Type: one variable family for chrome, one mono for every number. */
-    --face-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
-    --face-data: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+    /* --- Semantic state -----------------------------------------------------
+       Apple's dark-mode system colours. Unlike the old dial these are applied by
+       judgment where a state genuinely needs a colour — not as an always-on
+       channel that tinted every control on the desk. */
+    --green: #30D158;
+    --red: #FF453A;
+    --orange: #FF9F0A;
+    --green-wash: rgba(48, 209, 88, .15);
+    --red-wash: rgba(255, 69, 58, .15);
+    --orange-wash: rgba(255, 159, 10, .15);
 
-    /* Type styles. Named for the job, not the size — a call site that says
-       --text-caption keeps meaning the right thing when 11px stops being 11px.
-       These are the four sizes the desk actually uses today; adding a fifth
-       should need an argument, not a preference. */
-    --text-title: 10.5px; /* panel headings — uppercase, tracked, quiet */
-    --text-caption: 11px; /* labels, units, secondary annotation */
-    --text-body: 13px; /* the default reading size for chrome */
-    --text-callout: 14px; /* a line that must be read before the ones near it */
+    /* --- Materials ----------------------------------------------------------
+       Four tiers, thinnest to thickest, mirroring HIG materials. A material is
+       for things that float — menus, dialogs, sheets, the rail. Flat panel
+       bodies stay opaque, because data legibility beats depth.
+       See the @supports rule under the shell for the no-backdrop-filter path. */
+    --material-ultrathin: rgba(44, 44, 46, .55);
+    --material-thin: rgba(40, 40, 42, .70);
+    --material-regular: rgba(36, 36, 38, .82);
+    --material-thick: rgba(30, 30, 32, .92);
+    --material-blur: saturate(180%) blur(30px);
 
-    --leading-title: 1.4;
-    --leading-caption: 1.45;
-    --leading-body: 1.5;
-    --leading-callout: 1.45;
+    /* --- Type ---------------------------------------------------------------
+       SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
+       on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
+       metrics, and shipping it locally stops Windows falling through to Segoe.
+       One family for everything — Apple sets numbers in SF too. */
+    --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --face-data: var(--face-ui);
 
-    /* Spacing. One 4px ramp, not a per-component habit. Steps skip where the eye
-       cannot tell the difference, so every gap on the desk is a named rung. */
+    /* The HIG text-style ramp. A call site names the style, never the pixels. */
+    --text-largetitle: 26px;
+    --text-title1: 22px;
+    --text-title2: 17px;
+    --text-title3: 15px;
+    --text-headline: 13px; /* same size as body, distinguished by weight */
+    --text-body: 13px;
+    --text-subheadline: 12px;
+    --text-footnote: 11px;
+    --text-caption: 10px;
+
+    --leading-title: 1.25;
+    --leading-body: 1.45;
+    --leading-tight: 1.2;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+
+    /* --- Spacing ------------------------------------------------------------
+       One 4px ramp for the whole desk. Steps skip where the eye cannot tell the
+       difference, so every gap is a named rung. Unchanged from the old system —
+       it was already right, and DeskSpace in C# maps onto it. */
     --space-1: 4px;
     --space-2: 8px;
     --space-3: 12px;
@@ -64,47 +111,65 @@
     --rail-size: 46px;
     --titlebar-h: 34px;
 
-    /* Radius. --radius is the desk's default and does not move; the other two are
-       for things smaller or larger than a window's chrome. */
-    --radius-sm: 4px; /* inset chips, metrics, notes */
-    --radius: 6px;
-    --radius-lg: 10px; /* floating surfaces — dialogs, popovers */
+    /* --- Shape --------------------------------------------------------------
+       Apple's radii are larger than Material's and grow with the surface. */
+    --radius-sm: 5px; /* chips, tags, inline marks */
+    --radius: 7px; /* controls — buttons, fields, selects */
+    --radius-panel: 12px; /* windows, panels, popovers */
+    --radius-sheet: 14px; /* sheets and alerts */
 
-    /* Motion. One vocabulary of travel, so the marble, the glide plate and a
-       window all move like parts of the same machine rather than three
-       animations that happen to share a screen.
+    /* --- Motion -------------------------------------------------------------
+       Motion says where a thing came from. A sheet rises, a popover scales out
+       of its anchor, a control settles. Nothing moves for decoration.
+       --ease-spring overshoots a hair and settles, approximating the platform
+       spring; --ease-exit does not overshoot, because things leaving should not
+       draw a second look. */
+    --dur-fast: .15s;
+    --dur-base: .25s;
+    --dur-slow: .35s;
+    --ease-standard: cubic-bezier(.25, .1, .25, 1);
+    --ease-spring: cubic-bezier(.32, 1.28, .42, 1);
+    --ease-exit: cubic-bezier(.4, 0, 1, 1);
 
-       The marble overshoots a hair and settles, the way a real slide switch
-       does. The glide tracks a pointer, which never overshoots, so it does
-       not either. */
-    --ease-marble: cubic-bezier(.32, 1.32, .36, 1);
-    --ease-glide: cubic-bezier(.3, .9, .3, 1);
-    --dur-marble: .26s;
-    --dur-glide: .16s;
+    /* --- Depth --------------------------------------------------------------
+       Soft, layered, and wide. Depth comes from shadow and material, not border. */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .30);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .30);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .75), 0 8px 24px rgba(0, 0, 0, .45);
 
-    /* Materials. Chrome is a pane held above the desk rather than a band
-       painted onto it: it takes its colour from whatever passes underneath and
-       blurs it, so a window running under the header reads as depth instead of
-       as a seam. Anything floating — menus, dialogs — is the raised grade.
+    /* Focus. One ring, everywhere, accent-coloured — Apple's own convention.
+       ADR 0008 used a chalk ring because an iris ring on an iris key vanished;
+       that problem is gone now that filled buttons are the only accent surface
+       and the ring sits outside them on an offset. */
+    --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
 
-       Both fall back to solid ink where the browser has no backdrop-filter;
-       see the @supports rule under the shell. */
-    --material-chrome: rgba(20, 25, 38, .74);
-    --material-raised: rgba(27, 34, 49, .84);
-    --material-blur: saturate(180%) blur(20px);
-
-    --shadow-win: 0 12px 28px -12px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .35);
-    --shadow-float: 0 24px 60px -18px rgba(0, 0, 0, .85), 0 3px 10px rgba(0, 0, 0, .45);
-
-    /* Layer scale. The desk is deliberately low so that anything floating above it —
-       modals, popovers, toasts, drag ghosts — has room to sit without competing with a
-       window's z-index. Use these rather than inventing numbers. */
+    /* --- Layers -------------------------------------------------------------
+       Deliberately low at the desk level so anything floating has room. */
     --z-window: 10;
     --z-divider: 40;
     --z-chrome: 8000; /* header, footer, side rail */
     --z-popover: 9000; /* menus anchored to chrome */
-    --z-modal: 9500; /* modal scrim and dialog */
+    --z-modal: 9500; /* scrim, sheets, alerts */
     --z-toast: 9800; /* transient notices, always on top */
+}
+
+/* Inter, self-hosted. The variable file covers every weight the ramp asks for,
+   so there is one request rather than four. */
+@font-face {
+    font-family: 'Inter var';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter var';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable-Italic.woff2') format('woff2');
 }
 
 html, body {
@@ -112,18 +177,32 @@ html, body {
     padding: 0;
     height: 100%;
     overflow: hidden; /* the desk manages its own scrolling, per window */
-    background: var(--ink-900);
-    color: var(--chalk);
+    background: var(--surface-0);
+    color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 14px;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Numbers are read in columns, so they get tabular figures everywhere. */
+/* Numbers are read in columns, so they get tabular figures everywhere. There is
+   no separate mono family any more — SF and Inter both carry proper tabular
+   figures, and one family across the desk is the HIG reading. */
 .num, .mono {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1;
+    font-feature-settings: 'tnum' 1, 'cv05' 1;
+    letter-spacing: 0;
+}
+
+/* Motion is a signal, not a flourish, so it goes away entirely when asked. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* --------------------------------------------------------------- shell ---- */
