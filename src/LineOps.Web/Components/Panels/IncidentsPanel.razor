@@ -6,20 +6,13 @@
 
 @if (_selected is null)
 {
-    <div class="metrics" style="margin-bottom:16px">
-        <div class="metric @(_open > 0 ? "metric--bad" : "metric--good")">
-            <div class="metric__value">@_open</div>
-            <div class="metric__label">Open</div>
-        </div>
-        <div class="metric metric--good">
-            <div class="metric__value">@_resolved</div>
-            <div class="metric__label">Resolved</div>
-        </div>
-        <div class="metric">
-            <div class="metric__value">@_mttr</div>
-            <div class="metric__label">Median resolve</div>
-        </div>
-    </div>
+    <MetricRow Style="margin-bottom:16px">
+        <Metric Label="Open"
+                Value="@_open.ToString()"
+                Tone="@(_open > 0 ? DeskTone.Stop : DeskTone.Go)" />
+        <Metric Label="Resolved" Value="@_resolved.ToString()" Tone="DeskTone.Go" />
+        <Metric Label="Median resolve" Value="@_mttr" />
+    </MetricRow>
 
     @if (_incidents.Count == 0)
     {

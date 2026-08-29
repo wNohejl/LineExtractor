@@ -54,25 +54,19 @@
 
 @if (_coverage is { } c)
 {
-    <div class="metrics">
-        <div class="metric @(c.Completed > 0 ? "metric--good" : "")">
-            <div class="metric__value num">@c.Completed</div>
-            <div class="metric__label">Days held</div>
-            <div class="metric__note">of @c.TargetDayFetches wanted</div>
-        </div>
-        <div class="metric metric--info">
-            <div class="metric__value num">@c.GamesFound</div>
-            <div class="metric__label">Games</div>
-        </div>
-        <div class="metric metric--info">
-            <div class="metric__value num">@c.RowsIngested</div>
-            <div class="metric__label">Rows</div>
-        </div>
-        <div class="metric @(c.Failed > 0 ? "metric--warn" : "")">
-            <div class="metric__value num">@c.Failed</div>
-            <div class="metric__label">Days failed</div>
-        </div>
-    </div>
+    <MetricRow>
+        <Metric Label="Days held"
+                Value="@c.Completed.ToString()"
+                Note='@($"of {c.TargetDayFetches} wanted")'
+                Tone="@(c.Completed > 0 ? DeskTone.Go : DeskTone.Neutral)"
+                Numeric="true" />
+        <Metric Label="Games" Value="@c.GamesFound.ToString()" Tone="DeskTone.Action" Numeric="true" />
+        <Metric Label="Rows" Value="@c.RowsIngested.ToString()" Tone="DeskTone.Action" Numeric="true" />
+        <Metric Label="Days failed"
+                Value="@c.Failed.ToString()"
+                Tone="@(c.Failed > 0 ? DeskTone.Caution : DeskTone.Neutral)"
+                Numeric="true" />
+    </MetricRow>
 
     <p class="empty" style="padding:9px 0 0">
         @if (c.EarliestCovered is { } earliest && c.LatestCovered is { } latest)

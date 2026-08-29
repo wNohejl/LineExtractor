@@ -33,22 +33,19 @@
 
     @if (_chosen is { } chosen)
     {
-        <div class="metrics">
-            <div class="metric metric--info">
-                <div class="metric__value num">@Price(chosen.Offer.PriceAmerican)</div>
-                <div class="metric__label">Price</div>
-                <div class="metric__note">best of @chosen.Offer.Rungs.Count</div>
-            </div>
-            <div class="metric">
-                <div class="metric__value num">@chosen.Offer.Book</div>
-                <div class="metric__label">Book</div>
-            </div>
-            <div class="metric @(_stake > 0 ? "metric--good" : null)">
-                <div class="metric__value num">@Payout.ToString("C0")</div>
-                <div class="metric__label">Returns</div>
-                <div class="metric__note">stake plus profit</div>
-            </div>
-        </div>
+        <MetricRow>
+            <Metric Label="Price"
+                    Value="@Price(chosen.Offer.PriceAmerican)"
+                    Note='@($"best of {chosen.Offer.Rungs.Count}")'
+                    Tone="DeskTone.Action"
+                    Numeric="true" />
+            <Metric Label="Book" Value="@chosen.Offer.Book" Numeric="true" />
+            <Metric Label="Returns"
+                    Value='@Payout.ToString("C0")'
+                    Note="stake plus profit"
+                    Tone="@(_stake > 0 ? DeskTone.Go : DeskTone.Neutral)"
+                    Numeric="true" />
+        </MetricRow>
 
         <div class="row">
             <input class="field num" type="number" step="5" min="0" style="max-width:130px"

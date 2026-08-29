@@ -1,0 +1,86 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    One number on the desk.
+
+    The number leads and the label explains it, because an operator scanning a row of these
+    is looking for the figure, not for the word. The note underneath is the qualifier that
+    stops the figure being read wrong — "of 14 wanted", "none critical".
+
+    Tone names the consequence, not the colour: a caller writes DeskTone.Stop and the left
+    edge picks up --drift. Hue alone never carries the meaning here — the label and the note
+    say it in words too — so the tile still reads when the colour does not land.
+*@
+
+<div class="@Classes" style="@Styles" @attributes="Extra">
+    <div class="@ValueClasses">@ValueContent</div>
+    <div class="metric__label">@Label</div>
+    @if (Note is { Length: > 0 })
+    {
+        <div class="metric__note">@Note</div>
+    }
+</div>
+
+@code {
+    /// <summary>What the figure is, in the operator's words. Sits under the number.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The figure itself, already formatted.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    /// <summary>
+    /// The figure when it needs markup rather than a single string — two counts either side
+    /// of a slash, say. Takes precedence over <see cref="Value"/>.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The qualifier that keeps the figure from being read wrong. Hidden when empty.</summary>
+    [Parameter] public string? Note { get; set; }
+
+    /// <summary>What the figure means for the operator. See <see cref="DeskTone"/>.</summary>
+    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+
+    /// <summary>Sets the figure in the tabular data face, for counts and prices that must line up.</summary>
+    [Parameter] public bool Numeric { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Inline style, for the spacing a single panel needs and no other.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Anything else the call site passes through. A splatted <c>class</c> is dropped and a
+    /// splatted <c>style</c> is appended rather than substituted, because Blazor applies the
+    /// splat last and either one would otherwise erase the tone modifier this tile computed.
+    /// Reach those through <see cref="Class"/> and <see cref="Style"/> instead.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Attributes { get; set; }
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    private string ValueClasses => Numeric ? "metric__value num" : "metric__value";
+
+    private RenderFragment ValueContent => ChildContent ?? (builder => builder.AddContent(0, Value));
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "metric";
+
+        yield return Tone switch
+        {
+            DeskTone.Go => "metric--good",
+            DeskTone.Stop => "metric--bad",
+            DeskTone.Caution => "metric--warn",
+            DeskTone.Action => "metric--info",
+            _ => null
+        };
+
+        yield return Class;
+    }
+
+    private string? Styles => DeskAttributes.MergeStyle(Style, Attributes);
+
+    private IReadOnlyDictionary<string, object>? Extra => DeskAttributes.WithoutClassOrStyle(Attributes);
+}
