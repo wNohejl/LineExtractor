@@ -288,6 +288,116 @@
         ("--text-body", "13px", "--leading-body", "default reading size"),
         ("--text-callout", "14px", "--leading-callout", "read this first")
     ];
+@* ==== BEGIN: Loading vocabulary ============================================
+   Skeletons and the progress bar. Appended as its own section; nothing above
+   this marker belongs to it.
+   ========================================================================= *@
+
+<h3 class="panel-h">Skeletons</h3>
+<p class="empty" style="padding:0 0 9px">
+    A placeholder holds the shape the real content will take, so the layout does not jump
+    when it lands. Match the final shape — lines for prose, a block for a chart or a tile —
+    and give it the width the real thing has. Matte, never glossy: there is nothing here to
+    press. Reduced motion keeps the block and drops the shimmer.
+</p>
+
+<div class="stack" style="gap:12px; margin-bottom:6px">
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">One line, 40% wide</div>
+        <DeskSkeleton Width="40%" />
+    </div>
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">Three lines — the last runs short, the way prose does</div>
+        <DeskSkeleton Lines="3" />
+    </div>
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">A block, standing in for a chart</div>
+        <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
+    </div>
+</div>
+
+<h3 class="panel-h">Skeletons — grid rows</h3>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskGrid</span> takes <span class="mono">Loading</span>: with no rows
+    yet it stands aside and placeholder rows hold its rhythm. A grid that already has rows
+    keeps them and reports the refresh through the pulse strip instead — replacing read
+    numbers with grey bars loses information the operator was using.
+</p>
+
+<div class="row" style="margin-bottom:8px">
+    <DeskButton Size="DeskKeySize.Small" OnClick="@(() => _gridLoading = !_gridLoading)">
+        @(_gridLoading ? "Show rows" : "Show placeholders")
+    </DeskButton>
+</div>
+
+<DeskGrid T="PartRow" Items="@(_gridLoading ? Array.Empty<PartRow>() : _rows)" Loading="@_gridLoading"
+          LoadingLabel="Fetching book prices" SkeletonRows="4" Sortable="false">
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Book" Title="Book" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Market" Title="Market" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Price" Title="Price" />
+</DeskGrid>
+
+<h3 class="panel-h">Progress</h3>
+<p class="empty" style="padding:0 0 9px">
+    Prefer determinate whenever the denominator is knowable — if you are walking six books,
+    you know it. The label must name the action, never the wait: "Loading…" describes the
+    operator's experience, which they already have, rather than the system's work, which
+    they do not. Mode is a parameter, so it is chosen once and held; a bar that changes
+    style mid-flight reads as a restart.
+</p>
+
+<div class="stack" style="gap:14px">
+    <DeskProgress Label="Fetching odds from 6 books" Value="@_progress" Max="100" />
+    <DeskProgress Indeterminate="true" Label="Reconciling open wagers" />
+    <DeskProgress Indeterminate="true" />
+</div>
+
+<div class="row" style="margin-top:10px">
+    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Go" Busy="@_stepping" OnClick="StepAsync">
+        Advance the bar
+    </DeskButton>
+</div>
+
+@* ==== END: Loading vocabulary ============================================ *@
+
+@code {
+    private sealed record PartRow(string Book, string Market, string Price);
+
+    private static readonly PartRow[] _rows =
+    [
+        new("Pinnacle", "Spread", "-110"),
+        new("Circa", "Total", "-105"),
+        new("DraftKings", "Moneyline", "+134"),
+        new("FanDuel", "Spread", "-112")
+    ];
+
+    private bool _gridLoading = true;
+    private double _progress = 34;
+    private bool _stepping;
+
+    // Deliberately fake, for the same reason the busy key above is: a determinate bar is
+    // only legible while it is moving.
+    private async Task StepAsync()
+    {
+        _stepping = true;
+
+        try
+        {
+            for (var i = 0; i < 6; i++)
+            {
+                await Task.Delay(220);
+                _progress = _progress >= 100 ? 0 : Math.Min(100, _progress + 11);
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            // Without the finally the key would stay lit for good on a throw, which is the
+            // one thing a busy key must never do.
+            _stepping = false;
+            StateHasChanged();
+        }
+    }
 
     private static readonly (string Class, string Label)[] _pulses =
     [
