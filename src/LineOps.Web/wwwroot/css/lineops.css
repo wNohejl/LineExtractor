@@ -238,19 +238,21 @@ html, body {
     gap: 8px;
     height: 44px;
     padding: 0 10px;
-    background: var(--material-chrome);
+    background: var(--material-thin);
     backdrop-filter: var(--material-blur);
     -webkit-backdrop-filter: var(--material-blur);
-    border-bottom: 1px solid var(--ink-500);
+    border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: 8000;
 }
 
-/* No blur available means no translucency either — a flat 74% wash over the
-   desk would just look like a mistake. */
+/* No blur available means no translucency either — a flat wash over the desk
+   would just look like a mistake. Chrome falls back to the same opaque tier as
+   a title bar; the rail's own popover falls back one tier down, to the tier a
+   panel body rests on. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .hdr, .ftr { background: var(--ink-800); }
-    .railmenu__panel { background: var(--ink-700); }
+    .hdr, .ftr { background: var(--surface-2); }
+    .railmenu__panel { background: var(--surface-1); }
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
@@ -271,11 +273,11 @@ html, body {
     white-space: nowrap;
 }
 
-.hdr__brand em { font-style: normal; color: var(--iris); }
+.hdr__brand em { font-style: normal; color: var(--accent); }
 
 .hdr__sub {
     font-size: 11px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -283,7 +285,7 @@ html, body {
 
 @media (max-width: 900px) { .hdr__sub { display: none; } }
 
-.hdr__divider { width: 1px; height: 22px; background: var(--ink-500); flex: 0 0 auto; }
+.hdr__divider { width: 1px; height: 22px; background: var(--separator); flex: 0 0 auto; }
 .hdr__spacer { flex: 1 1 auto; }
 
 /* ---- Window tabs ----------------------------------------------------------
@@ -456,12 +458,12 @@ html, body {
 
 .hdr__count {
     font-size: 12px;
-    color: var(--haze);
+    color: var(--text-secondary);
     padding: 0 4px;
     white-space: nowrap;
 }
 
-.hdr__count--full { color: var(--flag); }
+.hdr__count--full { color: var(--state-warning); }
 
 /* ---- The marble -----------------------------------------------------------
    The travel shared by every control that holds one choice among a few: the
@@ -684,7 +686,14 @@ html, body {
    sliding in from the container's corner would draw a line nobody made. */
 .glide-plate--still { transition: opacity .1s ease; }
 
-.glide-plate[data-tone="stop"] { background: var(--drift); }
+/* Narrowly repointed here (outside this task's own blocks) because this rule, not
+   .win__ctl--close:hover, is what actually paints the close control's hover fill: the
+   glide plate sits behind the button and the button's own background stands down while
+   the plate is live (see the comment above). Left pointing at a deleted token, Close's
+   "fills --state-negative on its own hover" requirement would be true in the stylesheet
+   and false on screen. The plate's other tones (default, marble) still carry other
+   deleted tokens and belong to whichever task owns the toolbar/glide system generally. */
+.glide-plate[data-tone="stop"] { background: var(--state-negative); }
 
 /* The marble, measured. Same travel as the CSS-variable one on the gate, but it
    takes the size of whatever it lands on, which is what lets the toolbar hold
@@ -714,27 +723,27 @@ html, body {
     gap: 8px;
     height: 38px;
     padding: 0 10px;
-    background: var(--material-chrome);
+    background: var(--material-thin);
     backdrop-filter: var(--material-blur);
     -webkit-backdrop-filter: var(--material-blur);
-    border-top: 1px solid var(--ink-500);
+    border-top: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: 8000;
 }
 
 .ftr__spacer { flex: 1 1 auto; }
-.ftr__divider { width: 1px; height: 16px; background: var(--ink-500); flex: 0 0 auto; }
+.ftr__divider { width: 1px; height: 16px; background: var(--separator); flex: 0 0 auto; }
 
 .ftr__stat {
     font-size: 11px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     letter-spacing: .04em;
     flex: 0 0 auto;
 }
 
 .ftr__flag {
-    color: var(--iris);
+    color: var(--accent);
     font-size: 9.5px;
     text-transform: uppercase;
     letter-spacing: .1em;
@@ -747,10 +756,10 @@ html, body {
     align-items: center;
     gap: 7px;
     padding: 3px 4px 3px 9px;
-    border: 1px solid var(--flag);
-    background: var(--flag-dim);
+    border: 1px solid var(--state-warning);
+    background: var(--state-warning-wash);
     border-radius: 4px;
-    color: var(--flag);
+    color: var(--state-warning);
     font-size: 11.5px;
     flex: 0 1 auto;
     min-width: 0;
@@ -761,12 +770,12 @@ html, body {
 
 .ftr__dismiss {
     background: none; border: 0; padding: 2px;
-    color: var(--flag); cursor: pointer;
+    color: var(--state-warning); cursor: pointer;
     display: grid; place-items: center;
 }
 
 .ftr__dismiss svg { width: 13px; height: 13px; }
-.ftr__dismiss:hover { color: var(--chalk); }
+.ftr__dismiss:hover { color: var(--text-primary); }
 
 /* ---------------------------------------------------------------- desk ---- */
 
@@ -839,29 +848,27 @@ html, body {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background: var(--ink-700);
-    border: 1px solid var(--ink-500);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    background: var(--surface-1);
+    border: 0;
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-3);
     overflow: hidden;
     z-index: var(--z-window);
     /* left/width transition is what makes the row "settle" after a reorder, a resize
        commit, an eviction, or a close — every tab slides to its new slot instead of
        jumping. Suppressed during the two live gestures below, where a transition would
        lag a frame behind the pointer instead of tracking it. */
-    transition: border-color .12s ease, left .16s ease, width .16s ease;
+    transition: left .16s ease, width .16s ease;
 }
 
 body.splitting .win, body.tab-dragging .win { transition: none; user-select: none; }
-
-.win--focused { border-color: var(--ink-400); }
 
 /* The dragged tab floats in front of whatever it passes over while it looks for a slot —
    this is the interaction the row is built around: a window is its own tab, and moving it
    is a direct, physical drag, not a trip through a menu. */
 .win--dragging-tab {
     z-index: var(--z-divider);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-sheet);
     cursor: grabbing;
 }
 
@@ -881,19 +888,21 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     cursor: pointer;
 }
 
-.win--collapsed .win__icon { color: var(--haze); }
+.win--collapsed .win__icon { color: var(--text-secondary); }
 
-/* Focus is signalled by the border and the pulse strip only — no ambient glow. */
+/* A window body is opaque and borderless, so focus is signalled by the title bar and the
+   pulse strip only — no ambient glow, no ring around the whole column. Unfocused windows
+   recede a shade, as if the bar had settled back into the body it sits on. */
 .win--focused .win__title {
-    color: var(--chalk);
+    color: var(--text-primary);
 }
 
 .win:not(.win--focused) .win__bar {
-    background: var(--ink-700);
+    background: var(--surface-1);
 }
 
 .win:not(.win--focused) .win__title {
-    color: var(--haze);
+    color: var(--text-secondary);
 }
 
 .win__bar {
@@ -902,7 +911,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     gap: 8px;
     height: var(--titlebar-h);
     padding: 0 4px 0 10px;
-    background: var(--ink-600);
+    background: var(--surface-2);
     flex: 0 0 auto;
 }
 
@@ -910,17 +919,15 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     flex: 0 0 auto;
     display: grid;
     place-items: center;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
 }
 
 .win__icon svg { width: 15px; height: 15px; }
 
 .win__title {
-    font-size: 11px;
-    font-weight: 600;
-    font-stretch: 108%;
-    letter-spacing: .085em;
-    text-transform: uppercase;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -928,40 +935,57 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 }
 
 .win__status {
-    font-family: var(--face-data);
-    font-size: 10.5px;
-    color: var(--haze-dim);
+    font-size: var(--text-subheadline);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: .02em;
 }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
 
 .win__controls {
     display: flex;
-    gap: 1px;
+    gap: var(--space-2);
     flex: 0 0 auto;
 }
 
+/* Traffic-light behaviour, not Apple's literal three colours: a resting circle in
+   --text-tertiary, quiet until the bar it lives on is worth looking at. The glyph
+   stays hidden until then — three unlabelled dots read as chrome, three dots with
+   icons stamped on them read as a diagram. */
 .win__ctl {
-    width: 26px;
-    height: 24px;
+    width: 12px;
+    height: 12px;
     display: grid;
     place-items: center;
-    background: none;
+    background: var(--text-tertiary);
     border: 0;
-    border-radius: 3px;
-    color: var(--haze-dim);
+    border-radius: 50%;
+    color: var(--text-primary);
     cursor: pointer;
     padding: 0;
+    transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-.win__ctl:hover { background: var(--ink-500); color: var(--chalk); }
-.win__ctl--close:hover { background: var(--drift); color: var(--ink-900); }
-.win__ctl:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.win__ctl svg { width: 14px; height: 14px; }
+.win__ctl svg {
+    width: 8px;
+    height: 8px;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+/* Revealed by hovering anywhere on the bar — not just the one control — the way the
+   traffic lights themselves light up together. Focus-visible reveals its own glyph
+   too, or a keyboard user tabbing to Close would find an unlabelled blank circle. */
+.win__bar:hover .win__ctl svg,
+.win__ctl:focus-visible svg {
+    opacity: 1;
+}
+
+.win__ctl:hover { background: var(--text-secondary); }
+.win__ctl--close:hover { background: var(--state-negative); color: var(--on-accent); }
+.win__ctl:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- SIGNATURE: the pulse strip ------------------------------------------
    A 2px live band under every title bar, mirrored on the window's rail chip.
@@ -1020,14 +1044,14 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     overflow: auto;
     padding: 14px;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 .win__body::-webkit-scrollbar { width: 10px; height: 10px; }
 .win__body::-webkit-scrollbar-thumb {
-    background: var(--ink-400);
+    background: var(--surface-3);
     border-radius: 6px;
-    border: 3px solid var(--ink-700);
+    border: 3px solid var(--surface-1);
 }
 
 /* ------------------------------------------------------------- divider ---- */
@@ -1086,14 +1110,17 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     background: none;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 0;
 }
 
-.rail__btn:hover { background: var(--ink-700); border-color: var(--ink-400); color: var(--chalk); }
-.rail__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: 1px; }
-.rail__btn--accent { color: var(--iris); }
+.rail__btn:hover { background: var(--surface-3); color: var(--text-primary); }
+.rail__btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Selected/active reads as a wash, not a border — the same recipe as a Tinted
+   button and the platform's own menu highlight. */
+.rail__btn--accent { background: var(--accent-wash); color: var(--accent); }
 .rail__btn svg { width: 17px; height: 17px; }
 
 /* ------------------------------------------------------- rail popover ---- */
@@ -1112,16 +1139,16 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .railmenu__panel {
     position: absolute;
     z-index: 9600;
-    background: var(--material-raised);
+    background: var(--material-regular);
     backdrop-filter: var(--material-blur);
     -webkit-backdrop-filter: var(--material-blur);
-    border: 1px solid var(--ink-400);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-float);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-sheet);
     max-height: min(70vh, 560px);
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 /* Each panel opens away from the rail it belongs to. */
@@ -1394,6 +1421,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     padding: 0 3px;
 }
 
+/* Naming collision, not a relative: this is PriceCell's price-range ruler, unconnected to
+   the chrome rail above. It lives inside a window body — a reading, not chrome — so it
+   gets no material and no blur, only the same token repointing as everything else. */
 .rail {
     position: relative;
     width: 72px;
@@ -1409,7 +1439,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     right: 0;
     top: 3px;
     height: 1px;
-    background: var(--ink-500);
+    background: var(--separator);
 }
 
 .rail__tick {
@@ -1419,12 +1449,12 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     height: 7px;
     margin-left: -1px;
     border-radius: 1px;
-    background: var(--ink-400);
+    background: var(--surface-3);
 }
 
 .rail__tick--best {
-    background: var(--iris);
-    box-shadow: 0 0 0 2px var(--iris-dim);
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-wash);
 }
 
 /* How much the best price is worth against the worst, in points of implied
