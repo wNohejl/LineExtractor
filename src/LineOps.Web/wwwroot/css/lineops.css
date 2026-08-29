@@ -431,18 +431,17 @@ html, body {
     pointer-events: none;
 }
 
-/* A rail button inside a channel is just another key: it drops its own box, or
-   it reads as a control nested inside a control. */
+/* A rail button inside a channel is just another key: it drops to the channel's own box
+   size, but otherwise IS the standalone rail button — same resting colour, same hover
+   fill, same accent/selected treatment, same focus ring. It must not redeclare any of
+   those, because `.bar__group .rail__btn` outranks the bare `.rail__btn` rules by
+   specificity and a redeclaration here would silently win over — and fight — the rail
+   decision, no matter what the base rule says. */
 .bar__group .rail__btn {
     width: 26px;
     height: 24px;
-    background: none;
-    border: 0;
-    border-radius: 4px;
-    color: var(--haze);
 }
 
-.bar__group .rail__btn:hover { background: none; color: var(--chalk); }
 .bar__group .rail__btn svg { width: 16px; height: 16px; }
 
 .bar__key:disabled {
@@ -662,6 +661,18 @@ html, body {
 [data-glide] { position: relative; }
 [data-glide] > :not(.glide-plate) { position: relative; z-index: 1; }
 
+/* The default (untoned) fill has to agree with the fill every plain hover uses when the
+   plate is not there to do the job instead — see .desk-btn--plain:hover's own
+   --btn-fill: var(--surface-3). Narrowly repointed for the same reason as the "stop" tone
+   above: this is Task 8's own window-control hover (minimise, maximise both fall to this
+   default), and left on the deleted --ink-500 it renders nothing. Checked the other
+   consumers of the untoned default before making this change, per instruction: GamePanel's
+   Movement/Head-to-head row and the Workspaces launcher's items are both currently in the
+   same broken state (their own hover rules are already suppressed by
+   [data-glide-live] ...:hover { background: transparent }), so this repoint only restores
+   the intended --surface-3 fill for them too — no consumer goes from working to broken.
+   The marble variant (.glide-plate--marble, used by the tab bar) sets its own background
+   after this rule and is untouched. */
 .glide-plate {
     position: absolute;
     top: 0;
@@ -669,7 +680,7 @@ html, body {
     z-index: 0;
     box-sizing: border-box; /* the marble flavour has a border to fit inside */
     border-radius: 4px;
-    background: var(--ink-500);
+    background: var(--surface-3);
     opacity: 0;
     pointer-events: none;
     transition:
