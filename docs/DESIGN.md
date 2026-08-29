@@ -302,11 +302,16 @@ behind it *together*; a page-based UI can only ever show one. Pages fought the p
 Ops chip stays amber while you work in Journal. Peripheral awareness is the only reason a
 desk beats tabs, so it is the one loud element and everything around it stays quiet.
 
-**Visual language.** Cool graphite-indigo surfaces (not near-black), and a four-hue semantic
-dial where hue always means state: `steam #35E0A1` healthy, `drift #FF6B81` breached,
-`flag #FFB84D` warn, `iris #7C8CFF` interactive. Archivo for chrome (titles set tight and
-uppercase), JetBrains Mono for every number — odds are read in columns and need tabular
-figures.
+**Visual language.** Apple's HIG: a true-neutral surface ramp (`--surface-0` … `--surface-3`)
+with hairlines that separate rather than outline, and **one** accent — systemBlue `#0A84FF`,
+spent only on interactivity, focus and selection. Buttons state weight, not hue: Filled /
+Tinted / Plain, at most one Filled per context. State colours are role-named
+(`--state-positive` / `-warning` / `-negative`) and land on the *values* that report — numbers,
+tags, the pulse strip — never on the controls, because an interface where every button is
+coloured has no primary action. Materials go on anything that floats; anything holding data
+stays opaque. Type is real SF via `-apple-system` with bundled Inter as the off-platform
+fallback, one family throughout — a column of odds is that face plus `tabular-nums`, not a
+second mono. → [ADR 0016]
 
 ### Panels
 
@@ -533,7 +538,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
 | 80 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
-| 6 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| 16 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
 | Blazor/MudBlazor Ops UI on .NET 10 | "UI components" + reinforces the resume's headline stack |

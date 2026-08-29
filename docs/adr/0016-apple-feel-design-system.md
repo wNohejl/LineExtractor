@@ -131,7 +131,7 @@ what `.num` and `.mono` set. The retired `--face-data` was solving a problem SF 
   fell back to the wrong tier. The block carries its own comment saying so.
 
 - **`--text-secondary` at 55% white was contrast-checked** against `--surface-1` during Task 9:
-  **5.713:1**, which passes AA. `--text-tertiary` at 30% measures **2.70:1** — below AA, and
+  **5.71:1**, which passes AA. `--text-tertiary` at 30% measures **2.70:1** — below AA, and
   correct for exactly the job it has (a hint, a placeholder, a unit nobody must read). A cell
   an operator has to read is not that job, which is why `RunsPanel`'s timestamps, durations,
   job keys and credit counts moved off `.dim` and onto `.quiet`.
@@ -150,9 +150,17 @@ what `.num` and `.mono` set. The retired `--face-data` was solving a problem SF 
   hover-follow strip. The distinction is commented at the rule, because it looks like an
   inconsistency to anyone sweeping for one.
 
-- **The reduced-motion block is the codebase's one sanctioned `!important`.** Motion is a
-  signal, not a flourish, so it goes away entirely when asked — and a preference that can be
-  out-specified by a component is not a preference.
+- **The reduced-motion block is the one sanctioned `!important` that overrides component
+  styling.** Motion is a signal, not a flourish, so it goes away entirely when asked — and a
+  preference that can be out-specified by a component is not a preference. The stylesheet's
+  other `!important`s are layout-mode escapes rather than visual decisions, and three of the
+  four exist because the declaration they must beat is an *inline* style, which no selector
+  can out-specify: `.deskdialog`'s `top`/`left`/`width` under `max-width: 720px` (written
+  inline by `dialogs.js` on drag) and `.desk__surface`'s `width`/`height` in the same media
+  query (written inline by `Desk.razor` when a fixed resolution is declared). The remaining
+  two are `body.splitting * { cursor }`, which holds one pointer cursor across the whole desk
+  for the duration of a drag gesture, and `.shell__body { flex-direction }` in the narrow
+  layout. None of them decide how a component looks.
 
 - **The pulse strip keeps its bespoke timings.** The interaction-motion tokens (`--dur-fast`,
   `--ease-standard`) describe how an interface answers a press. A continuous ambient signal is
@@ -175,18 +183,22 @@ and one was pre-empted:
   single-class desk rule on the same element.
 - `.bar__group .rail__btn` — a descendant selector still in the sheet, beating the flat rule
   that replaced it.
-- The glide-plate suppressors, which had to out-specify the `:hover` rules they stand down.
-- The `@supports` material fallback block, shadowed on source order for three of its four
-  consumers — see the Consequences note above.
+- The glide-plate suppressors — **two of them** — which had to out-specify the `:hover` rules
+  they stand down.
+- The `@supports` material fallback block, shadowed on source order for **three of its four
+  consumers**, so three rules at once — see the Consequences note above.
 - `DeskSheet`'s `.mud-dialog` styling was written as `.mud-dialog.desk-sheet` from the start,
   which is why it is the one that never broke: `mud-bridge.css` loads after `lineops.css`, so
   a single-class sheet rule could not have won on source order either.
 
+That is one, one, two and three — seven that lost, plus the sheet's, which is the eighth
+because it is the one that would have lost had it been written the obvious way.
+
 None of these are findable by grep. A token sweep proves the old names are gone; it says
-nothing about whether the new rule is the one the browser is applying. Every one of the eight
-was found by looking at the rendered page, and the sheet's was avoided by assuming the problem
-before writing the rule. Verify a design-system migration in a browser, on the real screen,
-with computed styles — not in the stylesheet.
+nothing about whether the new rule is the one the browser is applying. Seven of the eight were
+found by looking at the rendered page; the eighth never shipped, because the sheet's rules were
+written compound from the start. Verify a design-system migration in a browser, on the real
+screen, with computed styles — not in the stylesheet.
 
 **Retired tokens hide outside stylesheets.** Task 10 drove `lineops.css` to zero retired
 tokens and the gate was believed clean for five more tasks. Eight sites kept the old names in
