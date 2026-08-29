@@ -40,7 +40,7 @@
             <DeskButton Size="DeskKeySize.Small"
                         Tone="@action.Tone"
                         Icon="@action.Icon"
-                        Class="@(isOpen ? "desk-key--on" : null)"
+                        Class="@(isOpen ? "desk-btn--on" : null)"
                         OnClick="@(() => SelectAsync(action))"
                         aria-pressed="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
                         aria-expanded="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
