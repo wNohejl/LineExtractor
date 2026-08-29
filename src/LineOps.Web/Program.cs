@@ -51,6 +51,11 @@ builder.Services.AddScoped<LineOps.Web.Windowing.WindowManager>();
 // it. Panels take DeskToasts, never ISnackbar — see Components/Desk/DeskToasts.cs.
 builder.Services.AddScoped<LineOps.Web.Components.Desk.DeskToasts>();
 
+// The confirm seam, beside the toast one. Scoped for the same reason: the dialog stack it
+// drives is per-circuit. Call sites take IDeskAlerts, never IDialogService, so a guarded
+// action stays one await — see Components/Desk/DeskAlerts.cs.
+builder.Services.AddScoped<LineOps.Web.Components.Desk.IDeskAlerts, LineOps.Web.Components.Desk.DeskAlerts>();
+
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
 // circuit and antiforgery token. Unset (the default when running from the SDK) keeps the

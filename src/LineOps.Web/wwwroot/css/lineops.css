@@ -2904,6 +2904,46 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     .mud-dialog.desk-sheet { animation: none; }
 }
 
+/* -------------------------------------------------------------------- alert ---
+   Narrow, centred, and quiet. Everything here is subordinate to the question.
+
+   Nothing in this block touches Mud's own surface, so none of it needs the sheet's
+   two-class treatment: the alert renders as bare content inside .mud-dialog and
+   takes that surface as mud-bridge.css already draws it — opaque --surface-1, so
+   there is no material here and nothing to register in the fallback block below. */
+
+.desk-alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    text-align: center;
+    max-width: 320px;
+}
+
+.desk-alert__heading {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.desk-alert__message {
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.desk-alert__actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* The default confirm carries the focus ring at rest, so Enter has a visible target.
+   A destructive confirm never gets this class — see DeskAlert.razor for why. */
+.desk-alert__confirm--default { box-shadow: var(--focus-ring); }
+
 /* ---- Material fallbacks -----------------------------------------------------
    Opaque fallbacks for every material surface. This block must stay LAST in the
    file: @supports adds no specificity, so these single-class rules beat their

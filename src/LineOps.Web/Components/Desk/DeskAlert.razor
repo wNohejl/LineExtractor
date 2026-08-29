@@ -1,0 +1,72 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
+
+    An alert: the operator must decide before anything else happens.
+
+    This is the narrowest use of modality the system allows, and the only one that is
+    allowed to interrupt. Confirmations and destructive gates, nothing else — an alert
+    is not a place to show information the operator did not ask about. When the task is
+    self-contained but larger than a question, that is DeskSheet; when the operator needs
+    to compare things while working, that is DeskDialog and it is not modal at all.
+
+    Two conventions here are load-bearing rather than stylistic. A destructive confirm
+    renders red and is never the default, because making the dangerous button answer
+    Enter is how people delete things they meant to keep. And labels name the actual
+    consequence — "Delete run", not "OK" — because a button that says OK is asking the
+    operator to remember what they clicked.
+
+    Unlike DeskSheet this renders bare content rather than a MudDialog: an alert has no
+    title bar, no scroll body and no action tray to fill, so wrapping it in one would only
+    buy Mud's title/content/actions padding on top of the padding .desk-alert already
+    carries. The surface it lands on is Mud's own .mud-dialog, styled by mud-bridge.css —
+    opaque, so the alert needs no material fallback of its own.
+*@
+
+<div class="desk-alert">
+    <div class="desk-alert__heading">@Heading</div>
+
+    @if (Message is not null)
+    {
+        <div class="desk-alert__message">@Message</div>
+    }
+
+    <div class="desk-alert__actions">
+        @if (CancelLabel is not null)
+        {
+            <DeskButton Emphasis="DeskEmphasis.Plain" OnClick="Cancel">@CancelLabel</DeskButton>
+        }
+
+        <DeskButton Emphasis="DeskEmphasis.Filled"
+                    Role="@(Destructive ? DeskRole.Destructive : DeskRole.Normal)"
+                    Class="@ConfirmClass"
+                    OnClick="Confirm">
+            @ConfirmLabel
+        </DeskButton>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? Instance { get; set; }
+
+    [Parameter, EditorRequired] public string Heading { get; set; } = string.Empty;
+
+    /// <summary>The consequence, in a sentence. Omit it when the heading already says everything.</summary>
+    [Parameter] public string? Message { get; set; }
+
+    /// <summary>Name the consequence, not the acknowledgement. "Delete run" beats "OK".</summary>
+    [Parameter] public string ConfirmLabel { get; set; } = "OK";
+
+    /// <summary>Null for a one-button alert that only needs acknowledging.</summary>
+    [Parameter] public string? CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>Renders the confirm red and refuses to make it the default.</summary>
+    [Parameter] public bool Destructive { get; set; }
+
+    private string? ConfirmClass => Destructive ? null : "desk-alert__confirm--default";
+
+    private void Confirm() => Instance?.Close(DialogResult.Ok(true));
+
+    private void Cancel() => Instance?.Close(DialogResult.Ok(false));
+}

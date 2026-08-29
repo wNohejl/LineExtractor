@@ -128,7 +128,15 @@ public class DeskSheetTests : DeskTestContext
         foreach (var p in builder.Build())
             dialogParameters.Add(p.Name!, p.Value);
 
-        provider.InvokeAsync(() => service.ShowAsync<DeskSheet>(string.Empty, dialogParameters));
+        // The show is observed rather than discarded: a fire-and-forget task would swallow any
+        // failure inside ShowAsync into an unobserved exception, and the test would go green on
+        // a sheet that never rendered. Waiting on the markup is what makes it synchronous here.
+        Task<IDialogReference>? shown = null;
+
+        provider.InvokeAsync(() => shown = service.ShowAsync<DeskSheet>(string.Empty, dialogParameters));
+
+        provider.WaitForState(() => shown is { IsCompleted: true });
+        shown!.GetAwaiter().GetResult();
 
         return provider;
     }
