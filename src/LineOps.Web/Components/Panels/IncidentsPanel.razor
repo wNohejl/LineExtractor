@@ -16,10 +16,10 @@
 
     @if (_incidents.Count == 0)
     {
-        <p class="empty">
+        <EmptyState Kind="EmptyStateKind.New">
             No incidents recorded. Use the on-call drill in the Ops window to exercise the
             detect → alert → incident → RCA loop.
-        </p>
+        </EmptyState>
     }
     else
     {

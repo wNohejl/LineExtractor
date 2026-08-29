@@ -16,7 +16,7 @@
 
 @if (_loading)
 {
-    <p class="empty" style="padding:6px 0">Reading recent games…</p>
+    <EmptyState Style="padding:6px 0">Reading recent games…</EmptyState>
 }
 else if (_error is not null)
 {
@@ -24,7 +24,7 @@ else if (_error is not null)
 }
 else if (_rows.Count == 0)
 {
-    <p class="empty" style="padding:6px 0">No appearances on record for this player.</p>
+    <EmptyState Kind="EmptyStateKind.New" Style="padding:6px 0">No appearances on record for this player.</EmptyState>
 }
 else
 {

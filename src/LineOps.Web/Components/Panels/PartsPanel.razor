@@ -583,3 +583,50 @@
 }
 
 @* ===== end Desk/Tag demo ====================================================== *@
+@* ------------------------------------------------------------ EmptyState --- *@
+
+<h3 class="panel-h">Empty states</h3>
+<p class="empty" style="padding:0 0 9px">
+    Nothing to show is still something to say. <span class="mono">Kind</span> picks which
+    sentence the panel is writing — and the reader's next move follows from it, so the
+    wrong kind sends them to check the feed when the filter was the problem.
+</p>
+
+<div class="stack" style="gap:2px">
+    <EmptyState>
+        Default — the bare line, unchanged. Loading notes and neutral asides live here.
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.New">
+        <ChildContent>
+            New — nothing exists yet, so the message is about what would. The action is the
+            first step, never a menu of them.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
+                        Icon="@Icons.Material.Filled.Add">Log the first entry</DeskButton>
+        </Action>
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        <ChildContent>
+            Filtered — rows exist; this window excluded them. Name the control that did it,
+            so the reader looks at the filter instead of at the feed.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                        Icon="@Icons.Material.Filled.FilterAltOff">Clear the filter</DeskButton>
+        </Action>
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.Error">
+        <ChildContent>
+            Error — the load failed, which a grey sentence alone would not distinguish from
+            "nothing here yet". It takes the rule in <span class="mono">--flag</span> and the
+            inset that comes with it: hue plus shape, never hue on its own.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh">Retry</DeskButton>
+        </Action>
+    </EmptyState>
+</div>

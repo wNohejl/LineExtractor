@@ -18,15 +18,15 @@
 
 @if (_loading)
 {
-    <p class="empty">Reading previous meetings…</p>
+    <EmptyState>Reading previous meetings…</EmptyState>
 }
 else if (_rows.Count == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.Filtered">
         No previous meeting on record between these sides. Either they have not met inside the
         history held, or the backfill has not reached that far — the History window walks
         further back.
-    </p>
+    </EmptyState>
 }
 else
 {

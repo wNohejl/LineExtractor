@@ -1,0 +1,113 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    The line the desk shows when there is nothing to show.
+
+    It replaces a hand-written <p class="empty"> at every call site, and it exists for
+    one reason beyond deduplication: "empty" is not one state. Apple's guidance is that
+    a first-run screen, a filter that matched nothing, and a load that failed are three
+    different messages, and the desk was writing all three in the same flat sentence.
+    Kind names which one this is, so the panel states the situation rather than merely
+    noting the absence.
+
+        Default   — a plain note. Exactly what the bare <p class="empty"> rendered, to
+                    the character. Loading lines and neutral asides stay here.
+        New       — nothing exists yet. Say what the thing is for, and hang the first
+                    step off Action.
+        Filtered  — rows exist, this filter or window excluded them. Say so, and offer
+                    the way back out through Action.
+        Error     — the load failed. Say what failed; Action carries the retry.
+
+    Only Error is drawn differently, and it earns that: a failure the reader might
+    otherwise mistake for "nothing here yet" is the one case where the sentence alone
+    is ambiguous. It gets a rule in --flag *and* a shape change (the inset), never hue
+    on its own — see ADR 0008.
+
+    Unmatched attributes are merged rather than splatted over the top, so a caller
+    writing class= or style= extends this component's own values instead of erasing
+    them. Same pattern as the rest of Desk/; the alternative loses `.empty` entirely
+    and the line renders as body copy.
+*@
+
+<p class="@Classes" style="@Styles" @attributes="Rest">
+    @ChildContent
+    @if (Action is not null)
+    {
+        <span class="empty__action">@Action</span>
+    }
+</p>
+
+@code {
+    /// <summary>The message. A sentence, not a label — it has room to explain.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Which kind of nothing this is. See <see cref="EmptyStateKind"/>.</summary>
+    [Parameter] public EmptyStateKind Kind { get; set; } = EmptyStateKind.Default;
+
+    /// <summary>
+    /// The one thing to do about it — the first step, the filter reset, the retry.
+    /// Optional, and deliberately singular: a screen with nothing on it is the worst
+    /// place to offer a choice.
+    /// </summary>
+    [Parameter] public RenderFragment? Action { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra inline style, appended last.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', ClassParts().Where(p => p is { Length: > 0 }));
+
+    private string? Styles
+    {
+        get
+        {
+            var parts = new[] { Splatted("style"), Style }.Where(p => p is { Length: > 0 });
+            var joined = string.Join("; ", parts);
+            return joined.Length == 0 ? null : joined;
+        }
+    }
+
+    // class and style are merged above, so they must not also arrive through the splat —
+    // a duplicate frame there would win and take the merge with it.
+    private IReadOnlyDictionary<string, object>? Rest
+    {
+        get
+        {
+            if (Extra is null)
+            {
+                return null;
+            }
+
+            var rest = Extra
+                .Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase)
+                          && !string.Equals(kv.Key, "style", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            return rest.Count == 0 ? null : rest;
+        }
+    }
+
+    private IEnumerable<string?> ClassParts()
+    {
+        yield return "empty";
+
+        yield return Kind switch
+        {
+            EmptyStateKind.New => "empty--new",
+            EmptyStateKind.Filtered => "empty--filtered",
+            EmptyStateKind.Error => "empty--error",
+            _ => null
+        };
+
+        yield return Splatted("class");
+        yield return Class;
+    }
+
+    private string? Splatted(string key)
+        => Extra is not null && Extra.TryGetValue(key, out var value) ? value?.ToString() : null;
+}

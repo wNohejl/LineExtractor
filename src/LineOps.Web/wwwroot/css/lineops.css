@@ -1928,6 +1928,20 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
 .note--warn { border-left-color: var(--flag); }
 .empty { color: var(--haze-dim); font-size: 12.5px; padding: 14px 2px; line-height: 1.55; }
 
+/* The Desk/EmptyState kinds. New and Filtered are the base line unchanged — they differ
+   in what they say, not in how they look, and a panel that has nothing in it is the last
+   place to spend contrast. Error is the exception: "the load failed" and "nothing here
+   yet" are indistinguishable as grey sentences, so it takes a rule in --flag *and* the
+   inset that rule creates — hue plus shape, never hue alone. See ADR 0008. */
+.empty--error {
+    border-left: 2px solid var(--flag);
+    padding-left: 10px;
+}
+
+/* The one next step, on its own line so it reads as an offer rather than as the tail of
+   the sentence above it. */
+.empty__action { display: block; margin-top: 8px; }
+
 /* ------------------------------------------------------- runbook ----------
    The triage procedure, shown inside the incident that needs it. Iris on the
    left edge because it is a thing you act on, not a state being reported. */

@@ -18,7 +18,7 @@
 
 @if (_loading)
 {
-    <p class="empty" style="padding:6px 0">Reading previous meetings…</p>
+    <EmptyState Style="padding:6px 0">Reading previous meetings…</EmptyState>
 }
 else if (_error is not null)
 {
@@ -26,10 +26,10 @@ else if (_error is not null)
 }
 else if (_rows.Count == 0)
 {
-    <p class="empty" style="padding:6px 0">
+    <EmptyState Kind="EmptyStateKind.Filtered" Style="padding:6px 0">
         No previous meeting on record. Either these sides have not met inside the history
         held, or the backfill has not reached that far.
-    </p>
+    </EmptyState>
 }
 else
 {

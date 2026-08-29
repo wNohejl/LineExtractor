@@ -24,7 +24,7 @@
 
 @if (_team is null)
 {
-    <p class="empty">Loading @(_teamName ?? "the team")…</p>
+    <EmptyState>Loading @(_teamName ?? "the team")…</EmptyState>
 }
 else
 {
@@ -48,7 +48,7 @@ else
 
     @if (_log.Count == 0)
     {
-        <p class="empty">No games recorded in this window.</p>
+        <EmptyState Kind="EmptyStateKind.Filtered">No games recorded in this window.</EmptyState>
     }
     else
     {
@@ -99,7 +99,7 @@ else
 
         @if (_visible.Count == 0)
         {
-            <p class="empty">No games match this split.</p>
+            <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
         }
         else
         {
@@ -165,7 +165,7 @@ else
 
     @if (_roster.Count == 0)
     {
-        <p class="empty">No appearances on record for this roster in the window.</p>
+        <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster in the window.</EmptyState>
     }
     else
     {
