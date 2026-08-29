@@ -74,49 +74,58 @@ else
 
         <PanelHeader Level="4">Game log</PanelHeader>
 
-        <div class="gridwrap"><table class="grid">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Opponent</th>
-                    <th class="r">Result</th>
-                    @foreach (var c in _columns)
-                    {
-                        <th class="r">@c</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in _rows)
-                {
-                    <tr>
-                        <td class="dim">@Day(row.StartsAt)</td>
-                        <td>
-                            <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
-                                      OnClick="() => OpenGameAsync(row.GameId)">
-                                @(row.Home ? "vs" : "at") @row.Opponent
-                            </DeskLink>
-                        </td>
-                        <td class="r">
-                            @if (row.Won is { } won)
-                            {
-                                <Tag Tone="@TagTones.Won(won)">
-                                    @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
-                                </Tag>
-                            }
-                            else
-                            {
-                                <span class="dim">—</span>
-                            }
-                        </td>
-                        @foreach (var c in _columns)
+        @* The log is the one view on the desk where sorting is the point rather than a
+           convenience: "which were the big games" and "how did the away nights go" are both
+           questions about this table, and neither can be asked of a fixed date order. *@
+        <div class="gridwrap">
+            <DeskGrid T="PlayerGameRow" Items="_rows"
+                      EmptyText="No appearances on record for this player.">
+                <PropertyColumn T="PlayerGameRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
+                                Title="Date" InitialDirection="SortDirection.Descending">
+                    <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Opponent" Title="Opponent">
+                    <CellTemplate>
+                        <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                                  OnClick="() => OpenGameAsync(context.Item.GameId)">
+                            @(context.Item.Home ? "vs" : "at") @context.Item.Opponent
+                        </DeskLink>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="PlayerGameRow" TProperty="bool?" Property="r => r.Won"
+                                Title="Result" Align="Align.Right">
+                    <CellTemplate>
+                        @if (context.Item.Won is { } won)
                         {
-                            <td class="r mono">@(row.Stats.TryGetValue(c, out var v) ? v : "—")</td>
+                            <span class="tag @(won ? "tag--good" : "tag--bad")">
+                                @(won ? "W" : "L")@(context.Item.HasScore ? $" {context.Item.ScoreFor}-{context.Item.ScoreAgainst}" : "")
+                            </span>
                         }
-                    </tr>
+                        else
+                        {
+                            <span class="dim">—</span>
+                        }
+                    </CellTemplate>
+                </PropertyColumn>
+
+                @* Stat columns are per-sport jsonb, so they are declared from the data. They sort
+                   as numbers where the line parses as one and fall back to the raw text where it
+                   does not — "6.0 IP" and "39:09" are real values that are not doubles, and the
+                   Averages strip above already refuses to coerce them. *@
+                @foreach (var c in _columns)
+                {
+                    var key = c;
+                    <TemplateColumn T="PlayerGameRow" Title="@key" Align="Align.Right"
+                                    SortBy="@(r => StatSortKey(r, key))">
+                        <CellTemplate>
+                            <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                        </CellTemplate>
+                    </TemplateColumn>
                 }
-            </tbody>
-        </table></div>
+            </DeskGrid>
+        </div>
     }
 }
 
@@ -182,6 +191,44 @@ else
 
         if (await board.GetRowAsync(gameId) is { } row)
             Manager.OpenGame(row.Game);
+    }
+
+    /// <summary>
+    /// The sort key for a derived stat column.
+    ///
+    /// <para>
+    /// Every key is a double so one column never mixes comparable types — a sort that throws
+    /// mid-render is worse than a column that does not move. A line the desk cannot read as a
+    /// number sinks to the bottom rather than being ranked as a zero, which is the same call
+    /// <see cref="Average"/> makes when it shows a dash: absent and none are different answers.
+    /// </para>
+    ///
+    /// <para>
+    /// The leading-number fallback earns its place on the lines that carry a unit — "6.0 IP"
+    /// sorts on 6.0 — because those are ordinary readings rather than malformed ones, and a
+    /// whole column of innings that refuses to sort is the common case, not the edge one.
+    /// </para>
+    /// </summary>
+    private static double StatSortKey(PlayerGameRow row, string key)
+    {
+        if (!row.Stats.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+            return double.MinValue;
+
+        const System.Globalization.NumberStyles Styles = System.Globalization.NumberStyles.Float;
+        var invariant = System.Globalization.CultureInfo.InvariantCulture;
+
+        if (double.TryParse(raw, Styles, invariant, out var value))
+            return value;
+
+        // Take the numeric head of things like "6.0 IP", and only that — a value the desk has
+        // to guess at is a value it should not be ordering on.
+        var end = 0;
+        while (end < raw.Length && (char.IsAsciiDigit(raw[end]) || raw[end] is '.' or '-' or '+'))
+            end++;
+
+        return end > 0 && double.TryParse(raw[..end], Styles, invariant, out var head)
+            ? head
+            : double.MinValue;
     }
 
     /// <summary>
