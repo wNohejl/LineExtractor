@@ -27,12 +27,25 @@ public class DeskThemeTests
     [InlineData("--state-positive", "#30D158")]
     [InlineData("--state-negative", "#FF453A")]
     [InlineData("--state-warning", "#FF9F0A")]
+    [InlineData("--text-primary", "rgba(255, 255, 255, .92)")]
+    [InlineData("--text-secondary", "rgba(255, 255, 255, .55)")]
+    [InlineData("--text-tertiary", "rgba(255, 255, 255, .30)")]
+    [InlineData("--separator", "rgba(255, 255, 255, .10)")]
+    [InlineData("--chart-neutral", "#8E8E93")]
+    [InlineData("--chart-neutral-dim", "#636366")]
     public void Css_declares_the_colour_token(string token, string expected)
     {
         Assert.Equal(expected, TokenValue(token));
     }
 
-    /// <summary>Each C# constant must be the same string the stylesheet declares.</summary>
+    /// <summary>
+    /// Each C# constant must be the same colour the stylesheet declares. Compared through
+    /// <see cref="MudColor"/> rather than as raw strings: MudBlazor's own alpha/channel
+    /// parsing tolerates ".92" vs "0.92" and comma spacing, and normalizing both sides the
+    /// same way still fails on a genuinely wrong channel or alpha value. The C# literals
+    /// are also kept formatted identically to the CSS (see DeskTheme.cs) so a human
+    /// diffing the two files sees the same text, not just the same colour.
+    /// </summary>
     [Theory]
     [InlineData("--surface-0", nameof(DeskTheme.Surface0))]
     [InlineData("--surface-1", nameof(DeskTheme.Surface1))]
@@ -42,13 +55,19 @@ public class DeskThemeTests
     [InlineData("--state-positive", nameof(DeskTheme.StatePositive))]
     [InlineData("--state-negative", nameof(DeskTheme.StateNegative))]
     [InlineData("--state-warning", nameof(DeskTheme.StateWarning))]
+    [InlineData("--text-primary", nameof(DeskTheme.TextPrimary))]
+    [InlineData("--text-secondary", nameof(DeskTheme.TextSecondary))]
+    [InlineData("--text-tertiary", nameof(DeskTheme.TextTertiary))]
+    [InlineData("--separator", nameof(DeskTheme.Separator))]
+    [InlineData("--chart-neutral", nameof(DeskTheme.ChartNeutral))]
+    [InlineData("--chart-neutral-dim", nameof(DeskTheme.ChartNeutralDim))]
     public void Csharp_mirrors_the_stylesheet(string token, string constantName)
     {
         var constant = (string)typeof(DeskTheme)
             .GetField(constantName)!
             .GetValue(null)!;
 
-        Assert.Equal(TokenValue(token), constant, ignoreCase: true);
+        Assert.Equal(ColorValue(TokenValue(token)), ColorValue(constant), ignoreCase: true);
     }
 
     [Fact]

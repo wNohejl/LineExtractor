@@ -32,9 +32,9 @@ public static class DeskTheme
     public const string Surface3 = "#38383A"; // hover fills, pressed states
 
     // Text. White at opacity tiers, so it keeps its relationship to any material.
-    public const string TextPrimary = "rgba(255,255,255,0.92)";
-    public const string TextSecondary = "rgba(255,255,255,0.55)";
-    public const string TextTertiary = "rgba(255,255,255,0.30)";
+    public const string TextPrimary = "rgba(255, 255, 255, .92)";
+    public const string TextSecondary = "rgba(255, 255, 255, .55)";
+    public const string TextTertiary = "rgba(255, 255, 255, .30)";
 
     // One accent. Interactivity, focus, selection — nothing else.
     public const string Accent = "#0A84FF";
@@ -47,7 +47,14 @@ public static class DeskTheme
     public const string StateNegative = "#FF453A";
     public const string StateWarning = "#FF9F0A";
 
-    public const string Separator = "rgba(255,255,255,0.10)";
+    public const string Separator = "rgba(255, 255, 255, .10)";
+
+    // Chart neutrals. Two steps of Apple's dark-mode system grey ramp, kept opaque on
+    // purpose: a chart's neutral series must stay one fixed colour, and a translucent
+    // text token composites differently depending on what is drawn beneath it. Mirrors
+    // --chart-neutral / --chart-neutral-dim.
+    public const string ChartNeutral = "#8E8E93";
+    public const string ChartNeutralDim = "#636366";
 
     /// <summary>
     /// The spacing ramp. One 4px scale for the whole desk, mirroring <c>--space-1</c> …
@@ -92,11 +99,6 @@ public static class DeskTheme
     /// <summary>
     /// The single theme instance. Static because it never varies per circuit — the desk
     /// is dark, and a light palette would have to answer what gloss means on paper.
-    ///
-    /// <para>
-    /// Only colour lives here — radii, type, elevation and z-index are remapped in
-    /// wwwroot/css/mud-bridge.css, because CSS can express them and one place beats two.
-    /// </para>
     /// </summary>
     public static readonly MudTheme Instance = new()
     {
@@ -133,7 +135,7 @@ public static class DeskTheme
             TableStriped = Surface2,
             TableHover = Surface2,
 
-            OverlayDark = "rgba(0,0,0,0.62)",
+            OverlayDark = "rgba(8,10,16,0.62)",
 
             GrayDefault = Surface2,
             GrayLight = Surface3,

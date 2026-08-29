@@ -57,6 +57,14 @@
     --state-negative-wash: rgba(255, 69, 58, .15);
     --state-warning-wash: rgba(255, 159, 10, .15);
 
+    /* --- Chart neutrals -------------------------------------------------------
+       Two steps of Apple's dark-mode system grey ramp (systemGray, systemGray2),
+       kept opaque on purpose: a multi-series chart's neutral slots must stay one
+       fixed colour, and a translucent text token composites differently over
+       gridlines and overlapping series depending on what is drawn beneath it. */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #636366;
+
     /* --- Materials ----------------------------------------------------------
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
        for things that float — menus, dialogs, sheets, the rail. Flat panel

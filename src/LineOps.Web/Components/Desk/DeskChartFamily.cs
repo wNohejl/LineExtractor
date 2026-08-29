@@ -55,21 +55,26 @@ public enum DeskChartFamily
 /// </summary>
 public static class DeskChartPalette
 {
-    /// <summary>Cycled once the named colours run out — the dial is four wide, a game is not.</summary>
-    private const string TextSecondary = DeskTheme.TextSecondary;
-    private const string TextTertiary = DeskTheme.TextTertiary;
+    /// <summary>
+    /// Cycled once the named colours run out — the dial is four wide, a game is not.
+    /// Opaque on purpose: these reach MudBlazor's SVG renderer directly, and a
+    /// translucent colour would composite differently over gridlines and overlapping
+    /// series instead of staying one fixed hue.
+    /// </summary>
+    private const string ChartNeutral = DeskTheme.ChartNeutral;
+    private const string ChartNeutralDim = DeskTheme.ChartNeutralDim;
 
     private static readonly string[] Movement =
-        [DeskTheme.Accent, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, TextSecondary, TextTertiary];
+        [DeskTheme.Accent, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, ChartNeutral, ChartNeutralDim];
 
     private static readonly string[] Ledger =
-        [DeskTheme.StatePositive, DeskTheme.StateNegative, DeskTheme.Accent, DeskTheme.StateWarning, TextSecondary, TextTertiary];
+        [DeskTheme.StatePositive, DeskTheme.StateNegative, DeskTheme.Accent, DeskTheme.StateWarning, ChartNeutral, ChartNeutralDim];
 
     private static readonly string[] Health =
-        [DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, DeskTheme.Accent, TextSecondary, TextTertiary];
+        [DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, DeskTheme.Accent, ChartNeutral, ChartNeutralDim];
 
     private static readonly string[] Volume =
-        [TextSecondary, DeskTheme.Accent, TextTertiary, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative];
+        [ChartNeutral, DeskTheme.Accent, ChartNeutralDim, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative];
 
     /// <summary>The colour order for a family. The array is shared, so treat it as read-only.</summary>
     public static string[] For(DeskChartFamily family) => family switch
