@@ -182,7 +182,112 @@
     </p>
 </div>
 
+@* ======================================================================
+   Foundation — spacing ramp, type styles, and the two layout primitives.
+   Appended section; keep new sections below this one.
+   ====================================================================== *@
+
+<h3 class="panel-h">Spacing</h3>
+<p class="empty" style="padding:0 0 9px">
+    One 4px ramp. Pass a step to <span class="mono">DeskRow</span> or
+    <span class="mono">DeskStack</span> rather than writing a pixel gap inline.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    @foreach (var (step, name, px) in _spaces)
+    {
+        <DeskRow Gap="DeskSpace.Space3">
+            <span class="mono dim" style="width:64px; font-size:11px">@name</span>
+            <div style="height:8px; border-radius:1px; background:var(--iris); width:@px"></div>
+            <span class="dim" style="font-size:11px">@px</span>
+            <span class="dim" style="font-size:11px">@_spaceUse[step]</span>
+        </DeskRow>
+    }
+</DeskStack>
+
+<h3 class="panel-h">Type styles</h3>
+<p class="empty" style="padding:0 0 9px">
+    Named for the job, not the size — <span class="mono">--text-body</span> keeps
+    meaning the right thing when 13px stops being 13px.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    @foreach (var (token, size, leading, use) in _typeStyles)
+    {
+        <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Baseline">
+            <span class="mono dim" style="width:104px; font-size:11px">@token</span>
+            <span style="font-size:var(@token); line-height:var(@leading)">Line movement held</span>
+            <span class="dim" style="font-size:11px">@size / @use</span>
+        </DeskRow>
+    }
+</DeskStack>
+
+<h3 class="panel-h">Row and stack</h3>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskRow</span> is <span class="mono">.row</span> with its gap,
+    alignment and justification named; <span class="mono">Justify="End"</span> is the
+    old <span class="mono">.row--end</span>. <span class="mono">DeskStack</span> is the
+    vertical one. Both leave the 8px default alone when Gap is unset.
+</p>
+
+<DeskStack Gap="DeskSpace.Space3">
+    <DeskRow Gap="DeskSpace.Space2">
+        <span class="dim" style="font-size:11px">Row, Space2 — the default gap.</span>
+        <span class="tag">one</span>
+        <span class="tag">two</span>
+    </DeskRow>
+
+    <DeskRow Gap="DeskSpace.Space4">
+        <span class="dim" style="font-size:11px">Row, Space4.</span>
+        <span class="tag">one</span>
+        <span class="tag">two</span>
+    </DeskRow>
+
+    <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space2">
+        <DeskButton Quiet="true">Cancel</DeskButton>
+        <DeskButton Tone="DeskTone.Action">Apply</DeskButton>
+    </DeskRow>
+
+    <DeskRow Justify="DeskJustify.Between">
+        <span class="dim" style="font-size:11px">Justify=Between — label left, control right.</span>
+        <span class="tag">right</span>
+    </DeskRow>
+</DeskStack>
+
 @code {
+    // Token name, rendered width, and what the rung is for.
+    private static readonly (string Step, string Name, string Px)[] _spaces =
+    [
+        ("1", "--space-1", "4px"),
+        ("2", "--space-2", "8px"),
+        ("3", "--space-3", "12px"),
+        ("4", "--space-4", "16px"),
+        ("6", "--space-6", "24px"),
+        ("8", "--space-8", "32px"),
+        ("12", "--space-12", "48px"),
+        ("16", "--space-16", "64px")
+    ];
+
+    private static readonly Dictionary<string, string> _spaceUse = new()
+    {
+        ["1"] = "a value and its unit",
+        ["2"] = "the desk's default gap",
+        ["3"] = "separate controls",
+        ["4"] = "groups in a section",
+        ["6"] = "sections of a panel",
+        ["8"] = "read at different times",
+        ["12"] = "page-level separation",
+        ["16"] = "any more wants a divider"
+    };
+
+    private static readonly (string Token, string Size, string Leading, string Use)[] _typeStyles =
+    [
+        ("--text-title", "10.5px", "--leading-title", "panel headings"),
+        ("--text-caption", "11px", "--leading-caption", "labels and units"),
+        ("--text-body", "13px", "--leading-body", "default reading size"),
+        ("--text-callout", "14px", "--leading-callout", "read this first")
+    ];
+
     private static readonly (string Class, string Label)[] _pulses =
     [
         ("pulse--healthy", "Healthy — the source answered, and the numbers moved."),

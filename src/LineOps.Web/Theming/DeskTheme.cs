@@ -1,3 +1,4 @@
+using LineOps.Web.Components.Desk;
 using MudBlazor;
 
 namespace LineOps.Web.Theming;
@@ -53,6 +54,46 @@ public static class DeskTheme
     public const string OnSteam = "#06170F";
     public const string OnDrift = "#1E070C";
     public const string OnFlag = "#1C1204";
+
+    /// <summary>
+    /// The spacing ramp. One 4px scale for the whole desk, mirroring <c>--space-1</c> …
+    /// <c>--space-16</c>. Components take a <see cref="DeskSpace"/> step rather than a
+    /// pixel count, so a layout can be re-tuned in one place.
+    /// </summary>
+    /// <remarks>
+    /// Returns the custom property rather than the pixel value on purpose: the number
+    /// then lives in exactly one file, and a layout that inlines <c>var(--space-3)</c>
+    /// re-tunes with the stylesheet instead of freezing whatever C# thought 12px was.
+    /// </remarks>
+    public static string SpaceVar(DeskSpace step) => step switch
+    {
+        DeskSpace.None => "0",
+        DeskSpace.Space1 => "var(--space-1)",
+        DeskSpace.Space2 => "var(--space-2)",
+        DeskSpace.Space3 => "var(--space-3)",
+        DeskSpace.Space4 => "var(--space-4)",
+        DeskSpace.Space6 => "var(--space-6)",
+        DeskSpace.Space8 => "var(--space-8)",
+        DeskSpace.Space12 => "var(--space-12)",
+        DeskSpace.Space16 => "var(--space-16)",
+        _ => "var(--space-2)"
+    };
+
+    // Type styles. Named for the job, never the size. Mirrors --text-* / --leading-*.
+    public const string TextTitle = "10.5px";   // panel headings
+    public const string TextCaption = "11px";   // labels, units, annotation
+    public const string TextBody = "13px";      // the default reading size
+    public const string TextCallout = "14px";   // read this before its neighbours
+
+    public const string LeadingTitle = "1.4";
+    public const string LeadingCaption = "1.45";
+    public const string LeadingBody = "1.5";
+    public const string LeadingCallout = "1.45";
+
+    // Radii. Radius is the desk default and does not move. Mirrors --radius-*.
+    public const string RadiusSm = "4px";
+    public const string Radius = "6px";
+    public const string RadiusLg = "10px";
 
     /// <summary>
     /// The single theme instance. Static because it never varies per circuit — the desk
