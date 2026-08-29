@@ -72,7 +72,7 @@
 
 **Interfaces:**
 - Consumes: nothing (first task).
-- Produces: the full token vocabulary every later task spends — `--surface-0..3`, `--separator`, `--separator-strong`, `--text-primary/secondary/tertiary`, `--accent`, `--accent-hover`, `--accent-wash`, `--on-accent`, `--green`, `--red`, `--orange` and their `-wash` variants, `--material-ultrathin/thin/regular/thick`, `--material-blur`, `--face-ui`, `--face-data`, `--text-largetitle/title1/title2/title3/headline/body/subheadline/footnote/caption`, `--weight-regular/medium/semibold`, `--space-1..16`, `--radius-sm/radius/radius-panel/radius-sheet`, `--dur-fast/base/slow`, `--ease-standard/spring/exit`, `--shadow-1/2/3`, `--z-*`, `--rail-size`, `--titlebar-h`.
+- Produces: the full token vocabulary every later task spends — `--surface-0..3`, `--separator`, `--separator-strong`, `--text-primary/secondary/tertiary`, `--accent`, `--accent-hover`, `--accent-wash`, `--on-accent`, `--state-positive`, `--state-negative`, `--state-warning` and their `-wash` variants, `--material-ultrathin/thin/regular/thick`, `--material-blur`, `--face-ui`, `--face-data`, `--text-largetitle/title1/title2/title3/headline/body/subheadline/footnote/caption`, `--weight-regular/medium/semibold`, `--space-1..16`, `--radius-sm/radius/radius-panel/radius-sheet`, `--dur-fast/base/slow`, `--ease-standard/spring/exit`, `--shadow-1/2/3`, `--z-*`, `--rail-size`, `--titlebar-h`.
 
 - [ ] **Step 1: Download the Inter variable font**
 
@@ -149,12 +149,12 @@ In `src/LineOps.Web/wwwroot/css/lineops.css`, replace everything from line 1 thr
        Apple's dark-mode system colours. Unlike the old dial these are applied by
        judgment where a state genuinely needs a colour — not as an always-on
        channel that tinted every control on the desk. */
-    --green: #30D158;
-    --red: #FF453A;
-    --orange: #FF9F0A;
-    --green-wash: rgba(48, 209, 88, .15);
-    --red-wash: rgba(255, 69, 58, .15);
-    --orange-wash: rgba(255, 159, 10, .15);
+    --state-positive: #30D158;
+    --state-negative: #FF453A;
+    --state-warning: #FF9F0A;
+    --state-positive-wash: rgba(48, 209, 88, .15);
+    --state-negative-wash: rgba(255, 69, 58, .15);
+    --state-warning-wash: rgba(255, 159, 10, .15);
 
     /* --- Materials ----------------------------------------------------------
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
@@ -336,7 +336,7 @@ git commit -m "feat(theme): Apple-dark token vocabulary and self-hosted Inter"
 
 **Interfaces:**
 - Consumes: the token values from Task 1 (the hex literals must match exactly).
-- Produces: `DeskTheme.Surface0/1/2/3`, `DeskTheme.Accent`, `DeskTheme.Green`, `DeskTheme.Red`, `DeskTheme.Orange`, `DeskTheme.TextPrimary/Secondary/Tertiary`, `DeskTheme.OnAccent`, `DeskTheme.Build()` returning `MudTheme`, and the existing `DeskTheme.SpaceVar(DeskSpace)` unchanged.
+- Produces: `DeskTheme.Surface0/1/2/3`, `DeskTheme.Accent`, `DeskTheme.StatePositive`, `DeskTheme.StateNegative`, `DeskTheme.StateWarning`, `DeskTheme.TextPrimary/Secondary/Tertiary`, `DeskTheme.OnAccent`, `DeskTheme.Build()` returning `MudTheme`, and the existing `DeskTheme.SpaceVar(DeskSpace)` unchanged.
 
 - [ ] **Step 1: Read the current file end to end**
 
@@ -376,9 +376,9 @@ public class DeskThemeTests
     [InlineData("--surface-2", "#2C2C2E")]
     [InlineData("--surface-3", "#38383A")]
     [InlineData("--accent", "#0A84FF")]
-    [InlineData("--green", "#30D158")]
-    [InlineData("--red", "#FF453A")]
-    [InlineData("--orange", "#FF9F0A")]
+    [InlineData("--state-positive", "#30D158")]
+    [InlineData("--state-negative", "#FF453A")]
+    [InlineData("--state-warning", "#FF9F0A")]
     public void Css_declares_the_colour_token(string token, string expected)
     {
         Assert.Equal(expected, TokenValue(token));
@@ -391,9 +391,9 @@ public class DeskThemeTests
     [InlineData("--surface-2", nameof(DeskTheme.Surface2))]
     [InlineData("--surface-3", nameof(DeskTheme.Surface3))]
     [InlineData("--accent", nameof(DeskTheme.Accent))]
-    [InlineData("--green", nameof(DeskTheme.Green))]
-    [InlineData("--red", nameof(DeskTheme.Red))]
-    [InlineData("--orange", nameof(DeskTheme.Orange))]
+    [InlineData("--state-positive", nameof(DeskTheme.StatePositive))]
+    [InlineData("--state-negative", nameof(DeskTheme.StateNegative))]
+    [InlineData("--state-warning", nameof(DeskTheme.StateWarning))]
     public void Csharp_mirrors_the_stylesheet(string token, string constantName)
     {
         var constant = (string)typeof(DeskTheme)
@@ -412,9 +412,9 @@ public class DeskThemeTests
         Assert.Equal(DeskTheme.Accent, dark.Primary.Value, ignoreCase: true);
         Assert.Equal(DeskTheme.Surface0, dark.Background.Value, ignoreCase: true);
         Assert.Equal(DeskTheme.Surface1, dark.Surface.Value, ignoreCase: true);
-        Assert.Equal(DeskTheme.Green, dark.Success.Value, ignoreCase: true);
-        Assert.Equal(DeskTheme.Red, dark.Error.Value, ignoreCase: true);
-        Assert.Equal(DeskTheme.Orange, dark.Warning.Value, ignoreCase: true);
+        Assert.Equal(DeskTheme.StatePositive, dark.Success.Value, ignoreCase: true);
+        Assert.Equal(DeskTheme.StateNegative, dark.Error.Value, ignoreCase: true);
+        Assert.Equal(DeskTheme.StateWarning, dark.Warning.Value, ignoreCase: true);
     }
 
     /// <summary>
@@ -484,9 +484,9 @@ Replace the colour constants (the `Ink900`…`OnFlag` block, roughly lines 26–
 
     // Semantic state. Apple's dark-mode system colours, applied where a state
     // genuinely needs a colour rather than as an always-on channel.
-    public const string Green = "#30D158";
-    public const string Red = "#FF453A";
-    public const string Orange = "#FF9F0A";
+    public const string StatePositive = "#30D158";
+    public const string StateNegative = "#FF453A";
+    public const string StateWarning = "#FF9F0A";
 
     public const string Separator = "rgba(255,255,255,0.10)";
 ```
@@ -520,9 +520,9 @@ Then build the theme:
             TextSecondary = TextSecondary,
             TextDisabled = TextTertiary,
 
-            Success = Green,
-            Error = Red,
-            Warning = Orange,
+            Success = StatePositive,
+            Error = StateNegative,
+            Warning = StateWarning,
             Info = Accent,
 
             Divider = Separator,
@@ -1161,23 +1161,23 @@ Delete everything between those bounds and insert:
 .desk-btn--filled:active:not(:disabled) { --btn-fill: var(--accent-press); }
 
 /* --- Destructive: the only place a button borrows a state colour. ---------- */
-.desk-btn--destructive.desk-btn--plain { --btn-ink: var(--red); }
+.desk-btn--destructive.desk-btn--plain { --btn-ink: var(--state-negative); }
 
 .desk-btn--destructive.desk-btn--plain:hover:not(:disabled) {
-    --btn-fill: var(--red-wash);
-    --btn-ink: var(--red);
+    --btn-fill: var(--state-negative-wash);
+    --btn-ink: var(--state-negative);
 }
 
-.desk-btn--destructive.desk-btn--tinted { --btn-fill: var(--red-wash); --btn-ink: var(--red); }
+.desk-btn--destructive.desk-btn--tinted { --btn-fill: var(--state-negative-wash); --btn-ink: var(--state-negative); }
 
 .desk-btn--destructive.desk-btn--tinted:hover:not(:disabled) {
-    --btn-fill: color-mix(in oklab, var(--red) 24%, transparent);
+    --btn-fill: color-mix(in oklab, var(--state-negative) 24%, transparent);
 }
 
-.desk-btn--destructive.desk-btn--filled { --btn-fill: var(--red); --btn-ink: #FFFFFF; }
+.desk-btn--destructive.desk-btn--filled { --btn-fill: var(--state-negative); --btn-ink: #FFFFFF; }
 
 .desk-btn--destructive.desk-btn--filled:hover:not(:disabled) {
-    --btn-fill: color-mix(in oklab, var(--red) 85%, #fff);
+    --btn-fill: color-mix(in oklab, var(--state-negative) 85%, #fff);
 }
 
 /* --- Sizes. The control changes height and padding; the recipe does not. --- */
@@ -1460,7 +1460,7 @@ For each rule: if it references a deleted token (`--ink-*`, `--chalk`, `--haze`,
 | `--haze-dim` | `--text-tertiary` |
 | `--iris` | `--accent` |
 | `--iris-dim` | `--accent-wash` |
-| `--steam` / `--drift` / `--flag` | `--green` / `--red` / `--orange` |
+| `--steam` / `--drift` / `--flag` | `--state-positive` / `--state-negative` / `--state-warning` |
 | `--radius-lg` | `--radius-panel` |
 | `--shadow-win` | `--shadow-3` |
 | `--shadow-float` | `--shadow-sheet` |
@@ -1587,19 +1587,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     text-transform: none;
 }
 
-.field-req { color: var(--red); margin-left: 3px; }
+.field-req { color: var(--state-negative); margin-left: 3px; }
 
 .field-err {
     font-size: var(--text-footnote);
-    color: var(--red);
+    color: var(--state-negative);
 }
 
-.field[aria-invalid="true"] { border-color: var(--red); }
+.field[aria-invalid="true"] { border-color: var(--state-negative); }
 
 .field[aria-invalid="true"]:focus,
 .field[aria-invalid="true"]:focus-visible {
-    border-color: var(--red);
-    box-shadow: 0 0 0 3px var(--red-wash), 0 0 0 1px var(--red);
+    border-color: var(--state-negative);
+    box-shadow: 0 0 0 3px var(--state-negative-wash), 0 0 0 1px var(--state-negative);
 }
 ```
 
@@ -1628,7 +1628,7 @@ The old switch used a "marble" travelling on a "glide plate". Replace its visual
     cursor: pointer;
 }
 
-.desk-switch__track[data-on="true"] { background: var(--green); }
+.desk-switch__track[data-on="true"] { background: var(--state-positive); }
 
 .desk-switch__knob {
     position: absolute;
@@ -1709,7 +1709,7 @@ Rewrite those blocks against these decisions, re-pointing every deleted token pe
 - **Rail** uses `--material-regular` and the same blur; its selected item is `--accent-wash` with `--accent` text and no border.
 - **Window body** is opaque `--surface-1` with `border-radius: var(--radius-panel)`, `box-shadow: var(--shadow-3)`, and no border. Materials are for things that float; a window full of numbers stays opaque.
 - **Title bar** is `--surface-2`, height `var(--titlebar-h)`, with the title in `--text-headline` weight `var(--weight-semibold)` and `--text-primary`; subtitle in `--text-subheadline` `--text-secondary`.
-- **Window controls** (`.win__ctl`) become 12px circles with `--space-2` gaps, taking `--text-tertiary` as a resting fill and revealing their glyph only on bar hover. Close fills `--red` on its own hover. This is traffic-light *behaviour* — do not reproduce Apple's exact three-colour set.
+- **Window controls** (`.win__ctl`) become 12px circles with `--space-2` gaps, taking `--text-tertiary` as a resting fill and revealing their glyph only on bar hover. Close fills `--state-negative` on its own hover. This is traffic-light *behaviour* — do not reproduce Apple's exact three-colour set.
 - **Focus** anywhere in the chrome uses `box-shadow: var(--focus-ring)` and never an `outline` colour of its own.
 
 Keep the existing `@supports not (backdrop-filter: blur(1px))` fallback block, updating its solid colours to `--surface-1` / `--surface-2`. If no such block exists, add one — every material needs an opaque path.
@@ -1756,7 +1756,7 @@ grep -n "^\.grid\|^\.row\|^\.dg\|mud-table\|mud-datagrid" src/LineOps.Web/wwwroo
 - **Header row** is `--surface-2`, `--text-footnote`, `var(--weight-semibold)`, `--text-secondary`, no uppercase and no letter-spacing.
 - **Hover** is `background: var(--surface-2)`; **selected** is `background: var(--accent-wash)` with `--text-primary`. Selection never uses a border or a left-edge bar.
 - **Every numeric cell** carries `font-variant-numeric: tabular-nums` — either via the existing `.num` class or a rule on the cell selector.
-- Values that carry a genuine state (a moved line, a breached budget, a win or loss) keep `--green`/`--red`/`--orange` **on the text only**, never as a row fill. A whole row painted with a state colour was the old dial's habit.
+- Values that carry a genuine state (a moved line, a breached budget, a win or loss) keep `--state-positive`/`--state-negative`/`--state-warning` **on the text only**, never as a row fill. A whole row painted with a state colour was the old dial's habit.
 
 - [ ] **Step 3: Verify in the browser**
 
@@ -1788,7 +1788,7 @@ git commit -m "feat(desk): macOS-list density for grids and tables"
 
 - [ ] **Step 1: Restyle each, following these rules**
 
-- **Tags/badges** become capsules: `border-radius: 999px`, `padding: 2px var(--space-2)`, `font-size: var(--text-caption)`, `font-weight: var(--weight-medium)`, no border, a wash fill (`--accent-wash`, `--green-wash`, `--red-wash`, `--orange-wash`) with matching text colour, or `--surface-3` with `--text-secondary` when neutral.
+- **Tags/badges** become capsules: `border-radius: 999px`, `padding: 2px var(--space-2)`, `font-size: var(--text-caption)`, `font-weight: var(--weight-medium)`, no border, a wash fill (`--accent-wash`, `--state-positive-wash`, `--state-negative-wash`, `--state-warning-wash`) with matching text colour, or `--surface-3` with `--text-secondary` when neutral.
 - **Skeletons** are `--surface-2` with a shimmer using the same `desk-btn-sheen` keyframes and `--ease-standard`; radius matches whatever they stand in for.
 - **Progress** is a 4px `--surface-3` track with an `--accent` fill and `border-radius: 999px` on both. Indeterminate slides rather than pulses.
 - **Empty states** centre a `--text-secondary` line at `--text-body` over a `--text-tertiary` glyph; no border, no box — an empty state is an absence, not a card.
@@ -1825,7 +1825,7 @@ git commit -m "feat(desk): capsules, shimmer skeletons, and quiet empty states"
 - Modify: `src/LineOps.Web/wwwroot/css/lineops.css` — pulse block.
 
 **Interfaces:**
-- Consumes: `--green`, `--red`, `--orange`, `--accent`, motion tokens.
+- Consumes: `--state-positive`, `--state-negative`, `--state-warning`, `--accent`, motion tokens.
 - Produces: the one loud element, recoloured.
 
 - [ ] **Step 1: Locate and recolour**
@@ -1834,7 +1834,7 @@ git commit -m "feat(desk): capsules, shimmer skeletons, and quiet empty states"
 grep -n "pulse" src/LineOps.Web/wwwroot/css/lineops.css | head -20
 ```
 
-ADR 0007 gave the pulse strip permission to be the desk's one loud element and that permission survives. Map its hues onto the new semantic set (`--steam` → `--green`, `--drift` → `--red`, `--flag` → `--orange`, `--iris` → `--accent`) and re-point its easing to `--ease-standard` at `--dur-base`. Do not tone it down — it is the exception the system is built around, and it is the only place the desk animates continuously.
+ADR 0007 gave the pulse strip permission to be the desk's one loud element and that permission survives. Map its hues onto the new semantic set (`--steam` → `--state-positive`, `--drift` → `--state-negative`, `--flag` → `--state-warning`, `--iris` → `--accent`) and re-point its easing to `--ease-standard` at `--dur-base`. Do not tone it down — it is the exception the system is built around, and it is the only place the desk animates continuously.
 
 - [ ] **Step 2: Confirm reduced-motion**
 
@@ -2186,7 +2186,7 @@ Append to `lineops.css`:
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-.desk-sheet__close:hover { background: var(--red); color: #FFFFFF; }
+.desk-sheet__close:hover { background: var(--state-negative); color: #FFFFFF; }
 .desk-sheet__close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .desk-sheet__close svg { width: 14px; height: 14px; }
 
@@ -2584,7 +2584,7 @@ git commit -m "feat(desk): add DeskAlert and a one-line confirm service"
 grep -n "pullmenu\|pull-menu" src/LineOps.Web/wwwroot/css/lineops.css
 ```
 
-The surface becomes `--material-regular` + `var(--material-blur)`, `border-radius: var(--radius-panel)`, `box-shadow: var(--shadow-3)`, `1px solid var(--separator)`. Items are `--text-body`, `--text-primary`, 26px tall, with `--space-2` horizontal padding; hover is `--accent-wash` with `--accent` text — the platform's own menu highlight. A selected item shows a leading checkmark glyph rather than a changed background. A destructive item takes `--red` text and a `--red-wash` hover.
+The surface becomes `--material-regular` + `var(--material-blur)`, `border-radius: var(--radius-panel)`, `box-shadow: var(--shadow-3)`, `1px solid var(--separator)`. Items are `--text-body`, `--text-primary`, 26px tall, with `--space-2` horizontal padding; hover is `--accent-wash` with `--accent` text — the platform's own menu highlight. A selected item shows a leading checkmark glyph rather than a changed background. A destructive item takes `--state-negative` text and a `--state-negative-wash` hover.
 
 Add the anchored entrance, which is what makes a popover read as coming *out of* its trigger:
 
