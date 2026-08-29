@@ -17,7 +17,8 @@
     css/mud-bridge.css for why that stack resolves the way it does.
 *@
 
-<MudButton Class="@Classes"
+<MudButton @ref="_button"
+           Class="@Classes"
            Variant="Variant.Text"
            Color="Color.Inherit"
            Ripple="false"
@@ -73,6 +74,17 @@
 
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private MudButton? _button;
+
+    /// <summary>
+    /// Puts the keyboard on this button. Exposed because <c>@ref</c> on a component hands
+    /// back the component, not an element, so a caller that needs to move focus here — the
+    /// alert's default confirm is the one in the tree — has no other route through the
+    /// boundary. MudBlazor already holds the underlying <c>ElementReference</c>; this only
+    /// forwards it, and is a no-op before the first render has produced an element.
+    /// </summary>
+    public ValueTask FocusAsync() => _button?.FocusAsync() ?? ValueTask.CompletedTask;
 
     private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
 

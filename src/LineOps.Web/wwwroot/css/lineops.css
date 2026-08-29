@@ -2988,9 +2988,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     margin-top: var(--space-2);
 }
 
-/* The default confirm carries the focus ring at rest, so Enter has a visible target.
-   A destructive confirm never gets this class — see DeskAlert.razor for why. */
-.desk-alert__confirm--default { box-shadow: var(--focus-ring); }
+/* No rule marks the default confirm. There used to be one — a painted box-shadow copied
+   from --focus-ring — and it drew a focus ring on a button that did not have focus, which
+   a keyboard operator could not tell from the real thing. DeskAlert now focuses the default
+   button outright, so .desk-btn:focus-visible paints it when a keyboard opened the alert
+   and leaves it alone when a pointer did. The ring is earned rather than drawn. */
 
 /* ---- Material fallbacks -----------------------------------------------------
    Opaque fallbacks for every material surface. This block must stay LAST in the

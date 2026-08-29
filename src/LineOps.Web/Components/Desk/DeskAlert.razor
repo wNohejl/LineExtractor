@@ -17,6 +17,18 @@
     consequence — "Delete run", not "OK" — because a button that says OK is asking the
     operator to remember what they clicked.
 
+    "Default" used to mean a painted ring and nothing else: the confirm carried a
+    box-shadow byte-identical to :focus-visible while focus sat somewhere else entirely
+    and Enter activated nothing. A keyboard operator could not tell that ring from a real
+    one, which makes it worse than no marking at all. It is now literal — the default
+    button is given actual focus on open, so Enter activates it because it is focused, and
+    the ring that appears is the browser's own :focus-visible rather than a drawing of one.
+    The painted class is gone with the lie. A destructive alert focuses Cancel instead, so
+    the rule above holds in the keyboard channel too, not only in the paint.
+
+    The dialog semantics are declared here because there is nowhere else for them: this
+    renders bare content, so it inherits neither DeskDialog's explicit role nor MudDialog's.
+
     Unlike DeskSheet this renders bare content rather than a MudDialog: an alert has no
     title bar, no scroll body and no action tray to fill, so wrapping it in one would only
     buy Mud's title/content/actions padding on top of the padding .desk-alert already
@@ -24,23 +36,34 @@
     opaque, so the alert needs no material fallback of its own.
 *@
 
-<div class="desk-alert">
-    <div class="desk-alert__heading">@Heading</div>
+<div class="desk-alert"
+     role="alertdialog"
+     aria-modal="true"
+     aria-labelledby="@_headingId"
+     aria-describedby="@(Message is null ? null : _messageId)">
+
+    <div class="desk-alert__heading" id="@_headingId">@Heading</div>
 
     @if (Message is not null)
     {
-        <div class="desk-alert__message">@Message</div>
+        <div class="desk-alert__message" id="@_messageId">@Message</div>
     }
 
     <div class="desk-alert__actions">
         @if (CancelLabel is not null)
         {
-            <DeskButton Emphasis="DeskEmphasis.Plain" OnClick="Cancel">@CancelLabel</DeskButton>
+            <DeskButton @ref="_cancel"
+                        Emphasis="DeskEmphasis.Plain"
+                        autofocus="@(CancelIsDefault ? "autofocus" : null)"
+                        OnClick="Cancel">
+                @CancelLabel
+            </DeskButton>
         }
 
-        <DeskButton Emphasis="DeskEmphasis.Filled"
+        <DeskButton @ref="_confirm"
+                    Emphasis="DeskEmphasis.Filled"
                     Role="@(Destructive ? DeskRole.Destructive : DeskRole.Normal)"
-                    Class="@ConfirmClass"
+                    autofocus="@(CancelIsDefault ? null : "autofocus")"
                     OnClick="Confirm">
             @ConfirmLabel
         </DeskButton>
@@ -64,7 +87,37 @@
     /// <summary>Renders the confirm red and refuses to make it the default.</summary>
     [Parameter] public bool Destructive { get; set; }
 
-    private string? ConfirmClass => Destructive ? null : "desk-alert__confirm--default";
+    private DeskButton? _confirm;
+    private DeskButton? _cancel;
+
+    // Ids rather than a literal, because two alerts can be stacked and aria-labelledby is
+    // resolved document-wide.
+    private readonly string _headingId = $"desk-alert-h-{Guid.NewGuid():N}";
+    private readonly string _messageId = $"desk-alert-m-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// A destructive alert defaults to the way out. With no cancel to default to, the
+    /// confirm takes it back — a one-button acknowledgement has nothing else to focus.
+    /// </summary>
+    private bool CancelIsDefault => Destructive && CancelLabel is not null;
+
+    /// <summary>
+    /// The alert arrives without focus of its own: Mud's dialog traps the tab ring but does
+    /// not choose a starting point, and <c>autofocus</c> is not honoured for content the
+    /// renderer inserts after load. So the default button is focused here, once, on the
+    /// first render — which is what makes Enter answer the alert rather than the page
+    /// behind it.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var target = CancelIsDefault ? _cancel : _confirm;
+
+        if (target is not null)
+            await target.FocusAsync();
+    }
 
     private void Confirm() => Instance?.Close(DialogResult.Ok(true));
 
