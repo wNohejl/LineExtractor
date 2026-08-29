@@ -1298,14 +1298,92 @@ git commit -m "feat(desk): Filled/Tinted/Plain button recipe replaces the gloss 
 | `Components/Desk/RowActions.razor` | 1 |
 
 - Also modify: `src/LineOps.Web/Components/Desk/RowAction.cs` — the `Tone` property.
+- Also create: `src/LineOps.Web/Components/Desk/DeskState.cs` — the `DeskState` enum (see Step 0).
+- Also modify: `Components/Desk/Tag.razor`, `Components/Desk/Note.razor`, `Components/Desk/Metric.razor`, `Components/Desk/DeskToasts.cs` — migrate from `DeskTone` to `DeskState`.
 
 **Interfaces:**
 - Consumes: `DeskEmphasis`, `DeskRole` from Task 3.
-- Produces: a codebase with zero `DeskTone` references and a green build.
+- Produces: `enum DeskState { Neutral, Positive, Negative, Warning, Info }`, and a codebase with zero `DeskTone` references and a green build.
 
 **This is a judgment task, not a find-and-replace.** ADR 0016's whole point is that the old tones over-coloured the desk. A mechanical map would carry that problem across intact.
 
-- [ ] **Step 1: Change the `RowAction` record first, since panels depend on it**
+**Two traps this task must not fall into, both found during Task 3's review:**
+
+1. **`Quiet="true"` does not produce a compile error.** `DeskButton` declares `[Parameter(CaptureUnmatchedValues = true)] Extra`, so a removed parameter silently lands there and renders as a stray HTML attribute. A green build is therefore *not* evidence that `Quiet` is gone. Remove it by grep, and verify by grep.
+2. **`DeskTone` was doing two different jobs**, and only one of them is about buttons. See Step 0.
+
+- [ ] **Step 0: Split the enum, because `DeskTone` was conflating two things**
+
+Task 3 retired `DeskTone` on the assumption it only described buttons. It did not. Four components use it to name a **state**, not an action's weight:
+
+- `Tag.razor` — `DeskTone.Go` → `tag--good`, `Stop` → `tag--bad`, `Caution` → `tag--warn`, `Action` → `tag--info`
+- `Metric.razor` — the same four, as `metric--good` / `--bad` / `--warn` / `--info`
+- `Note.razor` — checks `Tone == DeskTone.Caution` to wear the flag rule
+- `DeskToasts.cs` — maps tones onto MudBlazor `Severity` and `desk-toast--*` classes
+
+Mapping these onto `DeskEmphasis`/`DeskRole` would be wrong. A tag has no emphasis; it reports what something *is*. And this is precisely where the design says state colour belongs: hue moves off the controls and onto "numbers, tags, the pulse strip".
+
+So create `src/LineOps.Web/Components/Desk/DeskState.cs`:
+
+```csharp
+namespace LineOps.Web.Components.Desk;
+
+/// <summary>
+/// TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
+///
+/// What something *is*, for the things that report rather than act.
+///
+/// <para>
+/// This is the half of the retired <c>DeskTone</c> that was never about buttons. Under
+/// ADR 0016 hue stops being an affordance channel and moves to where states actually
+/// live — a figure, a tag, a toast, the pulse strip. Those still need to say "this is
+/// healthy" or "this breached", and they say it here.
+/// </para>
+///
+/// <para>
+/// Buttons do not take a <c>DeskState</c>. They take <see cref="DeskEmphasis"/> and
+/// <see cref="DeskRole"/>, because the question a button answers is how much weight it
+/// claims and whether it destroys something — not what colour it is.
+/// </para>
+/// </summary>
+public enum DeskState
+{
+    /// <summary>No state worth colouring. The default.</summary>
+    Neutral,
+
+    /// <summary>Healthy, settled, moved your way, won.</summary>
+    Positive,
+
+    /// <summary>Breached, failed, moved against you, lost.</summary>
+    Negative,
+
+    /// <summary>Proceeding, but the operator should know the cost. Budget pressure, pending.</summary>
+    Warning,
+
+    /// <summary>Called out for attention without implying good or bad.</summary>
+    Info
+}
+```
+
+Then migrate the four consumers, renaming their `Tone` parameter to `State` and their type to `DeskState`:
+
+| Old | New |
+|---|---|
+| `DeskTone.Go` | `DeskState.Positive` |
+| `DeskTone.Stop` | `DeskState.Negative` |
+| `DeskTone.Caution` | `DeskState.Warning` |
+| `DeskTone.Action` | `DeskState.Info` |
+| `DeskTone.Neutral` | `DeskState.Neutral` |
+
+Their existing CSS class names (`tag--good`, `metric--bad`, `desk-toast--go`, …) do not change in this task — Task 10 restyles those blocks and can rename them then if it wants. Keep the mapping switch expressions pointing at the same class strings, so this step is an enum swap and nothing else.
+
+`DeskToasts.cs`'s `Severity` mapping is unchanged in meaning: `Positive` → `Severity.Success`, `Info` → `Severity.Info`, `Warning` → `Severity.Warning`, `Negative` → `Severity.Error`.
+
+Update the four components' doc comments: they currently say "name the consequence, not the colour", which was the button rule. For these, the rule is "name the state, not the colour."
+
+Then update every call site that passes a tone to one of these four components — `Tag`, `Metric`, and `Note` are used across the panels, so expect `Tone="DeskTone.Go"` on a `<Tag>` to become `State="DeskState.Positive"`. These are mechanical: a tag saying "won" is still saying "won".
+
+- [ ] **Step 1: Change the `RowAction` record, since panels depend on it**
 
 In `src/LineOps.Web/Components/Desk/RowAction.cs`, replace the `Tone` property:
 
@@ -1326,17 +1404,19 @@ Work one file at a time, smallest first, so the error count falls visibly. For e
 3. **`Tone="DeskTone.Go"` → usually `Emphasis="DeskEmphasis.Filled"`** when it starts the panel's main work (Ingest, Sync, Run), otherwise `Tinted`. Same one-Filled-per-panel ceiling shared with rule 2 — Go and Action were both "primary" under the old system, which is exactly the over-colouring being removed.
 4. **`Tone="DeskTone.Caution"` → `Emphasis="DeskEmphasis.Tinted"`.** The warning belongs in the confirmation the button opens (Phase 3's `DeskAlert`), not in the button's colour. Where the caution is genuinely about cost, note it in the label ("Backfill 30 days") rather than the hue.
 5. **`Tone="DeskTone.Neutral"` → delete the attribute.** `Plain` is the default.
-6. **`Quiet="true"` → delete the attribute.** Plain already is the quiet button. If the site also set a tone, resolve to `Plain`.
+6. **`Quiet="true"` → delete the attribute.** Plain already is the quiet button. If the site also set a tone, resolve to `Plain`. Remember trap 1: the compiler will not find these for you. `grep -rn 'Quiet' src/LineOps.Web --include=*.razor` is how you find them, and it currently reports 12 files.
 
 For `PartsPanel.razor` (28 sites) do not apply these rules — it is the parts catalog and Task 17 rewrites it wholesale. For now, get it compiling with the minimum edit: `Tone="DeskTone.X"` → `Emphasis="DeskEmphasis.Plain"` and drop `Quiet`. Leave a `@* TODO(Task 17): showcase rewrite *@` comment at the top of its buttons section.
 
 - [ ] **Step 3: Confirm the old enum is gone from the codebase**
 
 ```bash
-grep -rn "DeskTone\|Quiet=" src/ --include=*.razor --include=*.cs
+grep -rn "DeskTone\|Quiet" src/ --include=*.razor --include=*.cs
 ```
 
-Expected: no output.
+Expected: no output. Note this greps bare `Quiet`, not `Quiet=`, because prose in a comment mentioning the retired parameter is also stale — `PartsPanel.razor` has one such line describing what Quiet meant under the gloss rule.
+
+The file table above counts `Tone=` attributes only. The true `DeskTone` footprint is wider — 29 files, including `RowAction.cs`, `DeskToasts.cs`, `Tag.razor`, `Note.razor` and `Metric.razor`, which the table does not list because they name the type without a `Tone=` attribute. Trust this grep, not the table.
 
 - [ ] **Step 4: Build**
 
