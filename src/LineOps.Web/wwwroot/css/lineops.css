@@ -50,12 +50,12 @@
        Apple's dark-mode system colours. Unlike the old dial these are applied by
        judgment where a state genuinely needs a colour — not as an always-on
        channel that tinted every control on the desk. */
-    --green: #30D158;
-    --red: #FF453A;
-    --orange: #FF9F0A;
-    --green-wash: rgba(48, 209, 88, .15);
-    --red-wash: rgba(255, 69, 58, .15);
-    --orange-wash: rgba(255, 159, 10, .15);
+    --state-positive: #30D158;
+    --state-negative: #FF453A;
+    --state-warning: #FF9F0A;
+    --state-positive-wash: rgba(48, 209, 88, .15);
+    --state-negative-wash: rgba(255, 69, 58, .15);
+    --state-warning-wash: rgba(255, 159, 10, .15);
 
     /* --- Materials ----------------------------------------------------------
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
