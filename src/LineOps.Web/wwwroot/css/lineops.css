@@ -1048,6 +1048,10 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     .railmenu__panel--bottom, .railmenu__panel--top { left: auto; right: 0; }
 }
 
+/* A menu whose button lives at the right edge of the chrome anchors its right edge
+   to the button instead, so the panel opens inward rather than off-screen. */
+.railmenu__panel--end { left: auto; right: 0; }
+
 /* ------------------------------------------------------------ launcher ---- */
 
 .launcher {

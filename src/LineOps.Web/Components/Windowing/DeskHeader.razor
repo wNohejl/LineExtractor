@@ -30,7 +30,8 @@
 
         @* The desk's own controls. *@
         <div class="bar__group" role="group" aria-label="Desk controls" data-glide="marble">
-            <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces">
+            <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces"
+                      AlignEnd="true">
                 <div class="launcher" data-glide>
             <div class="launcher__group">Workspaces</div>
             @foreach (var workspace in WindowCatalog.Workspaces)
