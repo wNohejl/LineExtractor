@@ -1568,6 +1568,8 @@ For each rule: if it references a deleted token (`--ink-*`, `--chalk`, `--haze`,
 
 Delete outright any rule whose only job was flattening a Material shadow into the old hard, short desk shadow — the new elevation ramp above already produces soft Apple shadows, so those rules now fight the system rather than serve it.
 
+> **Later addition, from Task 10:** `.mud-chip` in this file still mirrors the retired tag shape — bordered, square-ish — and has diverged from the capsule the desk's own `.tag` became. Task 10 could not fix it because this file was closed to it. If you are reading this during Task 6 the divergence does not exist yet; if you are reading it later, whoever reopens this file should bring `.mud-chip` into line with the capsule treatment: `border-radius: 999px`, no border, a wash fill with matching text colour.
+
 - [ ] **Step 2b: Port the button companion rules to `.desk-btn` — this one is load-bearing**
 
 The file currently carries three rules whose only job is stopping MudBlazor from overriding the desk's own button styling. They still name `.desk-key` and the retired `--key-ink` / `--key-tint`:
@@ -1978,7 +1980,7 @@ For every block outside the five named in Step 1, the work is a faithful re-poin
 - **Tags/badges** become capsules: `border-radius: 999px`, `padding: 2px var(--space-2)`, `font-size: var(--text-caption)`, `font-weight: var(--weight-medium)`, no border, a wash fill (`--accent-wash`, `--state-positive-wash`, `--state-negative-wash`, `--state-warning-wash`) with matching text colour, or `--surface-3` with `--text-secondary` when neutral.
 - **Skeletons** are `--surface-2` with a shimmer using the same `desk-btn-sheen` keyframes and `--ease-standard`; radius matches whatever they stand in for.
 - **Progress** is a 4px `--surface-3` track with an `--accent` fill and `border-radius: 999px` on both. Indeterminate slides rather than pulses.
-- **Empty states** centre a `--text-secondary` line at `--text-body` over a `--text-tertiary` glyph; no border, no box — an empty state is an absence, not a card.
+- **Empty states** centre a `--text-secondary` line at `--text-body`; no border, no box — an empty state is an absence, not a card. (An earlier draft called for a `--text-tertiary` glyph above the line. `EmptyState.razor` has no glyph element, and adding markup for decoration argues against the rule the component is expressing. Dropped deliberately.)
 - **Metric/PriceCell** keep tabular numerals and take their state colour on the number only.
 
 - [ ] **Step 2: Confirm no deleted tokens survive anywhere**
@@ -2815,7 +2817,31 @@ git commit -m "feat(desk): menus become anchored popovers on a material"
 - Modify: `docs/adr/0013-the-board-and-the-floating-layer.md`
 - Modify: `docs/adr/0008-gloss-as-affordance-and-the-mudblazor-seam.md`
 
-- [ ] **Step 0: The vocabulary pass**
+- [ ] **Step 0a: Retired tokens hiding in markup — these are live defects**
+
+Task 10 drove `lineops.css` to zero retired tokens, but the sweep only ever looked at stylesheets. **Retired tokens also live in inline `style=` attributes and in style strings emitted from C#**, where no CSS grep would find them. Each one resolves to nothing, so the declaration is dropped and the element renders unstyled.
+
+```bash
+grep -rnE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|shadow-float|ease-marble|ease-glide|dur-marble|dur-glide|face-data)\b" src/LineOps.Web --include=*.razor --include=*.cs
+```
+
+Eight live sites, all needing the mapping table:
+
+| File | What breaks today |
+|---|---|
+| `Components/Desk/PanelHeader.razor:107` | emits `color:var(--haze)` from C#; every team heading loses its colour |
+| `Components/Panels/JournalPanel.razor:29` | `--ink-600` background and `--ink-500` border — the block renders with **no background and no border at all** |
+| `Components/Panels/PartsPanel.razor:243` | `--iris` bar is invisible |
+| `Components/Panels/WindowManagerPanel.razor:77` | `accent-color: var(--iris)` on a range input, so the native control falls back to the browser default |
+| `Components/Panels/BoardForm.razor:84` | team heading colour |
+| `Components/Panels/GamePanel.razor:343` and `:396` | team heading colour |
+| `Components/Panels/OddsPanel.razor:178` | team heading colour |
+
+The five team-heading sites all want `--text-secondary`. `JournalPanel` wants `--surface-2` and `--separator`. Both `--iris` sites want `--accent`.
+
+While you are there: those inline styles duplicate what `PanelHeader` and the panel stylesheet already express. Where an inline style is doing nothing a class could not, prefer the class — but do not turn this into a refactor. Re-point first; consolidate only where it is obvious.
+
+- [ ] **Step 0b: The vocabulary pass**
 
 Task 5's grep gate caught every reference to the retired `DeskTone` *type*, but not the retired *vocabulary* that survives in prose and in identifiers. Clear it now, before the ADR describes a system whose own code still speaks the old language.
 
