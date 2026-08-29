@@ -2752,6 +2752,31 @@ git commit -m "feat(desk): menus become anchored popovers on a material"
 - Modify: `docs/adr/0013-the-board-and-the-floating-layer.md`
 - Modify: `docs/adr/0008-gloss-as-affordance-and-the-mudblazor-seam.md`
 
+- [ ] **Step 0: The vocabulary pass**
+
+Task 5's grep gate caught every reference to the retired `DeskTone` *type*, but not the retired *vocabulary* that survives in prose and in identifiers. Clear it now, before the ADR describes a system whose own code still speaks the old language.
+
+Rename the identifiers that still carry the retired word while holding a `DeskState`:
+
+- `Components/TagTones.cs` — the class name, and the file name.
+- The private helpers `AlertTone` / `StateTone` / `StatusTone` / `SeverityTone` / `ResultTone` across `DashboardPanel`, `GamePanel`, `IncidentsPanel`, `OpsPanel`, `RunsPanel`, `JournalPanel`. Each returns a `DeskState`, so each should say `State`.
+- `PartsPanel.razor`'s `TagDemoTones` tuple field.
+
+These were deliberately kept out of Task 5, because renaming them there would have buried that task's judgment under mechanical diff noise. They are a rename and nothing else — the compiler finds every call site, so verify with a green build rather than a grep.
+
+Then fix the stale prose the type-grep could not see:
+
+- `IncidentsPanel.razor` — a summary reading "Critical reads as Stop; anything below it is Caution" above a method now returning `Negative` / `Warning`.
+- `DeskChartFamily.cs` — enum doc comments still describing "the desk's dial", "iris for something you interact with", "steam for money you kept".
+
+Search for the retired vocabulary generally:
+
+```bash
+grep -rni "iris\|steam\|drift\|\bflag\b\|chalk\|haze\|gloss\|moulded\|the dial" src/LineOps.Web --include=*.razor --include=*.cs
+```
+
+Judge each hit. Some are legitimate domain words — a betting console may well have a `Flag` that means a flag. You are looking for the ones describing the retired *visual* system.
+
 - [ ] **Step 1: Write the ADR**
 
 Follow the house style exactly — read two existing ADRs first (`0008` and `0013`) and match their voice: a Context that states what was true, a Decision with named subsections, and a Consequences list that includes the things that cost time.
@@ -2854,13 +2879,20 @@ git commit -m "docs(desk): rebuild the parts catalog around the new system"
 - Consumes: the shipped LineOps files, which are the source of truth. Templates are generalizations of files that actually work — not fresh authoring.
 - Produces: a skill a lower model can invoke and apply to any MudBlazor project.
 
-- [ ] **Step 1: Confirm what is template-able**
+- [ ] **Step 1: Confirm what is template-able, and fix the markers that are missing**
 
 ```bash
-grep -rn "TEMPLATE-ABLE" src/LineOps.Web/
+grep -rln "TEMPLATE-ABLE" src/LineOps.Web/
 ```
 
 Every file marked in Phases 1–3 gets a template. Anything not marked stays in LineOps.
+
+**Two known gaps to close before you extract anything**, both found during Task 5's review:
+
+- `Components/Desk/DeskEmphasis.cs` carries no marker, but `DeskState.cs` (which is marked) cross-references `DeskEmphasis` and `DeskRole` by `<see cref="…"/>`. Extracting only the marked files would leave dangling crefs in the template. Mark it.
+- `Components/Desk/DeskButton.razor`'s marker line cites "docs ADR 0016" by number. A template's reader has no `docs/adr/`. Replace the citation with the reasoning itself.
+
+Then check every file you are about to extract for the same two problems: a `cref` pointing at something that stays behind, and a citation pointing at a document that does not travel.
 
 - [ ] **Step 2: Write SKILL.md**
 
