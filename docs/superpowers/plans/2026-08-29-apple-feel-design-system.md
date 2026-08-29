@@ -1729,55 +1729,92 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 Note the old block set `.field-lbl` uppercase with tracking — that goes, per the type ramp.
 
-- [ ] **Step 2: Restyle the switch as a pill**
+- [ ] **Step 2: Restyle the gate as a segmented control**
 
-Find the switch block:
-
-```bash
-grep -n "desk-switch\|marble\|glide-plate" src/LineOps.Web/wwwroot/css/lineops.css | head -20
-```
-
-The old switch used a "marble" travelling on a "glide plate". Replace its visual rules with the platform pill, keeping whatever class names `DeskSwitch.razor` renders (read the component first and match them exactly):
-
-```css
-/* The platform switch: a track that fills with accent, and a knob that slides.
-   Off is a neutral track, on is accent — the only two states it has to say. */
-.desk-switch__track {
-    position: relative;
-    width: 38px;
-    height: 22px;
-    border-radius: 11px;
-    background: var(--surface-3);
-    transition: background-color var(--dur-base) var(--ease-standard);
-    cursor: pointer;
-}
-
-.desk-switch__track[data-on="true"] { background: var(--state-positive); }
-
-.desk-switch__knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #FFFFFF;
-    box-shadow: var(--shadow-1);
-    transition: transform var(--dur-base) var(--ease-spring);
-}
-
-.desk-switch__track[data-on="true"] .desk-switch__knob { transform: translateX(16px); }
-
-.desk-switch__track:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-```
-
-Apple's switch is green when on, which is the one place the platform uses a state colour for a control rather than for a state — keep it, it is what makes a switch read as a switch.
-
-If `DeskSwitch.razor` renders different class names or expresses on/off through a class rather than a `data-on` attribute, adapt the selectors to what the component actually emits rather than changing the component. Check with:
+**Read the component before writing any CSS:**
 
 ```bash
 cat src/LineOps.Web/Components/Desk/DeskSwitch.razor
+grep -n "gate\|marble" src/LineOps.Web/wwwroot/css/lineops.css | head -30
 ```
+
+`DeskSwitch` is **not** a binary on/off switch. It is a `role="radiogroup"` holding 2–5 fixed positions — a market, a lookback window, a layout mode — with a "marble" cap that slides along a channel to the selected one. Its Apple counterpart is therefore the **segmented control**, not the iOS pill switch. Do not restyle it as a pill; that would be the wrong control entirely.
+
+The markup it emits, which your selectors must match exactly:
+
+- `.marble-row.gate` on the container, plus `.gate--sm` / `.gate--lg` for size and `.gate--num` when positions are numeric. It carries inline `--n` (position count) and `--i` (selected index) custom properties, which is how the cap knows where to sit. **Those two properties are load-bearing — your CSS must keep using them to place the cap.**
+- `.marble.gate__cap` — the sliding cap. Rendered only when something is selected; a custom value typed beside the gate leaves `--i` at `-1` and the cap simply absent rather than lying about a position.
+- `.gate__opt` per position, with `.gate__opt--on` on the selected one.
+
+The segmented-control treatment:
+
+```css
+/* A segmented control: a recessed track holding a raised cap that slides to the
+   selected position. The platform's answer to "one of a few, all visible", and the
+   right shape for a control that was already a cap travelling in a channel — only
+   the moulding changes, not the mechanism.
+
+   The cap is placed off --i and sized off --n, both set inline by the component. */
+.marble-row.gate {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    align-items: center;
+    padding: 2px;
+    background: var(--surface-0);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--separator);
+}
+
+.marble.gate__cap {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--surface-3);
+    box-shadow: var(--shadow-1);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-base) var(--ease-spring);
+    pointer-events: none;
+}
+
+.gate__opt {
+    position: relative; /* above the cap */
+    z-index: 1;
+    padding: 0 var(--space-3);
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-medium);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.gate__opt:hover { color: var(--text-primary); }
+
+.gate__opt--on { color: var(--text-primary); font-weight: var(--weight-semibold); }
+
+.gate__opt:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: calc(var(--radius) - 2px); }
+
+.gate--num .gate__opt { font-variant-numeric: tabular-nums; }
+
+.gate--sm .gate__opt { height: 20px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble.gate__cap { transition: none; }
+}
+```
+
+Treat the exact values as a starting point rather than gospel: the old block may express sizing or the cap's travel differently, and matching the component's actual geometry matters more than matching these numbers. What must not change is the mechanism — cap placed from `--i`, width from `--n` — and the reading: recessed track, raised selected cap, labels that gain weight and contrast when selected.
+
+If the old block styles anything these rules do not cover (a divider between positions, a disabled state), carry it across rather than dropping it.
 
 - [ ] **Step 3: Run the tests**
 
