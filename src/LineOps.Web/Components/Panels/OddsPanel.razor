@@ -28,8 +28,11 @@
 }
 else
 {
-    <MudChart T="double" ChartType="ChartType.Line" ChartSeries="_series"
-              XAxisLabels="@_labels" Width="100%" Height="240px" />
+    <DeskChart Series="_series" Labels="@_labels" Height="240px"
+               Family="DeskChartFamily.Movement"
+               Headline="Line movement"
+               Takeaway="Each book and outcome, from the first stored price to the latest."
+               Description="Line chart of American price over time, one line per book and outcome." />
 
     <h3 class="panel-h" style="margin-top:16px">Current market</h3>
 

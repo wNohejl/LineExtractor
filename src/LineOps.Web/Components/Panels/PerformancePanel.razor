@@ -39,9 +39,11 @@ else
     <h3 class="panel-h">Bankroll</h3>
     @if (_bankroll.Length > 1)
     {
-        <MudChart T="double" ChartType="ChartType.Line"
-                  ChartSeries="@(new List<ChartSeries<double>> { new() { Name = "Cumulative", Data = _bankroll } })"
-                  XAxisLabels="@_labels" Width="100%" Height="200px" />
+        <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
+                   Family="DeskChartFamily.Ledger"
+                   ShowLegend="false"
+                   Takeaway="Cumulative units across every settled entry, oldest first."
+                   Description="Line chart of cumulative units won or lost over settled entries." />
     }
     else
     {
@@ -58,6 +60,7 @@ else
 @code {
     private PerformanceSummary _summary;
     private double[] _bankroll = [];
+    private List<ChartSeries<double>> _bankrollSeries = [];
     private string[] _labels = [];
     private IReadOnlyDictionary<string, PerformanceSummary> _byMarket = new Dictionary<string, PerformanceSummary>();
     private IReadOnlyDictionary<string, PerformanceSummary> _byBook = new Dictionary<string, PerformanceSummary>();
@@ -75,6 +78,11 @@ else
 
         var curve = PerformanceAnalytics.BankrollCurve(entries);
         _bankroll = curve.Select(p => (double)p.Cumulative).ToArray();
+
+        // Built once here rather than in the markup: DeskChart rebuilds the plot when the
+        // series reference changes, and an expression in the template hands it a new list
+        // on every render of the panel.
+        _bankrollSeries = [new ChartSeries<double> { Name = "Cumulative", Data = _bankroll }];
 
         var stride = Math.Max(1, curve.Count / 6);
         _labels = curve
