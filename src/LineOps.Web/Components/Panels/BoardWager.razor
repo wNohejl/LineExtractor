@@ -22,8 +22,11 @@
         <div class="row">
             @foreach (var choice in _choices)
             {
+                @* The chosen side is Tinted rather than Filled: this is a selector reporting
+                   which side you are on, not the thing the panel commits. The Filled key in
+                   this panel is the one that logs the wager. *@
                 <DeskButton Size="DeskKeySize.Small"
-                            Tone="@(IsChosen(choice) ? DeskTone.Action : DeskTone.Neutral)"
+                            Emphasis="@(IsChosen(choice) ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
                             OnClick="() => Choose(choice)">
                     @choice.Label
                 </DeskButton>
@@ -37,13 +40,13 @@
             <Metric Label="Price"
                     Value="@Price(chosen.Offer.PriceAmerican)"
                     Note='@($"best of {chosen.Offer.Rungs.Count}")'
-                    Tone="DeskTone.Action"
+                    State="DeskState.Info"
                     Numeric="true" />
             <Metric Label="Book" Value="@chosen.Offer.Book" Numeric="true" />
             <Metric Label="Returns"
                     Value='@Payout.ToString("C0")'
                     Note="stake plus profit"
-                    Tone="@(_stake > 0 ? DeskTone.Go : DeskTone.Neutral)"
+                    State="@(_stake > 0 ? DeskState.Positive : DeskState.Neutral)"
                     Numeric="true" />
         </MetricRow>
 
@@ -56,7 +59,7 @@
 
             @foreach (var quick in new[] { 25m, 50m, 100m })
             {
-                <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _stake = quick">
+                <DeskButton Size="DeskKeySize.Small" OnClick="() => _stake = quick">
                     @quick.ToString("C0")
                 </DeskButton>
             }
@@ -66,11 +69,11 @@
 
         @if (_error is not null)
         {
-            <Note Tone="DeskTone.Caution" Style="margin:0">@_error</Note>
+            <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
         }
 
         <div class="row row--end">
-            <DeskButton Tone="DeskTone.Go"
+            <DeskButton Emphasis="DeskEmphasis.Filled"
                         Icon="@Icons.Material.Filled.Bolt"
                         Busy="@_saving"
                         Disabled="@(_stake <= 0)"

@@ -6,7 +6,7 @@ namespace LineOps.Web.Components.Desk;
 /// What a chart is plotting, stated as the kind of dataset rather than a list of colours.
 ///
 /// <para>
-/// This is <see cref="DeskTone"/>'s rule applied to a chart. A panel names the family and
+/// This is <see cref="DeskState"/>'s rule applied to a chart. A panel names the family and
 /// the palette follows, so the same kind of number is the same colour in every window and
 /// nobody picks a hex at a call site. "Is this a Ledger?" is a reviewable question; "should
 /// series two be orange?" is not.

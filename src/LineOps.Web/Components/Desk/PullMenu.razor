@@ -15,7 +15,7 @@
 *@
 
 <div class="pullmenu">
-    <DeskButton Tone="DeskTone.Action"
+    <DeskButton Emphasis="DeskEmphasis.Filled"
                 Icon="@Icons.Material.Filled.CloudDownload"
                 Busy="@(_running is not null)"
                 OnClick="Toggle">
@@ -54,7 +54,7 @@
 
 @if (_result is not null)
 {
-    <Note Tone="@(_result.Succeeded ? DeskTone.Neutral : DeskTone.Caution)" Style="margin:10px 0 0">
+    <Note State="@(_result.Succeeded ? DeskState.Neutral : DeskState.Warning)" Style="margin:10px 0 0">
         @_result.Summary
     </Note>
 }

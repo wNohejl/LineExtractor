@@ -16,7 +16,7 @@
 </div>
 
 <MetricRow Style="margin-bottom:16px">
-    <Metric Label="Games" Value='@_games.ToString("N0")' Tone="DeskTone.Action" />
+    <Metric Label="Games" Value='@_games.ToString("N0")' State="DeskState.Info" />
     <Metric Label="Price moves" Value='@_snapshots.ToString("N0")' Note="stored, all time" />
     <Metric Label="Moves today" Value='@_today.ToString("N0")' />
 
@@ -26,7 +26,7 @@
     <Metric Label="Open alerts"
             Value="@_alerts.ToString()"
             Note="@AlertNote"
-            Tone="@AlertTone"
+            State="@AlertTone"
             OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
             ActionHint="Open the Ops window on source health and the open alerts" />
 </MetricRow>
@@ -60,7 +60,7 @@ else if (_rows.Count == 0)
             just nothing scheduled in the window the slate covers.
         </ChildContent>
         <Action>
-            <DeskButton Size="DeskKeySize.Small" Quiet="true"
+            <DeskButton Size="DeskKeySize.Small"
                         Icon="@Icons.Material.Filled.FilterAltOff"
                         OnClick="() => SetSport(AnySport)">
                 Show every sport
@@ -108,7 +108,7 @@ else
 
         <PropertyColumn T="Row" TProperty="GameStatus" Property="r => r.Game.Status" Title="State">
             <CellTemplate>
-                <Tag Tone="@StateTone(context.Item.Game.Status)">@context.Item.Game.Status</Tag>
+                <Tag State="@StateTone(context.Item.Game.Status)">@context.Item.Game.Status</Tag>
             </CellTemplate>
         </PropertyColumn>
 
@@ -193,9 +193,9 @@ else
             ? $"{_criticalAlerts} critical — open Ops"
             : "none critical — open Ops";
 
-    private DeskTone AlertTone => _criticalAlerts > 0
-        ? DeskTone.Stop
-        : _alerts > 0 ? DeskTone.Caution : DeskTone.Go;
+    private DeskState AlertTone => _criticalAlerts > 0
+        ? DeskState.Negative
+        : _alerts > 0 ? DeskState.Warning : DeskState.Positive;
 
     /// <summary>
     /// One open row at a time. Two would push the slate around and the actions would stop being
@@ -398,11 +398,11 @@ else
     private static bool Same(string outcome, string? team)
         => team is not null && string.Equals(outcome, team, StringComparison.OrdinalIgnoreCase);
 
-    private static DeskTone StateTone(GameStatus status) => status switch
+    private static DeskState StateTone(GameStatus status) => status switch
     {
-        GameStatus.Live => DeskTone.Caution,
-        GameStatus.Final => DeskTone.Go,
-        _ => DeskTone.Action
+        GameStatus.Live => DeskState.Warning,
+        GameStatus.Final => DeskState.Positive,
+        _ => DeskState.Info
     };
 
     /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>

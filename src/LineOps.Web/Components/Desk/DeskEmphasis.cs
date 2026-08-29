@@ -4,8 +4,8 @@ namespace LineOps.Web.Components.Desk;
 /// How much visual weight a button claims, following Apple's button hierarchy.
 ///
 /// <para>
-/// This replaces ADR 0008's <c>DeskTone</c>, which named a consequence and painted it as
-/// a hue. Under ADR 0016 hue is no longer a channel: an interface with five coloured
+/// This replaces the desk's retired button "tone", which named a consequence and painted it
+/// as a hue. Hue is no longer an affordance channel: an interface with five coloured
 /// button types has no primary action, only five competing ones. Emphasis says how loud;
 /// <see cref="DeskRole"/> says whether the action is dangerous. Those are the two
 /// questions a caller can actually answer.

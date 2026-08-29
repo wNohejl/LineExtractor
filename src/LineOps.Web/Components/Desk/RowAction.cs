@@ -30,8 +30,11 @@ public sealed record RowAction
     /// <summary>A MudBlazor icon string, drawn through <c>Glyph</c> like every other key.</summary>
     public required string Icon { get; init; }
 
-    /// <summary>What pressing this does. Name the consequence, not the colour.</summary>
-    public DeskTone Tone { get; init; } = DeskTone.Neutral;
+    /// <summary>How much weight this action claims in the row's action bar.</summary>
+    public DeskEmphasis Emphasis { get; init; } = DeskEmphasis.Plain;
+
+    /// <summary>Whether this action destroys something. Renders in red.</summary>
+    public DeskRole Role { get; init; } = DeskRole.Normal;
 
     /// <summary>
     /// What opens inline underneath. Null for an action that only opens a window.

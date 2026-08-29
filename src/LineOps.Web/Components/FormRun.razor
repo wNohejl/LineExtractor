@@ -26,7 +26,7 @@
     {
         var g = _run[i];
 
-        <Tag Tone="@TagTones.Won(g.Won)"
+        <Tag State="@TagTones.Won(g.Won)"
              Class="@(i == _run.Count - 1 ? "formrun__latest" : null)"
              Title="@Describe(g, i == _run.Count - 1)">
             @(g.Won == true ? "W" : g.Won == false ? "L" : "–")

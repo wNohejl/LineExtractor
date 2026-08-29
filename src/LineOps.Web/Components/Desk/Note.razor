@@ -10,17 +10,17 @@
     acknowledging it is not a note, and if it needs to be gone in four seconds it is not
     a note either.
 
-    Tone follows the desk's rule that hue means state (ADR 0008). The note surface makes
-    exactly one distinction today, because that is the only one the operator has to act
-    on: ambient context (iris, the desk's interactive/neutral rule) versus a cost worth
-    knowing before you proceed (flag). So <c>Tone.Caution</c> wears .note--warn and every
-    other tone renders the base note. That is deliberate rather than an omission — a
-    stopped thing or a healthy one is reported by the pulse, the tag or the number beside
-    it, not by re-tinting a paragraph. Nothing here encodes meaning by colour alone: the
-    warn skin only ever accompanies text that says what the cost is.
+    State follows the desk's rule that hue names what something is, never how loud a
+    control is. The note surface makes exactly one distinction today, because that is the
+    only one the operator has to act on: ambient context versus a cost worth knowing
+    before you proceed. So <c>DeskState.Warning</c> wears .note--warn and every other
+    state renders the base note. That is deliberate rather than an omission — a broken
+    thing or a healthy one is reported by the pulse, the tag or the number beside it, not
+    by re-tinting a paragraph. Nothing here encodes meaning by colour alone: the warn skin
+    only ever accompanies text that says what the cost is.
 
     <c>Inline</c> is the same idiom at word scale — the .warnc span used inside a table
-    cell, where a whole boxed note would break the row. Same tone vocabulary, no box.
+    cell, where a whole boxed note would break the row. Same state vocabulary, no box.
 
     Splatting follows DeskButton: the component composes its own class and style, and the
     caller's Class/Style are appended after — never in place of — them. Unmatched
@@ -43,10 +43,10 @@ else
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>
-    /// The state being reported. <see cref="DeskTone.Caution"/> wears the flag rule;
-    /// every other tone renders the plain note. See the comment above for why.
+    /// The state being reported. <see cref="DeskState.Warning"/> wears the warn rule;
+    /// every other state renders the plain note. See the comment above for why.
     /// </summary>
-    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+    [Parameter] public DeskState State { get; set; } = DeskState.Neutral;
 
     /// <summary>
     /// Render as a toned word rather than a boxed notice, for use inside a row or cell
@@ -87,7 +87,7 @@ else
 
     private IEnumerable<string?> Parts()
     {
-        var warn = Tone == DeskTone.Caution;
+        var warn = State == DeskState.Warning;
 
         if (Inline)
         {

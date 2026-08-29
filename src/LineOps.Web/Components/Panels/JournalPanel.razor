@@ -12,7 +12,7 @@
 </Note>
 
 <div class="row" style="margin-bottom:12px">
-    <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.Add" OnClick="() => _showForm = !_showForm">
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add" OnClick="() => _showForm = !_showForm">
         Log entry
     </DeskButton>
     <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Disabled="@_busy">
@@ -66,10 +66,10 @@
         </div>
 
         <div class="row">
-            <DeskButton Tone="DeskTone.Action" OnClick="SaveAsync" Disabled="@(!Valid)">
+            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveAsync" Disabled="@(!Valid)">
                 Save entry
             </DeskButton>
-            <DeskButton Quiet="true" OnClick="() => _showForm = false">Cancel</DeskButton>
+            <DeskButton OnClick="() => _showForm = false">Cancel</DeskButton>
         </div>
     </div>
 }
@@ -131,7 +131,7 @@ else
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result">
-            <CellTemplate><Tag Tone="@ResultTone(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
+            <CellTemplate><Tag State="@ResultTone(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right">
@@ -253,13 +253,13 @@ else
             Manager.OpenGame(game);
     }
 
-    private static DeskTone ResultTone(EntryResult result) => result switch
+    private static DeskState ResultTone(EntryResult result) => result switch
     {
-        EntryResult.Win => DeskTone.Go,
-        EntryResult.Loss => DeskTone.Stop,
-        EntryResult.Push => DeskTone.Action,
-        EntryResult.Void => DeskTone.Neutral,
-        _ => DeskTone.Caution
+        EntryResult.Win => DeskState.Positive,
+        EntryResult.Loss => DeskState.Negative,
+        EntryResult.Push => DeskState.Info,
+        EntryResult.Void => DeskState.Neutral,
+        _ => DeskState.Warning
     };
 
     private async Task SaveAsync()

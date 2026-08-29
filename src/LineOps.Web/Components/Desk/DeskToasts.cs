@@ -14,57 +14,57 @@ namespace LineOps.Web.Components.Desk;
 /// This type is the seam. Panels call <c>Toasts.Success(...)</c>; they never take
 /// <c>ISnackbar</c>, never name a MudBlazor <c>Severity</c>, and never write a CSS class.
 /// That keeps the call sites reviewable in the desk's own vocabulary — a notice states its
-/// <see cref="DeskTone"/>, the same consequence-not-colour rule a key states — and it leaves
-/// one place to change if the toast is ever rendered by something other than MudBlazor.
+/// <see cref="DeskState"/>, the same name-the-state-not-the-colour rule a tag states — and it
+/// leaves one place to change if the toast is ever rendered by something other than MudBlazor.
 ///
-/// The tone drives two things: which desk hue the notice wears (through
+/// The state drives two things: which desk hue the notice wears (through
 /// <c>SnackbarTypeClass</c>, styled in css/mud-bridge.css) and which icon MudBlazor picks
-/// for it. Both come from the tone, so a call site cannot get them out of step.
+/// for it. Both come from the state, so a call site cannot get them out of step.
 /// </summary>
 public sealed class DeskToasts(ISnackbar snackbar)
 {
-    /// <summary>Work finished and the outcome was healthy. Steam.</summary>
-    public void Success(string message) => Show(message, DeskTone.Go);
+    /// <summary>Work finished and the outcome was healthy.</summary>
+    public void Success(string message) => Show(message, DeskState.Positive);
 
-    /// <summary>Something happened worth knowing and nothing is wrong. Iris.</summary>
-    public void Info(string message) => Show(message, DeskTone.Action);
+    /// <summary>Something happened worth knowing and nothing is wrong.</summary>
+    public void Info(string message) => Show(message, DeskState.Info);
 
-    /// <summary>Finished, but with a cost the operator should know about. Flag.</summary>
-    public void Warn(string message) => Show(message, DeskTone.Caution);
+    /// <summary>Finished, but with a cost the operator should know about.</summary>
+    public void Warn(string message) => Show(message, DeskState.Warning);
 
     /// <summary>
     /// Background work did not complete. Flag failures here only when the operator can
     /// simply try again — a failure that needs a decision belongs inline, next to the
-    /// decision. Drift.
+    /// decision.
     /// </summary>
-    public void Fail(string message) => Show(message, DeskTone.Stop);
+    public void Fail(string message) => Show(message, DeskState.Negative);
 
     /// <summary>
-    /// The general form, for a caller that already holds a tone. The four named methods
+    /// The general form, for a caller that already holds a state. The four named methods
     /// above are the usual way in — they read as the outcome rather than as a parameter.
     /// </summary>
-    public void Show(string message, DeskTone tone = DeskTone.Neutral)
-        => snackbar.Add(message, SeverityFor(tone), options => options.SnackbarTypeClass = ClassFor(tone));
+    public void Show(string message, DeskState state = DeskState.Neutral)
+        => snackbar.Add(message, SeverityFor(state), options => options.SnackbarTypeClass = ClassFor(state));
 
     /// <summary>
     /// MudBlazor's severity is used for its icon only — every colour a notice wears comes
-    /// from the desk's own tone class. Neutral maps to Normal, which draws no icon at all.
+    /// from the desk's own state class. Neutral maps to Normal, which draws no icon at all.
     /// </summary>
-    private static Severity SeverityFor(DeskTone tone) => tone switch
+    private static Severity SeverityFor(DeskState state) => state switch
     {
-        DeskTone.Go => Severity.Success,
-        DeskTone.Action => Severity.Info,
-        DeskTone.Caution => Severity.Warning,
-        DeskTone.Stop => Severity.Error,
+        DeskState.Positive => Severity.Success,
+        DeskState.Info => Severity.Info,
+        DeskState.Warning => Severity.Warning,
+        DeskState.Negative => Severity.Error,
         _ => Severity.Normal
     };
 
-    private static string ClassFor(DeskTone tone) => tone switch
+    private static string ClassFor(DeskState state) => state switch
     {
-        DeskTone.Go => "desk-toast desk-toast--go",
-        DeskTone.Action => "desk-toast desk-toast--action",
-        DeskTone.Caution => "desk-toast desk-toast--caution",
-        DeskTone.Stop => "desk-toast desk-toast--stop",
+        DeskState.Positive => "desk-toast desk-toast--go",
+        DeskState.Info => "desk-toast desk-toast--action",
+        DeskState.Warning => "desk-toast desk-toast--caution",
+        DeskState.Negative => "desk-toast desk-toast--stop",
         _ => "desk-toast desk-toast--neutral"
     };
 }

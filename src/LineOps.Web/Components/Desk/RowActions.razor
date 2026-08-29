@@ -38,7 +38,8 @@
                an ordinary command and must not claim to be one, or a screen reader announces a
                pressed/unpressed state that never changes. *@
             <DeskButton Size="DeskKeySize.Small"
-                        Tone="@action.Tone"
+                        Emphasis="@action.Emphasis"
+                        Role="@action.Role"
                         Icon="@action.Icon"
                         Class="@(isOpen ? "desk-btn--on" : null)"
                         OnClick="@(() => SelectAsync(action))"

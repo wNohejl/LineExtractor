@@ -92,7 +92,7 @@ public class RowActionsTests : DeskTestContext
         Assert.Equal("true", key.GetAttribute("aria-pressed"));
         Assert.Equal("true", key.GetAttribute("aria-expanded"));
         Assert.Equal(cut.Find("[role=region]").GetAttribute("id"), key.GetAttribute("aria-controls"));
-        Assert.Contains("desk-key--on", key.GetAttribute("class"));
+        Assert.Contains("desk-btn--on", key.GetAttribute("class"));
     }
 
     /// <summary>
@@ -218,6 +218,37 @@ public class RowActionsTests : DeskTestContext
 
         escape.Click();
         Assert.Equal(1, opened);
+    }
+
+    /// <summary>
+    /// An action states how much weight it claims and whether it destroys something, and the
+    /// strip forwards both to the key it renders. They are two independent questions — a
+    /// destructive action can be any weight — so a strip that dropped either one would render
+    /// a key that lies about what pressing it does.
+    /// </summary>
+    [Fact]
+    public void A_keys_weight_and_role_come_from_its_action()
+    {
+        var plain = Snippet("h2h", "Head to head");
+
+        var cut = Strip([
+            plain,
+            plain with { Key = "wager", Label = "Place wager", Emphasis = DeskEmphasis.Tinted },
+            plain with { Key = "void", Label = "Void entry", Role = DeskRole.Destructive }
+        ]);
+
+        var keys = cut.FindAll(".rowacts__keys button");
+
+        // Nothing stated: the quiet default, so it cannot compete with the key beside it.
+        Assert.Contains("desk-btn--plain", keys[0].GetAttribute("class"));
+        Assert.DoesNotContain("desk-btn--destructive", keys[0].GetAttribute("class"));
+
+        Assert.Contains("desk-btn--tinted", keys[1].GetAttribute("class"));
+        Assert.DoesNotContain("desk-btn--destructive", keys[1].GetAttribute("class"));
+
+        // Weight and role are carried separately: a Plain key can still be destructive.
+        Assert.Contains("desk-btn--plain", keys[2].GetAttribute("class"));
+        Assert.Contains("desk-btn--destructive", keys[2].GetAttribute("class"));
     }
 
     /// <summary>Several strips share a page — the Team window has a stack of them.</summary>

@@ -20,7 +20,7 @@
 }
 else if (_error is not null)
 {
-    <Note Tone="DeskTone.Caution" Style="margin:0">@_error</Note>
+    <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
 }
 else if (_rows.Count == 0)
 {
@@ -49,7 +49,7 @@ else
                     <td class="r">
                         @if (row.Won is { } won)
                         {
-                            <Tag Tone="@TagTones.Won(won)">
+                            <Tag State="@TagTones.Won(won)">
                                 @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
                             </Tag>
                         }

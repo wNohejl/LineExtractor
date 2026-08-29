@@ -32,7 +32,7 @@ else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
         <PanelHeader Tight>@_awayName v @_homeName</PanelHeader>
-        <Tag Tone="DeskTone.Action">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
+        <Tag State="DeskState.Info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
     </div>
 
     @* Coverage is stated rather than implied: a column of dashes beside a record says nothing

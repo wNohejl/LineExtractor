@@ -51,7 +51,7 @@ else
                 <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
             }
         </PanelHeader>
-        <Tag Tone="@StateTone(game.Status)">@StatusLabel(game)</Tag>
+        <Tag State="@StateTone(game.Status)">@StatusLabel(game)</Tag>
     </div>
 
     <div class="row" style="margin-bottom:14px">
@@ -65,14 +65,14 @@ else
            same kind of thing — a related window, one click away — and the glide plate
            slides between them rather than each lighting itself. *@
         <div class="row" style="gap:4px" data-glide>
-            <DeskButton Quiet="true" Icon="@Icons.Material.Filled.ShowChart"
+            <DeskButton Icon="@Icons.Material.Filled.ShowChart"
                         OnClick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
                 Movement
             </DeskButton>
 
             @* How these two have gone against each other, which is a different question from
                how either has been playing — and the one the team blocks cannot answer. *@
-            <DeskButton Quiet="true" Icon="@Icons.Material.Filled.CompareArrows"
+            <DeskButton Icon="@Icons.Material.Filled.CompareArrows"
                         OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game))">
                 Head to head
             </DeskButton>
@@ -242,18 +242,18 @@ else
         _ => Starts(game.StartsAt)
     };
 
-    private static DeskTone StateTone(GameStatus status) => status switch
+    private static DeskState StateTone(GameStatus status) => status switch
     {
-        GameStatus.Live => DeskTone.Caution,
-        GameStatus.Final => DeskTone.Go,
-        _ => DeskTone.Action
+        GameStatus.Live => DeskState.Warning,
+        GameStatus.Final => DeskState.Positive,
+        _ => DeskState.Info
     };
 
     @* The tab bar names each of these now, so none of them repeats it as a heading. *@
     private RenderFragment RenderMarkets() => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <Note Tone="DeskTone.Caution" Style="margin:12px 0">@reason</Note>
+            <Note State="DeskState.Warning" Style="margin:12px 0">@reason</Note>
         }
         else
         {

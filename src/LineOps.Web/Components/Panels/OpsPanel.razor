@@ -19,17 +19,17 @@
 
 <MetricRow Style="margin-bottom:16px">
     <Metric Label="Sources in SLO"
-            Tone="@(_healthy == _health.Count ? DeskTone.Go : DeskTone.Caution)">
+            State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
         @_healthy/@_health.Count
     </Metric>
     <Metric Label="Open alerts"
             Value="@_alerts.Count.ToString()"
             Note='@(_criticals > 0 ? $"{_criticals} critical" : "none critical")'
-            Tone="@(_criticals > 0 ? DeskTone.Stop : _alerts.Count > 0 ? DeskTone.Caution : DeskTone.Go)" />
+            State="@(_criticals > 0 ? DeskState.Negative : _alerts.Count > 0 ? DeskState.Warning : DeskState.Positive)" />
     <Metric Label="Rows today" Value='@_rowsToday.ToString("N0")' />
     <Metric Label="Open incidents"
             Value="@_openIncidents.ToString()"
-            Tone="@(_openIncidents > 0 ? DeskTone.Stop : DeskTone.Go)" />
+            State="@(_openIncidents > 0 ? DeskState.Negative : DeskState.Positive)" />
 </MetricRow>
 
 @*
@@ -88,11 +88,11 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item is { IsLive: true, IsReal: true })
             {
-                <Tag Tone="DeskTone.Go">Live</Tag>
+                <Tag State="DeskState.Positive">Live</Tag>
             }
             else if (context.Item.IsLive)
             {
-                <Tag Tone="DeskTone.Caution">Demo</Tag>
+                <Tag State="DeskState.Warning">Demo</Tag>
             }
             else
             {
@@ -147,7 +147,7 @@ else if (_plan is { } plan)
     <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
                     Title="Success 7d" Align="Align.Right">
         <CellTemplate>
-            <Note Inline Tone="@(IsRateLow(context.Item) ? DeskTone.Caution : DeskTone.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
+            <Note Inline State="@(IsRateLow(context.Item) ? DeskState.Warning : DeskState.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
         </CellTemplate>
     </PropertyColumn>
 
@@ -169,15 +169,15 @@ else if (_plan is { } plan)
             }
             else if (IsStale(context.Item))
             {
-                <Tag Tone="DeskTone.Stop">Stale</Tag>
+                <Tag State="DeskState.Negative">Stale</Tag>
             }
             else if (IsRateLow(context.Item))
             {
-                <Tag Tone="DeskTone.Caution">Degraded</Tag>
+                <Tag State="DeskState.Warning">Degraded</Tag>
             }
             else
             {
-                <Tag Tone="DeskTone.Go">Healthy</Tag>
+                <Tag State="DeskState.Positive">Healthy</Tag>
             }
         </CellTemplate>
     </TemplateColumn>
@@ -189,7 +189,7 @@ else if (_plan is { } plan)
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <Tag Tone="@SeverityTone(context.Item.Severity)">@context.Item.Severity</Tag>
+            <Tag State="@SeverityTone(context.Item.Severity)">@context.Item.Severity</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -211,7 +211,7 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item.IncidentId is null)
             {
-                <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
                             OnClick="() => PromoteAsync(context.Item.Id)">
                     Open incident
                 </DeskButton>
@@ -249,7 +249,7 @@ else if (_plan is { } plan)
             </DeskSelect>
             @if (source.FailureMode is not null)
             {
-                <Tag Tone="DeskTone.Stop">Injecting</Tag>
+                <Tag State="DeskState.Negative">Injecting</Tag>
             }
         </div>
     }
@@ -343,11 +343,11 @@ else if (_plan is { } plan)
 
     private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
 
-    private static DeskTone SeverityTone(AlertSeverity severity) => severity switch
+    private static DeskState SeverityTone(AlertSeverity severity) => severity switch
     {
-        AlertSeverity.Critical => DeskTone.Stop,
-        AlertSeverity.Warn => DeskTone.Caution,
-        _ => DeskTone.Action
+        AlertSeverity.Critical => DeskState.Negative,
+        AlertSeverity.Warn => DeskState.Warning,
+        _ => DeskState.Info
     };
 
     private async Task EvaluateAsync()

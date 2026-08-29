@@ -29,7 +29,7 @@
     <DeskSwitch Options="_horizons" Label="Slate horizon" Mono="true"
                 Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
 
-    <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
 
     <span class="ftr__spacer"></span>
 
@@ -53,7 +53,7 @@
 
 @if (_rows.Count > 0 && _priced < _rows.Count)
 {
-    <Note Tone="DeskTone.Caution" Style="margin:12px 0">
+    <Note State="DeskState.Warning" Style="margin:12px 0">
         @(_rows.Count - _priced) of @_rows.Count fixtures have no price. Open a row to see why —
         a gap is usually a fixture the scan did not cover, not a broken feed.
     </Note>
@@ -283,7 +283,10 @@ else
                 Key = "wager",
                 Label = "Place wager",
                 Icon = Icons.Material.Filled.Bolt,
-                Tone = DeskTone.Action,
+                // Tinted, not Filled: the strip repeats on every row the operator opens, and a
+                // solid accent per row would put a dozen primaries on one slate. The Board is a
+                // place to look; the wager is committed in the window this opens.
+                Emphasis = DeskEmphasis.Tinted,
                 OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
             }
         ];

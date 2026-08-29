@@ -9,8 +9,8 @@
     <MetricRow Style="margin-bottom:16px">
         <Metric Label="Open"
                 Value="@_open.ToString()"
-                Tone="@(_open > 0 ? DeskTone.Stop : DeskTone.Go)" />
-        <Metric Label="Resolved" Value="@_resolved.ToString()" Tone="DeskTone.Go" />
+                State="@(_open > 0 ? DeskState.Negative : DeskState.Positive)" />
+        <Metric Label="Resolved" Value="@_resolved.ToString()" State="DeskState.Positive" />
         <Metric Label="Median resolve" Value="@_mttr" />
     </MetricRow>
 
@@ -32,7 +32,7 @@
 
             <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
                 <CellTemplate>
-                    <Tag Tone="@SeverityTone(context.Item.Severity)">
+                    <Tag State="@SeverityTone(context.Item.Severity)">
                         @context.Item.Severity
                     </Tag>
                 </CellTemplate>
@@ -49,7 +49,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
-                <CellTemplate><Tag Tone="@StatusTone(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
+                <CellTemplate><Tag State="@StatusTone(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
@@ -64,11 +64,11 @@
                 <CellTemplate>
                     @if (string.IsNullOrWhiteSpace(context.Item.RootCause))
                     {
-                        <Tag Tone="DeskTone.Caution">Missing</Tag>
+                        <Tag State="DeskState.Warning">Missing</Tag>
                     }
                     else
                     {
-                        <Tag Tone="DeskTone.Go">Written</Tag>
+                        <Tag State="DeskState.Positive">Written</Tag>
                     }
                 </CellTemplate>
             </PropertyColumn>
@@ -78,13 +78,13 @@
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
+        <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
             All incidents
         </DeskButton>
-        <Tag Tone="@SeverityTone(_selected.Severity)">
+        <Tag State="@SeverityTone(_selected.Severity)">
             @_selected.Severity
         </Tag>
-        <Tag Tone="@StatusTone(_selected.Status)">@_selected.Status</Tag>
+        <Tag State="@StatusTone(_selected.Status)">@_selected.Status</Tag>
     </div>
 
     <PanelHeader>#@_selected.Id — @_selected.Title</PanelHeader>
@@ -121,7 +121,7 @@ else
     </div>
 
     <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
-    <Note Tone="@(_selected.Status == IncidentStatus.Resolved ? DeskTone.Neutral : DeskTone.Caution)"
+    <Note State="@(_selected.Status == IncidentStatus.Resolved ? DeskState.Neutral : DeskState.Warning)"
           Style="margin:12px 0">
         Both fields are required to resolve. An incident without a cause and a fix teaches
         nothing later.
@@ -138,11 +138,11 @@ else
 
         @if (_error is not null)
         {
-            <Note Tone="DeskTone.Caution" Style="margin:12px 0">@_error</Note>
+            <Note State="DeskState.Warning" Style="margin:12px 0">@_error</Note>
         }
 
         <div class="row">
-            <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.TaskAlt"
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
                         OnClick="ResolveAsync" Disabled="@(!CanResolve)">
                 Resolve incident
             </DeskButton>
@@ -287,16 +287,16 @@ else
         await SelectAsync(_selected.Id);
     }
 
-    private static DeskTone StatusTone(IncidentStatus status) => status switch
+    private static DeskState StatusTone(IncidentStatus status) => status switch
     {
-        IncidentStatus.Open => DeskTone.Stop,
-        IncidentStatus.Mitigated => DeskTone.Caution,
-        _ => DeskTone.Go
+        IncidentStatus.Open => DeskState.Negative,
+        IncidentStatus.Mitigated => DeskState.Warning,
+        _ => DeskState.Positive
     };
 
     /// <summary>Critical reads as Stop; anything below it is Caution.</summary>
-    private static DeskTone SeverityTone(AlertSeverity severity)
-        => severity == AlertSeverity.Critical ? DeskTone.Stop : DeskTone.Caution;
+    private static DeskState SeverityTone(AlertSeverity severity)
+        => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch
     {

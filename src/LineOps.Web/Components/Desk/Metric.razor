@@ -7,9 +7,9 @@
     is looking for the figure, not for the word. The note underneath is the qualifier that
     stops the figure being read wrong — "of 14 wanted", "none critical".
 
-    Tone names the consequence, not the colour: a caller writes DeskTone.Stop and the left
-    edge picks up --drift. Hue alone never carries the meaning here — the label and the note
-    say it in words too — so the tile still reads when the colour does not land.
+    State names the state, not the colour: a caller writes DeskState.Negative and the left
+    edge picks up the negative rule. Hue alone never carries the meaning here — the label and
+    the note say it in words too — so the tile still reads when the colour does not land.
 *@
 
 @if (Actionable)
@@ -45,8 +45,8 @@ else
     /// <summary>The qualifier that keeps the figure from being read wrong. Hidden when empty.</summary>
     [Parameter] public string? Note { get; set; }
 
-    /// <summary>What the figure means for the operator. See <see cref="DeskTone"/>.</summary>
-    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+    /// <summary>What the figure means for the operator. See <see cref="DeskState"/> — name the state, not the colour.</summary>
+    [Parameter] public DeskState State { get; set; } = DeskState.Neutral;
 
     /// <summary>Sets the figure in the tabular data face, for counts and prices that must line up.</summary>
     [Parameter] public bool Numeric { get; set; }
@@ -79,7 +79,7 @@ else
     /// <summary>
     /// Anything else the call site passes through. A splatted <c>class</c> is dropped and a
     /// splatted <c>style</c> is appended rather than substituted, because Blazor applies the
-    /// splat last and either one would otherwise erase the tone modifier this tile computed.
+    /// splat last and either one would otherwise erase the state modifier this tile computed.
     /// Reach those through <see cref="Class"/> and <see cref="Style"/> instead.
     /// </summary>
     [Parameter(CaptureUnmatchedValues = true)]
@@ -110,12 +110,12 @@ else
     {
         yield return "metric";
 
-        yield return Tone switch
+        yield return State switch
         {
-            DeskTone.Go => "metric--good",
-            DeskTone.Stop => "metric--bad",
-            DeskTone.Caution => "metric--warn",
-            DeskTone.Action => "metric--info",
+            DeskState.Positive => "metric--good",
+            DeskState.Negative => "metric--bad",
+            DeskState.Warning => "metric--warn",
+            DeskState.Info => "metric--info",
             _ => null
         };
 

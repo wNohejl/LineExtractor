@@ -31,7 +31,7 @@
         @foreach (var source in _eligibility)
         {
             <div class="row" style="gap:9px">
-                <Tag Tone="@(source.Eligible ? DeskTone.Go : DeskTone.Caution)">
+                <Tag State="@(source.Eligible ? DeskState.Positive : DeskState.Warning)">
                     @(source.Eligible ? "Free" : "Refused")
                 </Tag>
                 <span class="mono" style="font-size:12px">@source.Key</span>
@@ -42,7 +42,7 @@
 
     @if (!_eligibility.Any(s => s.Eligible))
     {
-        <Note Tone="DeskTone.Caution" Style="margin:12px 0">
+        <Note State="DeskState.Warning" Style="margin:12px 0">
             Nothing to walk. Backfill runs against unmetered providers only, so a metered one
             cannot be used here even when it is configured and working — its quota is what the
             live schedule spends.
@@ -58,13 +58,13 @@
         <Metric Label="Days held"
                 Value="@c.Completed.ToString()"
                 Note='@($"of {c.TargetDayFetches} wanted")'
-                Tone="@(c.Completed > 0 ? DeskTone.Go : DeskTone.Neutral)"
+                State="@(c.Completed > 0 ? DeskState.Positive : DeskState.Neutral)"
                 Numeric="true" />
-        <Metric Label="Games" Value="@c.GamesFound.ToString()" Tone="DeskTone.Action" Numeric="true" />
-        <Metric Label="Rows" Value="@c.RowsIngested.ToString()" Tone="DeskTone.Action" Numeric="true" />
+        <Metric Label="Games" Value="@c.GamesFound.ToString()" State="DeskState.Info" Numeric="true" />
+        <Metric Label="Rows" Value="@c.RowsIngested.ToString()" State="DeskState.Info" Numeric="true" />
         <Metric Label="Days failed"
                 Value="@c.Failed.ToString()"
-                Tone="@(c.Failed > 0 ? DeskTone.Caution : DeskTone.Neutral)"
+                State="@(c.Failed > 0 ? DeskState.Warning : DeskState.Neutral)"
                 Numeric="true" />
     </MetricRow>
 
@@ -87,20 +87,21 @@
 <div class="row" style="margin-bottom:8px">
     @if (Coordinator.IsRunning)
     {
-        <DeskButton Tone="DeskTone.Go" Busy="true">Walking</DeskButton>
-        <DeskButton Tone="DeskTone.Stop" Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+        <DeskButton Busy="true">Walking</DeskButton>
+        <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                    Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
             Stop
         </DeskButton>
     }
     else
     {
-        <DeskButton Tone="DeskTone.Go"
+        <DeskButton Emphasis="DeskEmphasis.Filled"
                     Icon="@Icons.Material.Filled.History"
                     Disabled="@(!_eligibility.Any(s => s.Eligible))"
                     OnClick="Start">
             Gather history
         </DeskButton>
-        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
             Refresh
         </DeskButton>
 
@@ -113,17 +114,17 @@
             <span class="dim" style="font-size:11.5px">
                 Walk @(_coverage?.Completed ?? 0) held @((_coverage?.Completed ?? 0) == 1 ? "day" : "days") again?
             </span>
-            <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
                         Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
                 Yes, re-walk
             </DeskButton>
-            <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _confirmRewalk = false">
+            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmRewalk = false">
                 Cancel
             </DeskButton>
         }
         else
         {
-            <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Restore"
+            <DeskButton Icon="@Icons.Material.Filled.Restore"
                         Disabled="@(_coverage is null or { Completed: 0 })"
                         OnClick="() => _confirmRewalk = true">
                 Re-walk held days
@@ -143,7 +144,7 @@
 
 @if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
 {
-    <Note Tone="@(r.StoppedBecause is null ? DeskTone.Neutral : DeskTone.Caution)" Style="margin-bottom:8px">
+    <Note State="@(r.StoppedBecause is null ? DeskState.Neutral : DeskState.Warning)" Style="margin-bottom:8px">
         Finished: @r.Walked days walked, @r.Skipped already held, @r.Failed failed,
         @r.GamesFound games, @r.RowsIngested rows.
         @if (r.StoppedBecause is not null)
@@ -179,11 +180,11 @@
         <CellTemplate>
             @if (context.Item.Error is null)
             {
-                <Tag Tone="DeskTone.Go">Held</Tag>
+                <Tag State="DeskState.Positive">Held</Tag>
             }
             else
             {
-                <Tag Tone="DeskTone.Stop" Title="@context.Item.Error">Failed</Tag>
+                <Tag State="DeskState.Negative" Title="@context.Item.Error">Failed</Tag>
             }
         </CellTemplate>
     </PropertyColumn>

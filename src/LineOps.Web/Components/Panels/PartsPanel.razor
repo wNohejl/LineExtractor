@@ -19,6 +19,10 @@
     tab through the row to check that the keyboard gets the same signal the pointer does.
 </Note>
 
+@* TODO(Task 17): showcase rewrite. Every key below is parked on Plain so the tree builds;
+   the prose still describes the retired gloss-and-tone rule. Task 17 rebuilds this section
+   around Filled / Tinted / Plain and the Destructive role. *@
+
 <PanelHeader>Keys — tone</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     Gloss is the desk's affordance channel: a surface that catches the light can be
@@ -26,11 +30,11 @@
 </p>
 
 <div class="row" style="margin-bottom:6px">
-    <DeskButton Tone="DeskTone.Neutral">Neutral</DeskButton>
-    <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.Check">Action</DeskButton>
-    <DeskButton Tone="DeskTone.Go" Icon="@Icons.Material.Filled.PlayArrow">Go</DeskButton>
-    <DeskButton Tone="DeskTone.Caution" Icon="@Icons.Material.Filled.Warning">Caution</DeskButton>
-    <DeskButton Tone="DeskTone.Stop" Icon="@Icons.Material.Filled.DeleteOutline">Stop</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain">Neutral</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Icon="@Icons.Material.Filled.Check">Action</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Icon="@Icons.Material.Filled.PlayArrow">Go</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Icon="@Icons.Material.Filled.Warning">Caution</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Icon="@Icons.Material.Filled.DeleteOutline">Stop</DeskButton>
 </div>
 
 <p class="empty" style="padding:2px 0 0">
@@ -42,27 +46,27 @@
 <PanelHeader>Keys — state</PanelHeader>
 
 <div class="row" style="margin-bottom:6px">
-    <DeskButton Tone="DeskTone.Go" Busy="@_busy" OnClick="RunAsync">
+    <DeskButton Emphasis="DeskEmphasis.Plain" Busy="@_busy" OnClick="RunAsync">
         @(_busy ? "Ingesting" : "Press to run")
     </DeskButton>
-    <DeskButton Tone="DeskTone.Action" Disabled="true">Disabled</DeskButton>
-    <DeskButton Quiet="true">Quiet</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Disabled="true">Disabled</DeskButton>
+    <DeskButton>Plain</DeskButton>
     <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Reload" />
 </div>
 
 <p class="empty" style="padding:2px 0 0">
     A busy key keeps its gloss and borrows the pulse strip's sweep — it is occupied, not
     inert. A disabled key loses the sheen outright, because under the rule above an unlit
-    surface is one you cannot press. Quiet is a link wearing a hit area: it never lifts,
-    so it cannot compete with the key beside it that commits.
+    surface is one you cannot press. A plain key is a link wearing a hit area: it never
+    lifts, so it cannot compete with the key beside it that commits.
 </p>
 
 <PanelHeader>Keys — size</PanelHeader>
 
 <div class="row">
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral">Small</DeskButton>
-    <DeskButton Size="DeskKeySize.Medium" Tone="DeskTone.Neutral">Medium</DeskButton>
-    <DeskButton Size="DeskKeySize.Large" Tone="DeskTone.Action">Large</DeskButton>
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain">Small</DeskButton>
+    <DeskButton Size="DeskKeySize.Medium" Emphasis="DeskEmphasis.Plain">Medium</DeskButton>
+    <DeskButton Size="DeskKeySize.Large" Emphasis="DeskEmphasis.Plain">Large</DeskButton>
 </div>
 
 <PanelHeader>Gate switch</PanelHeader>
@@ -102,7 +106,7 @@
 </DeskTabs>
 
 <div class="row">
-    <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _thirdTab = !_thirdTab">
+    <DeskButton Size="DeskKeySize.Small" OnClick="() => _thirdTab = !_thirdTab">
         @(_thirdTab ? "Take the third section away" : "Give the third section content")
     </DeskButton>
 </div>
@@ -157,19 +161,19 @@
 
 <div class="row">
     <Tag>Neutral</Tag>
-    <Tag Tone="DeskTone.Go">Healthy</Tag>
-    <Tag Tone="DeskTone.Caution">Degraded</Tag>
-    <Tag Tone="DeskTone.Stop">Breached</Tag>
-    <Tag Tone="DeskTone.Action">Selected</Tag>
+    <Tag State="DeskState.Positive">Healthy</Tag>
+    <Tag State="DeskState.Warning">Degraded</Tag>
+    <Tag State="DeskState.Negative">Breached</Tag>
+    <Tag State="DeskState.Info">Selected</Tag>
 </div>
 
 <PanelHeader>Metrics</PanelHeader>
 
 <MetricRow>
-    <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" Tone="DeskTone.Go" Numeric="true" />
-    <Metric Label="Credits left" Value="412" Tone="DeskTone.Caution" Numeric="true" />
-    <Metric Label="CLV" Value="-2.1%" Tone="DeskTone.Stop" Numeric="true" />
-    <Metric Label="Sources" Value="6" Tone="DeskTone.Action" Numeric="true" />
+    <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" State="DeskState.Positive" Numeric="true" />
+    <Metric Label="Credits left" Value="412" State="DeskState.Warning" Numeric="true" />
+    <Metric Label="CLV" Value="-2.1%" State="DeskState.Negative" Numeric="true" />
+    <Metric Label="Sources" Value="6" State="DeskState.Info" Numeric="true" />
 </MetricRow>
 
 <PanelHeader>Pulse</PanelHeader>
@@ -201,7 +205,7 @@
     <Note Style="margin:0">
         A note carries context the operator needs but did not ask for.
     </Note>
-    <Note Tone="DeskTone.Caution" Style="margin:0">
+    <Note State="DeskState.Warning" Style="margin:0">
         A warning carries a cost. State what it is, and what to do instead.
     </Note>
 </div>
@@ -216,7 +220,7 @@
 <div class="row" style="gap:8px; margin-top:9px">
     <span class="dim" style="font-size:11.5px">At word scale, inside a row or cell:</span>
     <span class="mono" style="font-size:12px">
-        <Note Inline Tone="DeskTone.Caution">62%</Note>
+        <Note Inline State="DeskState.Warning">62%</Note>
     </span>
 </div>
 
@@ -282,8 +286,8 @@
     </DeskRow>
 
     <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space2">
-        <DeskButton Quiet="true">Cancel</DeskButton>
-        <DeskButton Tone="DeskTone.Action">Apply</DeskButton>
+        <DeskButton>Cancel</DeskButton>
+        <DeskButton Emphasis="DeskEmphasis.Plain">Apply</DeskButton>
     </DeskRow>
 
     <DeskRow Justify="DeskJustify.Between">
@@ -392,7 +396,7 @@
 </div>
 
 <div class="row" style="margin-top:10px">
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Go" Busy="@_stepping" OnClick="StepAsync">
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain" Busy="@_stepping" OnClick="StepAsync">
         Advance the bar
     </DeskButton>
 </div>
@@ -560,27 +564,27 @@
 </p>
 
 <div class="row" style="gap:8px; flex-wrap:wrap">
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Go"
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                 OnClick="@(() => Toasts.Success("Evaluated — every source inside its SLO."))">
         Success
     </DeskButton>
 
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                 OnClick="@(() => Toasts.Info("Layout saved to this browser."))">
         Info
     </DeskButton>
 
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                 OnClick="@(() => Toasts.Warn("Pull finished — 12 pulls left in today's allowance."))">
         Warn
     </DeskButton>
 
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Stop"
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                 OnClick="@(() => Toasts.Fail("Scheduled pull failed — the provider timed out."))">
         Fail
     </DeskButton>
 
-    <DeskButton Size="DeskKeySize.Small" Quiet="true"
+    <DeskButton Size="DeskKeySize.Small"
                 OnClick="@(() => Toasts.Show("Nothing to report."))">
         Neutral
     </DeskButton>
@@ -599,18 +603,18 @@
 <div class="row">
     @foreach (var (tone, word) in TagDemoTones)
     {
-        <Tag Tone="@tone">@word</Tag>
+        <Tag State="@tone">@word</Tag>
     }
 </div>
 
 @code {
-    private static readonly (DeskTone Tone, string Word)[] TagDemoTones =
+    private static readonly (DeskState Tone, string Word)[] TagDemoTones =
     [
-        (DeskTone.Neutral, "Neutral"),
-        (DeskTone.Action, "Action"),
-        (DeskTone.Go, "Go"),
-        (DeskTone.Stop, "Stop"),
-        (DeskTone.Caution, "Caution")
+        (DeskState.Neutral, "Neutral"),
+        (DeskState.Info, "Action"),
+        (DeskState.Positive, "Go"),
+        (DeskState.Negative, "Stop"),
+        (DeskState.Warning, "Caution")
     ];
 }
 
@@ -635,7 +639,7 @@
             first step, never a menu of them.
         </ChildContent>
         <Action>
-            <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Action"
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                         Icon="@Icons.Material.Filled.Add">Log the first entry</DeskButton>
         </Action>
     </EmptyState>
@@ -646,7 +650,7 @@
             so the reader looks at the filter instead of at the feed.
         </ChildContent>
         <Action>
-            <DeskButton Size="DeskKeySize.Small" Quiet="true"
+            <DeskButton Size="DeskKeySize.Small"
                         Icon="@Icons.Material.Filled.FilterAltOff">Clear the filter</DeskButton>
         </Action>
     </EmptyState>

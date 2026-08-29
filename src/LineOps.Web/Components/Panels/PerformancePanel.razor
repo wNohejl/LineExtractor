@@ -17,18 +17,18 @@ else
         <Metric Label="ROI"
                 Value='@_summary.Roi.ToString("P1")'
                 Note='@($"{_summary.SettledCount} settled")'
-                Tone="@(_summary.Roi > 0 ? DeskTone.Go : _summary.Roi < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+                State="@(_summary.Roi > 0 ? DeskState.Positive : _summary.Roi < 0 ? DeskState.Negative : DeskState.Neutral)" />
         <Metric Label="Net"
                 Value='@_summary.NetProfit.ToString("C0")'
                 Note='@($"on {_summary.TotalStaked.ToString("C0")} staked")'
-                Tone="@(_summary.NetProfit > 0 ? DeskTone.Go : _summary.NetProfit < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+                State="@(_summary.NetProfit > 0 ? DeskState.Positive : _summary.NetProfit < 0 ? DeskState.Negative : DeskState.Neutral)" />
         <Metric Label="Win rate"
                 Value='@_summary.WinRate.ToString("P0")'
                 Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
         <Metric Label="Beat the close"
                 Value="@_beatRate"
                 Note='@($"avg {_avgClv.ToString("+0.00;-0.00")}%")'
-                Tone="@(_avgClv > 0 ? DeskTone.Go : _avgClv < 0 ? DeskTone.Stop : DeskTone.Neutral)" />
+                State="@(_avgClv > 0 ? DeskState.Positive : _avgClv < 0 ? DeskState.Negative : DeskState.Neutral)" />
     </MetricRow>
 
     <PanelHeader>Bankroll</PanelHeader>

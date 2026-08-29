@@ -119,7 +119,7 @@ else
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
 
-                            <Tag Tone="@TagTones.Won(row.Won)">
+                            <Tag State="@TagTones.Won(row.Won)">
                                 @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
                             </Tag>
 
@@ -127,7 +127,7 @@ else
                                scans for, and hiding it behind an expand would defeat the log. *@
                             @if (row.AtsResult is { } ats)
                             {
-                                <Tag Tone="@TagTones.Result(ats)"
+                                <Tag State="@TagTones.Result(ats)"
                                      Title="@($"Against a closing spread of {row.ClosingSpread}")">
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
                                 </Tag>
@@ -142,13 +142,13 @@ else
                                 <GameResultSnippet Row="row" />
 
                                 <div class="row" style="gap:8px; margin-top:10px">
-                                    <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                                    <DeskButton Size="DeskKeySize.Small"
                                                 Icon="@Icons.Material.Filled.SportsScore"
                                                 OnClick="() => OpenGameAsync(row.GameId)">
                                         Open game
                                     </DeskButton>
 
-                                    <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                                    <DeskButton Size="DeskKeySize.Small"
                                                 Icon="@Icons.Material.Filled.ShowChart"
                                                 OnClick="() => LaunchMovement(row)">
                                         Movement
@@ -190,7 +190,7 @@ else
                             <PlayerRecentSnippet PlayerId="player.PlayerId" />
 
                             <div class="row" style="gap:8px; margin-top:10px">
-                                <DeskButton Size="DeskKeySize.Small" Quiet="true"
+                                <DeskButton Size="DeskKeySize.Small"
                                             Icon="@Icons.Material.Filled.Person"
                                             OnClick="() => LaunchPlayer(player)">
                                     Full game log

@@ -7,7 +7,7 @@
 *@
 
 <MetricRow Style="margin-bottom:16px">
-    <Metric Label="Windows open" Note="ceiling you set" Tone="DeskTone.Action">
+    <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
         @Manager.OpenCount/@S.MaxConcurrentWindows
     </Metric>
     <Metric Label="Desk" Note='@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")'>
@@ -16,12 +16,12 @@
     <Metric Label="Fits readably"
             Value="@Manager.RecommendedCapacity.ToString()"
             Note="at this size and layout"
-            Tone="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskTone.Caution : DeskTone.Go)" />
+            State="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskState.Warning : DeskState.Positive)" />
 </MetricRow>
 
 @if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
 {
-    <Note Tone="DeskTone.Caution" Style="margin:12px 0 16px">
+    <Note State="DeskState.Warning" Style="margin:12px 0 16px">
         Your ceiling is above what this desk fits at a readable width. Columns hold at
         @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
     </Note>
@@ -43,7 +43,7 @@
                 OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= 12)">
         <Glyph Icon="@Icons.Material.Filled.Add" />
     </DeskButton>
-    <DeskButton Quiet="true" OnClick="MatchRecommended">
+    <DeskButton OnClick="MatchRecommended">
         Match this desk (@Manager.RecommendedCapacity)
     </DeskButton>
 </div>
@@ -81,7 +81,7 @@
         The primary window takes this share of the row wherever it sits — it does not force
         its position, so dragging it to reorder the row is never fought. It is also what
         opens on an empty desk. Dragging a divider overrides the share until you
-        <DeskButton Quiet="true" style="height:22px" OnClick="@(_ => Manager.ResetWidths())">
+        <DeskButton style="height:22px" OnClick="@(_ => Manager.ResetWidths())">
             reset widths
         </DeskButton>.
     </p>

@@ -7,11 +7,11 @@
     each call site picked its own modifier with an inline ternary — the same
     "won ? good : lost ? bad : info" logic copied into a dozen panels, where a change
     of mind about what a state means had to be found and edited a dozen times. Here the
-    caller states the consequence (Tone) and the modifier is not their problem.
+    caller states the state (State) and the modifier is not their problem.
 
     The tag always carries its word: hue is the second channel, never the only one, so
     a tag that says nothing is a tag that says nothing to an operator who cannot see the
-    difference between steam and drift. See ADR 0008.
+    difference between steam and drift.
 
     Unmatched attributes splat *before* class, so a stray class= from a call site cannot
     quietly erase .tag and take the badge's whole appearance with it.
@@ -23,8 +23,8 @@
     /// <summary>The state word itself. A tag is never blank — hue alone carries no meaning.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>What the state means for the operator. See <see cref="DeskTone"/> — name the consequence, not the colour.</summary>
-    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+    /// <summary>What the state means for the operator. See <see cref="DeskState"/> — name the state, not the colour.</summary>
+    [Parameter] public DeskState State { get; set; } = DeskState.Neutral;
 
     /// <summary>Tooltip, for the detail that does not fit in a badge (an error message, a timestamp).</summary>
     [Parameter] public string? Title { get; set; }
@@ -41,12 +41,12 @@
     {
         yield return "tag";
 
-        yield return Tone switch
+        yield return State switch
         {
-            DeskTone.Go => "tag--good",
-            DeskTone.Stop => "tag--bad",
-            DeskTone.Caution => "tag--warn",
-            DeskTone.Action => "tag--info",
+            DeskState.Positive => "tag--good",
+            DeskState.Negative => "tag--bad",
+            DeskState.Warning => "tag--warn",
+            DeskState.Info => "tag--info",
             _ => null
         };
 

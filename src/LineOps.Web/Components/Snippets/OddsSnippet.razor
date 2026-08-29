@@ -19,11 +19,11 @@
 }
 else if (_error is not null)
 {
-    <Note Tone="DeskTone.Caution" Style="margin:0">@_error</Note>
+    <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
 }
 else if (_row is null || _row.Unpriced is { } reason)
 {
-    <Note Tone="DeskTone.Caution" Style="margin:0">@(_row?.Unpriced ?? "This game is not on the board.")</Note>
+    <Note State="DeskState.Warning" Style="margin:0">@(_row?.Unpriced ?? "This game is not on the board.")</Note>
 }
 else
 {
