@@ -1,0 +1,591 @@
+/* ============================================================================
+   Apple-feel component recipes.
+
+   TEMPLATE — copy into wwwroot/css/ and load AFTER apple-tokens.css and BEFORE
+   apple-bridge.css. Nothing here writes a literal colour; every value resolves
+   through a token, which stays the single source of truth.
+
+   Contents:
+     1. Buttons        (.app-btn — AppleButton.razor renders this)
+     2. Fields         (.field, .field-set — plain elements, no wrapper component)
+     3. The segmented gate and the marble
+     4. Tags (capsules)
+     5. Sheet          (.app-sheet — AppleSheet.razor)
+     6. Alert          (.app-alert — AppleAlert.razor)
+     7. Material fallbacks — MUST STAY LAST IN THE FILE
+   ============================================================================ */
+
+/* ------------------------------------------------------------------ buttons ---
+   Apple's three-level hierarchy, and nothing else. The habit this replaces made
+   gloss mean "pressable" and hue mean "consequence"; under that rule every button
+   was a moulded, tinted cap, which meant a panel with five buttons had five
+   primary actions and therefore none.
+
+   Now weight carries the message. Filled is the one action a context commits to.
+   Tinted is a secondary action that still has to be findable. Plain is chrome —
+   transparent until pointed at. Red is reserved for Role.Destructive and is the
+   only place a button borrows a state colour.
+
+   .btn is kept in the selector as cheap insurance: any hand-written .btn markup
+   picks up the same recipe rather than reappearing with a second button language.
+   --------------------------------------------------------------------------- */
+
+.app-btn, .btn {
+    /* The two dials every variant below spends. */
+    --btn-fill: transparent;
+    --btn-ink: var(--text-secondary);
+
+    position: relative;
+    overflow: hidden; /* clips the in-flight shimmer */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    height: 28px;
+    min-width: 0;
+    padding: 0 var(--space-3);
+    box-sizing: border-box;
+
+    border: none; /* depth comes from fill and shadow, never an outline */
+    border-radius: var(--radius);
+
+    background-color: var(--btn-fill);
+    color: var(--btn-ink);
+
+    font-family: var(--face-ui);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0; /* the uppercase tracking went with the gloss */
+    text-transform: none;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+
+.app-btn svg, .btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
+/* One focus ring for the whole app, sitting outside the control on an offset. */
+.app-btn:focus-visible, .btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Apple answers a press with a fast, small scale rather than travel. */
+.app-btn:active:not(:disabled), .btn:active:not(:disabled) {
+    transform: scale(.97);
+    transition-duration: .05s;
+}
+
+.app-btn:disabled, .app-btn[disabled],
+.btn:disabled, .btn[disabled] {
+    opacity: .40;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* --- Plain: chrome. Transparent until pointed at. ------------------------- */
+.app-btn--plain { --btn-fill: transparent; --btn-ink: var(--text-secondary); }
+
+.app-btn--plain:hover:not(:disabled) {
+    --btn-fill: var(--surface-3);
+    --btn-ink: var(--text-primary);
+}
+
+/* --- Tinted: an accent wash behind accent text. --------------------------- */
+.app-btn--tinted { --btn-fill: var(--accent-wash); --btn-ink: var(--accent); }
+
+.app-btn--tinted:hover:not(:disabled) { --btn-fill: var(--accent-wash-strong); }
+
+/* --- Filled: the one action the context commits to. ----------------------- */
+.app-btn--filled {
+    --btn-fill: var(--accent);
+    --btn-ink: var(--on-accent);
+    font-weight: var(--weight-semibold);
+    box-shadow: var(--shadow-1);
+}
+
+.app-btn--filled:hover:not(:disabled) { --btn-fill: var(--accent-hover); }
+.app-btn--filled:active:not(:disabled) { --btn-fill: var(--accent-press); }
+
+/* --- Destructive: the only place a button borrows a state colour. ---------- */
+.app-btn--destructive.app-btn--plain { --btn-ink: var(--state-negative); }
+
+.app-btn--destructive.app-btn--plain:hover:not(:disabled) {
+    --btn-fill: var(--state-negative-wash);
+    --btn-ink: var(--state-negative);
+}
+
+.app-btn--destructive.app-btn--tinted { --btn-fill: var(--state-negative-wash); --btn-ink: var(--state-negative); }
+
+/* color-mix(in oklab, …) rules out browsers older than Chrome 111 / Safari 16.2.
+   Substitute a literal rgba() if you must support older engines. */
+.app-btn--destructive.app-btn--tinted:hover:not(:disabled) {
+    --btn-fill: color-mix(in oklab, var(--state-negative) 24%, transparent);
+}
+
+/* --on-accent is the ink for any saturated fill, not only the accent one — a
+   destructive fill is exactly as saturated, so it spends the same token rather
+   than restating white. */
+.app-btn--destructive.app-btn--filled { --btn-fill: var(--state-negative); --btn-ink: var(--on-accent); }
+
+.app-btn--destructive.app-btn--filled:hover:not(:disabled) {
+    --btn-fill: var(--state-negative-hover);
+}
+
+/* --- Sizes. The control changes height and padding; the recipe does not. --- */
+.app-btn--sm { height: 22px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.app-btn--sm svg { width: 13px; height: 13px; }
+.app-btn--lg { height: 34px; padding: 0 var(--space-4); font-size: var(--text-title3); }
+.app-btn--lg svg { width: 17px; height: 17px; }
+
+/* --- Icon-only: square, so it reads as a control rather than a clipped button. */
+.app-btn--icon { padding: 0; width: 28px; }
+.app-btn--icon.app-btn--sm { width: 22px; }
+.app-btn--icon.app-btn--lg { width: 34px; }
+
+/* --- Busy: occupied, not inert. Keeps its fill and runs a sheen across it. --
+   A busy control refuses input but must not go grey: grey says "this is not for
+   you", and the truth is "this is already doing what you asked". The sheen is a
+   continuous ambient signal, so its duration is its own rather than an
+   interaction token's. */
+.app-btn--busy,
+.app-btn--busy:disabled {
+    opacity: 1;
+    cursor: progress;
+}
+
+.app-btn--busy::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, .18) 50%,
+        transparent 100%);
+    animation: app-btn-sheen 1.1s var(--ease-standard) infinite;
+}
+
+@keyframes app-btn-sheen {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-btn--busy::after { animation: none; opacity: .35; }
+    .app-btn:active:not(:disabled), .btn:active:not(:disabled) { transform: none; }
+}
+
+/* ------------------------------------------------------------------- fields ---
+   A field is a place to put something, so it is cut into the surface rather than
+   raised off it: a darker well, a hairline, and no fill of its own. There is no
+   wrapper component for this on purpose — a field is a plain <input>, <select> or
+   <textarea> with .field on it, which keeps @bind, validation and every native
+   attribute working without a parameter to forward each one.
+   --------------------------------------------------------------------------- */
+
+.field {
+    display: block;
+    width: 100%;
+    height: 28px;
+    padding: 0 var(--space-2);
+    box-sizing: border-box;
+
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-body);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0;
+    text-transform: none;
+
+    transition: border-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.field::placeholder { color: var(--text-tertiary); }
+
+.field:hover:not(:disabled) { border-color: var(--separator-strong); }
+
+.field:focus, .field:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+}
+
+.field:disabled {
+    opacity: .40;
+    cursor: not-allowed;
+}
+
+.field.num { font-variant-numeric: tabular-nums; }
+
+textarea.field {
+    height: auto;
+    padding: var(--space-1) var(--space-2);
+    line-height: var(--leading-body);
+    resize: vertical;
+}
+
+select.field {
+    appearance: none;
+    padding-right: var(--space-6);
+    cursor: pointer;
+    /* The chevron is drawn rather than imported, so it takes the text colour. */
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+                      linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+
+select.field option { background: var(--surface-2); color: var(--text-primary); }
+
+/* ---- The field's frame ----------------------------------------------------
+   Only present when a field has something to say about itself. A field with no
+   label and no error renders bare, so the frame is an addition, not a new
+   baseline. Where it does appear it owns the layout, and the control fills it.
+   --------------------------------------------------------------------------- */
+
+.field-set { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.field-set > .field { width: 100%; }
+
+.field-lbl {
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.field-req { color: var(--state-negative); margin-left: 3px; }
+
+.field-err {
+    /* Zeroed because an error usually renders as a <p>, whose default margin would
+       otherwise reopen the vertical rhythm .field-set's gap is meant to own. */
+    margin: 0;
+    font-size: var(--text-footnote);
+    color: var(--state-negative);
+}
+
+.field[aria-invalid="true"] { border-color: var(--state-negative); }
+
+.field[aria-invalid="true"]:focus,
+.field[aria-invalid="true"]:focus-visible {
+    border-color: var(--state-negative);
+    box-shadow: 0 0 0 3px var(--state-negative-wash), 0 0 0 1px var(--state-negative);
+}
+
+/* ---- The marble -----------------------------------------------------------
+   The travel shared by every control that holds one choice among a few: the
+   selection slides to the position you picked instead of blinking to it, so the
+   eye keeps hold of where it went.
+
+   Two custom properties drive it, both set inline by whatever renders the
+   control. --n is how many positions there are, --i is which one is current. A
+   control whose value matches no position sets --i to -1 and renders no marble
+   at all, rather than parking it on a position that is not the answer.
+
+   The step is one column PLUS the gap between columns. Travelling by its own
+   width alone looks right at two positions and drifts by a pixel per position
+   after that, which shows up as a marble no longer quite sitting on the last
+   position. --gap defaults to 0, so hosts that do not space their positions are
+   unaffected by the arithmetic.
+   ------------------------------------------------------------------------- */
+
+.marble {
+    position: absolute;
+    z-index: 0;
+    box-sizing: border-box;
+    transform: translateX(calc(var(--i, 0) * (100% + var(--gap, 0px))));
+    transition: transform var(--dur-base) var(--ease-spring);
+}
+
+/* One column's share of the row, gaps taken out first. */
+.marble--track {
+    width: calc((100% - (var(--n) - 1) * var(--gap, 0px)) / var(--n));
+}
+
+/* Every marble host lays its positions out as equal columns. The flow is
+   `column` rather than an explicit `repeat(var(--n), …)` template so the row can
+   never collapse into a stack if --n fails to arrive — the track count follows
+   the children, and only the marble's own width needs the number. */
+.marble-row {
+    --gap: 0px;
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--gap);
+    box-sizing: border-box;
+}
+
+.marble-row > :not(.marble) { position: relative; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble { transition: none; }
+}
+
+/* ---- The segmented gate ---------------------------------------------------
+   A recessed track holding a raised cap that slides to the selected position.
+   The platform's answer to "one of a few, all visible".
+
+   The track fill is --surface-0, not --surface-1: a recessed channel inside a
+   panel that already sits at --surface-1 is a channel nobody can see.
+   ------------------------------------------------------------------------- */
+
+.marble-row.gate {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px;
+    background: var(--surface-0);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--separator);
+}
+
+.marble.gate__cap {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--surface-3);
+    box-shadow: var(--shadow-1);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-base) var(--ease-spring);
+    pointer-events: none;
+}
+
+.gate__opt {
+    position: relative; /* above the cap */
+    z-index: 1;
+    padding: 0 var(--space-3);
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.gate__opt:hover { color: var(--text-primary); }
+
+/* The selected position is not pressable again. */
+.gate__opt--on { color: var(--text-primary); font-weight: var(--weight-semibold); cursor: default; }
+
+.gate__opt:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: calc(var(--radius) - 2px); }
+
+.gate--num .gate__opt { font-variant-numeric: tabular-nums; }
+
+.gate--sm .gate__opt { height: 20px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble.gate__cap { transition: none; }
+}
+
+/* ---- Tag: a small state word, set as a capsule -----------------------------
+   Not an outlined chip. An outline is a second edge inside a table that is
+   already ruled by hairlines, and a column of them reads as a column of little
+   boxes rather than as a column of states. A capsule has one edge — its own fill
+   — so a table of them settles: the shape says "label", the wash says which
+   state, and the ink is that state's own colour so the word and its fill agree.
+
+   Neutral is --surface-3 under --text-secondary: still a capsule, no state
+   claimed. The word is always present, so the state survives the colour being
+   removed.
+   --------------------------------------------------------------------------- */
+
+.tag {
+    display: inline-block;
+    padding: 2px var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    font-size: var(--text-caption);
+    font-weight: var(--weight-medium);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.tag--good { background: var(--state-positive-wash); color: var(--state-positive); }
+.tag--warn { background: var(--state-warning-wash); color: var(--state-warning); }
+.tag--bad  { background: var(--state-negative-wash); color: var(--state-negative); }
+.tag--info { background: var(--accent-wash); color: var(--accent); }
+
+/* -------------------------------------------------------------------- sheet ---
+   A modal sheet. Rises from slightly below and settles — the motion says it came
+   from the task, not from the edge of the screen.
+
+   Every surface rule here is written as .mud-dialog.app-sheet, TWO CLASSES, on
+   purpose. MudBlazor's own stylesheet declares .mud-dialog (background, radius,
+   shadow, and an open animation) at one class, and apple-bridge.css re-declares
+   .mud-dialog at one class for ordinary Mud dialogs. apple-bridge.css loads AFTER
+   this file, so a single-class rule here would lose the tie to the bridge on
+   source order and never reach the screen. Two classes settle it on specificity
+   instead, in both directions, and leave the bridge's plain dialog styling intact
+   for the dialogs that are not sheets.
+
+   The scrim is deliberately absent: .mud-overlay-dialog carries it in
+   apple-bridge.css, and a second declaration here would both duplicate it and
+   lose to it.
+   --------------------------------------------------------------------------- */
+
+.mud-dialog.app-sheet { /* Mud owns the surface; this owns how it looks. */
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-sheet);
+    animation: app-sheet-in var(--dur-base) var(--ease-spring);
+}
+
+@keyframes app-sheet-in {
+    from { opacity: 0; transform: translateY(12px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Mud pads its own title, content and actions wrappers (16px/24px, at two classes
+   each). The sheet's head, body and foot carry their own spacing, so those
+   wrappers are emptied out — three classes, which clears Mud's two — or the
+   padding would be applied twice and the sheet would read as loose. */
+.mud-dialog.app-sheet .mud-dialog-title,
+.mud-dialog.app-sheet .mud-dialog-content,
+.mud-dialog.app-sheet .mud-dialog-actions {
+    padding: 0;
+    letter-spacing: normal;
+}
+
+.app-sheet__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.app-sheet__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.app-sheet__title {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.app-sheet__sub { font-size: var(--text-subheadline); color: var(--text-secondary); }
+
+.app-sheet__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.app-sheet__close:hover { background: var(--state-negative); color: var(--on-accent); }
+.app-sheet__close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.app-sheet__close svg { width: 14px; height: 14px; }
+
+.app-sheet__body { padding: 0 var(--space-4) var(--space-4); }
+
+.app-sheet__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--separator);
+    width: 100%;
+}
+
+/* The entrance is the only motion the sheet has, so neutralising it is the whole
+   of the reduced-motion story. Two classes again, to match the rule it undoes. */
+@media (prefers-reduced-motion: reduce) {
+    .mud-dialog.app-sheet { animation: none; }
+}
+
+/* -------------------------------------------------------------------- alert ---
+   Narrow, centred, and quiet. Everything here is subordinate to the question.
+
+   Nothing in this block touches Mud's own surface, so none of it needs the
+   sheet's two-class treatment: the alert renders as bare content inside
+   .mud-dialog and takes that surface as apple-bridge.css already draws it —
+   opaque --surface-1, so there is no material here and nothing to register in
+   the fallback block below.
+   --------------------------------------------------------------------------- */
+
+.app-alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    text-align: center;
+    max-width: 320px;
+}
+
+.app-alert__heading {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.app-alert__message {
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.app-alert__actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* No rule marks the default confirm, deliberately. A painted box-shadow copied
+   from --focus-ring draws a focus ring on a button that does not have focus,
+   which a keyboard operator cannot tell from the real thing. AppleAlert focuses
+   the default button outright, so .app-btn:focus-visible paints it when a
+   keyboard opened the alert and leaves it alone when a pointer did. The ring is
+   earned rather than drawn. */
+
+/* ---- Material fallbacks -----------------------------------------------------
+   Opaque fallbacks for every material surface. THIS BLOCK MUST STAY LAST IN THE
+   FILE: @supports adds no specificity, so these rules beat their unconditional
+   counterparts only on source order. A rule added above this line is a rule that
+   works; a material added below it needs its fallback added here and re-tested.
+
+   No blur available means no translucency either — a flat wash over the app would
+   just look like a mistake, so each material falls back to the opaque tier
+   nearest its intent. The sheet keeps BOTH classes here so it still clears the
+   bridge's single-class .mud-dialog, which source order alone would not do.
+
+   Add one line per material surface you introduce.
+   --------------------------------------------------------------------------- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mud-dialog.app-sheet { background: var(--surface-2); }
+}

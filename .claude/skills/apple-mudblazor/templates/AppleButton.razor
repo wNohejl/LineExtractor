@@ -1,10 +1,10 @@
-@namespace LineOps.Web.Components.Desk
-@using LineOps.Web.Components.Windowing
+@namespace YourApp.Components.Ui
 
 @*
-    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
+    TEMPLATE — rename the @namespace above to your own. Requires MudBlazor and
+    Microsoft.AspNetCore.Components.Web (for MouseEventArgs) in _Imports.razor.
 
-    The desk's button, and the reason it wraps MudBlazor rather than sitting beside it.
+    The button, and the reason it wraps MudBlazor rather than sitting beside it.
     Panels hold a lot of these, and a call site that has to remember Variant, Color,
     Ripple, DropShadow and a class string is one that will drift from the call site next
     to it. Here the caller states how loud (Emphasis) and whether it destroys (Role), and
@@ -13,8 +13,10 @@
     The MudButton underneath is deliberately its plainest variant — Text + Inherit, which
     contributes almost no visual rules of its own — plus Ripple off, because a ripple is
     Material's answer to a press and this system answers with a fast state change instead.
-    Everything the button looks like comes from .desk-btn in lineops.css. See
-    css/mud-bridge.css for why that stack resolves the way it does.
+    Everything the button looks like comes from .app-btn in apple-components.css. See
+    apple-bridge.css for why that stack resolves the way it does: MudBlazor states
+    .mud-button-text.mud-button-text-inherit at two classes, which out-specifies a bare
+    .app-btn, so the bridge carries a companion rule at matching specificity.
 *@
 
 <MudButton @ref="_button"
@@ -31,7 +33,7 @@
            @attributes="Extra">
     @if (Icon is not null)
     {
-        <Glyph Icon="@Icon" />
+        <MudIcon Icon="@Icon" />
     }
     @ChildContent
 </MudButton>
@@ -40,19 +42,19 @@
     /// <summary>The label. Omit it for an icon-only button — then <see cref="Title"/> is required.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>A MudBlazor icon string, drawn bare through <c>Glyph</c> so buttons use the same icon set as the chrome.</summary>
+    /// <summary>A MudBlazor icon string.</summary>
     [Parameter] public string? Icon { get; set; }
 
     /// <summary>
-    /// How much weight this button claims. See <see cref="DeskEmphasis"/> — exactly one
+    /// How much weight this button claims. See <see cref="AppleEmphasis"/> — exactly one
     /// Filled per context.
     /// </summary>
-    [Parameter] public DeskEmphasis Emphasis { get; set; } = DeskEmphasis.Plain;
+    [Parameter] public AppleEmphasis Emphasis { get; set; } = AppleEmphasis.Plain;
 
-    /// <summary>Whether pressing this destroys something. See <see cref="DeskRole"/>.</summary>
-    [Parameter] public DeskRole Role { get; set; } = DeskRole.Normal;
+    /// <summary>Whether pressing this destroys something. See <see cref="AppleRole"/>.</summary>
+    [Parameter] public AppleRole Role { get; set; } = AppleRole.Normal;
 
-    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+    [Parameter] public AppleKeySize Size { get; set; } = AppleKeySize.Medium;
 
     /// <summary>
     /// Work this button started is still running. Runs the in-flight shimmer and refuses
@@ -90,27 +92,27 @@
 
     private IEnumerable<string?> Parts()
     {
-        yield return "desk-btn";
+        yield return "app-btn";
 
         yield return Emphasis switch
         {
-            DeskEmphasis.Filled => "desk-btn--filled",
-            DeskEmphasis.Tinted => "desk-btn--tinted",
-            _ => "desk-btn--plain"
+            AppleEmphasis.Filled => "app-btn--filled",
+            AppleEmphasis.Tinted => "app-btn--tinted",
+            _ => "app-btn--plain"
         };
 
-        yield return Role is DeskRole.Destructive ? "desk-btn--destructive" : null;
+        yield return Role is AppleRole.Destructive ? "app-btn--destructive" : null;
 
         yield return Size switch
         {
-            DeskKeySize.Small => "desk-btn--sm",
-            DeskKeySize.Large => "desk-btn--lg",
+            AppleKeySize.Small => "app-btn--sm",
+            AppleKeySize.Large => "app-btn--lg",
             _ => null
         };
 
         // An icon with no label is a square, so it does not read as a clipped button.
-        yield return Icon is not null && ChildContent is null ? "desk-btn--icon" : null;
-        yield return Busy ? "desk-btn--busy" : null;
+        yield return Icon is not null && ChildContent is null ? "app-btn--icon" : null;
+        yield return Busy ? "app-btn--busy" : null;
         yield return Class;
     }
 }

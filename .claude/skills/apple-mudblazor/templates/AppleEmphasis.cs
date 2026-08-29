@@ -1,15 +1,16 @@
-namespace LineOps.Web.Components.Desk;
+// TEMPLATE — rename the namespace below to your own (this file assumes
+// YourApp.Components.Ui) and drop it in beside AppleButton.razor.
+
+namespace YourApp.Components.Ui;
 
 /// <summary>
-/// TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
-///
 /// How much visual weight a button claims, following Apple's button hierarchy.
 ///
 /// <para>
-/// This replaces the desk's retired button "tone", which named a consequence and painted it
-/// as a hue. Hue is no longer an affordance channel: an interface with five coloured
-/// button types has no primary action, only five competing ones. Emphasis says how loud;
-/// <see cref="DeskRole"/> says whether the action is dangerous. Those are the two
+/// This deliberately replaces the common "tone"/"severity" button enum, which names a
+/// consequence and paints it as a hue. Hue is not an affordance channel: an interface with
+/// five coloured button types has no primary action, only five competing ones. Emphasis says
+/// how loud; <see cref="AppleRole"/> says whether the action is dangerous. Those are the two
 /// questions a caller can actually answer.
 /// </para>
 ///
@@ -18,7 +19,7 @@ namespace LineOps.Web.Components.Desk;
 /// need two, one of them is not the primary action.
 /// </para>
 /// </summary>
-public enum DeskEmphasis
+public enum AppleEmphasis
 {
     /// <summary>
     /// Transparent until pointed at. Toolbar and inline actions, and the escape from a
@@ -40,23 +41,26 @@ public enum DeskEmphasis
 }
 
 /// <summary>
-/// Whether an action destroys something. Kept separate from <see cref="DeskEmphasis"/>
+/// Whether an action destroys something. Kept separate from <see cref="AppleEmphasis"/>
 /// because a destructive action can be any weight: a Filled "Delete" in a confirmation
 /// alert, a Plain "Remove" in a row's overflow menu.
 /// </summary>
-public enum DeskRole
+public enum AppleRole
 {
     Normal,
 
     /// <summary>
     /// Destroys, or is hard to undo. Renders in red, and never becomes the default
-    /// button in an alert — see DeskAlert.
+    /// button in an alert — see <c>AppleAlert</c>, which focuses Cancel instead, so the
+    /// rule holds in the keyboard channel and not only in the paint.
     /// </summary>
     Destructive
 }
 
-/// <summary>How much of the panel a button claims. Chrome is small, a page's intent is large.</summary>
-public enum DeskKeySize
+/// <summary>
+/// How much of the layout a button claims. Chrome is small, a page's intent is large.
+/// </summary>
+public enum AppleKeySize
 {
     Small,
     Medium,
