@@ -340,7 +340,7 @@ else
         {
             var columns = GameBoxScore.ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
             <div class="gridwrap">
                 <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
                     <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
@@ -393,7 +393,7 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
             @*
                 The row opens the way every other row on the desk opens.
 
