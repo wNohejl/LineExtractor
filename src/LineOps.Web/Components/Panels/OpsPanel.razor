@@ -9,6 +9,7 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<ReliabilityOptions> Options
 @inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
+@inject DeskToasts Toasts
 
 <div class="row row--end" style="margin-bottom:12px">
     <button class="btn" type="button" @onclick="EvaluateAsync" disabled="@_busy">
@@ -339,6 +340,14 @@ else if (_plan is { } plan)
             _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
     }
 
+    // Identity, not arithmetic. The same EvaluateAsync pass that opens an alert also
+    // auto-resolves any whose condition has cleared, so a count delta reports zero — or a
+    // negative — for a pass that genuinely raised something. On a drill that is the exact
+    // answer being asked for, so the two are compared by id.
+    private HashSet<long> OpenAlertIds() => _alerts.Select(a => a.Id).ToHashSet();
+
+    private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
+
     private static string SeverityTag(AlertSeverity severity) => severity switch
     {
         AlertSeverity.Critical => "tag--bad",
@@ -357,7 +366,21 @@ else if (_plan is { } plan)
             await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
             await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
 
+            var seen = OpenAlertIds();
             await LoadAsync();
+
+            // A pass that changes nothing repaints identically to one that did not run, and
+            // the rollup takes long enough that the operator has usually looked away. The
+            // notice reports the outcome, not the click — and it is transient because the
+            // alert table below is the durable record either way.
+            var opened = CountNew(seen);
+
+            if (_criticals > 0)
+                Toasts.Warn($"Evaluated — {_alerts.Count} open, {_criticals} critical.");
+            else if (opened > 0)
+                Toasts.Warn($"Evaluated — {opened} new alert{(opened == 1 ? "" : "s")} opened.");
+            else
+                Toasts.Success($"Evaluated — {(_alerts.Count == 0 ? "every source inside its SLO" : $"{_alerts.Count} open, none critical")}.");
         }
         finally
         {
@@ -394,7 +417,17 @@ else if (_plan is { } plan)
             await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
             await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
 
+            var seen = OpenAlertIds();
             await LoadAsync();
+
+            // The drill's whole point is "did the fault get caught?", and a drill that caught
+            // nothing looks exactly like one that has not finished. Two outcomes, one line.
+            var fired = CountNew(seen);
+
+            if (fired > 0)
+                Toasts.Success($"Drill complete — {fired} alert{(fired == 1 ? "" : "s")} fired.");
+            else
+                Toasts.Warn("Drill complete — no new alerts fired.");
         }
         finally
         {

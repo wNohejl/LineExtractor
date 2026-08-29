@@ -2,6 +2,7 @@
 @using LineOps.Web.Windowing
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
+@inject DeskToasts Toasts
 
 @if (_selected is null)
 {
@@ -260,6 +261,16 @@ else
             var id = _selected.Id;
             await LoadAsync();
             await SelectAsync(id);
+
+            // Resolving closes the loop somewhere the operator is not looking: the desk's open
+            // count, the pulse, and the Ops window's incident metric all move. The status tag
+            // on this page already confirms the resolve itself, so the notice reports the
+            // wider consequence rather than repeating it.
+            //
+            // The failure path deliberately does not toast. A rejected resolve needs the
+            // operator to edit the two fields above it, and a notice that has auto-dismissed
+            // cannot be read next to the field it is about — that stays in _error, inline.
+            Toasts.Success($"Incident #{id} resolved — {(_open == 0 ? "none" : _open.ToString())} still open.");
         }
         catch (ArgumentException ex)
         {
