@@ -471,7 +471,7 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
 - **Tests (80):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
-- **Docs:** six ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
+- **Docs:** sixteen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
 **ADR index:**
 
@@ -484,6 +484,15 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 | 0005 | Ingestion library separate from its worker host |
 | 0006 | Container security posture and HTTPS |
 | 0007 | A window manager instead of pages |
+| 0008 | Gloss as an affordance, and a seam for MudBlazor — *superseded in part by 0016* |
+| 0009 | History backfilled only from unmetered sources |
+| 0010 | Odds are scans until first pitch, then one closing line |
+| 0011 | ESPN is the stats port; odds come from a book market |
+| 0012 | Jobs are named, and triggered by state rather than the clock |
+| 0013 | The board, and the floating layer the desk reserved — *amended by 0016* |
+| 0014 | A real feed, a credit budget, and what counts as a game |
+| 0015 | Standard telemetry beside the bespoke reliability layer |
+| 0016 | Weight replaces hue; materials replace moulding |
 
 ---
 

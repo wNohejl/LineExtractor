@@ -150,17 +150,29 @@ what `.num` and `.mono` set. The retired `--face-data` was solving a problem SF 
   hover-follow strip. The distinction is commented at the rule, because it looks like an
   inconsistency to anyone sweeping for one.
 
-- **The reduced-motion block is the one sanctioned `!important` that overrides component
-  styling.** Motion is a signal, not a flourish, so it goes away entirely when asked — and a
-  preference that can be out-specified by a component is not a preference. The stylesheet's
-  other `!important`s are layout-mode escapes rather than visual decisions, and three of the
-  four exist because the declaration they must beat is an *inline* style, which no selector
-  can out-specify: `.deskdialog`'s `top`/`left`/`width` under `max-width: 720px` (written
-  inline by `dialogs.js` on drag) and `.desk__surface`'s `width`/`height` in the same media
-  query (written inline by `Desk.razor` when a fixed resolution is declared). The remaining
-  two are `body.splitting * { cursor }`, which holds one pointer cursor across the whole desk
-  for the duration of a drag gesture, and `.shell__body { flex-direction }` in the narrow
-  layout. None of them decide how a component looks.
+- **The reduced-motion block is the only `!important` that overrides component styling.**
+  Motion is a signal, not a flourish, so it goes away entirely when asked — and a preference
+  that can be out-specified by a component is not a preference. It is not, however, the only
+  `!important` in the codebase, and the honest inventory is worth stating so nobody has to
+  re-derive it: `lineops.css` carries **14 declarations across 6 sites** and `mud-bridge.css`
+  carries none (its three matches are prose, so ADR 0008's claim about the bridge still
+  holds). Besides reduced motion, they divide three ways rather than into one tidy category:
+
+  - **Three sites beat an *inline* style, which no selector can out-specify at any
+    specificity.** `.deskdialog`'s `top`/`left`/`width` and `.desk__surface`'s `width`/`height`
+    and `.win`'s `left`/`width`, all under `max-width: 720px`, against geometry written by
+    `dialogs.js`, `windowing.js` and `Desk.razor`. This is the only genuinely unavoidable
+    group.
+  - **One is specificity, not inline.** `body.splitting *` sets one cursor across the desk for
+    the length of a drag; at `(0,1,1)` it cannot beat compound rules like
+    `.deskdialog--dragging .deskdialog__bar` `(0,2,0)` without it.
+  - **Two declarations are belt-and-braces and could be dropped.** `.shell__body`'s
+    `flex-direction` and `.win`'s `position` sit in a media query at the same specificity as
+    the base rules they override, so source order already decides them. They are uniform with
+    the siblings around them that do need it.
+
+  None of the five non-motion sites decides how a component *looks*; they are geometry, cursor
+  and layout mode.
 
 - **The pulse strip keeps its bespoke timings.** The interaction-motion tokens (`--dur-fast`,
   `--ease-standard`) describe how an interface answers a press. A continuous ambient signal is
