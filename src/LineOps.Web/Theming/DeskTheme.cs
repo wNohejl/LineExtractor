@@ -98,7 +98,7 @@ public static class DeskTheme
 
     /// <summary>
     /// The single theme instance. Static because it never varies per circuit — the desk
-    /// is dark, and a light palette would have to answer what gloss means on paper.
+    /// is dark. A light desk is a second [data-theme] token block, not a second theme object.
     /// </summary>
     public static readonly MudTheme Instance = new()
     {

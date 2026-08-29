@@ -6,7 +6,8 @@
     Every panel had this as a hand-written <h3 class="panel-h">, and over time the call
     sites grew a tail of inline styles: margin:0 where the heading sits in a flex row that
     already spaces it, a top margin where it opens a section below other content, and the
-    brighter --haze where the heading names a thing (a team) rather than a section. Those
+    brighter --text-secondary where the heading names a thing (a team) rather than a section.
+    Those
     three intentions are the whole of the variation, so they are parameters here and the
     numbers are the component's business.
 
@@ -52,8 +53,10 @@
     [Parameter] public PanelHeaderGap Gap { get; set; } = PanelHeaderGap.Default;
 
     /// <summary>
-    /// The heading names a thing rather than a section — a team, an opponent. Reads at the
-    /// brighter --haze, so it carries more weight than the section rules around it.
+    /// The heading names a thing rather than a section — a team, an opponent. Reads at
+    /// --text-secondary rather than .panel-h's --text-tertiary, so it carries more weight
+    /// than the section rules around it. The name is historical: this is the brighter of the
+    /// two, not the quieter.
     /// </summary>
     [Parameter] public bool Muted { get; set; }
 

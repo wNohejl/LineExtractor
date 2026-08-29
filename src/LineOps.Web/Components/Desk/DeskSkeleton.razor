@@ -15,9 +15,9 @@
     (with the last line short, the way a paragraph actually ends) and <c>Block</c> stands in
     for a solid element: a chart, a tile, an avatar. Give it the width the real thing has.
 
-    A skeleton is matte. ADR 0008 makes gloss the affordance channel: a surface catching the
-    light is one you can press. Nothing here is pressable, so nothing here is glossy — the
-    shimmer travels *through* a flat surface rather than sitting on it as a sheen. Under
+    A skeleton is opaque. ADR 0016 keeps materials for the floating tier and leaves anything
+    holding data flat. Nothing here is pressable and nothing here floats, so the shimmer
+    travels *through* a flat surface rather than sitting on it as a highlight. Under
     <c>prefers-reduced-motion</c> the shimmer is dropped entirely and the block stays; the
     state survives, only the travel goes.
 *@

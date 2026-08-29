@@ -189,7 +189,7 @@ else if (_plan is { } plan)
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <Tag State="@SeverityTone(context.Item.Severity)">@context.Item.Severity</Tag>
+            <Tag State="@SeverityState(context.Item.Severity)">@context.Item.Severity</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -343,7 +343,7 @@ else if (_plan is { } plan)
 
     private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
 
-    private static DeskState SeverityTone(AlertSeverity severity) => severity switch
+    private static DeskState SeverityState(AlertSeverity severity) => severity switch
     {
         AlertSeverity.Critical => DeskState.Negative,
         AlertSeverity.Warn => DeskState.Warning,

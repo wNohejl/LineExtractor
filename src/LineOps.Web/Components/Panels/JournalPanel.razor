@@ -131,7 +131,7 @@ else
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result">
-            <CellTemplate><Tag State="@ResultTone(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
+            <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right">
@@ -253,7 +253,7 @@ else
             Manager.OpenGame(game);
     }
 
-    private static DeskState ResultTone(EntryResult result) => result switch
+    private static DeskState ResultState(EntryResult result) => result switch
     {
         EntryResult.Win => DeskState.Positive,
         EntryResult.Loss => DeskState.Negative,

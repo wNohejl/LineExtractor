@@ -211,10 +211,10 @@
 </div>
 
 <p class="empty" style="padding:9px 0 0">
-    Only <span class="mono">Tone.Caution</span> changes the skin, because a cost is the one
-    thing an operator has to act on. The rule from ADR 0008 still holds inside the box: the
-    flag rule never carries the message on its own — the sentence says what the cost is, and
-    the hue only makes it findable.
+    Only <span class="mono">DeskState.Warning</span> changes the skin, because a cost is the
+    one thing an operator has to act on. The rule from ADR 0016 holds inside the box too: the
+    rule never carries the message on its own — the sentence says what the cost is, and the
+    hue only makes it findable.
 </p>
 
 <div class="row" style="gap:8px; margin-top:9px">
@@ -340,8 +340,8 @@
 <p class="empty" style="padding:0 0 9px">
     A placeholder holds the shape the real content will take, so the layout does not jump
     when it lands. Match the final shape — lines for prose, a block for a chart or a tile —
-    and give it the width the real thing has. Matte, never glossy: there is nothing here to
-    press. Reduced motion keeps the block and drops the shimmer.
+    and give it the width the real thing has. Opaque, never a material: this holds data and
+    does not float. Reduced motion keeps the block and drops the shimmer.
 </p>
 
 <div class="stack" style="gap:12px; margin-bottom:6px">
@@ -506,14 +506,14 @@
 <DeskChart Series="@_movement" Labels="@_chartLabels" Height="180px"
            Family="DeskChartFamily.Movement"
            Headline="Movement — prices over time"
-           Takeaway="Hue is identity here, not state: iris, steam, flag, drift, then haze."
+           Takeaway="Hue is identity here, not state: accent, positive, warning, negative, then neutrals."
            Description="Demonstration line chart with three series in the movement palette." />
 
 <DeskChart Series="@_ledger" Labels="@_chartLabels" Height="160px"
            Family="DeskChartFamily.Ledger"
            ShowLegend="false"
            Headline="Ledger — money you kept"
-           Takeaway="Opens on steam, because the desk already spells won in steam."
+           Takeaway="Opens on the positive state, because that is already how the desk spells won."
            Description="Demonstration line chart of a single cumulative units series." />
 
 <DeskChart Series="@_health" Labels="@_chartLabels" Kind="DeskChartKind.Bar" Height="160px"
@@ -601,14 +601,14 @@
 </p>
 
 <div class="row">
-    @foreach (var (tone, word) in TagDemoTones)
+    @foreach (var (state, word) in TagDemoStates)
     {
-        <Tag State="@tone">@word</Tag>
+        <Tag State="@state">@word</Tag>
     }
 </div>
 
 @code {
-    private static readonly (DeskState Tone, string Word)[] TagDemoTones =
+    private static readonly (DeskState State, string Word)[] TagDemoStates =
     [
         (DeskState.Neutral, "Neutral"),
         (DeskState.Info, "Action"),
@@ -658,8 +658,8 @@
     <EmptyState Kind="EmptyStateKind.Error">
         <ChildContent>
             Error — the load failed, which a grey sentence alone would not distinguish from
-            "nothing here yet". It takes the rule in <span class="mono">--flag</span> and the
-            inset that comes with it: hue plus shape, never hue on its own.
+            "nothing here yet". It takes the rule in <span class="mono">--state-warning</span>
+            and the inset that comes with it: hue plus shape, never hue on its own.
         </ChildContent>
         <Action>
             <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh">Retry</DeskButton>

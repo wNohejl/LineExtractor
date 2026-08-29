@@ -13,24 +13,24 @@ namespace LineOps.Web.Components.Desk;
 /// </para>
 ///
 /// <para>
-/// The desk's dial normally spends hue on state. A multi-series chart cannot — it needs hue
-/// to separate one line from another — so the families below are the sanctioned exception,
-/// and each one still starts from the dial colour that already means what the chart is
-/// about: iris for something you interact with, steam for money you kept.
+/// The desk normally spends hue on state and nothing else. A multi-series chart cannot — it
+/// needs hue to separate one line from another — so the families below are the sanctioned
+/// exception, and each one still starts from the colour that already means what the chart is
+/// about: the accent for something you interact with, the positive state for money you kept.
 /// </para>
 /// </summary>
 public enum DeskChartFamily
 {
     /// <summary>
     /// Prices and lines moving over time, one series per book/outcome. Hue is identity here,
-    /// not state, so it opens on iris (the desk's "this is the thing you are working") and
-    /// walks the rest of the dial before reaching for anything mixed.
+    /// not state, so it opens on the accent (the desk's "this is the thing you are working")
+    /// and walks the rest of the state colours before reaching for anything mixed.
     /// </summary>
     Movement,
 
     /// <summary>
-    /// Money you have kept or lost — bankroll, cumulative CLV, running P/L. Steam first,
-    /// because the desk already spells "won" in steam and "lost" in drift.
+    /// Money you have kept or lost — bankroll, cumulative CLV, running P/L. Positive first,
+    /// because the desk already spells "won" in the positive state and "lost" in the negative.
     /// </summary>
     Ledger,
 
@@ -42,7 +42,7 @@ public enum DeskChartFamily
 
     /// <summary>
     /// Counts with no state in them — volume by book, entries by market. Deliberately quiet:
-    /// haze neutrals, so a bar chart of "how many" cannot be misread as "how bad".
+    /// chart neutrals, so a bar chart of "how many" cannot be misread as "how bad".
     /// </summary>
     Volume
 }
@@ -50,13 +50,14 @@ public enum DeskChartFamily
 /// <summary>
 /// The palettes behind <see cref="DeskChartFamily"/>, in one place rather than at every call
 /// site. Colours come from <see cref="DeskTheme"/> so the chart and the rest of the desk move
-/// together; a chart cannot read <c>var(--iris)</c> because MudBlazor hands these values to
+/// together; a chart cannot read <c>var(--accent)</c> because MudBlazor hands these values to
 /// SVG attributes and to its own legend markup, which need resolved colours.
 /// </summary>
 public static class DeskChartPalette
 {
     /// <summary>
-    /// Cycled once the named colours run out — the dial is four wide, a game is not.
+    /// Cycled once the named colours run out — the desk names four colours, a game has more
+    /// series than that.
     /// Opaque on purpose: these reach MudBlazor's SVG renderer directly, and a
     /// translucent colour would composite differently over gridlines and overlapping
     /// series instead of staying one fixed hue.

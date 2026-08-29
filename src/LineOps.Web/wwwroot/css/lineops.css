@@ -678,7 +678,10 @@ html, body {
     top: 0;
     left: 0;
     z-index: 0;
-    box-sizing: border-box; /* the marble flavour has a border to fit inside */
+    box-sizing: border-box; /* held from when the marble variant had a border to fit
+                               inside; that border is gone, and the plate is now sized
+                               from JS in explicit pixels, so this only guards a future
+                               variant that grows one back */
     border-radius: 4px;
     background: var(--surface-3);
     opacity: 0;
@@ -2780,7 +2783,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an
    ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
-   difference. Tracked and capsuled so it reads as an identifier rather than prose. */
+   difference. Tracked, and set in a 3px-radius chip rather than a capsule — a capsule
+   is the tag's shape and means "a state", which this is not: it names a side. */
 .price__sel {
     font-size: 10px;
     font-weight: var(--weight-semibold);

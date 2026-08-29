@@ -119,7 +119,7 @@ else
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
 
-                            <Tag State="@TagTones.Won(row.Won)">
+                            <Tag State="@TagStates.Won(row.Won)">
                                 @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
                             </Tag>
 
@@ -127,7 +127,7 @@ else
                                scans for, and hiding it behind an expand would defeat the log. *@
                             @if (row.AtsResult is { } ats)
                             {
-                                <Tag State="@TagTones.Result(ats)"
+                                <Tag State="@TagStates.Result(ats)"
                                      Title="@($"Against a closing spread of {row.ClosingSpread}")">
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
                                 </Tag>

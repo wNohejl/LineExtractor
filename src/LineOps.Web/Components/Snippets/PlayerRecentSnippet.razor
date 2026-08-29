@@ -49,7 +49,7 @@ else
                     <td class="r">
                         @if (row.Won is { } won)
                         {
-                            <Tag State="@TagTones.Won(won)">
+                            <Tag State="@TagStates.Won(won)">
                                 @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
                             </Tag>
                         }

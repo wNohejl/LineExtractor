@@ -32,7 +32,7 @@
 
             <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
                 <CellTemplate>
-                    <Tag State="@SeverityTone(context.Item.Severity)">
+                    <Tag State="@SeverityState(context.Item.Severity)">
                         @context.Item.Severity
                     </Tag>
                 </CellTemplate>
@@ -49,7 +49,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
-                <CellTemplate><Tag State="@StatusTone(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
+                <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
@@ -81,10 +81,10 @@ else
         <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
             All incidents
         </DeskButton>
-        <Tag State="@SeverityTone(_selected.Severity)">
+        <Tag State="@SeverityState(_selected.Severity)">
             @_selected.Severity
         </Tag>
-        <Tag State="@StatusTone(_selected.Status)">@_selected.Status</Tag>
+        <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
     </div>
 
     <PanelHeader>#@_selected.Id — @_selected.Title</PanelHeader>
@@ -287,15 +287,15 @@ else
         await SelectAsync(_selected.Id);
     }
 
-    private static DeskState StatusTone(IncidentStatus status) => status switch
+    private static DeskState StatusState(IncidentStatus status) => status switch
     {
         IncidentStatus.Open => DeskState.Negative,
         IncidentStatus.Mitigated => DeskState.Warning,
         _ => DeskState.Positive
     };
 
-    /// <summary>Critical reads as Stop; anything below it is Caution.</summary>
-    private static DeskState SeverityTone(AlertSeverity severity)
+    /// <summary>Critical reads as Negative; anything below it is Warning.</summary>
+    private static DeskState SeverityState(AlertSeverity severity)
         => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch

@@ -16,7 +16,7 @@ namespace LineOps.Web.Components;
 /// entries. The primitives underneath it stay ignorant of the domain, which is what lets them
 /// be reused by anything.
 /// </summary>
-public static class TagTones
+public static class TagStates
 {
     /// <summary>
     /// Won, lost, or not yet decided.

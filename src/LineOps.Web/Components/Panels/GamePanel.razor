@@ -51,7 +51,7 @@ else
                 <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
             }
         </PanelHeader>
-        <Tag State="@StateTone(game.Status)">@StatusLabel(game)</Tag>
+        <Tag State="@StatusState(game.Status)">@StatusLabel(game)</Tag>
     </div>
 
     <div class="row" style="margin-bottom:14px">
@@ -242,7 +242,7 @@ else
         _ => Starts(game.StartsAt)
     };
 
-    private static DeskState StateTone(GameStatus status) => status switch
+    private static DeskState StatusState(GameStatus status) => status switch
     {
         GameStatus.Live => DeskState.Warning,
         GameStatus.Final => DeskState.Positive,

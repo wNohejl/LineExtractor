@@ -76,7 +76,7 @@ public class FormRunTests : DeskTestContext
 
     /// <summary>
     /// An unfinished game is not a loss. It takes the neutral tone and its own glyph rather
-    /// than being rounded into the nearer result — see <see cref="TagTones.Won"/>.
+    /// than being rounded into the nearer result — see <see cref="TagStates.Won"/>.
     /// </summary>
     [Fact]
     public void An_undecided_game_is_neither_a_win_nor_a_loss()

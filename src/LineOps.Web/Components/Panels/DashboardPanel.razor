@@ -26,7 +26,7 @@
     <Metric Label="Open alerts"
             Value="@_alerts.ToString()"
             Note="@AlertNote"
-            State="@AlertTone"
+            State="@AlertState"
             OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
             ActionHint="Open the Ops window on source health and the open alerts" />
 </MetricRow>
@@ -108,7 +108,7 @@ else
 
         <PropertyColumn T="Row" TProperty="GameStatus" Property="r => r.Game.Status" Title="State">
             <CellTemplate>
-                <Tag State="@StateTone(context.Item.Game.Status)">@context.Item.Game.Status</Tag>
+                <Tag State="@StatusState(context.Item.Game.Status)">@context.Item.Game.Status</Tag>
             </CellTemplate>
         </PropertyColumn>
 
@@ -193,7 +193,7 @@ else
             ? $"{_criticalAlerts} critical — open Ops"
             : "none critical — open Ops";
 
-    private DeskState AlertTone => _criticalAlerts > 0
+    private DeskState AlertState => _criticalAlerts > 0
         ? DeskState.Negative
         : _alerts > 0 ? DeskState.Warning : DeskState.Positive;
 
@@ -398,7 +398,7 @@ else
     private static bool Same(string outcome, string? team)
         => team is not null && string.Equals(outcome, team, StringComparison.OrdinalIgnoreCase);
 
-    private static DeskState StateTone(GameStatus status) => status switch
+    private static DeskState StatusState(GameStatus status) => status switch
     {
         GameStatus.Live => DeskState.Warning,
         GameStatus.Final => DeskState.Positive,
