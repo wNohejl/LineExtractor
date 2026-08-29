@@ -1966,7 +1966,12 @@ grep -cE "\-\-(ink-[0-9]+|chalk|haze|steam|drift|flag|iris|radius-lg|shadow-win|
 For every block outside the five named in Step 1, the work is a faithful re-point using Task 6's mapping table, not a redesign — you are finishing a migration, not restyling a subsystem nobody asked you to touch. Two judgment calls recur:
 
 - **`--face-data`** has no replacement token: the system collapsed to one family with `font-variant-numeric: tabular-nums`. Drop the family declaration and make sure tabular numerals survive wherever numbers are read in a column.
-- **`.glide-plate` and the toolbar** are a JS-driven hover system whose tone attributes (`data-tone="stop"` and friends) still resolve through retired state tokens. Re-point them to the role-named ones. Task 8 already fixed the one instance that was visibly defeating the close button's hover; the rest are the same shape.
+- **`.glide-plate` and the toolbar** are a JS-driven hover system whose tone attributes (`data-tone="stop"` and friends) still resolve through retired state tokens. Re-point them to the role-named ones. Task 8 already fixed the two instances that were visibly broken — the close button's hover and the marble plate — and the rest are the same shape. Note `.bar__key--current`, the tab bar's selected-state styling, is among them: it still references `--ink-600`/`--chalk` and currently paints nothing, so the selected tab is invisible as a selection. That one is a visible defect, not just residue.
+
+**Two items Task 9 handed you explicitly:**
+
+- **The `.rowacts` / `.snippet` / `.logrow` disclosure section** was judged genuinely ambiguous between Tasks 9 and 10 and deliberately left alone rather than silently claimed. It is yours. It is row-disclosure furniture — inline snippets that open under a row — so treat it as display, not as grid structure.
+- **`RunsPanel.razor` applies `.dim` to real operational data**, not merely quiet annotation. `.dim` resolves to `--text-tertiary`, which measures 2.70:1 against `--surface-1` — well under WCAG AA, and fine for a genuinely de-emphasised tier but not for data an operator must read. Task 9 could not fix it without touching markup. **You may change that `.razor`**: move those cells to `--text-secondary` (measured 5.71:1, passes AA) by using the appropriate class, or introduce one if none fits. Do not lower the bar by brightening `--text-tertiary` — that token is doing its job correctly elsewhere; the call site is what is wrong.
 
 - [ ] **Step 1: Restyle each, following these rules**
 
