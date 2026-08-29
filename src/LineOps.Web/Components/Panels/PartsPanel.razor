@@ -414,9 +414,15 @@
     component's callback, so a sheet that only listened to <span class="mono">OnCancel</span>
     would treat a dismissed task as an unanswered one forever. The pattern is
     <span class="mono">result is { Canceled: false, Data: … }</span> — an unanswered question
-    is a "no". And a destructive confirm is <em>never</em> the default: the alert focuses
-    Cancel on open, so Enter backs out. Tab once to reach the red button, which is exactly as
-    much friction as deleting something deserves.
+    is a "no", which is also why this sheet can afford
+    <span class="mono">BackdropClick = true</span> on a form with a required field: a stray
+    click outside costs the operator the draft, not a bad write. An alert does the opposite
+    (<span class="mono">DeskAlerts</span> sets it false) because a decision must not be
+    dismissed by missing it. And a destructive confirm is <em>never</em> the default: the
+    alert focuses Cancel on open, so Enter backs out — unless there is no Cancel to focus, in
+    which case a one-button acknowledgement gives the default back to its only button rather
+    than leaving Enter to answer the page behind it. Tab once to reach the red button, which
+    is exactly as much friction as deleting something deserves.
 </p>
 
 @if (_dialogOpen)
@@ -749,7 +755,10 @@
         PriceAmerican: -105,
         Line: -1.5m,
         CapturedAt: DateTimeOffset.UtcNow,
-        EdgePoints: 2.4,
+        // Derived, not invented: BoardService computes this as (worst - best) × 100 over the
+        // implied probabilities below, so 0.556 − 0.512 is 4.4. A fabricated number here would
+        // put a caption on the rail that disagrees with the rail.
+        EdgePoints: 4.4,
         LinesVary: false,
         Rungs:
         [

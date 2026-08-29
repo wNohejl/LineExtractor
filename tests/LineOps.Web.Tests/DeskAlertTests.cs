@@ -88,6 +88,14 @@ public class DeskAlertTests : DeskTestContext
     /// With nothing to back out to, the confirm takes the default back — a one-button
     /// acknowledgement that focused nothing would leave Enter answering the page behind
     /// the alert.
+    ///
+    /// <para>
+    /// This is also the one arrangement where the focus <em>target</em> is provable here
+    /// rather than only the focus call: the alert renders exactly one button, so a focus
+    /// invocation could not have gone anywhere else. See
+    /// <see cref="The_alert_focuses_its_default_button_once_when_it_opens"/> for why the
+    /// two-button case cannot say the same.
+    /// </para>
     /// </summary>
     [Fact]
     public void A_destructive_alert_with_no_cancel_still_focuses_something()
@@ -98,7 +106,79 @@ public class DeskAlertTests : DeskTestContext
             .Add(x => x.CancelLabel, (string?)null));
 
         Assert.True(cut.Find("button.desk-btn--destructive").HasAttribute("autofocus"));
+
+        Assert.Single(cut.FindAll("button"));
+        Assert.Single(FocusCalls);
     }
+
+    /// <summary>
+    /// The behaviour the marking now rests on, pinned as behaviour.
+    ///
+    /// <para>
+    /// The <c>autofocus</c> attribute the tests above read is a declaration, not a
+    /// mechanism: the browser ignores it for content the renderer inserts after load — it
+    /// says so in the console — which is exactly why <c>DeskAlert.OnAfterRenderAsync</c>
+    /// calls <c>FocusAsync</c>. Without this test that call could be deleted outright and
+    /// every other test here would stay green while the alert silently went back to
+    /// focusing nothing. <c>ElementReference.FocusAsync</c> goes through the injected
+    /// <c>IJSRuntime</c>, and bUnit records the invocation even in Loose mode, so the call
+    /// is observable here even though the focus itself is not.
+    /// </para>
+    ///
+    /// <para>
+    /// Once, and only on the first render: re-focusing on every re-render would drag the
+    /// keyboard back to the default button while the operator was reading the other one.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>What this cannot assert.</b> The recorded invocation carries an
+    /// <see cref="Microsoft.AspNetCore.Components.ElementReference"/> whose <c>Id</c> is a
+    /// renderer GUID, and bUnit emits <c>blazor:elementreference</c> into the markup with
+    /// an empty value — so there is no route from that id back to a DOM node, and no way to
+    /// say here <em>which</em> of two buttons was focused. The only route to the element is
+    /// reflection into MudBlazor's private <c>_elementReference</c> field, which would break
+    /// silently on an upgrade and is a worse test than an honest gap. Which button gets the
+    /// focus is pinned by the <c>autofocus</c> assertions above, by the single-button case,
+    /// and by the live browser check recorded in the task report — where
+    /// <c>document.activeElement</c> was the cancel button and one Tab moved a real
+    /// <c>:focus-visible</c> ring onto the destructive confirm.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_alert_focuses_its_default_button_once_when_it_opens()
+    {
+        var cut = RenderComponent<DeskAlert>(p => p
+            .Add(x => x.Heading, "Delete this run?")
+            .Add(x => x.Destructive, true));
+
+        Assert.Single(FocusCalls);
+
+        cut.SetParametersAndRender(p => p.Add(x => x.Heading, "Delete this run, really?"));
+
+        Assert.Single(FocusCalls);
+    }
+
+    /// <summary>
+    /// The other branch of the same decision. A normal alert has no reason to send the
+    /// keyboard to the way out, so the confirm is what gets focused — and it is a separate
+    /// test because a mistake that focused nothing when <c>Destructive</c> is false would
+    /// otherwise hide behind the destructive case above.
+    /// </summary>
+    [Fact]
+    public void A_normal_alert_focuses_on_open_too()
+    {
+        RenderComponent<DeskAlert>(p => p
+            .Add(x => x.Heading, "Apply these changes?"));
+
+        Assert.Single(FocusCalls);
+    }
+
+    /// <summary>
+    /// Every <c>ElementReference.FocusAsync</c> this test class has provoked. The identifier
+    /// is the framework's own, not ours — it is what <c>FocusAsync</c> resolves to.
+    /// </summary>
+    private IEnumerable<JSRuntimeInvocation> FocusCalls =>
+        JSInterop.Invocations.Where(i => i.Identifier == "Blazor._internal.domWrapper.focus");
 
     /// <summary>
     /// The alert renders bare content, so it inherits neither DeskDialog's explicit role
