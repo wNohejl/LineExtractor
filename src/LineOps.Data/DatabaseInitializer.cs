@@ -16,6 +16,72 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await EnsurePartitionsAsync(ct);
         await SeedSportsAsync(ct);
         await SeedSourcesAsync(ct);
+        await RemoveRetiredSourcesAsync(ct);
+    }
+
+    /// <summary>
+    /// Source keys that were seeded once and are no longer part of the platform.
+    ///
+    /// The two demo fixtures are the only members and are expected to stay the only ones: they
+    /// fabricated prices and rosters so a cold clone had something to show, and the platform now
+    /// runs on real feeds only.
+    /// </summary>
+    private static readonly string[] RetiredSourceKeys = ["demo", "demo-stats"];
+
+    /// <summary>
+    /// Removes a retired source and everything recorded against it.
+    ///
+    /// <para>
+    /// Deleting the code stops new rows; it does not remove the ones already written. A database
+    /// seeded before this change still holds the demo <c>Sources</c> rows, and the reliability
+    /// layer reads its subjects from that table — so an existing clone would go on reporting a
+    /// "Demo stats fixture" source going stale, and spend a critical alert slot on a feed that no
+    /// longer exists. That is the opposite of what the reliability layer is for.
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotent and cheap: on a database that has already been cleaned, or a fresh one that
+    /// never had the rows, this is a handful of deletes matching nothing. Ordered so no foreign
+    /// key is left pointing at a row that has already gone. Fabricated prices and stat lines go
+    /// with the source, because they were never real. Fixtures the demo source invented before
+    /// it was taught to quote the real schedule are <i>not</i> touched here — removing a game can
+    /// take a journal entry with it, and deleting what someone recorded is a decision for them
+    /// rather than for a startup path. <c>scripts/purge-demo-data.sql</c> does that part.
+    /// </para>
+    ///
+    /// <para>
+    /// Incidents survive for the same reason: an incident carries a written root-cause analysis,
+    /// and the analysis is the point of it. Its alerts go, so nothing is still <i>open</i> about
+    /// a source that no longer exists, but the write-up stays where its author left it.
+    /// </para>
+    /// </summary>
+    private async Task RemoveRetiredSourcesAsync(CancellationToken ct)
+    {
+        var ids = await db.Sources
+            .Where(s => RetiredSourceKeys.Contains(s.Key))
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        if (ids.Count == 0)
+            return;
+
+        // Children first, then the source itself.
+        await db.ClosingLines.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.OddsSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.PlayerGameStats.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.StatSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.BackfillCheckpoints.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.IngestionRuns.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.KpiDailies.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+
+        // The alerts go with the source that raised them — including the open critical one
+        // nagging that a fixture feed has not run. There is nothing left to page anyone about.
+        await db.Alerts.Where(x => x.SourceId != null && ids.Contains(x.SourceId.Value))
+            .ExecuteDeleteAsync(ct);
+
+        var removed = await db.Sources.Where(s => ids.Contains(s.Id)).ExecuteDeleteAsync(ct);
+
+        logger.LogInformation("Removed {Count} retired source(s) and their recorded history", removed);
     }
 
     /// <summary>
@@ -96,22 +162,6 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
                 Name = "ESPN (unofficial)",
                 Kind = SourceKind.Stats,
                 BaseUrl = "https://site.api.espn.com/apis/site/v2/sports/",
-                Enabled = true
-            },
-            new Source
-            {
-                Key = "demo",
-                Name = "Demo fixture source",
-                Kind = SourceKind.Odds,
-                BaseUrl = "local://demo",
-                Enabled = true
-            },
-            new Source
-            {
-                Key = "demo-stats",
-                Name = "Demo stats fixture",
-                Kind = SourceKind.Stats,
-                BaseUrl = "local://demo-stats",
                 Enabled = true
             }
         };
