@@ -441,6 +441,17 @@ html, body {
 
 @media (max-width: 900px) { .hdr__sub { display: none; } }
 
+/* The strip gives up its words before it gives up its shape. Group names go first — they
+   orient rather than identify — then the key names, leaving the glyphs and their tooltips.
+   Scrolling the strip is the last resort below that, not the first answer to a narrow
+   window. */
+@media (max-width: 1500px) { .bar__group-name { display: none; } }
+
+@media (max-width: 1180px) {
+    .bar__key-name { display: none; }
+    .bar__key { padding: 0; width: 28px; justify-content: center; }
+}
+
 .hdr__divider {
     width: 1px;
     height: 22px;
@@ -551,19 +562,47 @@ html, body {
    Icon only: twelve names would not fit, and a name is only worth the width
    once there is a column to go back to. Before that the icon and its tooltip
    are enough. Quiet at rest — this run is the things you are not looking at. */
+/* Named by default. A row of unlabelled glyphs is a memory test, and the strip had close to
+   a thousand pixels doing nothing — so the width buys the one thing an icon cannot give,
+   which is what the window is called before you open it. The name collapses out again under
+   --bar-tight, where the alternative is a strip that scrolls. */
 .bar__key {
     position: relative;
-    width: 28px;
     height: 28px;
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 1 auto;
+    min-width: 28px;
+    padding: 0 var(--space-2);
     background: none;
     border: 0;
     border-radius: var(--radius-sm);
     color: var(--text-tertiary);
     cursor: pointer;
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    white-space: nowrap;
+}
+
+.bar__key-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* What the hairline used to say on its own. Set like the panel headings rather than the
+   keys, so it reads as a label for the run and never as another thing to press. */
+.bar__group-name {
+    flex: 0 0 auto;
+    padding: 0 var(--space-1) 0 var(--space-2);
+    color: var(--text-tertiary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    user-select: none;
 }
 
 .bar__key:hover { color: var(--text-primary); }

@@ -118,6 +118,11 @@
                 <span class="bar__split bar__split--quiet" aria-hidden="true"></span>
             }
 
+            @* The catalogue already groups these; naming the group turns a hairline into an
+               answer. Hidden from assistive tech because each key states its own group in its
+               accessible name — read aloud, the heading would be said twice per key. *@
+            <span class="bar__group-name" aria-hidden="true">@closed[g][0].Definition!.Group</span>
+
             @foreach (var item in closed[g])
             {
                 var index = slot++;
@@ -130,6 +135,7 @@
                         @ref="_refs[index]"
                         @onclick="() => Press(item)">
                     <Glyph Icon="@item.Icon" />
+                    <span class="bar__key-name">@item.Title</span>
                 </button>
             }
         }
