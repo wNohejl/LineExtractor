@@ -1215,9 +1215,14 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
 
+/* No gap: each control already carries 8px of padding around its dot, so butting the
+   boxes together leaves the dots 16px apart and every pixel between them belongs to one
+   control or the other. A gap here would be dead space between three small targets, and
+   a negative margin to close it would overlap the boxes — aiming at minimise and hitting
+   maximise is a worse failure than a wide cluster. */
 .win__controls {
     display: flex;
-    gap: var(--space-2);
+    gap: 0;
     flex: 0 0 auto;
 }
 
@@ -1225,21 +1230,42 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
    --text-tertiary, quiet until the bar it lives on is worth looking at. The glyph
    stays hidden until then — three unlabelled dots read as chrome, three dots with
    icons stamped on them read as a diagram. */
+/* The dot is 12px because that is what reads as a traffic light. The button around it is
+   not: a 12px hit target is the macOS look borrowed without the hit area that makes it
+   usable, and it lands well under the 24px minimum a pointer can be expected to find.
+   So the control is 28px of clickable area with the dot drawn inside it, and the row is
+   spaced by the gap between dots rather than between buttons — the chrome keeps its
+   proportions and the target stops being a game of skill. */
 .win__ctl {
-    width: 12px;
-    height: 12px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
-    background: var(--text-tertiary);
+    background: transparent;
     border: 0;
-    border-radius: 50%;
+    /* Square on purpose. Rounding clips hit-testing, so a 50% radius here would throw away
+       the corners of the target for a shape nobody can see — the dot below is the visual. */
+    border-radius: 0;
     color: var(--text-primary);
     cursor: pointer;
     padding: 0;
+    position: relative;
+}
+
+/* What the operator actually sees. Hit area and appearance are separated deliberately:
+   everything that used to paint .win__ctl's background now paints this. */
+.win__ctl::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
 .win__ctl svg {
+    position: relative; /* above the dot rather than behind it */
     width: 8px;
     height: 8px;
     opacity: 0;
@@ -1254,9 +1280,14 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     opacity: 1;
 }
 
-.win__ctl:hover { background: var(--text-secondary); }
-.win__ctl--close:hover { background: var(--state-negative); color: var(--on-accent); }
-.win__ctl:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.win__ctl:hover::before { background: var(--text-secondary); }
+.win__ctl--close:hover::before { background: var(--state-negative); }
+.win__ctl--close:hover { color: var(--on-accent); }
+
+/* The ring hugs the dot, not the 28px hit area — a focus ring the size of the target
+   would read as a box floating in the title bar. */
+.win__ctl:focus-visible { outline: none; }
+.win__ctl:focus-visible::before { box-shadow: var(--focus-ring); }
 
 /* ---- SIGNATURE: the pulse strip ------------------------------------------
    A 2px live band under every title bar, mirrored on the window's rail chip.
