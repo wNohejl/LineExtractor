@@ -286,6 +286,120 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 ---
 
+## The second theme
+
+A light mode is one more block. `templates/apple-tokens.css` ships it, keyed on
+`[data-theme="light"]`, and no component, selector or C# call site knows there are
+two themes. If adding one requires touching anything below the token blocks, the
+token that made it necessary was named for a colour.
+
+**Redeclare every token whose value is a colour, and nothing else.** The type ramp,
+spacing, radii, motion curves and z-layers are not theme-dependent; they stay in
+`:root` and fall through. `--focus-ring` falls through too, and that one is the
+proof the vocabulary is right: it is written entirely in `var()`s, so it
+re-resolves to the light accent without being mentioned twice.
+
+**The surface ramp re-derives; it does not invert.** A light app cannot have a
+ground lighter than white, so it uses the arrangement macOS and iOS actually use —
+grey ground, white content on top, interactive tiers darkening *away* from the
+panel. `--surface-0` ends up lighter than `--surface-2`, which reads out of order
+until you remember these are roles rather than a lightness scale.
+
+| | dark | light |
+|---|---|---|
+| `--surface-0` the ground | `#1C1C1E` | `#F2F2F7` |
+| `--surface-1` panel body | `#232326` | `#FFFFFF` |
+| `--surface-2` resting control | `#2C2C2E` | `#E5E5EA` |
+| `--surface-3` hover, pressed | `#38383A` | `#D1D1D6` |
+
+**Hover and press travel the other way.** In dark mode prominence is lightness, so
+`--accent-hover` is lighter than `--accent`. Against a white page a blue that
+lightens under the pointer reads as *fading*, so in light mode both states deepen.
+The names still mean "more prominent" — the direction that delivers it is a
+property of the ground, not of the token. `--state-negative-hover` follows.
+
+**Washes come down, shadows come down further.** A tint over white composites to a
+far more saturated result than the same tint over near-black, so `--accent-wash`
+drops from `.15` to `.12`. Shadows keep their geometry and thin their ink to
+roughly a quarter: dark mode's alphas exist to be seen against near-black, and
+carried onto white they stop reading as depth and start reading as dirt.
+
+**Three values are genuinely shared, and each has a reason.** `--on-accent` is the
+ink for any saturated fill, and a filled systemBlue button is exactly as saturated
+either way. `--chart-neutral` is systemGray, the one step of Apple's ramp that
+reads on both grounds — which is why Apple gives it no light/dark variant.
+`--material-blur` is an optical constant. Anything else that survived the mirror
+unchanged is a copy-paste.
+
+**A scrim is the one thing that does not mirror.** The dark scrim is `--surface-0`
+at ~60%, because dimming a near-black app means laying more near-black over it.
+The analogous light value would *brighten* the app behind a sheet. A scrim
+subtracts attention, and on any ground that means going darker: use neutral black,
+at a lower alpha, because black over white bites far harder.
+
+### Contrast, both ways
+
+Redo the arithmetic; do not assume the light tier inherits the dark one's pass.
+Composite the translucent ink onto the surface in gamma-encoded sRGB *first*, then
+linearise — doing it the other way round is a plausible-looking mistake that shifts
+every ratio you measure.
+
+| Token over `--surface-1` | dark | light | verdict |
+|---|---|---|---|
+| `--text-secondary` | 5.71:1 | **5.74:1** | passes AA, both |
+| `--text-tertiary` | 2.70:1 | 2.11:1 | below AA — correct for its job |
+
+Aim for the two themes landing *close*, not merely both passing. Two themes that
+de-emphasise by different amounts make the same cell read as two different grades
+of important depending on the hour.
+
+### Test the mirror mechanically
+
+A token the light block forgets does not fail anywhere. It silently keeps its dark
+value, so one near-black surface renders into a light app and nothing says so. This
+is the same class of defect as a rule losing the cascade, and grep does not find it
+either — a maintained list of tokens to check goes stale at the twenty-ninth one.
+
+Parse both blocks and assert three things:
+
+1. every colour-valued name in the dark block appears in the light one;
+2. no name appears in the light block that the dark one lacks (the same defect
+   pointed the other way, and the direction a one-way check misses);
+3. every mirrored value actually **changed**, with a short allow-list for the
+   three that are deliberately shared.
+
+Then compute the contrast ratios in the test rather than tabulating them, so a
+token nudged by two hundredths of an alpha fails instead of being re-measured by
+hand and forgotten.
+
+### Wiring it up
+
+The stylesheet is the whole mechanism: set `data-theme` on `<html>` and the app is
+re-themed. Three things sit around that.
+
+- **MudBlazor needs the same switch in C#.** Give the theme a `PaletteLight`
+  mirroring the light block, keep it structurally identical to `PaletteDark` so a
+  lost entry is visible by reading down two columns, and drive
+  `MudThemeProvider.IsDarkMode` from the *same* boolean that picks the attribute.
+  Compute them separately and the app's own panels will disagree with its Mud
+  components on screen.
+- **Offer three positions, not two.** Dark, Light, and System — and System is a
+  different kind of answer, not a convenience. Keep a `matchMedia` listener so it
+  stays live; the moment you resolve "system" down to whichever theme it meant at
+  load, you have thrown away the only thing the setting was for. Record the
+  machine's preference on every change, not just while System is selected, or an
+  operator who overrides and later returns to System lands on a stale answer.
+- **Read the stored choice after the first render.** There is no JS runtime during
+  prerender, so `localStorage` is unreachable until then. Default to whichever
+  theme the app already was, so the one unavoidable frame of the wrong theme is
+  seen only by people who have actively chosen the other one.
+
+Also set `<meta name="color-scheme" content="dark light">` and a `color-scheme`
+declaration inside each block, or the browser paints its own scrollbars and the
+canvas behind the app in the wrong theme.
+
+---
+
 ## Layers
 
 ```css

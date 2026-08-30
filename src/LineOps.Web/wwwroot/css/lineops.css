@@ -12,10 +12,14 @@
    agree with this block exactly; see ADR 0016.
    ============================================================================ */
 
-/* The default theme is apple-dark. A future theme adds a second block keyed on
-   its own [data-theme] value and changes nothing else in this file. */
+/* The default theme is apple-dark. The light theme, below, is that second block:
+   it redeclares the same names and changes nothing else in this file. */
 :root,
 [data-theme="apple-dark"] {
+    /* Native chrome — scrollbars, form controls, the canvas behind the app —
+       follows the theme too, or the desk sits in a bright browser frame. */
+    color-scheme: dark;
+
     /* --- Surfaces -----------------------------------------------------------
        A true-neutral elevation ramp. Warmth or a blue undertone would fight the
        accent; macOS keeps its chrome neutral for exactly that reason. */
@@ -150,6 +154,17 @@
     --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .35);
     --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .75), 0 8px 24px rgba(0, 0, 0, .45);
 
+    /* A channel cut into a surface — the groove the gate's cap and the window bar's
+       chip travel along. It is the one inverse of the shadow ramp, so it is named
+       rather than written inline: on a light desk a hole is a whisper, not a hole. */
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, .35);
+
+    /* The sweep that says "working". A highlight on a dark desk and a shade on a
+       light one — the same signal, and the only pair of tokens here whose light
+       values are not simply paler versions of the dark ones. */
+    --sheen: rgba(255, 255, 255, .18); /* over a control that is busy */
+    --sheen-soft: rgba(255, 255, 255, .07); /* over a skeleton that is loading */
+
     /* Focus. One ring, everywhere, accent-coloured — Apple's own convention.
        ADR 0008 used a chalk ring because an iris ring on an iris key vanished;
        that problem is gone now that filled buttons are the only accent surface
@@ -164,6 +179,143 @@
     --z-popover: 9000; /* menus anchored to chrome */
     --z-modal: 9500; /* scrim, sheets, alerts */
     --z-toast: 9800; /* transient notices, always on top */
+}
+
+/* ============================================================================
+   The second theme.
+
+   ADR 0016 said a second theme would be a second token block rather than a
+   component rewrite. This is that block, and it is the proof: not one selector,
+   component or C# call site below this point knows there are two themes.
+
+   It redeclares every token whose value is a colour, and nothing else. The type
+   ramp, the spacing rungs, the radii, the motion curves and the z-layers are not
+   theme-dependent, so they stay declared once in :root and fall through here — a
+   second copy of --space-4 is a second copy to drift. --focus-ring falls through
+   for the same reason with a sharper edge: it is written entirely in var()s, so
+   it re-resolves to the light accent on its own. DeskThemeTests enforces the
+   split mechanically, in both directions, so "colour" is not a judgment call.
+
+   Specificity: [data-theme="light"] and :root both weigh (0,1,0), so this block
+   wins on source order alone. It must stay AFTER the block above.
+   ============================================================================ */
+[data-theme="light"] {
+    color-scheme: light;
+
+    /* --- Surfaces -----------------------------------------------------------
+       The ramp does not invert; it re-derives. On the dark desk the ground is
+       the darkest thing and elevation means lighter. Light mode cannot copy that
+       — a page ground lighter than white does not exist — so it uses the
+       arrangement macOS and iOS actually use: a grey ground with white content
+       sitting on it, and interactive tiers darkening away from the panel.
+
+       So --surface-0 is grey and --surface-1 is white, which reads out of order
+       until you remember these are roles, not a lightness scale. Every role
+       survives intact: 0 is still the thing panels sit on and are distinguished
+       from, 1 is still the panel body, 2 is still a resting control, and 3 is
+       still what 2 does under the pointer. That is the whole reason the tokens
+       are named for jobs. */
+    --surface-0: #F2F2F7; /* desk ground — systemGray6, light */
+    --surface-1: #FFFFFF; /* panel and window body */
+    --surface-2: #E5E5EA; /* title bars, raised rows, resting controls */
+    --surface-3: #D1D1D6; /* hover fills, pressed states */
+
+    /* Black-alpha hairlines. Same job, same restraint: between two things, never
+       around one. */
+    --separator: rgba(0, 0, 0, .10);
+    --separator-strong: rgba(0, 0, 0, .18);
+
+    /* --- Text ---------------------------------------------------------------
+       Black at opacity tiers, for the same reason the dark desk uses white ones:
+       one token has to read correctly on four surfaces and four materials.
+
+       --text-secondary at 60% black over --surface-1 measures 5.74:1, which
+       passes AA and lands within three hundredths of the dark desk's 5.71:1 —
+       the two themes de-emphasise by the same amount, not merely both legibly.
+       --text-tertiary at 30% measures 2.11:1, below AA and correct for its job:
+       a hint, a placeholder, a unit nobody must read. The rule from ADR 0016
+       holds unchanged — fix the call site, never brighten the dim token.
+
+       --text-primary sits at 88% rather than the dark desk's 92% because black
+       ink on white carries more perceived weight than white on black at equal
+       alpha; matching the number would have made the light desk read heavier. */
+    --text-primary: rgba(0, 0, 0, .88);
+    --text-secondary: rgba(0, 0, 0, .60);
+    --text-tertiary: rgba(0, 0, 0, .30);
+
+    /* --- Accent -------------------------------------------------------------
+       systemBlue, light. Still exactly one, still interactivity, focus and
+       selection only.
+
+       Hover and press travel the other way. On the dark desk prominence is
+       lightness, so --accent-hover is lighter than --accent; against a white
+       page a blue that lightens under the pointer reads as fading, so here both
+       states deepen. The names still mean "more prominent" — the direction that
+       delivers it is a property of the ground, not of the token. */
+    --accent: #007AFF;
+    --accent-hover: #0071E3;
+    --accent-press: #0062CC;
+
+    /* Washes are lighter than the dark desk's: a tint over white composites to a
+       far more saturated result than the same tint over near-black, so holding
+       .15 would have made "selected" shout. */
+    --accent-wash: rgba(0, 122, 255, .12);
+    --accent-wash-strong: rgba(0, 122, 255, .20);
+
+    /* Unchanged, and not by accident: this is the ink for any saturated fill, and
+       a filled systemBlue button is exactly as saturated in either theme. */
+    --on-accent: #FFFFFF;
+
+    /* --- Semantic state -----------------------------------------------------
+       Apple's light-mode system colours. Same rule as the dark desk: spent where
+       a state genuinely needs a colour, never as an always-on channel. */
+    --state-positive: #34C759;
+    --state-negative: #FF3B30;
+    /* Deepens rather than lightens, for the reason --accent-hover does. This is
+       Apple's own accessible red for light backgrounds. */
+    --state-negative-hover: #D70015;
+    --state-warning: #FF9500;
+    --state-positive-wash: rgba(52, 199, 89, .15);
+    --state-negative-wash: rgba(255, 59, 48, .15);
+    --state-warning-wash: rgba(255, 149, 0, .15);
+
+    /* --- Chart neutrals -----------------------------------------------------
+       systemGray holds at #8E8E93 — it is the one step of the ramp that reads on
+       either ground, which is why Apple gives it no light/dark variant. The dim
+       step has to move, and it moves up rather than down: dimmer means closer to
+       the plot background, and the plot background is now pale. */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #AEAEB2;
+
+    /* --- Materials ----------------------------------------------------------
+       Four tiers, thinnest to thickest, built on white instead of near-black. The
+       opacities run a little higher than the dark desk's at every tier because a
+       pale material over pale content loses its edge sooner than a dark one does.
+       The blur is identical — it is an optical constant, not a colour.
+
+       The @supports fallback at the end of this file needs no light branch: every
+       rule in it resolves a --surface-* token, and those are redeclared above. */
+    --material-ultrathin: rgba(255, 255, 255, .60);
+    --material-thin: rgba(250, 250, 252, .74);
+    --material-regular: rgba(246, 246, 248, .86);
+    --material-thick: rgba(242, 242, 247, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    /* --- Depth --------------------------------------------------------------
+       Much lighter. A shadow is contrast against the ground, and the dark desk's
+       alphas exist to be visible against near-black; carried onto white they
+       stop reading as depth and start reading as dirt. The tiers keep their
+       geometry — same offsets, same spreads — and only the ink thins, so a sheet
+       still floats further than a menu by the same ratio. */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .08);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .12), 0 1px 3px rgba(0, 0, 0, .08);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .18), 0 4px 12px rgba(0, 0, 0, .10);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .26), 0 8px 24px rgba(0, 0, 0, .14);
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, .06);
+
+    /* The sweep inverts outright — a white highlight is invisible on white. */
+    --sheen: rgba(0, 0, 0, .10);
+    --sheen-soft: rgba(0, 0, 0, .05);
 }
 
 /* Inter, self-hosted. The variable file covers every weight the ramp asks for,
@@ -328,7 +480,7 @@ html, body {
     background: var(--surface-0);
     border: 1px solid var(--separator);
     border-radius: 7px;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
+    box-shadow: var(--shadow-inset);
 }
 
 /* Never let a crowded group break the bar; it scrolls inside its own channel. */
@@ -2039,7 +2191,7 @@ body.dialog-dragging { user-select: none; }
     inset: 0;
     background: linear-gradient(90deg,
         transparent 0%,
-        rgba(255, 255, 255, .18) 50%,
+        var(--sheen) 50%,
         transparent 100%);
     animation: desk-btn-sheen 1.1s var(--ease-standard) infinite;
 }
@@ -2347,7 +2499,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .07), transparent);
+    background: linear-gradient(90deg, transparent, var(--sheen-soft), transparent);
     transform: translateX(-100%);
     animation: desk-btn-sheen 1.5s var(--ease-standard) infinite;
 }

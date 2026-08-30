@@ -56,6 +56,11 @@ builder.Services.AddScoped<LineOps.Web.Components.Desk.DeskToasts>();
 // action stays one await — see Components/Desk/DeskAlerts.cs.
 builder.Services.AddScoped<LineOps.Web.Components.Desk.IDeskAlerts, LineOps.Web.Components.Desk.DeskAlerts>();
 
+// Which desk is showing. Scoped for the third time and the same reason: it writes to one
+// circuit's <html> and reads one browser's localStorage, so a singleton would hand every
+// operator on the server whoever chose last. See Theming/ThemeService.cs.
+builder.Services.AddScoped<LineOps.Web.Theming.ThemeService>();
+
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
 // circuit and antiforgery token. Unset (the default when running from the SDK) keeps the

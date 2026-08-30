@@ -77,13 +77,50 @@ public static class DeskChartPalette
     private static readonly string[] Volume =
         [ChartNeutral, DeskTheme.Accent, ChartNeutralDim, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative];
 
+    // The same four families against a pale plot background.
+    //
+    // This is the one corner of the desk a token block cannot reach, and the reason is in
+    // the summary above: MudChart writes these into SVG attributes and legend markup, where
+    // a var() does not resolve. So a chart is the single place where the second theme costs
+    // a second array rather than nothing — and it is exactly the place where forgetting
+    // would go unnoticed longest, because the dark series colours are saturated enough to
+    // still look deliberate on white. The dim neutral is what gives it away: #636366 on a
+    // pale plot is not a quiet series, it is the darkest thing in the window.
+
+    private static readonly string[] LightMovement =
+        [DeskTheme.LightAccent, DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
+
+    private static readonly string[] LightLedger =
+        [DeskTheme.LightStatePositive, DeskTheme.LightStateNegative, DeskTheme.LightAccent, DeskTheme.LightStateWarning, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
+
+    private static readonly string[] LightHealth =
+        [DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative, DeskTheme.LightAccent, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
+
+    private static readonly string[] LightVolume =
+        [DeskTheme.LightChartNeutral, DeskTheme.LightAccent, DeskTheme.LightChartNeutralDim, DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative];
+
     /// <summary>The colour order for a family. The array is shared, so treat it as read-only.</summary>
-    public static string[] For(DeskChartFamily family) => family switch
+    public static string[] For(DeskChartFamily family) => For(family, isDark: true);
+
+    /// <summary>
+    /// The colour order for a family on the desk that is currently showing.
+    /// </summary>
+    /// <remarks>
+    /// The theme is a parameter rather than something this class reads, because it is static
+    /// and the theme is per-circuit. The single-argument overload above is kept, and kept
+    /// meaning the dark desk, so a call site that has no theme to hand degrades to the desk
+    /// the product already was rather than to a compile error.
+    /// </remarks>
+    public static string[] For(DeskChartFamily family, bool isDark) => (family, isDark) switch
     {
-        DeskChartFamily.Ledger => Ledger,
-        DeskChartFamily.Health => Health,
-        DeskChartFamily.Volume => Volume,
-        _ => Movement
+        (DeskChartFamily.Ledger, true) => Ledger,
+        (DeskChartFamily.Ledger, false) => LightLedger,
+        (DeskChartFamily.Health, true) => Health,
+        (DeskChartFamily.Health, false) => LightHealth,
+        (DeskChartFamily.Volume, true) => Volume,
+        (DeskChartFamily.Volume, false) => LightVolume,
+        (_, true) => Movement,
+        (_, false) => LightMovement
     };
 }
 

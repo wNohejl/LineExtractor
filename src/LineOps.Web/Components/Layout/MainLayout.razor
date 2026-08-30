@@ -1,6 +1,8 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 
 @using LineOps.Web.Theming
+@inject ThemeService Theme
 
 @*
     The desk is the layout. There is no app bar or nav drawer — the rail is both, and it
@@ -10,9 +12,13 @@
     lives in Theming/DeskTheme.cs rather than here: it is a token table, it is read by
     css/mud-bridge.css as well, and burying it in a layout made it look like layout
     configuration instead of the design system it is.
+
+    What *is* layout's business is which of the two palettes is live, because
+    MudThemeProvider takes that as a parameter and this is the only component that renders
+    it. ThemeService owns the decision; the layout owns the wire.
 *@
 
-<MudThemeProvider IsDarkMode="true" Theme="DeskTheme.Instance" />
+<MudThemeProvider IsDarkMode="Theme.IsDark" Theme="DeskTheme.Instance" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -24,3 +30,29 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+
+    /// <summary>
+    /// The theme cannot be read any earlier than this. There is no JS runtime during
+    /// prerender, so localStorage and matchMedia are both unreachable until the first
+    /// render has happened — see ThemeService.InitializeAsync for what that costs.
+    /// Guarded on firstRender because initialising twice would re-register the
+    /// matchMedia listener.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await Theme.InitializeAsync();
+    }
+
+    /// <summary>
+    /// MudThemeProvider reads IsDarkMode as a parameter rather than subscribing to
+    /// anything, so a theme change that did not re-render this component would repaint
+    /// the desk's own tokens and leave every Mud component on the old palette.
+    /// </summary>
+    private Task OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
+}

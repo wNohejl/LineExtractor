@@ -1,5 +1,8 @@
 @using LineOps.Web.Windowing
+@using LineOps.Web.Theming
 @inherits PanelBase
+@implements IDisposable
+@inject ThemeService Theme
 
 @*
     Desk configuration. Every control here changes the desk immediately — there is no Save,
@@ -31,6 +34,25 @@
     Windows always tile as one horizontal row — every window is its own tab. Drag a title
     bar past a neighbour to reorder them, or the divider between two to resize them.
 </Note>
+
+@*
+    Appearance leads, because it is the only setting on this panel that changes the panel
+    itself. The note above is truer here than anywhere: there is no preview, because the
+    desk under this gate repaints as the cap slides.
+*@
+<PanelHeader>Appearance</PanelHeader>
+<div class="row">
+    <DeskSwitch Options="_themes" Label="Appearance"
+                Value="Theme.Mode"
+                ValueChanged="@((DeskThemeMode mode) => Theme.SetModeAsync(mode))" />
+</div>
+<p class="empty" style="padding-top:6px">
+    @* Naming the resolved theme is the point of the sentence. "System" alone does not tell
+       an operator which desk they are about to get, and it is the one position where the
+       answer is not written on the control. *@
+    Kept in this browser. System follows your machine and keeps following it — right now
+    that is @(Theme.IsDark ? "dark" : "light").
+</p>
 
 <PanelHeader>Concurrent windows</PanelHeader>
 <div class="row">
@@ -127,6 +149,15 @@
 @code {
     private DeskSettings S => Manager.Settings;
 
+    // Dark first, because it is the desk the product is: the gate reads left-to-right as
+    // "what it was, the alternative, let the machine decide".
+    private static readonly IReadOnlyList<DeskSwitchOption<DeskThemeMode>> _themes =
+    [
+        new(DeskThemeMode.Dark, "Dark"),
+        new(DeskThemeMode.Light, "Light"),
+        new(DeskThemeMode.System, "System")
+    ];
+
     private static readonly IReadOnlyList<DeskSwitchOption<ResolutionMode>> _modes =
     [
         new(ResolutionMode.Auto, "Follow browser"),
@@ -142,7 +173,18 @@
     ];
 
     protected override void OnInitialized()
-        => Report(PulseState.Idle, $"{Manager.OpenCount}/{S.MaxConcurrentWindows}");
+    {
+        Report(PulseState.Idle, $"{Manager.OpenCount}/{S.MaxConcurrentWindows}");
+
+        // The machine's own preference can move while this panel is open, and under
+        // System that changes both the cap's position and the sentence beneath it.
+        // Neither is a parameter, so nothing else would ask this panel to look again.
+        Theme.Changed += OnThemeChanged;
+    }
+
+    private Task OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
 
     private void AdjustMax(int delta) => Manager.UpdateSettings(s =>
         s.MaxConcurrentWindows = Math.Clamp(s.MaxConcurrentWindows + delta, 1, 12));

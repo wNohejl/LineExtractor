@@ -63,11 +63,67 @@ public static class AppleTheme
     public const string ChartNeutral = "#8E8E93";
     public const string ChartNeutralDim = "#636366";
 
+    // ---- Light -------------------------------------------------------------
+    //
+    // The same roles against a pale ground, mirroring the [data-theme="light"] block
+    // in apple-tokens.css value for value. Constants on the same class rather than a
+    // second class because the pairing is per-token, not per-theme: what has to be kept
+    // honest is that LightSurface1 and --surface-1 agree, and a reader checking that
+    // should not have to open a third file to do it.
+    //
+    // The surface ramp does not invert — it re-derives. Grey ground, white panel,
+    // interactive tiers darkening away from the panel, which is the arrangement macOS
+    // uses and the opposite direction of travel from the dark ramp. The tokens survive
+    // it because they are named for jobs. Full reasoning is in references/tokens.md.
+
+    public const string LightSurface0 = "#F2F2F7"; // the ground — systemGray6, light
+    public const string LightSurface1 = "#FFFFFF"; // panel and card body
+    public const string LightSurface2 = "#E5E5EA"; // title bars, raised rows, resting controls
+    public const string LightSurface3 = "#D1D1D6"; // hover fills, pressed states
+
+    // Black at opacity tiers. Secondary measures 5.74:1 over LightSurface1 — AA, and
+    // within three hundredths of the dark block's 5.71:1.
+    public const string LightTextPrimary = "rgba(0, 0, 0, .88)";
+    public const string LightTextSecondary = "rgba(0, 0, 0, .60)";
+    public const string LightTextTertiary = "rgba(0, 0, 0, .30)";
+
+    // systemBlue, light. Hover deepens rather than lightens: against white, a blue that
+    // lightens under the pointer reads as fading rather than as answering.
+    public const string LightAccent = "#007AFF";
+    public const string LightAccentHover = "#0071E3";
+    public const string LightOnAccent = "#FFFFFF";
+
+    public const string LightStatePositive = "#34C759";
+    public const string LightStateNegative = "#FF3B30";
+    public const string LightStateWarning = "#FF9500";
+
+    public const string LightSeparator = "rgba(0, 0, 0, .10)";
+
+    // systemGray holds across both themes; the dim step moves up rather than down,
+    // because dimmer means closer to the plot background and that is now pale.
+    public const string LightChartNeutral = "#8E8E93";
+    public const string LightChartNeutralDim = "#AEAEB2";
+
+    // The one value that is deliberately NOT the light mirror of its dark counterpart.
+    // The dark scrim is the void at 62% — dimming a near-black app means more near-black.
+    // The analogous value here, the pale ground at 62%, would BRIGHTEN the app behind a
+    // sheet. A scrim subtracts attention, and on any ground that means going darker. So:
+    // neutral black, at a lower alpha, because black over white bites far harder.
+    public const string LightOverlay = "rgba(0, 0, 0, .28)";
+
     /// <summary>
-    /// The single theme instance. Static because it never varies per circuit. A light
-    /// theme is a second [data-theme] token block in CSS, not a second theme object —
-    /// the palette below is the dark one because MudBlazor needs *a* palette in C#, not
-    /// because themes live here.
+    /// The single theme instance, carrying both palettes. Static because it never varies
+    /// per circuit: which palette is live is <see cref="MudThemeProvider.IsDarkMode"/>, a
+    /// per-circuit flag, not a second theme object.
+    ///
+    /// <para>
+    /// The components in this system do not consult either palette — they read the
+    /// <c>[data-theme]</c> token block. These exist so MudBlazor's own derivations
+    /// (<c>-hover</c>, <c>-darken</c>, <c>-rgb</c>) land on the right colours in whichever
+    /// theme is showing. Drive <c>IsDarkMode</c> from the same boolean that picks the
+    /// <c>data-theme</c> attribute; compute them separately and your own components will
+    /// disagree with your Mud ones on screen.
+    /// </para>
     /// </summary>
     public static readonly MudTheme Instance = new()
     {
@@ -142,6 +198,74 @@ public static class AppleTheme
 
             Dark = Surface2,
             DarkContrastText = TextPrimary
+        },
+
+        // The same entries, in the same order, pointing at the light constants. Keep it
+        // structurally identical to the block above: the two palettes are a diff, and a
+        // reader checking that light did not quietly lose an entry should be able to do
+        // it by reading down two columns rather than by reasoning.
+        PaletteLight = new PaletteLight
+        {
+            // Not a mirror of PaletteDark's. These two are MudBlazor's literal black and
+            // white rather than roles, and a component reaching for "black" on a light
+            // ground wants ink, not the paper it is printed on.
+            Black = LightTextPrimary,
+            White = LightSurface1,
+
+            Background = LightSurface0,
+            BackgroundGray = LightSurface0,
+            Surface = LightSurface1,
+            DrawerBackground = LightSurface1,
+            AppbarBackground = LightSurface2,
+
+            DrawerText = LightTextPrimary,
+            DrawerIcon = LightTextSecondary,
+            AppbarText = LightTextPrimary,
+
+            TextPrimary = LightTextPrimary,
+            TextSecondary = LightTextSecondary,
+            TextDisabled = LightTextTertiary,
+
+            ActionDefault = LightTextSecondary,
+            ActionDisabled = LightTextTertiary,
+            ActionDisabledBackground = LightSurface2,
+
+            LinesDefault = LightSeparator,
+            LinesInputs = LightSeparator,
+            Divider = LightSeparator,
+            DividerLight = LightSeparator,
+            TableLines = LightSeparator,
+            TableStriped = LightSurface2,
+            TableHover = LightSurface2,
+
+            // Still the only place the scrim can be set, whichever palette is live.
+            // See LightOverlay for why it is not the pale ground at 62%.
+            OverlayDark = LightOverlay,
+
+            GrayDefault = LightSurface2,
+            GrayLight = LightSurface3,
+            GrayLighter = LightTextSecondary,
+            GrayDark = LightSurface2,
+            GrayDarker = LightSurface1,
+
+            Primary = LightAccent,
+            PrimaryContrastText = LightOnAccent,
+            Info = LightAccent,
+            InfoContrastText = LightOnAccent,
+            Success = LightStatePositive,
+            SuccessContrastText = LightOnAccent,
+            Error = LightStateNegative,
+            ErrorContrastText = LightOnAccent,
+            Warning = LightStateWarning,
+            WarningContrastText = LightOnAccent,
+
+            Secondary = LightAccent,
+            SecondaryContrastText = LightOnAccent,
+            Tertiary = LightAccent,
+            TertiaryContrastText = LightOnAccent,
+
+            Dark = LightSurface2,
+            DarkContrastText = LightTextPrimary
         },
 
         Typography = new Typography
