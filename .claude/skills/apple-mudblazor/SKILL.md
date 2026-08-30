@@ -30,7 +30,9 @@ a generalization of a file that actually runs, not fresh authoring.
 3. **Copy `templates/AppleTheme.cs`**, rename the namespace, and register it with
    `<MudThemeProvider Theme="AppleTheme.Instance" IsDarkMode="true" />`. The colour
    values must match the CSS exactly — read `references/mudblazor-seam.md` for why
-   both sides are required.
+   both sides are required. It carries both palettes; if you ship the light theme,
+   bind `IsDarkMode` to the same boolean that sets `data-theme` rather than a
+   second one.
 4. **Copy `templates/apple-components.css`** (buttons, fields, the segmented gate,
    tags, sheet, alert) and then **`templates/apple-bridge.css`**. Load order is
    load-bearing and is fixed in `App.razor`:
@@ -76,12 +78,23 @@ a variation; it produces an interface that looks like MudBlazor wearing a costum
   `prefers-reduced-motion` block, because a preference a component can
   out-specify is not a preference.
 
-## Adapting to a light theme
+## The light theme
 
-Every token is semantic and defined in one `:root` block. A light theme is a
-second block keyed on its own `[data-theme]` value that redefines the same names —
-no component changes. Invert the surface ramp, swap white-opacity text for
-black-opacity text, and keep the accent.
+`templates/apple-tokens.css` ships both blocks. Light mode is
+`[data-theme="light"]` redefining the same names — no component changes, and if
+adding one requires touching anything below the token blocks, the token that made
+it necessary was named for a colour.
+
+Three things are not obvious and are worth reading before you tune the values.
+The surface ramp **re-derives rather than inverts** — grey ground, white content
+on it, interactive tiers darkening — because a ground lighter than white does not
+exist. Hover and press **deepen** instead of lightening, because against a white
+page a control that lightens under the pointer reads as fading. And a forgotten
+token **fails nowhere**: it silently keeps its dark value, so the mirror has to be
+tested mechanically in both directions.
+
+`references/tokens.md` has the full second-theme section — the ramp table, the
+contrast arithmetic redone for light, what to test, and how to wire the toggle.
 
 ## The one warning worth reading twice
 

@@ -19,10 +19,15 @@
    this block exactly; see references/mudblazor-seam.md for why both are needed.
    ============================================================================ */
 
-/* The default theme is apple-dark. A future theme adds a second block keyed on
-   its own [data-theme] value and changes nothing else in this file. */
+/* The default theme is apple-dark. The light theme, below, is that second block:
+   it redeclares the same names and changes nothing else in this file. */
 :root,
 [data-theme="apple-dark"] {
+    /* Native chrome — scrollbars, form controls, the canvas behind the app —
+       follows the theme too, or the app sits in a bright browser frame. Pair it
+       with <meta name="color-scheme" content="dark light"> in your host page. */
+    color-scheme: dark;
+
     /* --- Surfaces -----------------------------------------------------------
        A true-neutral elevation ramp — Apple's systemGray ramp, read as surfaces.
        systemGray6 and systemGray5 ARE --surface-0 and --surface-2. Warmth or a
@@ -184,6 +189,143 @@
     --z-popover: 9000; /* menus anchored to chrome */
     --z-modal: 9500;   /* scrim, sheets, alerts */
     --z-toast: 9800;   /* transient notices, always on top */
+}
+
+/* ============================================================================
+   The second theme.
+
+   Every token above is semantic, so this is the whole of a light mode: one more
+   block, redeclaring the same names. No component, selector or C# call site
+   below this point knows there are two themes.
+
+   It redeclares every token whose value is a COLOUR, and nothing else. The type
+   ramp, the spacing rungs, the radii, the motion curves and the z-layers are
+   not theme-dependent, so they stay declared once in :root and fall through — a
+   second copy of --space-4 is a second copy to drift. --focus-ring falls
+   through for the same reason with a sharper edge: it is written entirely in
+   var()s, so it re-resolves to the light accent without being mentioned twice.
+
+   Test the mirror mechanically rather than by keeping a list. Parse both blocks,
+   assert every colour-valued name in the first appears in the second and no name
+   in the second is missing from the first, and assert that a mirrored value
+   actually CHANGED. A token the light block forgets does not fail anywhere — it
+   silently keeps its dark value, so one near-black surface renders into a light
+   app and nothing says so.
+
+   Specificity: [data-theme="light"] and :root both weigh (0,1,0), so this block
+   wins on source order alone. It must stay AFTER the block above.
+   ============================================================================ */
+[data-theme="light"] {
+    color-scheme: light;
+
+    /* --- Surfaces -----------------------------------------------------------
+       The ramp does not invert; it re-derives. In dark mode the ground is the
+       darkest thing and elevation means lighter. Light mode cannot copy that —
+       a page ground lighter than white does not exist — so it uses the
+       arrangement macOS and iOS actually use: a grey ground with white content
+       sitting on it, and interactive tiers darkening away from the panel.
+
+       So --surface-0 is grey and --surface-1 is white, which reads out of order
+       until you remember these are roles, not a lightness scale. Every role
+       survives intact: 0 is still what panels sit on, 1 is still the panel body,
+       2 is still a resting control, 3 is still what 2 does under the pointer.
+       That is the whole reason the tokens are named for jobs. */
+    --surface-0: #F2F2F7; /* the ground — systemGray6, light */
+    --surface-1: #FFFFFF; /* panel and card body */
+    --surface-2: #E5E5EA; /* title bars, raised rows, resting controls */
+    --surface-3: #D1D1D6; /* hover fills, pressed states */
+
+    --separator: rgba(0, 0, 0, .10);
+    --separator-strong: rgba(0, 0, 0, .18);
+
+    /* --- Text ---------------------------------------------------------------
+       Black at opacity tiers, for the same reason dark mode uses white ones: one
+       token has to read correctly on four surfaces and four materials.
+
+       --text-secondary at 60% black over --surface-1 measures 5.74:1 — AA, and
+       within three hundredths of the dark block's 5.71:1. Aim for that, not
+       merely for "both pass": two themes that de-emphasise by different amounts
+       make the same cell read as two grades of important depending on the hour.
+
+       --text-tertiary at 30% measures 2.11:1, below AA and correct for its job.
+       The rule is unchanged — fix the call site, never brighten the dim token.
+
+       --text-primary sits below dark mode's 92% because black ink on white
+       carries more perceived weight than white on black at equal alpha. */
+    --text-primary: rgba(0, 0, 0, .88);
+    --text-secondary: rgba(0, 0, 0, .60);
+    --text-tertiary: rgba(0, 0, 0, .30);
+
+    /* --- Accent -------------------------------------------------------------
+       systemBlue, light. Still exactly one, still interactivity, focus and
+       selection only.
+
+       Hover and press travel the other way. In dark mode prominence is
+       lightness, so --accent-hover is lighter than --accent; against a white
+       page a blue that lightens under the pointer reads as fading, so here both
+       states deepen. The names still mean "more prominent" — the direction that
+       delivers it is a property of the ground, not of the token. */
+    --accent: #007AFF;
+    --accent-hover: #0071E3;
+    --accent-press: #0062CC;
+
+    /* Lighter than dark mode's: a tint over white composites to a far more
+       saturated result than the same tint over near-black, so holding .15 would
+       make "selected" shout. */
+    --accent-wash: rgba(0, 122, 255, .12);
+    --accent-wash-strong: rgba(0, 122, 255, .20);
+
+    /* Unchanged, and not by accident: this is the ink for any saturated fill,
+       and a filled systemBlue button is exactly as saturated in either theme. */
+    --on-accent: #FFFFFF;
+
+    /* --- Semantic state -----------------------------------------------------
+       Apple's light-mode system colours. Same rule: spent where a state
+       genuinely needs a colour, never as an always-on channel. */
+    --state-positive: #34C759;
+    --state-negative: #FF3B30;
+    /* Deepens rather than lightens, for the reason --accent-hover does. This is
+       Apple's own accessible red for light backgrounds. */
+    --state-negative-hover: #D70015;
+    --state-warning: #FF9500;
+    --state-positive-wash: rgba(52, 199, 89, .15);
+    --state-negative-wash: rgba(255, 59, 48, .15);
+    --state-warning-wash: rgba(255, 149, 0, .15);
+
+    /* --- Chart neutrals -----------------------------------------------------
+       systemGray holds at #8E8E93 — the one step of the ramp that reads on
+       either ground, which is why Apple gives it no light/dark variant. The dim
+       step has to move, and it moves UP rather than down: dimmer means closer to
+       the plot background, and the plot background is now pale. */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #AEAEB2;
+
+    /* --- Materials ----------------------------------------------------------
+       Four tiers, thinnest to thickest, built on white instead of near-black.
+       The opacities run higher than dark mode's at every tier because a pale
+       material over pale content loses its edge sooner than a dark one does. The
+       blur is identical — it is an optical constant, not a colour.
+
+       The @supports fallback needs no light branch as long as every rule in it
+       resolves a --surface-* token rather than naming a colour. Write it that
+       way and light mode comes free; name a colour there and you have just
+       created the invisible defect this whole block exists to avoid. */
+    --material-ultrathin: rgba(255, 255, 255, .60);
+    --material-thin: rgba(250, 250, 252, .74);
+    --material-regular: rgba(246, 246, 248, .86);
+    --material-thick: rgba(242, 242, 247, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    /* --- Depth --------------------------------------------------------------
+       Much lighter. A shadow is contrast against the ground, and dark mode's
+       alphas exist to be visible against near-black; carried onto white they
+       stop reading as depth and start reading as dirt. The tiers keep their
+       geometry — same offsets, same spreads — and only the ink thins, so a sheet
+       still floats further than a menu by the same ratio. */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .08);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .12), 0 1px 3px rgba(0, 0, 0, .08);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .18), 0 4px 12px rgba(0, 0, 0, .10);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .26), 0 8px 24px rgba(0, 0, 0, .14);
 }
 
 /* Inter, self-hosted. The variable file covers every weight the ramp asks for,
