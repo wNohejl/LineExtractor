@@ -229,7 +229,7 @@ The loop ticks every minute and asks *what is due*, rather than sleeping until t
 - **The Odds API** — secondary, for cross-source reconciliation only; hard 500-credit/mo budget.
 - **ESPN undocumented JSON** — schedules, scores, box scores, NHL gap-fill. No auth. Verified pulling real rosters in testing.
 - **balldontlie** — players/teams/games/stats (registered; enable with a key).
-- *(Removed)* **Demo odds + stats fixtures** — deterministic offline sources that ran a cold clone with no keys. Withdrawn: the platform runs on real data only (§11).
+- *(Removed)* **Demo odds + stats fixtures** — deterministic offline sources that ran a cold clone with no keys. Withdrawn: the platform runs on real data only. → [ADR 0017], §11
 
 The daily bulk ingest includes a **player/stats pass**: roster upsert by external id (players move teams mid-season, so team is refreshed every sync) and post-final box scores into `player_game_stat`.
 
@@ -470,7 +470,7 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
 - **Tests (456):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
-- **Docs:** sixteen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
+- **Docs:** seventeen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
 **ADR index:**
 
@@ -489,9 +489,10 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 | 0011 | ESPN is the stats port; odds come from a book market |
 | 0012 | Jobs are named, and triggered by state rather than the clock |
 | 0013 | The board, and the floating layer the desk reserved — *amended by 0016* |
-| 0014 | A real feed, a credit budget, and what counts as a game |
+| 0014 | A real feed, a credit budget, and what counts as a game — *amended by 0017* |
 | 0015 | Standard telemetry beside the bespoke reliability layer |
 | 0016 | Weight replaces hue; materials replace moulding |
+| 0017 | The demo fixture retires, and a keyless clone says so |
 
 ---
 
@@ -525,7 +526,7 @@ Every one came from hitting a real constraint. These are the strongest interview
 | `RowsIngested == 0` means trouble | Status from what the *provider* returned | Store-on-change made "0 rows" ambiguous — quiet market vs. silent outage. Conflating them means alert fatigue or blindness. → [ADR 0003] |
 | FK from `journal_entry` → `odds_snapshot` | Three plain columns | Postgres can't FK a partitioned table without the partition key. Denormalising `closing_price` turned the constraint into a benefit: CLV survives partition pruning. → [ADR 0002] |
 | SharpAPI as second odds source | The Odds API | Better documented credit accounting, and it reports true spend in a response header — so the budget guard uses the provider's own number instead of an estimate. |
-| Real providers only | Demo fixture sources on by default — **then removed again** | The fixtures were added so a cold reviewer with no keys saw a working desk, and they earned that for a while. They were withdrawn once a real feed went in: fabricated prices land in the same tables as real ones under a different source id, where every reader treats them alike, and a fixture source going stale spent a critical alert slot on data that was never real. What a keyless clone gets now is everything ESPN and the MLB Stats API give away — real fixtures, real results — and no prices, reported as unconfigured. |
+| Real providers only | Demo fixture sources on by default — **then removed again** | The fixtures were added so a cold reviewer with no keys saw a working desk, and they earned that for a while. They were withdrawn once a real feed went in: fabricated prices land in the same tables as real ones under a different source id, where every reader treats them alike, and a fixture source going stale spent a critical alert slot on data that was never real. What a keyless clone gets now is everything ESPN and the MLB Stats API give away — real fixtures, real results — and no prices, reported as unconfigured. → [ADR 0017] |
 | HTTP on 8080 | HTTPS only on 9443, loopback-bound | The first pass published Postgres on `0.0.0.0` with a repo-committed password. Docker's short port syntax is the trap. → [ADR 0006] |
 | Nav-drawer, one page at a time | **Window manager** — every page is a panel on one desk | Ops work is inherently multi-view: health, incident and runs are read together. Pages fought the product. → [ADR 0007] |
 | MudBlazor components throughout | MudBlazor for charts only; chrome hand-built | The launcher is the primary way windows get created; it should not inherit another library's positioning and z-index rules, especially opening away from a rail that can be on any edge. |
@@ -546,7 +547,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
 | 456 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
-| 16 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| 17 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
 | Blazor/MudBlazor Ops UI on .NET 10 | "UI components" + reinforces the resume's headline stack |

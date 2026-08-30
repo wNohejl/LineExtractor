@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+**Amended by:** [ADR 0017](0017-the-demo-fixture-retires.md), which deletes the demo fixture
+outright and removes the `Sources` rows this ADR deliberately kept. Everything below about the
+credit budget, exhibitions, and what counts as a game is unchanged.
+
 **Builds on:** [ADR 0012](0012-jobs-are-named-and-triggered-by-state.md), which derived the line
 cadence from the provider's allowance, and [ADR 0011](0011-espn-is-the-stats-port-odds-come-from-a-book-market.md),
 which made ESPN the stats port.
