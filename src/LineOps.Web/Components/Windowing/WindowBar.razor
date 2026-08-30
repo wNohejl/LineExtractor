@@ -3,77 +3,143 @@
 @inject WindowManager Manager
 
 @*
-    The toolbar: everything you can open, and everything that is open, in one row.
+    The toolbar: everything that is open, and everything you could open, in one strip.
 
-    These were two lists — a set of launcher icons and a separate strip of window tabs —
-    which meant a window appeared twice up here and a third time as its own column below.
-    The column below is the window; the bar only needs to say what exists and where you
-    are. So there is one item per window, and it is the same item whether the window is
-    open or not: closed, it is an icon that opens it; open, it wears its column's name.
+    Each window appears exactly once, and which half of the strip it sits in says what
+    it is:
 
-    Names appear only on open items on purpose. Twelve names would not fit, and a name is
-    only worth the width once there is a column to go back to — before that, the icon and
-    its tooltip are enough.
+      · Open      — a tab, on the left, carrying its column's name, its pulse and a
+                    close. In the desk's own left-to-right order, so the strip is a map
+                    of the row rather than a second arrangement to hold in your head.
+      · Not open  — a quiet key, after the hairline, in catalogue order and grouped the
+                    way the catalogue groups things.
+
+    The previous arrangement kept every catalogue entry in one run and let an open one
+    grow a name in place. That was one item per window on paper, but on screen a 190px
+    named tab sat wedged between 26px launcher icons with nothing but width to tell them
+    apart — so the bar read as two interleaved lists, and the one thing you could not do
+    was tell a launcher from a tab. Sorting them into two runs costs one short move when
+    a window opens and buys the distinction outright.
+
+    Destinations — a game, a team, a player — have no key at all, because they are about
+    a subject and cannot be opened cold. They exist only as tabs, which is also what
+    keeps them out of the resting strip's width.
 
     Two separate signals, because they answer two questions:
 
-      · Which one am I in?   The current item is filled and lit, and stays that way no
-                             matter where the pointer goes.
+      · Which one am I in?   The current tab is washed in the accent, and stays that way
+                             no matter where the pointer goes.
       · Which one am I on?   The marble, which follows the pointer and settles back on
-                             the current item when it leaves.
+                             the current tab when it leaves.
 
     The marble alone could not do both: it travels on hover, so the moment you reached
     for anything else the answer to the first question left with it.
 *@
 
-<div class="bar__group bar__group--windows"
+<div class="bar__strip"
      role="toolbar"
      aria-label="Windows"
-     data-glide="marble"
      @onkeydown="OnKeyDown">
 
     @{
-        var groups = Groups();
-        var index = 0;
+        var open = OpenItems;
+        var closed = ClosedGroups;
+
+        // Both lists are walked once here and the slot numbers come out of that single
+        // pass. Asking a property per item instead would rebuild the whole strip on every
+        // button it drew.
+        var total = open.Count + closed.Sum(g => g.Count);
+
+        if (_refs.Length != total)
+            _refs = new ElementReference[total];
+
+        var currentSlot = open.FindIndex(i => i.IsCurrent);
+
+        if (currentSlot < 0)
+            currentSlot = 0;
+
+        var slot = 0;
     }
 
-    @for (var g = 0; g < groups.Count; g++)
-    {
-        @if (g > 0)
+    @* The desk, as tabs. Carries the marble: this is the run that has a "current". *@
+    <div class="bar__open" data-glide="marble" role="group" aria-label="Open windows">
+        @foreach (var item in open)
         {
-            <span class="bar__split" aria-hidden="true"></span>
-        }
-
-        @foreach (var item in groups[g])
-        {
-            var slot = index++;
+            var index = slot++;
+            var window = item.Open!;
             var current = item.IsCurrent;
 
-            <button class="bar__key @(item.Open is not null ? "bar__key--named" : null) @(current ? "bar__key--current" : null) @(item.Open?.Minimised == true ? "bar__key--collapsed" : null)"
-                    type="button"
-                    aria-current="@(current ? "true" : null)"
-                    data-glide-rest="@(current ? "" : null)"
-                    tabindex="@(slot == CurrentSlot ? "0" : "-1")"
-                    title="@Tip(item)"
-                    aria-label="@Label(item)"
-                    @ref="_refs[slot]"
-                    @onclick="() => Press(item)">
-                <Glyph Icon="@item.Icon" />
+            @* The wrapper is the tab to the eye and to the marble; the two buttons
+               inside are the two things you can do to it. *@
+            <div class="tab @(current ? "tab--current" : null) @(window.Minimised ? "tab--collapsed" : null)"
+                 data-glide-item
+                 data-glide-rest="@(current ? "" : null)">
 
-                @if (item.Open is not null)
-                {
-                    <span class="bar__name">@item.Title</span>
-                    <span class="bar__pulse @PulseClass(item.Open.Pulse)" aria-hidden="true"></span>
-                }
-            </button>
+                <button class="tab__go"
+                        type="button"
+                        aria-current="@(current ? "true" : null)"
+                        tabindex="@(index == currentSlot ? "0" : "-1")"
+                        title="@Tip(item)"
+                        aria-label="@Label(item)"
+                        @ref="_refs[index]"
+                        @onclick="() => Press(item)">
+                    <Glyph Icon="@item.Icon" />
+                    <span class="tab__name">@item.Title</span>
+                    <span class="bar__pulse @PulseClass(window.Pulse)" aria-hidden="true"></span>
+                </button>
+
+                @* Out of the tab order on purpose: the strip is a roving toolbar with
+                   one tab stop, so a second focusable per window would make Tab walk
+                   the desk twice. Delete on the tab itself is the keyboard route. *@
+                <button class="tab__close"
+                        type="button"
+                        tabindex="-1"
+                        title="Close @item.Title"
+                        aria-label="Close @item.Title"
+                        @onclick="() => Manager.Close(window.Id)">
+                    <Glyph Icon="@Icons.Material.Filled.Close" />
+                </button>
+            </div>
         }
+    </div>
+
+    @if (open.Count > 0 && closed.Count > 0)
+    {
+        <span class="bar__split" aria-hidden="true"></span>
     }
+
+    @* Everything not on the desk. No marble: nothing here is current — the plain
+       plate follows the pointer and leaves with it. *@
+    <div class="bar__closed" data-glide role="group" aria-label="Open a window">
+        @for (var g = 0; g < closed.Count; g++)
+        {
+            @if (g > 0)
+            {
+                <span class="bar__split bar__split--quiet" aria-hidden="true"></span>
+            }
+
+            @foreach (var item in closed[g])
+            {
+                var index = slot++;
+
+                <button class="bar__key"
+                        type="button"
+                        tabindex="@(index == currentSlot ? "0" : "-1")"
+                        title="@Tip(item)"
+                        aria-label="@Label(item)"
+                        @ref="_refs[index]"
+                        @onclick="() => Press(item)">
+                    <Glyph Icon="@item.Icon" />
+                </button>
+            }
+        }
+    </div>
 </div>
 
 @code {
     private ElementReference[] _refs = [];
 
-    /// <summary>One row of the bar: a window that could be open, or one that is.</summary>
+    /// <summary>One place in the bar: a window that is open, or one that could be.</summary>
     private sealed record Item(
         string Icon,
         string Title,
@@ -88,76 +154,50 @@
     public void Dispose() => Manager.Changed -= OnChanged;
 
     /// <summary>
-    /// The catalogue, in catalogue order, with open windows standing in for their
-    /// definition — plus any open destination, which has no launcher entry of its own
-    /// because it cannot be opened from here. Leaving those off would mean a Game or a
-    /// Team column existed on the desk with nothing up here to say so.
+    /// Every open window, in the order its column sits in the row. Sequence breaks ties so
+    /// two windows that have not been laid out yet still have a stable order rather than
+    /// swapping places on an unrelated re-render.
     /// </summary>
-    private List<List<Item>> Groups()
-    {
-        var result = new List<List<Item>>();
+    private List<Item> OpenItems => Manager.Windows
+        .OrderBy(w => w.X)
+        .ThenBy(w => w.Sequence)
+        .Select(w => new Item(
+            w.Definition.Icon,
+            w.Title,
+            w.Definition,
+            w,
+            w.Id == Manager.FocusedId))
+        .ToList();
 
-        foreach (var group in WindowCatalog.All.GroupBy(d => d.Group))
-        {
-            var items = new List<Item>();
+    /// <summary>
+    /// The catalogue minus what is already open, in catalogue order and grouped the way the
+    /// catalogue groups it. A definition with an open window is left out because that window
+    /// is already in the strip as a tab — which is the whole "exactly once" rule.
+    ///
+    /// That also holds the line for the non-singleton entries: pressing a key has always
+    /// focused an existing window rather than making a second one, so a key that would now
+    /// do nothing new is a key with nothing to say.
+    /// </summary>
+    private List<List<Item>> ClosedGroups => WindowCatalog.All
+        .Where(d => !d.RequiresSubject)
+        .Where(d => Manager.Windows.All(w => w.Definition.Key != d.Key))
+        .GroupBy(d => d.Group)
+        .Select(g => g.Select(d => new Item(d.Icon, d.Title, d, null, false)).ToList())
+        .Where(g => g.Count > 0)
+        .ToList();
 
-            foreach (var definition in group.Where(d => !d.RequiresSubject))
-            {
-                var open = Manager.Windows.FirstOrDefault(w => w.Definition.Key == definition.Key);
-
-                items.Add(new Item(
-                    definition.Icon,
-                    open?.Title ?? definition.Title,
-                    definition,
-                    open,
-                    open is not null && open.Id == Manager.FocusedId));
-            }
-
-            // Destinations only ever appear once opened, in their own group, ordered
-            // the way the desk orders them.
-            foreach (var window in Manager.Windows
-                .Where(w => w.Definition.RequiresSubject && w.Definition.Group == group.Key)
-                .OrderBy(w => w.X))
-            {
-                items.Add(new Item(
-                    window.Definition.Icon,
-                    window.Title,
-                    window.Definition,
-                    window,
-                    window.Id == Manager.FocusedId));
-            }
-
-            if (items.Count > 0)
-                result.Add(items);
-        }
-
-        var total = result.Sum(g => g.Count);
-
-        if (_refs.Length != total)
-            _refs = new ElementReference[total];
-
-        return result;
-    }
-
-    /// <summary>Where the single Tab stop sits: the current window, or the first item.</summary>
-    private int CurrentSlot
+    /// <summary>
+    /// The strip in the order it is drawn: open tabs, then the closed keys. Only the
+    /// keyboard needs this — the render builds the same order inline and keeps the slot
+    /// numbers from that one pass.
+    /// </summary>
+    private List<Item> Flat
     {
         get
         {
-            var slot = 0;
-
-            foreach (var group in Groups())
-            {
-                foreach (var item in group)
-                {
-                    if (item.IsCurrent)
-                        return slot;
-
-                    slot++;
-                }
-            }
-
-            return 0;
+            var flat = OpenItems;
+            flat.AddRange(ClosedGroups.SelectMany(g => g));
+            return flat;
         }
     }
 
@@ -201,12 +241,26 @@
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        var flat = Groups().SelectMany(g => g).ToList();
-        var current = CurrentSlot;
+        var flat = Flat;
         var last = flat.Count - 1;
 
         if (last < 0)
             return;
+
+        var current = flat.FindIndex(i => i.IsCurrent);
+
+        if (current < 0)
+            current = 0;
+
+        // Closing from the keyboard. The × is out of the tab order, so this is the route,
+        // and it only ever acts on a tab — there is nothing to close about a closed key.
+        if (e.Key is "Delete" or "Backspace")
+        {
+            if (flat[current].Open is { } window)
+                Manager.Close(window.Id);
+
+            return;
+        }
 
         var next = e.Key switch
         {

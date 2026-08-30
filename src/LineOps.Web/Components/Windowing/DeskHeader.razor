@@ -5,78 +5,83 @@
 @*
     Fixed header: identity, the windows, and the desk's own controls.
 
-    One row for the windows rather than two. A launcher strip beside a strip of open-window
-    tabs meant every open window was drawn twice up here and a third time as its own column
-    below — and the column below is the window. The bar only has to say what exists and
-    where you are, so there is one item per window and it is the same item whether that
-    window is open or not. See WindowBar.
+    Two things live up here and they are not the same kind of thing, so they are not drawn
+    the same way:
+
+      · The windows — one strip, in its own recessed channel, spanning the bar. Every
+        window is in it exactly once, as a tab if it is open and a quiet key if it is not.
+        See WindowBar, which owns that rule.
+
+      · The desk's own controls — workspaces and column widths. These act on the desk
+        rather than being part of it, so they sit apart at the far end, after a hairline,
+        as plain buttons. A second channel would have said "another strip of windows",
+        which is what made the header read as two competing lists.
+
+    The Window manager used to have a button here as well as its key in the strip: the same
+    window, the same glyph, twice in one header. It has a key like everything else in the
+    catalogue, and when it is open it is a tab like everything else, so the button is gone.
 
     Destinations — a game, a team, a player — are about a subject and are reached by
     following a name in a panel, so they have no key to press until they exist. Once one is
-    open it appears in the bar like anything else, because a column on the desk with
+    open it appears in the strip like anything else, because a column on the desk with
     nothing up here to name it is a column you lose.
 *@
 
 <header class="hdr">
     <span class="hdr__brand">LINE<em>OPS</em></span>
 
+    @if (Manager.OpenCount == 0)
+    {
+        <span class="hdr__sub">sports-data ingestion &amp; analytics operations</span>
+    }
+
     <div class="bar">
         <WindowBar />
+    </div>
 
-        @if (Manager.OpenCount == 0)
-        {
-            <span class="hdr__sub">sports-data ingestion &amp; analytics operations</span>
-        }
+    <span class="hdr__divider" aria-hidden="true"></span>
 
-        @* The desk's own controls. *@
-        <div class="bar__group" role="group" aria-label="Desk controls" data-glide="marble">
-            <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces"
-                      AlignEnd="true">
-                <div class="launcher" data-glide>
-            <div class="launcher__group">Workspaces</div>
-            @foreach (var workspace in WindowCatalog.Workspaces)
-            {
-                <button class="launcher__item" type="button" role="menuitem"
-                        @onclick="() => Apply(workspace)">
-                    <Glyph Icon="@Icons.Material.Filled.Dashboard" />
-                    <span>
-                        @workspace.Name
-                        <span class="launcher__desc">@workspace.Description</span>
-                    </span>
-                </button>
-            }
-
-                    <div class="launcher__group">Clear</div>
-                    <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
-                        <Glyph Icon="@Icons.Material.Filled.ClearAll" />
-                        <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
+    @* The desk's own controls, as one cluster: the plate slides between them rather
+       than each button lighting itself. *@
+    <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
+        <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces"
+                  AlignEnd="true">
+            <div class="launcher" data-glide>
+                <div class="launcher__group">Workspaces</div>
+                @foreach (var workspace in WindowCatalog.Workspaces)
+                {
+                    <button class="launcher__item" type="button" role="menuitem"
+                            @onclick="() => Apply(workspace)">
+                        <Glyph Icon="@Icons.Material.Filled.Dashboard" />
+                        <span>
+                            @workspace.Name
+                            <span class="launcher__desc">@workspace.Description</span>
+                        </span>
                     </button>
-                </div>
-            </RailMenu>
+                }
 
-            <button class="bar__key" type="button" title="Reset column widths"
-                    aria-label="Reset column widths"
-                    disabled="@(Manager.OpenCount == 0)"
-                    @onclick="Manager.ResetWidths">
-                <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
-            </button>
+                <div class="launcher__group">Clear</div>
+                <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
+                    <Glyph Icon="@Icons.Material.Filled.ClearAll" />
+                    <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
+                </button>
+            </div>
+        </RailMenu>
 
-            <button class="bar__key" type="button" title="Window manager"
-                    aria-label="Window manager"
-                    @onclick="OpenSettings">
-                <Glyph Icon="@Icons.Material.Filled.Tune" />
-            </button>
+        <button class="rail__btn" type="button" title="Reset column widths"
+                aria-label="Reset column widths"
+                disabled="@(Manager.OpenCount == 0)"
+                @onclick="Manager.ResetWidths">
+            <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
+        </button>
 
-            <span class="bar__split" aria-hidden="true"></span>
-
-            @* The ceiling, and what the next open would cost. Was a note inside the
-               launcher menu; the menu is gone, and this is where it was always
-               really being asked. *@
-            <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
-                  title="@CapacityTip">
-                @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
-            </span>
-        </div>
+        @* The ceiling, and what the next open would cost. Was a note inside the
+           launcher menu; the menu is gone, and this is where it was always
+           really being asked. *@
+        <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
+              title="@CapacityTip">
+            @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
+        </span>
     </div>
 </header>
 
@@ -116,12 +121,5 @@
     {
         Manager.CloseAll();
         _workspaces?.Close();
-    }
-
-    private void OpenSettings()
-    {
-        var definition = WindowCatalog.Find(WindowCatalog.Desk);
-        if (definition is not null)
-            Manager.Open(definition);
     }
 }
