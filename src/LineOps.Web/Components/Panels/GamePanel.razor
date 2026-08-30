@@ -157,22 +157,22 @@ else
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Moneyline.First" />
-                        <PriceCell Offer="_row.Moneyline.Second" />
+                        <PriceCell Offer="_row.Moneyline.First" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Moneyline.Second" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Spread.First" />
-                        <PriceCell Offer="_row.Spread.Second" />
+                        <PriceCell Offer="_row.Spread.First" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Spread.Second" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Total.First" />
-                        <PriceCell Offer="_row.Total.Second" />
+                        <PriceCell Offer="_row.Total.First" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Total.Second" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
             </div>

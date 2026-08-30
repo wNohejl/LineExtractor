@@ -8,44 +8,86 @@
     The rail is the point. Each tick is a book, placed by its implied probability between the
     best and worst on offer, so the width of the group *is* the value of shopping. Books that
     agree collapse to one mark. Nothing has to be read to see whether a game repays the work.
+
+    A price that is no longer live keeps its place here rather than being dropped. ADR 0010
+    promotes one number per book at first pitch and deletes the scan behind it, so for a game
+    in play the close is all there is — and it is the number worth having: it is what the market
+    concluded and what closing-line value is measured against. Dropping it left sixteen of
+    nineteen rows empty and told the reader nothing. It is muted so nobody mistakes it for a
+    price they can still take, and it explains itself on hover rather than in a legend.
 *@
 
 @if (Offer is null)
 {
     <span class="dim">—</span>
 }
+else if (Offer.IsClosing)
+{
+    @* MudTooltip rather than a title attribute: the desk already styles .mud-tooltip, and a
+       provenance sentence plus the book breakdown is more than one line of native tooltip. *@
+    <MudTooltip Placement="Placement.Top" Arrow="true">
+        <TooltipContent>
+            <div style="max-width:34ch; text-align:left; line-height:1.45">
+                @Provenance
+                <div class="mono" style="margin-top:5px; color:var(--haze)">@Tooltip</div>
+            </div>
+        </TooltipContent>
+        <ChildContent>
+            @Body(true)
+        </ChildContent>
+    </MudTooltip>
+}
 else
 {
-    <div class="price" title="@Tooltip">
-        <div class="price__top">
-            @if (Offer.Line is { } line)
-            {
-                <span class="price__line">@FormatLine(line, Offer.Outcome)</span>
-            }
-            <span class="price__odds">@FormatPrice(Offer.PriceAmerican)</span>
-            <span class="price__book">@Monogram(Offer.Book)</span>
-        </div>
-
-        @if (Offer.Rungs.Count > 1)
-        {
-            <div class="rail">
-                @foreach (var rung in Offer.Rungs)
-                {
-                    <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
-                          style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
-                          title="@Monogram(rung.Book): @FormatPrice(rung.PriceAmerican)"></span>
-                }
-            </div>
-
-            @* The line varying outranks the price gap: books quoting -110 on totals of 7, 8
-               and 9 have a price spread of zero and the largest real difference on the board. *@
-            <span class="price__edge @(IsWide ? "price__edge--wide" : null)">@EdgeLabel</span>
-        }
-    </div>
+    @Body(false)
 }
 
 @code {
     [Parameter] public BestOffer? Offer { get; set; }
+
+    /// <summary>
+    /// When the game starts, so a closing price can say how long before first pitch it was
+    /// taken. Optional: without it the tooltip still says what the number is, not how early.
+    /// </summary>
+    [Parameter] public DateTimeOffset? StartsAt { get; set; }
+
+    private RenderFragment Body(bool closing) => @<text>
+        <div class="price @(closing ? "price--closing" : null)" title="@(closing ? null : Tooltip)">
+            <div class="price__top">
+                @if (Offer!.Line is { } line)
+                {
+                    <span class="price__line">@FormatLine(line, Offer.Outcome)</span>
+                }
+                <span class="price__odds">@FormatPrice(Offer.PriceAmerican)</span>
+                <span class="price__book">@Monogram(Offer.Book)</span>
+            </div>
+
+            @if (Offer.Rungs.Count > 1)
+            {
+                <div class="rail">
+                    @foreach (var rung in Offer.Rungs)
+                    {
+                        <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
+                              style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
+                              title="@Monogram(rung.Book): @FormatPrice(rung.PriceAmerican)"></span>
+                    }
+                </div>
+
+                @* The line varying outranks the price gap: books quoting -110 on totals of 7, 8
+                   and 9 have a price spread of zero and the largest real difference on the board. *@
+                <span class="price__edge @(IsWide ? "price__edge--wide" : null)">@EdgeLabel</span>
+            }
+            else if (closing)
+            {
+                @* One book leaves no rail to carry the fact, so the cell states it instead. *@
+                <span class="price__edge price__edge--closing">closed</span>
+            }
+        </div>
+    </text>;
+
+    /// <summary>What a closing price is, and how long before the start it was captured.</summary>
+    private string Provenance
+        => Offer is null ? string.Empty : PriceProvenance.Explain(Offer.CapturedAt, StartsAt);
 
     /// <summary>
     /// What shopping is worth here, said plainly. A differing line is reported as such rather
@@ -60,13 +102,18 @@ else
 
             var edge = Offer.EdgePoints ?? 0;
 
+            // A closed market is not a shopping opportunity, so the cell reports what the books
+            // finished at rather than what could have been won by moving between them.
+            var suffix = Offer.IsClosing ? " at close" : "";
+
             return Offer.LinesVary
-                ? edge < 0.05 ? "line varies" : $"line varies · +{edge:0.0} pts"
-                : edge < 0.05 ? "books agree" : $"+{edge:0.0} pts vs worst";
+                ? edge < 0.05 ? "line varies" + suffix : $"line varies · +{edge:0.0} pts{suffix}"
+                : edge < 0.05 ? "books agree" + suffix : $"+{edge:0.0} pts vs worst{suffix}";
         }
     }
 
-    private bool IsWide => Offer is not null && (Offer.LinesVary || (Offer.EdgePoints ?? 0) >= 2);
+    private bool IsWide
+        => Offer is not null && !Offer.IsClosing && (Offer.LinesVary || (Offer.EdgePoints ?? 0) >= 2);
 
     /// <summary>
     /// A book's two-character mark. Colour means state on this desk, so a book is identified
