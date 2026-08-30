@@ -95,6 +95,16 @@ public class KpiCalculator(LineOpsDbContext db)
         if (baseline.Count < 3)
             return null;
 
+        // And those days have to be most of the window, not merely three of them. Grouping by
+        // day drops the days a source did not run, so a median taken over what is left quietly
+        // assumes the source runs daily. That holds for a scheduled feed and breaks for one
+        // pulled on request: three scattered days clear the floor above and establish a "usual"
+        // that is really a record of how often somebody pressed the button. A source that
+        // skipped more days than it ran has no daily volume to fall short of, and saying so is
+        // the same judgment as NeverRun in AlertEngine — an absence of cadence is not a fault.
+        if (baseline.Count * 2 <= baselineDays)
+            return null;
+
         var median = baseline[baseline.Count / 2];
         if (median == 0)
             return null;
