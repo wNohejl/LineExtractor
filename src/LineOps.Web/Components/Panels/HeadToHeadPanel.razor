@@ -23,9 +23,17 @@
 else if (_rows.Count == 0)
 {
     <EmptyState Kind="EmptyStateKind.Filtered">
-        No previous meeting on record between these sides. Either they have not met inside the
-        history held, or the backfill has not reached that far — the History window walks
-        further back.
+        <ChildContent>
+            No previous meeting on record between these sides. Either they have not met inside
+            the history held, or the backfill has not reached that far.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.History"
+                        OnClick="() => Manager.OpenHistory()">
+                Walk further back
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else
@@ -203,6 +211,4 @@ else
         if (await board.GetRowAsync(gameId) is { } row)
             Manager.OpenGame(row.Game);
     }
-
-    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
 }

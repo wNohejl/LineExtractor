@@ -16,9 +16,21 @@
 
     @if (_incidents.Count == 0)
     {
+        @* The sentence named a window and left the reader to find it on the rail. EmptyState
+           has carried an Action slot for exactly this since it was written, and no call site
+           had ever filled one. *@
         <EmptyState Kind="EmptyStateKind.New">
-            No incidents recorded. Use the on-call drill in the Ops window to exercise the
-            detect → alert → incident → RCA loop.
+            <ChildContent>
+                No incidents recorded. The on-call drill exercises the whole
+                detect → alert → incident → RCA loop.
+            </ChildContent>
+            <Action>
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                            Icon="@Icons.Material.Filled.MonitorHeart"
+                            OnClick="() => Manager.OpenOps()">
+                    Open Ops
+                </DeskButton>
+            </Action>
         </EmptyState>
     }
     else
