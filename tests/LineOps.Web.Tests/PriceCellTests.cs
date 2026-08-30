@@ -73,7 +73,6 @@ public class PriceCellTests : DeskTestContext
     [InlineData("betmgm", "MG")]
     [InlineData("caesars", "CZ")]
     [InlineData("pointsbet", "PB")]
-    [InlineData("demo", "DM")]
     [InlineData("novelbook", "NO")]
     public void An_unknown_book_still_gets_a_two_character_mark(string book, string expected)
     {

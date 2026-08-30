@@ -135,9 +135,9 @@ public class StatsIngestionService(
         //
         // A player who never appears in a box score is a row that will never be read: the
         // cross-reference skips them, the Players panel shows them with nothing, and they cost
-        // an index entry each. The demo fixture made this visible — it reports a full roster
-        // with no games, so every one of its players was created and every one of its stat
-        // lines was then dropped for having nowhere to go.
+        // an index entry each. Any source that reports a roster ahead of the games it played in
+        // produces exactly that: every player created, and every stat line then dropped for
+        // having nowhere to go.
         var resolved = new List<(CanonicalPlayerStat Stat, Game Game)>();
         Dictionary<string, Game>? knownByExternalId = null;
 

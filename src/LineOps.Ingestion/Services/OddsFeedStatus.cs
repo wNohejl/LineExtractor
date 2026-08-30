@@ -35,19 +35,6 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
                 "500 credits/month, billed as markets x regions per call.")
         };
 
-        // The demo source is not a provider, but it is the reason prices exist on a cold clone
-        // and the reason they are not real. Saying so beats letting it pass for a feed.
-        if (live.Contains("demo"))
-        {
-            states.Add(new OddsProviderState(
-                Key: "demo",
-                Name: "Demo fixture source",
-                IsLive: true,
-                IsReal: false,
-                Books: ["demo"],
-                Reason: "Fabricated prices. Stands aside automatically once a real feed has a key."));
-        }
-
         return states;
     }
 
@@ -65,7 +52,6 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
             Key: key,
             Name: name,
             IsLive: live.Contains(key),
-            IsReal: true,
             Books: config.EffectiveBookmakers,
             Reason: reason);
     }
@@ -75,6 +61,5 @@ public record OddsProviderState(
     string Key,
     string Name,
     bool IsLive,
-    bool IsReal,
     IReadOnlyList<string> Books,
     string Reason);

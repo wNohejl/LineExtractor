@@ -26,7 +26,7 @@ public class IngestionOptions
     /// <summary>How often the scheduler loop wakes to check for due jobs.</summary>
     public TimeSpan TickInterval { get; set; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>When true the worker runs every job once at startup — useful for demos and drills.</summary>
+    /// <summary>When true the worker runs every job once at startup — useful for drills.</summary>
     public bool RunOnStartup { get; set; }
 
     public SourceOptions OddsApiIo { get; set; } = new();
@@ -45,12 +45,6 @@ public class IngestionOptions
         // Unmetered and unpublished, which is a reason for more care rather than less.
         RequestDelay = TimeSpan.FromMilliseconds(250)
     };
-
-    /// <summary>
-    /// Offline fixture source. Enabled by default so the platform runs end-to-end
-    /// with no API keys and no cost; disable once real keys are configured.
-    /// </summary>
-    public SourceOptions Demo { get; set; } = new() { Enabled = true };
 
     public BackfillOptions Backfill { get; set; } = new();
 

@@ -13,8 +13,10 @@ namespace LineOps.Ingestion;
 public static class IngestionServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the ingestion pipeline. Adapters are registered only when configured,
-    /// so a cold clone with no API keys still starts — it just runs on the demo source.
+    /// Registers the ingestion pipeline. Adapters are registered only when configured, so a
+    /// cold clone with no API keys still starts — it runs on ESPN, which needs none, and has
+    /// no odds feed until a key is supplied. No odds source is <i>unconfigured</i>, not broken;
+    /// the reliability layer is careful to say so (see <c>AlertEngine</c>).
     /// </summary>
     public static IServiceCollection AddLineOpsIngestion(
         this IServiceCollection services,
@@ -54,24 +56,6 @@ public static class IngestionServiceCollectionExtensions
 
         var options = configuration.GetSection(IngestionOptions.SectionName).Get<IngestionOptions>()
                       ?? new IngestionOptions();
-
-        // What a real provider looks like: configured, and holding whatever credential it needs.
-        var realOdds =
-            (options.OddsApiIo.Enabled && !string.IsNullOrWhiteSpace(options.OddsApiIo.ApiKey))
-            || (options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey));
-
-        var realStats = options.Espn.Enabled;
-
-        // The demo source exists so a cold clone runs with no keys. It is not a supplement to a
-        // real feed — it invents prices and rosters, and running it alongside one would mix
-        // fabricated rows into the same tables under a different source id, where every
-        // downstream reader treats them alike. So it yields, per kind: real odds configured
-        // means no demo odds, ESPN enabled means no demo stats.
-        if (options.Demo.Enabled && !realOdds)
-            services.AddScoped<IOddsSource, DemoOddsSource>();
-
-        if (options.Demo.Enabled && !realStats)
-            services.AddScoped<IStatsSource, DemoStatsSource>();
 
         if (options.Espn.Enabled)
         {
@@ -201,7 +185,7 @@ public static class IngestionServiceCollectionExtensions
         options.Backfill.Sports = Unique(options.Backfill.Sports);
         options.Backfill.Sources = Unique(options.Backfill.Sources);
 
-        foreach (var source in new[] { options.OddsApiIo, options.TheOddsApi, options.BallDontLie, options.Espn, options.Demo })
+        foreach (var source in new[] { options.OddsApiIo, options.TheOddsApi, options.BallDontLie, options.Espn })
             source.Bookmakers = Unique(source.Bookmakers);
     }
 

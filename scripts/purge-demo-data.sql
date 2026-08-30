@@ -1,21 +1,19 @@
--- Removes everything the demo fixture source ever wrote.
+-- Removes the fixtures the demo source invented.
 --
--- Run once, when a real odds provider is configured. The demo source stands itself down as soon
--- as one is (see IngestionServiceCollectionExtensions), but standing down stops it writing more
--- rather than removing what it already wrote — and fabricated prices sitting in the same table as
--- real ones, under a different source id, are indistinguishable to every reader downstream. The
--- board would shop them against each other.
+-- The demo sources themselves are gone from the codebase, and DatabaseInitializer deletes their
+-- 'demo' and 'demo-stats' Sources rows — along with every price, stat line, run, checkpoint, KPI
+-- row and alert recorded against them — on the next start. That part needs no script and no
+-- decision: those rows were never real.
 --
--- Two different things are being removed, and only the second is destructive in a way worth
--- pausing over:
+-- This script is what the application deliberately will not do on its own. Games the demo source
+-- invented, from before it was taught to price the real schedule, are identified as carrying a
+-- 'demo' external id and no 'espn' one — a game ESPN has never confirmed exists. These are the
+-- out-of-season NBA/NFL/NHL matchups sitting on a July slate. Anything referencing them goes too,
+-- including journal entries, because a wager recorded against a game that was never played is not
+-- a record of anything. Deleting what someone wrote is their call, so it is run by hand.
 --
---   1. Prices the demo source invented. Always safe: they were never real.
---
---   2. Fixtures the demo source invented, from before it was taught to price the real schedule.
---      Identified as carrying a 'demo' external id and no 'espn' one — a game ESPN has never
---      confirmed exists. These are the out-of-season NBA/NFL/NHL matchups sitting on a July
---      slate. Anything referencing them goes too, because a journal entry against a game that
---      was never played is not a record of a wager.
+-- The price and closing-line deletes below are kept as a belt-and-braces pass for a database
+-- where the source row was disabled by an earlier version of this script rather than deleted.
 --
 -- Idempotent: re-running finds nothing left to do.
 
@@ -48,10 +46,10 @@ DELETE FROM "PlayerGameStats" WHERE "GameId" IN (SELECT "Id" FROM invented_games
 DELETE FROM "JournalEntries"  WHERE "GameId" IN (SELECT "Id" FROM invented_games);
 DELETE FROM "Games"           WHERE "Id"     IN (SELECT "Id" FROM invented_games);
 
--- The source row itself stays. It is referenced by historical IngestionRun rows, which are the
--- feed the reliability KPIs are computed from — deleting it would rewrite the past to say those
--- runs never happened. Disabling it says the true thing instead.
-UPDATE "Sources" SET "Enabled" = false WHERE "Key" = 'demo';
+-- The source rows are not touched here: DatabaseInitializer removes them, together with the runs,
+-- checkpoints, KPI rows and alerts that referenced them, so the Ops panel stops reporting a feed
+-- that no longer exists. Doing it in the application means an existing database self-heals on the
+-- next start rather than waiting for someone to remember this file.
 
 \echo '-- after'
 SELECT

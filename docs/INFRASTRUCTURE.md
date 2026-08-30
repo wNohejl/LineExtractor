@@ -29,7 +29,9 @@ Package versions are centrally pinned in `Directory.Packages.props`
   volume, healthchecked; *not* published to the host by default.
 - **web** — Kestrel, HTTPS only on `127.0.0.1:9443`, PFX mounted read-only from the host,
   Data Protection keys on the `lineops-keys` volume (survives container replacement),
-  migrates the database on boot, demo sources enabled so first boot works with no spend.
+  migrates the database on boot. First boot works with no keys and no spend: ESPN and the
+  MLB Stats API need none. Prices do — with no odds key there is simply no odds source,
+  which the Ops panel reports as unconfigured rather than as an outage.
 - **worker** — opt-in via `--profile worker`; when used, set `Ingestion__HostScheduler=false`
   on web so only one process polls.
 
@@ -69,7 +71,7 @@ One PostgreSQL database, one EF Core model, migrations checked by CI.
 | The Odds API | `IOddsSource` (reconciliation) | small credit budget | 500 credits/mo |
 | balldontlie | `IStatsSource` | REST pulls | free tier |
 | ESPN (undocumented JSON) | `IStatsSource` — stats port only, never the odds port (ADR 0011); it also yields one reference closing line per finished game | scoreboard walk + box-score fetch, history backfill (ADR 0009) | free; requires a real HTTP-client `User-Agent` (403 otherwise — see `SourceOptions.UserAgent`) |
-| Demo sources | both ports | offline fixtures with drifting prices | none |
+| MLB Stats API | entity spine — issues the `gamePk` and MLBAM ids every other source resolves into | schedule walk | free, unauthenticated |
 
 Resilience per source: `AddStandardResilienceHandler` (retry with jitter, circuit breaker,
 per-attempt timeout) on every HttpClient.
@@ -96,5 +98,6 @@ suite (Docker running) before committing.
 
 - `scripts/setup.ps1` bootstraps certificate + `.env`.
 - `dotnet run` against `compose.dev.yml`'s published Postgres, or full stack via compose.
-- Purge scripts in `scripts/` (demo data, exhibitions/orphans, preseason) are the only
+- Purge scripts in `scripts/` (fixtures the retired demo source invented, exhibitions/orphans,
+  preseason) are the only
   sanctioned by-hand database interventions; day re-walks are done from the History window.

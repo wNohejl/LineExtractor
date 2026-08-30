@@ -102,14 +102,6 @@ public class IngestionOptionsBindingTests
         Assert.Equal("caesars", options.OddsApiIo.EffectiveBookmakers[0]);
     }
 
-    /// <summary>Schedules are the data layer's business; these tests are about source selection.</summary>
-    private sealed class EmptySchedule : LineOps.Core.Contracts.IScheduleReader
-    {
-        public Task<IReadOnlyList<LineOps.Core.Contracts.ScheduledGame>> GetUpcomingAsync(
-            string sportKey, TimeSpan window, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyList<LineOps.Core.Contracts.ScheduledGame>>([]);
-    }
-
     private static IServiceProvider Container(Dictionary<string, string?> settings)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
@@ -117,10 +109,8 @@ public class IngestionOptionsBindingTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The demo odds source prices the real slate, so it needs somewhere to read it from.
-        // Supplied here because AddLineOpsData wants a connection string these tests have no
-        // use for.
-        services.AddSingleton<LineOps.Core.Contracts.IScheduleReader, EmptySchedule>();
+        // No data layer here: every adapter registration is decided from configuration alone,
+        // which is the whole point of these tests.
         services.AddLineOpsIngestion(configuration);
 
         return services.BuildServiceProvider();
@@ -133,16 +123,19 @@ public class IngestionOptionsBindingTests
         => provider.GetServices<LineOps.Core.Contracts.IStatsSource>().Select(s => s.Key).ToList();
 
     [Fact]
-    public void WithNoRealOddsProviderTheDemoFeedStandsIn()
+    public void WithNoOddsKeyThereIsNoOddsSourceAtAll()
     {
         using var scope = Container([]).CreateScope();
 
-        // A cold clone has to be usable, so demo odds fill the gap.
-        Assert.Contains("demo", OddsSourceKeys(scope.ServiceProvider));
+        // Nothing stands in. An offline fixture source used to, and its prices landed in the
+        // same tables as real ones under a different source id, where every reader downstream
+        // treated them alike. Empty is the honest answer, and the reliability layer is written
+        // to read it as unconfigured rather than as an outage.
+        Assert.Empty(OddsSourceKeys(scope.ServiceProvider));
     }
 
     [Fact]
-    public void AConfiguredOddsProviderMakesTheDemoFeedStandDown()
+    public void AKeyedOddsProviderIsTheOnlyThingThatRegistersOne()
     {
         using var scope = Container(new Dictionary<string, string?>
         {
@@ -150,40 +143,31 @@ public class IngestionOptionsBindingTests
             ["Ingestion:OddsApiIo:ApiKey"] = "test-key"
         }).CreateScope();
 
-        var keys = OddsSourceKeys(scope.ServiceProvider);
-
-        // Fabricated prices alongside real ones land in the same table under a different
-        // source id, where every downstream reader treats them alike.
-        Assert.Contains("odds-api-io", keys);
-        Assert.DoesNotContain("demo", keys);
+        Assert.Equal(["odds-api-io"], OddsSourceKeys(scope.ServiceProvider));
     }
 
     [Fact]
-    public void AnEnabledProviderWithNoKeyDoesNotDisplaceTheDemoFeed()
+    public void AnEnabledProviderWithNoKeyRegistersNothing()
     {
         using var scope = Container(new Dictionary<string, string?>
         {
             ["Ingestion:OddsApiIo:Enabled"] = "true"
         }).CreateScope();
 
-        var keys = OddsSourceKeys(scope.ServiceProvider);
-
-        // Half-configured is not configured: standing down here would leave no odds at all.
-        Assert.DoesNotContain("odds-api-io", keys);
-        Assert.Contains("demo", keys);
+        // Half-configured is not configured. Registering it would spend every scan on a 401,
+        // which the reliability layer would then correctly report as a failing source — an
+        // outage manufactured out of a missing key.
+        Assert.Empty(OddsSourceKeys(scope.ServiceProvider));
     }
 
     [Fact]
-    public void EspnBeingOnMakesTheDemoStatsSourceStandDown()
+    public void EspnIsTheStatsSourceAndTheOnlyOne()
     {
         using var scope = Container([]).CreateScope();
 
-        var keys = StatsSourceKeys(scope.ServiceProvider);
-
-        // ESPN is enabled by default, so demo stats — the source that invented rosters with no
-        // games to attach them to — never registers.
-        Assert.Contains("espn", keys);
-        Assert.DoesNotContain("demo-stats", keys);
+        // ESPN is keyless and on by default (ADR 0011), which is why a clone with no keys still
+        // fills the board with real fixtures and real box scores.
+        Assert.Equal(["espn"], StatsSourceKeys(scope.ServiceProvider));
     }
 
     [Fact]
