@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using LineOps.Web.Components.Desk;
 using LineOps.Web.Theming;
 using MudBlazor.Utilities;
 
@@ -341,6 +342,53 @@ public class DeskThemeTests
     {
         Assert.True(Contrast(TokenValue("--text-tertiary"), TokenValue("--surface-1")) < 4.5);
         Assert.True(Contrast(LightTokenValue("--text-tertiary"), LightTokenValue("--surface-1")) < 4.5);
+    }
+
+    /// <summary>
+    /// The one corner of the desk a token block cannot reach.
+    ///
+    /// <para>
+    /// MudChart writes these into SVG attributes and legend markup, where a <c>var()</c> does
+    /// not resolve, so a chart is the single place where the second theme costs a second
+    /// array rather than nothing. It is also the place where forgetting would go unnoticed
+    /// longest: the dark series colours are saturated enough to still look deliberate on
+    /// white. The dim neutral is what gives it away — <c>#636366</c> on a pale plot is not a
+    /// quiet series, it is the darkest thing in the window — so that is what this pins.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(DeskChartFamily.Movement)]
+    [InlineData(DeskChartFamily.Ledger)]
+    [InlineData(DeskChartFamily.Health)]
+    [InlineData(DeskChartFamily.Volume)]
+    public void Chart_families_carry_the_theme_they_are_drawn_on(DeskChartFamily family)
+    {
+        var dark = DeskChartPalette.For(family, isDark: true);
+        var light = DeskChartPalette.For(family, isDark: false);
+
+        Assert.Equal(dark.Length, light.Length);
+        Assert.Contains(DeskTheme.ChartNeutralDim, dark);
+        Assert.Contains(DeskTheme.LightChartNeutralDim, light);
+        Assert.DoesNotContain(DeskTheme.ChartNeutralDim, light);
+
+        // Same family, same ordering — only the theme moved. A light palette that reordered
+        // its slots would silently recolour every series in the chart on a theme change.
+        Assert.Equal(
+            Array.IndexOf(dark, DeskTheme.Accent),
+            Array.IndexOf(light, DeskTheme.LightAccent));
+    }
+
+    /// <summary>
+    /// The single-argument overload is what a call site with no theme to hand still gets, and
+    /// it has to keep meaning the dark desk — degrading to the product's existing appearance
+    /// rather than to whichever branch of a switch came first.
+    /// </summary>
+    [Fact]
+    public void A_chart_palette_asked_without_a_theme_is_the_dark_one()
+    {
+        Assert.Equal(
+            DeskChartPalette.For(DeskChartFamily.Ledger, isDark: true),
+            DeskChartPalette.For(DeskChartFamily.Ledger));
     }
 
     /// <summary>Normalizes a colour literal the same way MudColor does, for apples-to-apples comparison.</summary>

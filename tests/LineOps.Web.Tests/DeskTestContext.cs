@@ -21,6 +21,13 @@ public abstract class DeskTestContext : TestContext
     protected DeskTestContext()
     {
         Services.AddMudServices();
+
+        // DeskChart asks which desk is showing, because a chart's series colours reach
+        // MudBlazor's SVG renderer in C# and cannot be re-themed by a token block. Left
+        // uninitialised on purpose: a service that has never been told otherwise reports
+        // the dark desk, which is what every render assertion here was written against.
+        Services.AddScoped<LineOps.Web.Theming.ThemeService>();
+
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 }

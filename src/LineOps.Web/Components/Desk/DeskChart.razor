@@ -1,5 +1,8 @@
 @namespace LineOps.Web.Components.Desk
 @using MudBlazor
+@using LineOps.Web.Theming
+@implements IDisposable
+@inject ThemeService Theme
 
 @*
     The desk's chart, and the last Mud component to get a seam.
@@ -147,7 +150,23 @@
     private List<ChartSeries<double>> _series = [];
     private ChartOptions _options = new();
 
-    protected override void OnParametersSet()
+    // A chart is the one part of the desk a token block cannot re-theme: MudChart writes
+    // these colours into SVG attributes and legend markup, where a var() does not resolve.
+    // So it has to be told, and it has to be told again when the theme moves under it.
+    protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+
+    private Task OnThemeChanged()
+    {
+        Rebuild();
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
+
+    protected override void OnParametersSet() => Rebuild();
+
+    private void Rebuild()
     {
         // MudChart wants a List it can hold; the parameter is a read-only view so a panel
         // can hand over an array without the component being able to scribble on its data.
@@ -155,7 +174,7 @@
 
         _options = new ChartOptions
         {
-            ChartPalette = DeskChartPalette.For(Family),
+            ChartPalette = DeskChartPalette.For(Family, Theme.IsDark),
             ShowLegend = ShowLegend
         };
     }
