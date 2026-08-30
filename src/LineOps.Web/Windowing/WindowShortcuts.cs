@@ -43,10 +43,18 @@ public static class WindowShortcuts
             name);
     }
 
-    /// <summary>The Players window, focused on one player.</summary>
+    /// <summary>
+    /// One player's own view — their game log and averages.
+    ///
+    /// <para>
+    /// This used to open the Players <i>list</i> focused on the player, which answers a
+    /// different question: a roster view says who is on a team, not how a player has been
+    /// going. Following a name should land on the thing the name refers to.
+    /// </para>
+    /// </summary>
     public static void OpenPlayer(this WindowManager manager, int playerId, string? name = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Players) is not { } definition)
+        if (WindowCatalog.Find(WindowCatalog.Player) is not { } definition)
             return;
 
         manager.Open(
@@ -67,6 +75,21 @@ public static class WindowShortcuts
             name);
     }
 
+    /// <summary>
+    /// Every previous meeting between the two sides of a game. Takes the game rather than the
+    /// teams, because the matchup is what a row on the desk names.
+    /// </summary>
+    public static void OpenHeadToHead(this WindowManager manager, int gameId, string? name = null)
+    {
+        if (WindowCatalog.Find(WindowCatalog.HeadToHead) is not { } definition)
+            return;
+
+        manager.Open(
+            definition,
+            new Dictionary<string, object> { ["GameId"] = gameId },
+            name is null ? null : $"H2H · {name}");
+    }
+
     /// <summary>Ingestion runs, narrowed to one source.</summary>
     public static void OpenRuns(this WindowManager manager, int sourceId, string? sourceName = null)
     {
@@ -77,6 +100,23 @@ public static class WindowShortcuts
             definition,
             new Dictionary<string, object> { ["SourceId"] = sourceId },
             sourceName is null ? null : $"Runs · {sourceName}");
+    }
+
+    /// <summary>
+    /// Operations — source health, the open alerts, and the drill.
+    ///
+    /// <para>
+    /// Takes no subject: alerts are about the desk rather than about a game, so there is
+    /// nothing to narrow it to. It exists so a panel counting alerts can hand the reader
+    /// the window that lists them instead of leaving them to find it on the rail.
+    /// </para>
+    /// </summary>
+    public static void OpenOps(this WindowManager manager)
+    {
+        if (WindowCatalog.Find(WindowCatalog.Ops) is not { } definition)
+            return;
+
+        manager.Open(definition);
     }
 
     /// <summary>Incidents, opened on one incident.</summary>

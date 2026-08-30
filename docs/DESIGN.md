@@ -1,6 +1,6 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
-**Status: BUILT.** All seven phases implemented and verified. 80 tests passing (unit + adapter-fixture + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
+**Status: BUILT.** All seven phases implemented and verified. 460 tests passing (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
@@ -265,6 +265,12 @@ The daily bulk ingest includes a **player/stats pass**: roster upsert by externa
 
 **Ops Center UI:** KPI tiles with SLO status, per-source health cards, drill panel, open-alert feed with one-click incident promotion, incident list + timeline + RCA editor, filterable ingestion-run history.
 
+**The runbook is in the tool, not beside it.** `docs/runbook.md` is embedded in `LineOps.Reliability` and rendered inside the incident that raised the rule, so triage steps are in front of whoever is working it. And the relationship is a **test**: `RunbookCoverageTests` asserts a bijection between the `AlertRules` constants and the runbook's rule headings, in both directions. This came from a real failure — `budget_pressure` shipped documented, configured, and unreachable, because the budget data lived in `LineOps.Ingestion` and the reference direction is `Ingestion → Reliability`, so the alert engine structurally could not see it. The fix split *measuring* consumption (`BudgetCalculator`, in the reliability layer) from *enforcing* it (`CreditBudgetGuard`, still in ingestion), and made the drift a red build rather than a thing to remember.
+
+**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `LineOps.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `LineOps.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`lineops.source.freshness_minutes`, `lineops.budget.utilisation`, `lineops.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops Center uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
+
+**Liveness and readiness are different questions.** `/health` depends on nothing, so a database outage cannot get a container killed and restarted into the same outage. `/ready` reports Postgres reachable *and* schema at the expected version — a process pointed at a database with pending migrations starts, accepts traffic, and fails every request, and no restart fixes that. Verified by stopping Postgres: `/health` stayed 200, `/ready` returned 503, and it recovered on its own.
+
 ---
 
 ## 6. Interface — a desk, not a set of pages
@@ -296,11 +302,16 @@ behind it *together*; a page-based UI can only ever show one. Pages fought the p
 Ops chip stays amber while you work in Journal. Peripheral awareness is the only reason a
 desk beats tabs, so it is the one loud element and everything around it stays quiet.
 
-**Visual language.** Cool graphite-indigo surfaces (not near-black), and a four-hue semantic
-dial where hue always means state: `steam #35E0A1` healthy, `drift #FF6B81` breached,
-`flag #FFB84D` warn, `iris #7C8CFF` interactive. Archivo for chrome (titles set tight and
-uppercase), JetBrains Mono for every number — odds are read in columns and need tabular
-figures.
+**Visual language.** Apple's HIG: a true-neutral surface ramp (`--surface-0` … `--surface-3`)
+with hairlines that separate rather than outline, and **one** accent — systemBlue `#0A84FF`,
+spent only on interactivity, focus and selection. Buttons state weight, not hue: Filled /
+Tinted / Plain, at most one Filled per context. State colours are role-named
+(`--state-positive` / `-warning` / `-negative`) and land on the *values* that report — numbers,
+tags, the pulse strip — never on the controls, because an interface where every button is
+coloured has no primary action. Materials go on anything that floats; anything holding data
+stays opaque. Type is real SF via `-apple-system` with bundled Inter as the off-platform
+fallback, one family throughout — a column of odds is that face plus `tabular-nums`, not a
+second mono. → [ADR 0016]
 
 ### Panels
 
@@ -419,7 +430,7 @@ Use this loop for UI work — hot reload and a debugger beat a 30-second image r
 ```powershell
 dotnet restore
 dotnet build                              # solution: 6 projects + tests
-dotnet test                               # 80 tests
+dotnet test                               # 460 tests
 dotnet format --verify-no-changes         # CI enforces this
 ```
 
@@ -458,9 +469,9 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 - **Repo layout:** `src/` (6 projects), `tests/`, `docs/adr/`, `docs/runbook.md`, `scripts/`, `.github/workflows/`.
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
-- **Tests (80):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV.
+- **Tests (460):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
-- **Docs:** six ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
+- **Docs:** sixteen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
 **ADR index:**
 
@@ -473,6 +484,15 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 | 0005 | Ingestion library separate from its worker host |
 | 0006 | Container security posture and HTTPS |
 | 0007 | A window manager instead of pages |
+| 0008 | Gloss as an affordance, and a seam for MudBlazor — *superseded in part by 0016* |
+| 0009 | History backfilled only from unmetered sources |
+| 0010 | Odds are scans until first pitch, then one closing line |
+| 0011 | ESPN is the stats port; odds come from a book market |
+| 0012 | Jobs are named, and triggered by state rather than the clock |
+| 0013 | The board, and the floating layer the desk reserved — *amended by 0016* |
+| 0014 | A real feed, a credit budget, and what counts as a game |
+| 0015 | Standard telemetry beside the bespoke reliability layer |
+| 0016 | Weight replaces hue; materials replace moulding |
 
 ---
 
@@ -526,8 +546,10 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Alert engine + failure-injection drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
-| 80 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
-| 6 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| 460 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
+| 16 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
+| OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
 | Blazor/MudBlazor Ops UI on .NET 10 | "UI components" + reinforces the resume's headline stack |
 | Container hardening, HTTPS, no committed secrets | "secure, scalable, durable" outcomes |
 | *(not covered — by design)* | COTS extension → answered in interview with MudBlazor extension work, Jenkins, IIS, Okta at Aristocrat |
@@ -553,4 +575,4 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 **Resume bullet for the PROJECTS section:**
 
 > **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
-> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 80 unit, fixture and Testcontainers integration tests in GitHub Actions CI.
+> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 460 unit, fixture and Testcontainers integration tests in GitHub Actions CI.

@@ -22,8 +22,11 @@
         <div class="row">
             @foreach (var choice in _choices)
             {
+                @* The chosen side is Tinted rather than Filled: this is a selector reporting
+                   which side you are on, not the thing the panel commits. The Filled key in
+                   this panel is the one that logs the wager. *@
                 <DeskButton Size="DeskKeySize.Small"
-                            Tone="@(IsChosen(choice) ? DeskTone.Action : DeskTone.Neutral)"
+                            Emphasis="@(IsChosen(choice) ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
                             OnClick="() => Choose(choice)">
                     @choice.Label
                 </DeskButton>
@@ -33,44 +36,44 @@
 
     @if (_chosen is { } chosen)
     {
-        <div class="metrics">
-            <div class="metric metric--info">
-                <div class="metric__value num">@Price(chosen.Offer.PriceAmerican)</div>
-                <div class="metric__label">Price</div>
-                <div class="metric__note">best of @chosen.Offer.Rungs.Count</div>
-            </div>
-            <div class="metric">
-                <div class="metric__value num">@chosen.Offer.Book</div>
-                <div class="metric__label">Book</div>
-            </div>
-            <div class="metric @(_stake > 0 ? "metric--good" : null)">
-                <div class="metric__value num">@Payout.ToString("C0")</div>
-                <div class="metric__label">Returns</div>
-                <div class="metric__note">stake plus profit</div>
-            </div>
-        </div>
+        <MetricRow>
+            <Metric Label="Price"
+                    Value="@Price(chosen.Offer.PriceAmerican)"
+                    Note='@($"best of {chosen.Offer.Rungs.Count}")'
+                    State="DeskState.Info"
+                    Numeric="true" />
+            <Metric Label="Book" Value="@chosen.Offer.Book" Numeric="true" />
+            <Metric Label="Returns"
+                    Value='@Payout.ToString("C0")'
+                    Note="stake plus profit"
+                    State="@(_stake > 0 ? DeskState.Positive : DeskState.Neutral)"
+                    Numeric="true" />
+        </MetricRow>
 
         <div class="row">
-            <input class="field num" type="number" step="5" min="0" style="max-width:130px"
-                   placeholder="Stake" @bind="_stake" @bind:event="oninput" />
+            @* Immediate: the payout beside it recomputes as you type, so this is a field
+               whose typing is the action rather than one waiting to be validated. *@
+            <DeskField TValue="decimal" Mono="true" Immediate="true"
+                       type="number" step="5" min="0" style="max-width:130px"
+                       placeholder="Stake" @bind-Value="_stake" />
 
             @foreach (var quick in new[] { 25m, 50m, 100m })
             {
-                <DeskButton Size="DeskKeySize.Small" Quiet="true" OnClick="() => _stake = quick">
+                <DeskButton Size="DeskKeySize.Small" OnClick="() => _stake = quick">
                     @quick.ToString("C0")
                 </DeskButton>
             }
         </div>
 
-        <input class="field" placeholder="Note (optional)" @bind="_note" />
+        <DeskField TValue="string" placeholder="Note (optional)" @bind-Value="_note" />
 
         @if (_error is not null)
         {
-            <p class="note note--warn" style="margin:0">@_error</p>
+            <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
         }
 
         <div class="row row--end">
-            <DeskButton Tone="DeskTone.Go"
+            <DeskButton Emphasis="DeskEmphasis.Filled"
                         Icon="@Icons.Material.Filled.Bolt"
                         Busy="@_saving"
                         Disabled="@(_stake <= 0)"
@@ -86,7 +89,7 @@
     }
     else
     {
-        <p class="empty">Pick a side to price it.</p>
+        <EmptyState Kind="EmptyStateKind.New">Pick a side to price it.</EmptyState>
     }
 </div>
 

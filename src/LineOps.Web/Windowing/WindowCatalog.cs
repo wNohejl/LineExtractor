@@ -12,6 +12,7 @@ namespace LineOps.Web.Windowing;
 /// </summary>
 public static class WindowCatalog
 {
+    public const string Dashboard = "dashboard";
     public const string Odds = "odds";
     public const string Players = "players";
     public const string Journal = "journal";
@@ -22,17 +23,6 @@ public static class WindowCatalog
     public const string Desk = "desk";
     public const string Parts = "parts";
     public const string History = "history";
-    /// <summary>
-    /// The one games surface.
-    ///
-    /// There used to be two — a "Slate" (key <c>dashboard</c>) that could pull data but only
-    /// listed fixtures, and this board, which showed the market but had no way to refresh it.
-    /// The board absorbed the slate rather than the other way round, because everything the
-    /// slate had was additive — a pull menu, a KPI strip, a score column — while the board's
-    /// row actions, follow-up windows and floating layer are the parts with real machinery
-    /// behind them. A retired key is simply not found by <see cref="Find"/>, so a desk saved
-    /// with the old window open opens without it instead of failing.
-    /// </summary>
     public const string Board = "board";
 
     // The board's three follow-ups. Each takes a GameId, so several can be open against
@@ -41,9 +31,11 @@ public static class WindowCatalog
     public const string Wager = "wager";
     public const string Form = "form";
 
-    // What clicking a game or a team resolves to, from anywhere on the desk.
+    // What clicking a game, a team or a player resolves to, from anywhere on the desk.
     public const string Game = "game";
     public const string Team = "team";
+    public const string Player = "player";
+    public const string HeadToHead = "h2h";
 
     public static readonly IReadOnlyList<WindowDefinition> All =
     [
@@ -54,15 +46,16 @@ public static class WindowCatalog
             Icon = Icons.Material.Filled.Leaderboard,
             Group = "Data",
             ComponentType = typeof(BoardPanel),
-            Description = "Every game, its score, the best price on each market — and the pull that refreshes them.",
-            // The widest thing on the desk: three markets, two sides each, plus the rails,
-            // and now a score column beside them.
-            DefaultWeight = 1.9,
-            MinWidth = 680
+            Description = "Best price on every market, and which book has it.",
+            // The widest thing on the desk: three markets, two sides each, plus the rails.
+            DefaultWeight = 1.8,
+            MinWidth = 620
         },
         new()
         {
             Key = Bets,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press More bets.",
             Title = "Every book",
             Icon = Icons.Material.Filled.ViewList,
             Group = "Data",
@@ -74,6 +67,8 @@ public static class WindowCatalog
         new()
         {
             Key = Wager,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press Place wager.",
             Title = "Place wager",
             Icon = Icons.Material.Filled.Bolt,
             Group = "Data",
@@ -86,6 +81,8 @@ public static class WindowCatalog
         new()
         {
             Key = Form,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press Form.",
             Title = "Recent form",
             Icon = Icons.Material.Filled.QueryStats,
             Group = "Data",
@@ -97,6 +94,8 @@ public static class WindowCatalog
         new()
         {
             Key = Game,
+            RequiresSubject = true,
+            ReachedBy = "Follow a matchup from the Board or Slate.",
             Title = "Game",
             Icon = Icons.Material.Filled.SportsScore,
             Group = "Data",
@@ -111,6 +110,8 @@ public static class WindowCatalog
         new()
         {
             Key = Team,
+            RequiresSubject = true,
+            ReachedBy = "Follow a team name from any game or roster.",
             Title = "Team",
             Icon = Icons.Material.Filled.Shield,
             Group = "Data",
@@ -119,6 +120,48 @@ public static class WindowCatalog
             DefaultWeight = 1.0,
             MinWidth = 380,
             Singleton = false
+        },
+        new()
+        {
+            Key = Player,
+            RequiresSubject = true,
+            ReachedBy = "Follow a player name from a roster or box score.",
+            Title = "Player",
+            Icon = Icons.Material.Filled.Person,
+            Group = "Data",
+            ComponentType = typeof(PlayerPanel),
+            Description = "One player's game log — the lines a roster average was computed from.",
+            // A log with derived stat columns; it needs real width to avoid wrapping numbers.
+            DefaultWeight = 1.2,
+            MinWidth = 440,
+            // Comparing two players is the normal reason to open one.
+            Singleton = false
+        },
+        new()
+        {
+            Key = HeadToHead,
+            RequiresSubject = true,
+            ReachedBy = "Press H2H on a row, or Head to head on a game.",
+            Title = "Head to head",
+            Icon = Icons.Material.Filled.CompareArrows,
+            Group = "Data",
+            ComponentType = typeof(HeadToHeadPanel),
+            Description = "Every previous meeting between two sides, and how the market called them.",
+            DefaultWeight = 1.3,
+            MinWidth = 500,
+            Singleton = false
+        },
+        new()
+        {
+            Key = Dashboard,
+            Title = "Slate",
+            Icon = Icons.Material.Filled.ViewAgenda,
+            Group = "Data",
+            ComponentType = typeof(DashboardPanel),
+            Description = "Today's games and the current market.",
+            // A wide table; give it more of the row than a settings pane needs.
+            DefaultWeight = 1.3,
+            MinWidth = 420
         },
         new()
         {
@@ -255,8 +298,8 @@ public static class WindowCatalog
             [Ops, Incidents, Runs]),
         new(
             "Line watch",
-            "The board beside a movement chart.",
-            [Board, Odds]),
+            "The slate beside a movement chart.",
+            [Dashboard, Odds]),
         new(
             "Review",
             "Settled entries against the numbers they produced.",

@@ -6,7 +6,9 @@
    only overlaps the desk's by accident. Left alone, every Mud component dropped
    into a panel would announce that it came from somewhere else.
 
-   This file is the seam. Two jobs, in order:
+   This file is the seam ADR 0008 first drew between a panel's own opinions and
+   MudBlazor's; ADR 0016 keeps the seam and re-aims what crosses it, from
+   Material toward Apple's HIG. Two jobs, in order:
 
      1. Re-point MudBlazor's own custom properties at the desk's tokens, so a
         component nobody has styled yet still lands looking like the desk. This
@@ -39,12 +41,11 @@
    value below. Doubling the pseudo-class raises specificity by one class and
    settles it permanently. */
 :root:root {
-    /* Shape. Material's 4px reads soft next to the desk's hairline geometry. */
-    --mud-default-borderradius: 5px;
+    /* Shape. Apple's radii are larger than Material's and grow with the surface. */
+    --mud-default-borderradius: var(--radius);
 
-    /* Type. Chrome in Archivo, every number in JetBrains Mono. MudBlazor asks
-       for a family per role, so each role is answered rather than inherited —
-       an unanswered role silently falls back to Roboto. */
+    /* Type. One family across every role — an unanswered role silently falls
+       back to Roboto, which is why each is named rather than inherited. */
     --mud-typography-default-family: var(--face-ui);
     --mud-typography-body1-family: var(--face-ui);
     --mud-typography-body2-family: var(--face-ui);
@@ -60,50 +61,45 @@
     --mud-typography-h5-family: var(--face-ui);
     --mud-typography-h6-family: var(--face-ui);
 
-    /* Buttons on the desk are keys, and keys are set like the rest of the chrome:
-       small, uppercase, wide-tracked. */
-    --mud-typography-button-size: 11px;
-    --mud-typography-button-weight: 600;
-    --mud-typography-button-letterspacing: .07em;
-    --mud-typography-button-text-transform: uppercase;
+    /* Buttons are set like body text now. The uppercase tracking left with the
+       gloss — Apple sets button labels in the same face and case as everything
+       else, and leans on weight instead. */
+    --mud-typography-button-size: var(--text-body);
+    --mud-typography-button-weight: var(--weight-medium);
+    --mud-typography-button-letterspacing: 0;
+    --mud-typography-button-text-transform: none;
 
-    /* Elevation. Material's ramp is a soft ambient blur in three layers; the desk
-       casts one shadow, harder and shorter, because its surfaces sit millimetres
-       apart rather than centimetres. Elevation 0-4 is panel furniture, 8+ is a
-       floating surface, and both resolve to the two shadows the desk already owns.
-       Anything above 16 is a modal, which is the float shadow again. */
+    /* Elevation. Material stacks three blurs per step; this system has three
+       shadows total, because a surface is either resting, floating, or modal.
+       0-3 is panel furniture, 4-7 floats, 8+ is a dialog, 16+ a sheet. */
     --mud-elevation-0: none;
-    --mud-elevation-1: 0 1px 0 rgba(0, 0, 0, .45), 0 2px 4px -2px rgba(0, 0, 0, .6);
-    --mud-elevation-2: var(--mud-elevation-1);
-    --mud-elevation-3: var(--mud-elevation-1);
-    --mud-elevation-4: 0 2px 0 rgba(0, 0, 0, .45), 0 6px 12px -5px rgba(0, 0, 0, .7);
-    --mud-elevation-5: var(--mud-elevation-4);
-    --mud-elevation-6: var(--mud-elevation-4);
-    --mud-elevation-7: var(--mud-elevation-4);
-    --mud-elevation-8: var(--shadow-win);
-    --mud-elevation-9: var(--shadow-win);
-    --mud-elevation-10: var(--shadow-win);
-    --mud-elevation-11: var(--shadow-win);
-    --mud-elevation-12: var(--shadow-win);
-    --mud-elevation-13: var(--shadow-win);
-    --mud-elevation-14: var(--shadow-win);
-    --mud-elevation-15: var(--shadow-win);
-    --mud-elevation-16: var(--shadow-float);
-    --mud-elevation-17: var(--shadow-float);
-    --mud-elevation-18: var(--shadow-float);
-    --mud-elevation-19: var(--shadow-float);
-    --mud-elevation-20: var(--shadow-float);
-    --mud-elevation-21: var(--shadow-float);
-    --mud-elevation-22: var(--shadow-float);
-    --mud-elevation-23: var(--shadow-float);
-    --mud-elevation-24: var(--shadow-float);
-    --mud-elevation-25: var(--shadow-float);
+    --mud-elevation-1: var(--shadow-1);
+    --mud-elevation-2: var(--shadow-1);
+    --mud-elevation-3: var(--shadow-1);
+    --mud-elevation-4: var(--shadow-2);
+    --mud-elevation-5: var(--shadow-2);
+    --mud-elevation-6: var(--shadow-2);
+    --mud-elevation-7: var(--shadow-2);
+    --mud-elevation-8: var(--shadow-3);
+    --mud-elevation-9: var(--shadow-3);
+    --mud-elevation-10: var(--shadow-3);
+    --mud-elevation-11: var(--shadow-3);
+    --mud-elevation-12: var(--shadow-3);
+    --mud-elevation-13: var(--shadow-3);
+    --mud-elevation-14: var(--shadow-3);
+    --mud-elevation-15: var(--shadow-3);
+    --mud-elevation-16: var(--shadow-sheet);
+    --mud-elevation-17: var(--shadow-sheet);
+    --mud-elevation-18: var(--shadow-sheet);
+    --mud-elevation-19: var(--shadow-sheet);
+    --mud-elevation-20: var(--shadow-sheet);
+    --mud-elevation-21: var(--shadow-sheet);
+    --mud-elevation-22: var(--shadow-sheet);
+    --mud-elevation-23: var(--shadow-sheet);
+    --mud-elevation-24: var(--shadow-sheet);
 
-    /* Layering. MudBlazor keeps its own z-index scale; align it to the desk's so a
-       Mud popover and a hand-built RailMenu cannot end up on opposite sides of
-       each other. See the --z-* scale in lineops.css. */
-    --mud-zindex-drawer: var(--z-chrome);
-    --mud-zindex-appbar: var(--z-chrome);
+    /* Layers. Mud's defaults sit in the 1000s and would land under the desk's
+       own chrome; re-point them at the desk's scale. */
     --mud-zindex-popover: var(--z-popover);
     --mud-zindex-dialog: var(--z-modal);
     --mud-zindex-snackbar: var(--z-toast);
@@ -115,16 +111,16 @@
 /* Surfaces. .mud-paper already reads --mud-palette-surface, but it also carries a
    300ms box-shadow transition that makes a popover appear to inflate. */
 .mud-paper {
-    border: 1px solid var(--ink-500);
+    border: 1px solid var(--separator);
     transition: none;
 }
 
 /* A popover is chrome floating over the desk, so it matches the rail menu exactly
    — same body, same border, same shadow. */
 .mud-popover.mud-popover-open {
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
-    box-shadow: var(--shadow-win);
+    background: var(--surface-1);
+    border: 1px solid var(--surface-3);
+    box-shadow: var(--shadow-3);
 }
 
 .mud-list-item {
@@ -133,22 +129,22 @@
     padding-bottom: 6px;
 }
 
-.mud-list-item:hover { background-color: var(--ink-600); }
+.mud-list-item:hover { background-color: var(--surface-2); }
 
 /* Inputs are fields, and a field is cut into the panel — see .field in
    lineops.css. Material draws the opposite: a floating label over a filled well
    with an animated underline. Recess it and drop the underline. */
 .mud-input.mud-input-outlined > .mud-input-outlined-border {
-    border-color: var(--ink-500);
-    border-radius: 5px;
+    border-color: var(--separator);
+    border-radius: var(--radius);
     transition: border-color .12s ease;
 }
 
-.mud-input.mud-input-outlined:hover > .mud-input-outlined-border { border-color: var(--ink-400); }
+.mud-input.mud-input-outlined:hover > .mud-input-outlined-border { border-color: var(--surface-3); }
 
 .mud-input.mud-input-outlined.mud-focused > .mud-input-outlined-border {
     border-width: 1px;
-    border-color: var(--iris);
+    border-color: var(--accent);
 }
 
 .mud-input > input,
@@ -158,49 +154,73 @@
    MudTable to the same rhythm so a Mud-driven table and a hand-written one can
    sit in adjacent windows without looking like different products. */
 .mud-table { background-color: transparent; border: 0; }
-.mud-table-cell { border-bottom: 1px solid var(--ink-600); padding: 7px 10px; font-size: 12.5px; }
 
-.mud-table-head .mud-table-cell {
-    border-bottom: 1px solid var(--ink-500);
-    color: var(--haze-dim);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
-    text-transform: uppercase;
+/* No zebra striping — rows separate with a hairline and nothing else. Row
+   height is 28px: --space-1 top and bottom around a 20px line box at
+   --text-body.
+
+   tabular-nums lands here rather than only on .mud-align-right/.mud-align-end: MudDataGrid's
+   Align enum does not reliably emit those classes for a PropertyColumn/TemplateColumn (a known
+   MudBlazor limitation — see MudBlazor#12530), so a column that never wraps its value in .mono
+   or .num would otherwise read with proportional figures. Tabular figures cost nothing on text
+   cells, so every cell gets them rather than betting on a hook that sometimes never fires. */
+.mud-table-cell {
+    border-bottom: 1px solid var(--separator);
+    padding: var(--space-1) 10px;
+    font-size: var(--text-body);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
 }
 
-.mud-table-row:hover > .mud-table-cell { background-color: var(--ink-600); }
+.mud-table-head .mud-table-cell {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--separator);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
+    letter-spacing: normal;
+}
+
+.mud-table-row:hover > .mud-table-cell { background-color: var(--surface-2); }
 
 /* ------------------------------------------------------------- data grid ---- */
 
 /* DeskGrid replaced every hand-written table on the desk, so MudDataGrid has to land on the
-   same rhythm .grid already had — dense rows, hairline separators, uppercase tracked headers,
-   numbers right-aligned and tabular. None of that is restated in the component; it lives here,
-   so a Mud table dropped in by hand matches without anyone styling it. */
+   same rhythm .grid already had — dense rows, hairline separators, a quiet sans-tracking
+   header, numbers right-aligned and tabular. None of that is restated in the component; it
+   lives here, so a Mud table dropped in by hand matches without anyone styling it. */
 
 .deskgrid .mud-table-container { overflow: visible; }
-.deskgrid .mud-table-root { border-spacing: 0; font-size: 12.5px; }
+.deskgrid .mud-table-root { border-spacing: 0; font-size: var(--text-body); }
 .deskgrid .mud-paper { background: transparent; border: 0; }
 
 .deskgrid .mud-table-head .mud-table-cell {
-    padding: 0 10px 7px;
-    border-bottom: 1px solid var(--ink-500);
-    background: var(--ink-700);
-    color: var(--haze-dim);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
+    padding: var(--space-1) 10px;
+    border-bottom: 1px solid var(--separator);
+    background: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
     line-height: 1.2;
-    text-transform: uppercase;
     white-space: nowrap;
+    text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
+    letter-spacing: normal;
 }
 
+/* Row height is 29px — --space-1 top and bottom around a 20px line box at --text-body, plus
+   the hairline below. Measured, not derived: a cell whose content overflows that 20px line box
+   takes the row with it, which is why .tag in lineops.css pins its own line-height. Density
+   is the point of this console and survives the restyle intact. Tabular figures are set here
+   too, on every cell, not only .mud-align-right/.mud-align-end — see the plain .mud-table-cell
+   rule above for why that hook cannot be trusted alone. */
 .deskgrid .mud-table-body .mud-table-cell {
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--ink-600);
-    color: var(--chalk);
-    font-size: 12.5px;
-    line-height: 1.35;
+    padding: var(--space-1) 10px;
+    border-bottom: 1px solid var(--separator);
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
 }
 
 /* A sortable header is a control, so it gets the same highlight language as everything else:
@@ -217,7 +237,7 @@
 }
 
 .deskgrid .sortable-column-header { transition: color .1s ease; }
-.deskgrid .column-header:hover .sortable-column-header { color: var(--chalk); }
+.deskgrid .column-header:hover .sortable-column-header { color: var(--text-primary); }
 
 /* The direction arrow is reserved and faded rather than absent, so sorting a column does not
    shift the header row sideways — the same reasoning as the linked cell's shortcut. */
@@ -226,7 +246,7 @@
     min-width: 0;
     width: 16px;
     height: 16px;
-    color: var(--iris);
+    color: var(--accent);
     opacity: 0;
     transition: opacity .1s ease;
 }
@@ -238,100 +258,306 @@
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
 
-/* Numbers are read down a column, so they align right and use the number face. Mud marks
-   these with its own alignment class; the desk's own tables use .r for the same thing. */
+/* The two cell modifiers .grid defines, said again for the grid that replaced it. They were
+   scoped `.grid .dim` / `.grid .trunc` and so quietly stopped applying the moment a panel
+   moved to DeskGrid — a converted panel kept the markup and lost the styling, which is the
+   one failure mode this file exists to prevent. */
+.deskgrid .dim { color: var(--text-tertiary); }
+
+.deskgrid .trunc {
+    max-width: 1px; /* forces the cell to take its share and no more */
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Numbers are read down a column, so they align right and carry tabular figures. Mud marks
+   these with its own alignment class; the desk's own tables use .r for the same thing. There
+   is only one family on the desk now, so nothing restates it here. */
 .deskgrid .mud-table-cell.mud-align-right,
 .deskgrid .mud-table-cell.mud-align-end {
     text-align: right;
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
+}
+
+/* The two cell classes a hand-written .grid carried inside its own cells. Both were written as
+   .grid .dim and .grid .trunc and nowhere else, so a panel lost them at the moment it was
+   converted — a dimmed cell came back full-strength ink, a truncated one started wrapping.
+   Same declarations, same reasons, restated for the grid that replaced it. */
+.deskgrid .mud-table-body .mud-table-cell .dim { color: var(--text-tertiary); }
+
+/* Applied to the cell itself, through a column's CellClass — the same place .grid put it. */
+.deskgrid .mud-table-body .mud-table-cell.trunc {
+    max-width: 1px; /* forces the cell to take its share and no more */
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* MudDataGrid's footer, pager and selection column are all off in DeskGrid; if one is turned
    on later it should still sit on the desk's surface rather than Material's. */
-.deskgrid .mud-table-foot .mud-table-cell { border-top: 1px solid var(--ink-500); color: var(--haze); }
-.deskgrid .mud-table-pagination { border-top: 1px solid var(--ink-500); color: var(--haze); }
+.deskgrid .mud-table-foot .mud-table-cell { border-top: 1px solid var(--separator); color: var(--text-secondary); }
+.deskgrid .mud-table-pagination { border-top: 1px solid var(--separator); color: var(--text-secondary); }
 
 /* A grid whose rows go somewhere says so on the row, not just in a cell. */
 .deskgrid--clickable .mud-table-body .mud-table-row { cursor: pointer; }
 
+.deskgrid--clickable .mud-table-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* The row the operator opened for its actions stays lit — an accent wash on the row, the
+   same treatment "selected" uses anywhere on the desk, never a border or a left-edge bar
+   (that was the retired dial's habit). Specificity has to clear the plain hover rule above
+   so an open row does not go dark the moment the pointer leaves it. */
+.deskgrid--clickable .mud-table-row.board__row--open > .mud-table-cell {
+    background: var(--accent-wash);
+    color: var(--text-primary);
+}
+
 /* Dialogs sit above the desk, so they take the window's own shell rather than a
    Material card's. */
 .mud-dialog {
-    background-color: var(--ink-700);
-    border: 1px solid var(--ink-500);
+    background-color: var(--surface-1);
+    border: 1px solid var(--separator);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-sheet);
 }
 
-.mud-dialog-title { font-size: 13px; font-weight: 600; letter-spacing: .05em; }
-.mud-overlay-dialog { background-color: rgba(8, 10, 16, .62); }
+.mud-dialog-title { font-size: var(--text-headline); font-weight: var(--weight-semibold); letter-spacing: .05em; }
 
+/* No scrim rule here, on purpose. The scrim is not styleable from this file: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   and that child covers the overlay root edge to edge, so a rule aimed at the root's
+   own .mud-overlay-dialog class (which Mud uses for z-index and nothing else) is
+   painted over before it is seen. The scrim lives in DeskTheme.cs's OverlayDark. */
+
+/* A tooltip floats, and the desk's floating surfaces are materials — but this one is
+   opaque, for two reasons that are specific to a Mud-injected tooltip.
+
+   Mud renders it inside .mud-popover, which fades in with `opacity: 0 -> 1`. An
+   element at opacity < 1 forms a backdrop root, so a backdrop-filter here would have
+   nothing to sample for the whole of every fade and then snap into focus at the end.
+
+   And the opaque fallback could not be registered where the desk's other materials
+   register theirs. lineops.css's terminal @supports block loads BEFORE this file, so a
+   single-class .mud-tooltip fallback there loses to this rule on source order — it
+   would need a specificity hack keyed to Mud's popover DOM to land.
+
+   So: --surface-3, the same tier .tag's neutral capsule rests on. No border — hairlines
+   on this desk separate, they never outline, and a floating chip does not need an edge
+   drawn around its own fill. */
 .mud-tooltip {
-    background-color: var(--ink-600);
-    border: 1px solid var(--ink-400);
-    color: var(--chalk);
+    background-color: var(--surface-3);
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 11.5px;
+    font-size: var(--text-footnote);
     letter-spacing: .02em;
 }
 
-/* Chips carry state words, which the desk already spells with .tag — border-led
-   and calm, so a table full of them stays readable. */
+/* Chips carry state words, which the desk already spells with .tag — so a chip is
+   a capsule, and it is the same capsule.
+
+   This rule used to be border-led: a hairline at a 3px radius. That was the
+   outlined chip .tag itself retired, and it contradicted the desk twice over.
+   Hairlines on this desk separate; they never outline — a border around a chip is
+   the Material habit the whole restyle replaced. And an outline is a second edge
+   inside a table already ruled by hairlines, so a column of them reads as a column
+   of little boxes rather than as a column of states. A capsule has one edge, its
+   own fill, so a table of them settles.
+
+   Neutral is --surface-3 under --text-secondary, exactly as .tag's neutral is: the
+   shape says "label", and no state is claimed until something claims one. The
+   uppercase tracking is kept because .tag carries it — it is the deliberate
+   typographic treatment of a small state word at --text-caption, not Mud's ambient
+   button tracking leaking in, and dropping it here would put chips and tags back
+   out of step in the other direction.
+
+   Only the base chip is restated. Mud's own colour variants resolve through the
+   theme palette, which DeskTheme.cs already points at the desk's colours, so they
+   are left alone rather than re-declared here. */
 .mud-chip {
     height: 20px;
     margin: 2px;
-    padding: 0 7px;
-    border: 1px solid var(--ink-400);
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    background-color: var(--surface-3);
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
     transition: none;
 }
 
-/* Charts are the one thing MudBlazor was already trusted with. Their labels are
-   numbers, so they get the number face. */
-.mud-chart text { font-family: var(--face-data); font-size: 10px; fill: var(--haze); }
-.mud-charts-grid-line { stroke: var(--ink-500); }
+/* ----------------------------------------------------------------- toasts --- */
 
-/* Ripple is Material's press feedback, and it contradicts the desk's: a key
-   travels. Two answers to the same question is one too many, so the ripple goes.
-   DeskButton also passes Ripple="false"; this catches Mud components that press
-   without one. */
+/* A toast is the desk's transient tier — see Components/Desk/DeskToasts.cs, which is the
+   only thing allowed to raise one. Material's snackbar is a floating card in a filled
+   severity colour with a three-layer shadow; the desk's is the same raised surface a window
+   title bar uses, with the tone carried on one edge rather than across the whole notice. A
+   wash of colour in the corner of the screen would out-shout the pulse strip, which is the
+   one element ADR 0007 lets be loud.
+
+   `.desk-toast` comes from SnackbarOptions.SnackbarTypeClass, so it lands *instead of*
+   MudBlazor's own `.mud-alert-filled-*` class rather than alongside it — nothing here is
+   fighting a severity colour, it simply never arrives. Two classes deep out-specifies
+   `.mud-snackbar` for the base geometry. */
+.mud-snackbar.desk-toast {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-3);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sheet);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: 12.5px;
+    font-weight: 400; /* .mud-alert-filled-* asks for 500; nothing else on the desk does */
+    letter-spacing: .01em;
+    padding: 4px 12px;
+}
+
+/* The tone is a lit edge, the way a metric states its state. --toast-accent is the one
+   custom property a tone sets, so a new tone is one line here and one arm in DeskToasts. */
+.mud-snackbar.desk-toast { border-left: 2px solid var(--toast-accent, var(--surface-3)); }
+.mud-snackbar.desk-toast .mud-snackbar-icon { color: var(--toast-accent, var(--text-secondary)); }
+
+.desk-toast--go { --toast-accent: var(--state-positive); }
+.desk-toast--stop { --toast-accent: var(--state-negative); }
+.desk-toast--caution { --toast-accent: var(--state-warning); }
+.desk-toast--action { --toast-accent: var(--accent); }
+.desk-toast--neutral { --toast-accent: var(--surface-3); }
+
+/* Material's icon is 22px and sits at 90% opacity, which makes it the loudest thing in a
+   notice whose job is to be read once and forgotten. Bring it down to the chrome's size. */
+.mud-snackbar.desk-toast .mud-snackbar-icon {
+    padding: 0;
+    margin-right: 9px;
+    margin-inline-end: 9px;
+    opacity: 1;
+}
+
+.mud-snackbar.desk-toast .mud-snackbar-icon .mud-icon-root { font-size: 16px; }
+
+/* The close button is an escape, not a button — flat, dim, and it brightens rather than
+   fills. Giving it a fill would make the notice look pressable.
+
+   Note the class: the snackbar's dismiss is `.mud-snackbar-close-button`, not MudAlert's
+   `.mud-alert-close-button`. The two components share a look but not a class name, and the
+   alert's name is the one that reads as obvious. */
+.mud-snackbar.desk-toast .mud-snackbar-close-button {
+    color: var(--text-tertiary);
+    transition: color .12s ease;
+}
+
+.mud-snackbar.desk-toast .mud-snackbar-close-button:hover { color: var(--text-primary); }
+.mud-snackbar.desk-toast .mud-snackbar-close-button .mud-icon-root { font-size: 15px; }
+
+/* Charts are the one thing MudBlazor was already trusted with. Their labels get the same
+   face as everything else, named explicitly because MudChart draws its own SVG text rather
+   than inheriting the typography block above. */
+.mud-chart text { font-family: var(--face-ui); font-size: 10px; fill: var(--text-secondary); }
+.mud-charts-grid-line { stroke: var(--separator); }
+
+/* ----------------------------------------------------------------- charts ---- */
+
+/* DeskChart wraps MudChart in a <figure>, which browsers give a 1em side margin by
+   default — enough to pull a chart out of alignment with the panel heading above it.
+   Everything else here is the caption, which is desk text rather than Mud's, and the
+   plot's own box; the series colours come from DeskChartPalette in C#, because Mud
+   writes them into SVG attributes and its legend markup where a var() cannot reach. */
+.deskchart {
+    margin: 0 0 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* The caption comes first in the source so a screen reader hears the takeaway before
+   it reaches the plot, and `order` is not used to move it — reading order is the point. */
+.deskchart__cap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+/* Headline the takeaway, at the weight of a panel sub-heading rather than a title:
+   the window already said what this panel is. */
+.deskchart__headline {
+    color: var(--text-primary);
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.deskchart__takeaway {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+/* role="img" on the plot means the SVG's internals are one described object; the box
+   still has to reserve its own height so the panel does not jump as data arrives. */
+.deskchart__plot { min-width: 0; }
+
+/* Mud's legend is a list of series names, which on the desk is chrome: small, tracked,
+   dim, and not competing with the lines it labels. */
+.deskchart .mud-chart-legend-item,
+.deskchart .mud-chart-legend {
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 10.5px;
+    letter-spacing: .04em;
+}
+
+/* Ripple is Material's press feedback, and it contradicts the desk's: a button answers a
+   press with a fast scale, not a ripple. Two answers to the same question is one too many,
+   so the ripple goes. DeskButton also passes Ripple="false"; this catches Mud components
+   that press without one. */
 .mud-ripple-element { display: none; }
 
 /* Scrollbars inside Mud surfaces match the window body's. */
 .mud-paper,
-.mud-popover { scrollbar-width: thin; scrollbar-color: var(--ink-400) transparent; }
+.mud-popover { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 
-/* ------------------------------------------------------- 3. the key seam ---- */
+/* ------------------------------------------------------- 3. the button seam --- */
 
 /* DeskButton renders MudButton as Variant.Text with Color.Inherit, which is the
    variant that contributes the fewest visual rules — .mud-button-text-inherit
-   only sets `color: inherit`. Everything a key looks like then comes from
-   .desk-key in lineops.css, which loads first but wins at equal specificity for
+   only sets `color: inherit`. Everything a button looks like then comes from
+   .desk-btn in lineops.css, which loads first but wins at equal specificity for
    .mud-button's own declarations because this file loads after MudBlazor's.
 
    Two rules are needed because MudBlazor states them at two classes deep. */
 
 /* .mud-button-text.mud-button-text-inherit sets `color: inherit` at two classes,
-   which out-specifies .desk-key and pulls the ink off the panel behind the key
-   rather than taking it from the key's own tone. Matching its specificity and
-   winning on source order fixes it at the button, so everything inside — label,
-   Glyph, and anything added later — inherits the right ink instead of each
-   needing its own rule. */
-.desk-key.mud-button-text { color: var(--key-ink); }
+   which out-specifies .desk-btn and pulls the ink off the panel behind the
+   button rather than taking it from the button's own tone. Matching its
+   specificity and winning on source order fixes it at the button, so everything
+   inside — label, Glyph, and anything added later — inherits the right ink
+   instead of each needing its own rule. */
+.desk-btn.mud-button-text { color: var(--btn-ink); }
 
-/* MudBlazor's own hover fill would sit on top of the moulding. The lift and the
-   sheen are the hover signal; nothing else is needed. */
-.desk-key.mud-button:hover,
-.desk-key.mud-button:focus-visible,
-.desk-key.mud-button:active { background-color: var(--key-tint); }
+/* MudBlazor's own .mud-button:hover / :focus-visible / :active set a literal
+   background-color of their own (--mud-palette-action-default-hover) at the
+   same two-classes-deep specificity as the rule above. Left alone it would win
+   over the base `.desk-btn, .btn { background-color: var(--btn-fill) }` rule in
+   lineops.css, so every hover, focus, and press would show Mud's flat grey
+   instead of the variant's own fill — Plain would never show its surface tint,
+   Filled would never darken toward the pressed accent. Matching the specificity
+   here does not add any behaviour of its own; it just lets --btn-fill, already
+   updated by the variant's own :hover rule, keep winning. */
+.desk-btn.mud-button:hover,
+.desk-btn.mud-button:focus-visible,
+.desk-btn.mud-button:active { background-color: var(--btn-fill); }
 
-/* .mud-button sets min-width:64px, which makes an icon-only key oblong. */
-.desk-key.mud-button { min-width: 0; }
+/* .mud-button sets min-width:64px, which makes an icon-only button oblong. */
+.desk-btn.mud-button { min-width: 0; }
 
 /* .mud-button-root:disabled forces its colour with !important — the only place
    MudBlazor cannot be out-specified — so DeskTheme.cs sets ActionDisabled to the

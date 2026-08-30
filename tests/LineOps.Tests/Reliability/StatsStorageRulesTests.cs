@@ -3,6 +3,7 @@ using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Ingestion.Services;
+using LineOps.Reliability;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -58,7 +59,7 @@ public class StatsStorageRulesTests(PostgresFixture fixture)
         => new(
             db,
             new EntityResolver(db),
-            new CreditBudgetGuard(db, NullLogger<CreditBudgetGuard>.Instance),
+            new CreditBudgetGuard(new BudgetCalculator(db), NullLogger<CreditBudgetGuard>.Instance),
             NullLogger<StatsIngestionService>.Instance);
 
     private static string Line(params (string Key, string Value)[] pairs)

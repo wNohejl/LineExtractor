@@ -1,0 +1,250 @@
+/* ============================================================================
+   Apple-feel design tokens.
+
+   TEMPLATE — copy this into your wwwroot/css/ and load it FIRST of your own
+   sheets. Load order for the whole system, and it is load-bearing:
+
+       1. MudBlazor.min.css
+       2. apple-tokens.css      (this file — defines every custom property)
+       3. apple-components.css  (the component recipes that spend them)
+       4. apple-bridge.css      (re-points MudBlazor's own variables)
+
+   The visual language follows Apple's Human Interface Guidelines: true-neutral
+   dark surfaces, one accent, translucent materials on anything that floats, an
+   SF-derived type ramp, and motion that says where a thing came from.
+
+   Every token below is semantic — it names a role, never a colour. That is what
+   lets a second theme be a second token block rather than a component rewrite.
+   The C# mirror of the COLOUR tokens lives in AppleTheme.cs and must agree with
+   this block exactly; see references/mudblazor-seam.md for why both are needed.
+   ============================================================================ */
+
+/* The default theme is apple-dark. A future theme adds a second block keyed on
+   its own [data-theme] value and changes nothing else in this file. */
+:root,
+[data-theme="apple-dark"] {
+    /* --- Surfaces -----------------------------------------------------------
+       A true-neutral elevation ramp — Apple's systemGray ramp, read as surfaces.
+       systemGray6 and systemGray5 ARE --surface-0 and --surface-2. Warmth or a
+       blue undertone would fight the accent; macOS keeps its chrome neutral for
+       exactly that reason. */
+    --surface-0: #1C1C1E; /* the void — the ground everything sits on */
+    --surface-1: #232326; /* panel and window body */
+    --surface-2: #2C2C2E; /* title bars, raised rows, resting controls */
+    --surface-3: #38383A; /* hover fills, pressed states */
+
+    /* Hairlines separate; they never outline. A border around a panel is the
+       Material habit this system is replacing. */
+    --separator: rgba(255, 255, 255, .10);
+    --separator-strong: rgba(255, 255, 255, .16);
+
+    /* --- Text ---------------------------------------------------------------
+       White at opacity tiers rather than three fixed greys, so text keeps its
+       relationship to whatever surface or material is underneath it.
+
+       Contrast, measured against --surface-1: --text-secondary is 5.71:1 and
+       passes AA. --text-tertiary is 2.70:1 — below AA, and correct for exactly
+       the job it has (a hint, a placeholder, a unit nobody must read). If a value
+       an operator has to read is rendering in --text-tertiary, fix the call site.
+       Never brighten the de-emphasis token: that repairs one cell and flattens
+       the whole hierarchy. */
+    --text-primary: rgba(255, 255, 255, .92);
+    --text-secondary: rgba(255, 255, 255, .55);
+    --text-tertiary: rgba(255, 255, 255, .30);
+
+    /* --- Accent -------------------------------------------------------------
+       One accent, systemBlue. Interactivity, focus, and selection — nothing
+       else. A second accent is how an interface stops meaning anything. */
+    --accent: #0A84FF;
+    --accent-hover: #3D9BFF;
+    --accent-press: #0871DB;
+    --accent-wash: rgba(10, 132, 255, .15);
+    --accent-wash-strong: rgba(10, 132, 255, .24);
+    --on-accent: #FFFFFF;
+
+    /* --- Semantic state -----------------------------------------------------
+       Apple's dark-mode system colours. Applied by judgment where a state
+       genuinely needs a colour — not as an always-on channel that tints every
+       control in the app. Hue is the second channel, never the only one. */
+    --state-positive: #30D158;
+    --state-negative: #FF453A;
+    /* Exists so a destructive fill can lighten on hover the same way --accent-hover
+       lets the accent one — a lit state colour, not a mix computed at the call site. */
+    --state-negative-hover: #FF6961;
+    --state-warning: #FF9F0A;
+    --state-positive-wash: rgba(48, 209, 88, .15);
+    --state-negative-wash: rgba(255, 69, 58, .15);
+    --state-warning-wash: rgba(255, 159, 10, .15);
+
+    /* --- Chart neutrals -----------------------------------------------------
+       Two steps of Apple's dark-mode system grey ramp (systemGray, systemGray2),
+       kept opaque on purpose: a multi-series chart's neutral slots must stay one
+       fixed colour, and a translucent text token composites differently over
+       gridlines and overlapping series depending on what is drawn beneath it.
+       Charts never spend --text-* for series colour. */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #636366;
+
+    /* --- Materials ----------------------------------------------------------
+       Four tiers, thinnest to thickest, mirroring HIG materials. A material is
+       for things that float — menus, dialogs, sheets, chrome. Flat panel bodies
+       stay opaque, because data legibility beats depth.
+       See the @supports fallback rule at the END of apple-components.css. */
+    --material-ultrathin: rgba(44, 44, 46, .55);
+    --material-thin: rgba(40, 40, 42, .70);
+    --material-regular: rgba(36, 36, 38, .82);
+    --material-thick: rgba(30, 30, 32, .92);
+    --material-blur: saturate(180%) blur(30px);
+
+    /* --- Type ---------------------------------------------------------------
+       SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
+       on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
+       metrics, and shipping it locally stops Windows falling through to Segoe.
+       One family for everything — Apple sets numbers in SF too, so there is no
+       second "data" face to name: a column of figures is this face plus
+       font-variant-numeric: tabular-nums, which is what .num and .mono below set.
+       See templates/fonts/README.md before deleting the Inter entries. */
+    --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+    /* The HIG text-style ramp. A call site names the style, never the pixels.
+       These sizes are tuned for a dense operations console; scale the whole ramp
+       up for a consumer app, but keep the style names — they are the interface. */
+    --text-largetitle: 26px;
+    --text-title1: 22px;
+    --text-title2: 17px;
+    --text-title3: 15px;
+    --text-headline: 13px; /* same size as body, distinguished by weight */
+    --text-body: 13px;
+    --text-subheadline: 12px;
+    --text-footnote: 11px;
+    --text-caption: 10px;
+
+    --leading-title: 1.25;
+    --leading-body: 1.45;
+    --leading-tight: 1.2;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+
+    /* --- Spacing ------------------------------------------------------------
+       One 4px ramp for the whole app. Steps skip where the eye cannot tell the
+       difference, so every gap is a named rung. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* --- Shape --------------------------------------------------------------
+       Apple's radii are larger than Material's and grow with the surface. */
+    --radius-sm: 5px;    /* chips, tags, inline marks */
+    --radius: 7px;       /* controls — buttons, fields, selects */
+    --radius-panel: 12px; /* windows, panels, popovers */
+    --radius-sheet: 14px; /* sheets and alerts */
+
+    /* --- Motion -------------------------------------------------------------
+       Motion says where a thing came from. A sheet rises, a popover scales out
+       of its anchor, a control settles. Nothing moves for decoration.
+       --ease-spring overshoots a hair and settles, approximating the platform
+       spring; --ease-exit does not overshoot, because things leaving should not
+       draw a second look.
+
+       These are interaction motion. A continuous ambient signal — a live pulse,
+       a progress sheen, a ticker — is a different kind of motion and does not
+       take these durations; sizing an always-on animation from an interaction
+       token makes it read as a control responding to something. */
+    --dur-fast: .15s;
+    --dur-base: .25s;
+    --dur-slow: .35s;
+    --ease-standard: cubic-bezier(.25, .1, .25, 1);
+    --ease-spring: cubic-bezier(.32, 1.28, .42, 1);
+    --ease-exit: cubic-bezier(.4, 0, 1, 1);
+
+    /* --- Depth --------------------------------------------------------------
+       Soft, layered, and wide. Depth comes from shadow and material, not border. */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .30);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .30);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .75), 0 8px 24px rgba(0, 0, 0, .45);
+
+    /* Focus. One ring, everywhere, accent-coloured — Apple's own convention. It
+       sits OUTSIDE the control on an offset, which is what lets an accent ring
+       survive on an accent-filled button. */
+    --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
+
+    /* --- Layers -------------------------------------------------------------
+       Deliberately low at the base level so anything floating has room. Rename
+       or extend for your own chrome; MudBlazor's own z-indexes are re-pointed at
+       these in apple-bridge.css, so keep the four below whatever else changes. */
+    --z-chrome: 8000;  /* headers, footers, fixed rails */
+    --z-popover: 9000; /* menus anchored to chrome */
+    --z-modal: 9500;   /* scrim, sheets, alerts */
+    --z-toast: 9800;   /* transient notices, always on top */
+}
+
+/* Inter, self-hosted. The variable file covers every weight the ramp asks for,
+   so there is one request rather than four. Download the two files per
+   templates/fonts/README.md — they are deliberately NOT shipped in this skill. */
+@font-face {
+    font-family: 'Inter var';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter var';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable-Italic.woff2') format('woff2');
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numbers are read in columns, so they get tabular figures everywhere. There is
+   no separate mono family — SF and Inter both carry proper tabular figures, and
+   one family across the app is the HIG reading. */
+.num, .mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'cv05' 1;
+    letter-spacing: 0;
+}
+
+/* Motion is a signal, not a flourish, so it goes away entirely when asked.
+
+   This is the one place !important is correct: a preference that a component can
+   out-specify is not a preference. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* ---- A note on the material fallback ---------------------------------------
+   Every surface that uses backdrop-filter needs an opaque @supports fallback,
+   and that fallback block must be the LAST thing in the last of your own
+   stylesheets — it lives at the end of apple-components.css. @supports adds no
+   specificity, so its single-class rules beat their unconditional counterparts
+   on source order alone. Written earlier in a sheet it is silently shadowed and
+   every material falls back to the wrong tier. If you add a material surface,
+   add its fallback to that block and re-test with backdrop-filter disabled.
+   --------------------------------------------------------------------------- */

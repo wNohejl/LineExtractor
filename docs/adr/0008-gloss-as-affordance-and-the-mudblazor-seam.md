@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+**Superseded in part by:** [ADR 0016](0016-apple-feel-design-system.md). The gloss and
+hue rules below are no longer in force. The MudBlazor seam this ADR established — three
+files, and the `:root:root` reasoning — is unchanged and still current.
+
 **Amends:** [ADR 0007](0007-window-manager-ui.md), which recorded "MudBlazor remains for charts only."
 
 ## Context

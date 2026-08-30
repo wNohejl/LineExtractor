@@ -1,6 +1,10 @@
 @using LineOps.Web.Components.Desk
 @using LineOps.Web.Windowing
+@using LineOps.Data.CrossReference
 @inherits PanelBase
+@inject DeskToasts Toasts
+@inject IDeskAlerts Alerts
+@inject IDialogService Dialogs
 
 @*
     The parts bin: every reusable control the desk owns, in one window you can open
@@ -8,157 +12,675 @@
 
     It exists because the alternative is reading CSS to find out what already exists,
     which is how a second button gets invented. Being a window rather than a doc page
-    is the point — it renders in the same column width, on the same surface, under the
-    same theme as the panel it is being copied into, so "does this fit?" is answerable
-    by looking rather than guessing.
+    is the point (ADR 0008) — it renders in the same column width, on the same surface,
+    under the same theme as the panel it is being copied into, so "does this fit?" is
+    answerable by looking rather than guessing.
+
+    Everything below teaches the shipped system, whose four load-bearing rules are:
+    weight replaces hue, state lives on values, materials float, and comparison is
+    never modal.
 *@
 
-<p class="note" style="margin-bottom:14px">
-    Everything here is live. Hover a key to see it lift, press it to feel the throw, and
-    tab through the row to check that the keyboard gets the same signal the pointer does.
-</p>
+<Note Style="margin:12px 0 14px">
+    Everything here is live. Press what looks pressable, and tab through each row —
+    the keyboard has to get the same signal the pointer does, or only half the desk
+    is finished.
+</Note>
 
-<h3 class="panel-h">Keys — tone</h3>
+@* ==========================================================================
+   Buttons
+   ========================================================================== *@
+
+<PanelHeader>Buttons — emphasis</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
-    Gloss is the desk's affordance channel: a surface that catches the light can be
-    clicked. Tone then states the consequence, using the same dial as everything else.
+    Weight says how loud, not what colour. Hue is no longer an affordance channel: an
+    interface with five coloured button types has no primary action, only five competing
+    ones. A call site answers two questions it can actually answer —
+    <span class="mono">Emphasis</span> for how much of the panel this claims, and
+    <span class="mono">Role</span> for whether pressing it destroys something.
 </p>
 
-<div class="row" style="margin-bottom:6px">
-    <DeskButton Tone="DeskTone.Neutral">Neutral</DeskButton>
-    <DeskButton Tone="DeskTone.Action" Icon="@Icons.Material.Filled.Check">Action</DeskButton>
-    <DeskButton Tone="DeskTone.Go" Icon="@Icons.Material.Filled.PlayArrow">Go</DeskButton>
-    <DeskButton Tone="DeskTone.Caution" Icon="@Icons.Material.Filled.Warning">Caution</DeskButton>
-    <DeskButton Tone="DeskTone.Stop" Icon="@Icons.Material.Filled.DeleteOutline">Stop</DeskButton>
-</div>
+<DeskStack Gap="DeskSpace.Space3">
+    @foreach (var (emphasis, name, use) in _emphases)
+    {
+        <div>
+            <div class="dim" style="font-size:11px; margin-bottom:5px">
+                <span class="mono">@name</span> — @use
+            </div>
+            <DeskRow Gap="DeskSpace.Space2">
+                <DeskButton Emphasis="@emphasis">Apply</DeskButton>
+                <DeskButton Emphasis="@emphasis" Role="DeskRole.Destructive">Delete run</DeskButton>
+            </DeskRow>
+        </div>
+    }
+</DeskStack>
 
-<p class="empty" style="padding:2px 0 0">
-    Name the outcome, not the colour — <span class="mono">Tone.Stop</span>, never "red".
-    One <span class="mono">Action</span> per group; if two keys both look like the intent,
-    neither is.
+<Note Style="margin:12px 0 0">
+    <strong>Exactly one Filled per context.</strong> If a panel seems to need two, one of
+    them is not the primary action — demote it to Tinted and the panel says what it is for.
+</Note>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Buttons — size</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Size is about how much of the panel the action deserves, not about fitting. Chrome and
+    row actions are Small; a panel's own intent is Medium; Large is for the one button a
+    whole view exists to press, which most views do not have.
 </p>
 
-<h3 class="panel-h">Keys — state</h3>
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted">Small</DeskButton>
+    <DeskButton Size="DeskKeySize.Medium" Emphasis="DeskEmphasis.Tinted">Medium</DeskButton>
+    <DeskButton Size="DeskKeySize.Large" Emphasis="DeskEmphasis.Tinted">Large</DeskButton>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Reload" />
+</DeskRow>
 
-<div class="row" style="margin-bottom:6px">
-    <DeskButton Tone="DeskTone.Go" Busy="@_busy" OnClick="RunAsync">
+<PanelHeader Gap="PanelHeaderGap.Section">Buttons — state</PanelHeader>
+
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskButton Emphasis="DeskEmphasis.Filled" Busy="@_busy" OnClick="RunAsync">
         @(_busy ? "Ingesting" : "Press to run")
     </DeskButton>
-    <DeskButton Tone="DeskTone.Action" Disabled="true">Disabled</DeskButton>
-    <DeskButton Quiet="true">Quiet</DeskButton>
-    <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Reload" />
-</div>
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Disabled="true">Disabled</DeskButton>
+    <DeskButton Emphasis="DeskEmphasis.Plain" Disabled="true">Disabled, plain</DeskButton>
+</DeskRow>
 
-<p class="empty" style="padding:2px 0 0">
-    A busy key keeps its gloss and borrows the pulse strip's sweep — it is occupied, not
-    inert. A disabled key loses the sheen outright, because under the rule above an unlit
-    surface is one you cannot press. Quiet is a link wearing a hit area: it never lifts,
-    so it cannot compete with the key beside it that commits.
+<p class="empty" style="padding:9px 0 0">
+    A busy button keeps its weight and runs the in-flight sweep: it is occupied, not inert,
+    and it refuses further presses without pretending it has gone away. A disabled button
+    drops to the muted ink instead — the two states look different because they mean
+    different things, and an operator who cannot tell them apart will keep pressing.
 </p>
 
-<h3 class="panel-h">Keys — size</h3>
+@* ==========================================================================
+   Fields
+   ========================================================================== *@
 
-<div class="row">
-    <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Neutral">Small</DeskButton>
-    <DeskButton Size="DeskKeySize.Medium" Tone="DeskTone.Neutral">Medium</DeskButton>
-    <DeskButton Size="DeskKeySize.Large" Tone="DeskTone.Action">Large</DeskButton>
-</div>
-
-<h3 class="panel-h">Fields</h3>
+<PanelHeader Gap="PanelHeaderGap.Section">Fields</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
-    The key's inverse, cut into the panel instead of standing off it. Same height, so a
-    row of mixed controls still lines up.
+    The button's inverse: inset into the panel rather than standing off it. Same height, so
+    a row of mixed controls still lines up. Bare — no <span class="mono">Label</span>, no
+    <span class="mono">Error</span> — each renders as a plain element with no wrapper and
+    sits straight in a row.
 </p>
 
-<div class="row">
-    <input class="field" placeholder="Book" style="max-width:150px" @bind="_text" />
-    <input class="field num" type="number" placeholder="Price" style="max-width:100px" @bind="_number" />
-    <select class="field" @bind="_choice">
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskField TValue="string" placeholder="Book" style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Price"
+               style="max-width:100px" @bind-Value="_number" />
+    <DeskSelect TValue="string" @bind-Value="_choice">
         <option value="spread">Spread</option>
         <option value="total">Total</option>
         <option value="moneyline">Moneyline</option>
-    </select>
-    <input class="field" placeholder="Disabled" disabled style="max-width:120px" />
-</div>
+    </DeskSelect>
+    <DeskField TValue="string" placeholder="Disabled" disabled style="max-width:120px" />
+</DeskRow>
 
-<h3 class="panel-h">State words</h3>
-
-<div class="row">
-    <span class="tag">Neutral</span>
-    <span class="tag tag--good">Healthy</span>
-    <span class="tag tag--warn">Degraded</span>
-    <span class="tag tag--bad">Breached</span>
-    <span class="tag tag--info">Selected</span>
-</div>
-
-<h3 class="panel-h">Metrics</h3>
-
-<div class="metrics">
-    <div class="metric metric--good">
-        <div class="metric__value num">98.4%</div>
-        <div class="metric__label">Uptime</div>
-        <div class="metric__note">30-day rolling</div>
-    </div>
-    <div class="metric metric--warn">
-        <div class="metric__value num">412</div>
-        <div class="metric__label">Credits left</div>
-    </div>
-    <div class="metric metric--bad">
-        <div class="metric__value num">-2.1%</div>
-        <div class="metric__label">CLV</div>
-    </div>
-    <div class="metric metric--info">
-        <div class="metric__value num">6</div>
-        <div class="metric__label">Sources</div>
-    </div>
-</div>
-
-<h3 class="panel-h">Pulse</h3>
-<p class="empty" style="padding:0 0 9px">
-    The desk's other loud element, and the one a key's busy sweep borrows from. Set it
-    from a panel with <span class="mono">Report(PulseState.Active)</span>.
+<p class="empty" style="padding:9px 0">
+    Given a label, the field grows a frame: a real <code>&lt;label for&gt;</code> that stays put
+    once there is text in the box, the required mark, and — the rule that matters — the error
+    sitting under the control it is about rather than somewhere else on the panel. State lives
+    on the value. <span class="mono">Mono</span> puts tabular figures under a number, so a
+    column of prices lines up on the digit rather than on the glyph.
 </p>
 
-<div class="stack" style="gap:6px">
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Start">
+    <DeskField TValue="string" Label="Book" Required="true" placeholder="Pinnacle"
+               style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Label="Price" Mono="true" type="number" placeholder="-110"
+               style="max-width:100px" @bind-Value="_number"
+               Error="@(_number is null ? "A price is required to grade this." : null)" />
+    <DeskSelect TValue="string" Label="Market" style="max-width:150px" @bind-Value="_choice">
+        <option value="spread">Spread</option>
+        <option value="total">Total</option>
+        <option value="moneyline">Moneyline</option>
+    </DeskSelect>
+</DeskRow>
+
+<DeskStack Gap="DeskSpace.Space2" Style="margin-top:9px">
+    <DeskTextArea Label="Why this entry" rows="3"
+                  placeholder="Prose, so it commits on blur rather than per keystroke."
+                  @bind-Value="_prose" />
+</DeskStack>
+
+@* ==========================================================================
+   Gate
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Gate</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    One visible choice among a few — a market, a lookback, a mode. The cap slides to the
+    position you press, and arrows move it from the keyboard. Two to five fixed positions;
+    past that, a select is the honest control, because a segmented gate that scrolls is a
+    select wearing a costume.
+</p>
+
+<DeskRow Gap="DeskSpace.Space3">
+    <DeskSwitch Options="_gateMarkets" Label="Demo market" @bind-Value="_gateMarket" />
+    <DeskSwitch Options="GateOptions.LookbackDays" Label="Demo lookback" Mono="true"
+                @bind-Value="_gateDays" />
+</DeskRow>
+
+<p class="empty" style="padding:9px 0 0">
+    <span class="mono">GateOptions.LookbackDays</span> is shared — a lookback window reads
+    "14d / 30d / 90d" in every window, not two spellings of the same question.
+</p>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Tabs</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The same marble, doing the other job. A gate changes what one reading is made of; tabs
+    change which reading you are looking at, so they are flat — nothing here is pressed
+    down. A section with nothing behind it is never offered, and one section on its own
+    renders with no bar at all.
+</p>
+
+<DeskTabs TValue="string" Tabs="_demoTabs" Label="Demo sections" @bind-Value="_demoTab">
+    <Note Style="margin:0 0 10px">
+        Showing <span class="mono">@context</span>. The third tab is marked unavailable, so
+        it is not on the bar — flip it to see the marble re-measure itself.
+    </Note>
+</DeskTabs>
+
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskButton Size="DeskKeySize.Small" OnClick="() => _thirdTab = !_thirdTab">
+        @(_thirdTab ? "Take the third section away" : "Give the third section content")
+    </DeskButton>
+</DeskRow>
+
+@* ==========================================================================
+   Tags
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Tags</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The state word, at word scale. A tag always says its word — the wash is the second
+    channel, never the only one, so the row still reads with the colour taken away. Neutral
+    carries no state at all and is the right choice for a label that is only a label.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2">
+    @foreach (var (state, word) in _tagStates)
+    {
+        <Tag State="@state">@word</Tag>
+    }
+</DeskRow>
+
+<p class="empty" style="padding:9px 0 0">
+    Name the consequence, not the colour: <span class="mono">DeskState.Negative</span> on a
+    breached SLO, never "the red one". The day the wash changes, every call site that named
+    the outcome still reads correctly.
+</p>
+
+@* ==========================================================================
+   Display
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Display — metrics</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    State lives on the value, not on a chrome around it. The label stays quiet in every
+    case; only the number changes colour, because the number is the thing that went wrong.
+</p>
+
+<MetricRow>
+    <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" State="DeskState.Positive" Numeric="true" />
+    <Metric Label="Credits left" Value="412" State="DeskState.Warning" Numeric="true" />
+    <Metric Label="CLV" Value="-2.1%" State="DeskState.Negative" Numeric="true" />
+    <Metric Label="Sources" Value="6" State="DeskState.Info" Numeric="true" />
+</MetricRow>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Display — price cell</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    One market's best offer, and where the rest of the market stands. The rail is the point:
+    each tick is a book placed by implied probability between best and worst, so the width of
+    the group <em>is</em> the value of shopping. Books that agree collapse to one mark, which
+    is the correct picture of a market with nothing to shop for.
+</p>
+
+<DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Start">
+    <PriceCell Offer="_spreadHome" Selection="SF" />
+    <PriceCell Offer="_spreadAway" Selection="COL" />
+</DeskRow>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Display — progress</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Prefer determinate whenever the denominator is knowable — if you are walking six books,
+    you know it. The label names the action, never the wait: "Loading…" describes the
+    operator's experience, which they already have, rather than the system's work, which they
+    do not. Mode is a parameter, chosen once and held; a bar that changes style mid-flight
+    reads as a restart.
+</p>
+
+<DeskStack Gap="DeskSpace.Space4">
+    <DeskProgress Label="Fetching odds from 6 books" Value="@_progress" Max="100" />
+    <DeskProgress Indeterminate="true" Label="Reconciling open wagers" />
+</DeskStack>
+
+<DeskRow Gap="DeskSpace.Space2" Style="margin-top:10px">
+    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                Busy="@_stepping" OnClick="StepAsync">
+        Advance the bar
+    </DeskButton>
+</DeskRow>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Display — skeletons</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    A placeholder holds the shape the real content will take, so the layout does not jump
+    when it lands. Match the final shape — lines for prose, a block for a chart — and give it
+    the width the real thing has. Opaque, never a material: this holds data and does not
+    float. Reduced motion keeps the block and drops the shimmer.
+</p>
+
+<DeskStack Gap="DeskSpace.Space3">
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">One line, 40% wide</div>
+        <DeskSkeleton Width="40%" />
+    </div>
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">Three lines — the last runs short, the way prose does</div>
+        <DeskSkeleton Lines="3" />
+    </div>
+    <div>
+        <div class="dim" style="font-size:11px; margin-bottom:5px">A block, standing in for a chart</div>
+        <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
+    </div>
+</DeskStack>
+
+<PanelHeader Level="4" Gap="PanelHeaderGap.Nested">In a grid</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskGrid</span> takes <span class="mono">Loading</span>: with no rows
+    yet it stands aside and placeholder rows hold its rhythm. A grid that already has rows
+    keeps them and reports the refresh through the pulse strip instead — replacing read
+    numbers with grey bars loses information the operator was using.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2" Style="margin-bottom:8px">
+    <DeskButton Size="DeskKeySize.Small" OnClick="@(() => _gridLoading = !_gridLoading)">
+        @(_gridLoading ? "Show rows" : "Show placeholders")
+    </DeskButton>
+</DeskRow>
+
+<DeskGrid T="PartRow" Items="@(_gridLoading ? Array.Empty<PartRow>() : _rows)" Loading="@_gridLoading"
+          LoadingLabel="Fetching book prices" SkeletonRows="4" Sortable="false">
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Book" Title="Book" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Market" Title="Market" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Price" Title="Price" />
+</DeskGrid>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Display — empty states</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Nothing to show is still something to say. <span class="mono">Kind</span> picks which
+    sentence the panel is writing, and the reader's next move follows from it — the wrong
+    kind sends them to check the feed when the filter was the problem. Each carries at most
+    one action, and it is the first step rather than a menu of them.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    <EmptyState>
+        Default — the bare line. Loading notes and neutral asides live here.
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.New">
+        <ChildContent>
+            New — nothing exists yet, so the message is about what would.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.Add">Log the first entry</DeskButton>
+        </Action>
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        <ChildContent>
+            Filtered — rows exist; this window excluded them. Name the control that did it.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small"
+                        Icon="@Icons.Material.Filled.FilterAltOff">Clear the filter</DeskButton>
+        </Action>
+    </EmptyState>
+
+    <EmptyState Kind="EmptyStateKind.Error">
+        <ChildContent>
+            Error — the load failed, which a grey sentence alone would not distinguish from
+            "nothing here yet". Hue plus shape, never hue on its own.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh">Retry</DeskButton>
+        </Action>
+    </EmptyState>
+</DeskStack>
+
+@* ==========================================================================
+   Modality
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Modality</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Three live examples. Open each one; the decision rule underneath is easier to believe
+    once you have felt the difference between a surface that lets you keep working and one
+    that does not.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.OpenInNew"
+                OnClick="@(() => _dialogOpen = true)">
+        Floating dialog
+    </DeskButton>
+
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.VerticalAlignBottom"
+                OnClick="OpenSheetAsync">
+        Modal sheet
+    </DeskButton>
+
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                Icon="@Icons.Material.Filled.DeleteOutline"
+                OnClick="AskAsync">
+        Destructive alert
+    </DeskButton>
+</DeskRow>
+
+@if (_sheetOutcome is not null || _alertOutcome is not null)
+{
+    <DeskStack Gap="DeskSpace.Space1" Style="margin-top:10px">
+        @if (_sheetOutcome is not null)
+        {
+            <div class="dim" style="font-size:11.5px">
+                Sheet returned <span class="mono">@_sheetOutcome</span>
+            </div>
+        }
+        @if (_alertOutcome is not null)
+        {
+            <div class="dim" style="font-size:11.5px">
+                Alert returned <span class="mono">@_alertOutcome</span>
+            </div>
+        }
+    </DeskStack>
+}
+
+<Note Style="margin:12px 0 0">
+    <strong>The rule, in full.</strong> Use a <span class="mono">DeskSheet</span> when the
+    task is self-contained and completing it is the only goal — a form that must complete or
+    cancel, a multi-step configuration. Use a <span class="mono">DeskDialog</span> when the
+    operator needs to see or compare other things while working; it floats, several can be
+    open at once, and it never takes the desk hostage.
+    <span class="mono">Alerts.ConfirmAsync</span> is the narrowest tier and the only one
+    allowed to interrupt: a decision that must be made before anything else happens, and
+    nothing else. <strong>Comparison is never modal. If you are unsure, do not be modal.</strong>
+</Note>
+
+<p class="empty" style="padding:9px 0 0">
+    Two details the demos above are here to pin, both found the hard way. <strong>Read the
+    <span class="mono">DialogResult</span>, never <span class="mono">OnCancel</span>.</strong>
+    Escape and backdrop dismissal go through MudBlazor's own cancel path and never raise the
+    component's callback, so a sheet that only listened to <span class="mono">OnCancel</span>
+    would treat a dismissed task as an unanswered one forever. The pattern is
+    <span class="mono">result is { Canceled: false, Data: … }</span> — an unanswered question
+    is a "no", which is also why this sheet can afford
+    <span class="mono">BackdropClick = true</span> on a form with a required field: a stray
+    click outside costs the operator the draft, not a bad write. An alert does the opposite
+    (<span class="mono">DeskAlerts</span> sets it false) because a decision must not be
+    dismissed by missing it. And a destructive confirm is <em>never</em> the default: the
+    alert focuses Cancel on open, so Enter backs out — unless there is no Cancel to focus, in
+    which case a one-button acknowledgement gives the default back to its only button rather
+    than leaving Enter to answer the page behind it. Tab once to reach the red button, which
+    is exactly as much friction as deleting something deserves.
+</p>
+
+@if (_dialogOpen)
+{
+    <DeskDialog Title="Floating dialog"
+                Subtitle="Drag the bar — the desk stays usable behind it"
+                Width="420px"
+                OnClose="@(() => _dialogOpen = false)">
+        <p class="empty" style="padding:0 0 9px">
+            Not modal, on purpose. There is no scrim, the panels behind still scroll and
+            accept clicks, and several of these can be open at once — because the workflow
+            this serves is comparing things, and a modal would force you to finish with one
+            board before looking at the next.
+        </p>
+        <p class="empty" style="padding:0">
+            It borrows the window's own chrome — same title bar height, same controls, same
+            shadow — so it reads as a member of the desk rather than a web dialog that
+            wandered in.
+        </p>
+    </DeskDialog>
+}
+
+@* ==========================================================================
+   Notices
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Notices</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">&lt;Note&gt;</span> is the ambient tier: it sits beside the thing it
+    describes and stays as long as the thing is true. No dismiss control, no timer — if it
+    needs acknowledging it is an alert, and if it should vanish it is a toast.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <Note Style="margin:0">
+        A note carries context the operator needs but did not ask for.
+    </Note>
+    <Note State="DeskState.Warning" Style="margin:0">
+        A warning carries a cost. State what it is, and what to do instead.
+    </Note>
+</DeskStack>
+
+<p class="empty" style="padding:9px 0 0">
+    Only <span class="mono">DeskState.Warning</span> changes the skin, because a cost is the
+    one thing an operator has to act on. ADR 0016's rule holds inside the box too: the hue
+    never carries the message on its own — the sentence says what the cost is, and the wash
+    only makes it findable.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center" Style="margin-top:9px">
+    <span class="dim" style="font-size:11.5px">At word scale, inside a row or cell:</span>
+    <span class="mono" style="font-size:12px">
+        <Note Inline State="DeskState.Warning">62%</Note>
+    </span>
+</DeskRow>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Toasts</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The transient tier. A toast reports that something finished while you were looking
+    somewhere else: non-critical, auto-dismissing, recoverable from the panel that raised it.
+    Anything needing a decision stays inline or becomes an alert, because a notice that has
+    dismissed itself cannot be acted on. Panels take
+    <span class="mono">DeskToasts</span>, never <span class="mono">ISnackbar</span>.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Success("Evaluated — every source inside its SLO."))">
+        Success
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Info("Layout saved to this browser."))">
+        Info
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Warn("Pull finished — 12 pulls left in today's allowance."))">
+        Warn
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Fail("Scheduled pull failed — the provider timed out."))">
+        Fail
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Show("Nothing to report."))">
+        Neutral
+    </DeskButton>
+</DeskRow>
+
+@* ==========================================================================
+   Pulse
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Pulse</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The window chrome's own state channel, and the one a busy button's sweep borrows from.
+    Set it from a panel with <span class="mono">Report(PulseState.Active)</span> rather than
+    drawing it yourself.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
     @foreach (var (state, label) in _pulses)
     {
-        <div class="row" style="gap:10px">
+        <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Center">
             <div class="pulse @state" style="width:120px; border-radius:1px"></div>
             <span class="dim" style="font-size:11.5px">@label</span>
-        </div>
+        </DeskRow>
     }
-</div>
+</DeskStack>
 
-<h3 class="panel-h">Notices</h3>
+@* ==========================================================================
+   Charts
+   ========================================================================== *@
 
-<div class="stack">
-    <p class="note" style="margin:0">
-        A note carries context the operator needs but did not ask for.
-    </p>
-    <p class="note note--warn" style="margin:0">
-        A warning carries a cost. State what it is, and what to do instead.
-    </p>
-</div>
+<PanelHeader Gap="PanelHeaderGap.Section">Charts</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskChart</span> is the seam over MudBlazor's chart. A caller states
+    the data, what kind of number it is, and one sentence a screen reader can use — never a
+    colour. The family decides the series palette once, so the same kind of number reads the
+    same in every window.
+</p>
+
+<DeskChart Series="@_movement" Labels="@_chartLabels" Height="180px"
+           Family="DeskChartFamily.Movement"
+           Headline="Movement — prices over time"
+           Takeaway="Hue is identity here, not state: accent, positive, warning, negative, then neutrals."
+           Description="Demonstration line chart with three series in the movement palette." />
+
+<DeskChart Series="@_ledger" Labels="@_chartLabels" Height="160px"
+           Family="DeskChartFamily.Ledger"
+           ShowLegend="false"
+           Headline="Ledger — money you kept"
+           Takeaway="Opens on the positive state, because that is already how the desk spells won."
+           Description="Demonstration line chart of a single cumulative units series." />
+
+<DeskChart Series="@_health" Labels="@_chartLabels" Kind="DeskChartKind.Bar" Height="160px"
+           Family="DeskChartFamily.Health"
+           Headline="Health — how a source is behaving"
+           Takeaway="Ordered like the pulse strip: healthy, warn, breached."
+           Description="Demonstration bar chart with three series in the health palette." />
+
+@* ==========================================================================
+   Foundation
+   ========================================================================== *@
+
+<PanelHeader Gap="PanelHeaderGap.Section">Spacing</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    One 4px ramp. Pass a step to <span class="mono">DeskRow</span> or
+    <span class="mono">DeskStack</span> rather than writing a pixel gap inline.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    @foreach (var (step, name, px) in _spaces)
+    {
+        <DeskRow Gap="DeskSpace.Space3">
+            <span class="mono dim" style="width:64px; font-size:11px">@name</span>
+            <div style="height:8px; border-radius:1px; background:var(--accent); width:@px"></div>
+            <span class="dim" style="font-size:11px">@px</span>
+            <span class="dim" style="font-size:11px">@_spaceUse[step]</span>
+        </DeskRow>
+    }
+</DeskStack>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Type styles</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Named for the job, not the size — <span class="mono">--text-body</span> keeps meaning the
+    right thing when 13px stops being 13px.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    @foreach (var (token, size, leading, use) in _typeStyles)
+    {
+        <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Baseline">
+            <span class="mono dim" style="width:104px; font-size:11px">@token</span>
+            <span style="font-size:var(@token); line-height:var(@leading)">Line movement held</span>
+            <span class="dim" style="font-size:11px">@size / @use</span>
+        </DeskRow>
+    }
+</DeskStack>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Row and stack</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskRow</span> is the horizontal one with its gap, alignment and
+    justification named; <span class="mono">DeskStack</span> is the vertical one. Both leave
+    the 8px default alone when Gap is unset.
+</p>
+
+<DeskStack Gap="DeskSpace.Space3">
+    <DeskRow Gap="DeskSpace.Space2">
+        <span class="dim" style="font-size:11px">Row, Space2 — the default gap.</span>
+        <Tag>one</Tag>
+        <Tag>two</Tag>
+    </DeskRow>
+
+    <DeskRow Gap="DeskSpace.Space4">
+        <span class="dim" style="font-size:11px">Row, Space4.</span>
+        <Tag>one</Tag>
+        <Tag>two</Tag>
+    </DeskRow>
+
+    <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space2">
+        <DeskButton Emphasis="DeskEmphasis.Plain">Cancel</DeskButton>
+        <DeskButton Emphasis="DeskEmphasis.Filled">Apply</DeskButton>
+    </DeskRow>
+
+    <DeskRow Justify="DeskJustify.Between">
+        <span class="dim" style="font-size:11px">Justify=Between — label left, control right.</span>
+        <Tag>right</Tag>
+    </DeskRow>
+</DeskStack>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Panel headings</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Every rule on this page is a <code>PanelHeader</code>. It owns the spacing, so call sites
+    no longer spell that as an inline margin — the three intentions are <code>Tight</code>,
+    <code>Gap</code> and <code>Muted</code>.
+</p>
+
+<PanelHeader>Default — opens a section</PanelHeader>
+<p class="empty" style="padding:0 0 9px">The stylesheet's own rhythm, nothing added.</p>
+
+<PanelHeader Gap="PanelHeaderGap.Section">Section — after content that has ended</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    The same air two stacked headings already give each other.
+</p>
+
+<PanelHeader Level="4" Gap="PanelHeaderGap.Nested">Nested — belongs to the block above</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Rank 4, so the outline stays honest. Every rank looks the same; only a screen reader can
+    tell them apart.
+</p>
+
+<PanelHeader Level="4" Gap="PanelHeaderGap.Nested" Muted>Muted — names a thing, not a section</PanelHeader>
+<p class="empty" style="padding:0 0 9px">
+    Brighter ink, for a heading carrying a team or an opponent rather than a label.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Baseline" Style="margin-top:10px">
+    <PanelHeader Tight>Tight — the row is already spacing it</PanelHeader>
+    <Tag State="DeskState.Info">live</Tag>
+</DeskRow>
 
 @code {
-    private static readonly (string Class, string Label)[] _pulses =
+    // ---------------------------------------------------------------- buttons ---
+
+    private static readonly (DeskEmphasis Emphasis, string Name, string Use)[] _emphases =
     [
-        ("pulse--healthy", "Healthy — the source answered, and the numbers moved."),
-        ("pulse--active", "Active — work is genuinely in flight."),
-        ("pulse--warn", "Warn — degraded, or under budget pressure."),
-        ("pulse--critical", "Critical — the one state you must not miss."),
-        ("pulse--idle", "Idle — nothing has run yet.")
+        (DeskEmphasis.Plain, "Plain",
+            "transparent until pointed at — toolbar actions, and every way out of a thing"),
+        (DeskEmphasis.Tinted, "Tinted",
+            "an accent wash — secondary actions that still have to be found in a dense panel"),
+        (DeskEmphasis.Filled, "Filled",
+            "solid accent — the one action this context exists to commit")
     ];
 
     private bool _busy;
-    private string? _text;
-    private decimal? _number;
-    private string _choice = "spread";
 
-    protected override void OnInitialized() => Report(PulseState.Idle, "reference");
-
-    // Deliberately fake. A styleguide's job is to let you look at a state, and busy is a
-    // state you otherwise have to catch mid-request to see.
+    // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
+    // you otherwise have to catch mid-request to see.
     private async Task RunAsync()
     {
         _busy = true;
@@ -169,4 +691,278 @@
         _busy = false;
         Report(PulseState.Healthy, "reference");
     }
+
+    // ----------------------------------------------------------------- fields ---
+
+    private string? _text;
+    private decimal? _number;
+    private string _choice = "spread";
+    private string? _prose;
+
+    // ------------------------------------------------------------ gate and tabs ---
+
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _gateMarkets =
+    [
+        new("moneyline", "Moneyline"),
+        new("spread", "Spread"),
+        new("total", "Total")
+    ];
+
+    private string _gateMarket = "moneyline";
+    private int _gateDays = 30;
+
+    private string _demoTab = "Lines";
+    private bool _thirdTab;
+
+    private IReadOnlyList<DeskTab<string>> _demoTabs =>
+    [
+        new("Lines", "Lines"),
+        new("Team data", "Team data"),
+        new("Box score", "Box score", _thirdTab)
+    ];
+
+    // ------------------------------------------------------------------- tags ---
+
+    private static readonly (DeskState State, string Word)[] _tagStates =
+    [
+        (DeskState.Neutral, "Neutral"),
+        (DeskState.Info, "Selected"),
+        (DeskState.Positive, "Healthy"),
+        (DeskState.Warning, "Degraded"),
+        (DeskState.Negative, "Breached")
+    ];
+
+    // ---------------------------------------------------------------- display ---
+
+    private sealed record PartRow(string Book, string Market, string Price);
+
+    private static readonly PartRow[] _rows =
+    [
+        new("Pinnacle", "Spread", "-110"),
+        new("Circa", "Total", "-105"),
+        new("DraftKings", "Moneyline", "+134"),
+        new("FanDuel", "Spread", "-112")
+    ];
+
+    private bool _gridLoading = true;
+
+    // Two sides of one demonstration market. The home side's books disagree, so its rail
+    // spreads; the away side's agree, so its ticks collapse — which is the pair of pictures
+    // the control exists to draw.
+    private static readonly BestOffer _spreadHome = new(
+        Outcome: "home",
+        Book: "Pinnacle",
+        PriceAmerican: -105,
+        Line: -1.5m,
+        CapturedAt: DateTimeOffset.UtcNow,
+        // Derived, not invented: BoardService computes this as (worst - best) × 100 over the
+        // implied probabilities below, so 0.556 − 0.512 is 4.4. A fabricated number here would
+        // put a caption on the rail that disagrees with the rail.
+        EdgePoints: 4.4,
+        LinesVary: false,
+        Rungs:
+        [
+            new("Pinnacle", -105, -1.5m, 0.512),
+            new("Circa", -110, -1.5m, 0.524),
+            new("DraftKings", -118, -1.5m, 0.541),
+            new("FanDuel", -125, -1.5m, 0.556)
+        ]);
+
+    private static readonly BestOffer _spreadAway = new(
+        Outcome: "away",
+        Book: "Circa",
+        PriceAmerican: -110,
+        Line: 1.5m,
+        CapturedAt: DateTimeOffset.UtcNow,
+        EdgePoints: 0.0,
+        LinesVary: false,
+        Rungs:
+        [
+            new("Circa", -110, 1.5m, 0.524),
+            new("Pinnacle", -110, 1.5m, 0.524),
+            new("DraftKings", -110, 1.5m, 0.524)
+        ]);
+
+    private double _progress = 34;
+    private bool _stepping;
+
+    // Deliberately fake, for the same reason the busy button is: a determinate bar is only
+    // legible while it is moving.
+    private async Task StepAsync()
+    {
+        _stepping = true;
+
+        try
+        {
+            for (var i = 0; i < 6; i++)
+            {
+                await Task.Delay(220);
+                _progress = _progress >= 100 ? 0 : Math.Min(100, _progress + 11);
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            // Without the finally the button would stay lit for good on a throw, which is
+            // the one thing a busy button must never do.
+            _stepping = false;
+            StateHasChanged();
+        }
+    }
+
+    // --------------------------------------------------------------- modality ---
+
+    private bool _dialogOpen;
+    private string? _sheetOutcome;
+    private string? _alertOutcome;
+    private IDialogReference? _sheet;
+
+    /// <summary>
+    /// The sheet, opened the way every future call site should open one.
+    ///
+    /// <para>
+    /// The outcome is read off the awaited <see cref="DialogResult"/>, never off
+    /// <c>OnCancel</c>. Escape and backdrop dismissal go through MudBlazor's own cancel path
+    /// and never reach the component's callbacks, so a caller listening to <c>OnCancel</c>
+    /// would sit waiting on a sheet the operator already dismissed. The shape below —
+    /// <c>result is { Canceled: false, Data: … }</c> — treats every route out that is not an
+    /// explicit completion as a "no", which is the only reading that is safe.
+    /// </para>
+    /// </summary>
+    private async Task OpenSheetAsync()
+    {
+        _sheetOutcome = null;
+
+        var parameters = new DialogParameters<DeskSheet>
+        {
+            { x => x.Title, "New wager" },
+            { x => x.Subtitle, "A demonstration — nothing is written" },
+            { x => x.ChildContent, SheetBody },
+            { x => x.Footer, SheetFooter }
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            CloseOnEscapeKey = true,
+            BackdropClick = true
+        };
+
+        _sheet = await Dialogs.ShowAsync<DeskSheet>(string.Empty, parameters, options);
+
+        var result = await _sheet.Result;
+
+        _sheetOutcome = result is { Canceled: false, Data: string outcome }
+            ? $"\"{outcome}\" — completed"
+            : "cancelled (Escape, backdrop, or the way out)";
+
+        StateHasChanged();
+    }
+
+    private RenderFragment SheetBody => @<div>
+        <p class="empty" style="padding:0 0 9px">
+            Modal, on purpose. The scrim is the statement: this task is self-contained, and
+            completing or cancelling it is the only thing on offer until it is done.
+        </p>
+        <DeskField TValue="string" Label="Book" Required="true" placeholder="Pinnacle" />
+    </div>;
+
+    private RenderFragment SheetFooter => @<DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space2">
+        <DeskButton Emphasis="DeskEmphasis.Plain"
+                    OnClick="@(() => _sheet?.Close(DialogResult.Cancel()))">
+            Cancel
+        </DeskButton>
+        <DeskButton Emphasis="DeskEmphasis.Filled"
+                    OnClick="@(() => _sheet?.Close(DialogResult.Ok("Pinnacle -110")))">
+            Place wager
+        </DeskButton>
+    </DeskRow>;
+
+    /// <summary>
+    /// The destructive alert. One await is the whole point — if guarding a dangerous action
+    /// cost six lines of DialogParameters, call sites would quietly skip the guard.
+    /// </summary>
+    private async Task AskAsync()
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Delete this run?",
+            "The ingested odds stay; only the run record goes.",
+            confirmLabel: "Delete run",
+            cancelLabel: "Keep it",
+            destructive: true);
+
+        _alertOutcome = confirmed ? "true — confirmed" : "false — kept";
+    }
+
+    // ------------------------------------------------------------------ pulse ---
+
+    private static readonly (string Class, string Label)[] _pulses =
+    [
+        ("pulse--healthy", "Healthy — the source answered, and the numbers moved."),
+        ("pulse--active", "Active — work is genuinely in flight."),
+        ("pulse--warn", "Warn — degraded, or under budget pressure."),
+        ("pulse--critical", "Critical — the one state you must not miss."),
+        ("pulse--idle", "Idle — nothing has run yet.")
+    ];
+
+    // ----------------------------------------------------------------- charts ---
+
+    // Deliberately fake, and shaped rather than random: a catalog's job is to let you compare
+    // palettes side by side, which needs the same X axis under each one.
+    private static readonly string[] _chartLabels = ["Mon", "", "Wed", "", "Fri", ""];
+
+    private static readonly List<ChartSeries<double>> _movement =
+    [
+        new() { Name = "Home · Pinnacle", Data = new double[] { -110, -115, -108, -120, -125, -118 } },
+        new() { Name = "Home · Circa", Data = new double[] { -112, -110, -105, -118, -122, -120 } },
+        new() { Name = "Away · Pinnacle", Data = new double[] { -102, -105, -112, -100, -96, -101 } }
+    ];
+
+    private static readonly List<ChartSeries<double>> _ledger =
+    [
+        new() { Name = "Cumulative", Data = new double[] { 0, 1.4, 0.6, 2.8, 2.1, 3.9 } }
+    ];
+
+    private static readonly List<ChartSeries<double>> _health =
+    [
+        new() { Name = "Healthy", Data = new double[] { 22, 24, 19, 26, 25, 27 } },
+        new() { Name = "Warn", Data = new double[] { 3, 2, 6, 1, 2, 1 } },
+        new() { Name = "Breached", Data = new double[] { 0, 1, 3, 0, 1, 0 } }
+    ];
+
+    // ------------------------------------------------------------- foundation ---
+
+    private static readonly (string Step, string Name, string Px)[] _spaces =
+    [
+        ("1", "--space-1", "4px"),
+        ("2", "--space-2", "8px"),
+        ("3", "--space-3", "12px"),
+        ("4", "--space-4", "16px"),
+        ("6", "--space-6", "24px"),
+        ("8", "--space-8", "32px"),
+        ("12", "--space-12", "48px"),
+        ("16", "--space-16", "64px")
+    ];
+
+    private static readonly Dictionary<string, string> _spaceUse = new()
+    {
+        ["1"] = "a value and its unit",
+        ["2"] = "the desk's default gap",
+        ["3"] = "separate controls",
+        ["4"] = "groups in a section",
+        ["6"] = "sections of a panel",
+        ["8"] = "read at different times",
+        ["12"] = "page-level separation",
+        ["16"] = "any more wants a divider"
+    };
+
+    private static readonly (string Token, string Size, string Leading, string Use)[] _typeStyles =
+    [
+        ("--text-title", "10.5px", "--leading-title", "panel headings"),
+        ("--text-caption", "11px", "--leading-caption", "labels and units"),
+        ("--text-body", "13px", "--leading-body", "default reading size"),
+        ("--text-callout", "14px", "--leading-callout", "read this first")
+    ];
+
+    protected override void OnInitialized() => Report(PulseState.Idle, "reference");
 }

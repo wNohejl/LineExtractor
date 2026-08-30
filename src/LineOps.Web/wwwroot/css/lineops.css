@@ -2,56 +2,186 @@
    LineOps — "The Desk"
    A single-operator sports-data operations console.
 
-   Colour is a semantic dial, never decoration: every hue below means a state.
-   The base is graphite with a blue undertone rather than near-black, so the
-   surface reads as an instrument panel instead of a terminal.
+   The visual language follows Apple's Human Interface Guidelines: true-neutral
+   dark surfaces, one accent, translucent materials on anything that floats,
+   an SF-derived type ramp, and motion that says where a thing came from.
+
+   Every token below is semantic — it names a role, never a colour. That is what
+   lets a second theme be a second token block rather than a component rewrite.
+   The C# mirror of the colour tokens lives in Theming/DeskTheme.cs and must
+   agree with this block exactly; see ADR 0016.
    ============================================================================ */
 
-:root {
-    /* Surface — cool graphite, five steps */
-    --ink-900: #0E1119; /* desk void */
-    --ink-800: #141926; /* rail */
-    --ink-700: #1B2231; /* window body */
-    --ink-600: #232C3E; /* title bars, raised rows */
-    --ink-500: #2E3950; /* borders, dividers */
-    --ink-400: #3C4A66; /* hover borders */
+/* The default theme is apple-dark. A future theme adds a second block keyed on
+   its own [data-theme] value and changes nothing else in this file. */
+:root,
+[data-theme="apple-dark"] {
+    /* --- Surfaces -----------------------------------------------------------
+       A true-neutral elevation ramp. Warmth or a blue undertone would fight the
+       accent; macOS keeps its chrome neutral for exactly that reason. */
+    --surface-0: #1C1C1E; /* desk void — the ground everything sits on */
+    --surface-1: #232326; /* panel and window body */
+    --surface-2: #2C2C2E; /* title bars, raised rows, resting controls */
+    --surface-3: #38383A; /* hover fills, pressed states */
 
-    /* Text */
-    --chalk: #E6EBF4;
-    --haze: #8695B0;
-    --haze-dim: #5D6B85;
+    /* Hairlines separate; they never outline. A border around a panel is the
+       Material habit this system is replacing. */
+    --separator: rgba(255, 255, 255, .10);
+    --separator-strong: rgba(255, 255, 255, .16);
 
-    /* The dial. Hue = state, always. */
-    --steam: #35E0A1; /* healthy · moved your way · win */
-    --drift: #FF6B81; /* breached · moved against you · loss */
-    --flag: #FFB84D; /* warn · budget pressure · pending */
-    --iris: #7C8CFF; /* interactive · focus · selection */
+    /* --- Text ---------------------------------------------------------------
+       White at opacity tiers rather than three fixed greys, so text keeps its
+       relationship to whatever surface or material is underneath it. */
+    --text-primary: rgba(255, 255, 255, .92);
+    --text-secondary: rgba(255, 255, 255, .55);
+    --text-tertiary: rgba(255, 255, 255, .30);
 
-    --steam-dim: rgba(53, 224, 161, .14);
-    --drift-dim: rgba(255, 107, 129, .14);
-    --flag-dim: rgba(255, 184, 77, .14);
-    --iris-dim: rgba(124, 140, 255, .16);
+    /* --- Accent -------------------------------------------------------------
+       One accent, systemBlue. Interactivity, focus, and selection — nothing
+       else. A second accent is how an interface stops meaning anything. */
+    --accent: #0A84FF;
+    --accent-hover: #3D9BFF;
+    --accent-press: #0871DB;
+    --accent-wash: rgba(10, 132, 255, .15);
+    --accent-wash-strong: rgba(10, 132, 255, .24);
+    --on-accent: #FFFFFF;
 
-    /* Type: one variable family for chrome, one mono for every number. */
-    --face-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
-    --face-data: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+    /* --- Semantic state -----------------------------------------------------
+       Apple's dark-mode system colours. Unlike the old dial these are applied by
+       judgment where a state genuinely needs a colour — not as an always-on
+       channel that tinted every control on the desk. */
+    --state-positive: #30D158;
+    --state-negative: #FF453A;
+    /* Exists so a destructive fill can lighten on hover the same way --accent-hover
+       lets the accent one — a lit state colour, not a mix computed at the call site. */
+    --state-negative-hover: #FF6961;
+    --state-warning: #FF9F0A;
+    --state-positive-wash: rgba(48, 209, 88, .15);
+    --state-negative-wash: rgba(255, 69, 58, .15);
+    --state-warning-wash: rgba(255, 159, 10, .15);
+
+    /* --- Chart neutrals -------------------------------------------------------
+       Two steps of Apple's dark-mode system grey ramp (systemGray, systemGray2),
+       kept opaque on purpose: a multi-series chart's neutral slots must stay one
+       fixed colour, and a translucent text token composites differently over
+       gridlines and overlapping series depending on what is drawn beneath it. */
+    --chart-neutral: #8E8E93;
+    --chart-neutral-dim: #636366;
+
+    /* --- Materials ----------------------------------------------------------
+       Four tiers, thinnest to thickest, mirroring HIG materials. A material is
+       for things that float — menus, dialogs, sheets, the rail. Flat panel
+       bodies stay opaque, because data legibility beats depth.
+       See the @supports rule at the end of this file for the no-backdrop-filter path. */
+    --material-ultrathin: rgba(44, 44, 46, .55);
+    --material-thin: rgba(40, 40, 42, .70);
+    --material-regular: rgba(36, 36, 38, .82);
+    --material-thick: rgba(30, 30, 32, .92);
+    --material-blur: saturate(180%) blur(30px);
+
+    /* --- Type ---------------------------------------------------------------
+       SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
+       on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
+       metrics, and shipping it locally stops Windows falling through to Segoe.
+       One family for everything — Apple sets numbers in SF too, so there is no
+       second "data" face to name: a column of figures is this face plus
+       font-variant-numeric: tabular-nums, which is what .num and .mono below set. */
+    --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
+
+    /* The HIG text-style ramp. A call site names the style, never the pixels. */
+    --text-largetitle: 26px;
+    --text-title1: 22px;
+    --text-title2: 17px;
+    --text-title3: 15px;
+    --text-headline: 13px; /* same size as body, distinguished by weight */
+    --text-body: 13px;
+    --text-subheadline: 12px;
+    --text-footnote: 11px;
+    --text-caption: 10px;
+
+    --leading-title: 1.25;
+    --leading-body: 1.45;
+    --leading-tight: 1.2;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+
+    /* --- Spacing ------------------------------------------------------------
+       One 4px ramp for the whole desk. Steps skip where the eye cannot tell the
+       difference, so every gap is a named rung. Unchanged from the old system —
+       it was already right, and DeskSpace in C# maps onto it. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
 
     --rail-size: 46px;
     --titlebar-h: 34px;
-    --radius: 6px;
 
-    --shadow-win: 0 12px 28px -12px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .35);
-    --shadow-float: 0 24px 60px -18px rgba(0, 0, 0, .85), 0 3px 10px rgba(0, 0, 0, .45);
+    /* --- Shape --------------------------------------------------------------
+       Apple's radii are larger than Material's and grow with the surface. */
+    --radius-sm: 5px; /* chips, tags, inline marks */
+    --radius: 7px; /* controls — buttons, fields, selects */
+    --radius-panel: 12px; /* windows, panels, popovers */
+    --radius-sheet: 14px; /* sheets and alerts */
 
-    /* Layer scale. The desk is deliberately low so that anything floating above it —
-       modals, popovers, toasts, drag ghosts — has room to sit without competing with a
-       window's z-index. Use these rather than inventing numbers. */
+    /* --- Motion -------------------------------------------------------------
+       Motion says where a thing came from. A sheet rises, a popover scales out
+       of its anchor, a control settles. Nothing moves for decoration.
+       --ease-spring overshoots a hair and settles, approximating the platform
+       spring; --ease-exit does not overshoot, because things leaving should not
+       draw a second look. */
+    --dur-fast: .15s;
+    --dur-base: .25s;
+    --dur-slow: .35s;
+    --ease-standard: cubic-bezier(.25, .1, .25, 1);
+    --ease-spring: cubic-bezier(.32, 1.28, .42, 1);
+    --ease-exit: cubic-bezier(.4, 0, 1, 1);
+
+    /* --- Depth --------------------------------------------------------------
+       Soft, layered, and wide. Depth comes from shadow and material, not border. */
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .30);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .30);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .60), 0 4px 12px rgba(0, 0, 0, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .75), 0 8px 24px rgba(0, 0, 0, .45);
+
+    /* Focus. One ring, everywhere, accent-coloured — Apple's own convention.
+       ADR 0008 used a chalk ring because an iris ring on an iris key vanished;
+       that problem is gone now that filled buttons are the only accent surface
+       and the ring sits outside them on an offset. */
+    --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
+
+    /* --- Layers -------------------------------------------------------------
+       Deliberately low at the desk level so anything floating has room. */
     --z-window: 10;
     --z-divider: 40;
     --z-chrome: 8000; /* header, footer, side rail */
     --z-popover: 9000; /* menus anchored to chrome */
-    --z-modal: 9500; /* modal scrim and dialog */
+    --z-modal: 9500; /* scrim, sheets, alerts */
     --z-toast: 9800; /* transient notices, always on top */
+}
+
+/* Inter, self-hosted. The variable file covers every weight the ramp asks for,
+   so there is one request rather than four. */
+@font-face {
+    font-family: 'Inter var';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Inter var';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/InterVariable-Italic.woff2') format('woff2');
 }
 
 html, body {
@@ -59,18 +189,32 @@ html, body {
     padding: 0;
     height: 100%;
     overflow: hidden; /* the desk manages its own scrolling, per window */
-    background: var(--ink-900);
-    color: var(--chalk);
+    background: var(--surface-0);
+    color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 14px;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Numbers are read in columns, so they get tabular figures everywhere. */
+/* Numbers are read in columns, so they get tabular figures everywhere. There is
+   no separate mono family any more — SF and Inter both carry proper tabular
+   figures, and one family across the desk is the HIG reading. */
 .num, .mono {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum' 1;
+    font-feature-settings: 'tnum' 1, 'cv05' 1;
+    letter-spacing: 0;
+}
+
+/* Motion is a signal, not a flourish, so it goes away entirely when asked. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* --------------------------------------------------------------- shell ---- */
@@ -95,10 +239,21 @@ html, body {
     gap: 8px;
     height: 44px;
     padding: 0 10px;
-    background: var(--ink-800);
-    border-bottom: 1px solid var(--ink-500);
+    background: var(--material-thin);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: 8000;
+}
+
+/* The header's own controls, as one cluster: the plate slides between them
+   rather than each button lighting itself. */
+.hdr__tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
 }
 
 .hdr__brand {
@@ -110,11 +265,11 @@ html, body {
     white-space: nowrap;
 }
 
-.hdr__brand em { font-style: normal; color: var(--iris); }
+.hdr__brand em { font-style: normal; color: var(--accent); }
 
 .hdr__sub {
     font-size: 11px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -122,45 +277,464 @@ html, body {
 
 @media (max-width: 900px) { .hdr__sub { display: none; } }
 
-.hdr__divider { width: 1px; height: 22px; background: var(--ink-500); flex: 0 0 auto; }
+.hdr__divider { width: 1px; height: 22px; background: var(--separator); flex: 0 0 auto; }
 .hdr__spacer { flex: 1 1 auto; }
+
+/* ---- Window tabs ----------------------------------------------------------
+   The desk's columns, laid out along the toolbar.
+
+   Every window is already a tab — a full-height column you drag to reorder and
+   resize. That works while you are looking at one, and stops working the
+   moment a window is collapsed to a sliver or pushed off the end of a busy
+   row: a column with no room for its title cannot tell you what it is.
+
+   So the same set runs horizontally up here as well. Same order as the row, so
+   the strip is a map of the desk rather than a second arrangement to keep in
+   your head, and the marble sits on whichever column has focus. Clicking one
+   focuses it, and restores it if it was collapsed — which is the thing the
+   collapsed column itself is too narrow to offer.
+
+   Each tab carries its window's own pulse along the bottom edge, the same 2px
+   band the title bar wears, so state stays readable from up here too.
+   ------------------------------------------------------------------------- */
+
+/* The toolbar proper: the groups spread across the bar rather than bunching at
+   one end, so the eye has fixed places to go back to. */
+.bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* A group of the toolbar, and the track its marble runs in. Same recessed
+   channel as the gate switch — it is not pressable, so it does not catch the
+   light — which is what makes the marble inside read as the same object doing
+   the same job in a third place.
+
+   The fill is --surface-0, where the retired ramp's recessed tier would have mapped
+   to --surface-1: the header is --material-thin over the desk void, which composites to
+   --surface-1, so a --surface-1 channel would be a channel nobody can see. The
+   gate switch this block names solves the same problem the same way. */
+.bar__group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    min-width: 0;
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
+    border-radius: 7px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+/* Never let a crowded group break the bar; it scrolls inside its own channel. */
+.bar__group--windows {
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex: 0 1 auto;
+}
+
+.bar__group--windows::-webkit-scrollbar { display: none; }
+
+/* Hairline between catalogue groups, so twelve icons read as four short runs. */
+.bar__split {
+    width: 1px;
+    height: 16px;
+    margin: 0 3px;
+    background: var(--separator);
+    flex: 0 0 auto;
+}
+
+/* An icon-only key in the bar. No label: the windows group is the only one that
+   spells names out, because a window's name is the thing you are looking for
+   and an action's icon is the thing you already know. */
+.bar__key {
+    position: relative; /* the pulse of an open window is pinned to it */
+    width: 26px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.bar__key:hover { color: var(--text-primary); }
+.bar__key:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bar__key svg { width: 16px; height: 16px; }
+
+/* Open, so it wears its column's name. Widens to fit, with a ceiling — a game
+   called "Boston Red Sox at Miami Marlins" does not get to own the bar. */
+.bar__key--named {
+    width: auto;
+    max-width: 190px;
+    gap: 6px;
+    padding: 0 9px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 11.5px;
+    overflow: hidden;
+}
+
+.bar__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Which one am I in? ---------------------------------------------------
+   The marble answers "which am I on" and travels on hover, so it cannot also
+   answer this: the moment you reach for anything else, the answer would leave
+   with the pointer. The current window is therefore filled, and stays that way
+   wherever the marble has got to. The two read at a glance because they are
+   different channels: the hover plate behind is a neutral --surface-3 fill, and
+   selection is the accent wash — the same "selected reads as a wash, not a
+   border" recipe .rail__btn--accent and a Tinted button already use. Neutral for
+   selection would lose to its own hover plate, which is a step lighter.
+
+   The old inset crown highlight is gone with the gloss channel ADR 0016 retired;
+   nothing in the bar catches the light any more. */
+.bar__key--current {
+    background: var(--accent-wash);
+    color: var(--text-primary);
+}
+
+.bar__key--current svg { color: var(--accent); }
+
+/* Collapsed down on the desk. Still listed — that is the point — but stated as
+   put away rather than as another column you are looking at. */
+.bar__key--collapsed { color: var(--text-tertiary); font-style: italic; }
+.bar__key--collapsed svg { opacity: .5; }
+
+/* The window's pulse, mirrored from its title bar so state is readable up here
+   too. Wears the pulse--* modifiers but not .pulse itself — that base class is
+   a positioned flex item, which is right in a title bar and wrong in a key. */
+.bar__pulse {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    bottom: 2px;
+    height: 2px;
+    border-radius: 1px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* A rail button inside a channel is just another key: it drops to the channel's own box
+   size, but otherwise IS the standalone rail button — same resting colour, same hover
+   fill, same accent/selected treatment, same focus ring. It must not redeclare any of
+   those, because `.bar__group .rail__btn` outranks the bare `.rail__btn` rules by
+   specificity and a redeclaration here would silently win over — and fight — the rail
+   decision, no matter what the base rule says. */
+.bar__group .rail__btn {
+    width: 26px;
+    height: 24px;
+}
+
+.bar__group .rail__btn svg { width: 16px; height: 16px; }
+
+.bar__key:disabled {
+    color: var(--text-tertiary);
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+/* The count sits in the controls channel, so it needs the channel's rhythm
+   rather than the header's. */
+.bar__group .hdr__count { padding: 0 5px 0 3px; }
+
 
 .hdr__count {
     font-size: 12px;
-    color: var(--haze);
+    color: var(--text-secondary);
     padding: 0 4px;
     white-space: nowrap;
 }
 
-.hdr__count--full { color: var(--flag); }
+.hdr__count--full { color: var(--state-warning); }
 
-/* Segmented control: one visible choice among a few, which is what a layout mode is. */
-.segment {
-    display: flex;
-    border: 1px solid var(--ink-500);
-    border-radius: 4px;
-    overflow: hidden;
-    flex: 0 0 auto;
+/* ---- The marble -----------------------------------------------------------
+   The travel shared by every control that holds one choice among a few: the
+   selection slides to the position you picked instead of blinking to it, so
+   the eye keeps hold of where it went. The gate switch and the tab bar below
+   are both this plus a skin — one idiom, two roles.
+
+   Two custom properties drive it. --n is how many positions there are, --i is
+   which one is current. A control whose value matches no position sets --i to
+   -1 and renders no marble at all, rather than parking it on a position that
+   is not the answer.
+
+   The ease overshoots a touch: a real slide switch lands with a settle, not a
+   stop.
+   ------------------------------------------------------------------------- */
+
+/* The step is one column *plus the gap between columns*. Travelling by its own
+   width alone looks right at two positions and drifts by a pixel per position
+   after that, which shows up as a marble that no longer quite sits on the last
+   tab. --gap defaults to 0, so hosts that do not space their positions are
+   unaffected by the arithmetic. */
+.marble {
+    position: absolute;
+    z-index: 0;
+    box-sizing: border-box;
+    transform: translateX(calc(var(--i, 0) * (100% + var(--gap, 0px))));
+    transition: transform var(--dur-base) var(--ease-spring);
 }
 
-.segment__btn {
-    width: 30px;
-    height: 26px;
+/* One column's share of the row, gaps taken out first. */
+.marble--track {
+    width: calc((100% - (var(--n) - 1) * var(--gap, 0px)) / var(--n));
+}
+
+/* Every marble host lays its positions out as equal columns. The flow is
+   `column` rather than an explicit `repeat(var(--n), …)` template so that the
+   row can never collapse into a stack if --n fails to arrive — the track count
+   follows the children, and only the marble's own width needs the number. */
+.marble-row {
+    --gap: 0px;
+    position: relative;
     display: grid;
-    place-items: center;
-    background: var(--ink-700);
-    border: 0;
-    border-right: 1px solid var(--ink-500);
-    color: var(--haze-dim);
-    cursor: pointer;
-    padding: 0;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--gap);
+    box-sizing: border-box;
 }
 
-.segment__btn:last-child { border-right: 0; }
-.segment__btn:hover { background: var(--ink-600); color: var(--chalk); }
-.segment__btn--on { background: var(--iris); color: #10131C; }
-.segment__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.segment__btn svg { width: 15px; height: 15px; }
+.marble-row > :not(.marble) { position: relative; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble { transition: none; }
+}
+
+/* A segmented control: a recessed track holding a raised cap that slides to the
+   selected position. The platform's answer to "one of a few, all visible", and the
+   right shape for a control that was already a cap travelling in a channel — only
+   the moulding changes, not the mechanism. Rendered by Components/Desk/DeskSwitch.
+
+   The cap is placed off --i and sized off --n, both set inline by the component.
+   Cursor and opt--on's font-weight are the only states the old block carried that
+   this recipe still needs — see below. */
+.marble-row.gate {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px;
+    background: var(--surface-0);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--separator);
+}
+
+.marble.gate__cap {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--surface-3);
+    box-shadow: var(--shadow-1);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-base) var(--ease-spring);
+    pointer-events: none;
+}
+
+.gate__opt {
+    position: relative; /* above the cap */
+    z-index: 1;
+    padding: 0 var(--space-3);
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.gate__opt:hover { color: var(--text-primary); }
+
+/* The selected position is not pressable again — same "cursor: default" the old
+   block used, carried across since the segmented-control recipe doesn't restate it. */
+.gate__opt--on { color: var(--text-primary); font-weight: var(--weight-semibold); cursor: default; }
+
+.gate__opt:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: calc(var(--radius) - 2px); }
+
+.gate--num .gate__opt { font-variant-numeric: tabular-nums; }
+
+.gate--sm .gate__opt { height: 20px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
+
+@media (prefers-reduced-motion: reduce) {
+    .marble.gate__cap { transition: none; }
+}
+
+/* ---- The tab bar ----------------------------------------------------------
+   Navigation, not a control: these switch which part of a window you are
+   looking at, where the gate above switches what a single reading is made of.
+   The distinction is worth keeping visible, so a tab is flat — nothing here
+   catches the light, because nothing here is a key you press down — and the
+   marble it shares with the gate wears the desk's plainest statement of "this
+   one is active": the accent wash behind, --text-primary on the label.
+
+   Sits under a rule, the way a toolbar separates itself from the work below.
+   A window whose sections do not fit its column is the problem this solves:
+   three stacked sections make a very tall panel, and a tall panel in a
+   narrow tab is a scroll rather than a layout.
+
+   Rendered by Components/Desk/DeskTabs, which omits any section with nothing
+   in it and hides the whole bar when that leaves fewer than two.
+   ------------------------------------------------------------------------- */
+
+.tabs {
+    --n: 1;
+    --i: 0;
+    width: 100%;
+    padding: 3px 0;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--separator);
+}
+
+/* This marble is a *selection* indicator — it is placed off --i, the index of the
+   open section — so unlike the pointer-following plate in the toolbar it does take
+   the accent. The hairline around it is dropped for the same reason Task 8 dropped
+   it from .glide-plate--marble: hairlines in this system separate, they never
+   outline, and a washed plate with no border reads as a fill rather than a chip. */
+.tabs__marble {
+    top: 3px;
+    bottom: 3px;
+    left: 0;
+    background: var(--accent-wash);
+    border-radius: 4px;
+}
+
+.tabs__tab {
+    min-width: 0;
+    height: 26px;
+    padding: 0 10px;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color .12s ease;
+}
+
+.tabs__tab:hover { color: var(--text-primary); }
+.tabs__tab--on { color: var(--text-primary); cursor: default; }
+.tabs__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tabs__tab { transition: none; }
+}
+
+/* ---- The glide ------------------------------------------------------------
+   One highlight plate per cluster of flat controls, slid between them by
+   js/desk-glide.js, instead of each control flashing its own background. Any
+   container opts in with data-glide; a child that wants the plate in a tone
+   states it with data-glide-tone (close buttons say "stop"). The plate only
+   exists while a pointer or focus is inside, so there is nothing to keep in
+   sync when Blazor re-renders the cluster.
+   ------------------------------------------------------------------------- */
+
+[data-glide] { position: relative; }
+[data-glide] > :not(.glide-plate) { position: relative; z-index: 1; }
+
+/* The default (untoned) fill has to agree with the fill every plain hover uses when the
+   plate is not there to do the job instead — see .desk-btn--plain:hover's own
+   --btn-fill: var(--surface-3). Its consumers are the window controls (minimise and
+   maximise both fall to this default), GamePanel's Movement/Head-to-head row, and the
+   Workspaces launcher's items, whose own :hover rules stand down while the plate is live
+   (see the transparent overrides below). The marble variant (.glide-plate--marble) sets
+   its own background after this rule. */
+.glide-plate {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    box-sizing: border-box; /* held from when the marble variant had a border to fit
+                               inside; that border is gone, and the plate is now sized
+                               from JS in explicit pixels, so this only guards a future
+                               variant that grows one back */
+    border-radius: 4px;
+    background: var(--surface-3);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        transform var(--dur-fast) var(--ease-standard),
+        width var(--dur-fast) var(--ease-standard),
+        height var(--dur-fast) var(--ease-standard),
+        background-color var(--dur-fast) ease,
+        opacity .1s ease;
+}
+
+[data-glide-live] > .glide-plate { opacity: 1; }
+
+/* Appearing under the first control it meets, the plate arrives in place —
+   sliding in from the container's corner would draw a line nobody made. */
+.glide-plate--still { transition: opacity .1s ease; }
+
+/* Narrowly repointed here (outside this task's own blocks) because this rule, not
+   .win__ctl--close:hover, is what actually paints the close control's hover fill: the
+   glide plate sits behind the button and the button's own background stands down while
+   the plate is live (see the comment above). Left pointing at a deleted token, Close's
+   "fills --state-negative on its own hover" requirement would be true in the stylesheet
+   and false on screen. */
+.glide-plate[data-tone="stop"] { background: var(--state-negative); }
+
+/* The marble, measured. Same travel as the CSS-variable one on the gate, but it
+   takes the size of whatever it lands on, which is what lets the toolbar hold
+   tabs of honest widths instead of forcing every window to the same column.
+
+   This is a hover plate that follows the pointer, not a selection indicator, and in this
+   system accent means selection — an accent-tinted plate chasing the cursor across the
+   toolbar would read as claiming whatever it happens to sit under. So it takes the same
+   neutral hover fill as the default plate. The border is dropped outright: hairlines in
+   this system separate, they never outline, and a filled plate with no border reads as a
+   fill rather than an outlined chip. The selected key it slides past keeps its own accent
+   wash (.bar__key--current), and sits a layer above this plate. */
+.glide-plate--marble {
+    background: var(--surface-3);
+    border-radius: var(--radius);
+}
+
+/* While the plate is live it is the hover signal, so the per-control
+   backgrounds stand down. Ink changes stay — they are the label's answer. */
+[data-glide-live] .win__ctl:hover { background: transparent; }
+[data-glide-live] .launcher__item:hover { background: transparent; }
+[data-glide-live] .desk-btn--plain:hover { background-color: transparent; }
+/* border-color dropped: rail buttons no longer carry a border for this to recolour. */
+[data-glide-live] .rail__btn:hover { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+    .glide-plate { transition: opacity .1s ease; }
+}
 
 /* --------------------------------------------------------------- footer --- */
 
@@ -170,25 +744,27 @@ html, body {
     gap: 8px;
     height: 38px;
     padding: 0 10px;
-    background: var(--ink-800);
-    border-top: 1px solid var(--ink-500);
+    background: var(--material-thin);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border-top: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: 8000;
 }
 
 .ftr__spacer { flex: 1 1 auto; }
-.ftr__divider { width: 1px; height: 16px; background: var(--ink-500); flex: 0 0 auto; }
+.ftr__divider { width: 1px; height: 16px; background: var(--separator); flex: 0 0 auto; }
 
 .ftr__stat {
     font-size: 11px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     letter-spacing: .04em;
     flex: 0 0 auto;
 }
 
 .ftr__flag {
-    color: var(--iris);
+    color: var(--accent);
     font-size: 9.5px;
     text-transform: uppercase;
     letter-spacing: .1em;
@@ -201,10 +777,10 @@ html, body {
     align-items: center;
     gap: 7px;
     padding: 3px 4px 3px 9px;
-    border: 1px solid var(--flag);
-    background: var(--flag-dim);
+    border: 1px solid var(--state-warning);
+    background: var(--state-warning-wash);
     border-radius: 4px;
-    color: var(--flag);
+    color: var(--state-warning);
     font-size: 11.5px;
     flex: 0 1 auto;
     min-width: 0;
@@ -215,12 +791,12 @@ html, body {
 
 .ftr__dismiss {
     background: none; border: 0; padding: 2px;
-    color: var(--flag); cursor: pointer;
+    color: var(--state-warning); cursor: pointer;
     display: grid; place-items: center;
 }
 
 .ftr__dismiss svg { width: 13px; height: 13px; }
-.ftr__dismiss:hover { color: var(--chalk); }
+.ftr__dismiss:hover { color: var(--text-primary); }
 
 /* ---------------------------------------------------------------- desk ---- */
 
@@ -232,8 +808,8 @@ html, body {
 
     /* A faint dot grid. Windows read as *placed* rather than floating, and it gives
        the eye a reference when dragging. Deliberately near-invisible. */
-    background-color: var(--ink-900);
-    background-image: radial-gradient(var(--ink-500) 1px, transparent 1px);
+    background-color: var(--surface-0);
+    background-image: radial-gradient(var(--surface-3) 1px, transparent 1px);
     background-size: 22px 22px;
     background-position: -1px -1px;
 }
@@ -268,17 +844,17 @@ html, body {
     font-stretch: 112%;
     letter-spacing: -.03em;
     line-height: .9;
-    color: var(--ink-500);
+    color: var(--surface-3);
     text-transform: uppercase;
 }
 
 .desk-empty__mark em {
     font-style: normal;
-    color: var(--iris);
+    color: var(--accent);
 }
 
 .desk-empty__hint {
-    color: var(--haze);
+    color: var(--text-secondary);
     max-width: 44ch;
     line-height: 1.55;
 }
@@ -293,29 +869,27 @@ html, body {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background: var(--ink-700);
-    border: 1px solid var(--ink-500);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    background: var(--surface-1);
+    border: 0;
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-3);
     overflow: hidden;
     z-index: var(--z-window);
     /* left/width transition is what makes the row "settle" after a reorder, a resize
        commit, an eviction, or a close — every tab slides to its new slot instead of
        jumping. Suppressed during the two live gestures below, where a transition would
        lag a frame behind the pointer instead of tracking it. */
-    transition: border-color .12s ease, left .16s ease, width .16s ease;
+    transition: left .16s ease, width .16s ease;
 }
 
 body.splitting .win, body.tab-dragging .win { transition: none; user-select: none; }
-
-.win--focused { border-color: var(--ink-400); }
 
 /* The dragged tab floats in front of whatever it passes over while it looks for a slot —
    this is the interaction the row is built around: a window is its own tab, and moving it
    is a direct, physical drag, not a trip through a menu. */
 .win--dragging-tab {
     z-index: var(--z-divider);
-    box-shadow: var(--shadow-float);
+    box-shadow: var(--shadow-sheet);
     cursor: grabbing;
 }
 
@@ -335,19 +909,21 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     cursor: pointer;
 }
 
-.win--collapsed .win__icon { color: var(--haze); }
+.win--collapsed .win__icon { color: var(--text-secondary); }
 
-/* Focus is signalled by the border and the pulse strip only — no ambient glow. */
+/* A window body is opaque and borderless, so focus is signalled by the title bar and the
+   pulse strip only — no ambient glow, no ring around the whole column. Unfocused windows
+   recede a shade, as if the bar had settled back into the body it sits on. */
 .win--focused .win__title {
-    color: var(--chalk);
+    color: var(--text-primary);
 }
 
 .win:not(.win--focused) .win__bar {
-    background: var(--ink-700);
+    background: var(--surface-1);
 }
 
 .win:not(.win--focused) .win__title {
-    color: var(--haze);
+    color: var(--text-secondary);
 }
 
 .win__bar {
@@ -356,7 +932,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     gap: 8px;
     height: var(--titlebar-h);
     padding: 0 4px 0 10px;
-    background: var(--ink-600);
+    background: var(--surface-2);
     flex: 0 0 auto;
 }
 
@@ -364,17 +940,15 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     flex: 0 0 auto;
     display: grid;
     place-items: center;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
 }
 
 .win__icon svg { width: 15px; height: 15px; }
 
 .win__title {
-    font-size: 11px;
-    font-weight: 600;
-    font-stretch: 108%;
-    letter-spacing: .085em;
-    text-transform: uppercase;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -382,40 +956,57 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 }
 
 .win__status {
-    font-family: var(--face-data);
-    font-size: 10.5px;
-    color: var(--haze-dim);
+    font-size: var(--text-subheadline);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: .02em;
 }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
 
 .win__controls {
     display: flex;
-    gap: 1px;
+    gap: var(--space-2);
     flex: 0 0 auto;
 }
 
+/* Traffic-light behaviour, not Apple's literal three colours: a resting circle in
+   --text-tertiary, quiet until the bar it lives on is worth looking at. The glyph
+   stays hidden until then — three unlabelled dots read as chrome, three dots with
+   icons stamped on them read as a diagram. */
 .win__ctl {
-    width: 26px;
-    height: 24px;
+    width: 12px;
+    height: 12px;
     display: grid;
     place-items: center;
-    background: none;
+    background: var(--text-tertiary);
     border: 0;
-    border-radius: 3px;
-    color: var(--haze-dim);
+    border-radius: 50%;
+    color: var(--text-primary);
     cursor: pointer;
     padding: 0;
+    transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-.win__ctl:hover { background: var(--ink-500); color: var(--chalk); }
-.win__ctl--close:hover { background: var(--drift); color: var(--ink-900); }
-.win__ctl:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.win__ctl svg { width: 14px; height: 14px; }
+.win__ctl svg {
+    width: 8px;
+    height: 8px;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+/* Revealed by hovering anywhere on the bar — not just the one control — the way the
+   traffic lights themselves light up together. Focus-visible reveals its own glyph
+   too, or a keyboard user tabbing to Close would find an unlabelled blank circle. */
+.win__bar:hover .win__ctl svg,
+.win__ctl:focus-visible svg {
+    opacity: 1;
+}
+
+.win__ctl:hover { background: var(--text-secondary); }
+.win__ctl--close:hover { background: var(--state-negative); color: var(--on-accent); }
+.win__ctl:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- SIGNATURE: the pulse strip ------------------------------------------
    A 2px live band under every title bar, mirrored on the window's rail chip.
@@ -428,25 +1019,25 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 .pulse {
     height: 2px;
     flex: 0 0 auto;
-    background: var(--ink-500);
+    background: var(--surface-3);
     position: relative;
     overflow: hidden;
 }
 
-.pulse--healthy { background: var(--steam); }
-.pulse--warn { background: var(--flag); }
-.pulse--critical { background: var(--drift); }
-.pulse--idle { background: var(--ink-500); }
+.pulse--healthy { background: var(--state-positive); }
+.pulse--warn { background: var(--state-warning); }
+.pulse--critical { background: var(--state-negative); }
+.pulse--idle { background: var(--surface-3); }
 
 /* Active is the only animated state: it means work is genuinely in flight. */
-.pulse--active { background: var(--iris-dim); }
+.pulse--active { background: var(--accent-wash); }
 
 .pulse--active::after {
     content: '';
     position: absolute;
     inset: 0;
     width: 34%;
-    background: linear-gradient(90deg, transparent, var(--iris), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
     animation: pulse-sweep 1.15s linear infinite;
 }
 
@@ -474,14 +1065,14 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     overflow: auto;
     padding: 14px;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 .win__body::-webkit-scrollbar { width: 10px; height: 10px; }
 .win__body::-webkit-scrollbar-thumb {
-    background: var(--ink-400);
+    background: var(--surface-3);
     border-radius: 6px;
-    border: 3px solid var(--ink-700);
+    border: 3px solid var(--surface-1);
 }
 
 /* ------------------------------------------------------------- divider ---- */
@@ -507,23 +1098,28 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     width: 2px;
     height: 34px;
     border-radius: 1px;
-    background: var(--ink-500);
+    background: var(--surface-3);
     transition: background-color .12s ease, height .12s ease;
 }
 
+/* Accent, not the neutral hover fill, and deliberately: this is not a plate behind a
+   row, it is the grip itself, and the same declaration serves --active (the live drag)
+   and :focus-visible. Splitting hover off to a neutral would either land on the grip's
+   own resting --surface-3 — a hover that paints nothing — or flip colour the instant a
+   drag began. The desk's one accent is what "you have hold of this" looks like. */
 .divider:hover .divider__grip,
 .divider--active .divider__grip {
-    background: var(--iris);
+    background: var(--accent);
     height: 64px;
 }
 
 .divider:focus-visible { outline: none; }
 
 .divider:focus-visible .divider__grip {
-    background: var(--iris);
+    background: var(--accent);
     height: 100%;
     border-radius: 0;
-    box-shadow: 0 0 0 1px var(--iris);
+    box-shadow: 0 0 0 1px var(--accent);
 }
 
 /* While splitting, the whole desk shows the resize cursor — the pointer often leaves the
@@ -540,14 +1136,17 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     background: none;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: var(--haze);
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 0;
 }
 
-.rail__btn:hover { background: var(--ink-700); border-color: var(--ink-400); color: var(--chalk); }
-.rail__btn:focus-visible { outline: 2px solid var(--iris); outline-offset: 1px; }
-.rail__btn--accent { color: var(--iris); }
+.rail__btn:hover { background: var(--surface-3); color: var(--text-primary); }
+.rail__btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Selected/active reads as a wash, not a border — the same recipe as a Tinted
+   button and the platform's own menu highlight. */
+.rail__btn--accent { background: var(--accent-wash); color: var(--accent); }
 .rail__btn svg { width: 17px; height: 17px; }
 
 /* ------------------------------------------------------- rail popover ---- */
@@ -566,14 +1165,16 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .railmenu__panel {
     position: absolute;
     z-index: 9600;
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-sheet);
     max-height: min(70vh, 560px);
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 /* Each panel opens away from the rail it belongs to. */
@@ -588,6 +1189,10 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     .railmenu__panel--bottom, .railmenu__panel--top { left: auto; right: 0; }
 }
 
+/* A menu whose button lives at the right edge of the chrome anchors its right edge
+   to the button instead, so the panel opens inward rather than off-screen. */
+.railmenu__panel--end { left: auto; right: 0; }
+
 /* ------------------------------------------------------------ launcher ---- */
 
 .launcher {
@@ -600,7 +1205,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     padding: 10px 10px 5px;
 }
 
@@ -613,23 +1218,26 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--chalk);
+    color: var(--text-primary);
     text-align: left;
     cursor: pointer;
     font-family: inherit;
     font-size: 13px;
 }
 
-.launcher__item:hover { background: var(--ink-600); }
-.launcher__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
-.launcher__item svg { width: 17px; height: 17px; color: var(--haze); margin-top: 1px; flex: 0 0 auto; }
-.launcher__desc { display: block; color: var(--haze-dim); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+/* Neutral, not accent: a launcher row lights under the pointer, it is not selected.
+   It also has to agree with the glide plate that paints in its place while the pointer
+   is inside the list — see .glide-plate's own --surface-3. */
+.launcher__item:hover { background: var(--surface-3); }
+.launcher__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.launcher__item svg { width: 17px; height: 17px; color: var(--text-secondary); margin-top: 1px; flex: 0 0 auto; }
+.launcher__desc { display: block; color: var(--text-tertiary); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
 
 .launcher__note {
     padding: 8px 11px;
     margin: 4px 0 0;
-    border-top: 1px solid var(--ink-500);
-    color: var(--flag);
+    border-top: 1px solid var(--separator);
+    color: var(--state-warning);
     font-size: 11.5px;
     line-height: 1.45;
 }
@@ -639,7 +1247,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: 9px;
     letter-spacing: .11em;
     text-transform: uppercase;
-    color: var(--steam);
+    color: var(--state-positive);
     margin-left: 7px;
     vertical-align: 1px;
 }
@@ -655,83 +1263,124 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin: 0 0 9px;
 }
 
 .panel-h + .panel-h { margin-top: 18px; }
 
-/* Metric: the number leads, the label explains. Not the other way round. */
+/* Metric: the number leads, the label explains. Not the other way round.
+   State lands on the number and nowhere else — the tile itself stays neutral. The
+   old left-edge bar was a second place to read the same fact, and it had to be
+   scanned separately from the figure it qualified; a red number is read at the
+   moment the number is. */
 .metric {
     padding: 11px 13px;
-    background: var(--ink-600);
-    border: 1px solid var(--ink-500);
-    border-radius: 4px;
-    border-left-width: 2px;
-    border-left-color: var(--ink-400);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
 }
 
-.metric--good { border-left-color: var(--steam); }
-.metric--warn { border-left-color: var(--flag); }
-.metric--bad { border-left-color: var(--drift); }
-.metric--info { border-left-color: var(--iris); }
-
 .metric__value {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 22px;
-    font-weight: 500;
+    font-weight: var(--weight-medium);
     line-height: 1.05;
     letter-spacing: -.02em;
 }
 
-.metric--good .metric__value { color: var(--steam); }
-.metric--warn .metric__value { color: var(--flag); }
-.metric--bad .metric__value { color: var(--drift); }
+.metric--good .metric__value { color: var(--state-positive); }
+.metric--warn .metric__value { color: var(--state-warning); }
+.metric--bad .metric__value { color: var(--state-negative); }
+.metric--info .metric__value { color: var(--accent); }
 
 .metric__label {
     font-size: 10.5px;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: var(--haze);
+    color: var(--text-secondary);
     margin-top: 5px;
 }
 
-.metric__note { font-size: 11px; color: var(--haze-dim); margin-top: 2px; }
+.metric__note { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
 
-/* Data tables: dense, hairline-separated, numbers right-aligned and tabular. */
+/* A tile that is also the way to the thing it counts.
+   Gloss is the desk's affordance channel (ADR 0008), so the tile that leads somewhere is
+   the one that lifts under the pointer; a tile that only reports stays matte. The chevron
+   carries the same message without motion or hover, for a touch pointer and for anyone
+   running reduced motion. */
+.metric--action {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+
+.metric--action:hover { background: var(--surface-3); transform: translateY(-1px); }
+.metric--action:active { transform: translateY(0); }
+
+.metric--action:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.metric__go { float: right; font-size: 15px; line-height: 1; color: var(--text-tertiary); }
+.metric--action:hover .metric__go { color: var(--text-primary); }
+
+@media (prefers-reduced-motion: reduce) {
+    .metric--action { transition: background var(--dur-fast) linear; }
+    .metric--action:hover, .metric--action:active { transform: none; }
+}
+
+/* Data tables: dense, hairline-separated, numbers right-aligned and tabular.
+   No zebra striping — rows separate with a hairline and nothing else, the same
+   rule .deskgrid holds MudDataGrid to below. */
 .grid {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: var(--text-body);
 }
 
 .grid th {
     text-align: left;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--haze-dim);
-    padding: 0 10px 7px;
-    border-bottom: 1px solid var(--ink-500);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+    padding: var(--space-1) 10px;
+    border-bottom: 1px solid var(--separator);
     white-space: nowrap;
     position: sticky;
     top: -14px; /* cancels .win__body padding so the header pins while scrolling */
-    background: var(--ink-700);
+    background: var(--surface-2);
     z-index: 1;
 }
 
 .grid td {
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--ink-600);
-    color: var(--chalk);
+    padding: var(--space-1) 10px;
+    line-height: 20px; /* + the padding above = a 28px row */
+    border-bottom: 1px solid var(--separator);
+    color: var(--text-primary);
     vertical-align: middle;
+    font-variant-numeric: tabular-nums; /* costs nothing on prose; guarantees every number lines up without hunting for .r */
 }
 
-.grid tbody tr:hover td { background: var(--ink-600); }
-.grid .r { text-align: right; font-family: var(--face-data); font-variant-numeric: tabular-nums; }
-.grid .dim { color: var(--haze-dim); }
+.grid tbody tr:hover td { background: var(--surface-2); }
+.grid .r { text-align: right; font-variant-numeric: tabular-nums; }
+.grid .dim { color: var(--text-tertiary); }
+
+/* Quieter than the row, still readable as data. --text-tertiary is the right tier for
+   an annotation nobody has to read — a hint, a placeholder, a unit — and it measures
+   2.70:1 on --surface-1, which is below AA and correct for exactly that job. A cell an
+   operator has to read is not that job: a timestamp, a duration, a job key and a credit
+   count are the reading. So they get --text-secondary (5.71:1, passes AA) and stay a
+   step under the row's --text-primary. Set bare rather than under .grid so it works in
+   a DeskGrid cell template too, where the .grid descendant selectors never match. */
+.quiet { color: var(--text-secondary); }
 
 /* A long message in a narrow window must not turn one row into six. Truncate and keep
    the full text in the title attribute — row rhythm is what makes a dense table scannable. */
@@ -747,7 +1396,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .gridwrap {
     overflow-x: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 .gridwrap .grid { min-width: 100%; }
@@ -783,31 +1432,31 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 .price__line {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 11px;
-    color: var(--haze);
+    color: var(--text-secondary);
 }
 
 .price__odds {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
     font-size: 13px;
-    color: var(--chalk);
+    color: var(--text-primary);
 }
 
 /* The book that holds the best number, in two letters. */
 .price__book {
-    font-family: var(--face-data);
     font-size: 9px;
     font-weight: 500;
     letter-spacing: .1em;
-    color: var(--iris);
-    border: 1px solid var(--iris-dim);
+    color: var(--accent);
+    border: 1px solid var(--accent-wash);
     border-radius: 2px;
     padding: 0 3px;
 }
 
+/* Naming collision, not a relative: this is PriceCell's price-range ruler, unconnected to
+   the chrome rail above. It lives inside a window body — a reading, not chrome — so it
+   gets no material and no blur, only the same token repointing as everything else. */
 .rail {
     position: relative;
     width: 72px;
@@ -823,7 +1472,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     right: 0;
     top: 3px;
     height: 1px;
-    background: var(--ink-500);
+    background: var(--separator);
 }
 
 .rail__tick {
@@ -833,22 +1482,22 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     height: 7px;
     margin-left: -1px;
     border-radius: 1px;
-    background: var(--ink-400);
+    background: var(--surface-3);
 }
 
 .rail__tick--best {
-    background: var(--iris);
-    box-shadow: 0 0 0 2px var(--iris-dim);
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-wash);
 }
 
 /* How much the best price is worth against the worst, in points of implied
    probability. Shown on the row you are actually reading, so a column of numbers
    does not compete with the ticks. */
 .price__edge {
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 9.5px;
     letter-spacing: .04em;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     opacity: 0;
     transition: opacity .1s ease;
 }
@@ -856,7 +1505,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .mud-table-row:hover .price__edge,
 .board__row--open .price__edge { opacity: 1; }
 
-.price__edge--wide { color: var(--steam); }
+.price__edge--wide { color: var(--state-positive); }
 
 /* A closing line is not a price you can take — the game has started and the book
    is gone. It stays on the board because it is what the market concluded and what
@@ -889,7 +1538,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    worth acting on, so the row says which. */
 .board__gap {
     margin-top: 3px;
-    color: var(--flag);
+    color: var(--state-warning);
     font-size: 11px;
     line-height: 1.35;
     max-width: 34ch;
@@ -922,8 +1571,8 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     gap: 8px;
     flex-wrap: wrap;
     padding: 9px 10px 11px;
-    background: var(--ink-800);
-    border-bottom: 1px solid var(--ink-500);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--separator);
 }
 
 .board__actions-label {
@@ -931,7 +1580,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-weight: 600;
     letter-spacing: .12em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     margin-right: 2px;
 }
 
@@ -956,16 +1605,20 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     flex-direction: column;
     max-width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-float);
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    /* The one place a hairline is allowed: a floating material surface needs an
+       edge to separate it from whatever it is floating over. */
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-sheet);
     overflow: hidden;
-    animation: dialog-in .12s ease-out;
+    animation: deskdialog-in var(--dur-base) var(--ease-spring);
 }
 
-@keyframes dialog-in {
-    from { opacity: 0; transform: scale(.985); }
+@keyframes deskdialog-in {
+    from { opacity: 0; transform: scale(.96); }
     to { opacity: 1; transform: scale(1); }
 }
 
@@ -975,34 +1628,36 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     gap: 8px;
     height: var(--titlebar-h);
     padding: 0 4px 0 10px;
-    background: var(--ink-600);
-    border-bottom: 1px solid var(--ink-500);
+    background: transparent;
+    border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     cursor: grab;
     touch-action: none; /* the pointer gesture owns the drag, not the browser's scroll */
     user-select: none;
 }
 
-.deskdialog--dragging { box-shadow: var(--shadow-float), 0 0 0 1px var(--ink-400); }
+.deskdialog--dragging { box-shadow: var(--shadow-sheet), 0 0 0 1px var(--separator-strong); }
 .deskdialog--dragging .deskdialog__bar { cursor: grabbing; }
 body.dialog-dragging { user-select: none; }
 
-.deskdialog__icon { display: grid; place-items: center; color: var(--haze-dim); flex: 0 0 auto; }
+.deskdialog__icon { display: grid; place-items: center; color: var(--text-tertiary); flex: 0 0 auto; }
 .deskdialog__icon svg { width: 15px; height: 15px; }
 
 .deskdialog__title {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
     letter-spacing: .085em;
     text-transform: uppercase;
     white-space: nowrap;
     flex: 0 0 auto;
 }
 
+/* Carries ids, counts and timestamps beside the title, so it keeps tabular figures
+   even though there is no second family left to set them in. */
 .deskdialog__sub {
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 10.5px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1016,7 +1671,7 @@ body.dialog-dragging { user-select: none; }
     overflow: auto;
     padding: 14px;
     scrollbar-width: thin;
-    scrollbar-color: var(--ink-400) transparent;
+    scrollbar-color: var(--surface-3) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1059,27 +1714,72 @@ body.dialog-dragging { user-select: none; }
     z-index: calc(var(--z-popover) + 1);
     min-width: 290px;
     padding: 5px;
-    background: var(--ink-700);
-    border: 1px solid var(--ink-400);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-win);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    /* The one place a hairline is allowed: a floating material surface needs an
+       edge to separate it from whatever it is floating over. */
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-3);
+
+    /* Anchored entrance: the panel's own right edge sits under its trigger (see
+       `right: 0` above), so it opens out of the button's corner rather than
+       fading in place. --pullmenu-origin lets a future caller override the
+       corner if the trigger ever anchors from the left instead. */
+    transform-origin: var(--pullmenu-origin, top right);
+    animation: pullmenu-in var(--dur-fast) var(--ease-spring);
+}
+
+@keyframes pullmenu-in {
+    from { opacity: 0; transform: scale(.92); }
+    to { opacity: 1; transform: scale(1); }
 }
 
 .pullmenu__item {
     display: block;
     width: 100%;
-    padding: 8px 10px;
+    min-height: 26px;
+    padding: 4px var(--space-2);
     background: none;
     border: 0;
     border-radius: 4px;
-    color: var(--chalk);
+    color: var(--text-primary);
     font-family: inherit;
+    font-size: var(--text-body);
     text-align: left;
     cursor: pointer;
 }
 
-.pullmenu__item:hover { background: var(--ink-600); }
-.pullmenu__item:focus-visible { outline: 2px solid var(--iris); outline-offset: -2px; }
+/* Accent, not neutral — deliberately different from the launcher's and the glide
+   plates' hover, which stay neutral under "accent means selection, not hover"
+   (see the launcher rule above). A menu is the one place that rule inverts: the
+   hovered row in a real menu IS a provisional selection, because releasing the
+   pointer commits it — that is what macOS's own menus do, and what makes this
+   read as a menu rather than a hover-follow strip. Do not "fix" this back to
+   --surface-3 in a future sweep. */
+.pullmenu__item:hover { background: var(--accent-wash); color: var(--accent); }
+.pullmenu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* A selected item states itself with a leading glyph, not a wash — the wash is
+   spent on hover above, and stacking both would blur which one is true. Not
+   currently exercised by any job (none of PullMenu's entries are a picker), but
+   established here so a future selectable row has the right answer waiting. */
+.pullmenu__item--selected { position: relative; padding-left: calc(var(--space-2) + 16px); }
+.pullmenu__item--selected::before {
+    content: "\2713";
+    position: absolute;
+    left: var(--space-2);
+    color: var(--accent);
+}
+
+/* Destructive: the same red-text/red-wash pairing as a destructive button. */
+.pullmenu__item--destructive { color: var(--state-negative); }
+.pullmenu__item--destructive:hover { background: var(--state-negative-wash); color: var(--state-negative); }
+
+@media (prefers-reduced-motion: reduce) {
+    .pullmenu__panel { animation: none; }
+}
 
 .pullmenu__row {
     display: flex;
@@ -1093,17 +1793,17 @@ body.dialog-dragging { user-select: none; }
 /* The price is stated before the click, not discovered afterwards. */
 .pullmenu__cost {
     flex: 0 0 auto;
-    font-family: var(--face-data);
+    font-variant-numeric: tabular-nums;
     font-size: 10px;
     letter-spacing: .06em;
     text-transform: uppercase;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
 }
 
 .pullmenu__desc {
     display: block;
     margin-top: 2px;
-    color: var(--haze-dim);
+    color: var(--text-tertiary);
     font-size: 11.5px;
     line-height: 1.4;
 }
@@ -1111,9 +1811,9 @@ body.dialog-dragging { user-select: none; }
 /* Unavailable states the reason in place of the description, so the menu explains
    itself rather than just refusing. */
 .pullmenu__item--blocked { cursor: not-allowed; }
-.pullmenu__item--blocked:hover { background: none; }
-.pullmenu__item--blocked .pullmenu__label { color: var(--haze-dim); }
-.pullmenu__item--blocked .pullmenu__desc { color: var(--flag); }
+.pullmenu__item--blocked:hover { background: none; color: var(--text-primary); }
+.pullmenu__item--blocked .pullmenu__label { color: var(--text-tertiary); }
+.pullmenu__item--blocked .pullmenu__desc { color: var(--state-warning); }
 
 /* ---- Linked cell -----------------------------------------------------------
    A cell naming something with a window of its own. The desk answers "what will
@@ -1154,7 +1854,7 @@ body.dialog-dragging { user-select: none; }
     gap: 3px;
     flex: 0 0 auto;
     opacity: 0;
-    color: var(--iris);
+    color: var(--accent);
     font-size: 9.5px;
     font-weight: 600;
     letter-spacing: .1em;
@@ -1169,330 +1869,635 @@ body.dialog-dragging { user-select: none; }
    name only resolves on the one actually under the pointer. */
 .grid tbody tr:hover .desklink__label,
 .mud-table-row:hover .desklink__label {
-    border-bottom-color: var(--ink-400);
+    border-bottom-color: var(--surface-3);
 }
 
+/* Accent on the label, not a neutral: this is a link resolving, not a row lighting
+   under the pointer — the accent is on the text and the rule under it, there is no
+   fill, and the same declaration serves :focus-visible. */
 .desklink:hover .desklink__label,
 .desklink:focus-visible .desklink__label {
-    color: var(--iris);
-    border-bottom-color: var(--iris);
+    color: var(--accent);
+    border-bottom-color: var(--accent);
 }
 
 .desklink:hover .desklink__shortcut,
 .desklink:focus-visible .desklink__shortcut { opacity: 1; }
 
-.desklink:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+.desklink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
     .desklink__label, .desklink__shortcut { transition: none; }
 }
 
-.up { color: var(--steam); }
-.down { color: var(--drift); }
-.warnc { color: var(--flag); }
+.up { color: var(--state-positive); }
+.down { color: var(--state-negative); }
+.warnc { color: var(--state-warning); }
 
-/* Tag: a small state word. Border-only so a table of them stays calm. */
+/* Tag: a small state word, set as a capsule.
+
+   The outlined chip is gone. An outline is a second edge inside a table that is
+   already ruled by hairlines, and a column of them read as a column of little boxes
+   rather than as a column of states. A capsule has one edge — its own fill — so a
+   table of them settles: the shape says "label", the wash says which state, and the
+   ink is that state's own colour so the word and its fill agree.
+
+   Neutral is --surface-3 under --text-secondary: still a capsule, no state claimed.
+
+   The line-height is explicit and it is load-bearing. A tag is inline-block, so without
+   one it inherits the line-height of whatever it sits in; in a grid cell that is 20px,
+   which puts the capsule's own box at 24px with its 2px paddings and drags the row's
+   line box up with it. Measured in the History panel's Recent-days grid: a tag-bearing
+   row came out 33px against a plain row's 29px, and ten panels put tags in cells, so
+   density drifted panel to panel with no rule behind it.
+
+   14px puts the capsule at 18px, which is the largest box that still fits inside the
+   cell's 20px line box without pushing it — 20px (line-height 16px) measures 30px,
+   because an inline-block that exactly equals the strut still has to be positioned
+   within it and cannot be. The 1px vertical-align is the rest of the measurement, not
+   a guess: at baseline the capsule sat 6px from the cell's top and 4px from its bottom;
+   lifting it 1px reads 5/5, dead centre, and the row still measures 29px. */
 .tag {
     display: inline-block;
-    padding: 2px 7px;
-    border: 1px solid var(--ink-400);
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
+    padding: 2px var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    font-size: var(--text-caption);
+    line-height: 14px;
+    vertical-align: 1px;
+    font-weight: var(--weight-medium);
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--haze);
+    background: var(--surface-3);
+    color: var(--text-secondary);
     white-space: nowrap;
 }
 
-.tag--good { border-color: var(--steam); color: var(--steam); background: var(--steam-dim); }
-.tag--warn { border-color: var(--flag); color: var(--flag); background: var(--flag-dim); }
-.tag--bad { border-color: var(--drift); color: var(--drift); background: var(--drift-dim); }
-.tag--info { border-color: var(--iris); color: var(--iris); background: var(--iris-dim); }
+.tag--good { background: var(--state-positive-wash); color: var(--state-positive); }
+.tag--warn { background: var(--state-warning-wash); color: var(--state-warning); }
+.tag--bad { background: var(--state-negative-wash); color: var(--state-negative); }
+.tag--info { background: var(--accent-wash); color: var(--accent); }
 
-/* ---- SIGNATURE II: the key ------------------------------------------------
-   Everything on the desk is matte except the things you press. Gloss is not
-   decoration here — it is the *affordance* channel, exactly as hue is the state
-   channel. A surface that catches the light can be clicked; one that does not,
-   cannot. That single rule pays for itself twice: a disabled key loses its sheen
-   outright rather than merely fading, and a field is its own inverse — recessed,
-   unlit, obviously a place to type rather than a thing to hit.
+/* ------------------------------------------------------------------ buttons ---
+   Apple's three-level hierarchy, and nothing else. ADR 0008 made gloss mean
+   "pressable" and hue mean "consequence"; ADR 0016 retires both. Under the old
+   rule every button was a moulded, tinted cap, which meant a panel with five
+   buttons had five primary actions and therefore none.
 
-   A key is a moulded cap seated in the panel. It has a crown highlight along its
-   top edge, a shadow line where the cap meets its seat, and 2px of real throw:
-   seated at rest, up 1px when highlighted, down 1px under the press. Highlighting
-   lifts the cap toward the light, which is the answer to "what will this click
-   hit?" — and :focus-visible lifts it identically, so the keyboard gets the same
-   answer the pointer does.
+   Now weight carries the message. Filled is the one action a context commits to.
+   Tinted is a secondary action that still has to be findable. Plain is chrome —
+   transparent until pointed at. Red is reserved for Role.Destructive and is the
+   only place a button borrows a state colour.
 
-   The whole recipe is driven by two custom properties. A new tone is two lines,
-   and it applies to a native <button class="btn"> and a <MudButton> alike — see
-   Components/Desk/DeskButton.razor and css/mud-bridge.css.
-   ------------------------------------------------------------------------- */
+   .btn is kept in the selector so that any hand-written .btn markup picks up the
+   same recipe rather than needing its own rule; none currently exists on the
+   desk; every hand-written button has already been migrated to DeskButton. The
+   selector stays cheap insurance against a stray .btn reappearing with its own,
+   second button language.
+   --------------------------------------------------------------------------- */
 
-.btn,
-.desk-key {
-    /* The two dials. Everything below is derived from them. */
-    --key-tint: var(--ink-600);
-    --key-ink: var(--chalk);
-
-    /* Cap state: how far it stands off the panel, and how hard it is lit. */
-    --key-lift: 0px;
-    --key-sheen: .10;
-    --key-crown: rgba(255, 255, 255, .26);
+.desk-btn, .btn {
+    /* The two dials every variant below spends. */
+    --btn-fill: transparent;
+    --btn-ink: var(--text-secondary);
 
     position: relative;
-    overflow: hidden; /* clips the busy sweep to the cap */
+    overflow: hidden; /* clips the in-flight shimmer */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--space-1);
     height: 28px;
     min-width: 0;
-    padding: 0 12px;
+    padding: 0 var(--space-3);
     box-sizing: border-box;
 
-    border: 1px solid color-mix(in oklab, var(--key-tint) 58%, #000);
-    border-radius: 5px;
+    border: none; /* depth comes from fill and shadow, never an outline */
+    border-radius: var(--radius);
 
-    /* Tint underneath, moulding on top. The light falls from above, so the sheen
-       is strongest at the crown and turns over into shade past the midline. */
-    background-color: var(--key-tint);
-    background-image: linear-gradient(180deg,
-        rgba(255, 255, 255, calc(var(--key-sheen) * 2.2)) 0%,
-        rgba(255, 255, 255, calc(var(--key-sheen) * .5)) 46%,
-        rgba(0, 0, 0, calc(var(--key-sheen) * .85)) 100%);
+    background-color: var(--btn-fill);
+    color: var(--btn-ink);
 
-    box-shadow:
-        inset 0 1px 0 var(--key-crown), /* crown */
-        inset 0 -1px 0 rgba(0, 0, 0, .30), /* where cap meets seat */
-        0 1px 0 rgba(0, 0, 0, .45), /* the seat itself */
-        0 2px 4px -2px rgba(0, 0, 0, .65); /* cast onto the panel */
-
-    color: var(--key-ink);
     font-family: var(--face-ui);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .07em;
-    text-transform: uppercase;
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0; /* the uppercase tracking went with the gloss */
+    text-transform: none;
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
 
-    transform: translateY(var(--key-lift));
-    transition: transform .09s ease-out, box-shadow .09s ease-out,
-                background-color .09s ease-out, border-color .09s ease-out;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
 }
 
-.btn svg,
-.desk-key svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.desk-btn svg, .btn svg { width: 15px; height: 15px; flex: 0 0 auto; }
 
-/* Highlighted — the cap rises into the light. Pointer and keyboard, same signal. */
-.btn:hover, .btn:focus-visible,
-.desk-key:hover, .desk-key:focus-visible {
-    --key-lift: -1px;
-    --key-sheen: .17;
-    --key-crown: rgba(255, 255, 255, .42);
-    border-color: color-mix(in oklab, var(--key-tint) 55%, #fff);
-    box-shadow:
-        inset 0 1px 0 var(--key-crown),
-        inset 0 -1px 0 rgba(0, 0, 0, .32),
-        0 2px 0 rgba(0, 0, 0, .45),
-        0 7px 13px -6px rgba(0, 0, 0, .8),
-        0 4px 16px -8px var(--key-tint); /* the cap bleeds a little onto the panel */
+/* One focus ring for the whole desk, sitting outside the control on an offset. */
+.desk-btn:focus-visible, .btn:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
-/* The ring is chalk, not iris: an iris ring on an iris key is invisible. */
-.btn:focus-visible,
-.desk-key:focus-visible {
-    outline: 2px solid var(--chalk);
-    outline-offset: 2px;
+/* Apple answers a press with a fast, small scale rather than travel. */
+.desk-btn:active:not(:disabled), .btn:active:not(:disabled) {
+    transform: scale(.97);
+    transition-duration: .05s;
 }
 
-/* Pressed — past the light line, into its own seat. */
-.btn:active, .desk-key:active {
-    --key-lift: 1px;
-    --key-crown: rgba(255, 255, 255, .08);
-    background-image: linear-gradient(180deg, rgba(0, 0, 0, .18), rgba(255, 255, 255, .05));
-    box-shadow:
-        inset 0 2px 5px rgba(0, 0, 0, .55),
-        inset 0 1px 0 rgba(0, 0, 0, .3);
-    transition-duration: .04s;
-}
-
-/* Unmoulded plastic: no sheen, no travel, nothing to catch the eye or the light. */
-.btn:disabled, .btn[disabled],
-.desk-key:disabled, .desk-key[disabled] {
-    --key-lift: 0px;
-    background-image: none;
-    background-color: var(--ink-600);
-    border-color: var(--ink-500);
-    color: var(--haze-dim);
-    box-shadow: none;
+.desk-btn:disabled, .desk-btn[disabled],
+.btn:disabled, .btn[disabled] {
+    opacity: .40;
     cursor: not-allowed;
     transform: none;
 }
 
-/* Tones. Hue still means what it means everywhere else on the desk, so a key's
-   colour states its consequence: go, stop, proceed with care. */
-.btn--primary, .desk-key--action { --key-tint: var(--iris); --key-ink: #0C1020; }
-.desk-key--go { --key-tint: var(--steam); --key-ink: #06170F; }
-.desk-key--stop { --key-tint: var(--drift); --key-ink: #1E070C; }
-.desk-key--caution { --key-tint: var(--flag); --key-ink: #1C1204; }
-.desk-key--neutral { --key-tint: var(--ink-600); --key-ink: var(--chalk); }
+/* --- Plain: chrome. Transparent until pointed at. ------------------------- */
+.desk-btn--plain { --btn-fill: transparent; --btn-ink: var(--text-secondary); }
 
-/* Quiet: a link wearing a button's hit area. Not a key, so it does not catch the
-   light and does not move — the gloss rule stays honest. */
-/* Ink goes through --key-ink rather than `color` so that one declaration in the
-   base rule stays the only place a key's text colour is set. A quiet key is not
-   a tone, but it is still a key, so it spends the same dial. */
-.btn--quiet, .desk-key--quiet {
-    --key-ink: var(--haze);
-    background-image: none;
-    background-color: transparent;
-    border-color: transparent;
-    box-shadow: none;
-    transform: none;
+.desk-btn--plain:hover:not(:disabled) {
+    --btn-fill: var(--surface-3);
+    --btn-ink: var(--text-primary);
 }
 
-.btn--quiet:hover, .btn--quiet:focus-visible,
-.desk-key--quiet:hover, .desk-key--quiet:focus-visible {
-    --key-ink: var(--chalk);
-    background-color: var(--ink-600);
-    border-color: transparent;
-    box-shadow: none;
-    transform: none;
+/* --- Tinted: an accent wash behind accent text. --------------------------- */
+.desk-btn--tinted { --btn-fill: var(--accent-wash); --btn-ink: var(--accent); }
+
+.desk-btn--tinted:hover:not(:disabled) { --btn-fill: var(--accent-wash-strong); }
+
+/* --- Filled: the one action the context commits to. ----------------------- */
+.desk-btn--filled {
+    --btn-fill: var(--accent);
+    --btn-ink: var(--on-accent);
+    font-weight: var(--weight-semibold);
+    box-shadow: var(--shadow-1);
 }
 
-.btn--quiet:active, .desk-key--quiet:active {
-    background-image: none;
-    background-color: var(--ink-500);
-    box-shadow: none;
-    transform: none;
+.desk-btn--filled:hover:not(:disabled) { --btn-fill: var(--accent-hover); }
+.desk-btn--filled:active:not(:disabled) { --btn-fill: var(--accent-press); }
+
+/* --- Destructive: the only place a button borrows a state colour. ---------- */
+.desk-btn--destructive.desk-btn--plain { --btn-ink: var(--state-negative); }
+
+.desk-btn--destructive.desk-btn--plain:hover:not(:disabled) {
+    --btn-fill: var(--state-negative-wash);
+    --btn-ink: var(--state-negative);
 }
 
-/* Sizes. The cap changes height and padding; the moulding does not rescale. */
-.desk-key--sm { height: 22px; padding: 0 9px; font-size: 10px; gap: 4px; }
-.desk-key--sm svg { width: 12px; height: 12px; }
-.desk-key--lg { height: 34px; padding: 0 16px; font-size: 12px; }
+.desk-btn--destructive.desk-btn--tinted { --btn-fill: var(--state-negative-wash); --btn-ink: var(--state-negative); }
 
-/* Icon-only: square, so the cap reads as a key rather than a clipped button. */
-.desk-key--icon { padding: 0; width: 28px; }
-.desk-key--icon.desk-key--sm { width: 22px; }
-.desk-key--icon.desk-key--lg { width: 34px; }
+.desk-btn--destructive.desk-btn--tinted:hover:not(:disabled) {
+    --btn-fill: color-mix(in oklab, var(--state-negative) 24%, transparent);
+}
 
-/* Working. A key that has started something borrows the pulse strip's sweep
-   rather than inventing a spinner — the desk already has one word for "in
-   flight", and this is it.
+/* --on-accent is the ink for any saturated fill, not only the accent one — a
+   destructive fill is exactly as saturated, so it spends the same token rather
+   than restating white. */
+.desk-btn--destructive.desk-btn--filled { --btn-fill: var(--state-negative); --btn-ink: var(--on-accent); }
 
-   A busy key is also a disabled key, so that the keyboard cannot fire it twice.
-   That would hand it the unmoulded look above, which says the wrong thing: it is
-   not inert, it is occupied. These rules out-specify :disabled to put the cap
-   and its light back, and only the travel stays gone. */
-.desk-key--busy,
-.desk-key--busy:disabled {
-    pointer-events: none;
-    background-color: var(--key-tint);
-    background-image: linear-gradient(180deg,
-        rgba(255, 255, 255, calc(var(--key-sheen) * 2.2)) 0%,
-        rgba(255, 255, 255, calc(var(--key-sheen) * .5)) 46%,
-        rgba(0, 0, 0, calc(var(--key-sheen) * .85)) 100%);
-    border-color: color-mix(in oklab, var(--key-tint) 58%, #000);
-    color: var(--key-ink);
-    box-shadow:
-        inset 0 1px 0 var(--key-crown),
-        inset 0 -1px 0 rgba(0, 0, 0, .3),
-        0 1px 0 rgba(0, 0, 0, .45);
+.desk-btn--destructive.desk-btn--filled:hover:not(:disabled) {
+    --btn-fill: var(--state-negative-hover);
+}
+
+/* --- Sizes. The control changes height and padding; the recipe does not. --- */
+.desk-btn--sm { height: 22px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.desk-btn--sm svg { width: 13px; height: 13px; }
+.desk-btn--lg { height: 34px; padding: 0 var(--space-4); font-size: var(--text-title3); }
+.desk-btn--lg svg { width: 17px; height: 17px; }
+
+/* --- Icon-only: square, so it reads as a control rather than a clipped button. */
+.desk-btn--icon { padding: 0; width: 28px; }
+.desk-btn--icon.desk-btn--sm { width: 22px; }
+.desk-btn--icon.desk-btn--lg { width: 34px; }
+
+/* --- Busy: occupied, not inert. Keeps its fill and runs a sheen across it. -- */
+.desk-btn--busy,
+.desk-btn--busy:disabled {
+    opacity: 1;
     cursor: progress;
 }
 
-.desk-key--busy::after {
+.desk-btn--busy::after {
     content: '';
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 38%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .3), transparent);
-    animation: pulse-sweep 1.15s linear infinite;
+    inset: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, .18) 50%,
+        transparent 100%);
+    animation: desk-btn-sheen 1.1s var(--ease-standard) infinite;
+}
+
+@keyframes desk-btn-sheen {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    /* The lift is the affordance, so it stays — it just arrives without travel.
-       The sweep, which is ambient rather than informative, stops. */
-    .btn, .desk-key { transition: box-shadow .09s ease-out, background-color .09s ease-out; }
-    .desk-key--busy::after { animation: none; opacity: .5; }
+    .desk-btn--busy::after { animation: none; opacity: .35; }
+    .desk-btn:active:not(:disabled), .btn:active:not(:disabled) { transform: none; }
 }
 
-/* ---- The field ------------------------------------------------------------
-   The key's inverse, and the reason the gloss rule is worth having: a field is
-   cut *into* the panel. Same metrics so a row of controls lines up, opposite
-   light. Previously these wore .btn, which under the rule above would have made
-   every text box look pressable.
+/* ------------------------------------------------------------------- fields ---
+   A field is a place to put something, so it is cut into the surface rather than
+   raised off it: a darker well, a hairline, and no fill of its own. ADR 0008 had
+   fields inheriting a button recipe with text-transform patched off at every call
+   site; that inversion is gone with the gloss it was correcting.
    --------------------------------------------------------------------------- */
 
 .field {
+    display: block;
+    width: 100%;
     height: 28px;
-    min-width: 0;
-    padding: 0 9px;
+    padding: 0 var(--space-2);
     box-sizing: border-box;
-    background: var(--ink-800);
-    border: 1px solid var(--ink-500);
-    border-radius: 5px;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
-    color: var(--chalk);
+
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+
+    color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 12.5px;
-    transition: border-color .12s ease, box-shadow .12s ease;
+    font-size: var(--text-body);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0;
+    text-transform: none;
+
+    transition: border-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
 }
 
-.field::placeholder { color: var(--haze-dim); }
-.field:hover { border-color: var(--ink-400); }
+.field::placeholder { color: var(--text-tertiary); }
+
+.field:hover:not(:disabled) { border-color: var(--separator-strong); }
 
 .field:focus, .field:focus-visible {
     outline: none;
-    border-color: var(--iris);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45), 0 0 0 2px var(--iris-dim);
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
 }
 
-.field:disabled { color: var(--haze-dim); cursor: not-allowed; background: var(--ink-700); }
+.field:disabled {
+    opacity: .40;
+    cursor: not-allowed;
+}
 
-/* Numbers in a field are still numbers. */
-.field.num { font-family: var(--face-data); font-variant-numeric: tabular-nums; }
+.field.num { font-variant-numeric: tabular-nums; }
 
-textarea.field { height: auto; padding: 7px 9px; line-height: 1.5; resize: vertical; }
+textarea.field {
+    height: auto;
+    padding: var(--space-1) var(--space-2);
+    line-height: var(--leading-body);
+    resize: vertical;
+}
 
-/* The caret is drawn rather than native, so the control matches on every OS. */
 select.field {
     appearance: none;
-    padding-right: 26px;
-    background-image: linear-gradient(45deg, transparent 50%, var(--haze) 50%),
-                      linear-gradient(135deg, var(--haze) 50%, transparent 50%);
-    background-position: calc(100% - 15px) 12px, calc(100% - 10px) 12px;
+    padding-right: var(--space-6);
+    cursor: pointer;
+    /* The chevron is drawn rather than imported, so it takes the text colour. */
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+                      linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px;
     background-size: 5px 5px, 5px 5px;
     background-repeat: no-repeat;
 }
 
-select.field option { background: var(--ink-700); color: var(--chalk); }
+select.field option { background: var(--surface-2); color: var(--text-primary); }
 
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Row and stack read their gap from --desk-gap so a component can set one rung of
+   the spacing ramp inline without a modifier class per step. The fallback is the
+   gap they have always had, so a bare .row / .stack is unchanged.
+
+   The `--desk-gap: initial` is load-bearing, not tidiness: custom properties inherit,
+   so without it a plain row nested inside a spaced one would silently adopt its
+   parent's gap. Setting it to the guaranteed-invalid value makes var() fall through
+   to the default, while an inline --desk-gap on the element still wins. */
+.row { --desk-gap: initial; display: flex; align-items: center; gap: var(--desk-gap, var(--space-2)); flex-wrap: wrap; }
+
+/* ---- The field's frame ----------------------------------------------------
+   Only present when a field has something to say about itself. A field with no
+   label and no error renders bare, so the controls that sit straight in a .row
+   with their own max-width keep sitting there — the frame is an addition, not a
+   new baseline. Where it does appear it owns the layout, and the control fills
+   it, so max-width on the wrapper still means what the caller meant.
+   --------------------------------------------------------------------------- */
+
+.field-set { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.field-set > .field { width: 100%; }
+
+.field-lbl {
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.field-req { color: var(--state-negative); margin-left: 3px; }
+
+.field-err {
+    /* Carried across from the old block: .field-err renders as a <p> in
+       DeskField/DeskSelect/DeskTextArea, whose default margin would otherwise
+       reopen the vertical rhythm .field-set's gap is meant to own. */
+    margin: 0;
+    font-size: var(--text-footnote);
+    color: var(--state-negative);
+}
+
+.field[aria-invalid="true"] { border-color: var(--state-negative); }
+
+.field[aria-invalid="true"]:focus,
+.field[aria-invalid="true"]:focus-visible {
+    border-color: var(--state-negative);
+    box-shadow: 0 0 0 3px var(--state-negative-wash), 0 0 0 1px var(--state-negative);
+}
 .row--end { justify-content: flex-end; }
-.stack { display: flex; flex-direction: column; gap: 8px; }
+.row--start { justify-content: flex-start; }
+.row--center { justify-content: center; }
+.row--between { justify-content: space-between; }
+.row--top { align-items: flex-start; }
+.row--bottom { align-items: flex-end; }
+.row--stretch { align-items: stretch; }
+.row--baseline { align-items: baseline; }
+.row--nowrap { flex-wrap: nowrap; }
+.stack { --desk-gap: initial; display: flex; flex-direction: column; gap: var(--desk-gap, var(--space-2)); }
+.stack--start { align-items: flex-start; }
+.stack--center { align-items: center; }
+.stack--end { align-items: flex-end; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
 .note {
     padding: 9px 11px;
-    border: 1px solid var(--ink-500);
-    border-left: 2px solid var(--iris);
+    border: 1px solid var(--separator);
+    border-left: 2px solid var(--accent);
     border-radius: 4px;
-    background: var(--ink-600);
-    color: var(--haze);
+    background: var(--surface-2);
+    color: var(--text-secondary);
     font-size: 12px;
     line-height: 1.5;
 }
 
-.note--warn { border-left-color: var(--flag); }
-.empty { color: var(--haze-dim); font-size: 12.5px; padding: 14px 2px; line-height: 1.55; }
+.note--warn { border-left-color: var(--state-warning); }
+
+/* An empty state is an absence, not a card: no border, no fill, no box — just a line
+   of --text-secondary at the desk's body size. The old --text-tertiary was the tier for
+   an annotation nobody has to read, and a panel explaining why it has nothing in it is
+   the opposite of that: it is the only thing on the screen.
+
+   .empty is also the desk's plain quiet-note class — the Parts window sets whole
+   paragraphs of prose in it — so the base stays in the flow it was written for and only
+   the two genuine "there is nothing here" kinds below centre themselves. */
+.empty { color: var(--text-secondary); font-size: var(--text-body); padding: 14px 2px; line-height: 1.55; }
+
+/* Nothing yet, or nothing matching. Centred in the space it is failing to fill, which is
+   what makes it read as the absence rather than as the first line of something. */
+.empty--new,
+.empty--filtered {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+}
+
+/* Error is the exception: "the load failed" and "nothing here yet" are indistinguishable
+   as grey sentences, so it takes a rule in --state-warning *and* the inset that rule
+   creates — hue plus shape, never hue alone. See ADR 0008. It stays left-aligned, because
+   a rule down the left of centred text is an edge with nothing to align to. */
+.empty--error {
+    border-left: 2px solid var(--state-warning);
+    padding-left: 10px;
+}
+
+/* The one next step, on its own line so it reads as an offer rather than as the tail of
+   the sentence above it. */
+.empty__action { display: block; margin-top: 8px; }
+
+/* ------------------------------------------------------- runbook ----------
+   The triage procedure, shown inside the incident that needs it. The accent on the
+   left edge because it is a thing you act on, not a state being reported. */
+
+.runbook {
+    border: 1px solid var(--separator);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    background: var(--surface-2);
+    margin: 14px 0;
+}
+
+.runbook__summary {
+    padding: 8px 11px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.runbook__summary::-webkit-details-marker { display: none; }
+
+/* The mark is an icon, not an illustration. Without a size the inline SVG arrives with
+   no intrinsic dimensions, stretches to the flex line, and renders roughly 385px square
+   — found in the browser, not in the stylesheet, because nothing here was wrong to read.
+   Same 15px the dialog's title mark takes. */
+.runbook__summary svg { width: 15px; height: 15px; flex: 0 0 auto; }
+/* Accent on the text, not a fill behind it: the summary is already --text-primary at
+   rest, so a neutral hover would paint nothing, and the disclosure is a control you
+   follow — the same reading .desklink gets. */
+.runbook__summary:hover { color: var(--accent); }
+
+.runbook__body {
+    padding: 2px 11px 11px;
+    border-top: 1px solid var(--separator);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.runbook__line { margin: 8px 0 0; }
+
+/* Steps are indented so a numbered procedure still reads as one at a glance,
+   the marker having been stripped along with the rest of the markdown. */
+.runbook__step {
+    margin: 5px 0 0 12px;
+    padding-left: 9px;
+    border-left: 1px solid var(--separator-strong);
+}
+
+.runbook__body strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+
+/* The one place a second family survives the collapse to --face-ui. A runbook's code
+   spans are literal things to type — a job key, a flag, a path — and a monospace face
+   is what says "this is the exact string", which no weight or colour can. It is the
+   platform stack, not a bundled font: nothing here has to match Inter's metrics. */
+.runbook__body code {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    background: var(--surface-1);
+    padding: 1px 4px;
+    border-radius: 3px;
+    color: var(--text-primary);
+}
+
+/* ============================================================================
+   LOADING VOCABULARY — .skel, .prog, .deskgrid__skeleton
+   Components/Desk/DeskSkeleton.razor · DeskProgress.razor · DeskGrid.razor
+
+   The desk's only "something is happening" signal used to be the window pulse
+   strip, which reports that a window is busy without saying where the answer
+   will land. These two say where, and how far along.
+
+   Both are matte on purpose. ADR 0008 makes gloss the affordance channel — a
+   surface that catches the light is one you can press — and neither of these is
+   pressable, so neither has a crown highlight or a seat shadow. The shimmer
+   travels *through* a flat surface; it is not a sheen sitting on one.
+
+   Motion spends the desk's shared tokens — --ease-standard and --dur-fast — so a
+   bar advancing and a marble sliding are the same gesture at different sizes, and
+   the skeleton's sweep is literally the button's: both run desk-btn-sheen, because
+   "this surface is occupied" should look the same whatever the surface is.
+   ============================================================================ */
+
+.skel {
+    display: block;
+    min-width: 0;
+    --skel-h: 9px;
+}
+
+.skel--lines { display: flex; flex-direction: column; gap: 7px; }
+
+.skel__line,
+.skel__block {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    border-radius: 3px;
+
+    /* One step up from the window body, so a placeholder reads as an absence in
+       the surface rather than a new element painted on it. */
+    background: var(--surface-2);
+}
+
+/* A radius per thing stood in for: a line of prose is nearly square-cut, a block is a
+   tile or a chart and takes the control radius those wear. */
+.skel__line { height: 9px; width: 100%; }
+.skel__block { height: var(--skel-h, 9px); width: 100%; border-radius: var(--radius); }
+
+/* The travelling band. Wide and low-contrast: this is a hint that the surface is
+   live, not a second pulse strip competing with the real one. */
+.skel__line::after,
+.skel__block::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .07), transparent);
+    transform: translateX(-100%);
+    animation: desk-btn-sheen 1.5s var(--ease-standard) infinite;
+}
+
+/* Staggered so a stack of lines reads as one surface being swept, not as three
+   independent bars each doing their own thing. */
+.skel--lines .skel__line:nth-child(2)::after { animation-delay: .12s; }
+.skel--lines .skel__line:nth-child(3)::after { animation-delay: .24s; }
+.skel--lines .skel__line:nth-child(n+4)::after { animation-delay: .36s; }
+
+/* ---- Grid rows ------------------------------------------------------------
+   Same row rhythm and hairline as .deskgrid's real body (see mud-bridge.css), so
+   the header stays put and the panel does not collapse and then jump back when
+   the first page lands.
+   --------------------------------------------------------------------------- */
+
+.deskgrid__skeleton { display: flex; flex-direction: column; }
+
+.deskgrid__skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 30px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--separator);
+}
+
+.deskgrid__skeleton-row:last-child { border-bottom: 0; }
+
+/* ---- The progress bar -----------------------------------------------------
+   The pulse strip's band, given a denominator. Same accent, same slimness, so the
+   desk keeps one word for "in flight" rather than acquiring a spinner too.
+
+   A 4px neutral track with a fully rounded accent fill, and no seat shadow cut into
+   it: the track is not a well, it is the part of the journey not yet made.
+   --------------------------------------------------------------------------- */
+
+.prog { display: block; min-width: 0; }
+
+.prog__label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 5px;
+    color: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 11.5px;
+    line-height: 1.3;
+}
+
+.prog__pct { color: var(--text-primary); font-size: 11.5px; flex: 0 0 auto; }
+
+.prog__track {
+    height: 4px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--surface-3);
+}
+
+.prog__fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+}
+
+/* Determinate travel uses the desk's glide, so the bar advances the way every
+   other moving thing on the surface does. */
+.prog--determinate .prog__fill {
+    width: 0;
+    transition: width var(--dur-fast) var(--ease-standard);
+}
+
+/* Indeterminate borrows the pulse strip's sweep outright — one idiom, not two. It
+   slides; it does not pulse. The track underneath stays the same neutral the
+   determinate one uses, so the two bars are one bar in two states rather than two
+   different objects. */
+.prog--indeterminate .prog__fill {
+    width: 34%;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: prog-sweep 1.15s linear infinite;
+}
+
+@keyframes prog-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(320%); }
+}
+
+/* Reduced motion drops the travel, never the state: a placeholder is still a
+   placeholder, and an indeterminate bar still says work is in flight — it just
+   says it with a steady band instead of a moving one. */
+@media (prefers-reduced-motion: reduce) {
+    .skel__line::after,
+    .skel__block::after { animation: none; transform: none; background: none; }
+
+    .prog--determinate .prog__fill { transition: none; }
+
+    .prog--indeterminate .prog__fill {
+        animation: none;
+        width: 100%;
+        background: var(--accent);
+        opacity: .5;
+    }
+}
 
 /* ------------------------------------------------------------ a11y --------- */
 
@@ -1502,7 +2507,7 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
     clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
-:focus-visible { outline: 2px solid var(--iris); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* A horizontal row of tabs cannot host itself usefully on a narrow screen — there is no
    room to drag a tab past a neighbour with a thumb. Windows stack into a single scrolling
@@ -1536,4 +2541,541 @@ select.field option { background: var(--ink-700); color: var(--chalk); }
     .win--collapsed { max-height: none; }
 
     .divider { display: none; }
+}
+
+/* ---- Two-stage disclosure: row actions, snippets, log rows -----------------
+   Opening a row shows what you can do with it; pressing one of those answers
+   the question in place. Only if the answer is not enough does a window get
+   spent — which matters because spending one evicts something (ADR 0007), and
+   browsing must never rearrange the desk out from under the operator.
+
+   Everything here is built to sit *inside* a table cell without disturbing the
+   row rhythm around it: the strip is the width of its own column, and only the
+   open row changes height.
+   -------------------------------------------------------------------------- */
+
+.rowacts {
+    margin-top: 8px;
+    border-top: 1px solid var(--separator);
+}
+
+.rowacts__keys {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 9px 0 2px;
+}
+
+/* The button whose snippet is showing. Held down rather than merely highlighted,
+   because it is a state the operator is in, not a hover. It reads as selected
+   rather than as its own colour, so it borrows the tinted wash instead of a tone. */
+.desk-btn--on {
+    --btn-fill: var(--accent-wash);
+    --btn-ink: var(--accent);
+}
+
+/* The inline answer. Inset from the row so it reads as belonging to it rather
+   than as the next row along.
+
+   --surface-0 rather than --surface-1, which is where the retired ramp's recessed tier
+   would have landed: that tier sat *below* the panel body, and the panel body is now
+   --surface-1, so the literal mapping would put the snippet at exactly the colour it
+   opens on top of. The whole point of the
+   block is that it reads as cut into the row. Its own bar and its open body keep the two
+   steps above it, so the three tiers stay three tiers. */
+.snippet {
+    margin: 8px 0 4px;
+    background: var(--surface-0);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.snippet__bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 9px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--separator);
+    font-size: 11px;
+}
+
+.snippet__icon { display: inline-flex; color: var(--text-secondary); }
+
+.snippet__title {
+    font-weight: var(--weight-semibold);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.snippet__note { color: var(--text-tertiary); font-size: 10.5px; }
+.snippet__spacer { flex: 1 1 auto; }
+
+/* The escape hatch. Quiet by default — the snippet is usually the answer, and a
+   loud "open window" would suggest otherwise. */
+.snippet__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 10.5px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease;
+}
+
+/* Neutral: the button brightens under the pointer, the way every plain control on the
+   desk does. Accent here would say "chosen", and nothing has been chosen yet. */
+.snippet__open:hover { color: var(--text-primary); border-color: var(--separator-strong); }
+
+.snippet__body { padding: 9px; }
+
+/* Odds snippet: three markets side by side, wrapping on a narrow window. */
+.snippet__markets { display: flex; gap: 18px; flex-wrap: wrap; }
+
+.snippet__market-name {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+}
+
+.snippet__sides { display: flex; flex-direction: column; gap: 3px; }
+
+.snippet__side {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.snippet__side--empty { color: var(--text-tertiary); }
+.snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snippet__line { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.snippet__price { color: var(--text-primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.snippet__book { font-size: 10.5px; }
+
+/* Form snippet: one run of results per side. */
+.snippet__form { display: flex; gap: 22px; flex-wrap: wrap; }
+.snippet__formside { display: flex; flex-direction: column; gap: 3px; }
+
+.snippet__formname {
+    font-size: 12px;
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    max-width: 22ch;
+}
+
+.snippet__formrun { display: flex; gap: 3px; }
+
+/* A form run: oldest on the left, newest on the right, like every other time axis here.
+   The newest tag is ringed in the desk's interactive hue rather than recoloured — the
+   tag's own hue is already spent saying won or lost, and a second meaning on the same
+   channel would make a recent win and a recent loss look like the same kind of thing.
+
+   A ring rather than the underline this used to carry: a tag is a capsule now, and an
+   inset bottom band inside a 999px radius reads as a smeared crescent, not a rule. */
+.formrun { display: inline-flex; gap: 3px; align-items: center; }
+
+.formrun__latest { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* A row of labelled readings, for a single game expanded. */
+.snippet__facts {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.fact__label {
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 3px;
+}
+
+.fact__value { font-size: 12.5px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.fact__value .good { color: var(--state-positive); }
+.fact__value .bad { color: var(--state-negative); }
+
+/* A tighter grid, for tables that live inside a snippet rather than a window. */
+.grid--tight { font-size: 12px; }
+.grid--tight th { padding: 0 7px 5px; position: static; }
+.grid--tight td { padding: 5px 7px; }
+
+/* ---- Splits strip ----------------------------------------------------------
+   Filters over rows already loaded, so these are instant. Deliberately keys
+   rather than a select: the whole set is worth seeing at once, and which one is
+   active is the question being asked of the log below.
+   -------------------------------------------------------------------------- */
+
+.splits {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 9px;
+}
+
+.splits__key {
+    background: transparent;
+    border: 1px solid var(--separator);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.splits__key:hover { color: var(--text-primary); border-color: var(--separator-strong); }
+
+.splits__pick { max-width: 190px; margin-left: auto; font-size: 11px; }
+
+/* ---- Log rows --------------------------------------------------------------
+   A game or a player, expandable in place. Not a table, because the expanded
+   body is a block rather than more cells — and a colspan row that pretends
+   otherwise breaks every column alignment above it.
+   -------------------------------------------------------------------------- */
+
+/* Same three-tier reading as .snippet above: the closed row is cut into the panel
+   (--surface-0), and opening it reveals a body one step back up. */
+.logrow {
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+    background: var(--surface-0);
+    overflow: hidden;
+}
+
+.logrow--open { border-color: var(--separator-strong); }
+
+.logrow__head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: 0;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s ease;
+}
+
+/* Neutral, and the same --surface-3 every other hover fill on the desk uses. The row
+   is being pointed at, not opened — opening it is what .logrow--open reports. */
+.logrow__head:hover { background: var(--surface-3); }
+
+.logrow__date { font-size: 11.5px; min-width: 7ch; font-variant-numeric: tabular-nums; }
+
+.logrow__opp {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Turns to point down when the row is open, so the control states which way it
+   goes rather than only that it is a control. */
+.logrow__chev {
+    display: inline-flex;
+    color: var(--text-tertiary);
+    transition: transform .14s ease;
+}
+
+.logrow--open .logrow__chev { transform: rotate(180deg); }
+
+.logrow__body {
+    padding: 10px;
+    border-top: 1px solid var(--separator);
+    background: var(--surface-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logrow__chev, .logrow__head, .splits__key, .snippet__open { transition: none; }
+}
+
+/* Coverage, stated under the thing it qualifies. A column of dashes is ambiguous
+   between "no data held" and "nothing to report", and only one of those is worth
+   acting on — so the snippet says which rather than leaving it to be inferred. */
+.snippet__coverage {
+    margin: 8px 0 0;
+    padding-top: 7px;
+    border-top: 1px solid var(--separator);
+    color: var(--text-tertiary);
+    font-size: 10.5px;
+    line-height: 1.5;
+}
+
+/* A row that opens has to look like one. Without this, "click a row for its
+   actions" is a rule you can only learn by accident: the pointer is the only
+   hint, and it arrives after you have already decided not to try. The open
+   row gets the same accent wash "selected" uses everywhere else — see
+   mud-bridge.css's .board__row--open rule — never a border or a left-edge
+   bar, which was the retired dial's habit. */
+.deskgrid--clickable .mud-table-row { cursor: pointer; }
+
+/* Keyboard focus is visible on every new control. The desk answers a press with
+   travel, which a keyboard user never sees — so focus gets its own ring rather
+   than relying on the hover treatment. */
+.logrow__head:focus-visible,
+.splits__key:focus-visible,
+.snippet__open:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    border-radius: 4px;
+}
+
+/* Which side a price is for. Two prices sit side by side in every market and the
+   board orders them home-first — but an ordering the reader cannot see is not an
+   ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
+   difference. Tracked, and set in a 3px-radius chip rather than a capsule — a capsule
+   is the tag's shape and means "a state", which this is not: it names a side. */
+.price__sel {
+    font-size: 10px;
+    font-weight: var(--weight-semibold);
+    letter-spacing: .04em;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-radius: 3px;
+    padding: 0 4px;
+    margin-right: 4px;
+}
+
+/* A destination window — one that is about a game, a team or a player. Listed so
+   the view is discoverable, but not openable, because without a subject it has
+   nothing to show. Dimmed rather than hidden, with the route to it in place of
+   the description. */
+.launcher__item--destination {
+    opacity: .55;
+    cursor: default;
+}
+
+.launcher__item--destination:hover { background: transparent; }
+
+.launcher__item--destination .launcher__desc { font-style: italic; }
+
+/* ---- The board's column rhythm ---------------------------------------------
+   Eight columns spread evenly across a wide desk pushed every price to the far
+   right of its own column, leaving a void between the matchup and the numbers
+   and putting each price further from the header naming it. The numbers are the
+   point of this screen; they should sit together and be read as a block.
+
+   So every column shrinks to its content — width:1% with nowrap is the standard
+   way to say "as narrow as you can" — and the matchup absorbs all the slack,
+   which it can use: it is the column that holds the row's action strip.
+   -------------------------------------------------------------------------- */
+
+.deskgrid--board table { width: 100%; }
+
+.deskgrid--board th,
+.deskgrid--board td {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/* The one column that grows. It also carries the open row's actions, so the
+   space is not merely absorbed — it is used. */
+.deskgrid--board th:nth-child(2),
+.deskgrid--board td:nth-child(2) {
+    width: auto;
+    white-space: normal;
+}
+
+/* Each market is two columns that belong together — home and away, over and
+   under. A hairline before the first of each pair groups them, so the eye reads
+   three markets rather than six unrelated numbers. */
+.deskgrid--board th:nth-child(3),
+.deskgrid--board td:nth-child(3),
+.deskgrid--board th:nth-child(5),
+.deskgrid--board td:nth-child(5),
+.deskgrid--board th:nth-child(7),
+.deskgrid--board td:nth-child(7) {
+    border-left: 1px solid var(--separator);
+}
+
+/* A market's second column repeats its name in the header. Dim the repeat so the
+   pair reads as one heading spanning two columns rather than as two headings. */
+.deskgrid--board th:nth-child(4),
+.deskgrid--board th:nth-child(6) { color: transparent; }
+
+.deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
+
+/* -------------------------------------------------------------------- sheet ---
+   A modal sheet. Rises from slightly below and settles — the motion says it came
+   from the task, not from the edge of the screen.
+
+   Every surface rule here is written as .mud-dialog.desk-sheet, two classes, on
+   purpose. MudBlazor's own stylesheet declares .mud-dialog (background, radius,
+   shadow, and a mud-open-dialog-center animation) at one class, and mud-bridge.css
+   re-declares .mud-dialog at one class for ordinary Mud dialogs. mud-bridge.css
+   loads AFTER this file, so a single-class rule here would lose the tie to the
+   bridge on source order and never reach the screen. Two classes settle it on
+   specificity instead, in both directions, and leave the bridge's plain dialog
+   styling intact for the dialogs that are not sheets.
+
+   The scrim is deliberately absent, and it is not stylable from CSS at all: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   which is DeskTheme.cs's OverlayDark. That is the scrim — the desk void at 62%. */
+
+.mud-dialog.desk-sheet { /* Mud owns the surface; the desk owns how it looks. */
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-sheet);
+    animation: desk-sheet-in var(--dur-base) var(--ease-spring);
+}
+
+@keyframes desk-sheet-in {
+    from { opacity: 0; transform: translateY(12px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Mud pads its own title, content and actions wrappers (16px/24px, at two classes
+   each). The sheet's head, body and foot carry the desk's spacing themselves, so
+   those wrappers are emptied out — three classes, which clears Mud's two — or the
+   padding would be applied twice and the sheet would read as loose. */
+.mud-dialog.desk-sheet .mud-dialog-title,
+.mud-dialog.desk-sheet .mud-dialog-content,
+.mud-dialog.desk-sheet .mud-dialog-actions {
+    padding: 0;
+    letter-spacing: normal;
+}
+
+.desk-sheet__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.desk-sheet__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.desk-sheet__title {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.desk-sheet__sub { font-size: var(--text-subheadline); color: var(--text-secondary); }
+
+.desk-sheet__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.desk-sheet__close:hover { background: var(--state-negative); color: var(--on-accent); }
+.desk-sheet__close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.desk-sheet__close svg { width: 14px; height: 14px; }
+
+.desk-sheet__body { padding: 0 var(--space-4) var(--space-4); }
+
+.desk-sheet__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--separator);
+    width: 100%;
+}
+
+/* The entrance is the only motion the sheet has, so neutralising it is the whole of
+   the reduced-motion story. Two classes again, to match the rule it is undoing. */
+@media (prefers-reduced-motion: reduce) {
+    .mud-dialog.desk-sheet { animation: none; }
+}
+
+/* -------------------------------------------------------------------- alert ---
+   Narrow, centred, and quiet. Everything here is subordinate to the question.
+
+   Nothing in this block touches Mud's own surface, so none of it needs the sheet's
+   two-class treatment: the alert renders as bare content inside .mud-dialog and
+   takes that surface as mud-bridge.css already draws it — opaque --surface-1, so
+   there is no material here and nothing to register in the fallback block below. */
+
+.desk-alert {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    text-align: center;
+    max-width: 320px;
+}
+
+.desk-alert__heading {
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.desk-alert__message {
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.desk-alert__actions {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+/* No rule marks the default confirm. There used to be one — a painted box-shadow copied
+   from --focus-ring — and it drew a focus ring on a button that did not have focus, which
+   a keyboard operator could not tell from the real thing. DeskAlert now focuses the default
+   button outright, so .desk-btn:focus-visible paints it when a keyboard opened the alert
+   and leaves it alone when a pointer did. The ring is earned rather than drawn. */
+
+/* ---- Material fallbacks -----------------------------------------------------
+   Opaque fallbacks for every material surface. This block must stay LAST in the
+   file: @supports adds no specificity, so these single-class rules beat their
+   unconditional counterparts only on source order. A rule added above this line
+   is a rule that works; a material added below it needs its fallback added here
+   and re-tested.
+
+   No blur available means no translucency either — a flat wash over the desk
+   would just look like a mistake. Chrome falls back to the same opaque tier as
+   a title bar; the rail's own popover falls back one tier down, to the tier a
+   panel body rests on; the dialog falls back to the same tier as chrome, since
+   it is chrome that happens to float. The modal sheet falls back the same way as
+   the floating dialog — it is the same kind of surface, just one that takes the
+   desk hostage — and it keeps both classes so it still clears the bridge's
+   single-class .mud-dialog, which source order alone would not do. The pull menu
+   falls back to the raised-row tier, --surface-2 — a menu resting on the desk
+   like a control, not a window body like the rail's popover. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .hdr, .ftr { background: var(--surface-2); }
+    .railmenu__panel { background: var(--surface-1); }
+    .deskdialog { background: var(--surface-2); }
+    .mud-dialog.desk-sheet { background: var(--surface-2); }
+    .pullmenu__panel { background: var(--surface-2); }
 }

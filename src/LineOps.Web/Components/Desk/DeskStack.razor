@@ -1,0 +1,63 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    A vertical group — .stack with its gap named.
+
+    The counterpart to DeskRow, and the same argument: a stack that needs 12px
+    between its children should say which rung of the ramp that is, not write the
+    pixels. Unset Gap leaves .stack's own 8px in place, so adopting the component
+    at an existing call site is a no-op visually.
+
+    class and style are held out of the splat and folded into the component's own —
+    see DeskLayout, and the gate/switch post-mortem it exists to settle.
+*@
+
+<div class="@Classes" @attributes="Rest" style="@Style">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Space between children, as a rung of the desk's ramp. Unset keeps 8px.</summary>
+    [Parameter] public DeskSpace? Gap { get; set; }
+
+    /// <summary>
+    /// Cross-axis alignment — here, horizontal. A stack stretches by default, which is
+    /// what makes its children share a width.
+    /// </summary>
+    [Parameter] public DeskAlign Align { get; set; } = DeskAlign.Stretch;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    /// <summary>Everything splattable except the two attributes this component composes itself.</summary>
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+
+    private string? Style => DeskLayout.MergeStyle(Gap, Extra);
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "stack";
+
+        // Stretch is .stack's own behaviour, so it earns no class.
+        yield return Align switch
+        {
+            DeskAlign.Start => "stack--start",
+            DeskAlign.Center => "stack--center",
+            DeskAlign.End => "stack--end",
+            _ => null
+        };
+
+        yield return Class;
+
+        // A splatted class is folded in here rather than dropped, so it adds to the
+        // layout classes instead of replacing them.
+        yield return DeskLayout.ExtraClass(Extra);
+    }
+}

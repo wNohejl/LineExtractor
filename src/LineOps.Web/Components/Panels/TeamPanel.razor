@@ -1,5 +1,7 @@
+@using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
 @using LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
@@ -10,114 +12,199 @@
     Deliberately not scoped to any one game: the question a team name answers is "how has this
     side actually been playing", and a game that led here is context for that question rather
     than a boundary on it.
+
+    Both halves are stacks of expandable rows rather than static tables, which is the same
+    interaction the slate and board use. A game row opens onto how that game sat against the
+    number; a player row opens onto their last five. Neither costs a window, because the answer
+    is usually one glance and spending a slot on it would evict something (ADR 0007).
+
+    Splits filter rows already loaded. Toggling between home and away is a re-render, not a
+    round trip, so situations can be flicked through at reading speed.
 *@
 
-@if (_form is null)
+@if (_team is null)
 {
-    <p class="empty">Loading @(_teamName ?? "the team")…</p>
+    <EmptyState>Loading @(_teamName ?? "the team")…</EmptyState>
 }
 else
 {
     <div class="row" style="margin-bottom:2px; align-items:baseline">
-        <h3 class="panel-h" style="margin:0">@_form.Team.Name</h3>
-        <span class="tag">@_form.Team.Sport?.Name</span>
+        <PanelHeader Tight>@_team.Name</PanelHeader>
+        <Tag>@_team.Sport?.Name</Tag>
     </div>
 
-    <div class="row" style="margin-bottom:14px">
+    <div class="row" style="margin-bottom:12px">
         <span class="dim" style="font-size:11.5px">
-            @_form.Wins-@_form.Losses over the last @_windowDays days
-            (@_form.Recent.Count @(_form.Recent.Count == 1 ? "game" : "games"))
+            @_wins-@_losses over the last @_windowDays days
+            (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
         </span>
 
-        <select class="field" style="max-width:130px; margin-left:auto" value="@_windowDays" @onchange="OnWindowChanged">
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-        </select>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    style="margin-left:auto"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
     </div>
 
-    <h4 class="panel-h">Recent games</h4>
+    <PanelHeader Level="4">Recent games</PanelHeader>
 
-    @if (_form.Recent.Count == 0)
+    @if (_log.Count == 0)
     {
-        <p class="empty">No games recorded in this window.</p>
+        <EmptyState Kind="EmptyStateKind.Filtered">No games recorded in this window.</EmptyState>
     }
     else
     {
-        <div class="gridwrap" style="margin-bottom:16px"><table class="grid">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Opponent</th>
-                    <th class="r">Result</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var g in _form.Recent)
-                {
-                    <tr>
-                        <td class="dim">@Day(g.StartsAt)</td>
-                        <td>
-                            <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
-                                      OnClick="() => OpenGameAsync(g.GameId)">
-                                @(g.Home ? "vs" : "at") @g.Opponent
-                            </DeskLink>
-                        </td>
-                        <td class="r">
-                            <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")">
-                                @(g.ScoreFor is { } sf && g.ScoreAgainst is { } sa ? $"{sf}-{sa}" : g.Status.ToString())
-                            </span>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table></div>
-    }
+        @* The splits strip. Every option filters the same loaded log, so nothing here queries.
 
-    <h4 class="panel-h">Roster form</h4>
+           Picking an opponent is a filter the strip cannot express, so it answers by
+           standing every position up and showing no cap at all — which is true, and
+           reads better than leaving one lit under a filter it is not doing. *@
+        <div class="splits">
+            <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                        Value="@(_opponent is null ? _split : null)"
+                        ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
 
-    @if (_form.Roster.Count == 0)
-    {
-        <p class="empty">No appearances on record for this roster in the window.</p>
-    }
-    else
-    {
-        var columns = ColumnsFor(_form.Roster);
-
-        <div class="gridwrap"><table class="grid">
-            <thead>
-                <tr>
-                    <th>Player</th>
-                    <th>Pos</th>
-                    <th class="r">GP</th>
-                    @foreach (var c in columns)
+            @if (_opponents.Count > 1)
+            {
+                <DeskSelect TValue="string" Class="splits__pick"
+                            Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                    <option value="">vs anyone</option>
+                    @foreach (var name in _opponents)
                     {
-                        <th class="r">@c@(IsRate(_form.Roster, c) ? "/g" : "")</th>
+                        <option value="@name">vs @name</option>
                     }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var p in _form.Roster)
+                </DeskSelect>
+            }
+        </div>
+
+        @* The record for whatever is on screen, so a split states its own result rather than
+           leaving the operator to count tags. ATS is only shown when there is market data
+           behind it — a 0-0-0 would read as "never covered" rather than "never priced". *@
+        <div class="row" style="gap:14px; margin:0 0 8px; flex-wrap:wrap">
+            <span class="dim mono" style="font-size:11.5px">@_wins-@_losses</span>
+
+            @if (_atsWins + _atsLosses + _atsPushes > 0)
+            {
+                <span class="dim" style="font-size:11.5px">
+                    @_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS
+                </span>
+            }
+
+            @if (_overs + _unders > 0)
+            {
+                <span class="dim" style="font-size:11.5px">@_overs O / @_unders U</span>
+            }
+
+            <span class="dim" style="font-size:11.5px; margin-left:auto">
+                @_covered of @_visible.Count with a closing line
+            </span>
+        </div>
+
+        @if (_visible.Count == 0)
+        {
+            <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
+        }
+        else
+        {
+            <div class="stack" style="gap:4px; margin-bottom:18px">
+                @foreach (var row in _visible)
                 {
-                    <tr>
-                        <td class="trunc" title="@p.Name">
-                            <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                      OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
-                        </td>
-                        <td class="dim">@(p.Position ?? "—")</td>
-                        <td class="r">@p.Appearances</td>
-                        @foreach (var c in columns)
+                    <div class="logrow @(_openGame == row.GameId ? "logrow--open" : "")">
+                        <button type="button" class="logrow__head"
+                                aria-expanded="@((_openGame == row.GameId).ToString().ToLowerInvariant())"
+                                aria-controls="@($"game-{row.GameId}")"
+                                @onclick="() => ToggleGame(row.GameId)">
+                            <span class="logrow__date dim">@Day(row.StartsAt)</span>
+                            <span class="logrow__opp trunc">@(row.Home ? "vs" : "at") @row.Opponent</span>
+
+                            <span class="logrow__score mono">
+                                @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
+                            </span>
+
+                            <Tag State="@TagStates.Won(row.Won)">
+                                @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
+                            </Tag>
+
+                            @* The ATS tag rides on the closed row: it is the column an operator
+                               scans for, and hiding it behind an expand would defeat the log. *@
+                            @if (row.AtsResult is { } ats)
+                            {
+                                <Tag State="@TagStates.Result(ats)"
+                                     Title="@($"Against a closing spread of {row.ClosingSpread}")">
+                                    @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
+                                </Tag>
+                            }
+
+                            <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
+                        </button>
+
+                        @if (_openGame == row.GameId)
                         {
-                            <td class="r">
-                                @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
-                            </td>
+                            <div class="logrow__body" id="@($"game-{row.GameId}")">
+                                <GameResultSnippet Row="row" />
+
+                                <div class="row" style="gap:8px; margin-top:10px">
+                                    <DeskButton Size="DeskKeySize.Small"
+                                                Icon="@Icons.Material.Filled.SportsScore"
+                                                OnClick="() => OpenGameAsync(row.GameId)">
+                                        Open game
+                                    </DeskButton>
+
+                                    <DeskButton Size="DeskKeySize.Small"
+                                                Icon="@Icons.Material.Filled.ShowChart"
+                                                OnClick="() => LaunchMovement(row)">
+                                        Movement
+                                    </DeskButton>
+                                </div>
+                            </div>
                         }
-                    </tr>
+                    </div>
                 }
-            </tbody>
-        </table></div>
+            </div>
+        }
+    }
+
+    <PanelHeader Level="4">Roster form</PanelHeader>
+
+    @if (_roster.Count == 0)
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster in the window.</EmptyState>
+    }
+    else
+    {
+        <div class="stack" style="gap:4px">
+            @foreach (var player in _roster)
+            {
+                <div class="logrow @(_openPlayer == player.PlayerId ? "logrow--open" : "")">
+                    <button type="button" class="logrow__head"
+                            aria-expanded="@((_openPlayer == player.PlayerId).ToString().ToLowerInvariant())"
+                            aria-controls="@($"player-{player.PlayerId}")"
+                            @onclick="() => TogglePlayer(player.PlayerId)">
+                        <span class="logrow__opp trunc" title="@player.Name">@player.Name</span>
+                        <span class="dim">@(player.Position ?? "—")</span>
+                        <span class="dim mono">@player.Appearances GP</span>
+                        <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
+                    </button>
+
+                    @if (_openPlayer == player.PlayerId)
+                    {
+                        <div class="logrow__body" id="@($"player-{player.PlayerId}")">
+                            <PlayerRecentSnippet PlayerId="player.PlayerId" />
+
+                            <div class="row" style="gap:8px; margin-top:10px">
+                                <DeskButton Size="DeskKeySize.Small"
+                                            Icon="@Icons.Material.Filled.Person"
+                                            OnClick="() => LaunchPlayer(player)">
+                                    Full game log
+                                </DeskButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     }
 }
+
+<FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
     /// <summary>
@@ -127,15 +214,44 @@ else
     /// </summary>
     [Parameter, EditorRequired] public int TeamId { get; set; }
 
-    private TeamForm? _form;
+    private static readonly GameLogSplits.Split[] _splits =
+    [
+        GameLogSplits.Split.All,
+        GameLogSplits.Split.Home,
+        GameLogSplits.Split.Away,
+        GameLogSplits.Split.Last5,
+        GameLogSplits.Split.Last10
+    ];
+
+    /// <summary>
+    /// The strip's positions. Nullable so that "an opponent is picked" — which is not one
+    /// of them — can be stated as a value that matches nothing, leaving the gate capless.
+    /// </summary>
+    private static readonly IReadOnlyList<DeskSwitchOption<GameLogSplits.Split?>> _splitOptions =
+        [.. _splits.Select(s => new DeskSwitchOption<GameLogSplits.Split?>(s, GameLogSplits.Label(s)))];
+
+    private readonly FollowUpLauncher _followUps = new();
+
+    private Team? _team;
     private string? _teamName;
+    private IReadOnlyList<TeamGameLogRow> _log = [];
+    private IReadOnlyList<TeamGameLogRow> _visible = [];
+    private IReadOnlyList<PlayerForm> _roster = [];
+    private IReadOnlyList<string> _opponents = [];
+
+    private GameLogSplits.Split _split = GameLogSplits.Split.All;
+    private string? _opponent;
     private int _windowDays = 30;
+    private int? _openGame;
+    private int? _openPlayer;
+
+    private int _wins, _losses, _atsWins, _atsLosses, _atsPushes, _overs, _unders, _covered;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int days)
     {
-        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        _windowDays = days;
         await LoadAsync();
     }
 
@@ -145,12 +261,83 @@ else
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            _form = await lookup.GetTeamAsync(TeamId, TimeSpan.FromDays(_windowDays), maxPlayers: 15);
-            _teamName = _form?.Team.Name;
+            var window = TimeSpan.FromDays(_windowDays);
+
+            // The roster still comes from the aggregate side — per-player form over a window is
+            // exactly what it is for. Only the games are read at game grain.
+            var form = await lookup.GetTeamAsync(TeamId, window, maxPlayers: 15);
+
+            _team = form?.Team;
+            _teamName = _team?.Name;
+            _roster = form?.Roster ?? [];
+
+            _log = await log.TeamGameLogAsync(TeamId, window);
+            _opponents = GameLogSplits.Opponents(_log);
+
+            ApplySplit();
         },
-        settle: () => _form is null ? PulseState.Idle : PulseState.Healthy,
+        settle: () => _team is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _teamName);
+    }
+
+    private void SelectSplit(GameLogSplits.Split split)
+    {
+        _split = split;
+        _opponent = null;
+        ApplySplit();
+    }
+
+    private void OnOpponentChanged(string value)
+    {
+        _opponent = string.IsNullOrEmpty(value) ? null : value;
+
+        // An opponent filter is its own view of the log rather than a refinement of "last 5",
+        // which would otherwise silently mean "the last 5 games, of which some are vs them".
+        if (_opponent is not null)
+            _split = GameLogSplits.Split.All;
+
+        ApplySplit();
+    }
+
+    /// <summary>
+    /// Recomputes what is on screen and the records that describe it. Pure filtering over the
+    /// loaded log — no query runs here, which is what makes the strip feel instant.
+    /// </summary>
+    private void ApplySplit()
+    {
+        _visible = _opponent is { } opponent
+            ? GameLogSplits.VersusOpponent(_log, opponent)
+            : GameLogSplits.Apply(_log, _split);
+
+        (_wins, _losses) = GameLogSplits.Record(_visible);
+        (_atsWins, _atsLosses, _atsPushes) = GameLogSplits.AtsRecord(_visible);
+        (_overs, _unders, _) = GameLogSplits.TotalRecord(_visible);
+        _covered = GameLogSplits.WithClosingLine(_visible);
+
+        // A row that just left the view must not stay expanded underneath the filter.
+        if (_openGame is { } open && _visible.All(r => r.GameId != open))
+            _openGame = null;
+    }
+
+    private void ToggleGame(int gameId) => _openGame = _openGame == gameId ? null : gameId;
+
+    private void TogglePlayer(int playerId) => _openPlayer = _openPlayer == playerId ? null : playerId;
+
+    /// <summary>How a game reads from this team's side, for a window title.</summary>
+    private static string Against(TeamGameLogRow row) => $"{(row.Home ? "vs" : "at")} {row.Opponent}";
+
+    private Task LaunchMovement(TeamGameLogRow row)
+    {
+        _followUps.Launch(Manager, WindowCatalog.Odds, "GameId", row.GameId, Against(row));
+        return Task.CompletedTask;
+    }
+
+    private Task LaunchPlayer(PlayerForm player)
+    {
+        _followUps.Launch(Manager, WindowCatalog.Player, "PlayerId", player.PlayerId, player.Name, "560px");
+        return Task.CompletedTask;
     }
 
     private async Task OpenGameAsync(int gameId)
@@ -161,16 +348,4 @@ else
         if (await board.GetRowAsync(gameId) is { } row)
             Manager.OpenGame(row.Game);
     }
-
-    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
-        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
-
-    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => side.SelectMany(p => p.Totals.Keys)
-            .GroupBy(k => k)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key)
-            .Select(g => g.Key)
-            .Take(4)
-            .ToList();
 }

@@ -1,0 +1,128 @@
+@namespace YourApp.Components.Ui
+
+@*
+    TEMPLATE — rename the @namespace above to your own.
+
+    An alert: the operator must decide before anything else happens.
+
+    This is the narrowest use of modality the system allows, and the only one that is
+    allowed to interrupt. Confirmations and destructive gates, nothing else — an alert
+    is not a place to show information the operator did not ask about. When the task is
+    self-contained but larger than a question, that is AppleSheet; when the operator needs
+    to compare things while working, that is a non-modal floating panel and it is not modal
+    at all.
+
+    Two conventions here are load-bearing rather than stylistic. A destructive confirm
+    renders red and is never the default, because making the dangerous button answer
+    Enter is how people delete things they meant to keep. And labels name the actual
+    consequence — "Delete run", not "OK" — because a button that says OK is asking the
+    operator to remember what they clicked.
+
+    "Default" is literal here, and that is the point. A painted ring is not a default: a
+    box-shadow byte-identical to :focus-visible, drawn on a button that does not have focus
+    while Enter activates nothing, is indistinguishable from a real ring to a keyboard
+    operator — which makes it worse than no marking at all. So the default button is given
+    actual focus on open, Enter activates it because it is focused, and the ring that
+    appears is the browser's own :focus-visible rather than a drawing of one. A destructive
+    alert focuses Cancel instead, so the destructive-is-never-default rule holds in the
+    keyboard channel too, not only in the paint.
+
+    The dialog semantics (role, aria-modal) are declared here because there is nowhere else
+    for them: this renders bare content, so it inherits no wrapper's role.
+
+    Unlike AppleSheet this renders bare content rather than a MudDialog: an alert has no
+    title bar, no scroll body and no action tray to fill, so wrapping it in one would only
+    buy Mud's title/content/actions padding on top of the padding .app-alert already
+    carries. The surface it lands on is Mud's own .mud-dialog, styled by apple-bridge.css —
+    opaque, so the alert needs no material fallback of its own.
+*@
+
+<div class="app-alert"
+     role="alertdialog"
+     aria-modal="true"
+     aria-labelledby="@_headingId"
+     aria-describedby="@(Message is null ? null : _messageId)">
+
+    <div class="app-alert__heading" id="@_headingId">@Heading</div>
+
+    @if (Message is not null)
+    {
+        <div class="app-alert__message" id="@_messageId">@Message</div>
+    }
+
+    <div class="app-alert__actions">
+        @if (CancelLabel is not null)
+        {
+            <AppleButton @ref="_cancel"
+                         Emphasis="AppleEmphasis.Plain"
+                         autofocus="@(CancelIsDefault ? "autofocus" : null)"
+                         OnClick="Cancel">
+                @CancelLabel
+            </AppleButton>
+        }
+
+        <AppleButton @ref="_confirm"
+                     Emphasis="AppleEmphasis.Filled"
+                     Role="@(Destructive ? AppleRole.Destructive : AppleRole.Normal)"
+                     autofocus="@(CancelIsDefault ? null : "autofocus")"
+                     OnClick="Confirm">
+            @ConfirmLabel
+        </AppleButton>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? Instance { get; set; }
+
+    [Parameter, EditorRequired] public string Heading { get; set; } = string.Empty;
+
+    /// <summary>The consequence, in a sentence. Omit it when the heading already says everything.</summary>
+    [Parameter] public string? Message { get; set; }
+
+    /// <summary>Name the consequence, not the acknowledgement. "Delete run" beats "OK".</summary>
+    [Parameter] public string ConfirmLabel { get; set; } = "OK";
+
+    /// <summary>Null for a one-button alert that only needs acknowledging.</summary>
+    [Parameter] public string? CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>Renders the confirm red and refuses to make it the default.</summary>
+    [Parameter] public bool Destructive { get; set; }
+
+    private AppleButton? _confirm;
+    private AppleButton? _cancel;
+
+    // Ids rather than a literal, because two alerts can be stacked and aria-labelledby is
+    // resolved document-wide.
+    private readonly string _headingId = $"app-alert-h-{Guid.NewGuid():N}";
+    private readonly string _messageId = $"app-alert-m-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// A destructive alert defaults to the way out. With no cancel to default to, the
+    /// confirm takes it back — a one-button acknowledgement has nothing else to focus.
+    /// </summary>
+    private bool CancelIsDefault => Destructive && CancelLabel is not null;
+
+    /// <summary>
+    /// The alert arrives without focus of its own: Mud's dialog traps the tab ring but does
+    /// not choose a starting point, and the HTML <c>autofocus</c> attribute is not honoured
+    /// for content the renderer inserts after load. So the default button is focused here,
+    /// once, on the first render — which is what makes Enter answer the alert rather than
+    /// the page behind it. This is why AppleButton exposes a FocusAsync forwarder at all:
+    /// a component ref is not an element ref, so there is no other route through the
+    /// component boundary.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var target = CancelIsDefault ? _cancel : _confirm;
+
+        if (target is not null)
+            await target.FocusAsync();
+    }
+
+    private void Confirm() => Instance?.Close(DialogResult.Ok(true));
+
+    private void Cancel() => Instance?.Close(DialogResult.Ok(false));
+}

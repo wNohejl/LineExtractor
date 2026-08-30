@@ -13,49 +13,49 @@
 
 @if (Row is null)
 {
-    <p class="empty">Loading the market…</p>
+    <EmptyState>Loading the market…</EmptyState>
 }
 else if (Row.Unpriced is { } reason)
 {
-    <p class="note note--warn">@reason</p>
+    <Note State="DeskState.Warning" Style="margin:12px 0">@reason</Note>
 }
 else
 {
 
-<p class="note" style="margin-bottom:12px">
+<Note Style="margin:12px 0">
     Best price on each line is lit. Everything else is what you would be giving up by taking it
     somewhere else.
-</p>
+</Note>
 
 @foreach (var market in Markets())
 {
-    <h3 class="panel-h">@MarketName(market.Market)</h3>
+    <PanelHeader>@MarketName(market.Market)</PanelHeader>
 
     @if (!market.IsPriced)
     {
-        <p class="empty" style="padding:6px 0 12px">Not priced by any book yet.</p>
+        <EmptyState Kind="EmptyStateKind.New" Style="padding:6px 0 12px">Not priced by any book yet.</EmptyState>
     }
     else
     {
-        <div class="gridwrap" style="margin-bottom:14px"><table class="grid">
-            <thead>
-                <tr>
-                    <th>Book</th>
-                    <th class="r">@SideName(market, first: true)</th>
-                    <th class="r">@SideName(market, first: false)</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var book in BooksIn(market))
-                {
-                    <tr>
-                        <td class="mono dim">@book</td>
-                        <td class="r">@Cell(market.First, book)</td>
-                        <td class="r">@Cell(market.Second, book)</td>
-                    </tr>
-                }
-            </tbody>
-        </table></div>
+        <div class="gridwrap" style="margin-bottom:14px">
+            <DeskGrid T="string" Items="BooksIn(market)" EmptyText="Not priced by any book yet.">
+                <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book">
+                    <CellTemplate><span class="mono dim">@context.Item</span></CellTemplate>
+                </PropertyColumn>
+
+                @* The prices are rendered rather than projected — the best-price lighting lives
+                   in Cell — so there is nothing here for Mud to sort on. *@
+                <TemplateColumn T="string" Title="@SideName(market, first: true)"
+                                Align="Align.Right" Sortable="false">
+                    <CellTemplate>@Cell(market.First, context.Item)</CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn T="string" Title="@SideName(market, first: false)"
+                                Align="Align.Right" Sortable="false">
+                    <CellTemplate>@Cell(market.Second, context.Item)</CellTemplate>
+                </TemplateColumn>
+            </DeskGrid>
+        </div>
     }
 }
 

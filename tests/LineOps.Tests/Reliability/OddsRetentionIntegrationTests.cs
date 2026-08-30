@@ -227,4 +227,24 @@ public class OddsRetentionIntegrationTests(PostgresFixture fixture)
         Assert.Equal(0, await service.PromoteAsync());
         Assert.False(await db.ClosingLines.AnyAsync(c => c.GameId == game.Id));
     }
+
+    [Fact]
+    public async Task DroppingEmptyPartitionsActuallyReachesPostgres()
+    {
+        await using var db = fixture.CreateContext();
+
+        // Deliberately thin: it only has to execute. The statement previously carried a regex
+        // written as [0-9]{4}_[0-9]{2}, and ExecuteSqlRawAsync reads {4} and {2} as parameter
+        // placeholders — so with no parameters supplied it threw before Postgres saw any of it,
+        // every scheduler pass, swallowed by the catch that keeps housekeeping from stopping
+        // ingestion. Nothing called this method, so nothing noticed.
+        var exception = await Record.ExceptionAsync(() => CreateService(db).DropEmptyPartitionsAsync());
+
+        Assert.Null(exception);
+
+        // Asserted as -1 rather than as a count, because that is what it genuinely returns: a
+        // Postgres DO block reports no rows affected, and ExecuteSqlRawAsync passes that through.
+        // The value is therefore not a number of partitions and must not be logged as one.
+        Assert.Equal(-1, await CreateService(db).DropEmptyPartitionsAsync());
+    }
 }

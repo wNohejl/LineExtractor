@@ -6,61 +6,62 @@
 
 @if (_summary.SettledCount == 0)
 {
-    <p class="empty">
+    <EmptyState Kind="EmptyStateKind.New">
         No settled entries yet. Log entries in the Journal window and settle them once games
         finish — closing-line value resolves at the same time.
-    </p>
+    </EmptyState>
 }
 else
 {
-    <div class="metrics" style="margin-bottom:16px">
-        <div class="metric @(_summary.Roi > 0 ? "metric--good" : _summary.Roi < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_summary.Roi.ToString("P1")</div>
-            <div class="metric__label">ROI</div>
-            <div class="metric__note">@_summary.SettledCount settled</div>
-        </div>
-        <div class="metric @(_summary.NetProfit > 0 ? "metric--good" : _summary.NetProfit < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_summary.NetProfit.ToString("C0")</div>
-            <div class="metric__label">Net</div>
-            <div class="metric__note">on @_summary.TotalStaked.ToString("C0") staked</div>
-        </div>
-        <div class="metric">
-            <div class="metric__value">@_summary.WinRate.ToString("P0")</div>
-            <div class="metric__label">Win rate</div>
-            <div class="metric__note">@_summary.Wins W · @_summary.Losses L · @_summary.Pushes P</div>
-        </div>
-        <div class="metric @(_avgClv > 0 ? "metric--good" : _avgClv < 0 ? "metric--bad" : null)">
-            <div class="metric__value">@_beatRate</div>
-            <div class="metric__label">Beat the close</div>
-            <div class="metric__note">avg @_avgClv.ToString("+0.00;-0.00")%</div>
-        </div>
-    </div>
+    <MetricRow Style="margin-bottom:16px">
+        <Metric Label="ROI"
+                Value='@_summary.Roi.ToString("P1")'
+                Note='@($"{_summary.SettledCount} settled")'
+                State="@(_summary.Roi > 0 ? DeskState.Positive : _summary.Roi < 0 ? DeskState.Negative : DeskState.Neutral)" />
+        <Metric Label="Net"
+                Value='@_summary.NetProfit.ToString("C0")'
+                Note='@($"on {_summary.TotalStaked.ToString("C0")} staked")'
+                State="@(_summary.NetProfit > 0 ? DeskState.Positive : _summary.NetProfit < 0 ? DeskState.Negative : DeskState.Neutral)" />
+        <Metric Label="Win rate"
+                Value='@_summary.WinRate.ToString("P0")'
+                Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
+        <Metric Label="Beat the close"
+                Value="@_beatRate"
+                Note='@($"avg {_avgClv.ToString("+0.00;-0.00")}%")'
+                State="@(_avgClv > 0 ? DeskState.Positive : _avgClv < 0 ? DeskState.Negative : DeskState.Neutral)" />
+    </MetricRow>
 
-    <h3 class="panel-h">Bankroll</h3>
+    <PanelHeader>Bankroll</PanelHeader>
     @if (_bankroll.Length > 1)
     {
-        <MudChart T="double" ChartType="ChartType.Line"
-                  ChartSeries="@(new List<ChartSeries<double>> { new() { Name = "Cumulative", Data = _bankroll } })"
-                  XAxisLabels="@_labels" Width="100%" Height="200px" />
+        <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
+                   Family="DeskChartFamily.Ledger"
+                   ShowLegend="false"
+                   Takeaway="Cumulative units across every settled entry, oldest first."
+                   Description="Line chart of cumulative units won or lost over settled entries." />
     }
     else
     {
-        <p class="empty">Two settled entries are needed to plot a curve.</p>
+        <EmptyState Kind="EmptyStateKind.New">Two settled entries are needed to plot a curve.</EmptyState>
     }
 
-    <h3 class="panel-h">By market</h3>
+    <PanelHeader>By market</PanelHeader>
     @Breakdown(_byMarket)
 
-    <h3 class="panel-h">By book</h3>
+    <PanelHeader>By book</PanelHeader>
     @Breakdown(_byBook)
 }
 
 @code {
     private PerformanceSummary _summary;
     private double[] _bankroll = [];
+    private List<ChartSeries<double>> _bankrollSeries = [];
     private string[] _labels = [];
-    private IReadOnlyDictionary<string, PerformanceSummary> _byMarket = new Dictionary<string, PerformanceSummary>();
-    private IReadOnlyDictionary<string, PerformanceSummary> _byBook = new Dictionary<string, PerformanceSummary>();
+    // Held flat rather than as the dictionaries the analytics return: a grid binds to rows, and
+    // rebuilding that list inside the render would hand MudDataGrid a new collection every time,
+    // throwing away the sort the operator had just clicked.
+    private List<BreakdownRow> _byMarket = [];
+    private List<BreakdownRow> _byBook = [];
     private string _beatRate = "—";
     private double _avgClv;
 
@@ -70,11 +71,16 @@ else
         var entries = await db.JournalEntries.ToListAsync();
 
         _summary = PerformanceAnalytics.Summarise(entries);
-        _byMarket = PerformanceAnalytics.SummariseBy(entries, e => e.Market);
-        _byBook = PerformanceAnalytics.SummariseBy(entries, e => e.Book);
+        _byMarket = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Market));
+        _byBook = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Book));
 
         var curve = PerformanceAnalytics.BankrollCurve(entries);
         _bankroll = curve.Select(p => (double)p.Cumulative).ToArray();
+
+        // Built once here rather than in the markup: DeskChart rebuilds the plot when the
+        // series reference changes, and an expression in the template hands it a new list
+        // on every render of the panel.
+        _bankrollSeries = [new ChartSeries<double> { Name = "Cumulative", Data = _bankroll }];
 
         var stride = Math.Max(1, curve.Count / 6);
         _labels = curve
@@ -100,36 +106,45 @@ else
             _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
     }
 
-    private RenderFragment Breakdown(IReadOnlyDictionary<string, PerformanceSummary> data) => @<text>
+    private static List<BreakdownRow> Rows(IReadOnlyDictionary<string, PerformanceSummary> data)
+        => data.Select(kv => new BreakdownRow(kv.Key, kv.Value)).ToList();
+
+    private RenderFragment Breakdown(List<BreakdownRow> data) => @<text>
         @if (data.Count == 0)
         {
-            <p class="empty">No settled entries.</p>
+            <EmptyState Kind="EmptyStateKind.Filtered">No settled entries.</EmptyState>
         }
         else
         {
-            <table class="grid">
-                <thead>
-                    <tr>
-                        <th>Key</th>
-                        <th class="r">Bets</th>
-                        <th class="r">Net</th>
-                        <th class="r">ROI</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var (key, summary) in data.OrderByDescending(kv => kv.Value.NetProfit))
-                    {
-                        <tr>
-                            <td>@key</td>
-                            <td class="r dim">@summary.SettledCount</td>
-                            <td class="r @(summary.NetProfit > 0 ? "up" : summary.NetProfit < 0 ? "down" : null)">
-                                @summary.NetProfit.ToString("C0")
-                            </td>
-                            <td class="r dim">@summary.Roi.ToString("P1")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            <DeskGrid T="BreakdownRow"
+                      Items="data"
+                      EmptyText="No settled entries.">
+                <PropertyColumn T="BreakdownRow" TProperty="string" Property="r => r.Key" Title="Key" />
+
+                <PropertyColumn T="BreakdownRow" TProperty="int" Property="r => r.Summary.SettledCount"
+                                Title="Bets" Align="Align.Right">
+                    <CellTemplate><span class="dim">@context.Item.Summary.SettledCount</span></CellTemplate>
+                </PropertyColumn>
+
+                @* Best-earning first was the hand-written order; sorting keeps it as the default
+                   rather than as the only one. *@
+                <PropertyColumn T="BreakdownRow" TProperty="decimal" Property="r => r.Summary.NetProfit"
+                                Title="Net" Align="Align.Right" InitialDirection="SortDirection.Descending">
+                    <CellTemplate>
+                        <span class="@(context.Item.Summary.NetProfit > 0 ? "up" : context.Item.Summary.NetProfit < 0 ? "down" : null)">
+                            @context.Item.Summary.NetProfit.ToString("C0")
+                        </span>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="BreakdownRow" TProperty="decimal" Property="r => r.Summary.Roi"
+                                Title="ROI" Align="Align.Right">
+                    <CellTemplate><span class="dim">@context.Item.Summary.Roi.ToString("P1")</span></CellTemplate>
+                </PropertyColumn>
+            </DeskGrid>
         }
     </text>;
+
+    /// <summary>One breakdown line. The dictionary is flattened because a grid sorts rows.</summary>
+    private sealed record BreakdownRow(string Key, PerformanceSummary Summary);
 }

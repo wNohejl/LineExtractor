@@ -9,39 +9,35 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<ReliabilityOptions> Options
 @inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
+@inject DeskToasts Toasts
 
 <div class="row row--end" style="margin-bottom:12px">
-    <button class="btn" type="button" @onclick="EvaluateAsync" disabled="@_busy">
-        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Evaluate now
-    </button>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="EvaluateAsync" Disabled="@_busy">
+        Evaluate now
+    </DeskButton>
 </div>
 
-<div class="metrics" style="margin-bottom:16px">
-    <div class="metric @(_healthy == _health.Count ? "metric--good" : "metric--warn")">
-        <div class="metric__value">@_healthy/@_health.Count</div>
-        <div class="metric__label">Sources in SLO</div>
-    </div>
-    <div class="metric @(_criticals > 0 ? "metric--bad" : _alerts.Count > 0 ? "metric--warn" : "metric--good")">
-        <div class="metric__value">@_alerts.Count</div>
-        <div class="metric__label">Open alerts</div>
-        <div class="metric__note">@(_criticals > 0 ? $"{_criticals} critical" : "none critical")</div>
-    </div>
-    <div class="metric">
-        <div class="metric__value">@_rowsToday.ToString("N0")</div>
-        <div class="metric__label">Rows today</div>
-    </div>
-    <div class="metric @(_openIncidents > 0 ? "metric--bad" : "metric--good")">
-        <div class="metric__value">@_openIncidents</div>
-        <div class="metric__label">Open incidents</div>
-    </div>
-</div>
+<MetricRow Style="margin-bottom:16px">
+    <Metric Label="Sources in SLO"
+            State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
+        @_healthy/@_health.Count
+    </Metric>
+    <Metric Label="Open alerts"
+            Value="@_alerts.Count.ToString()"
+            Note='@(_criticals > 0 ? $"{_criticals} critical" : "none critical")'
+            State="@(_criticals > 0 ? DeskState.Negative : _alerts.Count > 0 ? DeskState.Warning : DeskState.Positive)" />
+    <Metric Label="Rows today" Value='@_rowsToday.ToString("N0")' />
+    <Metric Label="Open incidents"
+            Value="@_openIncidents.ToString()"
+            State="@(_openIncidents > 0 ? DeskState.Negative : DeskState.Positive)" />
+</MetricRow>
 
 @*
     Odds feeds get their own section because their failure mode is silence: an unconfigured
     provider is never registered, so it writes no runs and appears nowhere in source health.
     "No prices" and "no feed" look identical without this.
 *@
-<h3 class="panel-h">Odds feeds</h3>
+<PanelHeader>Odds feeds</PanelHeader>
 
 @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
    here regardless would describe a schedule that is not running — the number would be real
@@ -92,15 +88,15 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item is { IsLive: true, IsReal: true })
             {
-                <span class="tag tag--good">Live</span>
+                <Tag State="DeskState.Positive">Live</Tag>
             }
             else if (context.Item.IsLive)
             {
-                <span class="tag tag--warn">Demo</span>
+                <Tag State="DeskState.Warning">Demo</Tag>
             }
             else
             {
-                <span class="tag">Off</span>
+                <Tag>Off</Tag>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -118,7 +114,7 @@ else if (_plan is { } plan)
     </PropertyColumn>
 </DeskGrid>
 
-<h3 class="panel-h">Source health</h3>
+<PanelHeader>Source health</PanelHeader>
 
 <DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered.">
     @* The source name goes through to its runs — "why is this stale" is answered there. *@
@@ -151,7 +147,7 @@ else if (_plan is { } plan)
     <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
                     Title="Success 7d" Align="Align.Right">
         <CellTemplate>
-            <span class="@(IsRateLow(context.Item) ? "warnc" : null)">@context.Item.SuccessRate.ToString("P0")</span>
+            <Note Inline State="@(IsRateLow(context.Item) ? DeskState.Warning : DeskState.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
         </CellTemplate>
     </PropertyColumn>
 
@@ -169,31 +165,31 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item.NeverRun)
             {
-                <span class="tag">Not run</span>
+                <Tag>Not run</Tag>
             }
             else if (IsStale(context.Item))
             {
-                <span class="tag tag--bad">Stale</span>
+                <Tag State="DeskState.Negative">Stale</Tag>
             }
             else if (IsRateLow(context.Item))
             {
-                <span class="tag tag--warn">Degraded</span>
+                <Tag State="DeskState.Warning">Degraded</Tag>
             }
             else
             {
-                <span class="tag tag--good">Healthy</span>
+                <Tag State="DeskState.Positive">Healthy</Tag>
             }
         </CellTemplate>
     </TemplateColumn>
 </DeskGrid>
 
-<h3 class="panel-h">Open alerts</h3>
+<PanelHeader>Open alerts</PanelHeader>
 
 <DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <span class="tag @SeverityTag(context.Item.Severity)">@context.Item.Severity</span>
+            <Tag State="@SeverityState(context.Item.Severity)">@context.Item.Severity</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -215,7 +211,7 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item.IncidentId is null)
             {
-                <DeskButton Size="DeskKeySize.Small" Tone="DeskTone.Caution"
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
                             OnClick="() => PromoteAsync(context.Item.Id)">
                     Open incident
                 </DeskButton>
@@ -232,36 +228,36 @@ else if (_plan is { } plan)
     </TemplateColumn>
 </DeskGrid>
 
-<h3 class="panel-h">On-call drill</h3>
-<p class="note">
+<PanelHeader>On-call drill</PanelHeader>
+<Note Style="margin:12px 0">
     Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
     one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
-</p>
+</Note>
 
 <div class="stack" style="margin-top:10px">
     @foreach (var source in _injectable)
     {
         <div class="row">
             <span style="min-width:170px">@source.Name</span>
-            <select class="field"
-                    value="@(source.FailureMode ?? "")"
-                    @onchange="e => SetModeAsync(source.Id, e.Value?.ToString())">
+            <DeskSelect TValue="string"
+                        Value="@(source.FailureMode ?? "")"
+                        ValueChanged="v => SetModeAsync(source.Id, v)">
                 <option value="">Healthy</option>
                 <option value="error">Upstream 503</option>
                 <option value="timeout">Request timeout</option>
                 <option value="empty">Empty payload (silent)</option>
-            </select>
+            </DeskSelect>
             @if (source.FailureMode is not null)
             {
-                <span class="tag tag--bad">Injecting</span>
+                <Tag State="DeskState.Negative">Injecting</Tag>
             }
         </div>
     }
 
     <div class="row">
-        <button class="btn" type="button" @onclick="DrillAsync" disabled="@_busy">
-            <Glyph Icon="@Icons.Material.Filled.PlayArrow" /> Run ingest &amp; evaluate
-        </button>
+        <DeskButton Icon="@Icons.Material.Filled.PlayArrow" OnClick="DrillAsync" Disabled="@_busy">
+            Run ingest &amp; evaluate
+        </DeskButton>
     </div>
 </div>
 
@@ -339,11 +335,19 @@ else if (_plan is { } plan)
             _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
     }
 
-    private static string SeverityTag(AlertSeverity severity) => severity switch
+    // Identity, not arithmetic. The same EvaluateAsync pass that opens an alert also
+    // auto-resolves any whose condition has cleared, so a count delta reports zero — or a
+    // negative — for a pass that genuinely raised something. On a drill that is the exact
+    // answer being asked for, so the two are compared by id.
+    private HashSet<long> OpenAlertIds() => _alerts.Select(a => a.Id).ToHashSet();
+
+    private int CountNew(HashSet<long> seen) => _alerts.Count(a => !seen.Contains(a.Id));
+
+    private static DeskState SeverityState(AlertSeverity severity) => severity switch
     {
-        AlertSeverity.Critical => "tag--bad",
-        AlertSeverity.Warn => "tag--warn",
-        _ => "tag--info"
+        AlertSeverity.Critical => DeskState.Negative,
+        AlertSeverity.Warn => DeskState.Warning,
+        _ => DeskState.Info
     };
 
     private async Task EvaluateAsync()
@@ -357,7 +361,21 @@ else if (_plan is { } plan)
             await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
             await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
 
+            var seen = OpenAlertIds();
             await LoadAsync();
+
+            // A pass that changes nothing repaints identically to one that did not run, and
+            // the rollup takes long enough that the operator has usually looked away. The
+            // notice reports the outcome, not the click — and it is transient because the
+            // alert table below is the durable record either way.
+            var opened = CountNew(seen);
+
+            if (_criticals > 0)
+                Toasts.Warn($"Evaluated — {_alerts.Count} open, {_criticals} critical.");
+            else if (opened > 0)
+                Toasts.Warn($"Evaluated — {opened} new alert{(opened == 1 ? "" : "s")} opened.");
+            else
+                Toasts.Success($"Evaluated — {(_alerts.Count == 0 ? "every source inside its SLO" : $"{_alerts.Count} open, none critical")}.");
         }
         finally
         {
@@ -394,7 +412,17 @@ else if (_plan is { } plan)
             await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
             await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
 
+            var seen = OpenAlertIds();
             await LoadAsync();
+
+            // The drill's whole point is "did the fault get caught?", and a drill that caught
+            // nothing looks exactly like one that has not finished. Two outcomes, one line.
+            var fired = CountNew(seen);
+
+            if (fired > 0)
+                Toasts.Success($"Drill complete — {fired} alert{(fired == 1 ? "" : "s")} fired.");
+            else
+                Toasts.Warn("Drill complete — no new alerts fired.");
         }
         finally
         {

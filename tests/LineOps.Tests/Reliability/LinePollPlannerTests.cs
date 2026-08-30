@@ -52,6 +52,42 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         return (monthStart.AddMonths(1) - now).TotalHours;
     }
 
+    /// <summary>
+    /// A moment roughly <paramref name="ago"/> in the past, but never earlier than the first of
+    /// the month.
+    ///
+    /// Credit budgets reset monthly, so a run seeded at "a day ago" lands in the previous month
+    /// whenever the test runs on the first — and credits spent last month are, correctly, not
+    /// counted against this one. The spend then reads as zero and the test fails on a date
+    /// rather than on a behaviour.
+    /// </summary>
+    private static DateTimeOffset EarlierThisMonth(TimeSpan ago)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+
+        return now - ago < monthStart ? monthStart : now - ago;
+    }
+
+    /// <summary>
+    /// The interval the planner will actually report for a given number of scans left in the
+    /// month — the ideal spacing, then clamped to the configured back-off ceiling.
+    ///
+    /// The clamp is not decoration here. Early in a 31-day month, 500 credits spread evenly
+    /// works out slower than the three-hour maximum, so the ceiling binds and the ideal spacing
+    /// is never what gets reported. Asserting the unclamped figure passes for most of the month
+    /// and fails on the first, which is a worse failure than none: it turns up in CI on a date
+    /// nobody changed anything on.
+    /// </summary>
+    private static double PacedHoursThisMonth(int scans, IngestionOptions? options = null)
+    {
+        var settings = (options ?? new IngestionOptions { Sports = ["mlb"] }).LinePolling;
+        var ideal = HoursLeftThisMonth() / scans;
+
+        return Math.Clamp(
+            ideal, settings.MinimumInterval.TotalHours, settings.MaximumInterval.TotalHours);
+    }
+
     [Fact]
     public async Task TheDailyAllotmentIsSpreadAcrossTheDay()
     {
@@ -276,7 +312,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         // 500 less the 100 reserve is 400 credits, at 2 a scan — 200 scans, spread over what is
         // left of the month rather than over the next few hours.
         Assert.Equal(200, plan.ScansRemainingToday);
-        Assert.Equal(HoursLeftThisMonth() / 200, plan.BudgetInterval.TotalHours, precision: 2);
+        Assert.Equal(PacedHoursThisMonth(200), plan.BudgetInterval.TotalHours, precision: 2);
 
         // And it has to say so. "200 scans left in today's allowance" reads as generous; the
         // same number against a month is the opposite, and the operator decides whether to
@@ -297,8 +333,8 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         {
             SourceId = source.Id,
             JobKey = "odds:lines:mlb",
-            StartedAt = DateTimeOffset.UtcNow.AddHours(-1),
-            FinishedAt = DateTimeOffset.UtcNow.AddHours(-1),
+            StartedAt = EarlierThisMonth(TimeSpan.FromHours(1)),
+            FinishedAt = EarlierThisMonth(TimeSpan.FromHours(1)),
             Status = RunStatus.Success,
             CreditsSpent = 300
         });
@@ -320,8 +356,8 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         {
             SourceId = source.Id,
             JobKey = "odds:lines:mlb",
-            StartedAt = DateTimeOffset.UtcNow.AddDays(-1),
-            FinishedAt = DateTimeOffset.UtcNow.AddDays(-1),
+            StartedAt = EarlierThisMonth(TimeSpan.FromDays(1)),
+            FinishedAt = EarlierThisMonth(TimeSpan.FromDays(1)),
             Status = RunStatus.Success,
             CreditsSpent = 500
         });
@@ -351,7 +387,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         // out — a hardcoded "> 30 minutes" passes early in the month and fails late in it, which
         // is a test that reports the date rather than the behaviour.
         var daily = TimeSpan.FromHours(24d / 225);   // 500 less the 50 reserve, at 2 a scan
-        var monthly = TimeSpan.FromHours(HoursLeftThisMonth() / 200);
+        var monthly = TimeSpan.FromHours(PacedHoursThisMonth(200));
 
         Assert.Equal(monthly.TotalHours, plan.BudgetInterval.TotalHours, precision: 2);
         Assert.True(

@@ -37,23 +37,30 @@
 
             <span class="win__spacer"></span>
 
-            <div class="win__controls">
+            @* Every control here stops the click going any further. The bar behind them
+               is itself a control — it expands a collapsed window — and a click that
+               reaches both runs both: minimise set the flag, the bar read the flag it
+               had just set and expanded the window straight back. The button appeared
+               to do nothing. A press on a control is for that control only. *@
+            <div class="win__controls" data-glide>
                 <button class="win__ctl" type="button" data-window-control
                         title="Minimise" aria-label="Minimise @Window.Title"
-                        @onclick="Minimise">
+                        @onclick="Minimise" @onclick:stopPropagation="true">
                     <Glyph Icon="@Icons.Material.Filled.Remove" />
                 </button>
                 <button class="win__ctl" type="button" data-window-control
                         title="@(Window.Maximised ? "Restore the row" : "Take the whole row")"
                         aria-label="@(Window.Maximised ? "Restore" : "Maximise") @Window.Title"
-                        @onclick="Maximise">
+                        @onclick="Maximise" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
                     <Glyph Icon="@(Window.Maximised
                                    ? Icons.Material.Filled.FilterNone
                                    : Icons.Material.Filled.CropSquare)" />
                 </button>
                 <button class="win__ctl win__ctl--close" type="button" data-window-control
+                        data-glide-tone="stop"
                         title="Close" aria-label="Close @Window.Title"
-                        @onclick="Close">
+                        @onclick="Close" @onclick:stopPropagation="true">
                     <Glyph Icon="@Icons.Material.Filled.Close" />
                 </button>
             </div>

@@ -21,5 +21,6 @@
     <ProjectReference Include="..\LineOps.Data\LineOps.Data.csproj" />
     <ProjectReference Include="..\LineOps.Reliability\LineOps.Reliability.csproj" />
     <ProjectReference Include="..\LineOps.Ingestion\LineOps.Ingestion.csproj" />
+    <ProjectReference Include="..\LineOps.Observability\LineOps.Observability.csproj" />
   </ItemGroup>
 </Project>

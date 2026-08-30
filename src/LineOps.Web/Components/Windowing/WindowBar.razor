@@ -1,0 +1,228 @@
+@using LineOps.Web.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+
+@*
+    The toolbar: everything you can open, and everything that is open, in one row.
+
+    These were two lists — a set of launcher icons and a separate strip of window tabs —
+    which meant a window appeared twice up here and a third time as its own column below.
+    The column below is the window; the bar only needs to say what exists and where you
+    are. So there is one item per window, and it is the same item whether the window is
+    open or not: closed, it is an icon that opens it; open, it wears its column's name.
+
+    Names appear only on open items on purpose. Twelve names would not fit, and a name is
+    only worth the width once there is a column to go back to — before that, the icon and
+    its tooltip are enough.
+
+    Two separate signals, because they answer two questions:
+
+      · Which one am I in?   The current item is filled and lit, and stays that way no
+                             matter where the pointer goes.
+      · Which one am I on?   The marble, which follows the pointer and settles back on
+                             the current item when it leaves.
+
+    The marble alone could not do both: it travels on hover, so the moment you reached
+    for anything else the answer to the first question left with it.
+*@
+
+<div class="bar__group bar__group--windows"
+     role="toolbar"
+     aria-label="Windows"
+     data-glide="marble"
+     @onkeydown="OnKeyDown">
+
+    @{
+        var groups = Groups();
+        var index = 0;
+    }
+
+    @for (var g = 0; g < groups.Count; g++)
+    {
+        @if (g > 0)
+        {
+            <span class="bar__split" aria-hidden="true"></span>
+        }
+
+        @foreach (var item in groups[g])
+        {
+            var slot = index++;
+            var current = item.IsCurrent;
+
+            <button class="bar__key @(item.Open is not null ? "bar__key--named" : null) @(current ? "bar__key--current" : null) @(item.Open?.Minimised == true ? "bar__key--collapsed" : null)"
+                    type="button"
+                    aria-current="@(current ? "true" : null)"
+                    data-glide-rest="@(current ? "" : null)"
+                    tabindex="@(slot == CurrentSlot ? "0" : "-1")"
+                    title="@Tip(item)"
+                    aria-label="@Label(item)"
+                    @ref="_refs[slot]"
+                    @onclick="() => Press(item)">
+                <Glyph Icon="@item.Icon" />
+
+                @if (item.Open is not null)
+                {
+                    <span class="bar__name">@item.Title</span>
+                    <span class="bar__pulse @PulseClass(item.Open.Pulse)" aria-hidden="true"></span>
+                }
+            </button>
+        }
+    }
+</div>
+
+@code {
+    private ElementReference[] _refs = [];
+
+    /// <summary>One row of the bar: a window that could be open, or one that is.</summary>
+    private sealed record Item(
+        string Icon,
+        string Title,
+        WindowDefinition? Definition,
+        WindowInstance? Open,
+        bool IsCurrent);
+
+    protected override void OnInitialized() => Manager.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Manager.Changed -= OnChanged;
+
+    /// <summary>
+    /// The catalogue, in catalogue order, with open windows standing in for their
+    /// definition — plus any open destination, which has no launcher entry of its own
+    /// because it cannot be opened from here. Leaving those off would mean a Game or a
+    /// Team column existed on the desk with nothing up here to say so.
+    /// </summary>
+    private List<List<Item>> Groups()
+    {
+        var result = new List<List<Item>>();
+
+        foreach (var group in WindowCatalog.All.GroupBy(d => d.Group))
+        {
+            var items = new List<Item>();
+
+            foreach (var definition in group.Where(d => !d.RequiresSubject))
+            {
+                var open = Manager.Windows.FirstOrDefault(w => w.Definition.Key == definition.Key);
+
+                items.Add(new Item(
+                    definition.Icon,
+                    open?.Title ?? definition.Title,
+                    definition,
+                    open,
+                    open is not null && open.Id == Manager.FocusedId));
+            }
+
+            // Destinations only ever appear once opened, in their own group, ordered
+            // the way the desk orders them.
+            foreach (var window in Manager.Windows
+                .Where(w => w.Definition.RequiresSubject && w.Definition.Group == group.Key)
+                .OrderBy(w => w.X))
+            {
+                items.Add(new Item(
+                    window.Definition.Icon,
+                    window.Title,
+                    window.Definition,
+                    window,
+                    window.Id == Manager.FocusedId));
+            }
+
+            if (items.Count > 0)
+                result.Add(items);
+        }
+
+        var total = result.Sum(g => g.Count);
+
+        if (_refs.Length != total)
+            _refs = new ElementReference[total];
+
+        return result;
+    }
+
+    /// <summary>Where the single Tab stop sits: the current window, or the first item.</summary>
+    private int CurrentSlot
+    {
+        get
+        {
+            var slot = 0;
+
+            foreach (var group in Groups())
+            {
+                foreach (var item in group)
+                {
+                    if (item.IsCurrent)
+                        return slot;
+
+                    slot++;
+                }
+            }
+
+            return 0;
+        }
+    }
+
+    private static string PulseClass(PulseState pulse) => pulse switch
+    {
+        PulseState.Healthy => "pulse--healthy",
+        PulseState.Warn => "pulse--warn",
+        PulseState.Critical => "pulse--critical",
+        PulseState.Active => "pulse--active",
+        _ => "pulse--idle"
+    };
+
+    private static string Label(Item item)
+        => item.Open is null
+            ? $"Open {item.Title}"
+            : item.Open.Minimised
+                ? $"Restore {item.Title}"
+                : $"Focus {item.Title}";
+
+    /// <summary>An icon has to carry its name somewhere, and a closed one carries it here.</summary>
+    private static string Tip(Item item)
+    {
+        if (item.Open is null)
+            return $"{item.Title} — {item.Definition?.Description}";
+
+        var state = item.Open.Minimised ? " — collapsed, press to restore" : null;
+
+        return string.IsNullOrEmpty(item.Open.StatusText)
+            ? $"{item.Title}{state}"
+            : $"{item.Title} · {item.Open.StatusText}{state}";
+    }
+
+    /// <summary>Open it, or go to it. Focus restores a collapsed column on the way.</summary>
+    private void Press(Item item)
+    {
+        if (item.Open is not null)
+            Manager.Focus(item.Open.Id);
+        else if (item.Definition is not null)
+            Manager.Open(item.Definition);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        var flat = Groups().SelectMany(g => g).ToList();
+        var current = CurrentSlot;
+        var last = flat.Count - 1;
+
+        if (last < 0)
+            return;
+
+        var next = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => current == last ? 0 : current + 1,
+            "ArrowLeft" or "ArrowUp" => current == 0 ? last : current - 1,
+            "Home" => 0,
+            "End" => last,
+            _ => current
+        };
+
+        if (next == current)
+            return;
+
+        // Arrows walk the bar without opening anything: pressing is what opens. Moving
+        // focus to a closed window would otherwise open a window per keystroke.
+        if (next < _refs.Length)
+            await _refs[next].FocusAsync();
+    }
+}

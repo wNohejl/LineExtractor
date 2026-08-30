@@ -28,7 +28,7 @@
 
         @* Always opens downward: these live in the fixed header, so there is no edge to
            open away from any more. *@
-        <div class="railmenu__panel railmenu__panel--top"
+        <div class="railmenu__panel railmenu__panel--top @(AlignEnd ? "railmenu__panel--end" : null)"
              role="menu"
              @onkeydown="OnKeyDown"
              tabindex="-1">
@@ -41,6 +41,10 @@
     [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
     [Parameter] public bool Accent { get; set; }
+
+    /// <summary>Anchor the panel's right edge to the button — for a menu whose button sits
+    /// near the right viewport edge, where a left-anchored panel would overflow off-screen.</summary>
+    [Parameter] public bool AlignEnd { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     private bool _open;

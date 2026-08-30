@@ -1,0 +1,110 @@
+@namespace YourApp.Components.Ui
+
+@*
+    TEMPLATE — rename the @namespace above to your own.
+
+    A modal sheet: one self-contained task, and completing it is the only goal.
+
+    THE DECISION RULE, which is the whole of when to be modal:
+
+        Use a sheet when the task is self-contained and completing it is the only
+        goal. Use a non-modal floating panel when the operator needs to see or
+        compare other things while working. Comparison is never modal. If you are
+        unsure, do not be modal.
+
+    A modal tier is worth having beside a floating one, for the cases the floating layer
+    serves badly: a form that must complete or cancel, a multi-step configuration. It does
+    not replace the floating layer, and it must not swallow it — an app whose core workflow
+    is comparing two things has no business making either of them modal.
+
+    MudDialog underneath owns the scrim, the focus trap, and the stacking — plumbing that
+    is genuinely hard to get right and which MudBlazor already has. Everything visible
+    comes from .app-sheet.
+
+    Where the width comes from, so it is not re-litigated: MudDialog owns its outer
+    element, so the sheet cannot wrap itself in a sized container. The dialog's actual
+    width is set by the caller through DialogOptions.MaxWidth; the Width parameter here
+    applies min-width to the inner body so a sheet with little content still reads as a
+    sheet rather than a tooltip.
+
+    Class="app-sheet" is load-bearing, not decoration. It lands on Mud's own .mud-dialog
+    element, and the surface rules are written as .mud-dialog.app-sheet so they out-specify
+    both MudBlazor's own .mud-dialog and the bridge's — neither of which this sheet could
+    beat on source order, since apple-bridge.css loads after the component stylesheet.
+*@
+
+<MudDialog Class="app-sheet">
+    <TitleContent>
+        <div class="app-sheet__head">
+            <div class="app-sheet__titles">
+                <span class="app-sheet__title">@Title</span>
+                @if (Subtitle is not null)
+                {
+                    <span class="app-sheet__sub">@Subtitle</span>
+                }
+            </div>
+            <button type="button"
+                    class="app-sheet__close"
+                    title="Close"
+                    @onclick="Cancel">
+                <MudIcon Icon="@Icons.Material.Filled.Close" />
+            </button>
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="app-sheet__body" style="min-width:@Width">
+            @ChildContent
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        @if (Footer is not null)
+        {
+            <div class="app-sheet__foot">
+                @Footer
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? Instance { get; set; }
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The task's own buttons. Exactly one of them should be Filled — the one that
+    /// completes the task — and Cancel should be Plain beside it.
+    /// </summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>
+    /// A floor for the body, not the dialog's width. The caller sets the real width through
+    /// DialogOptions.MaxWidth; this only keeps a thin sheet from collapsing to a tooltip.
+    /// </summary>
+    [Parameter] public string Width { get; set; } = "520px";
+
+    /// <summary>
+    /// Raised when the operator leaves without completing. A sheet that cannot be
+    /// cancelled is a trap.
+    ///
+    /// <para>
+    /// Do not rely on this to know the outcome. Escape and a backdrop click go through
+    /// MudBlazor's own cancel and never reach this handler — read the DialogResult at the
+    /// call site instead. This callback is for cleanup the sheet itself owns.
+    /// </para>
+    /// </summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+
+        Instance?.Cancel();
+    }
+}

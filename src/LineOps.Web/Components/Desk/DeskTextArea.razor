@@ -1,0 +1,41 @@
+@namespace LineOps.Web.Components.Desk
+@inherits DeskFieldBase<string>
+
+@*
+    A field with room for a paragraph.
+
+    For the entries that are prose rather than a value — a root cause, a corrective action,
+    a note. Not generic: what goes in a textarea is text, and a type parameter here would
+    only ever be instantiated with string.
+
+    textarea.field in lineops.css drops the fixed height and lets the box be resized
+    vertically; everything else — the recess, the focus ring, the metrics — is the same
+    .field the single-line controls wear, so the two stack without a seam.
+
+    Same frame rule and the same commit-on-blur default as DeskField. Prose is the case
+    where per-keystroke validation is least welcome, so there is no Immediate here at all.
+*@
+
+@if (Framed)
+{
+    <div class="field-set" style="@Style">
+        <label class="field-lbl" id="@LabelId" for="@FieldId">
+            @Label
+            @if (Required)
+            {
+                <span class="field-req" aria-hidden="true">*</span>
+            }
+        </label>
+
+        <textarea @attributes="Attributes"></textarea>
+
+        @if (HasError)
+        {
+            <p class="field-err" id="@ErrorId" role="alert">@Error</p>
+        }
+    </div>
+}
+else
+{
+    <textarea @attributes="Attributes"></textarea>
+}

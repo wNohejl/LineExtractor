@@ -163,6 +163,13 @@ public class OddsRetentionService(
     /// </summary>
     public async Task<int> DropEmptyPartitionsAsync(CancellationToken ct = default)
     {
+        // Nothing in the SQL below may contain a brace. ExecuteSqlRawAsync runs the string
+        // through string.Format to bind parameters, so a regex written as [0-9] followed by a
+        // braced repeat count reads as parameter placeholders — and with no parameters supplied
+        // the statement throws before Postgres ever sees it. That is why the partition-name
+        // pattern is spelled out one character class at a time. This comment lives out here for
+        // the same reason: written inside the literal, it would reintroduce the problem it
+        // describes.
         var dropped = await db.Database.ExecuteSqlRawAsync(
             """
             DO $$
@@ -177,7 +184,7 @@ public class OddsRetentionService(
                     JOIN pg_class c ON c.oid = i.inhrelid
                     JOIN pg_class p ON p.oid = i.inhparent
                     WHERE p.relname = 'OddsSnapshots'
-                      AND c.relname ~ '^OddsSnapshots_[0-9]{4}_[0-9]{2}$'
+                      AND c.relname ~ '^OddsSnapshots_[0-9][0-9][0-9][0-9]_[0-9][0-9]$'
                 LOOP
                     -- Only months strictly before the current one are candidates.
                     CONTINUE WHEN to_date(right(part.name, 7), 'YYYY_MM') >= keep_from;

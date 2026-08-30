@@ -1,6 +1,5 @@
 using LineOps.Core.Entities;
-using LineOps.Data;
-using Microsoft.EntityFrameworkCore;
+using LineOps.Reliability;
 using Microsoft.Extensions.Logging;
 
 namespace LineOps.Ingestion.Services;
@@ -12,100 +11,45 @@ namespace LineOps.Ingestion.Services;
 /// differently — odds-api.io counts requests per hour and per day, The Odds API bills
 /// credits as markets x regions per call. Rather than trust the schedule to stay inside
 /// those bounds, every run asks permission and is refused when the budget is spent.
+///
+/// The measuring is <see cref="BudgetCalculator"/>'s job, over in the reliability layer. What
+/// is left here is only the decision: this class turns consumption into a yes or a no.
+/// Splitting the two is what lets the alert engine warn on budget pressure without the
+/// reliability library having to reference the ingestion library — the reference only runs the
+/// other way.
 /// </summary>
-public class CreditBudgetGuard(LineOpsDbContext db, ILogger<CreditBudgetGuard> logger)
+public class CreditBudgetGuard(BudgetCalculator budget, ILogger<CreditBudgetGuard> logger)
 {
     public async Task<bool> TryReserveAsync(Source source, int estimatedRequests, CancellationToken ct)
     {
-        var now = DateTimeOffset.UtcNow;
+        var usage = await budget.GetUsageAsync(source, ct);
 
-        if (source.RateLimitPerHour is { } hourly)
+        if (usage.HourlyLimit is { } hourly
+            && usage.RequestsLastHour + estimatedRequests > hourly)
         {
-            var since = now.AddHours(-1);
-            var used = await db.IngestionRuns
-                .Where(r => r.SourceId == source.Id && r.StartedAt >= since)
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0;
-
-            if (used + estimatedRequests > hourly)
-            {
-                logger.LogWarning("{Source}: hourly budget reached ({Used}/{Limit})",
-                    source.Key, used, hourly);
-                return false;
-            }
+            logger.LogWarning("{Source}: hourly budget reached ({Used}/{Limit})",
+                source.Key, usage.RequestsLastHour, hourly);
+            return false;
         }
 
-        if (source.RateLimitPerDay is { } daily)
+        if (usage.DailyLimit is { } daily
+            && usage.RequestsLastDay + estimatedRequests > daily)
         {
-            var since = now.AddDays(-1);
-            var used = await db.IngestionRuns
-                .Where(r => r.SourceId == source.Id && r.StartedAt >= since)
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0;
-
-            if (used + estimatedRequests > daily)
-            {
-                logger.LogWarning("{Source}: daily budget reached ({Used}/{Limit})",
-                    source.Key, used, daily);
-                return false;
-            }
+            logger.LogWarning("{Source}: daily budget reached ({Used}/{Limit})",
+                source.Key, usage.RequestsLastDay, daily);
+            return false;
         }
 
-        if (source.MonthlyCreditBudget is { } monthly)
+        // Credits are not forecast the way requests are: a call's true cost is markets x regions
+        // and the provider reports it after the fact, so the ceiling is checked against what has
+        // already been spent rather than against an estimate.
+        if (usage.MonthlyCreditLimit is { } monthly && usage.CreditsThisMonth >= monthly)
         {
-            var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-            var used = await db.IngestionRuns
-                .Where(r => r.SourceId == source.Id && r.StartedAt >= monthStart)
-                .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0;
-
-            if (used >= monthly)
-            {
-                logger.LogWarning("{Source}: monthly credit budget exhausted ({Used}/{Limit})",
-                    source.Key, used, monthly);
-                return false;
-            }
+            logger.LogWarning("{Source}: monthly credit budget exhausted ({Used}/{Limit})",
+                source.Key, usage.CreditsThisMonth, monthly);
+            return false;
         }
 
         return true;
-    }
-
-    /// <summary>Current consumption per source, for the Ops Center budget tiles.</summary>
-    public async Task<BudgetUsage> GetUsageAsync(Source source, CancellationToken ct)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-
-        var runs = db.IngestionRuns.Where(r => r.SourceId == source.Id);
-
-        return new BudgetUsage(
-            RequestsLastHour: await runs.Where(r => r.StartedAt >= now.AddHours(-1))
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
-            RequestsLastDay: await runs.Where(r => r.StartedAt >= now.AddDays(-1))
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
-            CreditsThisMonth: await runs.Where(r => r.StartedAt >= monthStart)
-                .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0,
-            HourlyLimit: source.RateLimitPerHour,
-            DailyLimit: source.RateLimitPerDay,
-            MonthlyCreditLimit: source.MonthlyCreditBudget);
-    }
-}
-
-public record BudgetUsage(
-    int RequestsLastHour,
-    int RequestsLastDay,
-    int CreditsThisMonth,
-    int? HourlyLimit,
-    int? DailyLimit,
-    int? MonthlyCreditLimit)
-{
-    /// <summary>Highest utilisation across all metered dimensions, 0..1+.</summary>
-    public double WorstUtilisation
-    {
-        get
-        {
-            var ratios = new List<double>();
-            if (HourlyLimit is > 0) ratios.Add(RequestsLastHour / (double)HourlyLimit);
-            if (DailyLimit is > 0) ratios.Add(RequestsLastDay / (double)DailyLimit);
-            if (MonthlyCreditLimit is > 0) ratios.Add(CreditsThisMonth / (double)MonthlyCreditLimit);
-            return ratios.Count == 0 ? 0 : ratios.Max();
-        }
     }
 }
