@@ -50,9 +50,15 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
     /// </para>
     ///
     /// <para>
-    /// Incidents survive for the same reason: an incident carries a written root-cause analysis,
-    /// and the analysis is the point of it. Its alerts go, so nothing is still <i>open</i> about
-    /// a source that no longer exists, but the write-up stays where its author left it.
+    /// An incident survives only if somebody wrote it up. The rule used to be "incidents stay",
+    /// on the grounds that an incident carries a root-cause analysis and the analysis is the
+    /// point of it — true of one a person closed, and false of one the evaluator opened
+    /// automatically and nobody ever touched. Two of those outlived the demo removal: still
+    /// open, still counted on the Ops panel, and unresolvable, because closing an incident
+    /// requires a root cause and there is no honest one to write about a source that no longer
+    /// exists. So the line is the write-up rather than the incident. An analysis is a record a
+    /// person made and it stays; an empty auto-opened shell is platform bookkeeping about a feed
+    /// that is gone, and it goes with the rest of the bookkeeping.
     /// </para>
     /// </summary>
     private async Task RemoveRetiredSourcesAsync(CancellationToken ct)
@@ -74,10 +80,33 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await db.IngestionRuns.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.KpiDailies.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
 
+        // Read the incidents these alerts point at before the alerts go: the alert is the only
+        // link between an incident and the source it was raised about, so deleting it first
+        // would strand the incident with nothing to identify it by.
+        var incidentIds = await db.Alerts
+            .Where(x => x.SourceId != null && ids.Contains(x.SourceId.Value) && x.IncidentId != null)
+            .Select(x => x.IncidentId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
         // The alerts go with the source that raised them — including the open critical one
         // nagging that a fixture feed has not run. There is nothing left to page anyone about.
         await db.Alerts.Where(x => x.SourceId != null && ids.Contains(x.SourceId.Value))
             .ExecuteDeleteAsync(ct);
+
+        // Then the incidents nobody wrote up. An incident with a root cause is somebody's
+        // analysis and survives its subject; one without is a shell the evaluator opened and
+        // nobody could now close, because a source that does not exist has no honest cause.
+        if (incidentIds.Count > 0)
+        {
+            var shells = await db.Incidents
+                .Where(i => incidentIds.Contains(i.Id)
+                            && (i.RootCause == null || i.RootCause == string.Empty))
+                .ExecuteDeleteAsync(ct);
+
+            if (shells > 0)
+                logger.LogInformation("Removed {Count} unwritten incident(s) about retired sources", shells);
+        }
 
         var removed = await db.Sources.Where(s => ids.Contains(s.Id)).ExecuteDeleteAsync(ct);
 

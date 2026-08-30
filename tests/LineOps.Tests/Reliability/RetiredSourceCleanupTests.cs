@@ -120,6 +120,80 @@ public class RetiredSourceCleanupTests(PostgresFixture fixture)
         Assert.True(await db.Sources.AnyAsync(s => s.Key == "odds-api-io"));
     }
 
+    /// <summary>
+    /// An incident about a retired source survives only if somebody wrote it up.
+    ///
+    /// <para>
+    /// The cleanup kept every incident on the grounds that "an incident carries a written
+    /// root-cause analysis, and the analysis is the point of it". That is true of an incident
+    /// somebody closed and false of one the evaluator opened automatically and nobody ever
+    /// touched. Two of those were left behind by the demo removal: still Open, still counted on
+    /// the Ops panel, and unresolvable — closing one requires a root cause, and there is no
+    /// honest root cause to write for a source that no longer exists.
+    /// </para>
+    ///
+    /// <para>
+    /// So the line is the write-up, not the incident: an analysis is a record somebody made and
+    /// it stays; an empty auto-opened shell about a deleted feed is platform bookkeeping and
+    /// goes with the rest of it.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task AnUnwrittenIncidentAboutARetiredSourceGoesWithIt()
+    {
+        await using var db = fixture.CreateContext();
+        var (odds, _) = await SeedRetiredAsync(db);
+
+        var unwritten = new Incident
+        {
+            Title = "Demo fixture source: no successful ingestion for 721.2h",
+            Severity = AlertSeverity.Critical,
+            Status = IncidentStatus.Open,
+            OpenedAt = DateTimeOffset.UtcNow.AddDays(-5)
+        };
+
+        var written = new Incident
+        {
+            Title = "Demo fixture source: success rate 44% over 18 runs",
+            Severity = AlertSeverity.Warn,
+            Status = IncidentStatus.Resolved,
+            OpenedAt = DateTimeOffset.UtcNow.AddDays(-30),
+            ResolvedAt = DateTimeOffset.UtcNow.AddDays(-29),
+            RootCause = "The fixture yielded to the real provider mid-run.",
+            CorrectiveActions = "Pinned the adapter selection to one kind per run."
+        };
+
+        db.Incidents.AddRange(unwritten, written);
+        await db.SaveChangesAsync();
+
+        db.Alerts.AddRange(
+            new Alert
+            {
+                RuleKey = "freshness",
+                SourceId = odds.Id,
+                Severity = AlertSeverity.Critical,
+                Message = "no successful ingestion",
+                TriggeredAt = DateTimeOffset.UtcNow.AddDays(-5),
+                IncidentId = unwritten.Id
+            },
+            new Alert
+            {
+                RuleKey = "success_rate",
+                SourceId = odds.Id,
+                Severity = AlertSeverity.Warn,
+                Message = "success rate 44%",
+                TriggeredAt = DateTimeOffset.UtcNow.AddDays(-30),
+                IncidentId = written.Id
+            });
+
+        await db.SaveChangesAsync();
+
+        await Create(db).InitialiseAsync();
+
+        Assert.False(await db.Incidents.AnyAsync(i => i.Id == unwritten.Id));
+        Assert.True(await db.Incidents.AnyAsync(i => i.Id == written.Id));
+    }
+
     [Fact]
     public async Task SeedingNeverPutsTheDemoSourcesBack()
     {
