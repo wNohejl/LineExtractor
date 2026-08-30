@@ -1,6 +1,6 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
-**Status: BUILT.** All seven phases implemented and verified. 456 tests passing (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
+**Status: BUILT.** All seven phases implemented and verified. 555 tests passing (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
@@ -429,7 +429,7 @@ Use this loop for UI work — hot reload and a debugger beat a 30-second image r
 ```powershell
 dotnet restore
 dotnet build                              # solution: 6 projects + tests
-dotnet test                               # 456 tests
+dotnet test                               # 555 tests
 dotnet format --verify-no-changes         # CI enforces this
 ```
 
@@ -468,7 +468,7 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 - **Repo layout:** `src/` (6 projects), `tests/`, `docs/adr/`, `docs/runbook.md`, `scripts/`, `.github/workflows/`.
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
-- **Tests (456):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
+- **Tests (555):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
 - **Docs:** seventeen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
@@ -546,7 +546,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Alert engine + failure-injection drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
-| 456 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
+| 555 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
 | 17 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
@@ -575,4 +575,4 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 **Resume bullet for the PROJECTS section:**
 
 > **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
-> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 456 unit, fixture and Testcontainers integration tests in GitHub Actions CI.
+> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 555 unit, fixture and Testcontainers integration tests in GitHub Actions CI.
