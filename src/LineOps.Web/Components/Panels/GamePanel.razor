@@ -29,7 +29,9 @@ else
 {
     var game = _row.Game;
     var isLive = game.Status == GameStatus.Live;
-    var showScore = game.HomeScore is not null || game.AwayScore is not null;
+    // Not "either side has a number": ESPN writes zeros for a fixture that has not started, so
+    // that test put a 0–0 headline on every game on tomorrow's slate. Scoreline owns the rule.
+    var showScore = Scoreline.Has(game);
 
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
         <PanelHeader Tight>
@@ -261,22 +263,22 @@ else
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" />
-                        <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" />
+                        <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" />
-                        <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" />
+                        <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Total.First" Selection="O" />
-                        <PriceCell Offer="_row.Total.Second" Selection="U" />
+                        <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
+                        <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
             </div>

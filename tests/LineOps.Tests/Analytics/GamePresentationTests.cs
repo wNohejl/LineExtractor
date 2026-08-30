@@ -55,6 +55,63 @@ public class GamePresentationTests
         Assert.Equal(ScoreLeader.None, Scoreline.Leader(scheduled));
     }
 
+    /// <summary>
+    /// The one the browser caught. ESPN's scoreboard writes zeros for a fixture that has not
+    /// started, so "either side has a number" was true of every game on tomorrow's slate — and
+    /// the board read "ARI 0–0 SF" beside a SCHED tag, asserting a result nobody played.
+    /// </summary>
+    [Fact]
+    public void AScheduledGameHasNoScoreEvenWhenTheFeedWroteZeros()
+    {
+        var notYet = new Game
+        {
+            Status = GameStatus.Scheduled,
+            HomeScore = 0,
+            AwayScore = 0,
+            HomeTeam = new Team { Abbrev = "SF" },
+            AwayTeam = new Team { Abbrev = "ARI" }
+        };
+
+        Assert.False(Scoreline.Has(notYet));
+        Assert.Equal("—", Scoreline.Format(notYet));
+        Assert.Equal(ScoreLeader.None, Scoreline.Leader(notYet));
+    }
+
+    [Fact]
+    public void AGenuinelyScorelessLiveGameIsStillReported()
+    {
+        // The other half of the rule: 0–0 in the third inning is a real scoreline, and
+        // suppressing it would be the same mistake in the opposite direction.
+        var live = new Game
+        {
+            Status = GameStatus.Live,
+            HomeScore = 0,
+            AwayScore = 0,
+            HomeTeam = new Team { Abbrev = "SF" },
+            AwayTeam = new Team { Abbrev = "ARI" }
+        };
+
+        Assert.True(Scoreline.Has(live));
+        Assert.Equal("ARI 0–0 SF", Scoreline.Format(live));
+        Assert.Equal(ScoreLeader.Level, Scoreline.Leader(live));
+    }
+
+    [Fact]
+    public void APostponedGameHasNoResultToShow()
+    {
+        var ppd = new Game
+        {
+            Status = GameStatus.Postponed,
+            HomeScore = 0,
+            AwayScore = 0,
+            HomeTeam = new Team { Abbrev = "BOS" },
+            AwayTeam = new Team { Abbrev = "NYY" }
+        };
+
+        Assert.False(Scoreline.Has(ppd));
+        Assert.Equal("—", Scoreline.Format(ppd));
+    }
+
     [Fact]
     public void HalfAScoreStillCounts()
     {

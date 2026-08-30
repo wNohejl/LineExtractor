@@ -192,7 +192,18 @@ public class BoardService(LineOpsDbContext db)
                 .Select(Quote.From)
                 .ToList();
 
-        return Compose(game, live, closing, newestScanAnywhere: null);
+        // Only asked when the row is going to have to explain itself, because the answer is
+        // only used to tell "the feed has never run" apart from "the feed skipped this
+        // fixture". Passing null unconditionally made every unpriced game claim no scan had
+        // ever run — which reads as a broken platform on a desk holding a full slate of prices.
+        var scanned = live.Count > 0 || closing.Count > 0
+            ? null
+            : await db.OddsSnapshots
+                .OrderByDescending(s => s.CapturedAt)
+                .Select(s => (DateTimeOffset?)s.CapturedAt)
+                .FirstOrDefaultAsync(ct);
+
+        return Compose(game, live, closing, scanned);
     }
 
     /// <summary>

@@ -234,10 +234,17 @@
     the group <em>is</em> the value of shopping. Books that agree collapse to one mark, which
     is the correct picture of a market with nothing to shop for.
 </p>
+<p class="empty" style="padding:0 0 9px">
+    The third cell is a <em>closing</em> price: the game has started, its scans are gone, and
+    one number per book survives (ADR 0010). It is muted rather than dropped — the close is
+    what the market concluded and what CLV is measured against — and it explains itself in a
+    tooltip instead of a legend.
+</p>
 
 <DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Start">
     <PriceCell Offer="_spreadHome" Selection="SF" />
     <PriceCell Offer="_spreadAway" Selection="COL" />
+    <PriceCell Offer="_spreadClosed" Selection="SF" StartsAt="_closedStart" />
 </DeskRow>
 
 <PanelHeader Gap="PanelHeaderGap.Section">Display — progress</PanelHeader>
@@ -760,6 +767,7 @@
         // put a caption on the rail that disagrees with the rail.
         EdgePoints: 4.4,
         LinesVary: false,
+        IsClosing: false,
         Rungs:
         [
             new("Pinnacle", -105, -1.5m, 0.512),
@@ -776,12 +784,35 @@
         CapturedAt: DateTimeOffset.UtcNow,
         EdgePoints: 0.0,
         LinesVary: false,
+        IsClosing: false,
         Rungs:
         [
             new("Circa", -110, 1.5m, 0.524),
             new("Pinnacle", -110, 1.5m, 0.524),
             new("DraftKings", -110, 1.5m, 0.524)
         ]);
+
+    // The third picture the control draws: a game that has started. Its scans are gone and one
+    // closing line per book survives (ADR 0010), so the cell steps back a tone, drops the
+    // accent it no longer earns, and says what the number is on hover.
+    private static readonly BestOffer _spreadClosed = new(
+        Outcome: "home",
+        Book: "Pinnacle",
+        PriceAmerican: -108,
+        Line: -1.5m,
+        CapturedAt: DateTimeOffset.UtcNow.AddHours(-3),
+        EdgePoints: 2.1,
+        LinesVary: false,
+        IsClosing: true,
+        Rungs:
+        [
+            new("Pinnacle", -108, -1.5m, 0.519),
+            new("Circa", -115, -1.5m, 0.535),
+            new("DraftKings", -120, -1.5m, 0.545)
+        ]);
+
+    /// <summary>The start the closing sample is measured against — three hours after capture.</summary>
+    private static readonly DateTimeOffset _closedStart = DateTimeOffset.UtcNow;
 
     private double _progress = 34;
     private bool _stepping;

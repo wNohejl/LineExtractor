@@ -1512,19 +1512,21 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    CLV is measured against (ADR 0010), but it steps back a tone so it cannot be
    mistaken for the live market on the row above. Muted, not hidden: hiding it is
    what left sixteen of nineteen rows empty. */
-.price--closing .price__odds { color: var(--haze); }
-.price--closing .price__line { color: var(--haze-dim); }
+.price--closing .price__odds { color: var(--text-secondary); }
+.price--closing .price__line,
+.price--closing .price__sel { color: var(--text-tertiary); }
 
+/* The book keeps its capsule but loses the accent, because the accent means
+   interactive on this desk and there is nothing here left to act on. */
 .price--closing .price__book {
-    color: var(--haze-dim);
-    border-color: var(--ink-500);
+    color: var(--text-tertiary);
+    border-color: var(--separator);
 }
 
-.price--closing .rail::before { background: var(--ink-600); }
-.price--closing .rail__tick { background: var(--ink-500); }
+.price--closing .rail__tick { background: var(--surface-2); }
 
 .price--closing .rail__tick--best {
-    background: var(--haze-dim);
+    background: var(--text-tertiary);
     box-shadow: none;
 }
 
@@ -1552,15 +1554,21 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .scoreline {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: var(--space-2);
     white-space: nowrap;
 }
 
 .score {
-    font-family: var(--face-data);
     font-variant-numeric: tabular-nums;
-    font-size: 12px;
-    color: var(--chalk);
+    font-size: var(--text-body);
+    color: var(--text-primary);
+}
+
+/* A result the stats pass has not reached yet. Tertiary is right here: it is a
+   hint about the feed, not a value anybody has to read. */
+.score--pending {
+    font-size: var(--text-footnote);
+    color: var(--text-tertiary);
 }
 
 /* Row actions: revealed by opening a row, so the board stays the working surface

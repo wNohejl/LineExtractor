@@ -21,8 +21,24 @@ namespace LineOps.Core.Analytics;
 /// </summary>
 public static class Scoreline
 {
-    /// <summary>Whether either side has a score on record.</summary>
-    public static bool Has(Game game) => game.HomeScore is not null || game.AwayScore is not null;
+    /// <summary>
+    /// Whether this game has a result worth showing.
+    ///
+    /// <para>
+    /// Two conditions, and the second is the one that bites. ESPN's scoreboard writes zeros for
+    /// a fixture that has not started, so "either side has a score" is true of every game on
+    /// tomorrow's slate — and a board that reads <c>ARI 0–0 SF</c> beside a SCHED tag is
+    /// asserting a result nobody played. A score belongs to a game that is under way or
+    /// finished; before that the column has nothing to say and should say nothing.
+    /// </para>
+    ///
+    /// <para>
+    /// A genuine scoreless live game is still reported, because it is genuinely 0–0.
+    /// </para>
+    /// </summary>
+    public static bool Has(Game game)
+        => game.Status is GameStatus.Live or GameStatus.Final
+           && (game.HomeScore is not null || game.AwayScore is not null);
 
     /// <summary>
     /// The result as one string: <c>NYY 3–5 BOS</c>. An en dash, not a hyphen — the hyphen is
@@ -39,7 +55,7 @@ public static class Scoreline
     /// </summary>
     public static ScoreLeader Leader(Game game)
     {
-        if (game.HomeScore is not { } home || game.AwayScore is not { } away)
+        if (!Has(game) || game.HomeScore is not { } home || game.AwayScore is not { } away)
             return ScoreLeader.None;
 
         return home == away ? ScoreLeader.Level
@@ -104,9 +120,17 @@ public static class PriceProvenance
     /// three hours old, and that gap is the difference between "the market's last word" and
     /// "the last time anyone looked".
     /// </summary>
+    /// <param name="capturedAt">When the observation that became the close was taken.</param>
+    /// <param name="startsAt">First pitch, where the caller knows it.</param>
+    /// <remarks>
+    /// The line break is part of the answer, not formatting that leaked in. A tooltip carrying
+    /// this has no width ceiling to wrap against — Mud writes <c>max-width: none</c> inline at
+    /// runtime, which no stylesheet can beat without an <c>!important</c> the design system
+    /// forbids — so the sentence arrives already broken where a reader would break it.
+    /// </remarks>
     public static string Explain(DateTimeOffset capturedAt, DateTimeOffset? startsAt)
     {
-        const string what = "Pre-match closing price — the last number on the board before this game started.";
+        const string what = "Pre-match closing price —\nthe last number on the board before this game started.";
 
         if (startsAt is not { } start)
             return what;
@@ -114,8 +138,8 @@ public static class PriceProvenance
         var lead = start - capturedAt;
 
         return lead <= TimeSpan.FromMinutes(1)
-            ? $"{what} Captured at the start."
-            : $"{what} Captured {Lead(lead)} before start.";
+            ? $"{what}\nCaptured at the start."
+            : $"{what}\nCaptured {Lead(lead)} before start.";
     }
 
     /// <summary>A lead time at the precision a reader can act on, never more.</summary>

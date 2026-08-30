@@ -488,4 +488,43 @@ public class BoardServiceTests(PostgresFixture fixture)
         Assert.True(row!.PricesAreClosing);
         Assert.Equal(8.5m, row.Total.First!.Line);
     }
+
+    [Fact]
+    public async Task AGameLoadedByIdDoesNotClaimTheFeedHasNeverRun()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Another fixture priced in the same database proves the feed is alive. Opening the
+        // unpriced game used to report "no odds scan has run yet" regardless, which reads as a
+        // broken platform on a desk that is in fact holding a full slate of prices.
+        var other = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(6),
+            Status = GameStatus.Scheduled
+        };
+        db.Games.Add(other);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = other.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow,
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var row = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.NotNull(row);
+        Assert.Contains("did not cover", row!.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
 }
