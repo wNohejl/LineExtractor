@@ -233,6 +233,8 @@ else if (_plan is { } plan)
 <Note Style="margin:12px 0">
     Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
     one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
+    With no fault injected the run is a real metered pull, so it scans the league with the most
+    games still to start rather than a league named in the code.
 </Note>
 
 <div class="stack" style="margin-top:10px">
@@ -396,6 +398,25 @@ else if (_plan is { } plan)
         }
     }
 
+    /// <summary>
+    /// Games inside the movement window, by sport slug — what the drill reads to decide which
+    /// league is worth spending a credit on. The window is the ingestion one so the drill and a
+    /// real pull agree about which fixtures are still priceable.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, int>> UpcomingBySportAsync(IServiceProvider provider)
+    {
+        var db = provider.GetRequiredService<LineOpsDbContext>();
+        var horizon = DateTimeOffset.UtcNow + Ingestion.Value.MovementWindow;
+
+        var counts = await db.Games
+            .Where(g => g.StartsAt > DateTimeOffset.UtcNow && g.StartsAt <= horizon)
+            .GroupBy(g => g.Sport!.Key)
+            .Select(g => new { Sport = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        return counts.ToDictionary(c => c.Sport, c => c.Count, StringComparer.OrdinalIgnoreCase);
+    }
+
     private async Task SetModeAsync(int sourceId, string? mode)
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
@@ -419,8 +440,18 @@ else if (_plan is { } plan)
             var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
             var ingestion = scope.ServiceProvider.GetRequiredService<OddsIngestionService>();
 
+            var sport = IngestionJobs.DrillSport(
+                await UpcomingBySportAsync(scope.ServiceProvider),
+                Ingestion.Value.EffectiveSports);
+
+            if (sport is null)
+            {
+                Toasts.Warn("Drill skipped — no league is configured to scan.");
+                return;
+            }
+
             foreach (var source in registry.OddsSources)
-                await ingestion.IngestAsync(source, "nfl", "odds:drill", CancellationToken.None);
+                await ingestion.IngestAsync(source, sport, "odds:drill", CancellationToken.None);
 
             await scope.ServiceProvider.GetRequiredService<KpiCalculator>().RollupDailyAsync();
             await scope.ServiceProvider.GetRequiredService<AlertEngine>().EvaluateAsync();
@@ -432,10 +463,15 @@ else if (_plan is { } plan)
             // nothing looks exactly like one that has not finished. Two outcomes, one line.
             var fired = CountNew(seen);
 
+            // Naming the league is not decoration: with no fault injected the drill performs a
+            // real, metered pull, and an operator who cannot see what it bought cannot tell a
+            // drill from a spend.
+            var league = sport.ToUpperInvariant();
+
             if (fired > 0)
-                Toasts.Success($"Drill complete — {fired} alert{(fired == 1 ? "" : "s")} fired.");
+                Toasts.Success($"Drill complete on {league} — {fired} alert{(fired == 1 ? "" : "s")} fired.");
             else
-                Toasts.Warn("Drill complete — no new alerts fired.");
+                Toasts.Warn($"Drill complete on {league} — no new alerts fired.");
         }
         finally
         {

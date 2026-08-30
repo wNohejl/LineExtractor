@@ -48,6 +48,46 @@ public class IngestionJobs(
     /// </summary>
     public const string OddsLinesPrefix = "odds:lines:";
 
+    /// <summary>
+    /// The league an on-call drill should exercise: the one actually in play.
+    ///
+    /// <para>
+    /// A drill with no fault injected performs a real pull against a metered provider, so the
+    /// rows it buys should be rows somebody is about to read. Naming a league in the code
+    /// instead meant the drill bought fixtures weeks away while the slate on screen went
+    /// unpriced, and the volume it wrote was measured against pulls for a different sport.
+    /// </para>
+    ///
+    /// <para>
+    /// A league nobody configured is never chosen however busy it looks, which is the rule
+    /// <see cref="RunOddsAsync"/> already applies to a named sport: quietly scanning a league
+    /// the operator did not ask for is what a credit budget cannot absorb.
+    /// </para>
+    /// </summary>
+    /// <param name="upcomingBySport">Games inside the movement window, keyed by sport slug.</param>
+    /// <param name="configured">The configured leagues, in preference order.</param>
+    /// <returns>The league to drill, or null when none is configured.</returns>
+    public static string? DrillSport(
+        IReadOnlyDictionary<string, int> upcomingBySport, IReadOnlyList<string> configured)
+    {
+        if (configured.Count == 0)
+            return null;
+
+        var busiest = upcomingBySport
+            .Where(kv => kv.Value > 0
+                         && configured.Contains(kv.Key, StringComparer.OrdinalIgnoreCase))
+            .OrderByDescending(kv => kv.Value)
+            .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => kv.Key)
+            .FirstOrDefault();
+
+        // Match the configured spelling rather than whatever case the games table holds, so the
+        // key handed to an adapter is the one config named.
+        return busiest is null
+            ? configured[0]
+            : configured.First(s => string.Equals(s, busiest, StringComparison.OrdinalIgnoreCase));
+    }
+
     private readonly IngestionOptions _options = options.Value;
 
     /// <summary>
