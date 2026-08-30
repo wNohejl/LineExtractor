@@ -119,6 +119,36 @@ public static class WindowShortcuts
         manager.Open(definition);
     }
 
+    /// <summary>
+    /// The history backfill.
+    ///
+    /// <para>
+    /// Takes no subject, for the same reason <see cref="OpenOps"/> does not: the walk is about
+    /// the desk's own record rather than about any one game. It exists because three panels
+    /// tell the reader in prose that history is gathered elsewhere, and a sentence naming a
+    /// window is worse than a key that opens it.
+    /// </para>
+    /// </summary>
+    public static void OpenHistory(this WindowManager manager)
+    {
+        if (WindowCatalog.Find(WindowCatalog.History) is not { } definition)
+            return;
+
+        manager.Open(definition);
+    }
+
+    /// <summary>
+    /// The journal. Takes no subject — it is the ledger, not one entry in it — and exists so a
+    /// panel with nothing settled to report can hand over the window entries are logged in.
+    /// </summary>
+    public static void OpenJournal(this WindowManager manager)
+    {
+        if (WindowCatalog.Find(WindowCatalog.Journal) is not { } definition)
+            return;
+
+        manager.Open(definition);
+    }
+
     /// <summary>Incidents, opened on one incident.</summary>
     public static void OpenIncident(this WindowManager manager, int incidentId, string? title = null)
     {
