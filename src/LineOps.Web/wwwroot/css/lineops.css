@@ -388,163 +388,272 @@ html, body {
 .hdr {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 44px;
-    padding: 0 10px;
+    gap: var(--space-3);
+    /* Tall enough for a real tab. The old 44px forced 24px items with 2px between
+       them, which is where "jammed into itself" came from: a strip you could not
+       hit and could not read. A title bar plus a --space-4 of air is the same
+       measure the window below uses, so the chrome agrees with itself. */
+    height: calc(var(--titlebar-h) + var(--space-4));
+    padding: 0 var(--space-3);
     background: var(--material-thin);
     backdrop-filter: var(--material-blur);
     -webkit-backdrop-filter: var(--material-blur);
     border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
-    z-index: 8000;
+    z-index: var(--z-chrome);
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
-   rather than each button lighting itself. */
+   rather than each button lighting itself.
+
+   No channel around them, on purpose. The recessed channel is what says "these
+   are the windows"; putting the desk's own controls in a second one made the
+   header read as two competing strips of the same kind of thing. A hairline and
+   the far end of the bar separate them instead. */
 .hdr__tools {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--space-1);
     flex: 0 0 auto;
 }
 
 .hdr__brand {
-    font-weight: 700;
+    font-weight: var(--weight-semibold);
     font-stretch: 115%;
-    font-size: 13px;
+    font-size: var(--text-body);
     letter-spacing: .11em;
     text-transform: uppercase;
     white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .hdr__brand em { font-style: normal; color: var(--accent); }
 
 .hdr__sub {
-    font-size: 11px;
+    font-size: var(--text-footnote);
     color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 0 1 auto;
 }
 
 @media (max-width: 900px) { .hdr__sub { display: none; } }
 
-.hdr__divider { width: 1px; height: 22px; background: var(--separator); flex: 0 0 auto; }
+.hdr__divider {
+    width: 1px;
+    height: 22px;
+    background: var(--separator);
+    flex: 0 0 auto;
+}
+
 .hdr__spacer { flex: 1 1 auto; }
 
-/* ---- Window tabs ----------------------------------------------------------
+/* ---- The window strip -----------------------------------------------------
    The desk's columns, laid out along the toolbar.
 
    Every window is already a tab — a full-height column you drag to reorder and
    resize. That works while you are looking at one, and stops working the
    moment a window is collapsed to a sliver or pushed off the end of a busy
-   row: a column with no room for its title cannot tell you what it is.
+   row: a column with no room for its title cannot tell you what it is. So the
+   same set runs horizontally up here as well.
 
-   So the same set runs horizontally up here as well. Same order as the row, so
-   the strip is a map of the desk rather than a second arrangement to keep in
-   your head, and the marble sits on whichever column has focus. Clicking one
-   focuses it, and restores it if it was collapsed — which is the thing the
-   collapsed column itself is too narrow to offer.
+   One strip, two runs, and which run a window is in is what tells you its
+   state:
+
+     · open   — a tab on the left, with its name, its pulse and a close. In the
+                desk's own order, so the strip really is a map of the row.
+     · closed — a quiet key after the hairline, icon only, catalogue order.
+
+   They used to share one run and be told apart by width alone, which is how a
+   190px named tab ended up wedged between 26px launcher icons. Two runs cost
+   one short move when a window opens and make the distinction free.
 
    Each tab carries its window's own pulse along the bottom edge, the same 2px
    band the title bar wears, so state stays readable from up here too.
    ------------------------------------------------------------------------- */
 
-/* The toolbar proper: the groups spread across the bar rather than bunching at
-   one end, so the eye has fixed places to go back to. */
+/* The strip takes the width the header is not otherwise using. It is the
+   toolbar, so it should look like the toolbar rather than like a small object
+   parked at the left end with a third of the bar empty behind it. */
 .bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
     flex: 1 1 auto;
     min-width: 0;
 }
 
-/* A group of the toolbar, and the track its marble runs in. Same recessed
-   channel as the gate switch — it is not pressable, so it does not catch the
-   light — which is what makes the marble inside read as the same object doing
-   the same job in a third place.
+/* The channel the strip runs in. Same recessed channel as the gate switch — it
+   is not pressable, so it does not catch the light — which is what makes the
+   marble inside read as the same object doing the same job in a third place.
 
    The fill is --surface-0, where the retired ramp's recessed tier would have mapped
    to --surface-1: the header is --material-thin over the desk void, which composites to
    --surface-1, so a --surface-1 channel would be a channel nobody can see. The
    gate switch this block names solves the same problem the same way. */
-.bar__group {
+.bar__strip {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 2px;
-    padding: 3px;
+    gap: var(--space-2);
+    flex: 1 1 auto;
     min-width: 0;
+    padding: var(--space-1);
     background: var(--surface-0);
     border: 1px solid var(--separator);
-    border-radius: 7px;
+    border-radius: var(--radius);
+    /* Tokenized rather than literal: the theme branch made this shadow a token so
+       the light block can soften it — a literal here would dig the same dark
+       trench into a white bar. */
     box-shadow: var(--shadow-inset);
-}
-
-/* Never let a crowded group break the bar; it scrolls inside its own channel. */
-.bar__group--windows {
+    /* Never let a crowded strip break the header; it scrolls inside its own
+       channel. With the strip spanning the bar this is the last resort rather
+       than the everyday state it used to be. */
     overflow-x: auto;
     scrollbar-width: none;
-    flex: 0 1 auto;
 }
 
-.bar__group--windows::-webkit-scrollbar { display: none; }
+.bar__strip::-webkit-scrollbar { display: none; }
 
-/* Hairline between catalogue groups, so twelve icons read as four short runs. */
+/* The two runs. Each is its own glide cluster: the open run carries the marble
+   because it has a current window, and the closed run gets the plain plate
+   because nothing in it is current. Same engine, two flavours — which is
+   exactly the distinction the runs exist to draw. */
+.bar__open,
+.bar__closed {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.bar__open { flex: 0 1 auto; }
+.bar__closed { flex: 0 0 auto; }
+
+/* Hairline between the runs, and a quieter one between catalogue groups so a
+   dozen keys read as four short runs rather than one wall. */
 .bar__split {
     width: 1px;
-    height: 16px;
-    margin: 0 3px;
-    background: var(--separator);
+    height: 18px;
+    background: var(--separator-strong);
     flex: 0 0 auto;
 }
 
-/* An icon-only key in the bar. No label: the windows group is the only one that
-   spells names out, because a window's name is the thing you are looking for
-   and an action's icon is the thing you already know. */
+.bar__split--quiet {
+    height: 14px;
+    margin: 0 var(--space-1);
+    background: var(--separator);
+}
+
+/* ---- A closed key ---------------------------------------------------------
+   Icon only: twelve names would not fit, and a name is only worth the width
+   once there is a column to go back to. Before that the icon and its tooltip
+   are enough. Quiet at rest — this run is the things you are not looking at. */
 .bar__key {
-    position: relative; /* the pulse of an open window is pinned to it */
-    width: 26px;
-    height: 24px;
+    position: relative;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
     flex: 0 0 auto;
     padding: 0;
     background: none;
     border: 0;
-    border-radius: 4px;
-    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
     cursor: pointer;
 }
 
 .bar__key:hover { color: var(--text-primary); }
-.bar__key:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.bar__key svg { width: 16px; height: 16px; }
+.bar__key:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bar__key svg { width: 17px; height: 17px; }
 
-/* Open, so it wears its column's name. Widens to fit, with a ceiling — a game
-   called "Boston Red Sox at Miami Marlins" does not get to own the bar. */
-.bar__key--named {
-    width: auto;
-    max-width: 190px;
-    gap: 6px;
-    padding: 0 9px;
+.bar__key:disabled {
+    color: var(--text-tertiary);
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+/* ---- An open tab ----------------------------------------------------------
+   One thing to the eye, two buttons to the DOM: the name goes to the window,
+   the × closes it. The wrapper carries data-glide-item so the marble measures
+   the whole tab rather than shrinking onto the × as the pointer crosses it. */
+.tab {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    flex: 0 1 auto;
+    /* A game called "Boston Red Sox at Miami Marlins" does not get to own the
+       bar, and a busy desk shrinks its tabs the way a browser does rather than
+       pushing the last one out of reach. */
+    min-width: 0;
+    max-width: 220px;
+    height: 30px;
+    border-radius: var(--radius-sm);
     color: var(--text-secondary);
+}
+
+.tab__go {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 1 1 auto;
+    height: 100%;
+    padding: 0 var(--space-1) 0 var(--space-2);
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: inherit;
     font-family: var(--face-ui);
-    font-size: 11.5px;
+    font-size: var(--text-subheadline);
+    cursor: pointer;
     overflow: hidden;
 }
 
-.bar__name {
+.tab__go svg { width: 17px; height: 17px; flex: 0 0 auto; }
+
+.tab__name {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.tab:hover { color: var(--text-primary); }
+.tab__go:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* The close. Hidden until the tab is worth acting on — a row of ×s reads as a
+   row of things about to go wrong — and never a hue: closing is an action on
+   the control, not a state of the value. It is out of the tab order; Delete on
+   the tab is the keyboard route. */
+.tab__close {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-right: var(--space-1);
+    flex: 0 0 auto;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.tab__close svg { width: 13px; height: 13px; }
+
+.tab:hover .tab__close,
+.tab--current .tab__close,
+.tab:focus-within .tab__close { opacity: 1; }
+
+.tab__close:hover { background: var(--surface-3); color: var(--text-primary); }
+.tab__close:focus-visible { outline: none; opacity: 1; box-shadow: var(--focus-ring); }
 
 /* ---- Which one am I in? ---------------------------------------------------
    The marble answers "which am I on" and travels on hover, so it cannot also
@@ -558,60 +667,49 @@ html, body {
 
    The old inset crown highlight is gone with the gloss channel ADR 0016 retired;
    nothing in the bar catches the light any more. */
-.bar__key--current {
+.tab--current {
     background: var(--accent-wash);
     color: var(--text-primary);
 }
 
-.bar__key--current svg { color: var(--accent); }
+.tab--current .tab__go svg { color: var(--accent); }
 
 /* Collapsed down on the desk. Still listed — that is the point — but stated as
    put away rather than as another column you are looking at. */
-.bar__key--collapsed { color: var(--text-tertiary); font-style: italic; }
-.bar__key--collapsed svg { opacity: .5; }
+.tab--collapsed { color: var(--text-tertiary); font-style: italic; }
+.tab--collapsed .tab__go svg { opacity: .5; }
 
 /* The window's pulse, mirrored from its title bar so state is readable up here
    too. Wears the pulse--* modifiers but not .pulse itself — that base class is
-   a positioned flex item, which is right in a title bar and wrong in a key. */
+   a positioned flex item, which is right in a title bar and wrong in a tab. */
 .bar__pulse {
     position: absolute;
-    left: 7px;
-    right: 7px;
-    bottom: 2px;
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: 3px;
     height: 2px;
     border-radius: 1px;
     overflow: hidden;
     pointer-events: none;
 }
 
-/* A rail button inside a channel is just another key: it drops to the channel's own box
-   size, but otherwise IS the standalone rail button — same resting colour, same hover
-   fill, same accent/selected treatment, same focus ring. It must not redeclare any of
-   those, because `.bar__group .rail__btn` outranks the bare `.rail__btn` rules by
+/* A rail button in the tools cluster is just another key: it drops to the cluster's
+   own box size, but otherwise IS the standalone rail button — same resting colour, same
+   hover fill, same accent/selected treatment, same focus ring. It must not redeclare any
+   of those, because `.hdr__tools .rail__btn` outranks the bare `.rail__btn` rules by
    specificity and a redeclaration here would silently win over — and fight — the rail
    decision, no matter what the base rule says. */
-.bar__group .rail__btn {
-    width: 26px;
-    height: 24px;
+.hdr__tools .rail__btn {
+    width: 28px;
+    height: 28px;
 }
 
-.bar__group .rail__btn svg { width: 16px; height: 16px; }
-
-.bar__key:disabled {
-    color: var(--text-tertiary);
-    opacity: .45;
-    cursor: not-allowed;
-}
-
-/* The count sits in the controls channel, so it needs the channel's rhythm
-   rather than the header's. */
-.bar__group .hdr__count { padding: 0 5px 0 3px; }
-
+.hdr__tools .rail__btn svg { width: 17px; height: 17px; }
 
 .hdr__count {
-    font-size: 12px;
+    font-size: var(--text-subheadline);
     color: var(--text-secondary);
-    padding: 0 4px;
+    padding: 0 var(--space-1);
     white-space: nowrap;
 }
 
@@ -869,8 +967,8 @@ html, body {
    toolbar would read as claiming whatever it happens to sit under. So it takes the same
    neutral hover fill as the default plate. The border is dropped outright: hairlines in
    this system separate, they never outline, and a filled plate with no border reads as a
-   fill rather than an outlined chip. The selected key it slides past keeps its own accent
-   wash (.bar__key--current), and sits a layer above this plate. */
+   fill rather than an outlined chip. The current tab it slides past keeps its own accent
+   wash (.tab--current), and sits a layer above this plate. */
 .glide-plate--marble {
     background: var(--surface-3);
     border-radius: var(--radius);

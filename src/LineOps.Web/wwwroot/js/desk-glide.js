@@ -168,8 +168,20 @@
         });
     }
 
+    /// What the plate should measure itself against.
+    ///
+    /// Normally that is the control under the pointer. A composite item — a window
+    /// tab, which is one thing to the eye but a focus button plus a close button to
+    /// the DOM — marks its wrapper with data-glide-item and is measured whole, so
+    /// the marble covers the tab instead of shrinking onto the little × the moment
+    /// the pointer crosses it.
+    function measured(node) {
+        if (!(node instanceof Element)) return null;
+        return node.closest('[data-glide-item]') || node.closest(ACTIONABLE);
+    }
+
     function enter(e) {
-        const target = e.target instanceof Element ? e.target.closest(ACTIONABLE) : null;
+        const target = measured(e.target);
         if (!target) return;
 
         const container = target.closest('[data-glide]');
