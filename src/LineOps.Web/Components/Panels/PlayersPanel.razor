@@ -13,29 +13,30 @@
 @if (_player is null)
 {
     <div class="row" style="margin-bottom:12px">
-        <select class="field"
-                value="@_sport" @onchange="OnSportChanged">
+        <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
             <option value="">All sports</option>
             @foreach (var s in _sports)
             {
                 <option value="@s.Id">@s.Name</option>
             }
-        </select>
+        </DeskSelect>
 
-        <input class="field" style="flex:1; min-width:150px"
-               placeholder="Search players" value="@_search" @oninput="OnSearchChanged" />
+        @* Immediate: the list filters as you type, which is the one case where per-keystroke
+           is the point rather than an interruption. *@
+        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
+                   placeholder="Search players" Value="_search" ValueChanged="OnSearchChanged" />
 
-        <button class="btn" type="button" @onclick="SyncAsync" disabled="@_busy">
-            <Glyph Icon="@Icons.Material.Filled.Sync" /> @(_busy ? "Syncing" : "Sync stats")
-        </button>
+        <DeskButton Icon="@Icons.Material.Filled.Sync" OnClick="SyncAsync" Disabled="@_busy">
+            @(_busy ? "Syncing" : "Sync stats")
+        </DeskButton>
     </div>
 
     @if (_rows.Count == 0)
     {
-        <p class="empty">
+        <EmptyState Kind="EmptyStateKind.New">
             No players yet. <strong>Sync stats</strong> pulls rosters and box scores — ESPN
             needs no key, so this works at no cost.
-        </p>
+        </EmptyState>
     }
     else
     {
@@ -54,7 +55,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
-                <CellTemplate><span class="tag">@context.Item.Player.Sport?.Name</span></CellTemplate>
+                <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
@@ -72,21 +73,21 @@
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <button class="btn btn--quiet" type="button" @onclick="() => _player = null">
-            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> Players
-        </button>
-        <span class="tag">@_player.Sport?.Name</span>
+        <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _player = null">
+            Players
+        </DeskButton>
+        <Tag>@_player.Sport?.Name</Tag>
         @if (_player.Position is not null)
         {
-            <span class="tag">@_player.Position</span>
+            <Tag>@_player.Position</Tag>
         }
     </div>
 
-    <h3 class="panel-h">@_player.FullName — game log</h3>
+    <PanelHeader>@_player.FullName — game log</PanelHeader>
 
     @if (_log.Count == 0)
     {
-        <p class="empty">No per-game statistics recorded for this player yet.</p>
+        <EmptyState Kind="EmptyStateKind.New">No per-game statistics recorded for this player yet.</EmptyState>
     }
     else
     {
@@ -180,15 +181,15 @@ else
             Manager.OpenGame(game);
     }
 
-    private async Task OnSportChanged(ChangeEventArgs e)
+    private async Task OnSportChanged(string value)
     {
-        _sport = e.Value?.ToString() ?? string.Empty;
+        _sport = value ?? string.Empty;
         await LoadAsync();
     }
 
-    private async Task OnSearchChanged(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value ?? string.Empty;
         await LoadAsync();
     }
 

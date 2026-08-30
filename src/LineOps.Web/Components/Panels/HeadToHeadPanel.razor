@@ -1,0 +1,208 @@
+@using LineOps.Core.Entities
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+@inherits PanelBase
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Every meeting between these two sides that the desk holds.
+
+    The snippet on a row shows five; this is the rest, and it exists because a fixture's history
+    is one of the few things where more rows genuinely change the reading — a 3-2 split over
+    five games and a 12-8 split over twenty are different claims about the same matchup.
+
+    Takes a game id rather than two team ids so any row on the desk can reach it without
+    resolving the sides first. The matchup is what was clicked.
+*@
+
+@if (_loading)
+{
+    <EmptyState>Reading previous meetings…</EmptyState>
+}
+else if (_rows.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.Filtered">
+        No previous meeting on record between these sides. Either they have not met inside the
+        history held, or the backfill has not reached that far — the History window walks
+        further back.
+    </EmptyState>
+}
+else
+{
+    <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
+        <PanelHeader Tight>@_awayName v @_homeName</PanelHeader>
+        <Tag State="DeskState.Info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
+    </div>
+
+    @* Coverage is stated rather than implied: a column of dashes beside a record says nothing
+       about whether the market data is missing or the games were never priced. *@
+    <p class="dim" style="font-size:11.5px; margin:0 0 14px">
+        @_subjectWins-@_subjectLosses for @_homeName ·
+        @_covered of @_rows.Count with a closing line
+    </p>
+
+    @if (_covered == 0)
+    {
+        <Note Style="margin:12px 0">
+            None of these meetings has a stored closing line, so the market columns are empty.
+            Prices are kept only from the point this desk started watching a fixture.
+        </Note>
+    }
+
+    @* Sorting is the reason this is a grid rather than a list. A twenty-meeting record is only
+       a claim about the matchup once you can pull the covers together, or read it newest first. *@
+    <div class="gridwrap">
+        <DeskGrid T="HeadToHeadRow" Items="_rows"
+                  EmptyText="No previous meeting on record between these sides.">
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
+                            Title="Date" InitialDirection="SortDirection.Descending">
+                <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
+            </PropertyColumn>
+
+            <PropertyColumn T="HeadToHeadRow" TProperty="string" Property="r => r.HomeTeam" Title="Meeting">
+                <CellTemplate>
+                    <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
+                              OnClick="() => OpenGameAsync(context.Item.GameId)">
+                        @context.Item.AwayTeam at @context.Item.HomeTeam
+                    </DeskLink>
+                </CellTemplate>
+            </PropertyColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Score" Align="Align.Right" Sortable="false">
+                <CellTemplate>
+                    <span class="mono">
+                        @(context.Item.HasScore ? $"{context.Item.AwayScore}-{context.Item.HomeScore}" : "—")
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            @* A meeting with no result sorts between the losses and the wins rather than with
+               either — it is not evidence for one side, and burying it with the losses would
+               make it read as one. *@
+            <TemplateColumn T="HeadToHeadRow" Title="Winner" Align="Align.Right"
+                            SortBy="@(r => r.SubjectWon is { } w ? (w ? 2 : 0) : 1)">
+                <CellTemplate>
+                    @if (context.Item.SubjectWon is { } won)
+                    {
+                        <span class="tag @(won ? "tag--good" : "tag--bad")">
+                            @(won ? _homeName : _awayName)
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Line" Align="Align.Right"
+                            SortBy="@(r => r.ClosingSpread ?? decimal.MinValue)">
+                <CellTemplate>
+                    <span class="mono">@(context.Item.ClosingSpread is { } s ? Line(s) : "—")</span>
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="ATS" Align="Align.Right"
+                            SortBy="@(r => r.AtsResult is { } a ? (int)a : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.AtsResult is { } ats)
+                    {
+                        <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
+                              title="@_homeName against the closing spread">
+                            @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+            <TemplateColumn T="HeadToHeadRow" Title="Total" Align="Align.Right"
+                            SortBy="@(r => r.TotalResult is { } t ? (int)t : int.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line)
+                    {
+                        <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                            @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The upcoming game whose two sides are being looked up. An id rather than an object so
+    /// the view can be hosted as a desk window.
+    /// </summary>
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>How far back to reach. Generous — this window exists to show the whole record.</summary>
+    [Parameter] public int Take { get; set; } = 40;
+
+    private IReadOnlyList<HeadToHeadRow> _rows = [];
+    private string _homeName = "Home";
+    private string _awayName = "Away";
+    private int _subjectWins;
+    private int _subjectLosses;
+    private int _covered;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await WithActivityAsync(async () =>
+        {
+            _loading = true;
+
+            try
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+                if (await board.GetRowAsync(GameId) is { } row)
+                {
+                    _homeName = row.Game.HomeTeam?.Name ?? "Home";
+                    _awayName = row.Game.AwayTeam?.Name ?? "Away";
+                }
+
+                _rows = await log.HeadToHeadAsync(GameId, Take);
+
+                // Read from the upcoming home team's perspective throughout, which is what the
+                // service already did — so the record and the column agree.
+                _subjectWins = _rows.Count(r => r.SubjectWon == true);
+                _subjectLosses = _rows.Count(r => r.SubjectWon == false);
+                _covered = _rows.Count(r => r.HasClosingLine);
+            }
+            finally
+            {
+                _loading = false;
+            }
+        },
+        settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
+        status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count} meetings");
+    }
+
+    private async Task OpenGameAsync(int gameId)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+
+        if (await board.GetRowAsync(gameId) is { } row)
+            Manager.OpenGame(row.Game);
+    }
+
+    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+}

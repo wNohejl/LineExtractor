@@ -75,15 +75,26 @@ looks green except this.
 
 ---
 
-## `budget_pressure` — Info
+## `budget_pressure` — Info, then Warn
 
-**Means:** a provider is at or above 80% of its configured free-tier ceiling.
+**Means:** a provider is at or above 80% of its configured free-tier ceiling
+(`Reliability:BudgetWarnThreshold`). The alert escalates in place rather than opening a second one:
 
-**Urgency:** none immediately, but ignoring it eventually means either dropped runs or a bill.
+| Utilisation | Severity | What it means |
+|---|---|---|
+| ≥ 80% | `Info` | Tight, but nothing has stopped. The lever is scheduling. |
+| ≥ 100% | `Warn` | Spent. `CreditBudgetGuard` is refusing runs and data has stopped arriving. |
+
+Unmetered providers never raise this. A source with no declared ceiling has *undefined*
+utilisation, not comfortable utilisation, and reporting it as 0% would be a claim we cannot make.
+
+**Urgency:** at `Info`, none immediately — but ignoring it means either dropped runs or a bill. At
+`Warn` it has already become a freshness problem waiting to be noticed, because refused runs write
+no rows.
 
 **Triage**
-1. Check the budget figures on the Ops Center card. Which dimension is under pressure — hourly
-   requests, daily requests, or monthly credits?
+1. The alert message names the dimension under pressure and the numbers behind it — hourly
+   requests, daily requests, or monthly credits. Start there rather than guessing.
 2. Credits, on The Odds API → each call costs `markets × regions`. Reduce the market list or
    the polling frequency rather than adding regions.
 3. Consider whether the intraday movement window (`Ingestion:MovementWindow`, default 36h) is

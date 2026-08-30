@@ -2,30 +2,24 @@
 @using LineOps.Web.Windowing
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
+@inject DeskToasts Toasts
 
 @if (_selected is null)
 {
-    <div class="metrics" style="margin-bottom:16px">
-        <div class="metric @(_open > 0 ? "metric--bad" : "metric--good")">
-            <div class="metric__value">@_open</div>
-            <div class="metric__label">Open</div>
-        </div>
-        <div class="metric metric--good">
-            <div class="metric__value">@_resolved</div>
-            <div class="metric__label">Resolved</div>
-        </div>
-        <div class="metric">
-            <div class="metric__value">@_mttr</div>
-            <div class="metric__label">Median resolve</div>
-        </div>
-    </div>
+    <MetricRow Style="margin-bottom:16px">
+        <Metric Label="Open"
+                Value="@_open.ToString()"
+                State="@(_open > 0 ? DeskState.Negative : DeskState.Positive)" />
+        <Metric Label="Resolved" Value="@_resolved.ToString()" State="DeskState.Positive" />
+        <Metric Label="Median resolve" Value="@_mttr" />
+    </MetricRow>
 
     @if (_incidents.Count == 0)
     {
-        <p class="empty">
+        <EmptyState Kind="EmptyStateKind.New">
             No incidents recorded. Use the on-call drill in the Ops window to exercise the
             detect → alert → incident → RCA loop.
-        </p>
+        </EmptyState>
     }
     else
     {
@@ -38,9 +32,9 @@
 
             <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
                 <CellTemplate>
-                    <span class="tag @(context.Item.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+                    <Tag State="@SeverityState(context.Item.Severity)">
                         @context.Item.Severity
-                    </span>
+                    </Tag>
                 </CellTemplate>
             </PropertyColumn>
 
@@ -55,7 +49,7 @@
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
-                <CellTemplate><span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span></CellTemplate>
+                <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
             </PropertyColumn>
 
             <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
@@ -70,11 +64,11 @@
                 <CellTemplate>
                     @if (string.IsNullOrWhiteSpace(context.Item.RootCause))
                     {
-                        <span class="tag tag--warn">Missing</span>
+                        <Tag State="DeskState.Warning">Missing</Tag>
                     }
                     else
                     {
-                        <span class="tag tag--good">Written</span>
+                        <Tag State="DeskState.Positive">Written</Tag>
                     }
                 </CellTemplate>
             </PropertyColumn>
@@ -84,18 +78,25 @@
 else
 {
     <div class="row" style="margin-bottom:10px">
-        <button class="btn btn--quiet" type="button" @onclick="() => _selected = null">
-            <Glyph Icon="@Icons.Material.Filled.ArrowBack" /> All incidents
-        </button>
-        <span class="tag @(_selected.Severity == AlertSeverity.Critical ? "tag--bad" : "tag--warn")">
+        <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
+            All incidents
+        </DeskButton>
+        <Tag State="@SeverityState(_selected.Severity)">
             @_selected.Severity
-        </span>
-        <span class="tag @StatusTag(_selected.Status)">@_selected.Status</span>
+        </Tag>
+        <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
     </div>
 
-    <h3 class="panel-h">#@_selected.Id — @_selected.Title</h3>
+    <PanelHeader>#@_selected.Id — @_selected.Title</PanelHeader>
 
-    <h3 class="panel-h">Timeline</h3>
+    @* The procedure before the workspace: an incident is opened to be worked, and the first thing
+       the person working it needs is the triage steps for the rule that raised it. *@
+    @foreach (var rule in _rules)
+    {
+        <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
+    }
+
+    <PanelHeader>Timeline</PanelHeader>
     <div class="stack">
         @foreach (var note in _timeline)
         {
@@ -109,42 +110,46 @@ else
     </div>
 
     <div class="row" style="margin-top:10px">
-        <input class="field" style="flex:1; min-width:180px"
-               placeholder="Add a timeline note" @bind="_newNote" @bind:event="oninput" />
-        <button class="btn" type="button" @onclick="AddNoteAsync"
-                disabled="@string.IsNullOrWhiteSpace(_newNote)">
+        @* Immediate: the Add key beside it is disabled until there is text, so the key has
+           to learn about the first keystroke rather than about the blur. *@
+        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
+                   placeholder="Add a timeline note" @bind-Value="_newNote" />
+        <DeskButton OnClick="AddNoteAsync"
+                    Disabled="@string.IsNullOrWhiteSpace(_newNote)">
             Add
-        </button>
+        </DeskButton>
     </div>
 
-    <h3 class="panel-h" style="margin-top:20px">Root-cause analysis</h3>
-    <p class="note @(_selected.Status == IncidentStatus.Resolved ? null : "note--warn")">
+    <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
+    <Note State="@(_selected.Status == IncidentStatus.Resolved ? DeskState.Neutral : DeskState.Warning)"
+          Style="margin:12px 0">
         Both fields are required to resolve. An incident without a cause and a fix teaches
         nothing later.
-    </p>
+    </Note>
 
     <div class="stack" style="margin-top:10px">
-        <textarea class="field" rows="4"
-                  placeholder="What actually broke, and why did it break now?"
-                  @bind="_rootCause"></textarea>
+        <DeskTextArea rows="4"
+                      placeholder="What actually broke, and why did it break now?"
+                      @bind-Value="_rootCause" />
 
-        <textarea class="field" rows="4"
-                  placeholder="What change prevents a recurrence? Reference the commit."
-                  @bind="_corrective"></textarea>
+        <DeskTextArea rows="4"
+                      placeholder="What change prevents a recurrence? Reference the commit."
+                      @bind-Value="_corrective" />
 
         @if (_error is not null)
         {
-            <p class="note note--warn">@_error</p>
+            <Note State="DeskState.Warning" Style="margin:12px 0">@_error</Note>
         }
 
         <div class="row">
-            <button class="btn btn--primary" type="button" @onclick="ResolveAsync" disabled="@(!CanResolve)">
-                <Glyph Icon="@Icons.Material.Filled.TaskAlt" /> Resolve incident
-            </button>
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
+                        OnClick="ResolveAsync" Disabled="@(!CanResolve)">
+                Resolve incident
+            </DeskButton>
 
             @if (_selected.Status == IncidentStatus.Open)
             {
-                <button class="btn" type="button" @onclick="MitigateAsync">Mark mitigated</button>
+                <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
             }
         </div>
     </div>
@@ -157,6 +162,10 @@ else
     private IReadOnlyList<Incident> _incidents = [];
     private Incident? _selected;
     private IReadOnlyList<TimelineNote> _timeline = [];
+
+    /// <summary>Distinct rules behind this incident. Usually one, but a source failing two ways at
+    /// once is promoted from whichever alert was clicked and can accumulate more.</summary>
+    private IReadOnlyList<string> _rules = [];
     private string _rootCause = string.Empty;
     private string _corrective = string.Empty;
     private string _newNote = string.Empty;
@@ -212,6 +221,12 @@ else
             _timeline = IncidentService.Deserialise(_selected.Timeline);
             _rootCause = _selected.RootCause ?? string.Empty;
             _corrective = _selected.CorrectiveActions ?? string.Empty;
+
+            _rules = _selected.Alerts
+                .Select(a => a.RuleKey)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToList();
         }
     }
 
@@ -243,6 +258,16 @@ else
             var id = _selected.Id;
             await LoadAsync();
             await SelectAsync(id);
+
+            // Resolving closes the loop somewhere the operator is not looking: the desk's open
+            // count, the pulse, and the Ops window's incident metric all move. The status tag
+            // on this page already confirms the resolve itself, so the notice reports the
+            // wider consequence rather than repeating it.
+            //
+            // The failure path deliberately does not toast. A rejected resolve needs the
+            // operator to edit the two fields above it, and a notice that has auto-dismissed
+            // cannot be read next to the field it is about — that stays in _error, inline.
+            Toasts.Success($"Incident #{id} resolved — {(_open == 0 ? "none" : _open.ToString())} still open.");
         }
         catch (ArgumentException ex)
         {
@@ -262,12 +287,16 @@ else
         await SelectAsync(_selected.Id);
     }
 
-    private static string StatusTag(IncidentStatus status) => status switch
+    private static DeskState StatusState(IncidentStatus status) => status switch
     {
-        IncidentStatus.Open => "tag--bad",
-        IncidentStatus.Mitigated => "tag--warn",
-        _ => "tag--good"
+        IncidentStatus.Open => DeskState.Negative,
+        IncidentStatus.Mitigated => DeskState.Warning,
+        _ => DeskState.Positive
     };
+
+    /// <summary>Critical reads as Negative; anything below it is Warning.</summary>
+    private static DeskState SeverityState(AlertSeverity severity)
+        => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch
     {

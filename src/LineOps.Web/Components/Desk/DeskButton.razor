@@ -2,23 +2,26 @@
 @using LineOps.Web.Components.Windowing
 
 @*
-    A key.
+    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor. One dependency does not travel:
+    <Glyph> is LineOps-local (it is how the desk draws a bare icon from Mud's set), so the
+    extracted template substitutes <MudIcon> for it. Everything else here is portable.
 
-    This is the desk's button, and the reason it wraps MudBlazor rather than sitting
-    beside it. Panels will hold a lot of these, and a call site that has to remember
-    Variant, Color, Ripple, DropShadow and a class string is a call site that will
-    drift from the one next to it. Here the caller states two things — what the key
-    does (Tone) and how much room it deserves (Size) — and the moulding is not their
-    problem.
+    The desk's button, and the reason it wraps MudBlazor rather than sitting beside it.
+    Panels hold a lot of these, and a call site that has to remember Variant, Color,
+    Ripple, DropShadow and a class string is one that will drift from the call site next
+    to it. Here the caller states how loud (Emphasis) and whether it destroys (Role), and
+    the styling is not their problem.
 
-    The MudButton underneath is deliberately its plainest variant: Text + Inherit,
-    which contributes almost no visual rules of its own, plus Ripple off because the
-    desk answers a press with travel and two answers is one too many. Everything a key
-    looks like comes from .desk-key in lineops.css. See css/mud-bridge.css for why that
-    stack resolves the way it does.
+    The MudButton underneath is deliberately its plainest variant — Text + Inherit, which
+    contributes almost no visual rules of its own — plus Ripple off, because a ripple is
+    Material's answer to a press and this system answers with a fast state change instead.
+    Everything the button looks like comes from .desk-btn in lineops.css. See
+    css/mud-bridge.css for why that stack resolves the way it does, and docs ADR 0016
+    for the hierarchy this button replaced.
 *@
 
-<MudButton Class="@Classes"
+<MudButton @ref="_button"
+           Class="@Classes"
            Variant="Variant.Text"
            Color="Color.Inherit"
            Ripple="false"
@@ -37,27 +40,26 @@
 </MudButton>
 
 @code {
-    /// <summary>The key's label. Omit it for an icon-only key — then <see cref="Title"/> is required.</summary>
+    /// <summary>The label. Omit it for an icon-only button — then <see cref="Title"/> is required.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>A MudBlazor icon string, drawn bare through <c>Glyph</c> so keys use the same icon set as the chrome.</summary>
+    /// <summary>A MudBlazor icon string, drawn bare through <c>Glyph</c> so buttons use the same icon set as the chrome.</summary>
     [Parameter] public string? Icon { get; set; }
 
-    /// <summary>What pressing this does. See <see cref="DeskTone"/> — name the consequence, not the colour.</summary>
-    [Parameter] public DeskTone Tone { get; set; } = DeskTone.Neutral;
+    /// <summary>
+    /// How much weight this button claims. See <see cref="DeskEmphasis"/> — exactly one
+    /// Filled per context.
+    /// </summary>
+    [Parameter] public DeskEmphasis Emphasis { get; set; } = DeskEmphasis.Plain;
+
+    /// <summary>Whether pressing this destroys something. See <see cref="DeskRole"/>.</summary>
+    [Parameter] public DeskRole Role { get; set; } = DeskRole.Normal;
 
     [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
 
     /// <summary>
-    /// Renders flat and still — a link wearing a hit area rather than a key. For the
-    /// escape from a thing (Cancel, Close, Back), which should not compete with the key
-    /// beside it that commits.
-    /// </summary>
-    [Parameter] public bool Quiet { get; set; }
-
-    /// <summary>
-    /// Work this key started is still running. Shows the pulse sweep and refuses further
-    /// presses, without going grey — an occupied key is not an inert one.
+    /// Work this button started is still running. Runs the in-flight shimmer and refuses
+    /// further presses, without going grey — an occupied control is not an inert one.
     /// </summary>
     [Parameter] public bool Busy { get; set; }
 
@@ -76,32 +78,42 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
 
+    private MudButton? _button;
+
+    /// <summary>
+    /// Puts the keyboard on this button. Exposed because <c>@ref</c> on a component hands
+    /// back the component, not an element, so a caller that needs to move focus here — the
+    /// alert's default confirm is the one in the tree — has no other route through the
+    /// boundary. MudBlazor already holds the underlying <c>ElementReference</c>; this only
+    /// forwards it, and is a no-op before the first render has produced an element.
+    /// </summary>
+    public ValueTask FocusAsync() => _button?.FocusAsync() ?? ValueTask.CompletedTask;
+
     private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
 
     private IEnumerable<string?> Parts()
     {
-        yield return "desk-key";
+        yield return "desk-btn";
 
-        yield return Tone switch
+        yield return Emphasis switch
         {
-            DeskTone.Action => "desk-key--action",
-            DeskTone.Go => "desk-key--go",
-            DeskTone.Stop => "desk-key--stop",
-            DeskTone.Caution => "desk-key--caution",
-            _ => "desk-key--neutral"
+            DeskEmphasis.Filled => "desk-btn--filled",
+            DeskEmphasis.Tinted => "desk-btn--tinted",
+            _ => "desk-btn--plain"
         };
+
+        yield return Role is DeskRole.Destructive ? "desk-btn--destructive" : null;
 
         yield return Size switch
         {
-            DeskKeySize.Small => "desk-key--sm",
-            DeskKeySize.Large => "desk-key--lg",
+            DeskKeySize.Small => "desk-btn--sm",
+            DeskKeySize.Large => "desk-btn--lg",
             _ => null
         };
 
-        // An icon with no label is a square cap, so it does not read as a clipped button.
-        yield return Icon is not null && ChildContent is null ? "desk-key--icon" : null;
-        yield return Quiet ? "desk-key--quiet" : null;
-        yield return Busy ? "desk-key--busy" : null;
+        // An icon with no label is a square, so it does not read as a clipped button.
+        yield return Icon is not null && ChildContent is null ? "desk-btn--icon" : null;
+        yield return Busy ? "desk-btn--busy" : null;
         yield return Class;
     }
 }

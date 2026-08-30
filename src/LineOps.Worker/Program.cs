@@ -1,5 +1,6 @@
 using LineOps.Data;
 using LineOps.Ingestion;
+using LineOps.Observability;
 using LineOps.Reliability;
 
 // Standalone worker host. The web app can host the same schedule in-process for a personal
@@ -14,6 +15,7 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
 builder.Services.AddLineOpsReliability(builder.Configuration);
+builder.Services.AddLineOpsObservability(builder.Configuration);
 
 builder.Services.AddLineOpsIngestionScheduler();
 builder.Services.AddLineOpsReliabilityEvaluator();

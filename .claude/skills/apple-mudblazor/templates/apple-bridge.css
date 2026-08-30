@@ -1,0 +1,459 @@
+/* ============================================================================
+   MudBlazor bridge.
+
+   TEMPLATE — copy into wwwroot/css/ and load LAST:
+   MudBlazor.min.css → apple-tokens.css → apple-components.css → this file.
+
+   MudBlazor arrives with Material Design's opinions baked in: 4px radii, six
+   layered drop shadows per elevation step, Roboto, ripples, and a palette that
+   only overlaps yours by accident. Left alone, every Mud component dropped into
+   a panel would announce that it came from somewhere else.
+
+   This file is the seam between your own opinions and MudBlazor's. Two jobs, in
+   order:
+
+     1. Re-point MudBlazor's own custom properties at your tokens, so a component
+        nobody has styled yet still lands looking right. This is the part that
+        scales — MudTable, MudSelect and MudDialog inherit it without anyone
+        writing a rule for them.
+
+     2. Remove the Material tells that survive step 1 because they are hard-coded
+        in MudBlazor's stylesheet rather than driven by a variable.
+
+   Load order matters and is fixed in App.razor. Nothing here uses !important;
+   every override either raises specificity honestly or wins on source order at
+   equal specificity. If a rule below stops working after a MudBlazor upgrade,
+   that is the signal to re-read their stylesheet, not to reach for !important.
+
+   Colours are never written literally here — they resolve through
+   apple-tokens.css, which stays the single source of truth. The C# side of the
+   same tokens lives in AppleTheme.cs.
+
+   Verified against MudBlazor 9.7.0. Class names below are the ones MudBlazor
+   actually emits, which is not always the one you would guess; where a guess is
+   wrong the note says so.
+   ============================================================================ */
+
+/* ---------------------------------------------------- 1. token remapping ---- */
+
+/* `:root:root` is not a typo, and it is the one thing to understand about this
+   file. MudThemeProvider does not ship its variables in a stylesheet — it writes
+   a <style> element into the document at runtime containing `:root { ... }` with
+   every variable it knows, including ones the C# MudTheme API cannot express.
+   A DOM <style> element comes after every external sheet, so a plain `:root`
+   here would tie on specificity and lose on source order, silently, for every
+   value below. Doubling the pseudo-class raises specificity by one class and
+   settles it permanently. */
+:root:root {
+    /* Shape. Apple's radii are larger than Material's and grow with the surface. */
+    --mud-default-borderradius: var(--radius);
+
+    /* Type. One family across every role — an unanswered role silently falls
+       back to Roboto, which is why each is named rather than inherited. */
+    --mud-typography-default-family: var(--face-ui);
+    --mud-typography-body1-family: var(--face-ui);
+    --mud-typography-body2-family: var(--face-ui);
+    --mud-typography-button-family: var(--face-ui);
+    --mud-typography-caption-family: var(--face-ui);
+    --mud-typography-overline-family: var(--face-ui);
+    --mud-typography-subtitle1-family: var(--face-ui);
+    --mud-typography-subtitle2-family: var(--face-ui);
+    --mud-typography-h1-family: var(--face-ui);
+    --mud-typography-h2-family: var(--face-ui);
+    --mud-typography-h3-family: var(--face-ui);
+    --mud-typography-h4-family: var(--face-ui);
+    --mud-typography-h5-family: var(--face-ui);
+    --mud-typography-h6-family: var(--face-ui);
+
+    /* Buttons are set like body text. The uppercase tracking left with the gloss
+       — Apple sets button labels in the same face and case as everything else,
+       and leans on weight instead. Mud's ambient button letter-spacing is
+       otherwise inherited by anything button-shaped, including things you did
+       not think of as buttons. */
+    --mud-typography-button-size: var(--text-body);
+    --mud-typography-button-weight: var(--weight-medium);
+    --mud-typography-button-letterspacing: 0;
+    --mud-typography-button-text-transform: none;
+
+    /* Elevation. Material stacks three blurs per step; this system has three
+       shadows total, because a surface is either resting, floating, or modal.
+       0-3 is furniture, 4-7 floats, 8+ is a dialog, 16+ a sheet. */
+    --mud-elevation-0: none;
+    --mud-elevation-1: var(--shadow-1);
+    --mud-elevation-2: var(--shadow-1);
+    --mud-elevation-3: var(--shadow-1);
+    --mud-elevation-4: var(--shadow-2);
+    --mud-elevation-5: var(--shadow-2);
+    --mud-elevation-6: var(--shadow-2);
+    --mud-elevation-7: var(--shadow-2);
+    --mud-elevation-8: var(--shadow-3);
+    --mud-elevation-9: var(--shadow-3);
+    --mud-elevation-10: var(--shadow-3);
+    --mud-elevation-11: var(--shadow-3);
+    --mud-elevation-12: var(--shadow-3);
+    --mud-elevation-13: var(--shadow-3);
+    --mud-elevation-14: var(--shadow-3);
+    --mud-elevation-15: var(--shadow-3);
+    --mud-elevation-16: var(--shadow-sheet);
+    --mud-elevation-17: var(--shadow-sheet);
+    --mud-elevation-18: var(--shadow-sheet);
+    --mud-elevation-19: var(--shadow-sheet);
+    --mud-elevation-20: var(--shadow-sheet);
+    --mud-elevation-21: var(--shadow-sheet);
+    --mud-elevation-22: var(--shadow-sheet);
+    --mud-elevation-23: var(--shadow-sheet);
+    --mud-elevation-24: var(--shadow-sheet);
+
+    /* Layers. Mud's defaults sit in the 1000s and would land under your own
+       chrome; re-point them at your scale. */
+    --mud-zindex-popover: var(--z-popover);
+    --mud-zindex-dialog: var(--z-modal);
+    --mud-zindex-snackbar: var(--z-toast);
+    --mud-zindex-tooltip: var(--z-toast);
+}
+
+/* -------------------------------------------------- 2. the Material tells --- */
+
+/* Surfaces. .mud-paper already reads --mud-palette-surface, but it also carries a
+   300ms box-shadow transition that makes a popover appear to inflate. */
+.mud-paper {
+    border: 1px solid var(--separator);
+    transition: none;
+}
+
+/* A popover is chrome floating over the app: same body, border and shadow as any
+   other floating menu. Hover inside a menu takes the ACCENT wash rather than the
+   neutral hover fill used everywhere else — see the .mud-list-item note. */
+.mud-popover.mud-popover-open {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-3);
+    box-shadow: var(--shadow-3);
+}
+
+.mud-list-item {
+    font-size: var(--text-body);
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+/* Hover is neutral everywhere else in this system, and accent means selection.
+   A menu is the documented exception: the hovered row in a real menu IS a
+   provisional selection — releasing the pointer commits it, which is what the
+   platform's own menus do and what makes the thing read as a menu rather than a
+   hover-follow strip. Swap --surface-2 for var(--accent-wash) on menu rows that
+   commit on release; keep it neutral on rows that only reveal. */
+.mud-list-item:hover { background-color: var(--surface-2); }
+
+/* Inputs are fields, and a field is cut into the panel — see .field in
+   apple-components.css. Material draws the opposite: a floating label over a
+   filled well with an animated underline. Recess it and drop the underline. */
+.mud-input.mud-input-outlined > .mud-input-outlined-border {
+    border-color: var(--separator);
+    border-radius: var(--radius);
+    transition: border-color .12s ease;
+}
+
+.mud-input.mud-input-outlined:hover > .mud-input-outlined-border { border-color: var(--surface-3); }
+
+.mud-input.mud-input-outlined.mud-focused > .mud-input-outlined-border {
+    border-width: 1px;
+    border-color: var(--accent);
+}
+
+.mud-input > input,
+.mud-input > textarea { font-family: var(--face-ui); }
+
+/* ------------------------------------------------------------------ tables --- */
+
+/* Dense, hairline-separated, sticky-headed. No zebra striping — rows separate
+   with a hairline and nothing else. Row height is 28px: --space-1 top and bottom
+   around a 20px line box at --text-body.
+
+   tabular-nums lands on EVERY cell rather than only on .mud-align-right /
+   .mud-align-end. MudDataGrid's Align enum does not reliably emit those classes
+   for a PropertyColumn or TemplateColumn (a MudBlazor limitation as of 9.7.0),
+   so a column that never wraps its value in .num would otherwise read with
+   proportional figures and its digits would not line up down the column. Tabular
+   figures cost nothing on text cells, so every cell gets them rather than
+   betting on a hook that sometimes never fires. */
+.mud-table { background-color: transparent; border: 0; }
+
+.mud-table-cell {
+    border-bottom: 1px solid var(--separator);
+    padding: var(--space-1) 10px;
+    font-size: var(--text-body);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+}
+
+.mud-table-head .mud-table-cell {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--separator);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    text-transform: none; /* Mud's subtitle2 default is tracked; this header is not */
+    letter-spacing: normal;
+}
+
+.mud-table-row:hover > .mud-table-cell { background-color: var(--surface-2); }
+
+/* ------------------------------------------------------------- data grid ---- */
+
+/* Scope these with your own grid wrapper class if you need MudDataGrid to differ
+   from MudTable; otherwise the rules above already cover both. */
+
+.mud-table-root { border-spacing: 0; font-size: var(--text-body); }
+
+/* A sortable header is a control, so it gets the same highlight language as
+   everything else: the label brightens on hover and the arrow is the only thing
+   that appears.
+
+   NOTE THE CLASS NAMES. MudDataGrid does not use MudTable's
+   `.mud-table-sort-label` — it emits `.column-header` wrapping a
+   `.sortable-column-header` and a `.column-options` button. Styling the
+   `.mud-table-*` names here looks right and does nothing, which is only visible
+   if you actually click a header rather than assume the shared prefix carries
+   over. */
+.column-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.sortable-column-header { transition: color .1s ease; }
+.column-header:hover .sortable-column-header { color: var(--text-primary); }
+
+/* The direction arrow is reserved and faded rather than absent, so sorting a
+   column does not shift the header row sideways. */
+.sort-direction-icon {
+    padding: 0;
+    min-width: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity .1s ease;
+}
+
+.column-header:hover .sort-direction-icon { opacity: .6; }
+.sort-direction-icon.mud-direction-asc,
+.sort-direction-icon.mud-direction-desc { opacity: 1; }
+.sort-direction-icon .mud-icon-root { font-size: 14px; }
+
+/* Numbers are read down a column, so they align right where Mud does emit the
+   alignment class. This is the belt; tabular-nums on every cell is the braces. */
+.mud-table-cell.mud-align-right,
+.mud-table-cell.mud-align-end {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Selection reads as an accent wash on the row — never a border or a left-edge
+   bar. Specificity has to clear the plain hover rule above so a selected row
+   does not go dark the moment the pointer leaves it. */
+.mud-table-body .mud-table-row.is-selected > .mud-table-cell {
+    background: var(--accent-wash);
+    color: var(--text-primary);
+}
+
+/* ----------------------------------------------------------------- dialog --- */
+
+/* Dialogs float over the app, so they take your own shell rather than a Material
+   card's. Single class here on purpose: AppleSheet out-specifies this with
+   .mud-dialog.app-sheet, which leaves plain Mud dialogs on this rule. */
+.mud-dialog {
+    background-color: var(--surface-1);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sheet);
+}
+
+.mud-dialog-title { font-size: var(--text-body); font-weight: var(--weight-semibold); letter-spacing: .05em; }
+
+/* No scrim rule here, on purpose. The scrim is not styleable from this file: MudBlazor
+   paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
+   and that child covers the overlay root edge to edge, so a rule aimed at the root's
+   own .mud-overlay-dialog class (which Mud uses for z-index and nothing else) is
+   painted over before it is seen. The scrim lives in AppleTheme.cs's OverlayDark. */
+
+/* A tooltip floats, and this system's floating surfaces are materials — but this one is
+   opaque, for two reasons specific to a Mud-injected tooltip.
+
+   Mud renders it inside .mud-popover, which fades in with `opacity: 0 -> 1`. An element
+   at opacity < 1 forms a backdrop root, so a backdrop-filter here would have nothing to
+   sample for the whole of every fade and then snap into focus at the end.
+
+   And the opaque fallback could not be registered where the other materials register
+   theirs. apple-components.css's terminal @supports block loads BEFORE this file, so a
+   single-class .mud-tooltip fallback there loses to this rule on source order — it would
+   need a specificity hack keyed to Mud's popover DOM to land.
+
+   So: --surface-3, the same tier .tag's neutral capsule rests on. No border — hairlines
+   here separate, they never outline, and a floating chip does not need an edge drawn
+   around its own fill. */
+.mud-tooltip {
+    background-color: var(--surface-3);
+    border: 0;
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-footnote);
+    letter-spacing: .02em;
+}
+
+/* Chips carry state words, which this system already spells with .tag — so a chip
+   is a capsule, and it is the same capsule.
+
+   Not an outlined chip. Hairlines separate; they never outline, so a border around
+   a chip is the Material habit this system replaces. An outline is also a second
+   edge inside a table already ruled by hairlines, and a column of them reads as a
+   column of little boxes rather than as a column of states. A capsule has one edge
+   — its own fill — so a table of them settles.
+
+   Neutral is --surface-3 under --text-secondary, exactly as .tag's neutral is. The
+   uppercase tracking is kept because .tag carries it: that is the deliberate
+   typographic treatment of a small state word at --text-caption, not MudBlazor's
+   ambient button tracking leaking in.
+
+   Only the base chip is restated. Mud's own colour variants resolve through the
+   theme palette, which AppleTheme.cs already points at your colours. */
+.mud-chip {
+    height: 20px;
+    margin: 2px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: 999px;
+    background-color: var(--surface-3);
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-medium);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    transition: none;
+}
+
+/* ----------------------------------------------------------------- toasts --- */
+
+/* Material's snackbar is a floating card in a filled severity colour with a
+   three-layer shadow; this one is the same raised surface a title bar uses, with
+   the tone carried on one edge rather than across the whole notice. A wash of
+   colour in the corner of the screen out-shouts everything it sits beside.
+
+   `.app-toast` comes from SnackbarOptions.SnackbarTypeClass, so it lands
+   INSTEAD OF MudBlazor's own `.mud-alert-filled-*` class rather than alongside
+   it — nothing here is fighting a severity colour, it simply never arrives. Two
+   classes deep out-specifies `.mud-snackbar` for the base geometry. */
+.mud-snackbar.app-toast {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-3);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sheet);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-regular); /* .mud-alert-filled-* asks for 500 */
+    letter-spacing: .01em;
+    padding: 4px 12px;
+}
+
+/* The tone is a lit edge. --toast-accent is the one custom property a tone sets,
+   so a new tone is one line here and one arm at the call site. */
+.mud-snackbar.app-toast { border-left: 2px solid var(--toast-accent, var(--surface-3)); }
+.mud-snackbar.app-toast .mud-snackbar-icon { color: var(--toast-accent, var(--text-secondary)); }
+
+.app-toast--go { --toast-accent: var(--state-positive); }
+.app-toast--stop { --toast-accent: var(--state-negative); }
+.app-toast--caution { --toast-accent: var(--state-warning); }
+.app-toast--action { --toast-accent: var(--accent); }
+.app-toast--neutral { --toast-accent: var(--surface-3); }
+
+/* Material's icon is 22px at 90% opacity, which makes it the loudest thing in a
+   notice whose job is to be read once and forgotten. */
+.mud-snackbar.app-toast .mud-snackbar-icon {
+    padding: 0;
+    margin-right: 9px;
+    margin-inline-end: 9px;
+    opacity: 1;
+}
+
+.mud-snackbar.app-toast .mud-snackbar-icon .mud-icon-root { font-size: 16px; }
+
+/* The close button is an escape, not a button — flat, dim, and it brightens
+   rather than fills. Giving it a fill would make the notice look pressable.
+
+   Note the class: the snackbar's dismiss is `.mud-snackbar-close-button`, not
+   MudAlert's `.mud-alert-close-button`. The two components share a look but not
+   a class name, and the alert's name is the one that reads as obvious. */
+.mud-snackbar.app-toast .mud-snackbar-close-button {
+    color: var(--text-tertiary);
+    transition: color .12s ease;
+}
+
+.mud-snackbar.app-toast .mud-snackbar-close-button:hover { color: var(--text-primary); }
+.mud-snackbar.app-toast .mud-snackbar-close-button .mud-icon-root { font-size: 15px; }
+
+/* ----------------------------------------------------------------- charts --- */
+
+/* MudChart draws its own SVG text rather than inheriting the typography block
+   above, so the face is named explicitly. Series colours must be handed to
+   MudChart in C# — it writes them into SVG attributes and its legend markup,
+   where a var() cannot reach. Use the OPAQUE --chart-neutral tokens for that,
+   never a translucent --text-* value. */
+.mud-chart text { font-family: var(--face-ui); font-size: var(--text-caption); fill: var(--text-secondary); }
+.mud-charts-grid-line { stroke: var(--separator); }
+
+/* Ripple is Material's press feedback, and it contradicts this system's: a
+   button answers a press with a fast scale, not a ripple. Two answers to the
+   same question is one too many. AppleButton also passes Ripple="false"; this
+   catches Mud components that press without one. */
+.mud-ripple-element { display: none; }
+
+/* Scrollbars inside Mud surfaces match the app's. */
+.mud-paper,
+.mud-popover { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+
+/* ------------------------------------------------------- 3. the button seam --- */
+
+/* AppleButton renders MudButton as Variant.Text with Color.Inherit, which is the
+   variant that contributes the fewest visual rules — .mud-button-text-inherit
+   only sets `color: inherit`. Everything a button looks like then comes from
+   .app-btn in apple-components.css, which loads first but wins at equal
+   specificity for .mud-button's own declarations because this file loads after
+   MudBlazor's.
+
+   Two rules are needed because MudBlazor states them at two classes deep. This
+   is the single most common failure mode when replacing a design system in
+   place: a correct rule that silently loses the cascade. */
+
+/* .mud-button-text.mud-button-text-inherit sets `color: inherit` at two classes
+   (0,2,0), which out-specifies a bare .app-btn (0,1,0) and pulls the ink off the
+   panel behind the button rather than taking it from the button's own variant.
+   Matching its specificity and winning on source order fixes it at the button,
+   so everything inside — label, icon, and anything added later — inherits the
+   right ink instead of each needing its own rule. This is the companion-rule
+   pattern: for every compound MudBlazor selector, one bridge rule at matching
+   specificity that hands control back to your custom property. */
+.app-btn.mud-button-text { color: var(--btn-ink); }
+
+/* MudBlazor's own .mud-button:hover / :focus-visible / :active set a literal
+   background-color of their own (--mud-palette-action-default-hover) at the same
+   two-classes-deep specificity. Left alone it wins over the base
+   `.app-btn { background-color: var(--btn-fill) }` rule, so every hover, focus
+   and press would show Mud's flat grey instead of the variant's own fill — Plain
+   would never show its surface tint, Filled would never darken toward the
+   pressed accent. Matching the specificity here adds no behaviour of its own; it
+   just lets --btn-fill, already updated by the variant's own :hover rule, keep
+   winning. */
+.app-btn.mud-button:hover,
+.app-btn.mud-button:focus-visible,
+.app-btn.mud-button:active { background-color: var(--btn-fill); }
+
+/* .mud-button sets min-width:64px, which makes an icon-only button oblong. */
+.app-btn.mud-button { min-width: 0; }
+
+/* .mud-button-root:disabled forces its colour with !important — the one place
+   MudBlazor cannot be out-specified — so AppleTheme.cs sets ActionDisabled to
+   this system's dim text and the two AGREE instead of fighting. Nothing is
+   needed here; this note exists so the next person does not go looking for the
+   missing rule. */

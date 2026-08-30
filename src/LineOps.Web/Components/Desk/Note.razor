@@ -1,0 +1,104 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    A note: the desk's ambient tier of feedback.
+
+    The desk answers an operator three ways. A dialog blocks and demands a decision.
+    A toast interrupts, then leaves. A note does neither — it sits next to the thing it
+    describes and states something true about it, for as long as that stays true. It is
+    passive by construction: no dismiss control, no timer, no focus. If a message needs
+    acknowledging it is not a note, and if it needs to be gone in four seconds it is not
+    a note either.
+
+    State follows the desk's rule that hue names what something is, never how loud a
+    control is. The note surface makes exactly one distinction today, because that is the
+    only one the operator has to act on: ambient context versus a cost worth knowing
+    before you proceed. So <c>DeskState.Warning</c> wears .note--warn and every other
+    state renders the base note. That is deliberate rather than an omission — a broken
+    thing or a healthy one is reported by the pulse, the tag or the number beside it, not
+    by re-tinting a paragraph. Nothing here encodes meaning by colour alone: the warn skin
+    only ever accompanies text that says what the cost is.
+
+    <c>Inline</c> is the same idiom at word scale — the .warnc span used inside a table
+    cell, where a whole boxed note would break the row. Same state vocabulary, no box.
+
+    Splatting follows DeskButton: the component composes its own class and style, and the
+    caller's Class/Style are appended after — never in place of — them. Unmatched
+    attributes are splatted separately so a stray class= or style= cannot overwrite the
+    note's own. (See the gate/switch post-mortem: Blazor applies @attributes last, so a
+    component that splats its own class attribute silently loses it.)
+*@
+
+@if (Inline)
+{
+    <span class="@Classes" style="@Style" @attributes="Rest">@ChildContent</span>
+}
+else
+{
+    <div class="@Classes" style="@Style" @attributes="Rest">@ChildContent</div>
+}
+
+@code {
+    /// <summary>What the note says. Say what it costs and what to do instead — a tint is not a message.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The state being reported. <see cref="DeskState.Warning"/> wears the warn rule;
+    /// every other state renders the plain note. See the comment above for why.
+    /// </summary>
+    [Parameter] public DeskState State { get; set; } = DeskState.Neutral;
+
+    /// <summary>
+    /// Render as a toned word rather than a boxed notice, for use inside a row or cell
+    /// where a block would break the layout.
+    /// </summary>
+    [Parameter] public bool Inline { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Inline declarations, applied after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Everything else the caller passed. Deliberately excludes <c>class</c> and
+    /// <c>style</c>, which have their own parameters — a splat lands last and would
+    /// otherwise replace the note's own attributes outright.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private IReadOnlyDictionary<string, object>? Rest =>
+        Extra is null
+            ? null
+            : Extra
+                .Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase)
+                          && !string.Equals(kv.Key, "style", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+    private string? Classes
+    {
+        get
+        {
+            var joined = string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+            return joined.Length == 0 ? null : joined;
+        }
+    }
+
+    private IEnumerable<string?> Parts()
+    {
+        var warn = State == DeskState.Warning;
+
+        if (Inline)
+        {
+            yield return warn ? "warnc" : null;
+        }
+        else
+        {
+            yield return "note";
+            yield return warn ? "note--warn" : null;
+        }
+
+        yield return Class;
+    }
+}

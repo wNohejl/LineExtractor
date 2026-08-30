@@ -1,0 +1,64 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Windowing
+
+@*
+    The frame around an inline answer.
+
+    Every snippet gets the same header and the same one way out, so a snippet component only
+    ever contains its own content. Without this each of them would re-implement the escape
+    hatch, and they would drift — different labels, different placement, some missing it
+    entirely, which is how a two-stage pattern quietly becomes a one-stage one.
+
+    The escape sits in the header rather than under the content because a snippet's height
+    varies with what it found, and a control that moves down the panel as data arrives is one
+    the operator has to look for each time.
+*@
+
+@* A region rather than a plain div: it appears in response to a press, and announcing it as a
+   named landmark is what tells a screen-reader user that something arrived and what it is. *@
+<div class="snippet" id="@Id" role="region" aria-label="@Title">
+    <div class="snippet__bar">
+        <span class="snippet__icon"><Glyph Icon="@Icon" /></span>
+        <span class="snippet__title">@Title</span>
+
+        @if (Note is not null)
+        {
+            <span class="snippet__note">@Note</span>
+        }
+
+        <span class="snippet__spacer"></span>
+
+        @if (OnOpen is not null)
+        {
+            <button type="button" class="snippet__open" @onclick="OnOpen" @onclick:stopPropagation="true">
+                <Glyph Icon="@Icons.Material.Filled.OpenInNew" />@(OpenLabel ?? "Open window")
+            </button>
+        }
+    </div>
+
+    <div class="snippet__body">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>DOM id, so the key that opened this can point at it with aria-controls.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Info;
+
+    /// <summary>
+    /// A short qualifier beside the title — coverage, a window, a count. This is where a
+    /// snippet states what it is missing rather than letting a row of dashes imply it.
+    /// </summary>
+    [Parameter] public string? Note { get; set; }
+
+    [Parameter] public string? OpenLabel { get; set; }
+
+    /// <summary>Null hides the escape, for a snippet that is complete on the row.</summary>
+    [Parameter] public Func<Task>? OnOpen { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

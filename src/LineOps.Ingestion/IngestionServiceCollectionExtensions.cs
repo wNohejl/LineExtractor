@@ -1,9 +1,11 @@
+using System.Net.Http.Headers;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LineOps.Ingestion;
@@ -57,10 +59,22 @@ public static class IngestionServiceCollectionExtensions
 
         if (options.Espn.Enabled)
         {
-            services.AddHttpClient<EspnStatsAdapter>(client =>
+            services.AddHttpClient<EspnStatsAdapter>((sp, client) =>
                 {
                     client.BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/");
                     client.Timeout = TimeSpan.FromSeconds(30);
+
+                    // ESPN refuses a request whose client it does not recognise. HttpClient
+                    // sends no User-Agent at all by default, and on 2 August 2026 that began
+                    // returning 403 on every call — the port had always been one policy change
+                    // away from breaking, and the policy changed. See SourceOptions.UserAgent
+                    // for why the value has to name a real HTTP client rather than this app.
+                    //
+                    // A malformed override is corrected rather than obeyed: an unparseable
+                    // value would leave the header absent, which is the precise condition that
+                    // caused the outage. Failing back to a working default and saying so is
+                    // better than a typo silently reproducing the bug it was added to fix.
+                    ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp);
                 })
                 .AddStandardResilienceHandler();
 
@@ -120,6 +134,35 @@ public static class IngestionServiceCollectionExtensions
     /// web app can trigger ingestion manually without also owning the schedule — which is what
     /// lets the worker be split into its own process later without touching either codebase.
     /// </summary>
+    /// <summary>
+    /// Sets a client's identification, correcting an unusable override rather than obeying it.
+    ///
+    /// <para>
+    /// The failure this guards against is specific. An absent <c>User-Agent</c> is what ESPN
+    /// began refusing, so a configured value that cannot be parsed must not be allowed to leave
+    /// the header unset — that would turn a typo into the exact three-week outage the option was
+    /// added to prevent. The default is applied instead and the substitution is logged, because
+    /// silently ignoring configuration is its own kind of bug.
+    /// </para>
+    /// </summary>
+    private static void ApplyUserAgent(
+        HttpClient client, SourceOptions source, string sourceKey, IServiceProvider services)
+    {
+        var configured = source.EffectiveUserAgent;
+
+        if (client.DefaultRequestHeaders.UserAgent.TryParseAdd(configured))
+            return;
+
+        services.GetService<ILoggerFactory>()
+            ?.CreateLogger(typeof(IngestionServiceCollectionExtensions))
+            .LogWarning(
+                "{Source}: configured User-Agent '{Configured}' is not a valid header value; "
+                + "using '{Fallback}'. An absent User-Agent is refused by this provider.",
+                sourceKey, configured, SourceOptions.DefaultUserAgent);
+
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(SourceOptions.DefaultUserAgent);
+    }
+
     public static IServiceCollection AddLineOpsIngestionScheduler(this IServiceCollection services)
     {
         services.AddHostedService<IngestionScheduler>();

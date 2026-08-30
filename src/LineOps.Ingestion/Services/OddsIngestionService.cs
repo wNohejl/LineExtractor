@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using LineOps.Core.Contracts;
+using LineOps.Core.Diagnostics;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +43,13 @@ public class OddsIngestionService(
         db.IngestionRuns.Add(run);
         await db.SaveChangesAsync(ct);
 
+        // The span covers the whole run, so every provider call and every query underneath it
+        // becomes a child and a slow run explains itself without extra instrumentation.
+        using var activity = LineOpsTelemetry.Source.StartActivity("ingest.odds");
+        activity?.SetTag(LineOpsTelemetry.Tags.Source, source.Key);
+        activity?.SetTag(LineOpsTelemetry.Tags.Sport, sportKey);
+        activity?.SetTag(LineOpsTelemetry.Tags.Job, jobKey);
+
         try
         {
             // Refuse to start rather than blow a free-tier ceiling mid-run.
@@ -53,7 +62,7 @@ public class OddsIngestionService(
                 await db.SaveChangesAsync(ct);
 
                 logger.LogWarning("{Source}/{Sport}: skipped, budget exhausted", source.Key, sportKey);
-                return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
+                return Complete(activity, run, source.Key, sportKey, jobKey, rows: 0);
             }
 
             // Failure injection is stored against the source row rather than held in memory,
@@ -91,7 +100,7 @@ public class OddsIngestionService(
             logger.LogInformation("{Source}/{Sport}: {Rows} rows in {Ms}ms",
                 source.Key, sportKey, rows, (run.FinishedAt - run.StartedAt)?.TotalMilliseconds);
 
-            return new IngestionOutcome(run.Id, run.Status, rows, run.Error);
+            return Complete(activity, run, source.Key, sportKey, jobKey, rows);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -100,9 +109,47 @@ public class OddsIngestionService(
             run.FinishedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync(ct);
 
+            activity?.AddException(ex);
             logger.LogError(ex, "{Source}/{Sport}: ingestion failed", source.Key, sportKey);
-            return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
+            return Complete(activity, run, source.Key, sportKey, jobKey, rows: 0);
         }
+    }
+
+    /// <summary>
+    /// The single exit for a run: records what it cost, tags the span with how it ended, and
+    /// returns the outcome.
+    ///
+    /// Every path funnels through here rather than each incrementing its own counters, because a
+    /// terminal path that forgets to count is invisible in exactly the case you most want to see
+    /// — the counter simply reads lower and nothing indicates why.
+    /// </summary>
+    private static IngestionOutcome Complete(
+        Activity? activity, IngestionRun run, string sourceKey, string sportKey, string jobKey, int rows)
+    {
+        var tags = new TagList
+        {
+            { LineOpsTelemetry.Tags.Source, sourceKey },
+            { LineOpsTelemetry.Tags.Sport, sportKey },
+            { LineOpsTelemetry.Tags.Job, jobKey },
+            { LineOpsTelemetry.Tags.Status, run.Status.ToString() }
+        };
+
+        LineOpsTelemetry.Instruments.Runs.Add(1, tags);
+        LineOpsTelemetry.Instruments.Rows.Add(rows, tags);
+        LineOpsTelemetry.Instruments.Requests.Add(run.RequestsMade, tags);
+        LineOpsTelemetry.Instruments.Credits.Add(run.CreditsSpent, tags);
+
+        activity?.SetTag(LineOpsTelemetry.Tags.Status, run.Status.ToString());
+        activity?.SetTag("lineops.rows", rows);
+        activity?.SetTag("lineops.requests", run.RequestsMade);
+
+        // Partial is an error in the operational sense — the provider returned nothing usable —
+        // so the span says so rather than looking like a fast, clean run.
+        activity?.SetStatus(
+            run.Status is RunStatus.Success ? ActivityStatusCode.Ok : ActivityStatusCode.Error,
+            run.Error);
+
+        return new IngestionOutcome(run.Id, run.Status, rows, run.Error);
     }
 
     private async Task<int> PersistAsync(

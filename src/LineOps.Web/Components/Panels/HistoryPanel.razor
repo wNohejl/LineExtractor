@@ -18,22 +18,22 @@
     going; reopen it and this reattaches.
 *@
 
-<p class="note" style="margin-bottom:12px">
+<Note Style="margin:12px 0">
     The daily schedule can only learn one day per day. This reaches back over past days to
     build the record analytics need — one request per sport per day, against an unmetered
     provider only.
-</p>
+</Note>
 
 @if (_eligibility.Count > 0)
 {
-    <h3 class="panel-h">Sources</h3>
+    <PanelHeader>Sources</PanelHeader>
     <div class="stack" style="gap:6px; margin-bottom:4px">
         @foreach (var source in _eligibility)
         {
             <div class="row" style="gap:9px">
-                <span class="tag @(source.Eligible ? "tag--good" : "tag--warn")">
+                <Tag State="@(source.Eligible ? DeskState.Positive : DeskState.Warning)">
                     @(source.Eligible ? "Free" : "Refused")
-                </span>
+                </Tag>
                 <span class="mono" style="font-size:12px">@source.Key</span>
                 <span class="dim" style="font-size:11.5px">@source.Reason</span>
             </div>
@@ -42,37 +42,31 @@
 
     @if (!_eligibility.Any(s => s.Eligible))
     {
-        <p class="note note--warn">
+        <Note State="DeskState.Warning" Style="margin:12px 0">
             Nothing to walk. Backfill runs against unmetered providers only, so a metered one
             cannot be used here even when it is configured and working — its quota is what the
             live schedule spends.
-        </p>
+        </Note>
     }
 }
 
-<h3 class="panel-h">Coverage</h3>
+<PanelHeader>Coverage</PanelHeader>
 
 @if (_coverage is { } c)
 {
-    <div class="metrics">
-        <div class="metric @(c.Completed > 0 ? "metric--good" : "")">
-            <div class="metric__value num">@c.Completed</div>
-            <div class="metric__label">Days held</div>
-            <div class="metric__note">of @c.TargetDayFetches wanted</div>
-        </div>
-        <div class="metric metric--info">
-            <div class="metric__value num">@c.GamesFound</div>
-            <div class="metric__label">Games</div>
-        </div>
-        <div class="metric metric--info">
-            <div class="metric__value num">@c.RowsIngested</div>
-            <div class="metric__label">Rows</div>
-        </div>
-        <div class="metric @(c.Failed > 0 ? "metric--warn" : "")">
-            <div class="metric__value num">@c.Failed</div>
-            <div class="metric__label">Days failed</div>
-        </div>
-    </div>
+    <MetricRow>
+        <Metric Label="Days held"
+                Value="@c.Completed.ToString()"
+                Note='@($"of {c.TargetDayFetches} wanted")'
+                State="@(c.Completed > 0 ? DeskState.Positive : DeskState.Neutral)"
+                Numeric="true" />
+        <Metric Label="Games" Value="@c.GamesFound.ToString()" State="DeskState.Info" Numeric="true" />
+        <Metric Label="Rows" Value="@c.RowsIngested.ToString()" State="DeskState.Info" Numeric="true" />
+        <Metric Label="Days failed"
+                Value="@c.Failed.ToString()"
+                State="@(c.Failed > 0 ? DeskState.Warning : DeskState.Neutral)"
+                Numeric="true" />
+    </MetricRow>
 
     <p class="empty" style="padding:9px 0 0">
         @if (c.EarliestCovered is { } earliest && c.LatestCovered is { } latest)
@@ -88,42 +82,69 @@
     </p>
 }
 
-<h3 class="panel-h">Run</h3>
+<PanelHeader>Run</PanelHeader>
 
 <div class="row" style="margin-bottom:8px">
     @if (Coordinator.IsRunning)
     {
-        <DeskButton Tone="DeskTone.Go" Busy="true">Walking</DeskButton>
-        <DeskButton Tone="DeskTone.Stop" Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+        <DeskButton Busy="true">Walking</DeskButton>
+        <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                    Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
             Stop
         </DeskButton>
     }
     else
     {
-        <DeskButton Tone="DeskTone.Go"
+        <DeskButton Emphasis="DeskEmphasis.Filled"
                     Icon="@Icons.Material.Filled.History"
                     Disabled="@(!_eligibility.Any(s => s.Eligible))"
                     OnClick="Start">
             Gather history
         </DeskButton>
-        <DeskButton Quiet="true" Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
             Refresh
         </DeskButton>
+
+        @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
+           confirm because it is slow — every day walked again, one request per finished game —
+           not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
+        @if (_confirmRewalk)
+        {
+            <span class="ftr__spacer"></span>
+            <span class="dim" style="font-size:11.5px">
+                Walk @(_coverage?.Completed ?? 0) held @((_coverage?.Completed ?? 0) == 1 ? "day" : "days") again?
+            </span>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
+                Yes, re-walk
+            </DeskButton>
+            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmRewalk = false">
+                Cancel
+            </DeskButton>
+        }
+        else
+        {
+            <DeskButton Icon="@Icons.Material.Filled.Restore"
+                        Disabled="@(_coverage is null or { Completed: 0 })"
+                        OnClick="() => _confirmRewalk = true">
+                Re-walk held days
+            </DeskButton>
+        }
     }
 </div>
 
 @if (Coordinator.Progress is { } p)
 {
-    <div class="note" style="margin-bottom:8px">
+    <Note Style="margin-bottom:8px">
         <span class="mono">@p.SourceKey · @p.SportKey · @p.Date.ToString("yyyy-MM-dd")</span><br />
         @p.Walked walked · @p.Skipped already held · @p.Failed failed ·
         @p.GamesFound games · @p.RowsIngested rows
-    </div>
+    </Note>
 }
 
 @if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
 {
-    <div class="note @(r.StoppedBecause is null ? "" : "note--warn")" style="margin-bottom:8px">
+    <Note State="@(r.StoppedBecause is null ? DeskState.Neutral : DeskState.Warning)" Style="margin-bottom:8px">
         Finished: @r.Walked days walked, @r.Skipped already held, @r.Failed failed,
         @r.GamesFound games, @r.RowsIngested rows.
         @if (r.StoppedBecause is not null)
@@ -132,10 +153,10 @@
 
             @r.StoppedBecause
         }
-    </div>
+    </Note>
 }
 
-<h3 class="panel-h">Recent days</h3>
+<PanelHeader>Recent days</PanelHeader>
 
 <DeskGrid T="BackfillCheckpoint" Items="_recent"
           EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">
@@ -159,11 +180,11 @@
         <CellTemplate>
             @if (context.Item.Error is null)
             {
-                <span class="tag tag--good">Held</span>
+                <Tag State="DeskState.Positive">Held</Tag>
             }
             else
             {
-                <span class="tag tag--bad" title="@context.Item.Error">Failed</span>
+                <Tag State="DeskState.Negative" Title="@context.Item.Error">Failed</Tag>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -210,6 +231,26 @@
             ? $"{Coordinator.Progress?.Walked ?? 0} days"
             : _coverage is { Completed: > 0 } ? $"{_coverage.Completed} days held" : "no history");
     }
+
+    private bool _confirmRewalk;
+
+    /// <summary>
+    /// Clears the held-day bookkeeping and starts a fresh walk.
+    ///
+    /// This is the operation that previously required editing the database by hand: the walk
+    /// skips days it has already recorded, so a day stored by code that has since been fixed
+    /// could never be corrected from inside the app.
+    /// </summary>
+    private async Task RewalkAsync()
+    {
+        _confirmRewalk = false;
+
+        await Backfill.ForgetAsync(null, CancellationToken.None);
+        await LoadAsync();
+
+        Coordinator.TryStart();
+    }
+
 
     private void Start() => Coordinator.TryStart();
 

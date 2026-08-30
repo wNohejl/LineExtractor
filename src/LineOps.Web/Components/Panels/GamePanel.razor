@@ -1,6 +1,7 @@
 @using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
 @using LineOps.Web.Components.Desk
+@using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
@@ -22,7 +23,7 @@
 
 @if (_row is null)
 {
-    <p class="empty">Loading the game…</p>
+    <EmptyState>Loading the game…</EmptyState>
 }
 else
 {
@@ -31,7 +32,7 @@ else
     var showScore = game.HomeScore is not null || game.AwayScore is not null;
 
     <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
-        <h3 class="panel-h" style="margin:0">
+        <PanelHeader Tight>
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                       OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
                 @(game.AwayTeam?.Name ?? "Away")
@@ -49,37 +50,50 @@ else
             {
                 <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
             }
-        </h3>
-        <span class="tag @StateTag(game.Status)">@StatusLabel(game)</span>
+        </PanelHeader>
+        <Tag State="@StatusState(game.Status)">@StatusLabel(game)</Tag>
     </div>
 
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
 
-        <select class="field" style="max-width:130px; margin-left:auto" value="@_windowDays" @onchange="OnWindowChanged">
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-        </select>
+        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+                    style="margin-left:auto"
+                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
 
-        <button class="btn btn--quiet" type="button"
-                @onclick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
-            <Glyph Icon="@Icons.Material.Filled.ShowChart" /> Movement
-        </button>
+        @* The two views this game opens onto, kept together as one cluster: they are the
+           same kind of thing — a related window, one click away — and the glide plate
+           slides between them rather than each lighting itself. *@
+        <div class="row" style="gap:4px" data-glide>
+            <DeskButton Icon="@Icons.Material.Filled.ShowChart"
+                        OnClick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
+                Movement
+            </DeskButton>
+
+            @* How these two have gone against each other, which is a different question from
+               how either has been playing — and the one the team blocks cannot answer. *@
+            <DeskButton Icon="@Icons.Material.Filled.CompareArrows"
+                        OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game))">
+                Head to head
+            </DeskButton>
+        </div>
     </div>
 
-    @if (isLive)
-    {
-        @RenderMarkets("Top bets")
-        @RenderTeamData()
-        @RenderPlayers()
-    }
-    else
-    {
-        @RenderMarkets("Lines")
-        @RenderTeamData()
-        @RenderPlayers()
-    }
+    <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
+              @bind-Value="_section">
+        @if (context == Section.Markets)
+        {
+            @RenderMarkets()
+        }
+        else if (context == Section.TeamData)
+        {
+            @RenderTeamData()
+        }
+        else
+        {
+            @RenderPlayers()
+        }
+    </DeskTabs>
 }
 
 @code {
@@ -94,13 +108,89 @@ else
     private MatchupForm? _matchup;
     private TeamForm? _homeTeam;
     private TeamForm? _awayTeam;
+
+    /// <summary>Which of the three readings is on screen. See <see cref="SectionsFor"/>.</summary>
+    private enum Section { Markets, TeamData, Players }
+
+    private Section _section = Section.Markets;
+
+    private bool HasBox => _box is not null && !_box.IsEmpty;
+
+    private bool HasRoster => _matchup is not null && !_matchup.IsEmpty;
+
+    private bool HasTeamData
+        => (_homeTeam?.Recent.Count ?? 0) > 0 || (_awayTeam?.Recent.Count ?? 0) > 0;
+
+    /// <summary>
+    /// The sections this game actually has.
+    ///
+    /// <para>
+    /// Markets is always offered: an unpriced game still answers "what is the number" —
+    /// with the reason there isn't one. The other two are dropped when the window holds
+    /// nothing for them, so a tab never opens onto an empty panel.
+    /// </para>
+    ///
+    /// <para>
+    /// Only the first label turns on whether the game is under way. Before a game the
+    /// prices are the lines being offered; during one, what is still open to bet — same
+    /// section, different question, and the tab is where that gets said.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<DeskTab<Section>> SectionsFor(bool isLive) =>
+    [
+        new(Section.Markets, isLive ? "Top bets" : "Lines"),
+        new(Section.TeamData, "Team data", HasTeamData),
+        new(Section.Players, HasBox ? "Box score" : "Players", HasBox || HasRoster)
+    ];
+
+    /// <summary>This game's box score. Null until the game has produced one.</summary>
+    private GameBoxScore? _box;
     private int _windowDays = 30;
+
+    /// <summary>The roster row showing its recent games. One at a time, like every other row.</summary>
+    private int? _openPlayer;
+
+    private void TogglePlayer(int playerId)
+        => _openPlayer = _openPlayer == playerId ? null : playerId;
+
+    /// <summary>
+    /// What an open roster row offers.
+    ///
+    /// <para>
+    /// One action, because there is one question. The averages in the row are what these games
+    /// produced, and the mean hides the shape — four quiet games and one enormous one read the
+    /// same as five steady ones. So the snippet is the games themselves, and the escape is the
+    /// player's own window for anyone who wants more than five.
+    /// </para>
+    /// </summary>
+    private List<RowAction> ActionsFor(PlayerForm player)
+    {
+        var id = player.PlayerId;
+        var name = player.Name;
+
+        return
+        [
+            new RowAction
+            {
+                Key = "recent",
+                Label = "Last 5",
+                Icon = Icons.Material.Filled.Timeline,
+                Snippet = @<PlayerRecentSnippet PlayerId="id" />,
+                OpenLabel = "Player window",
+                OpenWindow = () =>
+                {
+                    Manager.OpenPlayer(id, name);
+                    return Task.CompletedTask;
+                }
+            }
+        ];
+    }
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task OnWindowChanged(ChangeEventArgs e)
+    private async Task SetWindowAsync(int days)
     {
-        _windowDays = int.TryParse(e.Value?.ToString(), out var days) ? days : 30;
+        _windowDays = days;
         await LoadAsync();
     }
 
@@ -118,6 +208,13 @@ else
             var window = TimeSpan.FromDays(_windowDays);
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
 
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            // The box score is the answer once there is one; the window aggregate is the
+            // fallback for a game that has not been played. Both are loaded because the
+            // fallback has to be ready the moment the box score turns out to be empty.
+            _box = await log.BoxScoreAsync(GameId);
+
             _matchup = await lookup.GetAsync(GameId, window, maxPlayersPerTeam: 8);
 
             // Only the recent record is wanted here — the roster comes from the matchup lookup
@@ -129,6 +226,14 @@ else
         status: () => _row is null ? "not found" : Matchup(_row.Game));
     }
 
+    /// <summary>Which side a price is for, as the team short form. See BoardPanel.Side.</summary>
+    private string Side(bool home)
+    {
+        var team = home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam;
+
+        return string.IsNullOrWhiteSpace(team?.Abbrev) ? home ? "H" : "A" : team!.Abbrev;
+    }
+
     private static string StatusLabel(Game game) => game.Status switch
     {
         GameStatus.Live => "Live",
@@ -137,42 +242,41 @@ else
         _ => Starts(game.StartsAt)
     };
 
-    private static string StateTag(GameStatus status) => status switch
+    private static DeskState StatusState(GameStatus status) => status switch
     {
-        GameStatus.Live => "tag--warn",
-        GameStatus.Final => "tag--good",
-        _ => "tag--info"
+        GameStatus.Live => DeskState.Warning,
+        GameStatus.Final => DeskState.Positive,
+        _ => DeskState.Info
     };
 
-    private RenderFragment RenderMarkets(string heading) => @<text>
+    @* The tab bar names each of these now, so none of them repeats it as a heading. *@
+    private RenderFragment RenderMarkets() => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
-            <p class="note note--warn">@reason</p>
+            <Note State="DeskState.Warning" Style="margin:12px 0">@reason</Note>
         }
         else
         {
-            <h4 class="panel-h" style="margin-top:10px">@heading</h4>
             <div class="row" style="gap:18px; margin-bottom:14px; flex-wrap:wrap">
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Moneyline.First" />
-                        <PriceCell Offer="_row.Moneyline.Second" />
+                        <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" />
+                        <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Spread.First" />
-                        <PriceCell Offer="_row.Spread.Second" />
+                        <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" />
+                        <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" />
                     </div>
                 </div>
                 <div>
                     <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
-                        <PriceCell Offer="_row.Total.First" />
-                        <PriceCell Offer="_row.Total.Second" />
+                        <PriceCell Offer="_row.Total.First" Selection="O" />
+                        <PriceCell Offer="_row.Total.Second" Selection="U" />
                     </div>
                 </div>
             </div>
@@ -180,7 +284,6 @@ else
     </text>;
 
     private RenderFragment RenderTeamData() => @<text>
-        <h4 class="panel-h" style="margin-top:6px">Team data</h4>
         <div class="row" style="gap:24px; margin-bottom:14px; flex-wrap:wrap">
             @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away")
             @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home")
@@ -201,30 +304,75 @@ else
                 <div class="dim" style="font-size:11.5px">
                     @form.Wins-@form.Losses over @form.Recent.Count games
                 </div>
-                <div class="row" style="gap:3px; margin-top:3px">
-                    @foreach (var g in form.Recent.Take(5))
-                    {
-                        <span class="tag @(g.Won == true ? "tag--good" : g.Won == false ? "tag--bad" : "tag--info")"
-                              title="@(g.Home ? "vs" : "at") @g.Opponent — @Day(g.StartsAt)">
-                            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
-                        </span>
-                    }
+                <div class="row" style="margin-top:3px">
+                    <FormRun Log="@FormResult.From(form.Recent)" />
                 </div>
             }
         </div>
     </text>;
 
+    /// <summary>
+    /// Who is playing, or what they did.
+    ///
+    /// <para>
+    /// Before a game these are two rosters and their recent form, because that is the only
+    /// evidence there is. Once it is under way the box score exists, and showing a thirty-day
+    /// average instead would be answering a question nobody asked while looking at a specific
+    /// game — the line that matters is the one from this one.
+    /// </para>
+    /// </summary>
     private RenderFragment RenderPlayers() => @<text>
-        <h4 class="panel-h" style="margin-top:6px">Players</h4>
-
-        @if (_matchup is null || _matchup.IsEmpty)
+        @if (HasBox)
         {
-            <p class="empty">No appearances on record for either roster in this window.</p>
+            @RenderBoxSide(_box!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
+            @RenderBoxSide(_box.Home, _row.Game.HomeTeam?.Name ?? "Home")
         }
         else
         {
-            @RenderRoster(_matchup.Away, _row!.Game.AwayTeam?.Name ?? "Away")
+            @RenderRoster(_matchup!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
             @RenderRoster(_matchup.Home, _row.Game.HomeTeam?.Name ?? "Home")
+        }
+    </text>;
+
+    /// <summary>One side of the box score. Columns are derived from the lines themselves.</summary>
+    private RenderFragment RenderBoxSide(IReadOnlyList<BoxScoreLine> side, string teamName) => @<text>
+        @if (side.Count > 0)
+        {
+            var columns = GameBoxScore.ColumnsFor(side);
+
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
+            <div class="gridwrap">
+                <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
+                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate>
+                            <span title="@context.Item.Name">
+                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                            </span>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    @* Box score values arrive as strings straight off the line, so they sort as
+                       strings — coercing them to numbers here would invent a reading the source
+                       did not give. *@
+                    @foreach (var c in columns)
+                    {
+                        var key = c;
+
+                        <TemplateColumn T="BoxScoreLine" Title="@key" Align="Align.Right"
+                                        SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
+                            <CellTemplate>
+                                <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    }
+                </DeskGrid>
+            </div>
         }
     </text>;
 
@@ -245,39 +393,65 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--haze); font-size:12px; font-weight:600">@teamName</h5>
-            <div class="gridwrap"><table class="grid">
-                <thead>
-                    <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th class="r">GP</th>
-                        @foreach (var c in columns)
-                        {
-                            <th class="r">@c@(IsRate(side, c) ? "/g" : "")</th>
-                        }
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in side)
-                    {
-                        <tr>
-                            <td class="trunc" title="@p.Name">
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
+            @*
+                The row opens the way every other row on the desk opens.
+
+                This table had its own disclosure — a bare "Last 5" key in a trailing column and
+                a second <tr> underneath — written before RowActions existed. Converting the
+                table is the moment to stop having two of those: the keys and the snippet now
+                come from the shared strip, in the widest cell, exactly as the Board does it.
+                That is the row-drilldown spec's "one interaction to learn, and it holds all the
+                way down" being cashed in rather than restated.
+            *@
+            <div class="gridwrap">
+                <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
+                          RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
+                          OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"
+                          EmptyText="No appearances on record.">
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
+                                    Title="Player" CellClass="trunc">
+                        <CellTemplate>
+                            <span title="@context.Item.Name">
                                 <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(p.PlayerId, p.Name)">@p.Name</DeskLink>
-                            </td>
-                            <td class="dim">@(p.Position ?? "—")</td>
-                            <td class="r">@p.Appearances</td>
-                            @foreach (var c in columns)
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                            </span>
+
+                            @if (_openPlayer == context.Item.PlayerId)
                             {
-                                <td class="r">
-                                    @(p.Summary(c) is { } v ? v.ToString(p.IsCounting(c) ? "0.##" : "0.000") : "—")
-                                </td>
+                                @* Keyed by the player so moving to another row is a fresh strip
+                                   rather than one still showing the previous player's snippet. *@
+                                <RowActions @key="context.Item.PlayerId" Actions="ActionsFor(context.Item)" />
                             }
-                        </tr>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                                    Title="GP" Align="Align.Right" />
+
+                    @* A player with no reading for a key sorts below every real one rather than
+                       beside the zeroes — the same distinction the dash makes in the cell. *@
+                    @foreach (var c in columns)
+                    {
+                        var key = c;
+
+                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                                        Align="Align.Right"
+                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                            <CellTemplate>
+                                @(context.Item.Summary(key) is { } v
+                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
                     }
-                </tbody>
-            </table></div>
+                </DeskGrid>
+            </div>
         }
     </text>;
 }

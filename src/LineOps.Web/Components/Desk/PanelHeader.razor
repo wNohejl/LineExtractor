@@ -1,0 +1,116 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    The small capitalised rule that names a stretch of a panel.
+
+    Every panel had this as a hand-written <h3 class="panel-h">, and over time the call
+    sites grew a tail of inline styles: margin:0 where the heading sits in a flex row that
+    already spaces it, a top margin where it opens a section below other content, and the
+    brighter --text-secondary where the heading names a thing (a team) rather than a
+    section. Those three intentions are the whole of the variation, so they are parameters
+    here and the numbers are the component's business.
+
+    The look still comes from .panel-h in lineops.css — this owns the spacing decisions,
+    not the type.
+
+    Attribute handling copies DeskSwitch: the component composes its own style and splats
+    everything except style/class, so a caller's attributes can never blank out the
+    spacing rule the component just decided on. Class and Style append last, so a genuine
+    one-off can still win without going through the splat.
+*@
+
+@switch (Level)
+{
+    case 2:
+        <h2 class="@Classes" style="@Styles" @attributes="Rest">@ChildContent</h2>
+        break;
+    case 4:
+        <h4 class="@Classes" style="@Styles" @attributes="Rest">@ChildContent</h4>
+        break;
+    default:
+        <h3 class="@Classes" style="@Styles" @attributes="Rest">@ChildContent</h3>
+        break;
+}
+
+@code {
+    /// <summary>The heading's words.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Heading rank. Panels open at 3; a heading nested inside a section that already has
+    /// one takes 4. Only the outline changes — every rank looks the same.
+    /// </summary>
+    [Parameter] public int Level { get; set; } = 3;
+
+    /// <summary>
+    /// The heading sits in a row that is already doing the spacing — a flex bar with keys
+    /// beside it. Drops every margin so it lines up with what it shares the row with.
+    /// </summary>
+    [Parameter] public bool Tight { get; set; }
+
+    /// <summary>Where this heading sits relative to what comes above it.</summary>
+    [Parameter] public PanelHeaderGap Gap { get; set; } = PanelHeaderGap.Default;
+
+    /// <summary>
+    /// The heading names a thing rather than a section — a team, an opponent. Reads at
+    /// --text-secondary rather than .panel-h's --text-tertiary, so it carries more weight
+    /// than the section rules around it. The name is historical: this is the brighter of the
+    /// two, not the quieter.
+    /// </summary>
+    [Parameter] public bool Muted { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Everything else. Never style or class — those are composed above, and a splat that
+    /// carried them would replace the component's own outright.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string Classes => Class is { Length: > 0 } ? $"panel-h {Class}" : "panel-h";
+
+    private string? Styles
+    {
+        get
+        {
+            var own = string.Join(' ', Declarations());
+            return (own, Style) switch
+            {
+                ("", null or "") => null,
+                ("", _) => Style,
+                (_, null or "") => own,
+                _ => $"{own} {Style}"
+            };
+        }
+    }
+
+    private IEnumerable<string> Declarations()
+    {
+        if (Tight)
+        {
+            yield return "margin:0;";
+        }
+        else if (Gap is PanelHeaderGap.Nested)
+        {
+            yield return "margin-top:10px;";
+        }
+        else if (Gap is PanelHeaderGap.Section)
+        {
+            yield return "margin-top:18px;";
+        }
+
+        if (Muted)
+        {
+            yield return "color:var(--text-secondary);";
+        }
+    }
+
+    private IReadOnlyDictionary<string, object>? Rest =>
+        AdditionalAttributes?.Where(a => a.Key is not ("style" or "class"))
+                             .ToDictionary(a => a.Key, a => a.Value);
+}

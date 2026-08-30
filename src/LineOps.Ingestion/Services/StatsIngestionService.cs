@@ -250,8 +250,76 @@ public class StatsIngestionService(
                 sourceRow.Key, sportKey, collisions);
         }
 
+        rows += await PersistClosingLinesAsync(sourceRow, result, gameMap, ct);
+
         await db.SaveChangesAsync(ct);
         return rows;
+    }
+
+    /// <summary>
+    /// Stores what the line closed at, for games that have already finished.
+    ///
+    /// <para>
+    /// These are a <i>reference</i>, never the market. They are written under the stats
+    /// provider's own source id, which is what keeps them distinguishable downstream — a reader
+    /// wanting the market can require rows from an odds provider and fall back to these only
+    /// when a fixture has none. Nothing here can contaminate a book consensus, because nothing
+    /// here claims to be one (ADR 0011).
+    /// </para>
+    ///
+    /// <para>
+    /// Written once and left alone. A closing line is a fact about a moment that has passed, so
+    /// a later walk over the same day must not rewrite it — and re-walking days is the ordinary
+    /// case, not the exception.
+    /// </para>
+    /// </summary>
+    private async Task<int> PersistClosingLinesAsync(
+        Source sourceRow,
+        StatsFetchResult result,
+        Dictionary<string, Game> gameMap,
+        CancellationToken ct)
+    {
+        if (result.Lines.Count == 0)
+            return 0;
+
+        var gameIds = gameMap.Values.Select(g => g.Id).ToHashSet();
+
+        var held = (await db.ClosingLines
+                .Where(c => c.SourceId == sourceRow.Id && gameIds.Contains(c.GameId))
+                .Select(c => new { c.GameId, c.Market, c.Outcome })
+                .ToListAsync(ct))
+            .Select(c => (c.GameId, c.Market, c.Outcome))
+            .ToHashSet();
+
+        var written = 0;
+
+        foreach (var line in result.Lines)
+        {
+            if (!gameMap.TryGetValue(line.SourceGameId, out var game))
+                continue;
+
+            if (!held.Add((game.Id, line.Market, line.Outcome)))
+                continue;
+
+            db.ClosingLines.Add(new ClosingLine
+            {
+                GameId = game.Id,
+                SourceId = sourceRow.Id,
+                Book = line.Book,
+                Market = line.Market,
+                Outcome = line.Outcome,
+                Line = line.Line,
+                PriceAmerican = line.PriceAmerican,
+                CapturedAt = line.CapturedAt
+            });
+
+            written++;
+        }
+
+        if (written > 0)
+            logger.LogInformation("{Source}: {Count} closing lines recorded", sourceRow.Key, written);
+
+        return written;
     }
 
     private async Task<Dictionary<string, Player>> UpsertPlayersAsync(

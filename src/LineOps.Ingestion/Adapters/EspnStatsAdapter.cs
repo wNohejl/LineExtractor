@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using LineOps.Core.Contracts;
+using LineOps.Core.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace LineOps.Ingestion.Adapters;
@@ -97,6 +98,7 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
 
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
+        var lines = new List<CanonicalOdds>();
         var requests = scoreboard.Cost.Requests;
 
         foreach (var game in finals)
@@ -109,6 +111,12 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
                 requests++;
 
                 ParseBoxScore(doc.RootElement, sportKey, game.SourceGameId, players, stats);
+
+                // The same response carries what the line closed at, so the historical
+                // reference is free — no second request, no second walk.
+                lines.AddRange(ParseClosingLines(
+                    doc.RootElement, game.SourceGameId,
+                    game.HomeTeamName, game.AwayTeamName, game.StartsAt));
             }
             catch (Exception ex)
             {
@@ -118,7 +126,143 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
             }
         }
 
-        return new StatsFetchResult(scoreboard.Games, players, stats, new FetchCost(requests));
+        return new StatsFetchResult(scoreboard.Games, players, stats, new FetchCost(requests), lines);
+    }
+
+    /// <summary>
+    /// The line as it closed, from the odds block ESPN attaches to a finished game's summary.
+    ///
+    /// <para>
+    /// This is deliberately narrow. ESPN carries one book, and one book is a price rather than a
+    /// market — which is exactly why <c>ADR 0011</c> refuses it as the odds port. Nothing here
+    /// changes that: these rows are only ever read for games that have already finished, where
+    /// the question is "what did the market think of this matchup" rather than "what should I
+    /// bet now". A real book market always takes precedence; this fills the gap for the
+    /// thousands of past fixtures nobody was watching live.
+    /// </para>
+    ///
+    /// <para>
+    /// ESPN states <c>close</c> explicitly alongside <c>open</c>, so this is the closing number
+    /// as the provider reports it rather than the last value we happened to observe — a better
+    /// record than our own scan tier could produce for a game we never watched.
+    /// </para>
+    ///
+    /// <para>
+    /// Prices are read from the per-side <c>close</c> blocks rather than the flatter
+    /// <c>homeTeamOdds</c>/<c>overOdds</c> fields, because those carry the moneyline and total
+    /// price but not the spread's, and a spread stored at an assumed -110 would be a fabricated
+    /// number sitting in the same column as measured ones.
+    /// </para>
+    /// </summary>
+    internal static IEnumerable<CanonicalOdds> ParseClosingLines(
+        JsonElement root, string sourceGameId, string homeTeam, string awayTeam, DateTimeOffset capturedAt)
+    {
+        if (!root.TryGetProperty("pickcenter", out var pickcenter)
+            || pickcenter.ValueKind != JsonValueKind.Array
+            || pickcenter.GetArrayLength() == 0)
+            yield break;
+
+        var entry = pickcenter[0];
+
+        var book = entry.TryGetProperty("provider", out var provider)
+                   && provider.TryGetProperty("name", out var providerName)
+            ? providerName.GetString() ?? "ESPN"
+            : "ESPN";
+
+        // Moneyline: a price per side, no line.
+        foreach (var (node, outcome) in Sides(entry, "moneyline", homeTeam, awayTeam))
+        {
+            if (ReadClose(node, out _, out var price))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, price, capturedAt);
+        }
+
+        // Spread: a handicap and a price per side.
+        foreach (var (node, outcome) in Sides(entry, "pointSpread", homeTeam, awayTeam))
+        {
+            if (ReadClose(node, out var line, out var price) && line is not null)
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, line, price, capturedAt);
+        }
+
+        // Total: one number for the game, quoted from both sides.
+        foreach (var (node, outcome) in Sides(entry, "total", "over", "under"))
+        {
+            if (ReadClose(node, out var line, out var price) && line is not null)
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, outcome, line, price, capturedAt);
+        }
+    }
+
+    /// <summary>
+    /// The two sides of one market, named as the platform names them. ESPN keys them
+    /// home/away even for a total, where the sides are over/under.
+    /// </summary>
+    private static IEnumerable<(JsonElement Node, string Outcome)> Sides(
+        JsonElement entry, string market, string first, string second)
+    {
+        if (!entry.TryGetProperty(market, out var block))
+            yield break;
+
+        var firstKey = market == "total" ? "over" : "home";
+        var secondKey = market == "total" ? "under" : "away";
+
+        if (block.TryGetProperty(firstKey, out var a))
+            yield return (a, first);
+
+        if (block.TryGetProperty(secondKey, out var b))
+            yield return (b, second);
+    }
+
+    /// <summary>
+    /// The closing line and price from one side of one market.
+    ///
+    /// Lines arrive decorated — "o8.5", "u8.5", "+1.5" — so the leading marker is stripped
+    /// before parsing. A side missing its close is skipped rather than defaulted: a market
+    /// ESPN did not price is not a market priced at zero.
+    /// </summary>
+    private static bool ReadClose(JsonElement side, out decimal? line, out int price)
+    {
+        line = null;
+        price = 0;
+
+        if (!side.TryGetProperty("close", out var close))
+            return false;
+
+        if (!close.TryGetProperty("odds", out var oddsEl)
+            || !TryParseAmerican(oddsEl.GetString(), out price))
+            return false;
+
+        if (close.TryGetProperty("line", out var lineEl) && lineEl.GetString() is { } raw)
+        {
+            var trimmed = raw.TrimStart('o', 'O', 'u', 'U');
+
+            if (decimal.TryParse(trimmed, NumberStyles.Number | NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture, out var parsed))
+                line = parsed;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// An American price as ESPN writes it: "+130", "-157", and occasionally "EVEN".
+    /// </summary>
+    internal static bool TryParseAmerican(string? raw, out int price)
+    {
+        price = 0;
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return false;
+
+        var text = raw.Trim();
+
+        // "EVEN" is a real quote meaning +100, and dropping it would silently lose a market.
+        if (text.Equals("EVEN", StringComparison.OrdinalIgnoreCase))
+        {
+            price = 100;
+            return true;
+        }
+
+        return int.TryParse(text.TrimStart('+'), NumberStyles.AllowLeadingSign,
+            CultureInfo.InvariantCulture, out price);
     }
 
     private async Task<JsonDocument> GetJsonAsync(string relativeUrl, CancellationToken ct)

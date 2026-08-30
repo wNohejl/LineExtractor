@@ -31,9 +31,11 @@ public static class WindowCatalog
     public const string Wager = "wager";
     public const string Form = "form";
 
-    // What clicking a game or a team resolves to, from anywhere on the desk.
+    // What clicking a game, a team or a player resolves to, from anywhere on the desk.
     public const string Game = "game";
     public const string Team = "team";
+    public const string Player = "player";
+    public const string HeadToHead = "h2h";
 
     public static readonly IReadOnlyList<WindowDefinition> All =
     [
@@ -52,6 +54,8 @@ public static class WindowCatalog
         new()
         {
             Key = Bets,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press More bets.",
             Title = "Every book",
             Icon = Icons.Material.Filled.ViewList,
             Group = "Data",
@@ -63,6 +67,8 @@ public static class WindowCatalog
         new()
         {
             Key = Wager,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press Place wager.",
             Title = "Place wager",
             Icon = Icons.Material.Filled.Bolt,
             Group = "Data",
@@ -75,6 +81,8 @@ public static class WindowCatalog
         new()
         {
             Key = Form,
+            RequiresSubject = true,
+            ReachedBy = "Open a row on the Board and press Form.",
             Title = "Recent form",
             Icon = Icons.Material.Filled.QueryStats,
             Group = "Data",
@@ -86,6 +94,8 @@ public static class WindowCatalog
         new()
         {
             Key = Game,
+            RequiresSubject = true,
+            ReachedBy = "Follow a matchup from the Board or Slate.",
             Title = "Game",
             Icon = Icons.Material.Filled.SportsScore,
             Group = "Data",
@@ -100,6 +110,8 @@ public static class WindowCatalog
         new()
         {
             Key = Team,
+            RequiresSubject = true,
+            ReachedBy = "Follow a team name from any game or roster.",
             Title = "Team",
             Icon = Icons.Material.Filled.Shield,
             Group = "Data",
@@ -107,6 +119,36 @@ public static class WindowCatalog
             Description = "A team's recent record and roster form.",
             DefaultWeight = 1.0,
             MinWidth = 380,
+            Singleton = false
+        },
+        new()
+        {
+            Key = Player,
+            RequiresSubject = true,
+            ReachedBy = "Follow a player name from a roster or box score.",
+            Title = "Player",
+            Icon = Icons.Material.Filled.Person,
+            Group = "Data",
+            ComponentType = typeof(PlayerPanel),
+            Description = "One player's game log — the lines a roster average was computed from.",
+            // A log with derived stat columns; it needs real width to avoid wrapping numbers.
+            DefaultWeight = 1.2,
+            MinWidth = 440,
+            // Comparing two players is the normal reason to open one.
+            Singleton = false
+        },
+        new()
+        {
+            Key = HeadToHead,
+            RequiresSubject = true,
+            ReachedBy = "Press H2H on a row, or Head to head on a game.",
+            Title = "Head to head",
+            Icon = Icons.Material.Filled.CompareArrows,
+            Group = "Data",
+            ComponentType = typeof(HeadToHeadPanel),
+            Description = "Every previous meeting between two sides, and how the market called them.",
+            DefaultWeight = 1.3,
+            MinWidth = 500,
             Singleton = false
         },
         new()

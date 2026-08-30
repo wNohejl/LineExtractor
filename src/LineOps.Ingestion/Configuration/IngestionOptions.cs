@@ -289,6 +289,43 @@ public class SourceOptions
     public string? ApiKey { get; set; }
 
     /// <summary>
+    /// How this client identifies itself to the provider.
+    ///
+    /// <para>
+    /// <see cref="HttpClient"/> sends no <c>User-Agent</c> at all by default, and on 2 August
+    /// 2026 ESPN began refusing exactly that with <c>403</c>. Every run failed for three weeks
+    /// against an endpoint that had not otherwise changed. This is here so the next policy
+    /// change is a configuration edit rather than a rebuild.
+    /// </para>
+    ///
+    /// <para>
+    /// It must name a <i>real</i> HTTP client. Probing ESPN showed an absent header, a bespoke
+    /// token such as <c>LineOps/1.0</c>, and a full Chrome string are all refused alike, while
+    /// the product tokens of ordinary clients — <c>curl</c>, <c>python-requests</c>,
+    /// <c>Go-http-client</c>, <c>.NET</c> — are served. So a made-up name looks like a fix and
+    /// restores nothing, and impersonating a browser is both a lie and, as it happens, blocked.
+    /// </para>
+    ///
+    /// <para>
+    /// Empty by default and read through <see cref="EffectiveUserAgent"/>, so the fallback lives
+    /// in code with the reasoning rather than in a default that configuration has to fight.
+    /// </para>
+    /// </summary>
+    public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// The identification to send, falling back to the client we actually are.
+    ///
+    /// Honest rather than clever: we are a .NET HTTP client, ESPN serves .NET HTTP clients, and
+    /// the truthful answer is also the working one.
+    /// </summary>
+    public string EffectiveUserAgent
+        => string.IsNullOrWhiteSpace(UserAgent) ? DefaultUserAgent : UserAgent!;
+
+    /// <summary>The product token for the runtime actually executing, e.g. <c>.NET/10.0</c>.</summary>
+    public static string DefaultUserAgent => ".NET/" + Environment.Version.ToString(2);
+
+    /// <summary>
     /// Books to request.
     ///
     /// <para>

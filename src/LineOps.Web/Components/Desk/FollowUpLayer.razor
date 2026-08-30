@@ -1,0 +1,43 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Web.Windowing
+
+@*
+    The floating follow-ups a panel has open.
+
+    Rendered once per panel rather than per row, because a dialog outlives the row that opened
+    it — several games get compared at once, and a re-sort of the grid must not take them down.
+    The panel owns the launcher; this only draws what is in it.
+
+    The hosted view is resolved from the catalog entry, so a follow-up opens the same component
+    whether it landed here or in a desk window. Nothing is registered twice.
+*@
+
+@foreach (var (followUp, index) in Launcher.Open.Select((f, i) => (f, i)))
+{
+    <DeskDialog Title="@followUp.Title"
+                Subtitle="@followUp.Subtitle"
+                Icon="@followUp.Icon"
+                Width="@followUp.Width"
+                Index="index"
+                ZIndex="@(9500 + followUp.Order)"
+                OnClose="() => Close(followUp)"
+                OnRaise="() => Raise(followUp)">
+        <DynamicComponent Type="followUp.Definition.ComponentType"
+                          Parameters="followUp.Parameters" />
+    </DeskDialog>
+}
+
+@code {
+    [Parameter, EditorRequired] public FollowUpLauncher Launcher { get; set; } = default!;
+
+    /// <summary>Raised after a close, so the host can re-render without tracking the list.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private async Task Close(FollowUp followUp)
+    {
+        Launcher.Close(followUp);
+        await OnChanged.InvokeAsync();
+    }
+
+    private void Raise(FollowUp followUp) => Launcher.Raise(followUp);
+}
