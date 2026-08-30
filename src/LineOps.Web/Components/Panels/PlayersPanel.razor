@@ -26,8 +26,12 @@
         <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
                    placeholder="Search players" Value="_search" ValueChanged="OnSearchChanged" />
 
-        <DeskButton Icon="@Icons.Material.Filled.Sync" OnClick="SyncAsync" Disabled="@_busy">
-            @(_busy ? "Syncing" : "Sync stats")
+        @* The one thing this window does rather than shows, so it carries the panel's weight.
+           Busy rather than Disabled-plus-a-relabel: the shimmer already says the work is
+           running, and a label that changes under the pointer is a second control's name. *@
+        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
+                    OnClick="SyncAsync" Busy="@_busy">
+            Sync stats
         </DeskButton>
     </div>
 

@@ -12,10 +12,17 @@
 </Note>
 
 <div class="row" style="margin-bottom:12px">
-    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add" OnClick="() => _showForm = !_showForm">
+    @* Opens the form; it does not close it. This was a toggle, which meant the desk had two
+       ways out of the same form — this key and the Cancel sitting inside it — reached by
+       pressing a key still labelled "Log entry". One way out, and the key says why it is
+       spent while the form it opened is on screen. *@
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
+                Disabled="@_showForm"
+                Title="@(_showForm ? "The entry form is open below." : null)"
+                OnClick="ShowForm">
         Log entry
     </DeskButton>
-    <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Disabled="@_busy">
+    <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
         Settle finished games
     </DeskButton>
     @if (_message is not null)
@@ -66,7 +73,10 @@
         </div>
 
         <div class="row">
-            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveAsync" Disabled="@(!Valid)">
+            @* A disabled key that does not say what it is waiting for is a key the operator
+               has to guess at. Three fields decide it, so the title names all three. *@
+            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveAsync" Disabled="@(!Valid)"
+                        Title="@(Valid ? null : "Needs a selection, a stake above zero and a price.")">
                 Save entry
             </DeskButton>
             <DeskButton OnClick="() => _showForm = false">Cancel</DeskButton>
@@ -212,6 +222,19 @@ else
            && (!string.IsNullOrWhiteSpace(_form.Outcome) || !string.IsNullOrWhiteSpace(_form.FreeTextMarket));
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>
+    /// Opens the entry form.
+    ///
+    /// The last result line goes with it: "Entry logged." was written once and never cleared,
+    /// so it sat in the toolbar describing an entry from some earlier minute while a new one
+    /// was being typed underneath it.
+    /// </summary>
+    private void ShowForm()
+    {
+        _message = null;
+        _showForm = true;
+    }
 
     private async Task LoadAsync()
     {

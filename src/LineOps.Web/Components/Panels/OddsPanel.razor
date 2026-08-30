@@ -7,8 +7,15 @@
 @inject IServiceScopeFactory ScopeFactory
 
 <div class="row" style="margin-bottom:12px">
+    @* With no game inside the window this rendered as an empty picker — a control offering a
+       choice it does not have. It says which instead, and refuses the press. *@
     <DeskSelect TValue="int?" style="max-width:280px"
+                disabled="@(_games.Count == 0)"
                 Value="_gameId" ValueChanged="OnGameChanged">
+        @if (_games.Count == 0)
+        {
+            <option value="">No game in the last 14 days</option>
+        }
         @foreach (var g in _games)
         {
             <option value="@g.Id">@MatchupWithDate(g)</option>
@@ -103,8 +110,17 @@ else
 else if (_form.IsEmpty)
 {
     <EmptyState Kind="EmptyStateKind.Filtered">
-        No appearances on record for either roster in the last @_windowDays days. History is
-        gathered separately — open the History window to backfill it.
+        <ChildContent>
+            No appearances on record for either roster in the last @_windowDays days. History is
+            gathered separately, by the walk that reaches back over past days.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.History"
+                        OnClick="() => Manager.OpenHistory()">
+                Open History
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else

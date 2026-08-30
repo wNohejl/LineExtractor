@@ -87,7 +87,11 @@
 <div class="row" style="margin-bottom:8px">
     @if (Coordinator.IsRunning)
     {
-        <DeskButton Busy="true">Walking</DeskButton>
+        @* A state, drawn as a state. This was a DeskButton carrying Busy and no OnClick — a key
+           that could never be pressed, which is the one thing a key must not be. Busy means
+           "the work you started is still running on this control"; there is no work to start
+           here, only a walk to report, and Stop beside it is the control. *@
+        <Tag State="DeskState.Info">Walking</Tag>
         <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
                     Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
             Stop
@@ -98,12 +102,16 @@
         <DeskButton Emphasis="DeskEmphasis.Filled"
                     Icon="@Icons.Material.Filled.History"
                     Disabled="@(!_eligibility.Any(s => s.Eligible))"
+                    Title="@(_eligibility.Any(s => s.Eligible)
+                        ? null
+                        : "No unmetered provider is available to walk — see Sources above.")"
                     OnClick="Start">
             Gather history
         </DeskButton>
-        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
-            Refresh
-        </DeskButton>
+        @* There is no Refresh key here on purpose. BackfillCoordinator is the only writer of
+           everything this panel shows, and it raises Changed on start, on every day walked and
+           on finish — which this panel is subscribed to. A key offering to reload data that
+           nothing else can have changed is a key that only ever repaints the same numbers. *@
 
         @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
            confirm because it is slow — every day walked again, one request per finished game —
@@ -124,8 +132,13 @@
         }
         else
         {
+            @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
+               is a fact about the desk worth reading, and a key that vanishes teaches nothing. *@
             <DeskButton Icon="@Icons.Material.Filled.Restore"
                         Disabled="@(_coverage is null or { Completed: 0 })"
+                        Title="@(_coverage is null or { Completed: 0 }
+                            ? "No day is held yet, so there is nothing to walk again."
+                            : null)"
                         OnClick="() => _confirmRewalk = true">
                 Re-walk held days
             </DeskButton>

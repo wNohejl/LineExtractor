@@ -6,9 +6,20 @@
 
 @if (_summary.SettledCount == 0)
 {
+    @* This panel had no control of any kind: a screen that names the window you need and then
+       makes you go and find it. The one step out of an empty screen belongs on the screen. *@
     <EmptyState Kind="EmptyStateKind.New">
-        No settled entries yet. Log entries in the Journal window and settle them once games
-        finish — closing-line value resolves at the same time.
+        <ChildContent>
+            No settled entries yet. Log entries in the Journal and settle them once games
+            finish — closing-line value resolves at the same time.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.MenuBook"
+                        OnClick="() => Manager.OpenJournal()">
+                Open the Journal
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else
