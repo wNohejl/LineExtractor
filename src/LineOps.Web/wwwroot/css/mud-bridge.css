@@ -358,6 +358,28 @@
     font-family: var(--face-ui);
     font-size: var(--text-footnote);
     letter-spacing: .02em;
+
+    /* A tooltip that explains something is a sentence, not a label. Mud's default
+       collapses newlines and sets no ceiling on width, which turns "closing price,
+       captured 3h before start" plus its book breakdown into one long ribbon nobody
+       finishes reading. `pre-line` honours the break the caller wrote and still
+       collapses incidental whitespace; the measure is the one prose wants. A tooltip
+       carrying only a word is unaffected by either. */
+    /* A tooltip that explains something is a sentence, not a label, so it needs a
+       line height and the author's own line breaks. `pre-line` honours a break
+       written into the text and still collapses incidental whitespace; a tooltip
+       carrying a single word is unaffected.
+
+       The measure is NOT set here, and that is deliberate. Mud's popover positioner
+       writes `max-width: none` as an *inline* style at runtime, which no rule in this
+       file can beat without !important — and the one legitimate !important in this
+       system is the reduced-motion block. So a caller who needs a narrow tooltip
+       breaks its lines rather than fighting the cascade; see PriceCell. Written down
+       because a `max-width` added here would look correct in the source, land
+       nowhere, and cost the next person the same afternoon. */
+    white-space: pre-line;
+    line-height: var(--leading-body);
+    text-align: left;
 }
 
 /* Chips carry state words, which the desk already spells with .tag — so a chip is

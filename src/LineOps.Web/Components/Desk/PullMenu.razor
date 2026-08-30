@@ -32,7 +32,7 @@
                 <button type="button"
                         class="pullmenu__item @(job.Available ? null : "pullmenu__item--blocked")"
                         disabled="@(!job.Available || _running is not null)"
-                        @onclick="() => RunAsync(job)">
+                        @onclick="() => RunJobAsync(job)">
                     <span class="pullmenu__row">
                         <span class="pullmenu__label">@job.Label</span>
                         @* Credits where the provider bills in them, because that is the number
@@ -89,7 +89,44 @@
 
     private void Close() => _open = false;
 
-    private async Task RunAsync(IngestionJob job)
+    /// <summary>
+    /// Runs one named pull as if it had been chosen from the menu.
+    ///
+    /// <para>
+    /// This is how an empty state or an unpriced row can offer the fix where the problem is
+    /// stated, instead of describing a control somewhere else on the screen. It presses this
+    /// menu rather than reimplementing it, so the busy key, the result note and the reload all
+    /// behave exactly as they do when the entry is chosen by hand.
+    /// </para>
+    ///
+    /// <para>
+    /// A job that is unavailable — no source registered, no key — opens the menu instead of
+    /// failing silently, because the menu is where the reason is written.
+    /// </para>
+    /// </summary>
+    public async Task RunAsync(string key)
+    {
+        if (_running is not null)
+            return;
+
+        // The estimates move with the season, and this can be pressed long after the menu was
+        // last opened, so the catalog is re-read rather than trusted.
+        _jobs = await Jobs.DescribeAsync();
+
+        var job = _jobs.FirstOrDefault(j => j.Key == key);
+
+        if (job is null || !job.Available)
+        {
+            _open = true;
+            StateHasChanged();
+            return;
+        }
+
+        await RunJobAsync(job);
+        StateHasChanged();
+    }
+
+    private async Task RunJobAsync(IngestionJob job)
     {
         _open = false;
         _running = job.Key;

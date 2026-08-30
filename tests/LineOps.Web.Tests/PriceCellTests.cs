@@ -1,6 +1,7 @@
 using Bunit;
 using LineOps.Data.CrossReference;
 using LineOps.Web.Components.Desk;
+using MudBlazor;
 
 namespace LineOps.Web.Tests;
 
@@ -14,6 +15,10 @@ public class PriceCellTests : DeskTestContext
     private static BookPrice Rung(string book, int american, double implied, decimal? line = null)
         => new(book, american, line, implied);
 
+    /// <summary>Three hours before the sample close was captured, so a lead time is assertable.</summary>
+    private static readonly DateTimeOffset Captured = new(2026, 8, 29, 20, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Start = Captured.AddHours(3);
+
     private static BestOffer Offer(
         string outcome = "home",
         string book = "draftkings",
@@ -21,8 +26,10 @@ public class PriceCellTests : DeskTestContext
         decimal? line = null,
         double? edgePoints = null,
         bool linesVary = false,
+        bool isClosing = false,
         params BookPrice[] rungs)
-        => new(outcome, book, american, line, DateTimeOffset.UnixEpoch, edgePoints, linesVary, rungs);
+        => new(outcome, book, american, line, isClosing ? Captured : DateTimeOffset.UnixEpoch,
+            edgePoints, linesVary, isClosing, rungs);
 
     [Fact]
     public void No_offer_reads_as_a_dash()
@@ -257,5 +264,135 @@ public class PriceCellTests : DeskTestContext
 
         Assert.Contains("DK o7 -110", tooltip);
         Assert.Contains("FD o7.5 +105", tooltip);
+    }
+
+    // ---- The closing line ---------------------------------------------------------------
+    //
+    // ADR 0010 deletes the scan tier once a game starts and keeps one closing line per book.
+    // The board read only the scans, so a game in play went blank — sixteen empty rows on a
+    // nineteen-game slate. The close is the number worth having: it is what the market
+    // concluded and what CLV is measured against. It stays, muted, and says what it is.
+
+    [Fact]
+    public void A_closing_price_is_shown_rather_than_dropped()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: -108, isClosing: true, rungs: Rung("draftkings", -108, 0.519))));
+
+        Assert.Equal("-108", cut.Find(".price__odds").TextContent);
+        Assert.Empty(cut.FindAll("span.dim"));
+    }
+
+    [Fact]
+    public void A_closing_price_is_muted_so_it_is_not_mistaken_for_a_live_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Contains("price--closing", cut.Find(".price").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void A_live_price_carries_no_closing_treatment()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.DoesNotContain("price--closing", cut.Find(".price").GetAttribute("class") ?? "");
+    }
+
+    /// <summary>
+    /// A lone book leaves no rail, and the rail is what would otherwise have carried the fact.
+    /// So the cell says it in a word rather than rendering as an ordinary price.
+    /// </summary>
+    [Fact]
+    public void A_lone_closing_book_still_says_the_market_is_closed()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Equal("closed", cut.Find(".price__edge").TextContent);
+    }
+
+    /// <summary>
+    /// "+1.4 pts vs worst" on a finished game invites moving to a book that is no longer
+    /// quoting it. The gap is still reported — it is real — but as where the books finished.
+    /// </summary>
+    [Fact]
+    public void A_closed_market_reports_its_gap_as_history_not_as_an_opportunity()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, edgePoints: 1.4, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512)
+            ])));
+
+        var edge = cut.Find(".price__edge");
+
+        Assert.Equal("+1.4 pts vs worst at close", edge.TextContent);
+
+        // And never flagged as wide: "wide" is a call to go and shop, and there is nothing
+        // left to shop.
+        Assert.DoesNotContain("price__edge--wide", edge.GetAttribute("class") ?? "");
+    }
+
+    /// <summary>
+    /// Mud only puts a tooltip's body in the DOM once it is shown, so the assertion is against
+    /// the component's own text rather than rendered markup. That is the thing under test
+    /// anyway: what the reader is told when they hover a number they cannot take.
+    /// </summary>
+    [Fact]
+    public void A_closing_price_explains_itself_and_says_how_early_it_was_taken()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.StartsAt, Start));
+
+        var why = cut.FindComponent<MudTooltip>().Instance.Text;
+
+        Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("3.0h before start", why);
+
+        // The book breakdown the live cell puts in a title attribute rides along, because a
+        // native tooltip cannot hold a sentence and a table.
+        Assert.Contains("DK -110", why);
+    }
+
+    [Fact]
+    public void Without_a_start_time_the_closing_price_still_says_what_it_is()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        var why = cut.FindComponent<MudTooltip>().Instance.Text;
+
+        Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("before start", why);
+    }
+
+    /// <summary>
+    /// The live cell keeps its native title attribute — one line of book breakdown is exactly
+    /// what that is for, and putting a MudBlazor component in nineteen rows × six columns to
+    /// say the same thing would cost the board a great deal for no gain.
+    /// </summary>
+    [Fact]
+    public void A_live_price_keeps_the_native_tooltip_and_grows_no_second_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.NotNull(cut.Find(".price").GetAttribute("title"));
+        Assert.Empty(cut.FindComponents<MudTooltip>());
+    }
+
+    /// <summary>The muted cell must not also carry the native tooltip, or the two compete.</summary>
+    [Fact]
+    public void A_closing_price_drops_the_native_tooltip_the_rendered_one_replaces()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Null(cut.Find(".price").GetAttribute("title"));
     }
 }

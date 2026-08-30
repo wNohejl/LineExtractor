@@ -1757,6 +1757,34 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .price__edge--wide { color: var(--state-positive); }
 
+/* A closing line is not a price you can take — the game has started and the book
+   is gone. It stays on the board because it is what the market concluded and what
+   CLV is measured against (ADR 0010), but it steps back a tone so it cannot be
+   mistaken for the live market on the row above. Muted, not hidden: hiding it is
+   what left sixteen of nineteen rows empty. */
+.price--closing .price__odds { color: var(--text-secondary); }
+.price--closing .price__line,
+.price--closing .price__sel { color: var(--text-tertiary); }
+
+/* The book keeps its capsule but loses the accent, because the accent means
+   interactive on this desk and there is nothing here left to act on. */
+.price--closing .price__book {
+    color: var(--text-tertiary);
+    border-color: var(--separator);
+}
+
+.price--closing .rail__tick { background: var(--surface-2); }
+
+.price--closing .rail__tick--best {
+    background: var(--text-tertiary);
+    box-shadow: none;
+}
+
+/* With one book there is no rail to carry the fact, so the cell says it. Always
+   legible rather than revealed on hover — it is a property of the number, not a
+   detail about it. */
+.price__edge--closing { opacity: 1; }
+
 /* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
    a fixture nobody quoted, and a game already under way — only one of which is
    worth acting on, so the row says which. */
@@ -1766,6 +1794,31 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: 11px;
     line-height: 1.35;
     max-width: 34ch;
+}
+
+/* The score, beside the state that explains it. One cell rather than two columns:
+   "FINAL" and "3–5" are the same fact at two resolutions, and the markets need the
+   width more. No hue on the numbers — on this desk hue means the state of your own
+   position (ADR 0008), so painting a losing side red would be a second vocabulary
+   in the same table. */
+.scoreline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.score {
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-body);
+    color: var(--text-primary);
+}
+
+/* A result the stats pass has not reached yet. Tertiary is right here: it is a
+   hint about the feed, not a value anybody has to read. */
+.score--pending {
+    font-size: var(--text-footnote);
+    color: var(--text-tertiary);
 }
 
 /* Row actions: revealed by opening a row, so the board stays the working surface

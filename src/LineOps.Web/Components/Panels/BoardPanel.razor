@@ -1,81 +1,155 @@
+@using LineOps.Core.Analytics
 @using LineOps.Data
 @using LineOps.Data.CrossReference
+@using LineOps.Ingestion.Configuration
+@using LineOps.Ingestion.Services
 @using LineOps.Web.Components.Desk
 @using LineOps.Web.Components.Snippets
 @using LineOps.Web.Windowing
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
+@inject IOptions<IngestionOptions> IngestionOptions
 
 @*
-    The board.
+    The board — the one games surface.
 
-    Today's slate with the best number available on each market and the book holding it. Open a
-    row and its actions appear on it — more bets, place a wager, check form. Each adds a window
-    to the desk while there is room, and floats above it once there is not, so following one up
-    never costs the board an operator is working from.
+    It used to be two. A "Slate" listed the day and could pull data; the board showed the market
+    and could not. That is the wrong split in both directions: a list of games with no way to
+    fetch new ones is something to look at rather than work from, and the surface an operator
+    would actually act on was the one that could not fix its own stale data. So the pull menu
+    lives here, beside the rows it changes, and noticing a gap and closing it are one screen.
+
+    Every game in the window, with the best number on each market and the book holding it. A
+    game in play keeps its closing line rather than going blank, and a played one carries its
+    score. Open a row and its actions appear on it — a glance at the odds, the head-to-head, the
+    form, and the two destinations worth a window. Each adds a window to the desk while there is
+    room and floats above it once there is not, so following one up never costs the board an
+    operator is working from.
 *@
 
 <div class="row" style="margin-bottom:12px">
-    <DeskSelect TValue="string" style="max-width:170px" Value="_sport" ValueChanged="OnSportChanged">
-        <option value="">All sports</option>
-        @foreach (var s in _sports)
+    <DeskSelect TValue="string" style="max-width:190px" Value="_sport" ValueChanged="OnSportChanged">
+        @* Requested leagues, not merely the ones with games. A league the desk was told to poll
+           and has nothing for is a different fact from a league nobody asked about, and the
+           option says which — see ADR 0003 on the two kinds of zero. *@
+        <option value="">All sports@(_rows.Count > 0 ? $" · {_rows.Count}" : "")</option>
+        @foreach (var option in _sportOptions)
         {
-            <option value="@s.Key">@s.Name</option>
+            <option value="@option.Key">@option.Label</option>
         }
     </DeskSelect>
 
-    <DeskSwitch Options="_horizons" Label="Slate horizon" Mono="true"
+    <DeskSwitch Options="Horizons" Label="Slate horizon" Mono="true"
                 Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
 
-    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
+    @* Only offered once there is something to narrow. A gate with every position pointing at
+       the same rows is chrome pretending to be a control. *@
+    @if (_phaseOptions.Count > 1)
+    {
+        <DeskSwitch Options="_phaseOptions" Label="Game state"
+                    Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
+    }
 
     <span class="ftr__spacer"></span>
 
-    @* Coverage is stated, not implied. "12 games" beside a board of dashes says nothing about
-       whether the feed is working. *@
-    <span class="dim" style="font-size:11.5px">
-        @_priced of @_rows.Count priced
-        @if (_bookCount > 0)
-        {
-            <text> · best of @_bookCount @(_bookCount == 1 ? "book" : "books")</text>
-        }
-        @* "Last move", not "oldest". Prices are stored on change (ADR 0001), so an old
-           timestamp means the line has not moved — not that the data is stale. Labelling it
-           as age would send an operator chasing a still market. *@
-        @if (_oldest is { } quiet && quiet > TimeSpan.FromMinutes(1))
-        {
-            <text> · quietest line @Age(quiet.TotalMinutes) unmoved</text>
-        }
-    </span>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
+
+    @* The panel's one Filled key, and the only control here that spends anything. Everything
+       else on this toolbar reads. *@
+    <PullMenu @ref="_pull" OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
 </div>
 
-@if (_rows.Count > 0 && _priced < _rows.Count)
+@*
+    The strip the Slate brought with it, minus the figures that were only ever ops trivia.
+
+    "Games in the database" and "price moves, all time" answer a question about the platform
+    rather than about tonight; they belong on Ops beside the run log. What earns a place here is
+    what changes a decision on this screen: how much of the board is priced, whether the market
+    has moved at all today, and whether anything is currently saying the data may be lying.
+*@
+<MetricRow Style="margin-bottom:14px">
+    <Metric Label="Games" Value='@_rows.Count.ToString("N0")' Note="@HorizonNote"
+            State="DeskState.Info" Numeric />
+
+    <Metric Label="Priced" Note="@CoverageNote" State="@CoverageState" Numeric>
+        @_priced.ToString("N0")<span class="dim"> / @_rows.Count</span>
+    </Metric>
+
+    @* Store-on-change (ADR 0001): a price that has not moved is not written, so this counts
+       market activity rather than polls. Zero on a busy slate is a fact worth seeing. *@
+    <Metric Label="Moves today" Value='@_movesToday.ToString("N0")' Note="@MovesNote" Numeric />
+
+    @* The count is the way in. A tile that only says "2" leaves the reader to find the window
+       that lists them, which the desk already knows — so the tile opens it. *@
+    <Metric Label="Open alerts"
+            Value="@_alerts.ToString()"
+            Note="@AlertNote"
+            State="@AlertState"
+            Numeric
+            OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
+            ActionHint="Open the Ops window on source health and the open alerts" />
+</MetricRow>
+
+@if (Visible.Count > 0 && _unpriced > 0)
 {
     <Note State="DeskState.Warning" Style="margin:12px 0">
-        @(_rows.Count - _priced) of @_rows.Count fixtures have no price. Open a row to see why —
+        @_unpriced of @_rows.Count fixtures have no price at all. Open a row to see why —
         a gap is usually a fixture the scan did not cover, not a broken feed.
     </Note>
 }
 
 @if (_rows.Count == 0)
 {
+    @* An honest empty state offers the fix rather than naming a control on another window.
+       The pull is the first step, so it is the one action this state carries. *@
+    <EmptyState Kind="EmptyStateKind.New">
+        <ChildContent>
+            Nothing on the board in this window. <strong>Today's games</strong> fetches the
+            schedule and the live scores from ESPN, which needs no key; a lines pull prices
+            what it finds, and prices need an odds provider key — see Ops.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small"
+                        Icon="@Icons.Material.Filled.CalendarMonth"
+                        OnClick="() => PullAsync(IngestionJobs.EspnSlate)">
+                Today's games
+            </DeskButton>
+        </Action>
+    </EmptyState>
+}
+else if (Visible.Count == 0)
+{
     <EmptyState Kind="EmptyStateKind.Filtered">
-        No games priced in this window. Use <strong>Pull data → Fresh lines</strong> on the
-        Slate window, or widen the window above.
+        <ChildContent>
+            No @PhaseWord games on this board. The window holds @_rows.Count others.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small"
+                        Icon="@Icons.Material.Filled.FilterAltOff"
+                        OnClick="() => SetPhase(BoardPhase.Any)">
+                Show every game
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else
 {
-    <DeskGrid T="BoardRow" Items="_rows" Class="deskgrid--clickable deskgrid--board"
+    <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
-              EmptyText="No games priced in this window.">
+              EmptyText="No games in this window.">
 
         <TemplateColumn T="BoardRow" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
                 <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
+                @* Which league, and only while the board is showing more than one. *@
+                @if (_sport.Length == 0 && context.Item.Game.Sport is { } sport)
+                {
+                    <span class="dim"> · @sport.Key.ToUpperInvariant()</span>
+                }
             </CellTemplate>
         </TemplateColumn>
 
@@ -107,32 +181,103 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        @* Home/over first in every market, so a column reads down consistently. *@
+        @*
+            Score and state, in one column.
+
+            They are the same fact at two resolutions — a game is FINAL *and* it is 3–5 — and
+            two columns to say it would cost width the six market cells need more. The score
+            itself takes no hue: on this desk hue reports the state of your own position
+            (ADR 0008), so colouring a losing side negative would be a second vocabulary in the
+            same table. The tag beside it carries the state, in a word.
+        *@
+        <TemplateColumn T="BoardRow" Title="Score" SortBy="@(r => (int)r.Game.Status)">
+            <CellTemplate>
+                @if (context.Item.Game.Status == GameStatus.Scheduled)
+                {
+                    @* Nothing has happened yet, and the Starts column already says when it
+                       will. A tag reading SCHED here would repeat that in a second alphabet. *@
+                    <span class="dim">—</span>
+                }
+                else
+                {
+                    <div class="scoreline">
+                        <Tag State="@StatusState(context.Item.Game.Status)">
+                            @StatusWord(context.Item.Game.Status)
+                        </Tag>
+
+                        @if (context.Item.HasScore)
+                        {
+                            <span class="score" title="@ScoreTitle(context.Item.Game)">
+                                @Scoreline.Format(context.Item.Game)
+                            </span>
+                        }
+                        else
+                        {
+                            @* ESPN carries the result. Missing means the results pass has not
+                               reached this game, which is a pull rather than a blank. *@
+                            <span class="score--pending">
+                                @MissingScoreHint(context.Item.Game.Status)
+                            </span>
+                        }
+                    </div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* Home/over first in every market, so a column reads down consistently. StartsAt goes
+           with each price so a closing one can say how long before first pitch it was taken. *@
         <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Total.First" Selection="O" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Total.First" Selection="O"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false">
-            <CellTemplate><PriceCell Offer="context.Item.Total.Second" Selection="U" /></CellTemplate>
+            <CellTemplate>
+                <PriceCell Offer="context.Item.Total.Second" Selection="U"
+                           StartsAt="context.Item.Game.StartsAt" />
+            </CellTemplate>
         </TemplateColumn>
 
     </DeskGrid>
+
+    @if (_closing > 0)
+    {
+        @* Said once, under the grid, rather than repeated in every muted cell. *@
+        <Note Style="margin-top:10px">
+            @_closing of @Visible.Count rows show <strong>closing</strong> prices — the last
+            number on the board before the game started. Hover one for when it was captured.
+        </Note>
+    }
 }
 
 @* Follow-ups live above the desk and outlive the row that opened them, so several games can
@@ -140,23 +285,108 @@ else
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
-    private List<BoardRow> _rows = [];
-    private List<Sport> _sports = [];
-    private readonly FollowUpLauncher _followUps = new();
-    private BoardRow? _open;
-    private string _sport = string.Empty;
-    private int _windowHours = 24;
-    private int _bookCount;
+    /// <summary>Which part of the day a reader wants on screen.</summary>
+    private enum BoardPhase { Any, Upcoming, Live, Played }
 
-    private static readonly IReadOnlyList<DeskSwitchOption<int>> _horizons =
+    /// <summary>One league on the filter, with what it holds right now.</summary>
+    private record SportOption(string Key, string Label);
+
+    /// <summary>
+    /// How far back the board reaches.
+    ///
+    /// Far enough to hold an evening of finished games, because "how did tonight go" is asked
+    /// from here now that a played row carries its score and its close. It is not a history
+    /// window — the Journal and History windows are for that — so it is a fixed reach rather
+    /// than a third control on the toolbar.
+    /// </summary>
+    private static readonly TimeSpan Lookback = TimeSpan.FromHours(14);
+
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> Horizons =
     [
         new(12, "12h", "Next 12 hours"),
         new(24, "24h", "Next 24 hours"),
         new(48, "48h", "Next 48 hours")
     ];
+
+    private List<BoardRow> _rows = [];
+    private List<BoardRow> _visible = [];
+    private List<SportOption> _sportOptions = [];
+    private List<DeskSwitchOption<BoardPhase>> _phaseOptions = [];
+    private readonly FollowUpLauncher _followUps = new();
+    private PullMenu? _pull;
+    private BoardRow? _open;
+    private string _sport = string.Empty;
+    private BoardPhase _phase = BoardPhase.Any;
+    private int _windowHours = 24;
+    private int _bookCount;
     private int _priced;
+    private int _unpriced;
+    private int _closing;
+    private long _movesToday;
+    private int _alerts;
+    private int _criticalAlerts;
     private TimeSpan? _oldest;
 
+    /// <summary>
+    /// The board under the current phase filter.
+    ///
+    /// <para>
+    /// Held as a field and rebuilt only when the filter or the data changes, never projected in
+    /// the markup: the grid diffs its item collection by reference, so a freshly built list on
+    /// every render would throw away whatever column the operator had sorted by.
+    /// </para>
+    /// </summary>
+    private List<BoardRow> Visible => _visible;
+
+    private string HorizonNote => $"next {_windowHours}h · {(int)Lookback.TotalHours}h back";
+
+    /// <summary>
+    /// Coverage in words, because "12 of 19" alone does not say whether the missing seven are a
+    /// broken feed or seven games that have already been played.
+    /// </summary>
+    private string CoverageNote
+        => _rows.Count == 0 ? "nothing on the board"
+            : _bookCount == 0 ? "no book quoted this window"
+            : _closing > 0
+                ? $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")} · {_closing} closed"
+                : $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")}";
+
+    private DeskState CoverageState
+        => _rows.Count == 0 ? DeskState.Neutral
+            : _unpriced == 0 ? DeskState.Positive
+            : DeskState.Warning;
+
+    /// <summary>
+    /// "Quietest line", not "oldest". Prices are stored on change (ADR 0001), so an old
+    /// timestamp means the line has not moved rather than that the data is stale — and a close
+    /// contributes nothing here, because it is old by construction and will never move again.
+    /// </summary>
+    private string MovesNote
+        => _oldest is { } quiet && quiet > TimeSpan.FromMinutes(1)
+            ? $"quietest line {Age(quiet.TotalMinutes)} unmoved"
+            : "written only when a price moves";
+
+    /// <summary>
+    /// Severity, not just a count. "2 open" says something is wrong; "1 critical" says whether
+    /// it is worth interrupting what you were doing, which is the question being asked here.
+    /// </summary>
+    private string AlertNote => _alerts == 0
+        ? "all clear"
+        : _criticalAlerts > 0
+            ? $"{_criticalAlerts} critical — open Ops"
+            : "none critical — open Ops";
+
+    private DeskState AlertState => _criticalAlerts > 0
+        ? DeskState.Negative
+        : _alerts > 0 ? DeskState.Warning : DeskState.Positive;
+
+    private string PhaseWord => _phase switch
+    {
+        BoardPhase.Upcoming => "unstarted",
+        BoardPhase.Live => "in-play",
+        BoardPhase.Played => "finished",
+        _ => ""
+    };
 
     /// <summary>
     /// Which side a price column is for, as the team's own short form.
@@ -181,13 +411,8 @@ else
             ? home ? "H" : "A"
             : team!.Abbrev;
     }
-    protected override async Task OnInitializedAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _sports = await db.Sports.OrderBy(s => s.Name).ToListAsync();
 
-        await LoadAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task OnSportChanged(string value)
     {
@@ -201,6 +426,16 @@ else
         await LoadAsync();
     }
 
+    /// <summary>Narrowing the view costs nothing — the rows are already loaded.</summary>
+    private void SetPhase(BoardPhase phase)
+    {
+        _phase = phase;
+
+        // A row left open under another filter would linger as a detached strip.
+        _open = null;
+        ApplyFilter();
+    }
+
     private async Task LoadAsync()
     {
         await WithActivityAsync(async () =>
@@ -210,14 +445,129 @@ else
 
             _rows = (await board.GetAsync(
                 string.IsNullOrEmpty(_sport) ? null : _sport,
-                TimeSpan.FromHours(_windowHours))).ToList();
+                TimeSpan.FromHours(_windowHours),
+                Lookback)).ToList();
 
             _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
             _priced = _rows.Count(r => r.HasPrices);
+            _unpriced = _rows.Count - _priced;
+
+            // Age is only reported for the live market. BoardRow already withholds it from a
+            // closing row, so this reads "how long since anything moved" rather than "how old
+            // is the oldest number on screen".
             _oldest = _rows.Select(r => r.Age).Where(a => a is not null).DefaultIfEmpty().Max();
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+            _movesToday = await db.OddsSnapshots.LongCountAsync(s => s.CapturedAt >= dayStart);
+
+            _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
+            _criticalAlerts = await db.Alerts
+                .CountAsync(a => a.ResolvedAt == null && a.Severity == AlertSeverity.Critical);
+
+            await BuildSportOptionsAsync(db);
+            BuildPhaseOptions();
+            ApplyFilter();
         },
         settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
-        status: () => _rows.Count == 0 ? "no prices" : $"{_rows.Count} games");
+        status: () => _rows.Count == 0 ? "no games" : $"{_priced}/{_rows.Count} priced");
+    }
+
+    private void ApplyFilter()
+    {
+        _visible = _phase switch
+        {
+            BoardPhase.Upcoming => _rows.Where(r => r.Game.Status == GameStatus.Scheduled).ToList(),
+            BoardPhase.Live => _rows.Where(r => r.Game.Status == GameStatus.Live).ToList(),
+            BoardPhase.Played => _rows
+                .Where(r => r.Game.Status is GameStatus.Final or GameStatus.Postponed)
+                .ToList(),
+            _ => _rows
+        };
+
+        _closing = _visible.Count(r => r.PricesAreClosing);
+    }
+
+    /// <summary>
+    /// The league filter's options: every requested league, plus any league that turned up on
+    /// the board without being asked for.
+    ///
+    /// <para>
+    /// Built from configuration rather than only from the data, so a league the desk is polling
+    /// still appears on a day it has no fixtures. The operator asked for it, and an option that
+    /// vanishes when the answer is "none" cannot be told apart from one that was never offered
+    /// — ADR 0003's two kinds of zero. The count rides in the label, so an empty league says so
+    /// before it is chosen.
+    /// </para>
+    /// </summary>
+    private async Task BuildSportOptionsAsync(LineOpsDbContext db)
+    {
+        var names = await db.Sports
+            .AsNoTracking()
+            .ToDictionaryAsync(s => s.Key, s => s.Name, StringComparer.OrdinalIgnoreCase);
+
+        // Counts only mean anything on an unfiltered load; once a league is selected the board
+        // holds that league alone, so the other options keep whatever they last showed.
+        if (_sport.Length == 0)
+        {
+            _counts = _rows
+                .GroupBy(r => r.Game.Sport?.Key ?? string.Empty)
+                .Where(g => g.Key.Length > 0)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        var keys = IngestionOptions.Value.EffectiveSports
+            .Concat(_counts.Keys)
+            .Concat(names.Keys)
+            .Where(k => k.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _sportOptions = keys.Select(k =>
+        {
+            var name = names.TryGetValue(k, out var n) ? n : k.ToUpperInvariant();
+            var count = _counts.TryGetValue(k, out var c) ? c : 0;
+
+            return new SportOption(k, count == 0 ? name : $"{name} · {count}");
+        }).ToList();
+    }
+
+    private Dictionary<string, int> _counts = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The phase gate's positions, offered only for the phases actually on the board.
+    ///
+    /// A board of nothing but scheduled games has no "in play" to switch to, and a gate holding
+    /// positions that cannot change what is on screen teaches the operator to ignore it.
+    /// </summary>
+    private void BuildPhaseOptions()
+    {
+        var live = _rows.Count(r => r.Game.Status == GameStatus.Live);
+        var played = _rows.Count(r => r.Game.Status is GameStatus.Final or GameStatus.Postponed);
+        var upcoming = _rows.Count(r => r.Game.Status == GameStatus.Scheduled);
+
+        var options = new List<DeskSwitchOption<BoardPhase>>
+        {
+            new(BoardPhase.Any, "All", $"Every game in the window — {_rows.Count}")
+        };
+
+        if (upcoming > 0 && (live > 0 || played > 0))
+            options.Add(new(BoardPhase.Upcoming, "Next", $"Not started yet — {upcoming}"));
+
+        if (live > 0)
+            options.Add(new(BoardPhase.Live, "Live", $"Being played now — {live}"));
+
+        if (played > 0)
+            options.Add(new(BoardPhase.Played, "Final", $"Finished or postponed — {played}"));
+
+        _phaseOptions = options.Count > 1 ? options : [];
+
+        // A filter left pointing at a phase that has emptied would show nothing for a reason
+        // the operator did not choose.
+        if (!_phaseOptions.Any(o => EqualityComparer<BoardPhase>.Default.Equals(o.Value, _phase)))
+            _phase = BoardPhase.Any;
     }
 
     /// <summary>
@@ -226,6 +576,52 @@ else
     /// </summary>
     private void Toggle(BoardRow row)
         => _open = _open?.Game.Id == row.Game.Id ? null : row;
+
+    private static DeskState StatusState(GameStatus status) => status switch
+    {
+        GameStatus.Live => DeskState.Warning,
+        GameStatus.Final => DeskState.Positive,
+        GameStatus.Postponed => DeskState.Negative,
+        _ => DeskState.Info
+    };
+
+    /// <summary>Short, because the value beside it is a scoreline and the row is one line tall.</summary>
+    private static string StatusWord(GameStatus status) => status switch
+    {
+        GameStatus.Live => "LIVE",
+        GameStatus.Final => "FINAL",
+        GameStatus.Postponed => "PPD",
+        _ => "SCHED"
+    };
+
+    /// <summary>
+    /// A game whose state says it has been played but whose score has not arrived. That is a
+    /// results pass that has not run, not an empty cell — so the row says which.
+    /// </summary>
+    private static string MissingScoreHint(GameStatus status)
+        => status == GameStatus.Postponed ? "not played" : "no score yet";
+
+    /// <summary>The abbreviated score spelled out, for anyone who does not know the marks.</summary>
+    private static string ScoreTitle(Game game)
+        => $"{game.AwayTeam?.Name ?? "Away"} {game.AwayScore ?? 0} — "
+           + $"{game.HomeTeam?.Name ?? "Home"} {game.HomeScore ?? 0}";
+
+    /// <summary>
+    /// Presses the pull menu rather than running a job directly, so an inline offer and the
+    /// menu entry are the same press: same busy key, same result note, same reload.
+    /// </summary>
+    private async Task PullAsync(string key)
+    {
+        if (_pull is not null)
+            await _pull.RunAsync(key);
+    }
+
+    /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>
+    private void OnPullBusy(bool busy)
+    {
+        if (busy)
+            Report(PulseState.Active, "pulling");
+    }
 
     /// <summary>
     /// What this row can do, in the order an operator reaches for them.
@@ -236,15 +632,22 @@ else
     /// destinations: a full book-by-book table and a wager form are things you work in, and a
     /// snippet of either would be a worse version of the window.
     /// </para>
+    ///
+    /// <para>
+    /// A row with no price on it offers neither: there is nothing to lay out book by book and
+    /// nothing to wager against. It gets the pull that would fix it instead, where the gap is
+    /// stated — and only while a pull could still help, since no book will re-quote a game that
+    /// has already started.
+    /// </para>
     /// </summary>
     private List<RowAction> ActionsFor(BoardRow row)
     {
         var id = row.Game.Id;
         var name = Matchup(row.Game);
 
-        return
-        [
-            new RowAction
+        var actions = new List<RowAction>
+        {
+            new()
             {
                 Key = "odds",
                 Label = "Odds",
@@ -253,7 +656,7 @@ else
                 OpenLabel = "Movement",
                 OpenWindow = () => Launch(WindowCatalog.Odds, "GameId", id, name)
             },
-            new RowAction
+            new()
             {
                 Key = "h2h",
                 Label = "H2H",
@@ -262,7 +665,7 @@ else
                 OpenLabel = "Full history",
                 OpenWindow = () => Launch(WindowCatalog.HeadToHead, "GameId", id, name)
             },
-            new RowAction
+            new()
             {
                 Key = "form",
                 Label = "Form",
@@ -270,27 +673,55 @@ else
                 Snippet = @<FormSnippet GameId="id" />,
                 OpenLabel = "Both rosters",
                 OpenWindow = () => Launch(WindowCatalog.Form, "GameId", id, name)
-            },
-            new RowAction
+            }
+        };
+
+        if (row.HasPrices)
+        {
+            actions.Add(new RowAction
             {
                 Key = "bets",
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
                 OpenWindow = () => Launch(WindowCatalog.Bets, "GameId", id, name, "680px")
-            },
-            new RowAction
+            });
+
+            actions.Add(new RowAction
             {
                 Key = "wager",
                 Label = "Place wager",
                 Icon = Icons.Material.Filled.Bolt,
                 // Tinted, not Filled: the strip repeats on every row the operator opens, and a
-                // solid accent per row would put a dozen primaries on one slate. The Board is a
-                // place to look; the wager is committed in the window this opens.
+                // solid accent per row would put a dozen primaries on one slate — and the
+                // panel's one Filled is already spent on Pull data. The Board is a place to
+                // look; the wager is committed in the window this opens.
                 Emphasis = DeskEmphasis.Tinted,
                 OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
-            }
-        ];
+            });
+        }
+        else if (CanPull(row))
+        {
+            actions.Add(new RowAction
+            {
+                Key = "pull",
+                Label = $"Pull {row.Game.Sport!.Key.ToUpperInvariant()} lines",
+                Icon = Icons.Material.Filled.CloudDownload,
+                Emphasis = DeskEmphasis.Tinted,
+                OpenWindow = () => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
+            });
+        }
+
+        return actions;
     }
+
+    /// <summary>
+    /// Whether pulling lines could still fill this row. No book re-quotes a game that is under
+    /// way, so offering the pull there would be a key that cannot work.
+    /// </summary>
+    private static bool CanPull(BoardRow row)
+        => row.Game.Sport is not null
+           && row.Game.Status == GameStatus.Scheduled
+           && row.Game.StartsAt > DateTimeOffset.UtcNow;
 
     private Task Launch(string key, string parameter, int id, string name, string width = "640px")
     {

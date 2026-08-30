@@ -23,21 +23,30 @@ namespace LineOps.Data.CrossReference;
 public class BoardService(LineOpsDbContext db)
 {
     /// <summary>
-    /// Games starting inside the window, with the best available price on each market.
+    /// Games inside the window, with the best available price on each market.
     /// </summary>
+    /// <param name="sportKey">One league, or null for every one in play.</param>
+    /// <param name="window">How far ahead to look.</param>
+    /// <param name="lookback">
+    /// How far <i>back</i> to look. Games already under way or finished belong on the board:
+    /// they carry a score and a closing line, and a surface that drops them at first pitch is
+    /// one an operator has to leave in order to see how the day went.
+    /// </param>
     public async Task<IReadOnlyList<BoardRow>> GetAsync(
         string? sportKey,
         TimeSpan window,
+        TimeSpan? lookback = null,
         CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var horizon = now + window;
+        var floor = now - (lookback ?? DefaultLookback);
 
         var games = await db.Games
             .Include(g => g.Sport)
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
-            .Where(g => g.StartsAt >= now.AddHours(-3) && g.StartsAt <= horizon)
+            .Where(g => g.StartsAt >= floor && g.StartsAt <= horizon)
             .Where(g => sportKey == null || g.Sport!.Key == sportKey)
             .OrderBy(g => g.StartsAt)
             .AsNoTracking()
@@ -57,39 +66,92 @@ public class BoardService(LineOpsDbContext db)
             .AsNoTracking()
             .ToListAsync(ct);
 
-        var byGame = latest.GroupBy(s => s.GameId).ToDictionary(g => g.Key, g => g.ToList());
+        var byGame = latest
+            .GroupBy(s => s.GameId)
+            .ToDictionary(g => g.Key, g => g.Select(Quote.From).ToList());
+
+        // Anything the scan tier no longer holds is asked of the permanent record. That is the
+        // whole point of promotion (ADR 0010): the close outlives the stream, so a game in play
+        // still has a number even though its scans are gone.
+        var missing = gameIds.Where(id => !byGame.ContainsKey(id)).ToList();
+
+        var closed = missing.Count == 0
+            ? []
+            : await db.ClosingLines
+                .Where(c => missing.Contains(c.GameId))
+                .AsNoTracking()
+                .ToListAsync(ct);
+
+        var closesByGame = closed
+            .GroupBy(c => c.GameId)
+            .ToDictionary(g => g.Key, g => g.Select(Quote.From).ToList());
 
         var newest = latest.Count == 0 ? (DateTimeOffset?)null : latest.Max(s => s.CapturedAt);
 
-        return games.Select(game =>
-        {
-            var prices = byGame.GetValueOrDefault(game.Id, []);
+        return games.Select(game => Compose(
+            game,
+            byGame.GetValueOrDefault(game.Id),
+            closesByGame.GetValueOrDefault(game.Id),
+            newest)).ToList();
+    }
 
-            return new BoardRow(
-                Game: game,
-                Moneyline: BestPair(prices, Markets.Moneyline, game),
-                Spread: BestPair(prices, Markets.Spread, game),
-                Total: BestPair(prices, Markets.Total, game),
-                BookCount: prices.Select(p => p.Book).Distinct().Count(),
-                PricedAt: prices.Count == 0 ? null : prices.Max(p => p.CapturedAt),
-                Unpriced: prices.Count > 0 ? null : ExplainGap(game, newest));
-        }).ToList();
+    /// <summary>
+    /// Three hours back by default, which is roughly a game.
+    ///
+    /// The board used to stop here and it was the wrong ceiling for a surface that also has to
+    /// answer "how did tonight go" — but it stays the default so a caller that wants only the
+    /// live market gets it without saying so.
+    /// </summary>
+    public static readonly TimeSpan DefaultLookback = TimeSpan.FromHours(3);
+
+    /// <summary>
+    /// One row from whichever tier has numbers for it, live market preferred.
+    ///
+    /// A game with scans is still being priced, so the scans are the truth. A game without them
+    /// has either started — in which case the close is the truth — or was never covered, in
+    /// which case the row says so rather than showing a dash and leaving it to be guessed.
+    /// </summary>
+    private static BoardRow Compose(
+        Game game,
+        List<Quote>? live,
+        List<Quote>? closing,
+        DateTimeOffset? newestScanAnywhere)
+    {
+        var isClosing = live is not { Count: > 0 } && closing is { Count: > 0 };
+        var prices = live is { Count: > 0 } ? live : closing ?? [];
+
+        return new BoardRow(
+            Game: game,
+            Moneyline: BestPair(prices, Markets.Moneyline, game, isClosing),
+            Spread: BestPair(prices, Markets.Spread, game, isClosing),
+            Total: BestPair(prices, Markets.Total, game, isClosing),
+            BookCount: prices.Select(p => p.Book).Distinct().Count(),
+            PricedAt: prices.Count == 0 ? null : prices.Max(p => p.CapturedAt),
+            PricesAreClosing: isClosing,
+            Unpriced: prices.Count > 0 ? null : ExplainGap(game, newestScanAnywhere));
     }
 
     /// <summary>
     /// Why a game has no price, in the operator's terms.
     ///
     /// A row of dashes is ambiguous between three very different situations — the odds feed is
-    /// broken, this fixture was never offered, or the game has already started — and only one
-    /// of them is worth acting on. Saying which turns a silent gap into a fact.
+    /// broken, this fixture was never offered, or the game started before anyone priced it —
+    /// and only one of them is worth acting on. Saying which turns a silent gap into a fact.
+    ///
+    /// <para>
+    /// This used to read "pre-match prices are dropped once a game starts", which described the
+    /// retention policy rather than the fixture: it was said of every started game, including
+    /// the ones whose closing line was sitting in the permanent record unread. A started game
+    /// only reaches this now when no close was ever captured for it.
+    /// </para>
     /// </summary>
     private static string ExplainGap(Game game, DateTimeOffset? newestScanAnywhere)
     {
         if (game.StartsAt <= DateTimeOffset.UtcNow)
-            return "Under way — pre-match prices are dropped once a game starts.";
+            return "Under way — and no closing line was captured before it started.";
 
         return newestScanAnywhere is null
-            ? "No odds scan has run yet. Pull data → Fresh lines."
+            ? "No odds scan has run yet. Pull data → Pull lines."
             : "The last scan did not cover this fixture.";
     }
 
@@ -112,25 +174,62 @@ public class BoardService(LineOpsDbContext db)
         if (game is null)
             return null;
 
-        var prices = await db.OddsSnapshots
+        var live = (await db.OddsSnapshots
             .Where(s => s.GameId == gameId)
             .GroupBy(s => new { s.Book, s.Market, s.Outcome })
             .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
             .AsNoTracking()
-            .ToListAsync(ct);
+            .ToListAsync(ct))
+            .Select(Quote.From)
+            .ToList();
 
-        return new BoardRow(
-            Game: game,
-            Moneyline: BestPair(prices, Markets.Moneyline, game),
-            Spread: BestPair(prices, Markets.Spread, game),
-            Total: BestPair(prices, Markets.Total, game),
-            BookCount: prices.Select(p => p.Book).Distinct().Count(),
-            PricedAt: prices.Count == 0 ? null : prices.Max(p => p.CapturedAt),
-            Unpriced: prices.Count > 0 ? null : ExplainGap(game, null));
+        var closing = live.Count > 0
+            ? []
+            : (await db.ClosingLines
+                .Where(c => c.GameId == gameId)
+                .AsNoTracking()
+                .ToListAsync(ct))
+                .Select(Quote.From)
+                .ToList();
+
+        // Only asked when the row is going to have to explain itself, because the answer is
+        // only used to tell "the feed has never run" apart from "the feed skipped this
+        // fixture". Passing null unconditionally made every unpriced game claim no scan had
+        // ever run — which reads as a broken platform on a desk holding a full slate of prices.
+        var scanned = live.Count > 0 || closing.Count > 0
+            ? null
+            : await db.OddsSnapshots
+                .OrderByDescending(s => s.CapturedAt)
+                .Select(s => (DateTimeOffset?)s.CapturedAt)
+                .FirstOrDefaultAsync(ct);
+
+        return Compose(game, live, closing, scanned);
+    }
+
+    /// <summary>
+    /// One priced outcome, from whichever tier it came out of.
+    ///
+    /// A scan and a close are the same observation with different lifetimes, and the board's
+    /// comparator does not care which table it was read from — so the ranking works on this
+    /// rather than on two near-identical entity types with a duplicated sort between them.
+    /// </summary>
+    private readonly record struct Quote(
+        string Book,
+        string Market,
+        string Outcome,
+        decimal? Line,
+        int PriceAmerican,
+        DateTimeOffset CapturedAt)
+    {
+        public static Quote From(OddsSnapshot s)
+            => new(s.Book, s.Market, s.Outcome, s.Line, s.PriceAmerican, s.CapturedAt);
+
+        public static Quote From(ClosingLine c)
+            => new(c.Book, c.Market, c.Outcome, c.Line, c.PriceAmerican, c.CapturedAt);
     }
 
     /// <summary>Both sides of one market, each with its own best book.</summary>
-    private static MarketPair BestPair(List<OddsSnapshot> prices, string market, Game game)
+    private static MarketPair BestPair(List<Quote> prices, string market, Game game, bool closing)
     {
         var inMarket = prices.Where(p => p.Market == market).ToList();
 
@@ -147,8 +246,8 @@ public class BoardService(LineOpsDbContext db)
 
         return new MarketPair(
             market,
-            Best(inMarket.Where(p => p.Outcome == first).ToList(), market),
-            Best(inMarket.Where(p => p.Outcome == second).ToList(), market));
+            Best(inMarket.Where(p => p.Outcome == first).ToList(), market, closing),
+            Best(inMarket.Where(p => p.Outcome == second).ToList(), market, closing));
     }
 
     /// <summary>
@@ -168,7 +267,7 @@ public class BoardService(LineOpsDbContext db)
     /// is a per-market comparator rather than one <c>OrderByDescending</c>.
     /// </para>
     /// </summary>
-    private static BestOffer? Best(List<OddsSnapshot> side, string market)
+    private static BestOffer? Best(List<Quote> side, string market, bool closing)
     {
         if (side.Count == 0)
             return null;
@@ -228,6 +327,7 @@ public class BoardService(LineOpsDbContext db)
             CapturedAt: best.CapturedAt,
             EdgePoints: edge,
             LinesVary: linesVary,
+            IsClosing: closing,
             Rungs: rungs);
     }
 }
@@ -240,12 +340,23 @@ public record BoardRow(
     MarketPair Total,
     int BookCount,
     DateTimeOffset? PricedAt,
+    bool PricesAreClosing,
     string? Unpriced)
 {
     public bool HasPrices => BookCount > 0;
 
-    /// <summary>How old the newest price on this row is.</summary>
-    public TimeSpan? Age => PricedAt is { } at ? DateTimeOffset.UtcNow - at : null;
+    /// <summary>
+    /// How old the newest price on this row is.
+    ///
+    /// Only meaningful for the live market. A closing line is old by construction — it was
+    /// taken before first pitch and will never move again — so reporting its age as staleness
+    /// would send an operator chasing a number that is already final.
+    /// </summary>
+    public TimeSpan? Age
+        => PricesAreClosing || PricedAt is not { } at ? null : DateTimeOffset.UtcNow - at;
+
+    /// <summary>Whether the game has a result to show, however partial.</summary>
+    public bool HasScore => Scoreline.Has(Game);
 }
 
 /// <summary>Both sides of a market. Home/over first, away/under second.</summary>
@@ -263,6 +374,7 @@ public record BestOffer(
     DateTimeOffset CapturedAt,
     double? EdgePoints,
     bool LinesVary,
+    bool IsClosing,
     IReadOnlyList<BookPrice> Rungs);
 
 /// <summary>One book's standing on a side.</summary>
