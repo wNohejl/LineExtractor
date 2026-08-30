@@ -53,18 +53,18 @@ public class WindowBarTests : DeskTestContext
     public void Opening_a_window_moves_it_from_the_key_run_to_the_tab_run()
     {
         var manager = NewDesk();
-        var slate = WindowCatalog.Find(WindowCatalog.Dashboard)!;
+        var board = WindowCatalog.Find(WindowCatalog.Board)!;
 
         var bar = RenderComponent<WindowBar>();
         var before = Keys(bar).Length;
 
-        manager.Open(slate);
+        manager.Open(board);
         bar.Render();
 
         // The one item moved across; it did not appear in both runs, and nothing else moved.
         Assert.Equal(before - 1, Keys(bar).Length);
-        Assert.DoesNotContain("Open Slate", Keys(bar));
-        Assert.Equal(["Slate"], Tabs(bar));
+        Assert.DoesNotContain("Open Board", Keys(bar));
+        Assert.Equal(["Board"], Tabs(bar));
     }
 
     [Fact]
@@ -109,18 +109,18 @@ public class WindowBarTests : DeskTestContext
     {
         var manager = NewDesk();
 
-        var slate = manager.Open(WindowCatalog.Find(WindowCatalog.Dashboard)!);
+        var board = manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
         var ops = manager.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
 
         var bar = RenderComponent<WindowBar>();
-        Assert.Equal(["Slate", "Ops"], Tabs(bar));
+        Assert.Equal(["Board", "Ops"], Tabs(bar));
 
-        manager.Reorder([ops.Id, slate.Id]);
+        manager.Reorder([ops.Id, board.Id]);
         bar.Render();
 
         // Dragging a column past another has to move its tab too, or the strip stops being
         // a map of the desk and becomes a second arrangement to keep in your head.
-        Assert.Equal(["Ops", "Slate"], Tabs(bar));
+        Assert.Equal(["Ops", "Board"], Tabs(bar));
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class WindowBarTests : DeskTestContext
     {
         var manager = NewDesk();
 
-        manager.Open(WindowCatalog.Find(WindowCatalog.Dashboard)!);
+        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
         var ops = manager.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
         manager.Focus(ops.Id);
 
