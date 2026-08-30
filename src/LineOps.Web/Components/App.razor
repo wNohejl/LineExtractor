@@ -4,7 +4,12 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    @* Both, now that there are two desks — this is what tells the browser to paint the
+       canvas behind the app and its own scrollbars to match whichever is showing. The
+       per-theme half is `color-scheme` inside each token block; this only says which
+       ones exist, and narrowing it to `dark` would have kept the browser chrome dark
+       under the light desk. *@
+    <meta name="color-scheme" content="dark light" />
     <base href="/" />
     <ResourcePreloader />
 
