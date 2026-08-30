@@ -25,7 +25,6 @@
 | Odds (secondary/reconciliation) | **The Odds API** Starter | All sports, books, and markets — but billed in credits (markets × regions per call) | 500 credits/mo — treat as a small reconciliation budget, never the primary feed |
 | Players & stats | **balldontlie** free tier | NBA, NFL, MLB, EPL — teams, players, games, stats | Free tier with rate limits; NHL stats fall to ESPN |
 | Scores/schedules/stats backfill | **ESPN undocumented JSON** | Scoreboards, schedules, box scores, athletes across 20+ sports | Free, no auth — but unofficial and can change without notice |
-| Offline fixtures | **built-in demo sources** | Full slate with drifting prices, rosters, box scores | $0, no network — see §11 |
 | Database | PostgreSQL 17 in Docker | Everything | $0, local |
 | Hosting | Your own machine (Docker Compose) | Web + worker + DB | $0 — the daily poll cadence doesn't need cloud hosting |
 | CI | GitHub Actions, public repo | Build/test minutes | Free for public repos |
@@ -85,7 +84,7 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │    ├─ CreditBudgetGuard    (refuses runs over free-tier ceiling)  │
 │    └─ Adapters: IOddsSource / IStatsSource / IFailureInjectable   │
 │         OddsApiIoAdapter · TheOddsApiAdapter                      │
-│         EspnStatsAdapter  · DemoOddsSource · DemoStatsSource      │
+│         EspnStatsAdapter  · MlbStatsApiAdapter                    │
 │                                                                  │
 │  LineOps.Reliability  Shared reliability library (§5)             │
 │    ├─ KpiCalculator · AlertEngine · IncidentService               │
@@ -230,7 +229,7 @@ The loop ticks every minute and asks *what is due*, rather than sleeping until t
 - **The Odds API** — secondary, for cross-source reconciliation only; hard 500-credit/mo budget.
 - **ESPN undocumented JSON** — schedules, scores, box scores, NHL gap-fill. No auth. Verified pulling real rosters in testing.
 - **balldontlie** — players/teams/games/stats (registered; enable with a key).
-- **Demo odds + stats fixtures** — deterministic offline sources so a cold clone runs with no keys (§11).
+- *(Removed)* **Demo odds + stats fixtures** — deterministic offline sources that ran a cold clone with no keys. Withdrawn: the platform runs on real data only (§11).
 
 The daily bulk ingest includes a **player/stats pass**: roster upsert by external id (players move teams mid-season, so team is refreshed every sync) and post-final box scores into `player_game_stat`.
 
@@ -380,7 +379,7 @@ docker compose down             # stop, keep the database volume
 docker compose down -v          # stop and DELETE all data
 ```
 
-**No API keys are required.** The demo fixtures generate a full slate with drifting prices, and the ESPN adapter needs no auth, so real schedules and box scores flow in for free.
+**No API keys are required to start.** The ESPN adapter needs no auth and the MLB Stats API is unauthenticated, so real schedules, results and box scores flow in for free. Prices do need a key — with none there is no odds source, which the Ops panel reports as unconfigured rather than as an outage (ADR 0003).
 
 ### 8.3 Build images explicitly
 
@@ -506,7 +505,7 @@ Every one came from hitting a real constraint. These are the strongest interview
 | `RowsIngested == 0` means trouble | Status from what the *provider* returned | Store-on-change made "0 rows" ambiguous — quiet market vs. silent outage. Conflating them means alert fatigue or blindness. → [ADR 0003] |
 | FK from `journal_entry` → `odds_snapshot` | Three plain columns | Postgres can't FK a partitioned table without the partition key. Denormalising `closing_price` turned the constraint into a benefit: CLV survives partition pruning. → [ADR 0002] |
 | SharpAPI as second odds source | The Odds API | Better documented credit accounting, and it reports true spend in a response header — so the budget guard uses the provider's own number instead of an estimate. |
-| Real providers only | **Demo fixture sources**, on by default | A portfolio repo must run for a cold reviewer with no keys. Deterministic offline sources make every feature — movement charts, CLV, drills — work at $0 with no signup. |
+| Real providers only | Demo fixture sources on by default — **then removed again** | The fixtures were added so a cold reviewer with no keys saw a working desk, and they earned that for a while. They were withdrawn once a real feed went in: fabricated prices land in the same tables as real ones under a different source id, where every reader treats them alike, and a fixture source going stale spent a critical alert slot on data that was never real. What a keyless clone gets now is everything ESPN and the MLB Stats API give away — real fixtures, real results — and no prices, reported as unconfigured. |
 | HTTP on 8080 | HTTPS only on 9443, loopback-bound | The first pass published Postgres on `0.0.0.0` with a repo-committed password. Docker's short port syntax is the trap. → [ADR 0006] |
 | Nav-drawer, one page at a time | **Window manager** — every page is a panel on one desk | Ops work is inherently multi-view: health, incident and runs are read together. Pages fought the product. → [ADR 0007] |
 | MudBlazor components throughout | MudBlazor for charts only; chrome hand-built | The launcher is the primary way windows get created; it should not inherit another library's positioning and z-index rules, especially opening away from a rail that can be on any edge. |

@@ -71,8 +71,9 @@ public class StatsStorageRulesTests(PostgresFixture fixture)
         var sourceKey = $"stub-{Guid.NewGuid():N}"[..20];
         var (sport, _) = await SeedAsync(db, sourceKey);
 
-        // A roster with stat lines but no games — the shape the demo fixture produces. The
-        // lines have nowhere to land, so the players behind them are not worth a row either.
+        // A roster with stat lines but no games — the shape a source produces when it reports
+        // players ahead of fixtures. The lines have nowhere to land, so the players behind them
+        // are not worth a row either.
         var result = new StatsFetchResult(
             Games: [],
             Players:

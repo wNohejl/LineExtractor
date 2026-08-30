@@ -90,13 +90,9 @@ else if (_plan is { } plan)
     <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            @if (context.Item is { IsLive: true, IsReal: true })
+            @if (context.Item.IsLive)
             {
                 <span class="tag tag--good">Live</span>
-            }
-            else if (context.Item.IsLive)
-            {
-                <span class="tag tag--warn">Demo</span>
             }
             else
             {
