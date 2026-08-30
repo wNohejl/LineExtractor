@@ -194,6 +194,74 @@ public class RetiredSourceCleanupTests(PostgresFixture fixture)
         Assert.True(await db.Incidents.AnyAsync(i => i.Id == written.Id));
     }
 
+    /// <summary>
+    /// The case a database that has already been cleaned actually presents.
+    ///
+    /// <para>
+    /// Keying the sweep off the retired source's alerts only works while the source is still
+    /// there to key off. A clone cleaned by the earlier build has neither: the source row went,
+    /// its alerts went with it, and the incidents were left behind with nothing pointing at
+    /// them. Those are what the Ops panel was still counting.
+    /// </para>
+    ///
+    /// <para>
+    /// An incident is only ever created by promoting an alert, and promotion attaches it. So an
+    /// incident with no alerts has had its subject deleted — there is nothing left to read to
+    /// find out what it was about. With no write-up either, nobody can close it honestly, and it
+    /// is not evidence of anything. An incident that still has its alert is explainable and
+    /// stays, written up or not.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task AnIncidentLeftWithNoAlertAndNoWriteUpIsSweptOnTheNextStart()
+    {
+        await using var db = fixture.CreateContext();
+
+        // Seed first: this is a database that has already been through a cleaned start, which is
+        // the state the stranded rows were actually found in.
+        await Create(db).InitialiseAsync();
+
+        var stranded = new Incident
+        {
+            Title = "Demo stats fixture: no successful ingestion for 721.2h",
+            Severity = AlertSeverity.Critical,
+            Status = IncidentStatus.Open,
+            OpenedAt = DateTimeOffset.UtcNow.AddDays(-5)
+        };
+
+        var explainable = new Incident
+        {
+            Title = "ESPN (unofficial): success rate 0% over 3 runs",
+            Severity = AlertSeverity.Warn,
+            Status = IncidentStatus.Open,
+            OpenedAt = DateTimeOffset.UtcNow.AddDays(-5)
+        };
+
+        db.Incidents.AddRange(stranded, explainable);
+        await db.SaveChangesAsync();
+
+        // The living source keeps its alert, so its incident can still be read and answered.
+        var espn = await db.Sources.SingleAsync(s => s.Key == "espn");
+
+        db.Alerts.Add(new Alert
+        {
+            RuleKey = "success_rate",
+            SourceId = espn.Id,
+            Severity = AlertSeverity.Warn,
+            Message = "success rate 0% over 3 runs",
+            TriggeredAt = DateTimeOffset.UtcNow.AddDays(-5),
+            ResolvedAt = DateTimeOffset.UtcNow.AddDays(-4),
+            IncidentId = explainable.Id
+        });
+
+        await db.SaveChangesAsync();
+
+        await Create(db).InitialiseAsync();
+
+        Assert.False(await db.Incidents.AnyAsync(i => i.Id == stranded.Id));
+        Assert.True(await db.Incidents.AnyAsync(i => i.Id == explainable.Id));
+    }
+
     [Fact]
     public async Task SeedingNeverPutsTheDemoSourcesBack()
     {

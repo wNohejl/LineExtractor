@@ -17,6 +17,39 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await SeedSportsAsync(ct);
         await SeedSourcesAsync(ct);
         await RemoveRetiredSourcesAsync(ct);
+        await RemoveStrandedIncidentsAsync(ct);
+    }
+
+    /// <summary>
+    /// Removes incidents that have lost both their subject and their author.
+    ///
+    /// <para>
+    /// An incident is only ever created by promoting an alert, and promotion attaches that alert
+    /// to it. So an incident with no alerts is one whose alert was deleted — which happens when
+    /// the source that raised it is retired. Nothing is left to read to find out what it was
+    /// about. If nobody wrote it up either, it is not evidence of anything: it cannot be
+    /// explained, and it cannot be closed honestly, because closing one requires a root cause
+    /// and there is no truthful cause to give for a feed that no longer exists.
+    /// </para>
+    ///
+    /// <para>
+    /// This is deliberately keyed on what the incident is left with rather than on which source
+    /// it named. A database cleaned by an earlier build has neither the source nor its alerts,
+    /// so there is nothing left to match a name against — and those are exactly the rows the Ops
+    /// panel was still counting. An incident that still has its alert stays whether or not it
+    /// has been written up: it can still be read, so it can still be answered.
+    /// </para>
+    /// </summary>
+    private async Task RemoveStrandedIncidentsAsync(CancellationToken ct)
+    {
+        var stranded = await db.Incidents
+            .Where(i => (i.RootCause == null || i.RootCause == string.Empty)
+                        && !db.Alerts.Any(a => a.IncidentId == i.Id))
+            .ExecuteDeleteAsync(ct);
+
+        if (stranded > 0)
+            logger.LogInformation(
+                "Removed {Count} incident(s) left with no alert and no root cause", stranded);
     }
 
     /// <summary>
@@ -80,33 +113,12 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await db.IngestionRuns.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.KpiDailies.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
 
-        // Read the incidents these alerts point at before the alerts go: the alert is the only
-        // link between an incident and the source it was raised about, so deleting it first
-        // would strand the incident with nothing to identify it by.
-        var incidentIds = await db.Alerts
-            .Where(x => x.SourceId != null && ids.Contains(x.SourceId.Value) && x.IncidentId != null)
-            .Select(x => x.IncidentId!.Value)
-            .Distinct()
-            .ToListAsync(ct);
-
         // The alerts go with the source that raised them — including the open critical one
         // nagging that a fixture feed has not run. There is nothing left to page anyone about.
+        // The incidents they belonged to are swept separately, by what they are left with
+        // rather than by which source they named.
         await db.Alerts.Where(x => x.SourceId != null && ids.Contains(x.SourceId.Value))
             .ExecuteDeleteAsync(ct);
-
-        // Then the incidents nobody wrote up. An incident with a root cause is somebody's
-        // analysis and survives its subject; one without is a shell the evaluator opened and
-        // nobody could now close, because a source that does not exist has no honest cause.
-        if (incidentIds.Count > 0)
-        {
-            var shells = await db.Incidents
-                .Where(i => incidentIds.Contains(i.Id)
-                            && (i.RootCause == null || i.RootCause == string.Empty))
-                .ExecuteDeleteAsync(ct);
-
-            if (shells > 0)
-                logger.LogInformation("Removed {Count} unwritten incident(s) about retired sources", shells);
-        }
 
         var removed = await db.Sources.Where(s => ids.Contains(s.Id)).ExecuteDeleteAsync(ct);
 
