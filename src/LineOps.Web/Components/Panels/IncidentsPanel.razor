@@ -127,7 +127,8 @@ else
         <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
                    placeholder="Add a timeline note" @bind-Value="_newNote" />
         <DeskButton OnClick="AddNoteAsync"
-                    Disabled="@string.IsNullOrWhiteSpace(_newNote)">
+                    Disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                    Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
             Add
         </DeskButton>
     </div>
@@ -154,8 +155,13 @@ else
         }
 
         <div class="row">
+            @* Two different reasons this key is grey, and the operator cannot tell them apart
+               by looking: the RCA is short of a field, or the incident is already resolved and
+               there is nothing left to do. The Note above states the rule; the title states
+               which of the two is true right now. *@
             <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
-                        OnClick="ResolveAsync" Disabled="@(!CanResolve)">
+                        OnClick="ResolveAsync" Disabled="@(!CanResolve)"
+                        Title="@ResolveHint">
                 Resolve incident
             </DeskButton>
 
@@ -190,6 +196,13 @@ else
         => !string.IsNullOrWhiteSpace(_rootCause)
            && !string.IsNullOrWhiteSpace(_corrective)
            && _selected?.Status != IncidentStatus.Resolved;
+
+    /// <summary>Why the resolve key is grey, or null when it is not.</summary>
+    private string? ResolveHint => CanResolve
+        ? null
+        : _selected?.Status == IncidentStatus.Resolved
+            ? "This incident is already resolved."
+            : "Both the cause and the corrective action are needed.";
 
     protected override async Task OnInitializedAsync()
     {
