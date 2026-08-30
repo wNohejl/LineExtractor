@@ -11,8 +11,13 @@
 @inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
 @inject DeskToasts Toasts
 
+@* The one action this window exists to commit — rolling the KPIs up and re-running the alert
+   rules — so it is the panel's single Filled. Busy rather than Disabled: an evaluation in
+   flight is a control that is occupied, not one that is not for you, and the shimmer says
+   which. See ADR 0016. *@
 <div class="row row--end" style="margin-bottom:12px">
-    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="EvaluateAsync" Disabled="@_busy">
+    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                OnClick="EvaluateAsync" Busy="@_busy">
         Evaluate now
     </DeskButton>
 </div>
@@ -235,6 +240,17 @@ else if (_plan is { } plan)
 </Note>
 
 <div class="stack" style="margin-top:10px">
+    @* Said rather than implied. With no injectable source registered the note above still
+       promises "inject a fault" and nothing on screen offers one, which reads as a missing
+       control rather than as a missing adapter. *@
+    @if (_injectable.Count == 0)
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">
+            No registered source accepts fault injection, so there is nothing to break on
+            purpose. The drill below still exercises the ingest → rollup → alert path.
+        </EmptyState>
+    }
+
     @foreach (var source in _injectable)
     {
         <div class="row">
@@ -255,7 +271,8 @@ else if (_plan is { } plan)
     }
 
     <div class="row">
-        <DeskButton Icon="@Icons.Material.Filled.PlayArrow" OnClick="DrillAsync" Disabled="@_busy">
+        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
+                    OnClick="DrillAsync" Busy="@_busy">
             Run ingest &amp; evaluate
         </DeskButton>
     </div>
