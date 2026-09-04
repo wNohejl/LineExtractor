@@ -9,7 +9,7 @@
     the same way:
 
       · The windows — one strip, in its own recessed channel, spanning the bar. Every
-        window is in it exactly once, as a tab if it is open and a quiet key if it is not.
+        window is in it exactly once, as a key that is lit while its window is open.
         See WindowBar, which owns that rule.
 
       · The desk's own controls — workspaces and column widths. These act on the desk
@@ -19,16 +19,44 @@
 
     The Window manager used to have a button here as well as its key in the strip: the same
     window, the same glyph, twice in one header. It has a key like everything else in the
-    catalogue, and when it is open it is a tab like everything else, so the button is gone.
+    catalogue, and when it is open its key is lit like any other, so the button is gone.
 
     Destinations — a game, a team, a player — are about a subject and are reached by
-    following a name in a panel, so they have no key to press until they exist. Once one is
-    open it appears in the strip like anything else, because a column on the desk with
-    nothing up here to name it is a column you lose.
+    following a name in a panel, so they have no key here at all, open or not. Several can
+    exist at once and their names are long, and appending them is what made the strip
+    unreadable. They live where they already are, as columns on the desk.
 *@
 
 <header class="hdr">
-    <span class="hdr__brand">LINE<em>OPS</em></span>
+    @* The brand is the workflow control. A workspace is a whole-desk arrangement — it
+       replaces everything open — so it belongs to the desk rather than sitting in a cluster
+       of per-window controls at the far end. Putting it on the identity says the same thing
+       the arrangement does: this is the desk you are on, and this is how you change it. It
+       also returns the width the Workspaces button was spending to the strip, which is the
+       part of the header that actually has more to say. *@
+    <RailMenu @ref="_workspaces" Class="hdr__brand-menu" Trigger="brand"
+              Label="Workspaces — choose a desk arrangement">
+        <div class="launcher" data-glide>
+            <div class="launcher__group">Workspaces</div>
+            @foreach (var workspace in WindowCatalog.Workspaces)
+            {
+                <button class="launcher__item" type="button" role="menuitem"
+                        @onclick="() => Apply(workspace)">
+                    <Glyph Icon="@Icons.Material.Filled.Dashboard" />
+                    <span>
+                        @workspace.Name
+                        <span class="launcher__desc">@workspace.Description</span>
+                    </span>
+                </button>
+            }
+
+            <div class="launcher__group">Clear</div>
+            <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
+                <Glyph Icon="@Icons.Material.Filled.ClearAll" />
+                <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
+            </button>
+        </div>
+    </RailMenu>
 
     @if (Manager.OpenCount == 0)
     {
@@ -41,33 +69,8 @@
 
     <span class="hdr__divider" aria-hidden="true"></span>
 
-    @* The desk's own controls, as one cluster: the plate slides between them rather
-       than each button lighting itself. *@
+    @* What is left of the desk's own controls: both are about the row as a whole. *@
     <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
-        <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces"
-                  AlignEnd="true">
-            <div class="launcher" data-glide>
-                <div class="launcher__group">Workspaces</div>
-                @foreach (var workspace in WindowCatalog.Workspaces)
-                {
-                    <button class="launcher__item" type="button" role="menuitem"
-                            @onclick="() => Apply(workspace)">
-                        <Glyph Icon="@Icons.Material.Filled.Dashboard" />
-                        <span>
-                            @workspace.Name
-                            <span class="launcher__desc">@workspace.Description</span>
-                        </span>
-                    </button>
-                }
-
-                <div class="launcher__group">Clear</div>
-                <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
-                    <Glyph Icon="@Icons.Material.Filled.ClearAll" />
-                    <span>Close all<span class="launcher__desc">Empty the desk.</span></span>
-                </button>
-            </div>
-        </RailMenu>
-
         <button class="rail__btn" type="button" title="Reset column widths"
                 aria-label="Reset column widths"
                 disabled="@(Manager.OpenCount == 0)"

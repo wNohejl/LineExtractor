@@ -9,15 +9,26 @@
     a real backdrop without fighting anyone.
 *@
 
-<div class="railmenu">
-    <button class="rail__btn @(Accent ? "rail__btn--accent" : null)"
+<div class="railmenu @Class">
+    @* Two triggers, one menu. The brand is a trigger rather than a decoration because the
+       thing it opens changes the whole desk, and the identity is the only element on the
+       header that is about the desk as a whole. *@
+    <button class="@(Trigger == "brand" ? "hdr__brand hdr__brand--menu" : $"rail__btn {(Accent ? "rail__btn--accent" : null)}")"
             type="button"
             title="@Label"
             aria-label="@Label"
             aria-haspopup="true"
             aria-expanded="@_open.ToString().ToLowerInvariant()"
             @onclick="Toggle">
-        <Glyph Icon="@Icon" />
+        @if (Trigger == "brand")
+        {
+            <span>LINE<em>OPS</em></span>
+            <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+        }
+        else
+        {
+            <Glyph Icon="@Icon" />
+        }
     </button>
 
     @if (_open)
@@ -38,9 +49,17 @@
 </div>
 
 @code {
-    [Parameter, EditorRequired] public string Icon { get; set; } = string.Empty;
+    /// <summary>Unused when <see cref="Trigger"/> is "brand", which draws the wordmark instead.</summary>
+    [Parameter] public string Icon { get; set; } = string.Empty;
+
     [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
     [Parameter] public bool Accent { get; set; }
+
+    /// <summary>"brand" draws the wordmark as the button; anything else draws the icon.</summary>
+    [Parameter] public string? Trigger { get; set; }
+
+    /// <summary>Extra classes on the wrapper, so a host can position the menu it owns.</summary>
+    [Parameter] public string? Class { get; set; }
 
     /// <summary>Anchor the panel's right edge to the button — for a menu whose button sits
     /// near the right viewport edge, where a left-anchored panel would overflow off-screen.</summary>

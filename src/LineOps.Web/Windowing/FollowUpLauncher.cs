@@ -47,6 +47,18 @@ public sealed class FollowUpLauncher
     private readonly List<FollowUp> _open = [];
     private int _raiseCounter;
 
+    /// <summary>
+    /// Raised whenever the floating list changes, so the panel drawing it redraws.
+    ///
+    /// The window half of the switch needs nothing here — <see cref="WindowManager"/> announces
+    /// its own changes and the desk listens. The floating half is drawn by the panel that owns
+    /// the launcher, and a follow-up is launched from a row action handled inside the grid's
+    /// cell: Blazor re-renders the strip that handled the press, not the panel above it. So
+    /// mutating the list is invisible unless it says so, and the dialog reads as one that
+    /// never opened.
+    /// </summary>
+    public event Action? Changed;
+
     /// <summary>The floating follow-ups, in the order they were opened.</summary>
     public IReadOnlyList<FollowUp> Open => _open;
 
@@ -99,12 +111,28 @@ public sealed class FollowUpLauncher
             Width = width,
             Order = ++_raiseCounter
         });
+
+        Notify();
     }
 
-    public void Raise(FollowUp followUp) => followUp.Order = ++_raiseCounter;
+    public void Raise(FollowUp followUp)
+    {
+        followUp.Order = ++_raiseCounter;
+        Notify();
+    }
 
-    public void Close(FollowUp followUp) => _open.Remove(followUp);
+    public void Close(FollowUp followUp)
+    {
+        if (_open.Remove(followUp))
+            Notify();
+    }
 
     /// <summary>Closes every floating follow-up of one kind — used after an action settles.</summary>
-    public void CloseAll(string windowKey) => _open.RemoveAll(f => f.Key == windowKey);
+    public void CloseAll(string windowKey)
+    {
+        if (_open.RemoveAll(f => f.Key == windowKey) > 0)
+            Notify();
+    }
+
+    private void Notify() => Changed?.Invoke();
 }

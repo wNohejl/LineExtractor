@@ -170,11 +170,11 @@
 
     /// What the plate should measure itself against.
     ///
-    /// Normally that is the control under the pointer. A composite item — a window
-    /// tab, which is one thing to the eye but a focus button plus a close button to
-    /// the DOM — marks its wrapper with data-glide-item and is measured whole, so
-    /// the marble covers the tab instead of shrinking onto the little × the moment
-    /// the pointer crosses it.
+    /// Normally that is the control under the pointer. A composite item — one thing to
+    /// the eye but several controls to the DOM — may mark its wrapper with data-glide-item
+    /// to be measured whole, so the plate covers the item rather than shrinking onto
+    /// whichever part the pointer happens to cross. Nothing in the header uses it today;
+    /// it stays because the engine is shared and the case is real.
     function measured(node) {
         if (!(node instanceof Element)) return null;
         return node.closest('[data-glide-item]') || node.closest(ACTIONABLE);

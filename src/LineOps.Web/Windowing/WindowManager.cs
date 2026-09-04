@@ -55,9 +55,55 @@ public class WindowManager
         ? Settings.CustomHeight
         : ViewportHeight;
 
-    /// <summary>How many columns fit at a readable width. Guidance beside the operator's ceiling.</summary>
+    /// <summary>
+    /// The narrowest a column may be before the window in it stops being readable. The widest
+    /// <c>MinWidth</c> in the catalogue, so the guidance holds for whatever is opened rather
+    /// than for the most forgiving thing that could be.
+    /// </summary>
+    private const double ReadableWidth = 420;
+
+    /// <summary>
+    /// How many columns fit at a readable width. Guidance beside the operator's ceiling.
+    ///
+    /// <para>
+    /// This has to survive the layout it is guiding. It used to be <c>DeskWidth / 420</c>, a
+    /// uniform division — but the row is not divided uniformly: the primary takes its share
+    /// off the top and the rest split what is left. At 1920 with the default 45% primary that
+    /// said four columns fit, and the three beside the primary landed at 345px each. Being
+    /// under their own minimum they clamped back up, the row summed past the viewport, and the
+    /// desk scrolled with the last window off-screen — while the number that produced the
+    /// arrangement was also the default for the ceiling, so it recommended itself.
+    /// </para>
+    /// </summary>
     public int RecommendedCapacity
-        => Math.Clamp((int)(DeskWidth / 420), 1, 12);
+    {
+        get
+        {
+            var hasPrimary = Settings.PrimaryWindowKey is not null;
+            var share = Math.Clamp(Settings.PrimaryShare, 0.2, 0.8);
+
+            for (var n = 12; n > 1; n--)
+            {
+                var usable = DeskWidth - Gap * (n + 1);
+
+                if (usable <= 0)
+                    continue;
+
+                // Without a primary every column is the narrowest; with one, the narrowest is
+                // whatever is left after its share is taken.
+                var narrowest = hasPrimary
+                    ? usable * (1 - share) / (n - 1)
+                    : usable / n;
+
+                if (narrowest >= ReadableWidth)
+                    return n;
+            }
+
+            // One window is always allowed the whole desk, however narrow. The alternative is
+            // guidance that recommends showing nothing.
+            return 1;
+        }
+    }
 
     public int OpenCount => _windows.Count;
 

@@ -197,6 +197,39 @@ equal and nothing needs measuring.
 - **A `rail__btn` inside a channel** rendered its own bordered box — a control nested in
   a control. Flattened to match `.bar__key`.
 
+## Revision — finalize (2026-09-04)
+
+The bar's final form is the fixed catalogue: every openable window drawn once, always, in
+catalogue order, with state painted onto it — closed, open (lit, carrying its pulse),
+current (accent wash), collapsed (quiet). Subject windows appear nowhere in the strip.
+`WindowBar` owns that rule and `WindowBarTests` pins it. This pass finished it:
+
+- **Comments reconciled.** The file's header and `DeskHeader`'s still described the
+  abandoned two-runs design and claimed destinations appear in the strip, which the tests
+  forbid. Both now describe what the markup does.
+- **Keyboard walk fixed.** `OnKeyDown` derived its position from the *current window*, so
+  arrows could only ever reach that window's two neighbours and Delete closed the current
+  window rather than the focused key. A first fix tracked focus through `@onfocus`, which
+  a hidden document never dispatches; the final fix puts `@onkeydown` on each key with its
+  own index, so nothing is inferred from focus events or from where the current window is.
+- **Motion.** `.bar__key` transitions background and colour on `--dur-fast`/`--ease-standard`
+  so closed → open → current settles rather than snaps; the global reduced-motion block
+  covers it and the bar block restates it.
+- **`--bar-tight` delivered.** The comment promised a collapse that did not exist. `.bar` is
+  now an inline-size container: at ≤1100px closed keys give up their names (open keys keep
+  theirs), at ≤700px all names go. Group labels were already leaving at a 1500px viewport
+  under an earlier rule, so the container rule no longer duplicates that.
+- **Glide comment** no longer describes a tab-with-× that does not exist.
+
+Verified in the browser: 11 keys, none disabled, order unchanged across open and close;
+current key carries `aria-current` and `data-glide-rest`; marble seats on it at Δ0, resizes
+onto a hovered key and settles back; wash computes to `rgba(10,132,255,.15)` once frozen
+transitions are finished (see the hidden-pane note); at 1920 all names and four group
+labels show with no scrolling, at 1440 names show and labels have gone, at 768 all names
+collapse and nothing overflows; arrows advance Board → Line movement → Players → Journal,
+End/Home land on the last and first keys; Delete on the focused Ops key closes Ops while
+Incidents stays current; 254 web tests pass; console clean apart from restart noise.
+
 ## Verified
 
 Build clean; browser-verified: cap slides to the exact position (one cap-width per
