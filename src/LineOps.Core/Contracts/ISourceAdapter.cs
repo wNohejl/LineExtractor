@@ -1,3 +1,5 @@
+using LineOps.Core.Entities;
+
 namespace LineOps.Core.Contracts;
 
 /// <summary>
@@ -22,7 +24,10 @@ public record CanonicalGame(
     int? AwayScore = null,
     /// <summary>Richer team identity when the provider supplies it. Falls back to the names above.</summary>
     CanonicalTeamRef? Home = null,
-    CanonicalTeamRef? Away = null);
+    CanonicalTeamRef? Away = null,
+    /// <summary>The season the provider says this game belongs to, when it says. See <c>Game.SeasonYear</c>.</summary>
+    int? SeasonYear = null,
+    SeasonType? SeasonType = null);
 
 /// <summary>Canonical priced outcome as normalised at the adapter boundary.</summary>
 public record CanonicalOdds(

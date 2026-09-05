@@ -183,6 +183,38 @@ close" per season — the number that says whether "accounted for" is true.
 - `the-odds-api` credits are untouched by all of this: backfill refuses metered sources.
 - No migration touches the `OddsSnapshots` partitions; the season column is on `Games` only.
 
+## 8. What was done (2026-09-05)
+
+Everything in §5 except the coverage report in the History window, in one pass:
+
+- **Scope.** Both hosts poll `mlb` and `nfl`; `Sport.Enabled` is honoured by the pickers and
+  NBA/NHL are disabled (rows left in place). The dead `balldontlie` configuration is untouched.
+- **Results window** widened to a configurable `GamePasses:ResultsLookback` (45 days) with
+  integration tests modelling a five-day outage. The Worker's `appsettings.json` also had a
+  duplicate `"//"` comment key that stopped it starting at all — fixed.
+- **MLB catch-up** ran through the Worker: 12 days walked, 141 games, 0 errors. Zero finals
+  without stats, zero stuck Live games, one final in the whole season without a close.
+- **NFL 2025** loaded the same way: 285 games (272 regular, 13 postseason), every one with a
+  box score, 1,862 players, 18,387 stat lines, 0 failed days. ESPN closes for 108 games from
+  25 November onward — the boundary is earlier than the December sample suggested (F4).
+- **Season column.** `Game.SeasonYear` and `Game.SeasonType`, stamped by ESPN's per-event
+  season block at ingest (`CanonicalGame` carries it; the resolver writes it and corrects it
+  on re-sight), with `SeasonCalendar` as the rule where no stamp exists. The migration stamps
+  existing rows by that rule. The NFL rule is the league's own — kickoff is the Thursday
+  after Labor Day, the regular season ends on the Monday of week 18 — because a fixed day of
+  the month misfiled week 18 of the 2026 season as playoffs on the first attempt.
+- **Per-sport backfill starts** (`Backfill:Seasons`), so MLB from 25 March and NFL from the
+  previous September walk in one run.
+- **Season gate** on the Team, Player and Game windows, drawn from the seasons each actually
+  has, hiding itself when there is only one; a season tag shows regardless. The Game window
+  draws team and roster data from the game's season, or the one before for a preview.
+- **Publishing the data.** `scripts/publish-data.ps1` streams a custom-format `pg_dump`
+  (~3 MB) into `data/snapshots/` with a manifest; `scripts/restore-data.ps1` restores it on
+  another machine. Both stream through `cmd` because the container's `/tmp` is a tmpfs that
+  `docker cp` cannot reach. `CLAUDE.md` carries the workflow.
+
+Tests: 362 in `LineOps.Tests`, 262 in `LineOps.Web.Tests`, all green.
+
 ## 7. Open questions
 1. "Share data for users": the desk's own consumers (this document's reading), or a second
    user? If the latter, F8 makes it small — an owner on `JournalEntries` and an auth layer —

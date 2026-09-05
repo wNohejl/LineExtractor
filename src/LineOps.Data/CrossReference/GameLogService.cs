@@ -38,16 +38,25 @@ public class GameLogService(LineOpsDbContext db)
     public async Task<IReadOnlyList<TeamGameLogRow>> TeamGameLogAsync(
         int teamId,
         TimeSpan window,
+        int? seasonYear = null,
         CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
         var since = now - window;
 
-        var games = await db.Games
+        var played = db.Games
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
-            .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId)
-                        && g.StartsAt >= since && g.StartsAt <= now)
+            .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId) && g.StartsAt <= now);
+
+        // A season is the honest bound wherever the reader is about a record: "this season"
+        // names the same games tomorrow as it does today, where a rolling window quietly
+        // drops one off the back each morning. The window remains for callers with no season.
+        played = seasonYear is { } year
+            ? played.Where(g => g.SeasonYear == year)
+            : played.Where(g => g.StartsAt >= since);
+
+        var games = await played
             .OrderByDescending(g => g.StartsAt)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -59,6 +68,31 @@ public class GameLogService(LineOpsDbContext db)
 
         return games.Select(g => BuildRow(g, teamId, lines)).ToList();
     }
+
+    /// <summary>
+    /// The seasons a team has played in, newest first — the positions a season gate offers.
+    /// Only seasons with a game already started count: a schedule is not a season yet.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> SeasonsForTeamAsync(int teamId, CancellationToken ct = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        return await db.Games
+            .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId) && g.StartsAt <= now)
+            .Select(g => g.SeasonYear)
+            .Distinct()
+            .OrderByDescending(y => y)
+            .ToListAsync(ct);
+    }
+
+    /// <summary>The seasons a player has an appearance in, newest first.</summary>
+    public async Task<IReadOnlyList<int>> SeasonsForPlayerAsync(int playerId, CancellationToken ct = default)
+        => await db.PlayerGameStats
+            .Where(s => s.PlayerId == playerId)
+            .Join(db.Games, s => s.GameId, g => g.Id, (s, g) => g.SeasonYear)
+            .Distinct()
+            .OrderByDescending(y => y)
+            .ToListAsync(ct);
 
     /// <summary>
     /// Previous meetings between the two teams in a game, newest first, excluding the game
@@ -130,6 +164,7 @@ public class GameLogService(LineOpsDbContext db)
     public async Task<IReadOnlyList<PlayerGameRow>> PlayerGameLogAsync(
         int playerId,
         int take = 25,
+        int? seasonYear = null,
         CancellationToken ct = default)
     {
         var rows = await db.PlayerGameStats
@@ -137,6 +172,8 @@ public class GameLogService(LineOpsDbContext db)
             .Join(db.Games.Include(g => g.HomeTeam).Include(g => g.AwayTeam),
                 s => s.GameId, g => g.Id,
                 (s, g) => new { s.StatLine, Game = g })
+            // A season, when named, bounds the log; the count is then the season's, not a cap.
+            .Where(x => seasonYear == null || x.Game.SeasonYear == seasonYear)
             .OrderByDescending(x => x.Game.StartsAt)
             .Take(take)
             .AsNoTracking()

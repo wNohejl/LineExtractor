@@ -105,8 +105,11 @@ public class HistoryBackfillService(
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var earliest = today.AddDays(-EffectiveDays());
         var sports = EffectiveSports();
+
+        // Each sport reaches back to its own season start, so "earliest" is the earliest of
+        // them and the target is the sum of their days rather than one span times the count.
+        var earliest = sports.Select(s => StartFor(s, today)).DefaultIfEmpty(today).Min();
 
         // Scoped to the sports currently being walked. Checkpoints from a sport that has since
         // been dropped from the configuration are real history, but counting them here would
@@ -123,7 +126,7 @@ public class HistoryBackfillService(
             .ToListAsync(ct);
 
         var eligible = await GetEligibilityAsync(scope.ServiceProvider, ct);
-        var target = EffectiveDays() * EffectiveSports().Count * eligible.Count(e => e.Eligible);
+        var target = sports.Sum(s => DaysFor(s, today)) * eligible.Count(e => e.Eligible);
 
         return new BackfillCoverage(
             DaysRequested: EffectiveDays(),
@@ -143,17 +146,38 @@ public class HistoryBackfillService(
             .ToList();
 
     /// <summary>
-    /// How many days back the walk should reach, from either the fixed <c>Since</c> date or the
-    /// rolling day count. Never negative — a <c>Since</c> in the future means "nothing to do"
-    /// rather than a walk that runs backwards.
+    /// Where a sport's walk starts: its entry in <c>Backfill:Seasons</c>, else the shared
+    /// <c>Since</c>, else the rolling day count. A season has an opening day, and naming it per
+    /// sport is what lets MLB from March and NFL from the previous September be walked in
+    /// the same run without either spending its days on the other's empty calendar.
+    /// </summary>
+    private DateOnly StartFor(string sportKey, DateOnly today)
+    {
+        if (_options.Backfill.Seasons.TryGetValue(sportKey, out var start))
+            return start;
+
+        if (_options.Backfill.Since is { } since)
+            return since;
+
+        return today.AddDays(-_options.Backfill.Days);
+    }
+
+    /// <summary>Days back to a sport's start. Never negative — a start in the future is "nothing to do".</summary>
+    private int DaysFor(string sportKey, DateOnly today)
+        => Math.Max(0, today.DayNumber - StartFor(sportKey, today).DayNumber);
+
+    /// <summary>
+    /// How many days back the walk should reach — the furthest any configured sport reaches.
+    /// The loop skips the days a given sport does not own (see <see cref="StartFor"/>).
     /// </summary>
     private int EffectiveDays()
     {
-        if (_options.Backfill.Since is not { } since)
-            return _options.Backfill.Days;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var span = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - since.DayNumber;
-        return Math.Max(0, span);
+        return EffectiveSports()
+            .Select(s => DaysFor(s, today))
+            .DefaultIfEmpty(0)
+            .Max();
     }
 
     /// <summary>
@@ -255,6 +279,12 @@ public class HistoryBackfillService(
                 {
                     if (ct.IsCancellationRequested)
                         return Report("Stopped.");
+
+                    // Each sport walks from its own season start (Backfill:Seasons). A day before
+                    // that start is not this sport's to fetch, and skipping it is what keeps a
+                    // football walk from spending the baseball spring on an empty scoreboard.
+                    if (date < StartFor(sportKey, today))
+                        continue;
 
                     // One scope per day: the change tracker never outlives the day it wrote.
                     await using var scope = scopeFactory.CreateAsyncScope();

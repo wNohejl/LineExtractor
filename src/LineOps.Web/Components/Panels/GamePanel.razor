@@ -54,14 +54,22 @@ else
             }
         </PanelHeader>
         <Tag State="@StatusState(game.Status)">@StatusLabel(game)</Tag>
+        @* Which season this game belongs to, and which part of it — a February game that is
+           the prior year's postseason says so rather than leaving the date to imply it. *@
+        <Tag State="DeskState.Info">
+            @SeasonCalendar.Label(game.Sport?.Key ?? string.Empty, game.SeasonYear)@(game.SeasonType == SeasonType.Postseason ? " postseason" : " season")
+        </Tag>
     </div>
 
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
 
-        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+        @* Which season the team data and rosters below are drawn from. Defaults to the game's
+           own season; for a game that season has not yet produced games for, the one before.
+           Hides itself when there is only one season to draw on. *@
+        <DeskSwitch Options="_seasonOptions" Label="Season for team and player data" Mono="true"
                     style="margin-left:auto"
-                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
+                    Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
 
         @* The two views this game opens onto, kept together as one cluster: they are the
            same kind of thing — a related window, one click away — and the glide plate
@@ -147,7 +155,18 @@ else
 
     /// <summary>This game's box score. Null until the game has produced one.</summary>
     private GameBoxScore? _box;
-    private int _windowDays = 30;
+
+    /// <summary>
+    /// The season the team data and rosters are drawn from — the game's own where it has
+    /// games behind it, the one before for a preview. Null only when neither side has a
+    /// season on record, where the readers fall back to a wide rolling window.
+    /// </summary>
+    private int? _seasonYear;
+    private IReadOnlyList<int> _seasons = [];
+    private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
+
+    /// <summary>Wide on purpose: only reached when there is no season to bound by.</summary>
+    private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
 
     /// <summary>The roster row showing its recent games. One at a time, like every other row.</summary>
     private int? _openPlayer;
@@ -190,9 +209,9 @@ else
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task SetWindowAsync(int days)
+    private async Task SetSeasonAsync(int year)
     {
-        _windowDays = days;
+        _seasonYear = year;
         await LoadAsync();
     }
 
@@ -207,22 +226,36 @@ else
             if (_row is null)
                 return;
 
-            var window = TimeSpan.FromDays(_windowDays);
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
-
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            // The box score is the answer once there is one; the window aggregate is the
+            // The seasons either side has played in. The game's own season leads if it has
+            // games behind it; a preview of an unplayed season draws on the one before.
+            var home = await log.SeasonsForTeamAsync(_row.Game.HomeTeamId);
+            var away = await log.SeasonsForTeamAsync(_row.Game.AwayTeamId);
+            _seasons = home.Concat(away).Distinct().OrderByDescending(y => y).Take(3).ToList();
+
+            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
+                _seasonYear = _seasons.Contains(_row.Game.SeasonYear) ? _row.Game.SeasonYear
+                    : _seasons.Count > 0 ? _seasons[0] : null;
+
+            var sport = _row.Game.Sport?.Key ?? string.Empty;
+            _seasonOptions = _seasons
+                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
+                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
+                .ToList();
+
+            // The box score is the answer once there is one; the season aggregate is the
             // fallback for a game that has not been played. Both are loaded because the
             // fallback has to be ready the moment the box score turns out to be empty.
             _box = await log.BoxScoreAsync(GameId);
 
-            _matchup = await lookup.GetAsync(GameId, window, maxPlayersPerTeam: 8);
+            _matchup = await lookup.GetAsync(GameId, FallbackWindow, maxPlayersPerTeam: 8, seasonYear: _seasonYear);
 
             // Only the recent record is wanted here — the roster comes from the matchup lookup
             // above, which resolves both sides in one query rather than two.
-            _homeTeam = await lookup.GetTeamAsync(_row.Game.HomeTeamId, window, maxPlayers: 0);
-            _awayTeam = await lookup.GetTeamAsync(_row.Game.AwayTeamId, window, maxPlayers: 0);
+            _homeTeam = await lookup.GetTeamAsync(_row.Game.HomeTeamId, FallbackWindow, maxPlayers: 0, seasonYear: _seasonYear);
+            _awayTeam = await lookup.GetTeamAsync(_row.Game.AwayTeamId, FallbackWindow, maxPlayers: 0, seasonYear: _seasonYear);
         },
         settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _row is null ? "not found" : Matchup(_row.Game));

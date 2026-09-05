@@ -83,6 +83,18 @@ public enum GameStatus
     Postponed
 }
 
+/// <summary>
+/// Which part of a season a game belongs to. Stamped by the provider at ingest — ESPN says it
+/// on every event — and derived by rule (<c>SeasonCalendar</c>) for rows that predate the column.
+/// </summary>
+public enum SeasonType
+{
+    Regular,
+    Postseason,
+    Preseason,
+    Exhibition
+}
+
 public class Game
 {
     public int Id { get; set; }
@@ -95,6 +107,16 @@ public class Game
     public Team? AwayTeam { get; set; }
 
     public DateTimeOffset StartsAt { get; set; }
+
+    /// <summary>
+    /// The season this game belongs to, by the year the sport names it — an NFL playoff in
+    /// February 2026 is season 2025. Filled from the provider's own stamp where it gives one
+    /// (<c>CanonicalGame.SeasonYear</c>), otherwise from <c>SeasonCalendar</c>.
+    /// </summary>
+    public int SeasonYear { get; set; }
+
+    public SeasonType SeasonType { get; set; } = SeasonType.Regular;
+
     public GameStatus Status { get; set; } = GameStatus.Scheduled;
 
     public int? HomeScore { get; set; }

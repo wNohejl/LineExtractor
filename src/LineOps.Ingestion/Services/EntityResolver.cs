@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
@@ -208,7 +209,10 @@ public class EntityResolver(LineOpsDbContext db)
                     HomeTeamId = home.Id,
                     AwayTeamId = away.Id,
                     StartsAt = canonical.StartsAt,
-                    Status = MapStatus(canonical.Status)
+                    Status = MapStatus(canonical.Status),
+                    // The provider's stamp when it gives one; the calendar's rule when it does not.
+                    SeasonYear = canonical.SeasonYear ?? SeasonCalendar.YearOf(sport.Key, canonical.StartsAt),
+                    SeasonType = canonical.SeasonType ?? SeasonCalendar.TypeOf(sport.Key, canonical.StartsAt)
                 };
                 db.Games.Add(game);
             }
@@ -252,6 +256,20 @@ public class EntityResolver(LineOpsDbContext db)
         if (canonical.Status is not null && game.Status != status)
         {
             game.Status = status;
+            changed = true;
+        }
+
+        // The provider's season stamp outranks the rule that filled the column for rows written
+        // before it existed, so a game ESPN sees again corrects itself.
+        if (canonical.SeasonYear is { } seasonYear && game.SeasonYear != seasonYear)
+        {
+            game.SeasonYear = seasonYear;
+            changed = true;
+        }
+
+        if (canonical.SeasonType is { } seasonType && game.SeasonType != seasonType)
+        {
+            game.SeasonType = seasonType;
             changed = true;
         }
 

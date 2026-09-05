@@ -361,7 +361,7 @@ public class IngestionJobs(
 
         var starts = await db.Games
             .Where(g => g.StartsAt <= cutoff
-                        && g.StartsAt >= cutoff.AddDays(-3)
+                        && g.StartsAt >= cutoff - _options.GamePasses.ResultsLookback
                         && g.Status != GameStatus.Final
                         && g.Status != GameStatus.Postponed)
             .Select(g => g.StartsAt)

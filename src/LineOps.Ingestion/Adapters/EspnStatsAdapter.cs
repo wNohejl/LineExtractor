@@ -362,9 +362,38 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
                 HomeScore: homeScore,
                 AwayScore: awayScore,
                 Home: home,
-                Away: away);
+                Away: away,
+                SeasonYear: ReadSeasonYear(e),
+                SeasonType: ReadSeasonType(e));
         }
     }
+
+    /// <summary>
+    /// The season ESPN stamps on the event itself — year and type — read from the event rather
+    /// than the payload root for the same reason <see cref="IsPreseason"/> is: the root describes
+    /// the season the query fell in, the event describes the game. A February playoff carries
+    /// the prior year, which is exactly what a season filter needs and a date alone cannot say.
+    /// </summary>
+    internal static int? ReadSeasonYear(JsonElement e)
+        => e.TryGetProperty("season", out var season)
+           && season.TryGetProperty("year", out var year)
+           && year.ValueKind == JsonValueKind.Number
+            ? year.GetInt32()
+            : null;
+
+    /// <summary>ESPN's season types: 1 preseason, 2 regular, 3 postseason. Anything else is unknown.</summary>
+    internal static SeasonType? ReadSeasonType(JsonElement e)
+        => e.TryGetProperty("season", out var season)
+           && season.TryGetProperty("type", out var type)
+           && type.ValueKind == JsonValueKind.Number
+            ? type.GetInt32() switch
+            {
+                1 => SeasonType.Preseason,
+                2 => SeasonType.Regular,
+                3 => SeasonType.Postseason,
+                _ => null
+            }
+            : null;
 
     /// <summary>
     /// A competitor's team identity: id and official abbreviation alongside the name.

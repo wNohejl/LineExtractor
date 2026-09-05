@@ -31,17 +31,25 @@ else
     <div class="row" style="margin-bottom:2px; align-items:baseline">
         <PanelHeader Tight>@_team.Name</PanelHeader>
         <Tag>@_team.Sport?.Name</Tag>
+        @* The season on screen, said even when there is only one and the gate below has
+           nothing to offer — a record without its season is a number without a unit. *@
+        @if (_seasonYear is { } seasonYear && _team.Sport?.Key is { } sportKey)
+        {
+            <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
+        }
     </div>
 
     <div class="row" style="margin-bottom:12px">
         <span class="dim" style="font-size:11.5px">
-            @_wins-@_losses over the last @_windowDays days
+            @_wins-@_losses @SeasonPhrase
             (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
         </span>
 
-        <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
+        @* The season gate. One position per season this team has played in, newest first;
+           it hides itself when there is only one, because one season is not a choice. *@
+        <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
                     style="margin-left:auto"
-                    Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
+                    Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
     </div>
 
     <PanelHeader Level="4">Recent games</PanelHeader>
@@ -241,17 +249,31 @@ else
 
     private GameLogSplits.Split _split = GameLogSplits.Split.All;
     private string? _opponent;
-    private int _windowDays = 30;
     private int? _openGame;
     private int? _openPlayer;
+
+    /// <summary>
+    /// The season on screen. Null only for a team with no season on record, where the reader
+    /// falls back to a wide rolling window rather than showing nothing.
+    /// </summary>
+    private int? _seasonYear;
+    private IReadOnlyList<int> _seasons = [];
+    private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
+
+    /// <summary>Wide on purpose: only reached when the team has no season to bound by.</summary>
+    private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
 
     private int _wins, _losses, _atsWins, _atsLosses, _atsPushes, _overs, _unders, _covered;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task SetWindowAsync(int days)
+    private string SeasonPhrase => _seasonYear is { } year && _team?.Sport?.Key is { } sport
+        ? $"in the {SeasonCalendar.Label(sport, year)} season"
+        : "over the last year";
+
+    private async Task SetSeasonAsync(int year)
     {
-        _windowDays = days;
+        _seasonYear = year;
         await LoadAsync();
     }
 
@@ -263,17 +285,27 @@ else
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            var window = TimeSpan.FromDays(_windowDays);
+            // The seasons this team has played in decide the gate; the newest is the default.
+            _seasons = await log.SeasonsForTeamAsync(TeamId);
 
-            // The roster still comes from the aggregate side — per-player form over a window is
+            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
+                _seasonYear = _seasons.Count > 0 ? _seasons[0] : null;
+
+            // The roster still comes from the aggregate side — per-player form over a season is
             // exactly what it is for. Only the games are read at game grain.
-            var form = await lookup.GetTeamAsync(TeamId, window, maxPlayers: 15);
+            var form = await lookup.GetTeamAsync(TeamId, FallbackWindow, maxPlayers: 15, seasonYear: _seasonYear);
 
             _team = form?.Team;
             _teamName = _team?.Name;
             _roster = form?.Roster ?? [];
 
-            _log = await log.TeamGameLogAsync(TeamId, window);
+            var sport = _team?.Sport?.Key ?? string.Empty;
+            _seasonOptions = _seasons
+                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
+                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
+                .ToList();
+
+            _log = await log.TeamGameLogAsync(TeamId, FallbackWindow, _seasonYear);
             _opponents = GameLogSplits.Opponents(_log);
 
             ApplySplit();

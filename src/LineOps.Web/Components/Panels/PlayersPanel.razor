@@ -147,7 +147,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _sports = await db.Sports.OrderBy(s => s.Name).ToListAsync();
+        _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
         await LoadAsync();
 
         // Arriving via a shortcut opens straight onto that player's game log rather than the

@@ -174,6 +174,18 @@ public class EspnScheduleOptions
     public TimeSpan ResultsRetry { get; set; } = TimeSpan.FromMinutes(30);
 
     /// <summary>
+    /// How far back a results sweep looks for games that never went final.
+    ///
+    /// This used to be a fixed three days, which is one day shorter than the outage that
+    /// exposed it: the host was down from 31 August to 3 September, and by the time it came
+    /// back the 30 August games had aged out of the window, so they were never owed again
+    /// and sat at Live for good. A self-healing sweep has to look back further than any
+    /// outage it is meant to heal. The cost of a wide window is nothing when the desk is up
+    /// to date — a final game is not owed — and a query when it is not.
+    /// </summary>
+    public TimeSpan ResultsLookback { get; set; } = TimeSpan.FromDays(45);
+
+    /// <summary>
     /// Gap between score refreshes while a game is live. Tighter than <see cref="SlateRefresh"/>
     /// because a live score is stale in minutes, not hours — and separate from it because "a
     /// game is in progress" is a different reason to poll than "a game is about to start", with
@@ -246,6 +258,16 @@ public class BackfillOptions
     /// September. Setting this pins the target so the walk finishes and stays finished.
     /// </summary>
     public DateOnly? Since { get; set; }
+
+    /// <summary>
+    /// Where each sport's walk starts, by sport key — its season's opening day.
+    ///
+    /// One <see cref="Since"/> cannot describe two leagues: MLB from late March and NFL from
+    /// the previous September are both true at once, and a single date either walks half a
+    /// year of empty football days or misses the start of the baseball season. A sport not
+    /// named here falls back to <see cref="Since"/>, then to <see cref="Days"/>.
+    /// </summary>
+    public Dictionary<string, DateOnly> Seasons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sources to walk, by key. Metered providers are rejected regardless of what appears

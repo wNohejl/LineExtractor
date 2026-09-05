@@ -504,6 +504,7 @@ else
     private async Task BuildSportOptionsAsync(LineOpsDbContext db)
     {
         var names = await db.Sports
+            .Where(s => s.Enabled)
             .AsNoTracking()
             .ToDictionaryAsync(s => s.Key, s => s.Name, StringComparer.OrdinalIgnoreCase);
 

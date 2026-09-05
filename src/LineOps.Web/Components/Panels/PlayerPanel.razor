@@ -32,6 +32,10 @@ else
         {
             <Tag>@position</Tag>
         }
+        @if (_seasonYear is { } seasonYear && _player.Sport?.Key is { } sportKey)
+        {
+            <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
+        }
         @if (_player.Team?.Name is { } team)
         {
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
@@ -41,12 +45,14 @@ else
 
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">
-            @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") on record
+            @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
         </span>
 
-        <DeskSwitch Options="_takes" Label="Games shown" Mono="true"
+        @* One position per season the player has appeared in, newest first. A player with a
+           single season sees no gate — one season is not a choice. *@
+        <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
                     style="margin-left:auto"
-                    Value="_take" ValueChanged="@((int take) => SetTakeAsync(take))" />
+                    Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
     </div>
 
     @if (_rows.Count == 0)
@@ -140,20 +146,24 @@ else
     private Core.Entities.Player? _player;
     private IReadOnlyList<PlayerGameRow> _rows = [];
     private List<string> _columns = [];
-    private int _take = 25;
+
+    /// <summary>The season on screen; null only for a player with no appearance on record.</summary>
+    private int? _seasonYear;
+    private IReadOnlyList<int> _seasons = [];
+    private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
+
+    /// <summary>A whole season, not a cap: the log is the season's games, however many.</summary>
+    private const int WholeSeason = int.MaxValue;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private static readonly IReadOnlyList<DeskSwitchOption<int>> _takes =
-    [
-        new(10, "10", "Last 10 games"),
-        new(25, "25", "Last 25 games"),
-        new(60, "60", "Last 60 games")
-    ];
+    private string SeasonPhrase => _seasonYear is { } year && _player?.Sport?.Key is { } sport
+        ? $"in the {SeasonCalendar.Label(sport, year)} season"
+        : "on record";
 
-    private async Task SetTakeAsync(int take)
+    private async Task SetSeasonAsync(int year)
     {
-        _take = take;
+        _seasonYear = year;
         await LoadAsync();
     }
 
@@ -165,6 +175,7 @@ else
 
             _player = await db.Players
                 .Include(p => p.Team)
+                .Include(p => p.Sport)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == PlayerId);
 
@@ -174,7 +185,18 @@ else
             await using var scope = ScopeFactory.CreateAsyncScope();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            _rows = await log.PlayerGameLogAsync(PlayerId, _take);
+            _seasons = await log.SeasonsForPlayerAsync(PlayerId);
+
+            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
+                _seasonYear = _seasons.Count > 0 ? _seasons[0] : null;
+
+            var sport = _player.Sport?.Key ?? string.Empty;
+            _seasonOptions = _seasons
+                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
+                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
+                .ToList();
+
+            _rows = await log.PlayerGameLogAsync(PlayerId, WholeSeason, _seasonYear);
 
             // Wider than the snippet's, because a window has the room and the whole point of
             // opening it was that the snippet did not show enough.
