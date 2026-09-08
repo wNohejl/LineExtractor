@@ -43,7 +43,7 @@ Laptop bootstrap, from nothing:
 ```powershell
 git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps
 git checkout LineX_Development
-.\setup.ps1                              # generates .env with the database password
+.\scripts\setup.ps1                      # generates .env with the database password
 .\scripts\restore-data.ps1               # brings Postgres up and loads the snapshot
 dotnet run --project src/LineOps.Web --launch-profile http
 ```

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Snapshot the local LineOps database into the repository, so another machine can restore
     exactly the same data with one command.
@@ -25,6 +25,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# docker and psql write progress and notices to stderr, which Windows PowerShell 5.1 turns
+# into a terminating error while $ErrorActionPreference is Stop. They report failure by exit
+# code, so native calls run with Continue and the callers check $LASTEXITCODE or the output.
+function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue"; & $Block }
 $root = Split-Path $PSScriptRoot -Parent
 $dir = Join-Path $root "data\snapshots"
 $dump = Join-Path $dir "lineops.dump"
@@ -32,14 +36,20 @@ $manifest = Join-Path $dir "lineops.dump.json"
 
 New-Item -ItemType Directory -Force $dir | Out-Null
 
-docker inspect $Container *> $null
+Invoke-Native { docker inspect $Container *> $null }
 if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres" }
+# The container enforces SCRAM for local connections too (docker-compose.yml's
+# POSTGRES_INITDB_ARGS), so psql and pg_restore inside it need the password. It comes from
+# .env, the same place compose reads it, and reaches the tools through PGPASSWORD.
+$envText = Get-Content (Join-Path $root ".env") -Raw
+if ($envText -notmatch '(?m)^POSTGRES_PASSWORD=(.+)$') { throw ".env has no POSTGRES_PASSWORD. Run .\scripts\setup.ps1 first." }
+$pgEnv = "PGPASSWORD=$($Matches[1].Trim())"
 
 # The archive is streamed out of the container rather than written inside it and copied:
 # the container's /tmp is a tmpfs mount (see docker-compose.yml's hardening), which
 # `docker cp` cannot read. PowerShell would re-encode binary stdout as text, so the
 # redirection is done by cmd, which passes bytes through untouched.
-cmd /c "docker exec $Container pg_dump -U $User -Fc -Z 6 $Database > `"$dump`""
+Invoke-Native { cmd /c "docker exec -e $pgEnv $Container pg_dump -U $User -Fc -Z 6 $Database > `"$dump`"" }
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed" }
 
 # A manifest beside the dump, so a reader knows what is in it without restoring it. The
@@ -55,7 +65,7 @@ select json_build_object(
   'seasons', (select json_object_agg(k, ys) from (select s."Key" k, json_agg(distinct g."SeasonYear") ys from "Games" g join "Sports" s on s."Id"=g."SportId" group by 1) t)
 )::text;
 "@
-$counts = ($sql | docker exec -i $Container psql -U $User -d $Database -X -q -A -t) -join ""
+$counts = (Invoke-Native { $sql | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t }) -join ""
 if (-not $counts) { throw "manifest query returned nothing" }
 [System.IO.File]::WriteAllText($manifest, $counts.Trim() + "`n")
 
