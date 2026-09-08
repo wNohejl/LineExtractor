@@ -55,59 +55,78 @@
         var slot = 0;
     }
 
-    @* One run, in catalogue order, that does not move.
+    @* One run, in catalogue order, that does not move — but folded. Each catalogue group is
+       one key in the strip, and its windows hang under it as a menu that opens on hover,
+       on a press (for touch and keyboard), or when the arrows walk into it. The strip
+       reads as five words rather than fourteen, and every window still has exactly one
+       key, in catalogue order, whether or not it is open: the furniture is the same, it is
+       just kept in drawers.
 
-       Windows used to be appended as tabs on the left, which meant the strip rearranged
-       itself every time something opened: the key you were aiming at slid sideways, and a
-       subject window with a long name pushed the whole catalogue along with it. A toolbar
-       whose contents move is a toolbar you have to re-read.
-
-       So the catalogue is fixed furniture and state is drawn onto it. Current is washed in
-       the accent; open-but-not-current carries a dot and its window's pulse. Nothing is
-       added and nothing is removed, so every key keeps its place for the whole session. *@
+       The marble travels across the group keys and rests on the group that holds the
+       current window. Inside a drawer the keys glide their own plate, like a launcher. *@
     <div class="bar__run" data-glide="marble" role="group" aria-label="Windows">
         @for (var g = 0; g < groups.Count; g++)
         {
-            @if (g > 0)
-            {
-                <span class="bar__split bar__split--quiet" aria-hidden="true"></span>
-            }
+            var group = groups[g];
+            var name = group[0].Definition!.Group;
+            var openInGroup = group.Where(i => i.Open is not null).ToList();
+            var currentInGroup = group.Any(i => i.IsCurrent);
+            var pinned = _pinned == name;
 
-            @* The catalogue already groups these; naming the group turns a hairline into an
-               answer. Hidden from assistive tech because each key states its own group in
-               its accessible name — read aloud it would be said twice per key. *@
-            <span class="bar__group-name" aria-hidden="true">@groups[g][0].Definition!.Group</span>
-
-            @foreach (var item in groups[g])
-            {
-                var index = slot++;
-                var open = item.Open;
-
-                <button class="bar__key @(item.IsCurrent ? "bar__key--current" : null) @(open is not null ? "bar__key--open" : null) @(open?.Minimised == true ? "bar__key--collapsed" : null)"
+            <div class="bar__menu @(pinned ? "bar__menu--pinned" : null)"
+                 @onpointerleave="() => Unpin(name)">
+                <button class="bar__group @(currentInGroup ? "bar__group--current" : null) @(openInGroup.Count > 0 ? "bar__group--open" : null)"
                         type="button"
-                        aria-current="@(item.IsCurrent ? "true" : null)"
-                        tabindex="@(index == currentSlot ? "0" : "-1")"
-                        title="@Tip(item)"
-                        aria-label="@Label(item)"
-                        data-glide-rest="@(item.IsCurrent ? "" : null)"
-                        @ref="_refs[index]"
-                        @onkeydown="e => OnKeyDown(e, index)"
-                        @onclick="() => Press(item)">
-                    <Glyph Icon="@item.Icon" />
-                    <span class="bar__key-name">@item.Title</span>
+                        aria-haspopup="true"
+                        aria-expanded="@(pinned ? "true" : "false")"
+                        title="@GroupTip(name, openInGroup)"
+                        data-glide-rest="@(currentInGroup ? "" : null)"
+                        @onclick="() => TogglePin(name)">
+                    <span class="bar__group-name">@name</span>
+                    <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
 
-                    @if (open is not null)
+                    @if (openInGroup.Count > 0)
                     {
-                        <span class="bar__pulse @PulseClass(open.Pulse)" aria-hidden="true"></span>
+                        <span class="bar__group-pulse @PulseClass(Worst(openInGroup))" aria-hidden="true"></span>
                     }
                 </button>
-            }
+
+                <div class="bar__menu-panel" role="menu" aria-label="@name" data-glide>
+                    @foreach (var item in group)
+                    {
+                        var index = slot++;
+                        var open = item.Open;
+
+                        <button class="bar__key @(item.IsCurrent ? "bar__key--current" : null) @(open is not null ? "bar__key--open" : null) @(open?.Minimised == true ? "bar__key--collapsed" : null)"
+                                type="button"
+                                role="menuitem"
+                                aria-current="@(item.IsCurrent ? "true" : null)"
+                                tabindex="@(index == currentSlot ? "0" : "-1")"
+                                title="@Tip(item)"
+                                aria-label="@Label(item)"
+                                @ref="_refs[index]"
+                                @onkeydown="e => OnKeyDown(e, index)"
+                                @onclick="() => Press(item)">
+                            <Glyph Icon="@item.Icon" />
+                            <span class="bar__key-name">@item.Title</span>
+
+                            @if (open is not null)
+                            {
+                                <span class="bar__pulse @PulseClass(open.Pulse)" aria-hidden="true"></span>
+                            }
+                        </button>
+                    }
+                </div>
+            </div>
         }
     </div>
 </div>
 
 @code {
     private ElementReference[] _refs = [];
+
+    /// <summary>The group whose drawer is held open by a press or by keyboard travel, if any.</summary>
+    private string? _pinned;
 
     /// <summary>One place in the bar: a window that is open, or one that could be.</summary>
     private sealed record Item(
@@ -191,11 +210,40 @@
     /// <summary>Open it, or go to it. Focus restores a collapsed column on the way.</summary>
     private void Press(Item item)
     {
+        // The drawer has done its job once a key inside it is pressed.
+        _pinned = null;
+
         if (item.Open is not null)
             Manager.Focus(item.Open.Id);
         else if (item.Definition is not null)
             Manager.Open(item.Definition);
     }
+
+    private void TogglePin(string group) => _pinned = _pinned == group ? null : group;
+
+    private void Unpin(string group)
+    {
+        if (_pinned == group)
+            _pinned = null;
+    }
+
+    /// <summary>The loudest pulse among a group's open windows, so a critical Ops still shows on a closed drawer.</summary>
+    private static PulseState Worst(List<Item> open) => open
+        .Select(i => i.Open!.Pulse)
+        .OrderByDescending(p => p switch
+        {
+            PulseState.Critical => 4,
+            PulseState.Warn => 3,
+            PulseState.Active => 2,
+            PulseState.Healthy => 1,
+            _ => 0
+        })
+        .First();
+
+    private static string GroupTip(string group, List<Item> open)
+        => open.Count == 0
+            ? $"{group} windows"
+            : $"{group} — open: {string.Join(", ", open.Select(i => i.Title))}";
 
     private async Task OnKeyDown(KeyboardEventArgs e, int pressedOn)
     {
@@ -212,6 +260,12 @@
 
         // Closing from the keyboard: acts on the key that has focus, and only if it has a
         // window — there is nothing to close about a closed key.
+        if (e.Key == "Escape")
+        {
+            _pinned = null;
+            return;
+        }
+
         if (e.Key is "Delete" or "Backspace")
         {
             if (flat[current].Open is { } window)
@@ -234,6 +288,10 @@
 
         // Arrows walk the bar without opening anything: pressing is what opens. Moving
         // focus to a closed window would otherwise open a window per keystroke.
+        // Walking into another group's drawer opens it; a focused key in a closed drawer
+        // would be a key nobody can see.
+        _pinned = flat[next].Definition?.Group;
+
         if (next < _refs.Length)
             await _refs[next].FocusAsync();
     }

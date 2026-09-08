@@ -102,10 +102,48 @@ public class WindowBarTests : DeskTestContext
         Assert.Single(current);
         Assert.Equal("Ops", current[0].QuerySelector(".bar__key-name")!.TextContent.Trim());
 
-        // The marble rests on the current key, so leaving the strip returns the plate to the
-        // window you are actually in rather than to wherever the pointer last was.
-        Assert.NotNull(current[0].GetAttribute("data-glide-rest"));
         Assert.Equal("true", current[0].GetAttribute("aria-current"));
+
+        // The marble travels across the group keys, so it rests on the group that holds the
+        // window you are actually in — Operations for Ops — and on no other.
+        var resting = Assert.Single(bar.FindAll("[data-glide-rest]"));
+
+        Assert.Contains("bar__group--current", resting.ClassName);
+        Assert.Equal("Operations", resting.QuerySelector(".bar__group-name")!.TextContent.Trim());
+    }
+
+    /// <summary>
+    /// The strip is folded: one key per catalogue group, and the window keys hang under it
+    /// in a drawer. A drawer's key sums the state of what it holds, so a critical Ops shows
+    /// on the Operations key even while the drawer is shut.
+    /// </summary>
+    [Fact]
+    public void A_group_key_wears_the_state_of_the_windows_in_its_drawer()
+    {
+        var manager = NewDesk();
+        var ops = manager.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
+
+        manager.SetPulse(ops.Id, PulseState.Critical, "breached");
+
+        var bar = RenderComponent<WindowBar>();
+
+        var groups = bar.FindAll(".bar__group");
+        var operations = groups.Single(g => g.QuerySelector(".bar__group-name")!.TextContent.Trim() == "Operations");
+
+        Assert.Contains("bar__group--open", operations.ClassName);
+        Assert.Contains("pulse--critical", operations.QuerySelector(".bar__group-pulse")!.ClassName);
+
+        // The other drawers are quiet, and every drawer holds its own group's keys.
+        Assert.Single(groups.Where(g => g.ClassName.Contains("bar__group--open")));
+
+        foreach (var panel in bar.FindAll(".bar__menu-panel"))
+        {
+            var group = panel.GetAttribute("aria-label");
+            var expected = WindowCatalog.All.Where(d => !d.RequiresSubject && d.Group == group).Select(d => d.Title).ToArray();
+            var actual = panel.QuerySelectorAll(".bar__key-name").Select(n => n.TextContent.Trim()).ToArray();
+
+            Assert.Equal(expected, actual);
+        }
     }
 
     [Fact]
