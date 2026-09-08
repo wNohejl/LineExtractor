@@ -172,4 +172,84 @@ public class GameSeriesResolutionTests(PostgresFixture fixture)
         Assert.Equal(moved, only.StartsAt);
         Assert.Equal(3, only.HomeScore);
     }
+
+    private static CanonicalGame Fixture(string id, DateTimeOffset startsAt, string? status = null, int? home = null, int? away = null)
+        => new(
+            SourceGameId: id,
+            SportKey: "ignored",
+            HomeTeamName: "Athletics",
+            AwayTeamName: "Toronto Blue Jays",
+            StartsAt: startsAt,
+            Status: status,
+            HomeScore: home,
+            AwayScore: away,
+            Home: new CanonicalTeamRef("Athletics", "11", "ATH"),
+            Away: new CanonicalTeamRef("Toronto Blue Jays", "14", "TOR"));
+
+    /// <summary>
+    /// The real case: ESPN events 401816851 (Sep 8 02:05Z, final 6–5) and 401816866 (Sep 9
+    /// 01:40Z). The Odds API then announced the second game. Both rows sat inside the window,
+    /// and the first one the database returned was the final — so the final took the book's
+    /// id, its start time was "corrected" a day into the future, and the real fixture stayed
+    /// unpriced one minute away. The nearest start time is the one the provider means.
+    /// </summary>
+    [Fact]
+    public async Task A_book_naming_tomorrows_game_lands_on_tomorrows_game_not_todays_final()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var played = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        Assert.True((next - played).TotalHours < 24, "both fixtures must sit inside the window");
+
+        var final = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", played, "final", 6, 5), CancellationToken.None);
+
+        var upcoming = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816866", next, "scheduled"), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.Equal(upcoming.Id, priced.Id);
+
+        var stored = await db.Games.AsNoTracking().ToDictionaryAsync(g => g.Id);
+
+        Assert.Equal(played, stored[final.Id].StartsAt);
+        Assert.False(stored[final.Id].ExternalIds.ContainsKey("the-odds-api"));
+        Assert.Equal("bbab891f", stored[upcoming.Id].ExternalIds["the-odds-api"]);
+    }
+
+    /// <summary>
+    /// The same announcement before ESPN has supplied tomorrow's fixture: the only candidate
+    /// is the final, and a game that has been played is not one that starts tomorrow. A new
+    /// row is the right answer; merging onto the final was how a result ended up dated in the
+    /// future.
+    /// </summary>
+    [Fact]
+    public async Task A_finished_game_is_never_the_fixture_announced_for_the_next_day()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var played = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var final = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", played, "final", 6, 5), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.NotEqual(final.Id, priced.Id);
+
+        var stored = await db.Games.Where(g => g.SportId == sport.Id).AsNoTracking().ToListAsync();
+
+        Assert.Equal(2, stored.Count);
+        Assert.Equal(played, stored.Single(g => g.Id == final.Id).StartsAt);
+    }
 }

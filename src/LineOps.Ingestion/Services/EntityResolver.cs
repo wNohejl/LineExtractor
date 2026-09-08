@@ -195,11 +195,22 @@ public class EntityResolver(LineOpsDbContext db)
             // Both are inside any window wide enough to absorb the scheduling drift this is
             // meant to tolerate, and the result was one fixture per series silently overwritten
             // by the next — its start time, its score and its identifier all replaced.
-            game = candidates.FirstOrDefault(g =>
-                g.HomeTeamId == home.Id
-                && g.AwayTeamId == away.Id
-                && Math.Abs((g.StartsAt - canonical.StartsAt).TotalHours) < 24
-                && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId));
+            //
+            // Among what is left, the nearest start time wins rather than the first row the
+            // database returned. A series puts consecutive games 23 hours apart, so a book
+            // naming tomorrow's game found both today's final and tomorrow's fixture inside the
+            // window — and took whichever came first, which was the final. Its start time was
+            // then "corrected" a day into the future and it wore tomorrow's book id, while the
+            // real fixture sat unpriced one minute away. A fixture that has already been played
+            // is also never the one a provider is announcing for hours later than it started.
+            game = candidates
+                .Where(g => g.HomeTeamId == home.Id
+                            && g.AwayTeamId == away.Id
+                            && Math.Abs((g.StartsAt - canonical.StartsAt).TotalHours) < 24
+                            && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId)
+                            && !AlreadyPlayedBefore(g, canonical.StartsAt))
+                .OrderBy(g => Math.Abs((g.StartsAt - canonical.StartsAt).Ticks))
+                .FirstOrDefault();
 
             if (game is null)
             {
@@ -288,6 +299,14 @@ public class EntityResolver(LineOpsDbContext db)
     /// </summary>
     private static bool ClaimedByAnotherGameFrom(Game game, string sourceKey, string sourceGameId)
         => game.ExternalIds.TryGetValue(sourceKey, out var existing) && existing != sourceGameId;
+
+    /// <summary>
+    /// A game that has finished cannot be the fixture a provider says starts hours after it
+    /// did. The allowance covers a book quoting a start a little later than the stats feed's;
+    /// the next game in a series is a day away and well outside it.
+    /// </summary>
+    private static bool AlreadyPlayedBefore(Game game, DateTimeOffset announcedStart)
+        => game.Status == GameStatus.Final && announcedStart - game.StartsAt > TimeSpan.FromHours(6);
 
     private static GameStatus MapStatus(string? raw) => raw?.ToLowerInvariant() switch
     {
