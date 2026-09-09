@@ -134,7 +134,7 @@ public class WindowBarTests : DeskTestContext
         Assert.Contains("pulse--critical", operations.QuerySelector(".bar__group-pulse")!.ClassName);
 
         // The other drawers are quiet, and every drawer holds its own group's keys.
-        Assert.Single(groups.Where(g => g.ClassName.Contains("bar__group--open")));
+        Assert.Single(groups, g => g.ClassName.Contains("bar__group--open"));
 
         foreach (var panel in bar.FindAll(".bar__menu-panel"))
         {
