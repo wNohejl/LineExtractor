@@ -68,9 +68,13 @@ public class OddsRetentionService(
         // sometimes take a line a few seconds stale over the one that arrives right after.
         var cutoff = now - _settings.PromoteAfterStart;
 
+        // "Already closed" means a close from a book market. The stats provider records its
+        // own single-book reference close for every final, under its own source; that row is
+        // not the market and must not stand in for it here, or a results sweep that lands
+        // before this pass would leave the real close unpromoted for good.
         var started = await db.Games
             .Where(g => g.StartsAt <= cutoff)
-            .Where(g => !db.ClosingLines.Any(c => c.GameId == g.Id))
+            .Where(g => !db.ClosingLines.Any(c => c.GameId == g.Id && c.Source!.Kind == SourceKind.Odds))
             .Where(g => db.OddsSnapshots.Any(s => s.GameId == g.Id))
             .Select(g => new { g.Id, g.StartsAt })
             .Take(_settings.PromoteBatchSize)
@@ -142,7 +146,7 @@ public class OddsRetentionService(
         // Scans for games whose close is on record. Bounded per pass so a first run against a
         // large table cannot hold one enormous transaction.
         var settled = await db.OddsSnapshots
-            .Where(s => db.ClosingLines.Any(c => c.GameId == s.GameId))
+            .Where(s => db.ClosingLines.Any(c => c.GameId == s.GameId && c.Source!.Kind == SourceKind.Odds))
             .ExecuteDeleteAsync(ct);
 
         if (stale > 0)

@@ -75,16 +75,13 @@ public class BoardService(LineOpsDbContext db)
         // still has a number even though its scans are gone.
         var missing = gameIds.Where(id => !byGame.ContainsKey(id)).ToList();
 
-        var closed = missing.Count == 0
+        var closesByGame = missing.Count == 0
             ? []
-            : await db.ClosingLines
+            : MarketFirst(await db.ClosingLines
                 .Where(c => missing.Contains(c.GameId))
+                .Select(c => new ClosedQuote(c, c.Source!.Kind))
                 .AsNoTracking()
-                .ToListAsync(ct);
-
-        var closesByGame = closed
-            .GroupBy(c => c.GameId)
-            .ToDictionary(g => g.Key, g => g.Select(Quote.From).ToList());
+                .ToListAsync(ct));
 
         var newest = latest.Count == 0 ? (DateTimeOffset?)null : latest.Max(s => s.CapturedAt);
 
@@ -94,6 +91,27 @@ public class BoardService(LineOpsDbContext db)
             closesByGame.GetValueOrDefault(game.Id),
             newest)).ToList();
     }
+
+    /// <summary>A closing line with the kind of source that wrote it.</summary>
+    private sealed record ClosedQuote(ClosingLine Line, SourceKind Kind);
+
+    /// <summary>
+    /// The close per game, read from the book market where there is one.
+    ///
+    /// The stats provider records a single-book reference close for every final under its own
+    /// source. It is never mixed into a market: a game the odds feed covered is read from the
+    /// market alone, and only a game it never saw falls back to the reference — otherwise the
+    /// reference would count as one more book, could win "best", and would move the number it
+    /// was meant to be compared against (ADR 0011). Same rule as the game log's reader.
+    /// </summary>
+    private static Dictionary<int, List<Quote>> MarketFirst(List<ClosedQuote> closed)
+        => closed
+            .GroupBy(c => c.Line.GameId)
+            .ToDictionary(
+                g => g.Key,
+                g => (g.Any(c => c.Kind == SourceKind.Odds) ? g.Where(c => c.Kind == SourceKind.Odds) : g)
+                    .Select(c => Quote.From(c.Line))
+                    .ToList());
 
     /// <summary>
     /// Three hours back by default, which is roughly a game.
@@ -185,12 +203,12 @@ public class BoardService(LineOpsDbContext db)
 
         var closing = live.Count > 0
             ? []
-            : (await db.ClosingLines
+            : MarketFirst(await db.ClosingLines
                 .Where(c => c.GameId == gameId)
+                .Select(c => new ClosedQuote(c, c.Source!.Kind))
                 .AsNoTracking()
                 .ToListAsync(ct))
-                .Select(Quote.From)
-                .ToList();
+                .GetValueOrDefault(gameId) ?? [];
 
         // Only asked when the row is going to have to explain itself, because the answer is
         // only used to tell "the feed has never run" apart from "the feed skipped this
