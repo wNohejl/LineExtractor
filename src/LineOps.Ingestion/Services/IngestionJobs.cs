@@ -313,6 +313,7 @@ public class IngestionJobs(
     /// </summary>
     private async Task<JobOutcome> RunResultsAsync(CancellationToken ct)
     {
+        var now = DateTimeOffset.UtcNow;
         var owed = await DatesAwaitingResultsAsync(_options.GamePasses.ResultsAfterStart, ct);
 
         // Nothing outstanding still means yesterday, so pressing the button by hand does
@@ -320,10 +321,17 @@ public class IngestionJobs(
         if (owed.Count == 0)
             owed = [DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)];
 
+        // A date that has been swept and is still owed is one a sweep does not heal — a game
+        // ESPN never lists as final, or one whose event has moved to another date. Walking it
+        // every retry re-fetched every box score on that date, tens of thousands of requests
+        // across the lookback from one row. Each fruitless sweep doubles the wait before the
+        // next, up to a day, and a date that heals leaves the table.
+        var due = owed.Where(d => !_sweptDates.TryGetValue(d, out var s) || now >= s.NextTry).ToList();
+
         var rows = 0;
         var failures = 0;
 
-        foreach (var date in owed)
+        foreach (var date in due)
         {
             if (ct.IsCancellationRequested)
                 break;
@@ -334,10 +342,34 @@ public class IngestionJobs(
             failures += outcome.Failures;
         }
 
+        var stillOwed = (await DatesAwaitingResultsAsync(_options.GamePasses.ResultsAfterStart, ct)).ToHashSet();
+
+        foreach (var date in due)
+        {
+            if (!stillOwed.Contains(date))
+            {
+                _sweptDates.TryRemove(date, out _);
+                continue;
+            }
+
+            var attempts = _sweptDates.TryGetValue(date, out var s) ? s.Attempts + 1 : 1;
+            var wait = TimeSpan.FromTicks(Math.Min(
+                _options.GamePasses.ResultsRetry.Ticks * (1L << Math.Min(attempts, 8)),
+                TimeSpan.FromDays(1).Ticks));
+
+            _sweptDates[date] = (attempts, DateTimeOffset.UtcNow + wait);
+        }
+
+        var deferred = owed.Count - due.Count;
+
         return new JobOutcome(
             EspnResults, failures == 0, rows, failures,
-            $"{owed.Count} {(owed.Count == 1 ? "day" : "days")} swept, {rows:N0} rows.");
+            $"{due.Count} {(due.Count == 1 ? "day" : "days")} swept, {rows:N0} rows"
+            + (deferred > 0 ? $", {deferred} still owed and backing off." : "."));
     }
+
+    /// <summary>Dates swept without healing, and when each is worth trying again.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<DateOnly, (int Attempts, DateTimeOffset NextTry)> _sweptDates = new();
 
     private async Task<JobOutcome> RunSettleAsync(CancellationToken ct)
     {

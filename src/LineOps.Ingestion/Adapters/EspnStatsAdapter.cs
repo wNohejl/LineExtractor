@@ -469,9 +469,13 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
            && type.TryGetProperty("name", out var name)
             ? name.GetString() switch
             {
-                "STATUS_FINAL" => "final",
+                // A forfeit is a final with a score. A suspended or abandoned game is not
+                // coming back on this date: folding it into "scheduled" kept its date owed
+                // and the results sweep re-walking every box score on it for weeks.
+                "STATUS_FINAL" or "STATUS_FORFEIT" => "final",
                 "STATUS_IN_PROGRESS" or "STATUS_HALFTIME" => "live",
-                "STATUS_POSTPONED" or "STATUS_CANCELED" => "postponed",
+                "STATUS_POSTPONED" or "STATUS_CANCELED" or "STATUS_CANCELLED"
+                    or "STATUS_SUSPENDED" or "STATUS_ABANDONED" => "postponed",
                 _ => "scheduled"
             }
             : null;
