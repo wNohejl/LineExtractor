@@ -292,14 +292,21 @@ else
     private record SportOption(string Key, string Label);
 
     /// <summary>
-    /// How far back the board reaches.
+    /// How far back the board reaches: to the start of today, in the desk's own time.
     ///
-    /// Far enough to hold an evening of finished games, because "how did tonight go" is asked
-    /// from here now that a played row carries its score and its close. It is not a history
-    /// window — the Journal and History windows are for that — so it is a fixed reach rather
-    /// than a third control on the toolbar.
+    /// The board is today's slate. A fixed reach of fourteen hours held "how did tonight go"
+    /// in the evening, and last night's finals on the following morning — yesterday's game
+    /// sitting at the top of today's board. The Journal and History windows are for looking
+    /// back; the board stops at midnight.
     /// </summary>
-    private static readonly TimeSpan Lookback = TimeSpan.FromHours(14);
+    private static TimeSpan Lookback
+    {
+        get
+        {
+            var now = DateTimeOffset.Now;
+            return now - new DateTimeOffset(now.Date, now.Offset);
+        }
+    }
 
     private static readonly IReadOnlyList<DeskSwitchOption<int>> Horizons =
     [
@@ -338,7 +345,7 @@ else
     /// </summary>
     private List<BoardRow> Visible => _visible;
 
-    private string HorizonNote => $"next {_windowHours}h · {(int)Lookback.TotalHours}h back";
+    private string HorizonNote => $"next {_windowHours}h · since midnight";
 
     /// <summary>
     /// Coverage in words, because "12 of 19" alone does not say whether the missing seven are a

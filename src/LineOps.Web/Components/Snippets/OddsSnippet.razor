@@ -1,4 +1,5 @@
 @namespace LineOps.Web.Components.Snippets
+@using LineOps.Core.Analytics
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
 
@@ -112,7 +113,7 @@ else
                 <span class="snippet__sel trunc">@offer.Outcome</span>
                 @if (offer.Line is { } l)
                 {
-                    <span class="snippet__line mono">@Line(l)</span>
+                    <span class="snippet__line mono">@OddsMath.FormatLine(l, offer.Outcome)</span>
                 }
                 <span class="snippet__price mono">@Price(offer.PriceAmerican)</span>
                 <span class="snippet__book dim">@offer.Book</span>
@@ -120,7 +121,5 @@ else
         }
     </text>;
 
-    private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
-
-    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+    private static string Price(int american) => OddsMath.FormatPrice(american);
 }

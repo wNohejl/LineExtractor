@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
+@inject DeskToasts Toasts
 
 @*
     Logging a wager from the board.
@@ -72,6 +73,11 @@
             <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
         }
 
+        @if (_logged is not null)
+        {
+            <Note State="DeskState.Positive" Style="margin:0">@_logged</Note>
+        }
+
         <div class="row row--end">
             <DeskButton Emphasis="DeskEmphasis.Filled"
                         Icon="@Icons.Material.Filled.Bolt"
@@ -111,6 +117,7 @@
     private decimal _stake;
     private string? _note;
     private string? _error;
+    private string? _logged;
     private bool _saving;
 
     protected override async Task OnParametersSetAsync()
@@ -194,6 +201,16 @@
             });
 
             await db.SaveChangesAsync();
+
+            // The form used to be closed by its host after a save. Hosted as a window it has
+            // no host to do that, so it says what it did and clears itself: a form that stayed
+            // exactly as it was, key still lit, logged the same wager twice on the next press.
+            _logged = $"Logged {_stake:C0} on {chosen.Label} at {Price(chosen.Offer.PriceAmerican)} ({chosen.Offer.Book}).";
+            Toasts.Success(_logged);
+            _stake = 0;
+            _chosen = null;
+            _note = null;
+
             await OnPlaced.InvokeAsync();
         }
         catch (Exception ex)
