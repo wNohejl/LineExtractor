@@ -54,6 +54,10 @@ public static class IngestionServiceCollectionExtensions
         services.AddSingleton<BackfillCoordinator>();
         services.AddHostedService(sp => sp.GetRequiredService<BackfillCoordinator>());
 
+        // Runs once at start, after the initialiser has seeded the reference rows: the
+        // enabled flags on sports and sources follow the configuration rather than a hand edit.
+        services.AddHostedService<ReferenceReconciler>();
+
         var options = configuration.GetSection(IngestionOptions.SectionName).Get<IngestionOptions>()
                       ?? new IngestionOptions();
 

@@ -26,6 +26,9 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
     {
         var live = registry.OddsSources.Select(s => s.Key).ToHashSet();
 
+        // A provider that is disabled in configuration is not a feed with a problem; it is a
+        // feed the operator chose not to run, and it has no business on the health surface.
+        // One enabled without a key is a misconfiguration and stays listed, with the reason.
         var states = new List<OddsProviderState>
         {
             Describe("odds-api-io", "odds-api.io", _options.OddsApiIo, live,
@@ -35,7 +38,7 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
                 "500 credits/month, billed as markets x regions per call.")
         };
 
-        return states;
+        return states.Where(s => s.IsLive || s.Enabled).ToList();
     }
 
     private OddsProviderState Describe(
@@ -52,6 +55,7 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
             Key: key,
             Name: name,
             IsLive: live.Contains(key),
+            Enabled: config.Enabled,
             Books: config.EffectiveBookmakers,
             Reason: reason);
     }
@@ -61,5 +65,6 @@ public record OddsProviderState(
     string Key,
     string Name,
     bool IsLive,
+    bool Enabled,
     IReadOnlyList<string> Books,
     string Reason);
