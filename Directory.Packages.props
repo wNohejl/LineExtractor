@@ -25,6 +25,9 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.6.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
 
+    <!-- Render tests for the Desk primitives. -->
+    <PackageVersion Include="bunit" Version="1.40.0" />
+
     <!-- Telemetry. The instrumentation packages track the SDK version, so they move together. -->
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />

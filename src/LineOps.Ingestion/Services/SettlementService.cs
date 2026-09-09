@@ -158,8 +158,13 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
             query = query.Where(c => c.Book == entry.Book);
 
         // Unique per (game, book, market, outcome), so the same-book lookup returns at most
-        // one. The any-book fallback can match several; the latest close wins.
-        return await query.OrderByDescending(c => c.CapturedAt).FirstOrDefaultAsync(ct);
+        // one. The any-book fallback can match several: a book market outranks the stats
+        // provider's reference close — which is stamped at first pitch and would otherwise
+        // always sort newest — and among markets the latest close wins.
+        return await query
+            .OrderByDescending(c => c.Source!.Kind == SourceKind.Odds)
+            .ThenByDescending(c => c.CapturedAt)
+            .FirstOrDefaultAsync(ct);
     }
 
     /// <summary>

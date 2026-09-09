@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Data.CrossReference;
@@ -325,5 +326,205 @@ public class BoardServiceTests(PostgresFixture fixture)
 
         Assert.Null(row.Unpriced);
         Assert.True(row.Age > TimeSpan.FromMinutes(30));
+    }
+
+    // ---- The close, once the scan tier has let go of the game ----------------------------
+    //
+    // ADR 0010 deletes scans for a game that has started and keeps one closing line per book.
+    // The board only read the scan tier, so every game in play went blank — sixteen empty rows
+    // on a nineteen-game slate — and explained itself by describing the retention policy. The
+    // close is the number worth having: it is what the market concluded, and it is what CLV is
+    // measured against. These pin that it is shown, that it is labelled as a close, and that it
+    // never displaces a live market.
+
+    private static ClosingLine Close(
+        Scaffold s, string book, string market, string outcome, int american, decimal? line = null)
+        => new()
+        {
+            GameId = s.Game.Id,
+            SourceId = s.Source.Id,
+            Book = book,
+            Market = market,
+            Outcome = outcome,
+            Line = line,
+            PriceAmerican = american,
+            CapturedAt = s.Game.StartsAt.AddMinutes(-30),
+            PromotedAt = s.Game.StartsAt.AddMinutes(10)
+        };
+
+    /// <summary>A game that has already been played, with its result on record.</summary>
+    private static async Task<Scaffold> SeedPlayedAsync(LineOpsDbContext db)
+    {
+        var s = await SeedAsync(db);
+
+        s.Game.StartsAt = DateTimeOffset.UtcNow.AddHours(-4);
+        s.Game.Status = GameStatus.Final;
+        s.Game.AwayScore = 3;
+        s.Game.HomeScore = 5;
+
+        await db.SaveChangesAsync();
+        return s;
+    }
+
+    private static async Task<BoardRow> LoadPlayedAsync(LineOpsDbContext db, Scaffold s)
+    {
+        var rows = await new BoardService(db).GetAsync(
+            s.Sport.Key, TimeSpan.FromHours(24), TimeSpan.FromHours(14));
+
+        return Assert.Single(rows);
+    }
+
+    [Fact]
+    public async Task AGameThatHasStartedKeepsItsClosingLine()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.AddRange(
+            Close(s, "draftkings", Markets.Moneyline, s.Home.Name, -115),
+            Close(s, "fanduel", Markets.Moneyline, s.Home.Name, -105));
+        await db.SaveChangesAsync();
+
+        var row = await LoadPlayedAsync(db, s);
+
+        // Not a dash and not an explanation: the number the market finished on.
+        Assert.True(row.HasPrices);
+        Assert.Null(row.Unpriced);
+        Assert.Equal(-105, row.Moneyline.First!.PriceAmerican);
+        Assert.Equal("fanduel", row.Moneyline.First.Book);
+
+        // And it is marked, so the cell can mute it and say what it is on hover rather than
+        // letting it read as a price still on offer.
+        Assert.True(row.PricesAreClosing);
+        Assert.True(row.Moneyline.First.IsClosing);
+    }
+
+    [Fact]
+    public async Task AClosingRowReportsNoAgeBecauseAClosedLineCannotBeStale()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.Add(Close(s, "draftkings", Markets.Moneyline, s.Home.Name, -110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadPlayedAsync(db, s);
+
+        // The header reads the oldest age as "quietest line unmoved". A close is old by
+        // construction and will never move again, so counting it there would report a settled
+        // number as a still market and send an operator chasing it.
+        Assert.NotNull(row.PricedAt);
+        Assert.Null(row.Age);
+    }
+
+    [Fact]
+    public async Task TheLiveMarketOutranksTheClose()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Both tiers hold this game — which happens between promotion and the prune that
+        // follows it. The scan is the truth while one exists; the close is the fallback.
+        db.OddsSnapshots.Add(Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 140));
+        db.ClosingLines.Add(Close(s, "fanduel", Markets.Moneyline, s.Home.Name, 999));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.False(row.PricesAreClosing);
+        Assert.Equal(140, row.Moneyline.First!.PriceAmerican);
+        Assert.Single(row.Moneyline.First.Rungs);
+    }
+
+    [Fact]
+    public async Task AStartedGameWithNoCloseSaysThatRatherThanQuotingThePolicy()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        var row = await LoadPlayedAsync(db, s);
+
+        Assert.False(row.HasPrices);
+
+        // The old wording — "pre-match prices are dropped once a game starts" — was said of
+        // every started game, including the ones whose close was sitting unread in the
+        // permanent record. It described storage rather than this fixture.
+        Assert.NotNull(row.Unpriced);
+        Assert.Contains("no closing line", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AGameThatHasBeenPlayedIsStillOnTheBoard()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        // The default three-hour reach is a live-market window. A surface an operator also
+        // asks "how did tonight go" of has to hold the evening, so the lookback is a parameter.
+        var narrow = await new BoardService(db).GetAsync(s.Sport.Key, TimeSpan.FromHours(24));
+        Assert.Empty(narrow);
+
+        var wide = await LoadPlayedAsync(db, s);
+
+        Assert.Equal(GameStatus.Final, wide.Game.Status);
+        Assert.True(wide.HasScore);
+        Assert.Equal("AWY 3–5 HOM", Scoreline.Format(wide.Game));
+    }
+
+    [Fact]
+    public async Task OneGameLoadedByIdFallsBackToTheCloseTheSameWay()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedPlayedAsync(db);
+
+        db.ClosingLines.Add(Close(s, "draftkings", Markets.Total, "over", -110, 8.5m));
+        await db.SaveChangesAsync();
+
+        // The follow-up views load by id rather than being handed a row, so they have to make
+        // the same choice — otherwise opening "Every book" on a played game shows nothing.
+        var row = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.NotNull(row);
+        Assert.True(row!.PricesAreClosing);
+        Assert.Equal(8.5m, row.Total.First!.Line);
+    }
+
+    [Fact]
+    public async Task AGameLoadedByIdDoesNotClaimTheFeedHasNeverRun()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Another fixture priced in the same database proves the feed is alive. Opening the
+        // unpriced game used to report "no odds scan has run yet" regardless, which reads as a
+        // broken platform on a desk that is in fact holding a full slate of prices.
+        var other = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(6),
+            Status = GameStatus.Scheduled
+        };
+        db.Games.Add(other);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = other.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow,
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var row = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.NotNull(row);
+        Assert.Contains("did not cover", row!.Unpriced!, StringComparison.OrdinalIgnoreCase);
     }
 }

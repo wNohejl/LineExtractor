@@ -1,9 +1,11 @@
+using System.Net.Http.Headers;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace LineOps.Ingestion;
@@ -11,8 +13,10 @@ namespace LineOps.Ingestion;
 public static class IngestionServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the ingestion pipeline. Adapters are registered only when configured,
-    /// so a cold clone with no API keys still starts — it just runs on the demo source.
+    /// Registers the ingestion pipeline. Adapters are registered only when configured, so a
+    /// cold clone with no API keys still starts — it runs on ESPN, which needs none, and has
+    /// no odds feed until a key is supplied. No odds source is <i>unconfigured</i>, not broken;
+    /// the reliability layer is careful to say so (see <c>AlertEngine</c>).
     /// </summary>
     public static IServiceCollection AddLineOpsIngestion(
         this IServiceCollection services,
@@ -50,33 +54,31 @@ public static class IngestionServiceCollectionExtensions
         services.AddSingleton<BackfillCoordinator>();
         services.AddHostedService(sp => sp.GetRequiredService<BackfillCoordinator>());
 
+        // Runs once at start, after the initialiser has seeded the reference rows: the
+        // enabled flags on sports and sources follow the configuration rather than a hand edit.
+        services.AddHostedService<ReferenceReconciler>();
+
         var options = configuration.GetSection(IngestionOptions.SectionName).Get<IngestionOptions>()
                       ?? new IngestionOptions();
 
-        // What a real provider looks like: configured, and holding whatever credential it needs.
-        var realOdds =
-            (options.OddsApiIo.Enabled && !string.IsNullOrWhiteSpace(options.OddsApiIo.ApiKey))
-            || (options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey));
-
-        var realStats = options.Espn.Enabled;
-
-        // The demo source exists so a cold clone runs with no keys. It is not a supplement to a
-        // real feed — it invents prices and rosters, and running it alongside one would mix
-        // fabricated rows into the same tables under a different source id, where every
-        // downstream reader treats them alike. So it yields, per kind: real odds configured
-        // means no demo odds, ESPN enabled means no demo stats.
-        if (options.Demo.Enabled && !realOdds)
-            services.AddScoped<IOddsSource, DemoOddsSource>();
-
-        if (options.Demo.Enabled && !realStats)
-            services.AddScoped<IStatsSource, DemoStatsSource>();
-
         if (options.Espn.Enabled)
         {
-            services.AddHttpClient<EspnStatsAdapter>(client =>
+            services.AddHttpClient<EspnStatsAdapter>((sp, client) =>
                 {
                     client.BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/");
                     client.Timeout = TimeSpan.FromSeconds(30);
+
+                    // ESPN refuses a request whose client it does not recognise. HttpClient
+                    // sends no User-Agent at all by default, and on 2 August 2026 that began
+                    // returning 403 on every call — the port had always been one policy change
+                    // away from breaking, and the policy changed. See SourceOptions.UserAgent
+                    // for why the value has to name a real HTTP client rather than this app.
+                    //
+                    // A malformed override is corrected rather than obeyed: an unparseable
+                    // value would leave the header absent, which is the precise condition that
+                    // caused the outage. Failing back to a working default and saying so is
+                    // better than a typo silently reproducing the bug it was added to fix.
+                    ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp);
                 })
                 .AddStandardResilienceHandler();
 
@@ -136,6 +138,35 @@ public static class IngestionServiceCollectionExtensions
     /// web app can trigger ingestion manually without also owning the schedule — which is what
     /// lets the worker be split into its own process later without touching either codebase.
     /// </summary>
+    /// <summary>
+    /// Sets a client's identification, correcting an unusable override rather than obeying it.
+    ///
+    /// <para>
+    /// The failure this guards against is specific. An absent <c>User-Agent</c> is what ESPN
+    /// began refusing, so a configured value that cannot be parsed must not be allowed to leave
+    /// the header unset — that would turn a typo into the exact three-week outage the option was
+    /// added to prevent. The default is applied instead and the substitution is logged, because
+    /// silently ignoring configuration is its own kind of bug.
+    /// </para>
+    /// </summary>
+    private static void ApplyUserAgent(
+        HttpClient client, SourceOptions source, string sourceKey, IServiceProvider services)
+    {
+        var configured = source.EffectiveUserAgent;
+
+        if (client.DefaultRequestHeaders.UserAgent.TryParseAdd(configured))
+            return;
+
+        services.GetService<ILoggerFactory>()
+            ?.CreateLogger(typeof(IngestionServiceCollectionExtensions))
+            .LogWarning(
+                "{Source}: configured User-Agent '{Configured}' is not a valid header value; "
+                + "using '{Fallback}'. An absent User-Agent is refused by this provider.",
+                sourceKey, configured, SourceOptions.DefaultUserAgent);
+
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(SourceOptions.DefaultUserAgent);
+    }
+
     public static IServiceCollection AddLineOpsIngestionScheduler(this IServiceCollection services)
     {
         services.AddHostedService<IngestionScheduler>();
@@ -158,7 +189,7 @@ public static class IngestionServiceCollectionExtensions
         options.Backfill.Sports = Unique(options.Backfill.Sports);
         options.Backfill.Sources = Unique(options.Backfill.Sources);
 
-        foreach (var source in new[] { options.OddsApiIo, options.TheOddsApi, options.BallDontLie, options.Espn, options.Demo })
+        foreach (var source in new[] { options.OddsApiIo, options.TheOddsApi, options.BallDontLie, options.Espn })
             source.Bookmakers = Unique(source.Bookmakers);
     }
 

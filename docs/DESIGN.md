@@ -1,6 +1,6 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
-**Status: BUILT.** All seven phases implemented and verified. 80 tests passing (unit + adapter-fixture + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
+**Status: BUILT.** All seven phases implemented and verified. 555 tests passing (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
@@ -25,7 +25,6 @@
 | Odds (secondary/reconciliation) | **The Odds API** Starter | All sports, books, and markets — but billed in credits (markets × regions per call) | 500 credits/mo — treat as a small reconciliation budget, never the primary feed |
 | Players & stats | **balldontlie** free tier | NBA, NFL, MLB, EPL — teams, players, games, stats | Free tier with rate limits; NHL stats fall to ESPN |
 | Scores/schedules/stats backfill | **ESPN undocumented JSON** | Scoreboards, schedules, box scores, athletes across 20+ sports | Free, no auth — but unofficial and can change without notice |
-| Offline fixtures | **built-in demo sources** | Full slate with drifting prices, rosters, box scores | $0, no network — see §11 |
 | Database | PostgreSQL 17 in Docker | Everything | $0, local |
 | Hosting | Your own machine (Docker Compose) | Web + worker + DB | $0 — the daily poll cadence doesn't need cloud hosting |
 | CI | GitHub Actions, public repo | Build/test minutes | Free for public repos |
@@ -85,7 +84,7 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │    ├─ CreditBudgetGuard    (refuses runs over free-tier ceiling)  │
 │    └─ Adapters: IOddsSource / IStatsSource / IFailureInjectable   │
 │         OddsApiIoAdapter · TheOddsApiAdapter                      │
-│         EspnStatsAdapter  · DemoOddsSource · DemoStatsSource      │
+│         EspnStatsAdapter  · MlbStatsApiAdapter                    │
 │                                                                  │
 │  LineOps.Reliability  Shared reliability library (§5)             │
 │    ├─ KpiCalculator · AlertEngine · IncidentService               │
@@ -230,7 +229,7 @@ The loop ticks every minute and asks *what is due*, rather than sleeping until t
 - **The Odds API** — secondary, for cross-source reconciliation only; hard 500-credit/mo budget.
 - **ESPN undocumented JSON** — schedules, scores, box scores, NHL gap-fill. No auth. Verified pulling real rosters in testing.
 - **balldontlie** — players/teams/games/stats (registered; enable with a key).
-- **Demo odds + stats fixtures** — deterministic offline sources so a cold clone runs with no keys (§11).
+- *(Removed)* **Demo odds + stats fixtures** — deterministic offline sources that ran a cold clone with no keys. Withdrawn: the platform runs on real data only. → [ADR 0017], §11
 
 The daily bulk ingest includes a **player/stats pass**: roster upsert by external id (players move teams mid-season, so team is refreshed every sync) and post-final box scores into `player_game_stat`.
 
@@ -302,11 +301,16 @@ behind it *together*; a page-based UI can only ever show one. Pages fought the p
 Ops chip stays amber while you work in Journal. Peripheral awareness is the only reason a
 desk beats tabs, so it is the one loud element and everything around it stays quiet.
 
-**Visual language.** Cool graphite-indigo surfaces (not near-black), and a four-hue semantic
-dial where hue always means state: `steam #35E0A1` healthy, `drift #FF6B81` breached,
-`flag #FFB84D` warn, `iris #7C8CFF` interactive. Archivo for chrome (titles set tight and
-uppercase), JetBrains Mono for every number — odds are read in columns and need tabular
-figures.
+**Visual language.** Apple's HIG: a true-neutral surface ramp (`--surface-0` … `--surface-3`)
+with hairlines that separate rather than outline, and **one** accent — systemBlue `#0A84FF`,
+spent only on interactivity, focus and selection. Buttons state weight, not hue: Filled /
+Tinted / Plain, at most one Filled per context. State colours are role-named
+(`--state-positive` / `-warning` / `-negative`) and land on the *values* that report — numbers,
+tags, the pulse strip — never on the controls, because an interface where every button is
+coloured has no primary action. Materials go on anything that floats; anything holding data
+stays opaque. Type is real SF via `-apple-system` with bundled Inter as the off-platform
+fallback, one family throughout — a column of odds is that face plus `tabular-nums`, not a
+second mono. → [ADR 0016]
 
 ### Panels
 
@@ -386,7 +390,7 @@ docker compose down             # stop, keep the database volume
 docker compose down -v          # stop and DELETE all data
 ```
 
-**No API keys are required.** The demo fixtures generate a full slate with drifting prices, and the ESPN adapter needs no auth, so real schedules and box scores flow in for free.
+**No API keys are required to start.** The ESPN adapter needs no auth and the MLB Stats API is unauthenticated, so real schedules, results and box scores flow in for free. Prices do need a key — with none there is no odds source, which the Ops panel reports as unconfigured rather than as an outage (ADR 0003).
 
 ### 8.3 Build images explicitly
 
@@ -425,7 +429,7 @@ Use this loop for UI work — hot reload and a debugger beat a 30-second image r
 ```powershell
 dotnet restore
 dotnet build                              # solution: 6 projects + tests
-dotnet test                               # 80 tests
+dotnet test                               # 555 tests
 dotnet format --verify-no-changes         # CI enforces this
 ```
 
@@ -464,9 +468,9 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 - **Repo layout:** `src/` (6 projects), `tests/`, `docs/adr/`, `docs/runbook.md`, `scripts/`, `.github/workflows/`.
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
-- **Tests (80):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV.
+- **Tests (555):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
-- **Docs:** six ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
+- **Docs:** seventeen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
 **ADR index:**
 
@@ -479,6 +483,16 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 | 0005 | Ingestion library separate from its worker host |
 | 0006 | Container security posture and HTTPS |
 | 0007 | A window manager instead of pages |
+| 0008 | Gloss as an affordance, and a seam for MudBlazor — *superseded in part by 0016* |
+| 0009 | History backfilled only from unmetered sources |
+| 0010 | Odds are scans until first pitch, then one closing line |
+| 0011 | ESPN is the stats port; odds come from a book market |
+| 0012 | Jobs are named, and triggered by state rather than the clock |
+| 0013 | The board, and the floating layer the desk reserved — *amended by 0016* |
+| 0014 | A real feed, a credit budget, and what counts as a game — *amended by 0017* |
+| 0015 | Standard telemetry beside the bespoke reliability layer |
+| 0016 | Weight replaces hue; materials replace moulding |
+| 0017 | The demo fixture retires, and a keyless clone says so |
 
 ---
 
@@ -512,7 +526,7 @@ Every one came from hitting a real constraint. These are the strongest interview
 | `RowsIngested == 0` means trouble | Status from what the *provider* returned | Store-on-change made "0 rows" ambiguous — quiet market vs. silent outage. Conflating them means alert fatigue or blindness. → [ADR 0003] |
 | FK from `journal_entry` → `odds_snapshot` | Three plain columns | Postgres can't FK a partitioned table without the partition key. Denormalising `closing_price` turned the constraint into a benefit: CLV survives partition pruning. → [ADR 0002] |
 | SharpAPI as second odds source | The Odds API | Better documented credit accounting, and it reports true spend in a response header — so the budget guard uses the provider's own number instead of an estimate. |
-| Real providers only | **Demo fixture sources**, on by default | A portfolio repo must run for a cold reviewer with no keys. Deterministic offline sources make every feature — movement charts, CLV, drills — work at $0 with no signup. |
+| Real providers only | Demo fixture sources on by default — **then removed again** | The fixtures were added so a cold reviewer with no keys saw a working desk, and they earned that for a while. They were withdrawn once a real feed went in: fabricated prices land in the same tables as real ones under a different source id, where every reader treats them alike, and a fixture source going stale spent a critical alert slot on data that was never real. What a keyless clone gets now is everything ESPN and the MLB Stats API give away — real fixtures, real results — and no prices, reported as unconfigured. → [ADR 0017] |
 | HTTP on 8080 | HTTPS only on 9443, loopback-bound | The first pass published Postgres on `0.0.0.0` with a repo-committed password. Docker's short port syntax is the trap. → [ADR 0006] |
 | Nav-drawer, one page at a time | **Window manager** — every page is a panel on one desk | Ops work is inherently multi-view: health, incident and runs are read together. Pages fought the product. → [ADR 0007] |
 | MudBlazor components throughout | MudBlazor for charts only; chrome hand-built | The launcher is the primary way windows get created; it should not inherit another library's positioning and z-index rules, especially opening away from a rail that can be on any edge. |
@@ -532,8 +546,8 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Alert engine + failure-injection drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
-| 80 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
-| 6 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
+| 555 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
+| 17 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
 | Blazor/MudBlazor Ops UI on .NET 10 | "UI components" + reinforces the resume's headline stack |
@@ -561,4 +575,4 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 **Resume bullet for the PROJECTS section:**
 
 > **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
-> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 80 unit, fixture and Testcontainers integration tests in GitHub Actions CI.
+> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 555 unit, fixture and Testcontainers integration tests in GitHub Actions CI.

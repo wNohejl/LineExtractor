@@ -1,0 +1,158 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Core.Entities
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    The last few meetings between these two sides, with what the market made of each.
+
+    Scores and the closing number sit side by side deliberately: a 6-2 win says one thing on
+    its own and another next to a line that had them at -1.5, and the pair is the reading an
+    operator is actually after.
+
+    Most rows will have no number. Closing lines only exist for games this desk was running
+    for — scans are deleted at first pitch (ADR 0010) and only the close survives — so a
+    fixture reaching back five meetings will usually reach past what is held. The rows stay
+    and the cells read "—", because hiding them would understate the record itself.
+*@
+
+@if (_loading)
+{
+    <EmptyState Style="padding:6px 0">Reading previous meetings…</EmptyState>
+}
+else if (_error is not null)
+{
+    <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
+}
+else if (_rows.Count == 0)
+{
+    <EmptyState Kind="EmptyStateKind.Filtered" Style="padding:6px 0">
+        No previous meeting on record. Either these sides have not met inside the history
+        held, or the backfill has not reached that far.
+    </EmptyState>
+}
+else
+{
+    <div class="gridwrap"><table class="grid grid--tight">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Meeting</th>
+                <th class="r">Score</th>
+                <th class="r">Line</th>
+                <th class="r">ATS</th>
+                <th class="r">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td class="dim">@Day(row.StartsAt)</td>
+                    <td class="trunc">@row.AwayTeam at @row.HomeTeam</td>
+                    <td class="r mono">
+                        @(row.HasScore ? $"{row.AwayScore}-{row.HomeScore}" : "—")
+                    </td>
+                    <td class="r mono">@(row.ClosingSpread is { } s ? Line(s) : "—")</td>
+                    <td class="r">@ResultTag(row.AtsResult)</td>
+                    <td class="r">@TotalTag(row.TotalResult, row.ClosingTotal)</td>
+                </tr>
+            }
+        </tbody>
+    </table></div>
+
+    @* Coverage is stated rather than inferred. A column of dashes says nothing about whether
+       the market data is missing or the games were simply never priced, and the difference is
+       the whole reading. Mirrors the Board's "N of M priced" strip. *@
+    <p class="snippet__coverage">
+        @_covered of @_rows.Count with a closing line
+        @if (_covered == 0)
+        {
+            <text> — prices are only kept from the point this desk started watching a fixture.</text>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>How many meetings the snippet shows before the window is worth opening.</summary>
+    [Parameter] public int Take { get; set; } = 5;
+
+    private IReadOnlyList<HeadToHeadRow> _rows = [];
+    private int _covered;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+
+            _rows = await log.HeadToHeadAsync(GameId, Take);
+            _covered = _rows.Count(r => r.HasClosingLine);
+        }
+        catch (Exception ex)
+        {
+            // A snippet that fails must not take the row down with it — the other actions on
+            // this row still work, and the operator should be told which one did not.
+            _error = $"Could not read previous meetings: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("MMM d, yyyy");
+
+    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+
+    private static RenderFragment ResultTag(EntryResult? result) => builder =>
+    {
+        if (result is null)
+        {
+            builder.AddContent(0, "—");
+            return;
+        }
+
+        var (css, text) = result switch
+        {
+            EntryResult.Win => ("tag--good", "Cover"),
+            EntryResult.Loss => ("tag--bad", "No"),
+            _ => ("tag--info", "Push")
+        };
+
+        builder.OpenElement(1, "span");
+        builder.AddAttribute(2, "class", $"tag {css}");
+        builder.AddContent(3, text);
+        builder.CloseElement();
+    };
+
+    private static RenderFragment TotalTag(EntryResult? result, decimal? line) => builder =>
+    {
+        if (result is null || line is null)
+        {
+            builder.AddContent(0, "—");
+            return;
+        }
+
+        // Graded from the over's point of view, so a win is an over and a loss is an under.
+        var (css, text) = result switch
+        {
+            EntryResult.Win => ("tag--good", $"O {line}"),
+            EntryResult.Loss => ("tag--bad", $"U {line}"),
+            _ => ("tag--info", $"P {line}")
+        };
+
+        builder.OpenElement(1, "span");
+        builder.AddAttribute(2, "class", $"tag {css}");
+        builder.AddContent(3, text);
+        builder.CloseElement();
+    };
+}

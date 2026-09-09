@@ -28,12 +28,12 @@
                             Drag a tab past another to reorder them.
                         </p>
                         <div class="row">
-                            <button class="btn btn--primary" type="button" @onclick="OpenPrimary">
-                                <Glyph Icon="@Icons.Material.Filled.AddBox" /> Open @PrimaryTitle
-                            </button>
-                            <button class="btn" type="button" @onclick="OpenTriage">
-                                <Glyph Icon="@Icons.Material.Filled.Workspaces" /> Morning triage
-                            </button>
+                            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.AddBox" OnClick="OpenPrimary">
+                                Open @PrimaryTitle
+                            </DeskButton>
+                            <DeskButton Icon="@Icons.Material.Filled.Workspaces" OnClick="OpenTriage">
+                                Morning triage
+                            </DeskButton>
                         </div>
                     </div>
                 }

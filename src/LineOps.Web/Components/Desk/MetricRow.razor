@@ -1,0 +1,37 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    The shelf a row of metrics sits on.
+
+    Nothing but the grid: an auto-fitting row of equal tiles that wraps when the panel
+    narrows. It exists so that a panel never re-declares the container by hand, and so
+    that "a row of numbers" is one thing in the markup rather than a div that happens
+    to carry the right class.
+*@
+
+<div class="@Classes" style="@Styles" @attributes="Extra">@ChildContent</div>
+
+@code {
+    /// <summary>The tiles. Normally a handful of <c>Metric</c>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Inline style, for the spacing a single panel needs and no other.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Anything else the call site passes through. A splatted <c>class</c> is dropped and a
+    /// splatted <c>style</c> is appended rather than substituted, so neither can replace the
+    /// row's own grid. Reach those through <see cref="Class"/> and <see cref="Style"/> instead.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Attributes { get; set; }
+
+    private string Classes => Class is { Length: > 0 } ? $"metrics {Class}" : "metrics";
+
+    private string? Styles => DeskAttributes.MergeStyle(Style, Attributes);
+
+    private IReadOnlyDictionary<string, object>? Extra => DeskAttributes.WithoutClassOrStyle(Attributes);
+}

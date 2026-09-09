@@ -3,54 +3,40 @@
 @inject WindowManager Manager
 
 @*
-    Fixed header: identity, the things that create or arrange windows, and the desk's own
-    state. Windows are their own tabs in the row below, so there is nothing here to relocate.
+    Fixed header: identity, the windows, and the desk's own controls.
+
+    Two things live up here and they are not the same kind of thing, so they are not drawn
+    the same way:
+
+      · The windows — one strip, in its own recessed channel, spanning the bar. Every
+        window is in it exactly once, as a key that is lit while its window is open.
+        See WindowBar, which owns that rule.
+
+      · The desk's own controls — workspaces and column widths. These act on the desk
+        rather than being part of it, so they sit apart at the far end, after a hairline,
+        as plain buttons. A second channel would have said "another strip of windows",
+        which is what made the header read as two competing lists.
+
+    The Window manager used to have a button here as well as its key in the strip: the same
+    window, the same glyph, twice in one header. It has a key like everything else in the
+    catalogue, and when it is open its key is lit like any other, so the button is gone.
+
+    Destinations — a game, a team, a player — are about a subject and are reached by
+    following a name in a panel, so they have no key here at all, open or not. Several can
+    exist at once and their names are long, and appending them is what made the strip
+    unreadable. They live where they already are, as columns on the desk.
 *@
 
 <header class="hdr">
-    <span class="hdr__brand">LINE<em>OPS</em></span>
-    <span class="hdr__sub">sports-data ingestion &amp; analytics operations</span>
-
-    <span class="hdr__divider"></span>
-
-    <RailMenu @ref="_launcher" Icon="@Icons.Material.Filled.AddBox" Label="Open a window" Accent="true">
-        <div class="launcher">
-            @foreach (var group in WindowCatalog.All.GroupBy(d => d.Group))
-            {
-                <div class="launcher__group">@group.Key</div>
-                @foreach (var definition in group)
-                {
-                    var isOpen = Manager.Windows.Any(w => w.Definition.Key == definition.Key);
-
-                    <button class="launcher__item" type="button" role="menuitem"
-                            @onclick="() => Open(definition)">
-                        <Glyph Icon="@definition.Icon" />
-                        <span>
-                            @definition.Title
-                            @if (isOpen)
-                            {
-                                <span class="launcher__open">open</span>
-                            }
-                            <span class="launcher__desc">@definition.Description</span>
-                        </span>
-                    </button>
-                }
-            }
-
-            @* Nothing is ever refused, so the note warns rather than blocks: it names the
-               window that is about to be closed, before the click that closes it. *@
-            @if (Manager.AtCapacity && NextEviction is { } victim)
-            {
-                <p class="launcher__note">
-                    Desk is full at @Manager.Settings.MaxConcurrentWindows.
-                    Opening another closes <strong>@victim</strong> — least recently used.
-                </p>
-            }
-        </div>
-    </RailMenu>
-
-    <RailMenu @ref="_workspaces" Icon="@Icons.Material.Filled.Workspaces" Label="Workspaces">
-        <div class="launcher">
+    @* The brand is the workflow control. A workspace is a whole-desk arrangement — it
+       replaces everything open — so it belongs to the desk rather than sitting in a cluster
+       of per-window controls at the far end. Putting it on the identity says the same thing
+       the arrangement does: this is the desk you are on, and this is how you change it. It
+       also returns the width the Workspaces button was spending to the strip, which is the
+       part of the header that actually has more to say. *@
+    <RailMenu @ref="_workspaces" Class="hdr__brand-menu" Trigger="brand"
+              Label="Workspaces — choose a desk arrangement">
+        <div class="launcher" data-glide>
             <div class="launcher__group">Workspaces</div>
             @foreach (var workspace in WindowCatalog.Workspaces)
             {
@@ -72,28 +58,37 @@
         </div>
     </RailMenu>
 
-    <button class="rail__btn" type="button" title="Reset column widths"
-            aria-label="Reset column widths"
-            disabled="@(Manager.OpenCount == 0)"
-            @onclick="Manager.ResetWidths">
-        <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
-    </button>
+    @if (Manager.OpenCount == 0)
+    {
+        <span class="hdr__sub">sports-data ingestion &amp; analytics operations</span>
+    }
 
-    <span class="hdr__spacer"></span>
+    <div class="bar">
+        <WindowBar />
+    </div>
 
-    <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
-          title="Open windows against your ceiling">
-        @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
-    </span>
+    <span class="hdr__divider" aria-hidden="true"></span>
 
-    <button class="rail__btn" type="button" title="Window manager" aria-label="Window manager"
-            @onclick="OpenSettings">
-        <Glyph Icon="@Icons.Material.Filled.Tune" />
-    </button>
+    @* What is left of the desk's own controls: both are about the row as a whole. *@
+    <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
+        <button class="rail__btn" type="button" title="Reset column widths"
+                aria-label="Reset column widths"
+                disabled="@(Manager.OpenCount == 0)"
+                @onclick="Manager.ResetWidths">
+            <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
+        </button>
+
+        @* The ceiling, and what the next open would cost. Was a note inside the
+           launcher menu; the menu is gone, and this is where it was always
+           really being asked. *@
+        <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
+              title="@CapacityTip">
+            @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
+        </span>
+    </div>
 </header>
 
 @code {
-    private RailMenu? _launcher;
     private RailMenu? _workspaces;
 
     // Owns its refresh: reads mutable manager state (open count, capacity), so it must
@@ -105,7 +100,7 @@
     public void Dispose() => Manager.Changed -= OnChanged;
 
     /// <summary>
-    /// Which window the next open would close. Shown before the click rather than after, so
+    /// Which window the next open would close. Said before the click rather than after, so
     /// eviction is never a surprise.
     /// </summary>
     private string? NextEviction => Manager.Windows
@@ -113,11 +108,11 @@
         .ThenBy(w => w.LastFocusedAt)
         .FirstOrDefault()?.Title;
 
-    private void Open(WindowDefinition definition)
-    {
-        Manager.Open(definition);
-        _launcher?.Close();
-    }
+    private string CapacityTip
+        => Manager.AtCapacity && NextEviction is { } victim
+            ? $"Desk is full at {Manager.Settings.MaxConcurrentWindows}. Opening another closes {victim} — least recently used."
+            : $"{Manager.OpenCount} of {Manager.Settings.MaxConcurrentWindows} windows open.";
+
 
     private void Apply(Workspace workspace)
     {
@@ -129,12 +124,5 @@
     {
         Manager.CloseAll();
         _workspaces?.Close();
-    }
-
-    private void OpenSettings()
-    {
-        var definition = WindowCatalog.Find(WindowCatalog.Desk);
-        if (definition is not null)
-            Manager.Open(definition);
     }
 }

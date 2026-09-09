@@ -1,0 +1,74 @@
+@namespace LineOps.Web.Components
+@using LineOps.Web.Components.Desk
+
+@*
+    A team's last few results, as a row of W/L tags.
+
+    One component because the run had been written twice — in the slate's Form snippet and in
+    the Game window's team blocks — and the two had to agree about the only thing that is easy
+    to get wrong here: which end is now.
+
+    They read oldest on the left, newest on the right. The lookups hand their rows over newest
+    first, which is the right order for a table (the latest row belongs at the top) and the
+    wrong one for a run: every other time series on this desk advances left to right, the
+    movement chart included, so a form strip running the other way makes the same axis mean two
+    things on one screen. A run also carries shape — three straight losses after two wins reads
+    differently from the same 2-3 scattered — and shape is only legible once the direction is
+    known without being told.
+
+    The newest tag is marked rather than merely positioned, because a run of five is short
+    enough that "which end is now" is a fair question to ask of it. Each tag's title carries the
+    game it stands for, since one character cannot.
+*@
+
+<span class="formrun @Class">
+    @for (var i = 0; i < _run.Count; i++)
+    {
+        var g = _run[i];
+
+        <Tag State="@TagStates.Won(g.Won)"
+             Class="@(i == _run.Count - 1 ? "formrun__latest" : null)"
+             Title="@Describe(g, i == _run.Count - 1)">
+            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
+        </Tag>
+    }
+</span>
+
+@code {
+    /// <summary>
+    /// The results, as the lookups produce them: newest first. This component reverses them
+    /// rather than asking every call site to remember to. Use <see cref="FormResult.From(
+    /// IEnumerable{LineOps.Data.CrossReference.TeamGameLogRow})"/> to narrow a log to these.
+    /// </summary>
+    [Parameter, EditorRequired] public IReadOnlyList<FormResult> Log { get; set; } = [];
+
+    /// <summary>How many results to show. Five is a form line; more is a table.</summary>
+    [Parameter] public int Take { get; set; } = 5;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    private List<FormResult> _run = [];
+
+    /// <summary>
+    /// The most recent games, oldest first. Taking before reversing is load-bearing: the newest
+    /// five are wanted and then put in reading order, where reversing first would show the
+    /// oldest five instead.
+    /// </summary>
+    protected override void OnParametersSet()
+        => _run = [.. Log.Take(Take).Reverse()];
+
+    /// <summary>
+    /// The whole game behind one tag, for its tooltip — venue, opponent, date and score.
+    /// A run is one character per game, so everything identifying it lives in the title.
+    /// </summary>
+    private static string Describe(FormResult g, bool latest)
+    {
+        var venue = g.Home ? "vs" : "at";
+        var day = g.StartsAt.ToLocalTime().ToString("MMM d");
+        var score = g.HasScore ? $" ({g.ScoreFor}-{g.ScoreAgainst})" : string.Empty;
+        var when = latest ? " — most recent" : string.Empty;
+
+        return $"{venue} {g.Opponent} — {day}{score}{when}";
+    }
+}

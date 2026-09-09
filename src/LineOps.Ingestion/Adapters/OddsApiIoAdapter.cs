@@ -104,10 +104,10 @@ public class OddsApiIoAdapter(
             var away = ReadString(e, "away", "awayTeam", "away_team");
             var startsRaw = ReadString(e, "date", "startTime", "commence_time", "start");
 
-            if (id is null || home is null || away is null)
+            // No readable start, no fixture: a start time invented as "now" is one the
+            // resolver cannot place against the schedule.
+            if (id is null || home is null || away is null || ParseDate(startsRaw) is not { } startsAt)
                 continue;
-
-            var startsAt = ParseDate(startsRaw) ?? DateTimeOffset.UtcNow;
 
             yield return new CanonicalGame(
                 SourceGameId: id,

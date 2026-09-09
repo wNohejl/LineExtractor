@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     One-time local setup: generates the HTTPS development certificate and a .env with
     strong random secrets.

@@ -196,6 +196,14 @@ namespace LineOps.Data.Migrations
                     b.Property<int>("HomeTeamId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SeasonType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("SeasonYear")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SportId")
                         .HasColumnType("integer");
 
@@ -214,6 +222,8 @@ namespace LineOps.Data.Migrations
                     b.HasIndex("HomeTeamId");
 
                     b.HasIndex("SportId", "StartsAt");
+
+                    b.HasIndex("SportId", "SeasonYear", "StartsAt");
 
                     b.ToTable("Games");
                 });

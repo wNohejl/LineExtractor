@@ -26,7 +26,7 @@ public class IngestionOptions
     /// <summary>How often the scheduler loop wakes to check for due jobs.</summary>
     public TimeSpan TickInterval { get; set; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>When true the worker runs every job once at startup — useful for demos and drills.</summary>
+    /// <summary>When true the worker runs every job once at startup — useful for drills.</summary>
     public bool RunOnStartup { get; set; }
 
     public SourceOptions OddsApiIo { get; set; } = new();
@@ -45,12 +45,6 @@ public class IngestionOptions
         // Unmetered and unpublished, which is a reason for more care rather than less.
         RequestDelay = TimeSpan.FromMilliseconds(250)
     };
-
-    /// <summary>
-    /// Offline fixture source. Enabled by default so the platform runs end-to-end
-    /// with no API keys and no cost; disable once real keys are configured.
-    /// </summary>
-    public SourceOptions Demo { get; set; } = new() { Enabled = true };
 
     public BackfillOptions Backfill { get; set; } = new();
 
@@ -180,6 +174,18 @@ public class EspnScheduleOptions
     public TimeSpan ResultsRetry { get; set; } = TimeSpan.FromMinutes(30);
 
     /// <summary>
+    /// How far back a results sweep looks for games that never went final.
+    ///
+    /// This used to be a fixed three days, which is one day shorter than the outage that
+    /// exposed it: the host was down from 31 August to 3 September, and by the time it came
+    /// back the 30 August games had aged out of the window, so they were never owed again
+    /// and sat at Live for good. A self-healing sweep has to look back further than any
+    /// outage it is meant to heal. The cost of a wide window is nothing when the desk is up
+    /// to date — a final game is not owed — and a query when it is not.
+    /// </summary>
+    public TimeSpan ResultsLookback { get; set; } = TimeSpan.FromDays(45);
+
+    /// <summary>
     /// Gap between score refreshes while a game is live. Tighter than <see cref="SlateRefresh"/>
     /// because a live score is stale in minutes, not hours — and separate from it because "a
     /// game is in progress" is a different reason to poll than "a game is about to start", with
@@ -254,6 +260,16 @@ public class BackfillOptions
     public DateOnly? Since { get; set; }
 
     /// <summary>
+    /// Where each sport's walk starts, by sport key — its season's opening day.
+    ///
+    /// One <see cref="Since"/> cannot describe two leagues: MLB from late March and NFL from
+    /// the previous September are both true at once, and a single date either walks half a
+    /// year of empty football days or misses the start of the baseball season. A sport not
+    /// named here falls back to <see cref="Since"/>, then to <see cref="Days"/>.
+    /// </summary>
+    public Dictionary<string, DateOnly> Seasons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Sources to walk, by key. Metered providers are rejected regardless of what appears
     /// here, so naming one is a no-op rather than a way to start spending.
     ///
@@ -293,6 +309,43 @@ public class SourceOptions
 {
     public bool Enabled { get; set; }
     public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// How this client identifies itself to the provider.
+    ///
+    /// <para>
+    /// <see cref="HttpClient"/> sends no <c>User-Agent</c> at all by default, and on 2 August
+    /// 2026 ESPN began refusing exactly that with <c>403</c>. Every run failed for three weeks
+    /// against an endpoint that had not otherwise changed. This is here so the next policy
+    /// change is a configuration edit rather than a rebuild.
+    /// </para>
+    ///
+    /// <para>
+    /// It must name a <i>real</i> HTTP client. Probing ESPN showed an absent header, a bespoke
+    /// token such as <c>LineOps/1.0</c>, and a full Chrome string are all refused alike, while
+    /// the product tokens of ordinary clients — <c>curl</c>, <c>python-requests</c>,
+    /// <c>Go-http-client</c>, <c>.NET</c> — are served. So a made-up name looks like a fix and
+    /// restores nothing, and impersonating a browser is both a lie and, as it happens, blocked.
+    /// </para>
+    ///
+    /// <para>
+    /// Empty by default and read through <see cref="EffectiveUserAgent"/>, so the fallback lives
+    /// in code with the reasoning rather than in a default that configuration has to fight.
+    /// </para>
+    /// </summary>
+    public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// The identification to send, falling back to the client we actually are.
+    ///
+    /// Honest rather than clever: we are a .NET HTTP client, ESPN serves .NET HTTP clients, and
+    /// the truthful answer is also the working one.
+    /// </summary>
+    public string EffectiveUserAgent
+        => string.IsNullOrWhiteSpace(UserAgent) ? DefaultUserAgent : UserAgent!;
+
+    /// <summary>The product token for the runtime actually executing, e.g. <c>.NET/10.0</c>.</summary>
+    public static string DefaultUserAgent => ".NET/" + Environment.Version.ToString(2);
 
     /// <summary>
     /// Books to request.

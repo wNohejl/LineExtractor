@@ -22,3 +22,4 @@
 *.png binary
 *.pfx binary
 *.p12 binary
+*.dump binary

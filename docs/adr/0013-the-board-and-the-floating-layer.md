@@ -2,6 +2,10 @@
 
 **Status:** Accepted
 
+**Amended by:** [ADR 0016](0016-apple-feel-design-system.md), which adds a modal tier
+(sheets and alerts) beside the floating layer. The floating layer's reasoning is
+unchanged — comparison is still never modal.
+
 **Builds on:** [ADR 0007](0007-window-manager-ui.md), which kept the desk a strict tiled row and
 said arbitrary placement is what modals and popovers are for — reserving `--z-modal` for a
 layer nothing had yet built.

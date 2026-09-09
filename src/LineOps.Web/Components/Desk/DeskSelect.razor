@@ -1,0 +1,49 @@
+@namespace LineOps.Web.Components.Desk
+@typeparam TValue
+@inherits DeskFieldBase<TValue>
+
+@*
+    A field that picks from a list.
+
+    The gate switch beside this one answers the same shape of question by keeping every
+    position on the panel; a select hides them behind two clicks and is the honest control
+    once there are more than about five, or once the options come from data and the count
+    is not known in advance — sports, games, sources, opponents.
+
+    Same box as DeskField, same labelling, same frame rule: no Label and no Error means a
+    bare <select> with no wrapper, because most of the desk's selects are sitting in a .row
+    carrying their own max-width. The drawn caret comes from select.field in lineops.css,
+    which this does not touch.
+
+    The options are the caller's — a <select> whose contents are built from a list is more
+    readable as the markup that builds it than as a parameter of shapes.
+*@
+
+@if (Framed)
+{
+    <div class="field-set" style="@Style">
+        <label class="field-lbl" id="@LabelId" for="@FieldId">
+            @Label
+            @if (Required)
+            {
+                <span class="field-req" aria-hidden="true">*</span>
+            }
+        </label>
+
+        <select @attributes="Attributes">@ChildContent</select>
+
+        @if (HasError)
+        {
+            <p class="field-err" id="@ErrorId" role="alert">@Error</p>
+        }
+    </div>
+}
+else
+{
+    <select @attributes="Attributes">@ChildContent</select>
+}
+
+@code {
+    /// <summary>The <c>&lt;option&gt;</c> elements.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

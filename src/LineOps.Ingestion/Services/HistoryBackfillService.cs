@@ -105,8 +105,11 @@ public class HistoryBackfillService(
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var earliest = today.AddDays(-EffectiveDays());
         var sports = EffectiveSports();
+
+        // Each sport reaches back to its own season start, so "earliest" is the earliest of
+        // them and the target is the sum of their days rather than one span times the count.
+        var earliest = sports.Select(s => StartFor(s, today)).DefaultIfEmpty(today).Min();
 
         // Scoped to the sports currently being walked. Checkpoints from a sport that has since
         // been dropped from the configuration are real history, but counting them here would
@@ -123,7 +126,7 @@ public class HistoryBackfillService(
             .ToListAsync(ct);
 
         var eligible = await GetEligibilityAsync(scope.ServiceProvider, ct);
-        var target = EffectiveDays() * EffectiveSports().Count * eligible.Count(e => e.Eligible);
+        var target = sports.Sum(s => DaysFor(s, today)) * eligible.Count(e => e.Eligible);
 
         return new BackfillCoverage(
             DaysRequested: EffectiveDays(),
@@ -143,17 +146,38 @@ public class HistoryBackfillService(
             .ToList();
 
     /// <summary>
-    /// How many days back the walk should reach, from either the fixed <c>Since</c> date or the
-    /// rolling day count. Never negative — a <c>Since</c> in the future means "nothing to do"
-    /// rather than a walk that runs backwards.
+    /// Where a sport's walk starts: its entry in <c>Backfill:Seasons</c>, else the shared
+    /// <c>Since</c>, else the rolling day count. A season has an opening day, and naming it per
+    /// sport is what lets MLB from March and NFL from the previous September be walked in
+    /// the same run without either spending its days on the other's empty calendar.
+    /// </summary>
+    private DateOnly StartFor(string sportKey, DateOnly today)
+    {
+        if (_options.Backfill.Seasons.TryGetValue(sportKey, out var start))
+            return start;
+
+        if (_options.Backfill.Since is { } since)
+            return since;
+
+        return today.AddDays(-_options.Backfill.Days);
+    }
+
+    /// <summary>Days back to a sport's start. Never negative — a start in the future is "nothing to do".</summary>
+    private int DaysFor(string sportKey, DateOnly today)
+        => Math.Max(0, today.DayNumber - StartFor(sportKey, today).DayNumber);
+
+    /// <summary>
+    /// How many days back the walk should reach — the furthest any configured sport reaches.
+    /// The loop skips the days a given sport does not own (see <see cref="StartFor"/>).
     /// </summary>
     private int EffectiveDays()
     {
-        if (_options.Backfill.Since is not { } since)
-            return _options.Backfill.Days;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var span = DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - since.DayNumber;
-        return Math.Max(0, span);
+        return EffectiveSports()
+            .Select(s => DaysFor(s, today))
+            .DefaultIfEmpty(0)
+            .Max();
     }
 
     /// <summary>
@@ -164,6 +188,45 @@ public class HistoryBackfillService(
     /// analytics actually read, and finishing "last month" beats getting a third of the way
     /// through a year that starts eleven months ago.
     /// </summary>
+    /// <summary>
+    /// Forgets which days have been walked, so the next run fetches them again.
+    ///
+    /// <para>
+    /// A checkpoint means "this day is held", and the walk skips held days — which is what makes
+    /// resuming an interrupted backfill cheap. It also means a day walked by a version of the
+    /// code that stored it wrongly stays wrong for ever: the walk that would fix it never runs.
+    /// That is not hypothetical. Game resolution used to merge consecutive fixtures in a series,
+    /// and recovering them needed every affected day fetched a second time.
+    /// </para>
+    ///
+    /// <para>
+    /// This deletes bookkeeping, not data. Games, stat lines and closing lines are keyed by
+    /// their provider ids and are re-resolved onto the rows that already exist, so a re-walk
+    /// corrects and adds rather than duplicating. The cost is time and requests against a free
+    /// provider, which is why it is a deliberate action rather than something the schedule does.
+    /// </para>
+    /// </summary>
+    /// <param name="since">Earliest day to forget. Null forgets every day held.</param>
+    /// <returns>How many checkpoints were cleared.</returns>
+    public async Task<int> ForgetAsync(DateOnly? since, CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        var query = db.BackfillCheckpoints.AsQueryable();
+
+        if (since is { } from)
+            query = query.Where(c => c.Date >= from);
+
+        var count = await query.ExecuteDeleteAsync(ct);
+
+        logger.LogWarning(
+            "Backfill: {Count} checkpoints cleared{Scope}; those days will be walked again",
+            count, since is { } d ? $" from {d:yyyy-MM-dd}" : string.Empty);
+
+        return count;
+    }
+
     public async Task<BackfillReport> RunAsync(
         IProgress<BackfillProgress>? progress,
         CancellationToken ct)
@@ -216,6 +279,12 @@ public class HistoryBackfillService(
                 {
                     if (ct.IsCancellationRequested)
                         return Report("Stopped.");
+
+                    // Each sport walks from its own season start (Backfill:Seasons). A day before
+                    // that start is not this sport's to fetch, and skipping it is what keeps a
+                    // football walk from spending the baseball spring on an empty scoreboard.
+                    if (date < StartFor(sportKey, today))
+                        continue;
 
                     // One scope per day: the change tracker never outlives the day it wrote.
                     await using var scope = scopeFactory.CreateAsyncScope();

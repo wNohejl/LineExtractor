@@ -113,10 +113,11 @@ public class TheOddsApiAdapter(
         if (home is null || away is null)
             return;
 
-        var startsAt = e.TryGetProperty("commence_time", out var c)
-                       && c.TryGetDateTimeOffset(out var parsed)
-            ? parsed
-            : DateTimeOffset.UtcNow;
+        // An event with no readable start is skipped rather than stamped "now": a made-up
+        // start time is a fixture the resolver cannot place, and once it was allowed to
+        // correct the schedule, one malformed payload could move a real game to the present.
+        if (!e.TryGetProperty("commence_time", out var c) || !c.TryGetDateTimeOffset(out var startsAt))
+            return;
 
         games.Add(new CanonicalGame(id, sportKey, home, away, startsAt));
 

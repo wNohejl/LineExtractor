@@ -89,15 +89,20 @@ docker compose down -v         # stop and delete all data
 ```
 
 **No API keys are needed to start.** ESPN is on by default and needs no authentication, so real
-schedules, scores, box scores and season history flow in for free. Odds are the part that
-wants a key: until one is supplied, an offline demo source generates a plausible slate with
-drifting prices so a cold clone is fully functional — line-movement charts, CLV, and the
-on-call drills all work. It stands down automatically once a real provider is configured, so
-demo and real data never mix.
+schedules, scores, box scores and season history flow in for free. Odds are the part that wants
+a key: every provider is a book market behind one, so until a key is supplied there is no odds
+source at all and price cells are empty. **Ops → Odds feeds** names each provider and says why
+it is not running, and the alert rules skip a source that has never run — an unconfigured feed
+is not an outage.
 
-Standing down stops it writing, but does not remove what it already wrote — fabricated prices sit
-in the same table as real ones under a different source id, where every reader downstream treats
-them alike. `scripts/purge-demo-data.sql` clears them, once, when a real key goes in.
+Earlier versions filled that gap with an offline demo source that fabricated prices and rosters.
+It has been removed. Fabricated rows land in the same tables as real ones under a different
+source id, where every reader downstream treats them alike — and a fixture feed going stale
+spent a critical alert slot on data that was never real. A database seeded before the removal
+cleans itself on the next start: the demo sources and everything recorded against them are
+deleted by `DatabaseInitializer`. Fixtures the old demo source invented — games ESPN never
+confirmed — are left alone there, because removing a game can take a journal entry with it;
+`scripts/purge-demo-data.sql` clears those once, deliberately.
 
 ### The board
 
@@ -181,9 +186,7 @@ the repository with it.
 }
 ```
 
-The demo source stands down on its own the moment a real provider has a key, so there is nothing
-to switch off. Check **Ops → Odds feeds** to see which providers are live and, when one is not,
-why.
+Check **Ops → Odds feeds** to see which providers are live and, when one is not, why.
 
 **Markets are the cost control.** The Odds API bills `markets x regions` per call, so its free
 500 credits a month stretch a great deal further at two markets than three — adding totals is a

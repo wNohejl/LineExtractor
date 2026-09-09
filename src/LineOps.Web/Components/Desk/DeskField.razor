@@ -1,0 +1,60 @@
+@namespace LineOps.Web.Components.Desk
+@typeparam TValue
+@inherits DeskFieldBase<TValue>
+
+@*
+    A field.
+
+    Text, or a number when the caller passes type="number" — the control is the same box
+    either way, which is the point: .field gives every entry on the desk one height and one
+    recess, so a row of mixed controls lines up. See ADR 0008 for why it is matte.
+
+    What this adds over the raw <input> it replaces is the labelling. The desk's fields
+    named themselves with placeholders, which read fine on an empty form and disappear the
+    moment anyone types — so the person checking a filled-in row has nothing to read. Label
+    puts a real <label for> above the box, Required marks it in both the DOM and the type,
+    and Error sits directly beneath the field it is about.
+
+    None of that is forced on the call sites that do not ask for it: with no Label and no
+    Error the component renders a bare <input> and no wrapper, so the fields already sitting
+    in a .row flexbox with their own max-width do not move.
+
+    Binding is @bind-Value, which commits on change — that is, on blur. Set Immediate for
+    the fields that genuinely filter as you type.
+*@
+
+@if (Framed)
+{
+    <div class="field-set" style="@Style">
+        <label class="field-lbl" id="@LabelId" for="@FieldId">
+            @Label
+            @if (Required)
+            {
+                <span class="field-req" aria-hidden="true">*</span>
+            }
+        </label>
+
+        <input @attributes="Attributes" />
+
+        @if (HasError)
+        {
+            <p class="field-err" id="@ErrorId" role="alert">@Error</p>
+        }
+    </div>
+}
+else
+{
+    <input @attributes="Attributes" />
+}
+
+@code {
+    /// <summary>
+    /// Commit on every keystroke rather than on blur. For a field whose typing *is* the
+    /// action — a search box filtering a list, a stake recomputing a payout — and not for
+    /// one that is merely going to be validated, which is the case this component defaults
+    /// to protecting.
+    /// </summary>
+    [Parameter] public bool Immediate { get; set; }
+
+    protected override string ChangeEvent => Immediate ? "oninput" : "onchange";
+}

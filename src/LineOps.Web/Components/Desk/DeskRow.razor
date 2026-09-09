@@ -1,0 +1,92 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    A horizontal group.
+
+    This is .row with its knobs named. The desk had ~177 hand-written
+    style="gap:…" attributes because .row shipped one gap and every other spacing
+    decision had to be smuggled in inline; the class could not answer "12px here"
+    without a caller writing pixels. DeskRow takes a rung of the spacing ramp
+    instead, so the value is a decision from the scale rather than a number someone
+    liked, and moving the scale moves every row at once.
+
+    Justify="DeskJustify.End" is the existing .row--end idiom under a name. Nothing
+    about the rendered output changes for a row that sets neither parameter.
+
+    class and style are held out of the splat rather than ordered around it — the
+    same shape DeskSwitch uses, and for the same reason. An incoming style is
+    applied whole and would replace --desk-gap outright, so the caller's
+    declarations are appended after the component's instead, and still win on any
+    property they actually name. Extra classes go through Class, appended last.
+*@
+
+<div class="@Classes" @attributes="Rest" style="@Style">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Space between children, as a rung of the desk's ramp. Leave unset to keep
+    /// <c>.row</c>'s own 8px, which is what every existing call site expects.
+    /// </summary>
+    [Parameter] public DeskSpace? Gap { get; set; }
+
+    /// <summary>Cross-axis alignment. Centre is the row's long-standing default.</summary>
+    [Parameter] public DeskAlign Align { get; set; } = DeskAlign.Center;
+
+    /// <summary>Main-axis distribution. <see cref="DeskJustify.End"/> is <c>.row--end</c>.</summary>
+    [Parameter] public DeskJustify Justify { get; set; } = DeskJustify.Start;
+
+    /// <summary>Keep the children on one line rather than letting them wrap.</summary>
+    [Parameter] public bool NoWrap { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    /// <summary>Everything splattable except the two attributes this component composes itself.</summary>
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+
+    /// <summary>
+    /// The gap is a custom property, so it cannot be left to the splat: an incoming
+    /// <c>style</c> is applied after the element's own attributes and would replace it
+    /// outright. The caller's declarations are appended to the component's instead.
+    /// </summary>
+    private string? Style => DeskLayout.MergeStyle(Gap, Extra);
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "row";
+
+        // Start is .row's own behaviour, so it earns no class.
+        yield return Justify switch
+        {
+            DeskJustify.End => "row--end",
+            DeskJustify.Center => "row--center",
+            DeskJustify.Between => "row--between",
+            _ => null
+        };
+
+        yield return Align switch
+        {
+            DeskAlign.Start => "row--top",
+            DeskAlign.End => "row--bottom",
+            DeskAlign.Stretch => "row--stretch",
+            DeskAlign.Baseline => "row--baseline",
+            _ => null
+        };
+
+        yield return NoWrap ? "row--nowrap" : null;
+        yield return Class;
+
+        // A splatted class is folded in here rather than dropped, so it adds to the
+        // layout classes instead of replacing them.
+        yield return DeskLayout.ExtraClass(Extra);
+    }
+}

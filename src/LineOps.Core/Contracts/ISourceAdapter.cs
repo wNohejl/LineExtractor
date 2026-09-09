@@ -1,3 +1,5 @@
+using LineOps.Core.Entities;
+
 namespace LineOps.Core.Contracts;
 
 /// <summary>
@@ -22,7 +24,10 @@ public record CanonicalGame(
     int? AwayScore = null,
     /// <summary>Richer team identity when the provider supplies it. Falls back to the names above.</summary>
     CanonicalTeamRef? Home = null,
-    CanonicalTeamRef? Away = null);
+    CanonicalTeamRef? Away = null,
+    /// <summary>The season the provider says this game belongs to, when it says. See <c>Game.SeasonYear</c>.</summary>
+    int? SeasonYear = null,
+    SeasonType? SeasonType = null);
 
 /// <summary>Canonical priced outcome as normalised at the adapter boundary.</summary>
 public record CanonicalOdds(
@@ -64,7 +69,28 @@ public record StatsFetchResult(
     IReadOnlyList<CanonicalGame> Games,
     IReadOnlyList<CanonicalPlayer> Players,
     IReadOnlyList<CanonicalPlayerStat> PlayerStats,
-    FetchCost Cost);
+    FetchCost Cost,
+    /// <summary>
+    /// Lines the stats provider happened to carry, for games that have already closed.
+    ///
+    /// <para>
+    /// A stats port is not a market and must never be read as one (ADR 0011): one book's number
+    /// is a price, and the gap between several books is where a line being off shows up. But a
+    /// game that has finished is no longer a pricing decision — it is a record — and a provider
+    /// that states what the line closed at is a free historical reference for a fixture nobody
+    /// was watching at the time.
+    /// </para>
+    ///
+    /// <para>
+    /// Empty for providers that carry none. ESPN supplies these on the same box-score response
+    /// the walk already fetches, so they cost no additional request.
+    /// </para>
+    /// </summary>
+    IReadOnlyList<CanonicalOdds>? ClosingLines = null)
+{
+    /// <summary>Never null at the call site, whatever the adapter passed.</summary>
+    public IReadOnlyList<CanonicalOdds> Lines => ClosingLines ?? [];
+}
 
 /// <summary>
 /// One external odds provider. Implementations own auth, paging, rate-limit awareness

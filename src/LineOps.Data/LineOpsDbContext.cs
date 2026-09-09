@@ -90,6 +90,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
         b.Entity<Game>(e =>
         {
             e.HasIndex(x => new { x.SportId, x.StartsAt });
+            e.HasIndex(x => new { x.SportId, x.SeasonYear, x.StartsAt });
+            e.Property(x => x.SeasonType).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.ExternalIds).HasColumnType("jsonb")
                 .HasConversion(dictConverter, dictComparer);

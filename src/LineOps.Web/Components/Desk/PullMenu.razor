@@ -2,6 +2,7 @@
 @using LineOps.Ingestion.Services
 @using LineOps.Web.Components.Windowing
 @inject IngestionJobs Jobs
+@inject DeskToasts Toasts
 
 @*
     The desk's one manual control over ingestion.
@@ -15,7 +16,7 @@
 *@
 
 <div class="pullmenu">
-    <DeskButton Tone="DeskTone.Action"
+    <DeskButton Emphasis="DeskEmphasis.Filled"
                 Icon="@Icons.Material.Filled.CloudDownload"
                 Busy="@(_running is not null)"
                 OnClick="Toggle">
@@ -32,7 +33,7 @@
                 <button type="button"
                         class="pullmenu__item @(job.Available ? null : "pullmenu__item--blocked")"
                         disabled="@(!job.Available || _running is not null)"
-                        @onclick="() => RunAsync(job)">
+                        @onclick="() => RunJobAsync(job)">
                     <span class="pullmenu__row">
                         <span class="pullmenu__label">@job.Label</span>
                         @* Credits where the provider bills in them, because that is the number
@@ -52,12 +53,11 @@
     }
 </div>
 
-@if (_result is not null)
-{
-    <p class="note @(_result.Succeeded ? null : "note--warn")" style="margin:10px 0 0">
-        @_result.Summary
-    </p>
-}
+@* A pull's outcome is a toast, not a Note. A Note is the ambient tier — it sits beside the
+   thing it describes and stays as long as that thing is true. "14 rows arrived" stops being
+   true the moment it is read, and the rows themselves are the durable record. Left as a Note
+   it never cleared, and a bordered box parked in the toolbar beside the Pull key read as a
+   second control that could not be pressed. *@
 
 @code {
     /// <summary>Raised after a pull so the hosting panel can reload what it shows.</summary>
@@ -66,13 +66,11 @@
     /// <summary>Lets the panel drive its own pulse from the pull.</summary>
     [Parameter] public EventCallback<bool> OnBusyChanged { get; set; }
 
-    private record Result(bool Succeeded, string Summary);
 
     private IReadOnlyList<IngestionJob> _jobs = [];
     private bool _open;
     private string? _running;
     private string _runningLabel = "Pulling";
-    private Result? _result;
 
     protected override async Task OnInitializedAsync()
         => _jobs = await Jobs.DescribeAsync();
@@ -89,12 +87,48 @@
 
     private void Close() => _open = false;
 
-    private async Task RunAsync(IngestionJob job)
+    /// <summary>
+    /// Runs one named pull as if it had been chosen from the menu.
+    ///
+    /// <para>
+    /// This is how an empty state or an unpriced row can offer the fix where the problem is
+    /// stated, instead of describing a control somewhere else on the screen. It presses this
+    /// menu rather than reimplementing it, so the busy key, the toast and the reload all
+    /// behave exactly as they do when the entry is chosen by hand.
+    /// </para>
+    ///
+    /// <para>
+    /// A job that is unavailable — no source registered, no key — opens the menu instead of
+    /// failing silently, because the menu is where the reason is written.
+    /// </para>
+    /// </summary>
+    public async Task RunAsync(string key)
+    {
+        if (_running is not null)
+            return;
+
+        // The estimates move with the season, and this can be pressed long after the menu was
+        // last opened, so the catalog is re-read rather than trusted.
+        _jobs = await Jobs.DescribeAsync();
+
+        var job = _jobs.FirstOrDefault(j => j.Key == key);
+
+        if (job is null || !job.Available)
+        {
+            _open = true;
+            StateHasChanged();
+            return;
+        }
+
+        await RunJobAsync(job);
+        StateHasChanged();
+    }
+
+    private async Task RunJobAsync(IngestionJob job)
     {
         _open = false;
         _running = job.Key;
         _runningLabel = job.Label;
-        _result = null;
 
         await OnBusyChanged.InvokeAsync(true);
 
@@ -102,18 +136,26 @@
         {
             var outcome = await Jobs.RunAsync(job.Key);
 
-            _result = new Result(
-                outcome.Succeeded,
-                outcome.Detail
+            var summary = outcome.Detail
                 ?? (outcome.Succeeded
                     ? $"{job.Label}: {outcome.Rows:N0} rows."
-                    : $"{job.Label}: {outcome.Failures} source failed."));
+                    : $"{job.Label}: {outcome.Failures} source failed.");
+
+            // Succeeding with nothing is worth saying differently. A pull that returns zero
+            // rows is not a failure — the scan may simply not have covered a fixture — but
+            // reporting it as a success reads as "done" when nothing arrived.
+            if (!outcome.Succeeded)
+                Toasts.Warn(summary);
+            else if (outcome.Rows == 0)
+                Toasts.Info($"{job.Label}: nothing new to store.");
+            else
+                Toasts.Success(summary);
 
             await OnPulled.InvokeAsync();
         }
         catch (Exception ex)
         {
-            _result = new Result(false, $"{job.Label} failed: {ex.Message}");
+            Toasts.Fail($"{job.Label} failed: {ex.Message}");
         }
         finally
         {

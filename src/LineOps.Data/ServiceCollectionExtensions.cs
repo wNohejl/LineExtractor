@@ -29,8 +29,8 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<DatabaseInitializer>();
         services.AddScoped<CrossReference.MatchupCrossReference>();
+        services.AddScoped<CrossReference.GameLogService>();
         services.AddScoped<CrossReference.BoardService>();
-        services.AddScoped<Core.Contracts.IScheduleReader, ScheduleReader>();
 
         return services;
     }

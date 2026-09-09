@@ -1,0 +1,118 @@
+@namespace YourApp.Components.Ui
+
+@*
+    TEMPLATE — rename the @namespace above to your own. Requires MudBlazor and
+    Microsoft.AspNetCore.Components.Web (for MouseEventArgs) in _Imports.razor.
+
+    The button, and the reason it wraps MudBlazor rather than sitting beside it.
+    Panels hold a lot of these, and a call site that has to remember Variant, Color,
+    Ripple, DropShadow and a class string is one that will drift from the call site next
+    to it. Here the caller states how loud (Emphasis) and whether it destroys (Role), and
+    the styling is not their problem.
+
+    The MudButton underneath is deliberately its plainest variant — Text + Inherit, which
+    contributes almost no visual rules of its own — plus Ripple off, because a ripple is
+    Material's answer to a press and this system answers with a fast state change instead.
+    Everything the button looks like comes from .app-btn in apple-components.css. See
+    apple-bridge.css for why that stack resolves the way it does: MudBlazor states
+    .mud-button-text.mud-button-text-inherit at two classes, which out-specifies a bare
+    .app-btn, so the bridge carries a companion rule at matching specificity.
+*@
+
+<MudButton @ref="_button"
+           Class="@Classes"
+           Variant="Variant.Text"
+           Color="Color.Inherit"
+           Ripple="false"
+           DropShadow="false"
+           ButtonType="@ButtonType"
+           Disabled="@(Disabled || Busy)"
+           OnClick="OnClick"
+           aria-busy="@(Busy ? "true" : null)"
+           title="@Title"
+           @attributes="Extra">
+    @if (Icon is not null)
+    {
+        <MudIcon Icon="@Icon" />
+    }
+    @ChildContent
+</MudButton>
+
+@code {
+    /// <summary>The label. Omit it for an icon-only button — then <see cref="Title"/> is required.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>A MudBlazor icon string.</summary>
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>
+    /// How much weight this button claims. See <see cref="AppleEmphasis"/> — exactly one
+    /// Filled per context.
+    /// </summary>
+    [Parameter] public AppleEmphasis Emphasis { get; set; } = AppleEmphasis.Plain;
+
+    /// <summary>Whether pressing this destroys something. See <see cref="AppleRole"/>.</summary>
+    [Parameter] public AppleRole Role { get; set; } = AppleRole.Normal;
+
+    [Parameter] public AppleKeySize Size { get; set; } = AppleKeySize.Medium;
+
+    /// <summary>
+    /// Work this button started is still running. Runs the in-flight shimmer and refuses
+    /// further presses, without going grey — an occupied control is not an inert one.
+    /// </summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Tooltip, and the accessible name when there is no label to read.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public ButtonType ButtonType { get; set; } = ButtonType.Button;
+
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private MudButton? _button;
+
+    /// <summary>
+    /// Puts the keyboard on this button. Exposed because <c>@ref</c> on a component hands
+    /// back the component, not an element, so a caller that needs to move focus here — the
+    /// alert's default confirm is the one in the tree — has no other route through the
+    /// boundary. MudBlazor already holds the underlying <c>ElementReference</c>; this only
+    /// forwards it, and is a no-op before the first render has produced an element.
+    /// </summary>
+    public ValueTask FocusAsync() => _button?.FocusAsync() ?? ValueTask.CompletedTask;
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "app-btn";
+
+        yield return Emphasis switch
+        {
+            AppleEmphasis.Filled => "app-btn--filled",
+            AppleEmphasis.Tinted => "app-btn--tinted",
+            _ => "app-btn--plain"
+        };
+
+        yield return Role is AppleRole.Destructive ? "app-btn--destructive" : null;
+
+        yield return Size switch
+        {
+            AppleKeySize.Small => "app-btn--sm",
+            AppleKeySize.Large => "app-btn--lg",
+            _ => null
+        };
+
+        // An icon with no label is a square, so it does not read as a clipped button.
+        yield return Icon is not null && ChildContent is null ? "app-btn--icon" : null;
+        yield return Busy ? "app-btn--busy" : null;
+        yield return Class;
+    }
+}

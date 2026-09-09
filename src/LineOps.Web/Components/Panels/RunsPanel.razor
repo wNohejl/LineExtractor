@@ -4,39 +4,44 @@
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 
-<p class="note" style="margin-bottom:12px">
+@* The quiet columns here are .quiet, not .dim. .dim is --text-tertiary — the tier for an
+   annotation nobody has to read — and it measures 2.70:1 on the panel, below WCAG AA. A job
+   key, a start time, a duration, a request count and a failure message are the reading, not
+   an aside: they sit a step under the row at --text-secondary (5.71:1), which passes. *@
+
+<Note Style="margin:12px 0">
     Every execution lands here, successful or not — this table is the only feed the KPIs and
     alerts are computed from.
-</p>
+</Note>
 
 <div class="row" style="margin-bottom:12px">
-    <select class="field"
-            value="@_sourceFilter" @onchange="OnSourceChanged">
+    <DeskSelect TValue="string"
+                Value="_sourceFilter" ValueChanged="OnSourceChanged">
         <option value="">All sources</option>
         @foreach (var s in _sources)
         {
             <option value="@s.Id">@s.Name</option>
         }
-    </select>
+    </DeskSelect>
 
-    <select class="field"
-            value="@_statusFilter" @onchange="OnStatusChanged">
+    <DeskSelect TValue="string"
+                Value="_statusFilter" ValueChanged="OnStatusChanged">
         <option value="">Any state</option>
         @foreach (var s in Enum.GetValues<RunStatus>())
         {
             <option value="@s">@s</option>
         }
-    </select>
+    </DeskSelect>
 
-    <button class="btn btn--quiet" type="button" @onclick="LoadAsync">
-        <Glyph Icon="@Icons.Material.Filled.Refresh" /> Refresh
-    </button>
+    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">
+        Refresh
+    </DeskButton>
 </div>
 
 <DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">
     <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
         <CellTemplate>
-            <span class="tag @StatusTag(context.Item.Status)">@context.Item.Status</span>
+            <Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -52,13 +57,13 @@
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job">
-        <CellTemplate><span class="mono dim">@context.Item.JobKey</span></CellTemplate>
+        <CellTemplate><span class="mono quiet">@context.Item.JobKey</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
                     Title="Started" Align="Align.Right" InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <span class="dim">@context.Item.StartedAt.ToLocalTime().ToString("MMM d HH:mm:ss")</span>
+            <span class="quiet">@context.Item.StartedAt.ToLocalTime().ToString("MMM d HH:mm:ss")</span>
         </CellTemplate>
     </PropertyColumn>
 
@@ -67,25 +72,25 @@
                     Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
                     Title="Took" Align="Align.Right">
         <CellTemplate>
-            <span class="dim">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
+            <span class="quiet">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" />
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right">
-        <CellTemplate><span class="dim">@context.Item.RequestsMade</span></CellTemplate>
+        <CellTemplate><span class="quiet">@context.Item.RequestsMade</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right">
         <CellTemplate>
-            <span class="dim">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
+            <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Error!" Title="Detail">
         <CellTemplate>
-            <span class="trunc dim" title="@context.Item.Error">@context.Item.Error</span>
+            <span class="trunc quiet" title="@context.Item.Error">@context.Item.Error</span>
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
@@ -112,15 +117,15 @@
         await LoadAsync();
     }
 
-    private async Task OnSourceChanged(ChangeEventArgs e)
+    private async Task OnSourceChanged(string value)
     {
-        _sourceFilter = e.Value?.ToString() ?? string.Empty;
+        _sourceFilter = value ?? string.Empty;
         await LoadAsync();
     }
 
-    private async Task OnStatusChanged(ChangeEventArgs e)
+    private async Task OnStatusChanged(string value)
     {
-        _statusFilter = e.Value?.ToString() ?? string.Empty;
+        _statusFilter = value ?? string.Empty;
         await LoadAsync();
     }
 
@@ -148,11 +153,11 @@
             recentFailures > 0 ? $"{recentFailures} recent fails" : $"{_runs.Count} runs");
     }
 
-    private static string StatusTag(RunStatus status) => status switch
+    private static DeskState StatusState(RunStatus status) => status switch
     {
-        RunStatus.Success => "tag--good",
-        RunStatus.Partial => "tag--warn",
-        RunStatus.Failed => "tag--bad",
-        _ => "tag--info"
+        RunStatus.Success => DeskState.Positive,
+        RunStatus.Partial => DeskState.Warning,
+        RunStatus.Failed => DeskState.Negative,
+        _ => DeskState.Info
     };
 }

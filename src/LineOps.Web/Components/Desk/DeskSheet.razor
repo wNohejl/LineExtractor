@@ -1,0 +1,103 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    TEMPLATE-ABLE — see .claude/skills/apple-mudblazor.
+
+    A modal sheet: one self-contained task, and completing it is the only goal.
+
+    The desk's existing overlay is DeskDialog, which floats and is deliberately NOT modal,
+    because comparing games is the core workflow and a modal would force the operator to
+    finish with one board before looking at the next. That still holds, and this does not
+    replace it — it adds a modal tier beside it for the cases the floating layer serves
+    badly: a form that must complete or cancel, a multi-step configuration.
+
+    The rule, which is also the one written into the skill: use a sheet when the task is
+    self-contained and completing it is the only goal; use DeskDialog when the operator
+    needs to see or compare other things while working. Comparison is never modal. If you
+    are unsure, do not be modal.
+
+    MudDialog underneath owns the scrim, the focus trap, and the stacking — plumbing that
+    is genuinely hard to get right and which MudBlazor already has. Everything visible
+    comes from .desk-sheet.
+
+    Where the width comes from, so it is not re-litigated: MudDialog owns its outer
+    element, so the sheet cannot wrap itself in a sized container. The dialog's actual
+    width is set by the caller through DialogOptions.MaxWidth; the Width parameter here
+    applies min-width to the inner body so a sheet with little content still reads as a
+    sheet rather than a tooltip.
+
+    Class="desk-sheet" is load-bearing, not decoration. It lands on Mud's own .mud-dialog
+    element, and the surface rules are written as .mud-dialog.desk-sheet so they out-specify
+    both MudBlazor's own .mud-dialog and the bridge's — neither of which this sheet could
+    beat on source order, since mud-bridge.css loads after lineops.css.
+*@
+
+<MudDialog Class="desk-sheet">
+    <TitleContent>
+        <div class="desk-sheet__head">
+            <div class="desk-sheet__titles">
+                <span class="desk-sheet__title">@Title</span>
+                @if (Subtitle is not null)
+                {
+                    <span class="desk-sheet__sub">@Subtitle</span>
+                }
+            </div>
+            <button type="button"
+                    class="desk-sheet__close"
+                    title="Close"
+                    @onclick="Cancel">
+                <Glyph Icon="@Icons.Material.Filled.Close" />
+            </button>
+        </div>
+    </TitleContent>
+
+    <DialogContent>
+        <div class="desk-sheet__body" style="min-width:@Width">
+            @ChildContent
+        </div>
+    </DialogContent>
+
+    <DialogActions>
+        @if (Footer is not null)
+        {
+            <div class="desk-sheet__foot">
+                @Footer
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? Instance { get; set; }
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The task's own buttons. Exactly one of them should be Filled — the one that
+    /// completes the task — and Cancel should be Plain beside it.
+    /// </summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>
+    /// A floor for the body, not the dialog's width. The caller sets the real width through
+    /// DialogOptions.MaxWidth; this only keeps a thin sheet from collapsing to a tooltip.
+    /// </summary>
+    [Parameter] public string Width { get; set; } = "520px";
+
+    /// <summary>
+    /// Raised when the operator leaves without completing. A sheet that cannot be
+    /// cancelled is a trap.
+    /// </summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+
+        Instance?.Cancel();
+    }
+}

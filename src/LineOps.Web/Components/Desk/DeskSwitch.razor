@@ -1,0 +1,188 @@
+@namespace LineOps.Web.Components.Desk
+@typeparam TValue
+
+@*
+    A gate switch.
+
+    One visible choice among a few, which is what a market, a lookback window, or a
+    layout mode is. The selected position is a raised cap that physically slides along
+    a channel cut into the panel — same moulding rules as everywhere else: the cap
+    catches the light because it is the part you are holding, the channel does not
+    because it is the part you cannot press.
+
+    A <select> answers the same question in two clicks and hides the alternatives;
+    the gate answers it in one and keeps them on the panel. Use it for 2–5 fixed
+    positions; past that the labels crowd and a field <select> is the honest control.
+
+    Radiogroup semantics: arrows move the cap, Tab leaves the group, and the cap's
+    travel is the same signal the pointer gets.
+
+    Fewer than two positions is not a choice, so the gate renders nothing at all
+    rather than a control that cannot be operated.
+*@
+
+@if (Options.Count > 1)
+{
+    <div class="marble-row gate @SizeClass @(Mono ? "gate--num" : null) @Class"
+         role="radiogroup"
+         aria-label="@Label"
+         @onkeydown="OnKeyDown"
+         @attributes="Rest"
+         style="@Style">
+
+        @if (SelectedIndex >= 0)
+        {
+            <span class="marble gate__cap" aria-hidden="true"></span>
+        }
+
+        @for (var i = 0; i < Options.Count; i++)
+        {
+            var index = i;
+            var option = Options[index];
+            var selected = index == SelectedIndex;
+
+            <button class="gate__opt @(selected ? "gate__opt--on" : null)"
+                    type="button"
+                    role="radio"
+                    aria-checked="@(selected ? "true" : "false")"
+                    tabindex="@TabStop(index)"
+                    title="@option.Title"
+                    @ref="_refs[index]"
+                    @onclick="() => SelectAsync(index)">
+                @option.Label
+            </button>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The positions, in the order they sit on the channel. 2–5 is the honest range.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DeskSwitchOption<TValue>> Options { get; set; } = [];
+
+    [Parameter] public TValue? Value { get; set; }
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>The accessible name of the whole group — "Lookback window", not a per-option label.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+
+    /// <summary>Tabular figures for numeric positions — "14d / 30d / 90d" should line up like a column.</summary>
+    [Parameter] public bool Mono { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private ElementReference[] _refs = [];
+
+    protected override void OnParametersSet()
+    {
+        if (_refs.Length != Options.Count)
+            _refs = new ElementReference[Options.Count];
+    }
+
+    /// <summary>
+    /// -1 when nothing matches — a custom value typed beside the gate leaves every
+    /// position up, and the cap simply is not there rather than lying about one.
+    /// </summary>
+    private int SelectedIndex
+    {
+        get
+        {
+            for (var i = 0; i < Options.Count; i++)
+            {
+                if (EqualityComparer<TValue>.Default.Equals(Options[i].Value, Value))
+                    return i;
+            }
+
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// The layout is driven by two custom properties, so they cannot be left to the
+    /// splat: an incoming <c>style</c> is applied after the element's own attributes
+    /// and would replace them outright, dropping --n and collapsing the row into a
+    /// stack. The caller's declarations are appended instead, and still win on any
+    /// property they actually name.
+    /// </summary>
+    private string Style
+    {
+        get
+        {
+            var own = $"--n:{Options.Count}; --i:{SelectedIndex}";
+
+            return Extra is not null
+                   && Extra.TryGetValue("style", out var caller)
+                   && caller?.ToString() is { Length: > 0 } declarations
+                ? $"{own}; {declarations}"
+                : own;
+        }
+    }
+
+    /// <summary>Everything splattable except the two attributes this component composes itself.</summary>
+    private IReadOnlyDictionary<string, object>? Rest
+    {
+        get
+        {
+            if (Extra is null)
+                return null;
+
+            var rest = new Dictionary<string, object>(Extra.Count);
+
+            foreach (var (key, value) in Extra)
+            {
+                if (!string.Equals(key, "style", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(key, "class", StringComparison.OrdinalIgnoreCase))
+                {
+                    rest[key] = value;
+                }
+            }
+
+            return rest;
+        }
+    }
+
+    private string? SizeClass => Size switch
+    {
+        DeskKeySize.Small => "gate--sm",
+        DeskKeySize.Large => "gate--lg",
+        _ => null
+    };
+
+    // Roving tabindex: the group is one Tab stop, landing on the cap (or the first
+    // position when the cap is absent), and arrows do the travelling inside it.
+    private string TabStop(int index)
+        => index == Math.Max(SelectedIndex, 0) ? "0" : "-1";
+
+    private async Task SelectAsync(int index)
+    {
+        if (index == SelectedIndex)
+            return;
+
+        await ValueChanged.InvokeAsync(Options[index].Value);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        var current = Math.Max(SelectedIndex, 0);
+
+        var next = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => Math.Min(current + 1, Options.Count - 1),
+            "ArrowLeft" or "ArrowUp" => Math.Max(current - 1, 0),
+            "Home" => 0,
+            "End" => Options.Count - 1,
+            _ => current
+        };
+
+        if (next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}

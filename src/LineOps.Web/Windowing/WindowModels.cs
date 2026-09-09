@@ -98,6 +98,27 @@ public record WindowDefinition
     /// </summary>
     public bool Singleton { get; init; } = true;
 
+    /// <summary>
+    /// Whether this window is about something, and so cannot be opened on its own.
+    ///
+    /// <para>
+    /// A game, a team and a player view are destinations: they take an id, and a window built
+    /// without one has nothing to show. Opened cold from the launcher they sat on "Loading…"
+    /// for ever, which reads as a broken window rather than as a window that was never meant to
+    /// be opened that way.
+    /// </para>
+    ///
+    /// <para>
+    /// They stay in the catalog because the launcher is not their only reader — the taskbar,
+    /// the host and the follow-up layer all resolve through it. This flags them so the one
+    /// reader that offers a cold start can decline to.
+    /// </para>
+    /// </summary>
+    public bool RequiresSubject { get; init; }
+
+    /// <summary>How to reach a destination window, shown where it cannot be opened directly.</summary>
+    public string? ReachedBy { get; init; }
+
     /// <summary>One line, shown in the launcher. Says what the window does, plainly.</summary>
     public string Description { get; init; } = string.Empty;
 }

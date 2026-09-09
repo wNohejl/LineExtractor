@@ -201,7 +201,8 @@ public class OddsIngestionService(
         // would be deleted by the next retention pass anyway — a write, a WAL record and a
         // delete to store nothing. Cheaper to not write it.
         var closed = await db.ClosingLines
-            .Where(c => snapshots.Select(s => s.GameId).Contains(c.GameId))
+            .Where(c => snapshots.Select(s => s.GameId).Contains(c.GameId)
+                        && c.Source!.Kind == SourceKind.Odds)
             .Select(c => c.GameId)
             .Distinct()
             .ToListAsync(ct);

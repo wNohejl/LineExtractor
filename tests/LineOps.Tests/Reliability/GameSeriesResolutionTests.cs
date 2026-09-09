@@ -1,0 +1,330 @@
+using LineOps.Core.Contracts;
+using LineOps.Core.Entities;
+using LineOps.Data;
+using LineOps.Ingestion.Services;
+using Microsoft.EntityFrameworkCore;
+
+namespace LineOps.Tests.Reliability;
+
+/// <summary>
+/// Two games between the same two teams, a day apart, are two games.
+///
+/// <para>
+/// Resolution used to unify "the same matchup within 24 hours" — a comment saying "the same
+/// day" over a condition that meant something else. A baseball series is the counter-example
+/// the rule was never tested against: teams play the same opponent on consecutive days, and a
+/// night game followed by a day game is about eighteen hours apart, comfortably inside the
+/// window. The second sighting therefore matched the first game's row, overwrote its start time
+/// and score, and stamped its own provider id over the original.
+/// </para>
+///
+/// <para>
+/// The loss was silent and permanent: no error, no failed run, one fixture per series simply
+/// gone, and the surviving row carrying one game's identifier beside another game's result.
+/// The Tigers' record read five straight defeats because two of the games behind it had been
+/// merged away.
+/// </para>
+/// </summary>
+[Collection(PostgresCollection.Name)]
+public class GameSeriesResolutionTests(PostgresFixture fixture)
+{
+    private static async Task<Sport> SeedSportAsync(LineOpsDbContext db)
+    {
+        var sport = new Sport { Key = $"ser-{Guid.NewGuid():N}"[..12], Name = "TEST" };
+        db.Sports.Add(sport);
+        await db.SaveChangesAsync();
+        return sport;
+    }
+
+    private static CanonicalGame Game(string id, DateTimeOffset startsAt, int home, int away)
+        => new(
+            SourceGameId: id,
+            SportKey: "ignored",
+            HomeTeamName: "Pittsburgh Pirates",
+            AwayTeamName: "Detroit Tigers",
+            StartsAt: startsAt,
+            Status: "final",
+            HomeScore: home,
+            AwayScore: away,
+            Home: new CanonicalTeamRef("Pittsburgh Pirates", "23", "PIT"),
+            Away: new CanonicalTeamRef("Detroit Tigers", "6", "DET"));
+
+    /// <summary>
+    /// The real fixtures that exposed this: ESPN events 401816572 and 401816587, seventeen
+    /// hours and fifty-five minutes apart. Resolved newest first, because that is the order the
+    /// history backfill walks in.
+    /// </summary>
+    [Fact]
+    public async Task Consecutive_games_in_a_series_stay_separate()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var later = new DateTimeOffset(2026, 8, 19, 16, 35, 0, TimeSpan.Zero);
+        var earlier = new DateTimeOffset(2026, 8, 18, 22, 40, 0, TimeSpan.Zero);
+
+        Assert.True((later - earlier).TotalHours < 24, "the fixtures must sit inside the old window");
+
+        var second = await resolver.ResolveGameAsync(
+            sport, "espn", Game("401816587", later, 4, 1), CancellationToken.None);
+
+        var first = await resolver.ResolveGameAsync(
+            sport, "espn", Game("401816572", earlier, 3, 4), CancellationToken.None);
+
+        Assert.NotEqual(second.Id, first.Id);
+
+        var stored = await db.Games
+            .Where(g => g.SportId == sport.Id)
+            .OrderBy(g => g.StartsAt)
+            .AsNoTracking()
+            .ToListAsync();
+
+        Assert.Equal(2, stored.Count);
+
+        // Each row keeps its own identifier, start time and score — the three things the
+        // collision destroyed.
+        Assert.Equal("401816572", stored[0].ExternalIds["espn"]);
+        Assert.Equal(earlier, stored[0].StartsAt);
+        Assert.Equal(3, stored[0].HomeScore);
+
+        Assert.Equal("401816587", stored[1].ExternalIds["espn"]);
+        Assert.Equal(later, stored[1].StartsAt);
+        Assert.Equal(4, stored[1].HomeScore);
+    }
+
+    /// <summary>
+    /// A doubleheader is the same trap at closer range: two games, same teams, same day, a few
+    /// hours apart. A rule that merged them would be wrong in exactly the way the 24-hour one
+    /// was, so it is pinned here rather than left to be rediscovered.
+    /// </summary>
+    [Fact]
+    public async Task A_doubleheader_is_two_games()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var opener = new DateTimeOffset(2026, 8, 18, 17, 5, 0, TimeSpan.Zero);
+        var nightcap = opener.AddHours(4);
+
+        await resolver.ResolveGameAsync(sport, "espn", Game("dh-1", opener, 2, 1), CancellationToken.None);
+        await resolver.ResolveGameAsync(sport, "espn", Game("dh-2", nightcap, 0, 7), CancellationToken.None);
+
+        var stored = await db.Games.Where(g => g.SportId == sport.Id).AsNoTracking().ToListAsync();
+
+        Assert.Equal(2, stored.Count);
+    }
+
+    /// <summary>
+    /// The unification the slow path exists for still has to work: a second provider naming the
+    /// same fixture must land on the existing row rather than duplicating it.
+    /// </summary>
+    [Fact]
+    public async Task A_second_provider_still_unifies_onto_the_same_game()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var startsAt = new DateTimeOffset(2026, 8, 18, 22, 40, 0, TimeSpan.Zero);
+
+        var fromEspn = await resolver.ResolveGameAsync(
+            sport, "espn", Game("401816572", startsAt, 3, 4), CancellationToken.None);
+
+        // A different provider, its own identifier, the same fixture a few minutes off.
+        var fromBook = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Game("book-xyz", startsAt.AddMinutes(5), 3, 4), CancellationToken.None);
+
+        Assert.Equal(fromEspn.Id, fromBook.Id);
+
+        var stored = await db.Games.Where(g => g.SportId == sport.Id).AsNoTracking().ToListAsync();
+        var only = Assert.Single(stored);
+
+        Assert.Equal("401816572", only.ExternalIds["espn"]);
+        Assert.Equal("book-xyz", only.ExternalIds["the-odds-api"]);
+    }
+    /// <summary>
+    /// A provider correcting the start time of a fixture it has already named is believed.
+    /// Games get moved — rain, television, doubleheaders collapsed into one date — and a start
+    /// time that can never change is a row that quietly disagrees with the schedule for ever.
+    /// </summary>
+    [Fact]
+    public async Task A_provider_can_correct_the_start_time_of_its_own_game()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var announced = new DateTimeOffset(2026, 8, 18, 22, 40, 0, TimeSpan.Zero);
+        var moved = announced.AddHours(2);
+
+        var created = await resolver.ResolveGameAsync(
+            sport, "espn", Game("401816572", announced, 0, 0), CancellationToken.None);
+
+        var corrected = await resolver.ResolveGameAsync(
+            sport, "espn", Game("401816572", moved, 3, 4), CancellationToken.None);
+
+        Assert.Equal(created.Id, corrected.Id);
+
+        var only = Assert.Single(await db.Games.Where(g => g.SportId == sport.Id).AsNoTracking().ToListAsync());
+
+        Assert.Equal(moved, only.StartsAt);
+        Assert.Equal(3, only.HomeScore);
+    }
+
+    private static CanonicalGame Fixture(string id, DateTimeOffset startsAt, string? status = null, int? home = null, int? away = null)
+        => new(
+            SourceGameId: id,
+            SportKey: "ignored",
+            HomeTeamName: "Athletics",
+            AwayTeamName: "Toronto Blue Jays",
+            StartsAt: startsAt,
+            Status: status,
+            HomeScore: home,
+            AwayScore: away,
+            Home: new CanonicalTeamRef("Athletics", "11", "ATH"),
+            Away: new CanonicalTeamRef("Toronto Blue Jays", "14", "TOR"));
+
+    /// <summary>
+    /// The real case: ESPN events 401816851 (Sep 8 02:05Z, final 6–5) and 401816866 (Sep 9
+    /// 01:40Z). The Odds API then announced the second game. Both rows sat inside the window,
+    /// and the first one the database returned was the final — so the final took the book's
+    /// id, its start time was "corrected" a day into the future, and the real fixture stayed
+    /// unpriced one minute away. The nearest start time is the one the provider means.
+    /// </summary>
+    [Fact]
+    public async Task A_book_naming_tomorrows_game_lands_on_tomorrows_game_not_todays_final()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var played = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        Assert.True((next - played).TotalHours < 24, "both fixtures must sit inside the window");
+
+        var final = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", played, "final", 6, 5), CancellationToken.None);
+
+        var upcoming = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816866", next, "scheduled"), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.Equal(upcoming.Id, priced.Id);
+
+        var stored = await db.Games.AsNoTracking().ToDictionaryAsync(g => g.Id);
+
+        Assert.Equal(played, stored[final.Id].StartsAt);
+        Assert.False(stored[final.Id].ExternalIds.ContainsKey("the-odds-api"));
+        Assert.Equal("bbab891f", stored[upcoming.Id].ExternalIds["the-odds-api"]);
+    }
+
+    /// <summary>
+    /// The same announcement before ESPN has supplied tomorrow's fixture: the only candidate
+    /// is the final, and a game that has been played is not one that starts tomorrow. A new
+    /// row is the right answer; merging onto the final was how a result ended up dated in the
+    /// future.
+    /// </summary>
+    [Fact]
+    public async Task A_finished_game_is_never_the_fixture_announced_for_the_next_day()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var played = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var final = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", played, "final", 6, 5), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.NotEqual(final.Id, priced.Id);
+
+        var stored = await db.Games.Where(g => g.SportId == sport.Id).AsNoTracking().ToListAsync();
+
+        Assert.Equal(2, stored.Count);
+        Assert.Equal(played, stored.Single(g => g.Id == final.Id).StartsAt);
+    }
+
+    /// <summary>
+    /// The neighbour is not always a final. A game left Live by an outage, or still Scheduled
+    /// because the results sweep has not reached it, is just as much yesterday's game — and a
+    /// guard keyed on "is it Final" let a book's announcement of tomorrow's fixture land on it.
+    /// The window is the drift one fixture can show between providers, so the neighbour is
+    /// outside it whatever its status says.
+    /// </summary>
+    [Theory]
+    [InlineData("live")]
+    [InlineData("scheduled")]
+    public async Task A_stuck_neighbour_is_never_the_fixture_announced_for_the_next_day(string status)
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var yesterday = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var stuck = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", yesterday, status), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.NotEqual(stuck.Id, priced.Id);
+
+        var stored = await db.Games.AsNoTracking().FirstAsync(g => g.Id == stuck.Id);
+
+        Assert.Equal(yesterday, stored.StartsAt);
+        Assert.False(stored.ExternalIds.ContainsKey("the-odds-api"));
+    }
+
+    /// <summary>
+    /// A book's commence time is not the schedule. Once both providers had named a game, each
+    /// run rewrote its start to whichever was polling — one UPDATE per game per run, for ever,
+    /// with every start-time cutoff downstream reading whichever provider went last. The stats
+    /// feed moves a game; a book only prices it.
+    /// </summary>
+    [Fact]
+    public async Task A_book_prices_a_game_but_does_not_move_it()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        // Source keys are unique across the shared database, so each run names its own.
+        var book = $"book-{sport.Key}";
+        var feed = $"feed-{sport.Key}";
+        db.Sources.Add(new Source { Key = book, Name = "book", Kind = SourceKind.Odds });
+        db.Sources.Add(new Source { Key = feed, Name = "feed", Kind = SourceKind.Stats });
+        await db.SaveChangesAsync();
+
+        var scheduled = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var game = await resolver.ResolveGameAsync(
+            sport, feed, Fixture("401816866", scheduled, "scheduled"), CancellationToken.None);
+
+        // The book names it a minute off, then again two hours off. Neither moves the game.
+        await resolver.ResolveGameAsync(sport, book, Fixture("bbab891f", scheduled.AddMinutes(1)), CancellationToken.None);
+        await resolver.ResolveGameAsync(sport, book, Fixture("bbab891f", scheduled.AddHours(2)), CancellationToken.None);
+
+        var afterBook = await db.Games.AsNoTracking().FirstAsync(g => g.Id == game.Id);
+
+        Assert.Equal(scheduled, afterBook.StartsAt);
+        Assert.Equal("bbab891f", afterBook.ExternalIds[book]);
+
+        // The feed does.
+        await resolver.ResolveGameAsync(sport, feed, Fixture("401816866", scheduled.AddHours(2), "scheduled"), CancellationToken.None);
+
+        var afterFeed = await db.Games.AsNoTracking().FirstAsync(g => g.Id == game.Id);
+
+        Assert.Equal(scheduled.AddHours(2), afterFeed.StartsAt);
+    }
+}

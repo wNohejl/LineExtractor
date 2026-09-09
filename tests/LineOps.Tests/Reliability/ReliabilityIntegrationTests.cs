@@ -235,6 +235,36 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
         Assert.Null(await new KpiCalculator(db).GetVolumeRatioAsync(source.Id, 7));
     }
 
+    /// <summary>
+    /// A source pulled on request has no daily cadence, so it has no usual daily volume to
+    /// fall short of. The numbers here are the ones that actually fired: The Odds API is
+    /// Manual by default — nothing is fetched unasked — and it ran on three scattered days,
+    /// which was enough to clear the three-day floor and produce a "31% of the trailing
+    /// median" warning that read as upstream schema drift. It was a record of how often
+    /// somebody pressed Pull lines.
+    /// </summary>
+    [Fact]
+    public async Task VolumeRatioIsUndefinedForASourceThatDoesNotRunDaily()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db);
+
+        var now = DateTimeOffset.UtcNow;
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, now.AddDays(-6), rows: 1704));
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, now.AddDays(-3), rows: 423));
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, now.AddDays(-1), rows: 435));
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, now, rows: 136));
+        await db.SaveChangesAsync();
+
+        // Three days out of seven is not a cadence. Judged against them the median is 435 and
+        // today reads as 31% — the alert this test exists to stop.
+        Assert.Null(await new KpiCalculator(db).GetVolumeRatioAsync(source.Id, 7));
+
+        var candidates = await CreateEngine(db).EvaluateAsync();
+        Assert.DoesNotContain(
+            candidates, c => c.RuleKey == AlertRules.VolumeAnomaly && c.SourceId == source.Id);
+    }
+
     /// <summary>A run that consumed budget. Requests are what the metered dimensions count.</summary>
     private static IngestionRun Spend(int sourceId, int requests, int credits = 0)
         => new()

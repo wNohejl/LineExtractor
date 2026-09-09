@@ -46,6 +46,7 @@ public class MatchupCrossReference(LineOpsDbContext db)
         int gameId,
         TimeSpan window,
         int maxPlayersPerTeam = 12,
+        int? seasonYear = null,
         CancellationToken ct = default)
     {
         var game = await db.Games
@@ -58,6 +59,12 @@ public class MatchupCrossReference(LineOpsDbContext db)
             return null;
 
         var since = game.StartsAt - window;
+
+        // The games form is drawn from: strictly before this one, and either inside the
+        // named season or inside the rolling window when no season was named.
+        var prior = seasonYear is { } year
+            ? db.Games.Where(g => g.StartsAt < game.StartsAt && g.SeasonYear == year)
+            : db.Games.Where(g => g.StartsAt < game.StartsAt && g.StartsAt >= since);
 
         // Hop one: the teams' current rosters. Indexed by ix_player_team.
         var players = await db.Players
@@ -76,7 +83,7 @@ public class MatchupCrossReference(LineOpsDbContext db)
         // which records when we ingested rather than when the game was.
         var lines = await db.PlayerGameStats
             .Where(s => playerIds.Contains(s.PlayerId))
-            .Join(db.Games.Where(g => g.StartsAt < game.StartsAt && g.StartsAt >= since),
+            .Join(prior,
                 s => s.GameId, g => g.Id,
                 (s, g) => new { s.PlayerId, s.StatLine, g.StartsAt })
             .AsNoTracking()
@@ -148,6 +155,7 @@ public class MatchupCrossReference(LineOpsDbContext db)
         int teamId,
         TimeSpan window,
         int maxPlayers = 10,
+        int? seasonYear = null,
         CancellationToken ct = default)
     {
         var team = await db.Teams
@@ -161,11 +169,16 @@ public class MatchupCrossReference(LineOpsDbContext db)
         var now = DateTimeOffset.UtcNow;
         var since = now - window;
 
-        var games = await db.Games
+        var played = db.Games
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
-            .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId)
-                        && g.StartsAt >= since && g.StartsAt <= now)
+            .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId) && g.StartsAt <= now);
+
+        played = seasonYear is { } year
+            ? played.Where(g => g.SeasonYear == year)
+            : played.Where(g => g.StartsAt >= since);
+
+        var games = await played
             .OrderByDescending(g => g.StartsAt)
             .AsNoTracking()
             .ToListAsync(ct);
@@ -184,18 +197,19 @@ public class MatchupCrossReference(LineOpsDbContext db)
                 Status: g.Status);
         }).ToList();
 
-        var roster = await RosterFormAsync(teamId, since, now, maxPlayers, ct);
+        var roster = await RosterFormAsync(teamId, since, now, maxPlayers, seasonYear, ct);
 
         return new TeamForm(team, recent, roster);
     }
 
     /// <summary>
-    /// One team's roster, with their appearances inside a window. Shared by the team lookup
-    /// above; the per-matchup lookup keeps its own two-team query because it can resolve both
-    /// rosters in one round trip, which this single-team case has no need of.
+    /// One team's roster, with their appearances inside a window — or inside a season, when
+    /// one is named. Shared by the team lookup above; the per-matchup lookup keeps its own
+    /// two-team query because it can resolve both rosters in one round trip, which this
+    /// single-team case has no need of.
     /// </summary>
     private async Task<List<PlayerForm>> RosterFormAsync(
-        int teamId, DateTimeOffset since, DateTimeOffset before, int max, CancellationToken ct)
+        int teamId, DateTimeOffset since, DateTimeOffset before, int max, int? seasonYear, CancellationToken ct)
     {
         var players = await db.Players
             .Where(p => p.TeamId == teamId)
@@ -208,9 +222,13 @@ public class MatchupCrossReference(LineOpsDbContext db)
 
         var playerIds = players.Select(p => p.Id).ToList();
 
+        var prior = seasonYear is { } year
+            ? db.Games.Where(g => g.StartsAt < before && g.SeasonYear == year)
+            : db.Games.Where(g => g.StartsAt < before && g.StartsAt >= since);
+
         var lines = await db.PlayerGameStats
             .Where(s => playerIds.Contains(s.PlayerId))
-            .Join(db.Games.Where(g => g.StartsAt < before && g.StartsAt >= since),
+            .Join(prior,
                 s => s.GameId, g => g.Id,
                 (s, g) => new { s.PlayerId, s.StatLine, g.StartsAt })
             .AsNoTracking()

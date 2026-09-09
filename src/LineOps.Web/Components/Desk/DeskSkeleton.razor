@@ -1,0 +1,100 @@
+@namespace LineOps.Web.Components.Desk
+
+@*
+    A placeholder for content that has not arrived.
+
+    The desk had no vocabulary for "this is coming" other than the window's pulse strip,
+    which reports that *something* is in flight without saying where the result will land.
+    A skeleton says where: it occupies the shape the real content will take, so the layout
+    does not jump when the data arrives and the eye already knows what to expect.
+
+    Two rules govern it.
+
+    Shape follows the final layout. Per Apple's HIG on loading, a placeholder that does not
+    resemble what replaces it is just noise — so <c>Line</c> stands in for a run of text
+    (with the last line short, the way a paragraph actually ends) and <c>Block</c> stands in
+    for a solid element: a chart, a tile, an avatar. Give it the width the real thing has.
+
+    A skeleton is opaque. ADR 0016 keeps materials for the floating tier and leaves anything
+    holding data flat. Nothing here is pressable and nothing here floats, so the shimmer
+    travels *through* a flat surface rather than sitting on it as a highlight. Under
+    <c>prefers-reduced-motion</c> the shimmer is dropped entirely and the block stays; the
+    state survives, only the travel goes.
+*@
+
+<div class="@Classes" style="@Styles" aria-hidden="true" @attributes="Rest">
+    @if (Shape == DeskSkeletonShape.Line)
+    {
+        @for (var i = 0; i < Math.Max(1, Lines); i++)
+        {
+            <span class="skel__line" style="@LineWidth(i)"></span>
+        }
+    }
+    else
+    {
+        <span class="skel__block"></span>
+    }
+</div>
+
+@code {
+    /// <summary>Text run or solid element. Pick the one the real content is.</summary>
+    [Parameter] public DeskSkeletonShape Shape { get; set; } = DeskSkeletonShape.Line;
+
+    /// <summary>
+    /// How many text lines to stand in for. Ignored by <see cref="DeskSkeletonShape.Block"/>.
+    /// The last of several is drawn short, because a paragraph's last line is.
+    /// </summary>
+    [Parameter] public int Lines { get; set; } = 1;
+
+    /// <summary>
+    /// Any CSS length or percentage — the width the real content will occupy. Defaults to
+    /// filling the container, which is right for a run of text inside a column.
+    /// </summary>
+    [Parameter] public string? Width { get; set; }
+
+    /// <summary>Any CSS length. Only meaningful for a block; a line's height is its type's.</summary>
+    [Parameter] public string? Height { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra inline declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    /// <summary>
+    /// Everything else the caller passed. <c>style</c> and <c>class</c> are deliberately not
+    /// splatted: Blazor applies splatted attributes last, so a caller passing either would
+    /// replace the component's own outright — the bug the gate switch shipped with.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private IReadOnlyDictionary<string, object>? Rest =>
+        Extra?.Where(kv => !kv.Key.Equals("style", StringComparison.OrdinalIgnoreCase)
+                        && !kv.Key.Equals("class", StringComparison.OrdinalIgnoreCase))
+              .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+    private string Classes => string.Join(' ', new[]
+    {
+        "skel",
+        Shape == DeskSkeletonShape.Block ? "skel--block" : "skel--lines",
+        Class
+    }.Where(p => p is { Length: > 0 }));
+
+    private string? Styles
+    {
+        get
+        {
+            var own = string.Concat(
+                Width is { Length: > 0 } ? $"width:{Width};" : null,
+                Height is { Length: > 0 } ? $"--skel-h:{Height};" : null);
+
+            var all = own + Style;
+            return all.Length > 0 ? all : null;
+        }
+    }
+
+    // The short last line is what makes a stack read as prose rather than as a table.
+    private string? LineWidth(int index) =>
+        Lines > 1 && index == Lines - 1 ? "width:62%" : null;
+}

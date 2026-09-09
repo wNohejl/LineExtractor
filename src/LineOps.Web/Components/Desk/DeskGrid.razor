@@ -25,6 +25,29 @@
 *@
 
 <div class="deskgrid @(Dense ? "deskgrid--dense" : null) @Class">
+@*  While the first page is on its way there is nothing to sort and nothing to click, so the
+    grid stands aside and skeleton rows hold its shape. They are laid out on the same row
+    rhythm the real body uses, which is the whole point: the header stays put, the panel does
+    not collapse to nothing and then jump back, and the operator can see how much is coming.
+
+    Only for the empty first load. A grid that already has rows keeps them and reports the
+    refresh through the window's pulse — replacing read numbers with grey bars loses
+    information the operator was using.  *@
+    @if (Loading && Items?.Any() != true)
+    {
+        <div class="deskgrid__skeleton" aria-busy="true" aria-live="polite" aria-label="@LoadingLabel">
+            @for (var i = 0; i < SkeletonRows; i++)
+            {
+                <div class="deskgrid__skeleton-row">
+                    <DeskSkeleton Width="34%" />
+                    <DeskSkeleton Width="22%" />
+                    <DeskSkeleton Width="18%" />
+                </div>
+            }
+        </div>
+    }
+    else
+    {
     <MudDataGrid T="T"
                  Items="@Items"
                  Dense="true"
@@ -38,6 +61,7 @@
                  Height="@Height"
                  RowClick="@OnRowClick"
                  RowClass="@RowClass"
+                 RowClassFunc="@RowClassFunc"
                  Loading="@Loading"
                  Virtualize="@Virtualize">
         <Columns>
@@ -47,6 +71,7 @@
             <div class="empty">@EmptyText</div>
         </NoRecordsContent>
     </MudDataGrid>
+    }
 </div>
 
 @code {
@@ -71,7 +96,25 @@
 
     [Parameter] public string? Height { get; set; }
 
+    /// <summary>
+    /// The first page has not arrived. With no rows yet, the grid is replaced by
+    /// <see cref="SkeletonRows"/> placeholder rows on its own row rhythm; with rows already
+    /// on screen it stays out of the way and MudDataGrid's own loading state applies, so a
+    /// refresh never blanks numbers the operator is reading.
+    /// </summary>
     [Parameter] public bool Loading { get; set; }
+
+    /// <summary>
+    /// How many placeholder rows to hold the space with. Set it to the page size you expect,
+    /// so the panel is the height it will be rather than growing under the reader.
+    /// </summary>
+    [Parameter] public int SkeletonRows { get; set; } = 6;
+
+    /// <summary>
+    /// What is being fetched, as a specific action phrase — the accessible announcement while
+    /// the placeholders are up. Never "Loading…"; name the work, as <c>DeskProgress</c> does.
+    /// </summary>
+    [Parameter] public string LoadingLabel { get; set; } = "Fetching rows";
 
     /// <summary>
     /// Only worth it past a few hundred rows — it costs the browser's find-in-page, which on a
@@ -83,7 +126,17 @@
 
     [Parameter] public EventCallback<DataGridRowClickEventArgs<T>> OnRowClick { get; set; }
 
+    /// <summary>One class for every row. See <see cref="RowClassFunc"/> for per-row state.</summary>
     [Parameter] public string? RowClass { get; set; }
+
+    /// <summary>
+    /// A class per row, so a row can show its own state.
+    ///
+    /// The desk.s rule is that a row you opened should look opened — otherwise the only sign
+    /// is the action strip further down the cell, which is invisible once the row scrolls under
+    /// the header. <c>RowClass</c> alone cannot express this: it applies to every row equally.
+    /// </summary>
+    [Parameter] public Func<T, int, string>? RowClassFunc { get; set; }
 
     [Parameter] public string? Class { get; set; }
 }
