@@ -16,6 +16,19 @@ namespace LineOps.Ingestion.Services;
 /// </summary>
 public class EntityResolver(LineOpsDbContext db)
 {
+    /// <summary>
+    /// How far two providers' start times for the <i>same</i> fixture may differ.
+    ///
+    /// A book and a stats feed disagree by minutes about first pitch; nothing about one game
+    /// puts them six hours apart. The next game in a series is a day away and a doubleheader's
+    /// second game is about four hours away, so both fall outside this by construction — which
+    /// is the whole point. The old window was 24 hours, and no status-keyed special case could
+    /// make that safe: a neighbour left Live or Scheduled after an outage was still inside it.
+    /// </summary>
+    public static readonly TimeSpan SameFixtureDrift = TimeSpan.FromHours(6);
+
+    private readonly Dictionary<string, SourceKind?> _sourceKindCache = [];
+
     private readonly Dictionary<string, Sport> _sportCache = [];
 
     /// <summary>
@@ -196,20 +209,16 @@ public class EntityResolver(LineOpsDbContext db)
             // meant to tolerate, and the result was one fixture per series silently overwritten
             // by the next — its start time, its score and its identifier all replaced.
             //
-            // Among what is left, the nearest start time wins rather than the first row the
-            // database returned. A series puts consecutive games 23 hours apart, so a book
-            // naming tomorrow's game found both today's final and tomorrow's fixture inside the
-            // window — and took whichever came first, which was the final. Its start time was
-            // then "corrected" a day into the future and it wore tomorrow's book id, while the
-            // real fixture sat unpriced one minute away. A fixture that has already been played
-            // is also never the one a provider is announcing for hours later than it started.
+            // The window is the drift two providers can show for one fixture, not a day: a
+            // 24-hour window held both today's final and tomorrow's game when a book named
+            // tomorrow's, and whichever row came first took the book's id and had its start
+            // "corrected" a day forward. Within the window the nearest start time wins.
             game = candidates
                 .Where(g => g.HomeTeamId == home.Id
                             && g.AwayTeamId == away.Id
-                            && Math.Abs((g.StartsAt - canonical.StartsAt).TotalHours) < 24
-                            && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId)
-                            && !AlreadyPlayedBefore(g, canonical.StartsAt))
-                .OrderBy(g => Math.Abs((g.StartsAt - canonical.StartsAt).Ticks))
+                            && (g.StartsAt - canonical.StartsAt).Duration() < SameFixtureDrift
+                            && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId))
+                .OrderBy(g => (g.StartsAt - canonical.StartsAt).Duration())
                 .FirstOrDefault();
 
             if (game is null)
@@ -239,13 +248,15 @@ public class EntityResolver(LineOpsDbContext db)
         // Scores and status arrive later than the fixture itself, so always refresh them.
         var changed = false;
 
-        // So does the schedule. A game can be moved, and a provider correcting the start time
-        // of a fixture it has already named is the most reliable statement about it available —
-        // so it is taken, where a second provider mentioning the same game in passing is not.
-        //
-        // This also repairs rows written before series resolution was fixed, whose start times
-        // were overwritten by the neighbouring game they were merged with.
-        if (knownToThisProvider && game!.StartsAt != canonical.StartsAt)
+        // So does the schedule. A game can be moved, and the stats feed correcting the start
+        // time of a fixture it has already named is the most reliable statement about it
+        // available — so it is taken. A book is not a schedule authority: its commence time
+        // differs from the feed's by minutes, and letting both write meant one UPDATE per game
+        // per run for ever, with every start-time cutoff downstream depending on which
+        // provider ran last.
+        if (knownToThisProvider
+            && game!.StartsAt != canonical.StartsAt
+            && await IsScheduleAuthorityAsync(sourceKey, ct))
         {
             game.StartsAt = canonical.StartsAt;
             changed = true;
@@ -301,12 +312,24 @@ public class EntityResolver(LineOpsDbContext db)
         => game.ExternalIds.TryGetValue(sourceKey, out var existing) && existing != sourceGameId;
 
     /// <summary>
-    /// A game that has finished cannot be the fixture a provider says starts hours after it
-    /// did. The allowance covers a book quoting a start a little later than the stats feed's;
-    /// the next game in a series is a day away and well outside it.
+    /// Whether a provider's start time is believed over the one on record: stats feeds are,
+    /// odds feeds are not. A key with no source row — a test double, a provider seeded later —
+    /// is taken at its word, which is the behaviour a lone provider always had.
     /// </summary>
-    private static bool AlreadyPlayedBefore(Game game, DateTimeOffset announcedStart)
-        => game.Status == GameStatus.Final && announcedStart - game.StartsAt > TimeSpan.FromHours(6);
+    private async Task<bool> IsScheduleAuthorityAsync(string sourceKey, CancellationToken ct)
+    {
+        if (!_sourceKindCache.TryGetValue(sourceKey, out var kind))
+        {
+            kind = await db.Sources
+                .Where(s => s.Key == sourceKey)
+                .Select(s => (SourceKind?)s.Kind)
+                .FirstOrDefaultAsync(ct);
+
+            _sourceKindCache[sourceKey] = kind;
+        }
+
+        return kind != SourceKind.Odds;
+    }
 
     private static GameStatus MapStatus(string? raw) => raw?.ToLowerInvariant() switch
     {

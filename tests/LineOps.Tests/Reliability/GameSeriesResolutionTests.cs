@@ -252,4 +252,79 @@ public class GameSeriesResolutionTests(PostgresFixture fixture)
         Assert.Equal(2, stored.Count);
         Assert.Equal(played, stored.Single(g => g.Id == final.Id).StartsAt);
     }
+
+    /// <summary>
+    /// The neighbour is not always a final. A game left Live by an outage, or still Scheduled
+    /// because the results sweep has not reached it, is just as much yesterday's game — and a
+    /// guard keyed on "is it Final" let a book's announcement of tomorrow's fixture land on it.
+    /// The window is the drift one fixture can show between providers, so the neighbour is
+    /// outside it whatever its status says.
+    /// </summary>
+    [Theory]
+    [InlineData("live")]
+    [InlineData("scheduled")]
+    public async Task A_stuck_neighbour_is_never_the_fixture_announced_for_the_next_day(string status)
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        var yesterday = new DateTimeOffset(2026, 9, 8, 2, 5, 0, TimeSpan.Zero);
+        var next = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var stuck = await resolver.ResolveGameAsync(
+            sport, "espn", Fixture("401816851", yesterday, status), CancellationToken.None);
+
+        var priced = await resolver.ResolveGameAsync(
+            sport, "the-odds-api", Fixture("bbab891f", next), CancellationToken.None);
+
+        Assert.NotEqual(stuck.Id, priced.Id);
+
+        var stored = await db.Games.AsNoTracking().FirstAsync(g => g.Id == stuck.Id);
+
+        Assert.Equal(yesterday, stored.StartsAt);
+        Assert.False(stored.ExternalIds.ContainsKey("the-odds-api"));
+    }
+
+    /// <summary>
+    /// A book's commence time is not the schedule. Once both providers had named a game, each
+    /// run rewrote its start to whichever was polling — one UPDATE per game per run, for ever,
+    /// with every start-time cutoff downstream reading whichever provider went last. The stats
+    /// feed moves a game; a book only prices it.
+    /// </summary>
+    [Fact]
+    public async Task A_book_prices_a_game_but_does_not_move_it()
+    {
+        await using var db = fixture.CreateContext();
+        var resolver = new EntityResolver(db);
+        var sport = await SeedSportAsync(db);
+
+        // Source keys are unique across the shared database, so each run names its own.
+        var book = $"book-{sport.Key}";
+        var feed = $"feed-{sport.Key}";
+        db.Sources.Add(new Source { Key = book, Name = "book", Kind = SourceKind.Odds });
+        db.Sources.Add(new Source { Key = feed, Name = "feed", Kind = SourceKind.Stats });
+        await db.SaveChangesAsync();
+
+        var scheduled = new DateTimeOffset(2026, 9, 9, 1, 40, 0, TimeSpan.Zero);
+
+        var game = await resolver.ResolveGameAsync(
+            sport, feed, Fixture("401816866", scheduled, "scheduled"), CancellationToken.None);
+
+        // The book names it a minute off, then again two hours off. Neither moves the game.
+        await resolver.ResolveGameAsync(sport, book, Fixture("bbab891f", scheduled.AddMinutes(1)), CancellationToken.None);
+        await resolver.ResolveGameAsync(sport, book, Fixture("bbab891f", scheduled.AddHours(2)), CancellationToken.None);
+
+        var afterBook = await db.Games.AsNoTracking().FirstAsync(g => g.Id == game.Id);
+
+        Assert.Equal(scheduled, afterBook.StartsAt);
+        Assert.Equal("bbab891f", afterBook.ExternalIds[book]);
+
+        // The feed does.
+        await resolver.ResolveGameAsync(sport, feed, Fixture("401816866", scheduled.AddHours(2), "scheduled"), CancellationToken.None);
+
+        var afterFeed = await db.Games.AsNoTracking().FirstAsync(g => g.Id == game.Id);
+
+        Assert.Equal(scheduled.AddHours(2), afterFeed.StartsAt);
+    }
 }
