@@ -28,11 +28,13 @@ public class GameLogSeasonTests(PostgresFixture fixture)
         db.Teams.AddRange(team, other);
         await db.SaveChangesAsync();
 
-        // Two games last season, one this season, all in the past, all final.
+        // Two games last season, played and final, and one this season that has not been
+        // played yet. The third is dated from the clock rather than the calendar: written as
+        // a fixed "next week" it became last week the following Friday and the log counted it.
         db.Games.AddRange(
             Game(sport, team, other, "2025-09-07", 2025),
             Game(sport, other, team, "2026-01-11", 2025), // a January playoff is still 2025
-            Game(sport, team, other, "2026-09-10", 2026));
+            Game(sport, team, other, DateTimeOffset.UtcNow.AddDays(7).ToString("yyyy-MM-dd"), 2026));
         await db.SaveChangesAsync();
 
         return new Scaffold(sport, team, other);
