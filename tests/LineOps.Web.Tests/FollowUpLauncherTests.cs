@@ -1,3 +1,4 @@
+using LineOps.Desk.Windowing;
 using LineOps.Web.Windowing;
 
 namespace LineOps.Web.Tests;
@@ -19,7 +20,7 @@ public class FollowUpLauncherTests
     /// <summary>A desk with no room left, so follow-ups take the floating path.</summary>
     private static WindowManager FullDesk()
     {
-        var manager = new WindowManager();
+        var manager = new WindowManager(new AppWindowCatalog());
 
         manager.UpdateSettings(s => s.MaxConcurrentWindows = 1);
         manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
@@ -29,7 +30,7 @@ public class FollowUpLauncherTests
         return manager;
     }
 
-    private static WindowManager EmptyDesk() => new();
+    private static WindowManager EmptyDesk() => new(new AppWindowCatalog());
 
     /// <summary>
     /// The bug this suite exists for: the dialog must announce itself the moment it is added.

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LineOps.Core\LineOps.Core.csproj" />
+    <ProjectReference Include="..\LineOps.Desk\LineOps.Desk.csproj" />
     <ProjectReference Include="..\LineOps.Data\LineOps.Data.csproj" />
     <ProjectReference Include="..\LineOps.Reliability\LineOps.Reliability.csproj" />
     <ProjectReference Include="..\LineOps.Ingestion\LineOps.Ingestion.csproj" />

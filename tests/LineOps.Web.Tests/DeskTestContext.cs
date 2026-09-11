@@ -26,7 +26,13 @@ public abstract class DeskTestContext : TestContext
         // MudBlazor's SVG renderer in C# and cannot be re-themed by a token block. Left
         // uninitialised on purpose: a service that has never been told otherwise reports
         // the dark desk, which is what every render assertion here was written against.
-        Services.AddScoped<LineOps.Web.Theming.ThemeService>();
+        Services.AddScoped<LineOps.Desk.Theming.ThemeService>();
+
+        // The desk asks its host two things — what it is called and what it can open — and
+        // a render test should not have to say either. The application's own catalogue is
+        // the honest answer for the second: these tests read its keys by name.
+        Services.AddSingleton(new LineOps.Desk.DeskBrand("LINE", "OPS", "test desk"));
+        Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }

@@ -1,5 +1,5 @@
 using LineOps.Core.Entities;
-using LineOps.Web.Components.Desk;
+using LineOps.Desk.Primitives;
 
 namespace LineOps.Web.Components;
 

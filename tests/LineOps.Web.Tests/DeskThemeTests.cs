@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using LineOps.Web.Components.Desk;
-using LineOps.Web.Theming;
+using LineOps.Desk.Primitives;
+using LineOps.Desk.Theming;
 using MudBlazor.Utilities;
 
 namespace LineOps.Web.Tests;
@@ -17,7 +17,7 @@ namespace LineOps.Web.Tests;
 public class DeskThemeTests
 {
     private static readonly string Css =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Web/wwwroot/css/lineops.css"));
+        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/lineops.css"));
 
     /// <summary>
     /// The two token blocks, comments stripped.

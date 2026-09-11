@@ -1,4 +1,5 @@
 using LineOps.Data;
+using LineOps.Desk;
 using LineOps.Ingestion;
 using LineOps.Observability;
 using LineOps.Reliability;
@@ -44,22 +45,11 @@ builder.Services.AddMudServices(options =>
     options.SnackbarConfiguration.HideTransitionDuration = 200;
 });
 
-// One desk per circuit: window layout is per-session state, not per-request.
-builder.Services.AddScoped<LineOps.Web.Windowing.WindowManager>();
-
-// The toast seam. Scoped because ISnackbar is: a notice belongs to the circuit that raised
-// it. Panels take DeskToasts, never ISnackbar — see Components/Desk/DeskToasts.cs.
-builder.Services.AddScoped<LineOps.Web.Components.Desk.DeskToasts>();
-
-// The confirm seam, beside the toast one. Scoped for the same reason: the dialog stack it
-// drives is per-circuit. Call sites take IDeskAlerts, never IDialogService, so a guarded
-// action stays one await — see Components/Desk/DeskAlerts.cs.
-builder.Services.AddScoped<LineOps.Web.Components.Desk.IDeskAlerts, LineOps.Web.Components.Desk.DeskAlerts>();
-
-// Which desk is showing. Scoped for the third time and the same reason: it writes to one
-// circuit's <html> and reads one browser's localStorage, so a singleton would hand every
-// operator on the server whoever chose last. See Theming/ThemeService.cs.
-builder.Services.AddScoped<LineOps.Web.Theming.ThemeService>();
+// The desk — window manager, toasts, confirms, theme — is its own project and knows nothing
+// about sports. It is told what this application is called, and reads its windows from the
+// catalogue registered beneath it. See src/LineOps.Desk/DeskHost.cs for what each seam is.
+builder.Services.AddDesk(new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations"));
+builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor

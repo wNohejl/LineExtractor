@@ -1,3 +1,5 @@
+using LineOps.Desk;
+using LineOps.Desk.Windowing;
 using LineOps.Web.Components.Panels;
 using MudBlazor;
 
@@ -310,4 +312,20 @@ public static class WindowCatalog
             "Settled entries against the numbers they produced.",
             [Journal, Performance])
     ];
+}
+
+/// <summary>
+/// The catalogue as the desk reads it. The static class above is the application's own
+/// vocabulary — its keys are referenced by name all over the panels — and this is the one
+/// place it is handed to the desk, which knows nothing of those names.
+/// </summary>
+public sealed class AppWindowCatalog : IWindowCatalog
+{
+    public IReadOnlyList<WindowDefinition> All => WindowCatalog.All;
+
+    public IReadOnlyList<Workspace> Workspaces => WindowCatalog.Workspaces;
+
+    public string DefaultPrimary => WindowCatalog.Ops;
+
+    public WindowDefinition? Find(string key) => WindowCatalog.Find(key);
 }

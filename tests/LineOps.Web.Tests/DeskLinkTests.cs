@@ -1,5 +1,5 @@
 using Bunit;
-using LineOps.Web.Components.Desk;
+using LineOps.Desk.Primitives;
 using Microsoft.AspNetCore.Components;
 
 namespace LineOps.Web.Tests;

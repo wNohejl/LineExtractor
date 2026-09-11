@@ -1,5 +1,5 @@
 using LineOps.Core.Entities;
-using LineOps.Web.Windowing;
+using LineOps.Desk.Windowing;
 using Microsoft.AspNetCore.Components;
 
 namespace LineOps.Web.Components.Panels;

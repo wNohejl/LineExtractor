@@ -1,7 +1,8 @@
 using AngleSharp.Dom;
 using Bunit;
-using LineOps.Web.Components.Windowing;
+using LineOps.Desk.Windowing;
 using LineOps.Web.Windowing;
+using LineOps.Desk.Windowing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
@@ -27,7 +28,7 @@ public class WindowBarTests : DeskTestContext
 {
     private WindowManager NewDesk()
     {
-        var manager = new WindowManager();
+        var manager = new WindowManager(new AppWindowCatalog());
         Services.AddSingleton(manager);
         return manager;
     }

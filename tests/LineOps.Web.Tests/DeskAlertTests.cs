@@ -1,5 +1,5 @@
 using Bunit;
-using LineOps.Web.Components.Desk;
+using LineOps.Desk.Primitives;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor;
 

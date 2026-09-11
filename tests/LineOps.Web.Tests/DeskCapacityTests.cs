@@ -1,3 +1,4 @@
+using LineOps.Desk.Windowing;
 using LineOps.Web.Windowing;
 
 namespace LineOps.Web.Tests;
@@ -23,7 +24,7 @@ public class DeskCapacityTests
 {
     private static WindowManager Desk(double width, double primaryShare = 0.45, string? primary = "ops")
     {
-        var manager = new WindowManager();
+        var manager = new WindowManager(new AppWindowCatalog());
         manager.SetViewport(width, 900);
         manager.Settings.PrimaryWindowKey = primary;
         manager.Settings.PrimaryShare = primaryShare;

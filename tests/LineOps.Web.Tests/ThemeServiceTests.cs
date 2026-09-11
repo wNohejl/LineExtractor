@@ -1,5 +1,5 @@
 using Bunit;
-using LineOps.Web.Theming;
+using LineOps.Desk.Theming;
 
 namespace LineOps.Web.Tests;
 
@@ -27,7 +27,7 @@ public class ThemeServiceTests : TestContext
 
     private ThemeService Arrange(string? stored, bool prefersDark)
     {
-        _module = JSInterop.SetupModule("./js/theme.js");
+        _module = JSInterop.SetupModule("./_content/LineOps.Desk/js/theme.js");
 
         _module.Setup<bool>("prefersDark").SetResult(prefersDark);
         _module.Setup<string?>("read").SetResult(stored);

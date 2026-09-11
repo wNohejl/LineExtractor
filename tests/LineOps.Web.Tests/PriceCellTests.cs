@@ -1,6 +1,6 @@
 using Bunit;
 using LineOps.Data.CrossReference;
-using LineOps.Web.Components.Desk;
+using LineOps.Desk.Primitives;
 using MudBlazor;
 
 namespace LineOps.Web.Tests;

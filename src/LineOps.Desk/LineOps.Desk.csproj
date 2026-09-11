@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    The desk, on its own: the window manager, the strip, the primitives, the theme and the
+    stylesheet. Nothing in here knows what a game, a book or a price is. An application
+    supplies a window catalogue and a brand, and gets the desk described in ADRs 0007, 0013
+    and 0016 — which is what lets a second product start from the same chrome.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LineOps.Desk</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+</Project>

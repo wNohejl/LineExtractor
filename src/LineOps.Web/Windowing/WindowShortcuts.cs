@@ -1,5 +1,7 @@
 using LineOps.Core.Entities;
 
+using LineOps.Desk.Windowing;
+
 namespace LineOps.Web.Windowing;
 
 /// <summary>
