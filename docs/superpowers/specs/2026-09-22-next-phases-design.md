@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phase 1 done (§6)
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1 and 2 done (§6, §7)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -149,9 +149,8 @@ retry, and the snapshot manifest is dated this week.
    the lines differ, express CLV in points (`LineTaken − ClosingLine`, signed by side) alongside
    the price CLV, and convert both to a no-vig probability edge so they sum into one number.
    Record which comparison was made (`ClvBasis`: same line / line moved / cross-book).
-4. **Parlays grade as a group.** A group wins if every leg wins, pushes drop a leg and reprice,
-   one loss loses the group; stake and payout live on the group, not the legs. Performance
-   counts a parlay once.
+4. ~~**Parlays grade as a group.**~~ Moved to Phase 4 (see §7): nothing can create a parlay
+   yet, and how its stake is stored belongs with the form that creates it.
 5. **Stop retrying the hopeless.** A settled entry gets a bounded number of CLV attempts
    (or a `ClvUnavailable` stamp once its game's closing window has passed).
 
@@ -189,6 +188,11 @@ pending count within seconds; a reload restores the desk.
    breakdowns by sport and by `ClvBasis`. `AsNoTracking` throughout.
 3. From a Game window, "Your bets on this game" — the one link the journal needs to feel wired
    into the desk.
+4. **Parlays, end to end** (moved from Phase 2). A way to log one, and grading as a group: every
+   leg wins → win at the product of the legs' prices; a push or void drops a leg and reprices;
+   one loss loses the group. Stake and payout on the parlay, not the legs, and Performance
+   counts it once. Decide the storage with the form — a `Parlays` row the legs point at is the
+   likely answer, since legs sharing a stake by convention would need every reader to fold them.
 
 ### Phase 5 — Find anything
 1. **A command palette** (Ctrl+K): teams, players, games by matchup and date, windows,
@@ -284,3 +288,36 @@ data is misfiled.
 
 Tests: 394 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green — run in the .NET SDK
 container, because Smart App Control on the desktop blocks some fresh unsigned builds.
+
+---
+
+## 7. What was done — Phase 2 (2026-09-22)
+
+- **Void is settled, not graded.** `IsSettled` now includes `Void`; a new `IsGraded` (win, loss,
+  push) is what ROI, the bankroll curve and the breakdowns count, so a returned stake no longer
+  dilutes the return. The Journal keeps its Settle menu on a void, so an automatic one can be
+  corrected.
+- **Postponed games void their bets** once they are 36 hours past their start unplayed
+  (`SettlementService.VoidPostponedAfter`). ESPN's postponed, cancelled, suspended and abandoned
+  are one status here, so this does not tell a suspended MLB game that resumes from one that is
+  called; a game made up inside the window is graded on the make-up, and the Settle menu covers
+  a book that ruled otherwise.
+- **CLV knows the line.** Settlement records the close's number and book on the entry
+  (`ClosingPoints`, `ClosingBook`; migration `ClosingPointsAndBook`). `ClvResult` carries the
+  points gained from the bettor's side; when the line moved, points decide beat-the-close and
+  the price difference is not averaged, because it compares prices for different bets. The
+  Journal shows `+1 pts` where the line moved and says in the tooltip what was compared, and
+  names the fallback book when the entry's own book had no close. The spec's single
+  no-vig number that sums points and price was not built: converting points to probability
+  needs a per-sport model of how often games land on each number, and a guessed one would be
+  a fabricated reading.
+- **Same-book matching is case-blind.** The odds feed writes `draftkings`, ESPN's reference
+  `DraftKings`; an exact match missed the entry's own book and fell through to cross-book.
+- **CLV retries are bounded** to settled entries with a real market whose game started in the
+  last seven days (`ClvSearchWindow`), instead of every unresolved entry on every tick for ever.
+- **Parlays moved to Phase 4** (above).
+
+Tests: 407 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green (in the SDK container).
+The Worker applied the migration on start. The end-to-end check against a hand-logged wager
+waits for the first real one — the journal is still empty, and a test row in it would be data
+the analytics then count.
