@@ -1,0 +1,257 @@
+# The next phases — research and design
+
+**Date:** 2026-09-22
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; nothing implemented
+**Method:** the live database (read-only, measured today), a read of every panel under
+`src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
+ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
+`d1120f0`.
+
+The short version: **the desk is well built and hardly used, and the data under it went dark
+on the day the NFL season started.** Ingestion has not run since 11 September. The journal
+holds zero entries, so the analytics half of the product — CLV, ROI, bankroll — has never met
+a real bet. Beneath that sits a date bug that files every evening game under the wrong day.
+The next phases therefore run in this order: restore and correct the data, then make the
+money path right, then make the desk live, and only then widen what it shows.
+
+---
+
+## 1. What the database says today
+
+| | Measured | Reading |
+|---|---|---|
+| Last ingestion run | `espn:slate` 2026-09-11 23:34 UTC; odds 2026-09-09 | `lineops-postgres` exited 11 Sep. NFL week 1 Sunday onward was never seen. |
+| MLB 2026 | 2,199 final, **10 Live**, 11 Scheduled in the past | 3058–3060 (4 Sep, 21:40/22:10 ET) sat at `Live` for a week *while the host ran* — see §2.1. |
+| NFL 2026 | 2 final, 49 past games still `Scheduled` | Weeks 1–2 missing entirely. |
+| NFL 2025 | 285 final, 285 with stats, 108 with an ESPN close | As the seasons spec left it. |
+| Closing lines, MLB 2026 | 2,198 of 2,199; **102 from a market**, the rest ESPN reference | The book-market path of ADR 0011 has closed ~5% of games. |
+| Odds scans | 2,264 rows: `h2h` 1,414, `spread` 850; **no totals**; one source | Line polling is `Manual`; totals are excluded to save credits. |
+| Journal | **0 entries** | Performance, CLV and settlement have never run on real data. |
+| Ingestion runs | 7 stuck at `Running` since July/August | Orphans from killed hosts; nothing reaps them. |
+| Alerts / incidents | 9 alerts (1 open volume anomaly), 3 incidents, all closed | The reliability loop works. |
+| Snapshot | `data/snapshots/lineops.dump` taken 2026-09-05 | Seventeen days stale; the laptop is behind the desktop. |
+
+## 2. Findings
+
+### 2.1 Evening games are filed under the wrong day (bug, confirmed)
+ESPN's scoreboard takes a US-local date (`EspnStatsAdapter.cs:59`). The platform builds its
+dates from UTC: the slate asks for `DateOnly.FromDateTime(DateTime.UtcNow)`
+(`IngestionJobs.cs:173`), and the results sweep derives a game's day from
+`StartsAt.UtcDateTime` (`IngestionJobs.cs:403`). No code in `src/` names a time zone.
+
+From 8pm ET (00:00 UTC) the slate pass fetches *tomorrow's* board, and any game starting at or
+after 8pm ET is owed results on a date whose scoreboard does not list it. That covers Sunday
+and Monday Night Football and most West Coast MLB. Games 3058–3060 are the proof: they are
+stuck at `Live` since 4 Sep although the host ran until 11 Sep. Commit `7bdba3d` ("a results
+sweep backs off a date it cannot heal") treated the symptom.
+
+### 2.2 The money path has four holes
+1. **Void never settles.** `JournalEntry.IsSettled` omits `Void` (`Journal.cs:85`), so a voided
+   entry keeps its "Settle…" menu and counts toward "N pending" (`JournalPanel.razor:180,256`).
+2. **Postponed games never void their bets.** Cancelled, postponed and suspended all map to
+   `Postponed` (`EspnStatsAdapter.cs:477`); nothing moves a bet on one out of `Pending`.
+3. **CLV ignores the line.** Settlement matches a close on book, market and outcome
+   (`SettlementService.cs:120-160`) and `ComputeClv` compares prices only. A spread taken at
+   −1.5 −110 and closed at −2.5 −110 scores as zero CLV when it was a point and a half of value.
+4. **Parlays are straight bets.** `ParlayGroupId` is indexed and read by nothing; legs grade
+   and aggregate independently.
+
+Also: `BackfillMissingClvAsync` reloads every settled entry without a close on every tick,
+forever, including ones that can never get one (free-text markets).
+
+### 2.3 The desk is static
+No panel refreshes itself; the only timer is the footer clock (`DeskFooter.razor:51`). The
+README's promise that a minimised window's pulse "still tells you something changed" is not
+kept. Windows do not tell each other about writes: a wager logged in `BoardWager` does not
+reach an open Journal or Performance window, and Performance loads once with no Refresh
+(`PerformancePanel.razor:79`). The layout, the window ceiling and the primary live in memory
+per circuit (`WindowManager.cs:6`), so a reload loses them, and there are no user workspaces.
+
+### 2.4 Journal and Performance are first drafts
+- Journal: no edit or delete; 200-row cap with no paging or filter; book is free text
+  defaulting to `draftkings`; the game picker offers the last 7 days capped at 80; `Note`,
+  `PlayerId` and `ParlayGroupId` are stored but never shown.
+- Performance: no filter by season, sport, book or date; the "bankroll" is cumulative profit
+  because `startingBankroll` is never passed (`PerformanceAnalytics.cs:97`); the curve orders by
+  placement, not settlement; no average CLV or beat-the-close rate in the headline.
+
+### 2.5 Navigation stops short
+No global search. Players opens an inline log instead of the Player window, which
+`WindowShortcuts.cs:52` says was the fix. Team names are not links there. A game cannot show
+your bets on it. Line movement lists the last 14 days only (`OddsPanel.razor:17`). Every
+keystroke in Players runs two queries unthrottled, and `%`/`_` go into `ILIKE` unescaped.
+
+### 2.6 Operations blind spots
+- Every alert rule is about a *source* (`AlertEngine.cs:12-18`). Stuck-Live games, finals
+  without stats, finals without a close and days owed results are what actually went wrong in
+  §1 — and only hand-run SQL notices them.
+- Line polling is `Manual`, but the odds source still carries the 26-hour critical freshness
+  rule. A day without a manual pull reads as an outage — the "criticals are furniture" failure
+  ADR 0017 warned about.
+- Nothing reaps `Running` runs whose host died.
+- `docker-compose.yml:119` still sets `Ingestion__Demo__Enabled` (retired, ADR 0017); the
+  `balldontlie` source is configured with no adapter.
+- `MlbStatsApiAdapter` is registered (`IngestionServiceCollectionExtensions.cs:96`) and called
+  by nothing: doubleheaders still match on start time, and probable pitchers are fetched by no
+  one (ADR 0014's "spine").
+- ESPN delay and rain statuses fall through to `Scheduled` (`EspnStatsAdapter.cs:479`).
+
+### 2.7 Coverage and documentation drift
+No test covers a panel (18 of them), `TheOddsApiAdapter` (the one live odds feed), the
+scheduler, store-on-change or backfill resume. `DESIGN.md` still describes draggable windows,
+edge docking and the Slate (§277–317). The seasons spec's per-season coverage report (§4.6) was
+never built. `KpiDailies` is computed every tick and read by nothing.
+
+---
+
+## 3. The phases
+
+Each phase is a sitting or two on `LineX_Development`, ends with the verification in
+`CLAUDE.md`, and is independently shippable. Phases 1 and 2 are not optional; 3–6 are ordered
+by value and can be reordered.
+
+### Phase 1 — Back on the air, on the right day
+*Goal: every game on the correct date, NFL 2026 caught up, and the platform tells you when
+data is missing before you do.*
+
+1. **A league clock.** `LeagueCalendar.LocalDate(sportKey, instant)` in Core, using
+   `America/New_York` for both leagues (ESPN's scoreboard day). The slate, the live poll, the
+   results sweep, the board's day boundary ("stops at midnight", `d1297be`) and the backfill all
+   ask it instead of `DateTime.UtcNow`. *Tests: a 20:15 ET kickoff is owed on its ET date; the
+   slate at 23:30 ET asks for today; DST changeover weekends.*
+2. **Reap orphans.** On host start, and in the evaluation tick, close `Running` runs older than
+   a job's ceiling as `Failed` with `Error = "host stopped"`.
+3. **Data-quality rules** beside the source rules, one alert per (rule, sport): `stuck_live`
+   (Live > 6h after start), `finals_without_stats`, `finals_without_close` (MLB/NFL current
+   season, grace 24h), `results_owed_days` (> 1). These are the §2 coverage queries from the
+   seasons spec, promoted from a checklist to a rule. Warn, not Critical.
+4. **Freshness follows the polling mode.** When line polling is `Manual`, the odds source's
+   freshness rule measures against the last *requested* pull, or is suppressed — an unrequested
+   feed is not stale.
+5. **Delay statuses** map to `Live` (`STATUS_DELAYED`, `STATUS_RAIN_DELAY`, end-of-period).
+6. **Remediate and refresh.** Start the hosts; run the backfill for 11 Sep → today (the
+   checkpoint makes it resumable); re-sweep the 4 Sep and 27 Aug stragglers; confirm zero
+   stuck Live and zero finals without stats; `publish-data.ps1 -Commit`.
+7. Drop `Ingestion__Demo__Enabled` from compose; remove or keep inert the `balldontlie`
+   configuration (seasons spec §4.1 left it open).
+
+*Done when:* the coverage queries read zero, a Monday night game settles without a sweep
+retry, and the snapshot manifest is dated this week.
+
+### Phase 2 — The money path is right
+*Goal: the first real bet you log grades, settles and scores CLV correctly.*
+
+1. `IsSettled` includes `Void`; void entries settle to zero and leave the pending count.
+2. **Auto-void.** A game `Postponed` past its league's make-up window (MLB: the series ends;
+   NFL: 7 days) voids its pending straight bets. Distinguish `Cancelled`/`Suspended` in the
+   status mapping so a suspended MLB game that resumes is not voided.
+3. **Line-aware CLV.** Match the close on line as well as price where the market has one. When
+   the lines differ, express CLV in points (`LineTaken − ClosingLine`, signed by side) alongside
+   the price CLV, and convert both to a no-vig probability edge so they sum into one number.
+   Record which comparison was made (`ClvBasis`: same line / line moved / cross-book).
+4. **Parlays grade as a group.** A group wins if every leg wins, pushes drop a leg and reprice,
+   one loss loses the group; stake and payout live on the group, not the legs. Performance
+   counts a parlay once.
+5. **Stop retrying the hopeless.** A settled entry gets a bounded number of CLV attempts
+   (or a `ClvUnavailable` stamp once its game's closing window has passed).
+
+*Done when:* `SettlementService` tests cover void, postponement, a moved spread, a two-leg
+parlay with a push; a hand-logged NFL wager settles end to end.
+
+### Phase 3 — A live desk
+*Goal: an open window shows the truth without a click, and one window's write reaches the
+others.*
+
+1. **A desk event bus.** A scoped `DeskEvents` per circuit with typed events (`GamesChanged`,
+   `OddsChanged`, `JournalChanged`, `AlertsChanged`). In-circuit writers (wager, settle)
+   publish directly.
+2. **Cross-process changes via Postgres `LISTEN/NOTIFY`.** The Worker already writes through
+   `LineOpsDbContext`; the ingestion services `NOTIFY lineops_changes, '<kind>:<sport>'` after
+   a run that wrote rows. The Web host holds one listening connection (a hosted service) and fans
+   out to circuits through a singleton hub. No polling, one connection, and it works whichever
+   host did the ingest. Fallback: a 60s version check when the listener is down.
+3. **Panels subscribe in `PanelBase`**, debounce to one reload per second, and re-`Report()`
+   their pulse — which makes the README's minimised-window promise true.
+4. **Persist the desk.** Layout, ceiling, primary and theme to `localStorage` through the
+   existing `windowing.js`; named user workspaces saved beside the three built-ins. Restore on
+   circuit start.
+5. A **"Bet a game"** built-in workspace: Board → Game → Place wager → Journal.
+
+*Done when:* a result landing in the Worker updates an open Board's score and the Journal's
+pending count within seconds; a reload restores the desk.
+
+### Phase 4 — Journal and Performance, finished
+1. Journal: edit and delete (delete is a sheet with confirmation; a settled entry's edit
+   re-settles), paging and filters (status, sport, season, book, date), book as a picker over
+   `Sources`/known books, `Note` shown, game picker as a search over the season rather than 7 days.
+2. Performance: filters by season, sport, book, market and date; a real bankroll with a stored
+   starting amount; the curve by settlement time; headline average CLV and beat-the-close %;
+   breakdowns by sport and by `ClvBasis`. `AsNoTracking` throughout.
+3. From a Game window, "Your bets on this game" — the one link the journal needs to feel wired
+   into the desk.
+
+### Phase 5 — Find anything
+1. **A command palette** (Ctrl+K): teams, players, games by matchup and date, windows,
+   workspaces. One `SearchService` over indexed columns, debounced 200ms, `ILIKE` escaped.
+2. Players rows open the Player window; team names link to Team (`WindowShortcuts` already
+   names the rule).
+3. Line movement takes any game with scans or a close, by season, not the last 14 days.
+4. Board: filter by team and a text box, sharing the palette's search.
+
+### Phase 6 — More market, same budget
+Only after the above: widening the data is worth little while the journal is empty and the
+data is misfiled.
+
+1. **Totals, priced.** The Odds API bills `markets × regions`; totals take a scan from 2 to 3
+   credits. At 500 credits a month and the September burn so far (66 credits), automatic
+   polling with the existing `LinePollPlanner` has room for all three markets on NFL (≈16
+   games a week, one scan per slate window) and moneyline + total on MLB. Make `Markets` a
+   per-sport option and let the planner report projected month-end burn in Ops before it is
+   switched on.
+2. **Line polling to `Auto`** once Phase 1's freshness change lands, so the book-market path
+   of ADR 0011 closes more than 5% of games.
+3. **Wire the MLB Stats API spine** (ADR 0014): doubleheader disambiguation by `gamePk`, and
+   probable pitchers stored on the game and shown on the Board and Game windows — the single
+   most useful handicapping fact the platform fetches and throws away.
+4. **Entity resolution scoped by team** (ADR 0009 open item): two ESPN athletes sharing a name
+   stop merging.
+
+### Standing work, alongside any phase
+- **Tests for the paths that carry money or data:** bUnit tests for Journal settle,
+  BoardWager and Performance; unit tests for `TheOddsApiAdapter` parsing, store-on-change and
+  backfill resume; the §2.1 date cases.
+- **History window coverage report** (seasons spec §4.6): expected / held / with stats / with
+  close, per season. The data-quality rules in Phase 1 compute the same numbers.
+- **`DESIGN.md` catches up** with the fixed-row desk, the Board's absorption of the Slate and
+  the full panel list.
+- **Keep TicketMiser in step.** Phase 3's event bus and persistence, and Phase 5's palette,
+  live in the desk layer that was carried to `C:\OS\Tix\TicketMiser`. Build them domain-free
+  (the palette takes an `ISearchProvider`) so they port as files, not rewrites.
+
+---
+
+## 4. Decisions that are yours
+
+1. **Is the journal going to be used?** If not, Phases 2 and 4 shrink to the void fix and the
+   desk becomes a data and ops showcase; if so, they are the core of the product. This
+   document assumes yes.
+2. **Totals and automatic polling (Phase 6.1–6.2)** spend the free credit tier deliberately.
+   Worth the planner's projection first.
+3. **Player props** (`OddsSnapshot.PlayerId` exists, unused) are deliberately out: each prop
+   market is another credit multiplier, and the free tier cannot carry them. A paid tier is the
+   precondition.
+4. **Still open from the seasons spec:** purge NBA/NHL residue or hide it; whether ~38% NFL 2025
+   closing-line coverage (108 of 285) wants a paid historical source; postseason on by default.
+5. **A second user** stays a separate project (seasons spec F8): an owner on `JournalEntries`
+   and an auth layer.
+
+## 5. Risks
+- The date change touches every scheduled job; land it with the DST and late-kickoff tests
+  first, and run the backfill after, not before.
+- `LISTEN/NOTIFY` needs a dedicated, long-lived Npgsql connection outside the EF pool, with
+  reconnect; the fallback check keeps the desk honest when it drops.
+- Line-aware CLV changes numbers already shown. With zero journal entries this is the cheapest
+  moment it will ever be.
+- A plaintext The Odds API key sits in `src/LineOps.Worker/appsettings.Local.json` (gitignored,
+  not in history). Moving it to user-secrets, as the Web host does, removes the one copy that
+  could be committed by accident.
