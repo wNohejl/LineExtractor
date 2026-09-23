@@ -464,21 +464,31 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
            && abbrev.GetString() is "ALLSTAR";
 
     private static string? ReadStatus(JsonElement competition)
-        => competition.TryGetProperty("status", out var status)
-           && status.TryGetProperty("type", out var type)
-           && type.TryGetProperty("name", out var name)
-            ? name.GetString() switch
-            {
-                // A forfeit is a final with a score. A suspended or abandoned game is not
-                // coming back on this date: folding it into "scheduled" kept its date owed
-                // and the results sweep re-walking every box score on it for weeks.
-                "STATUS_FINAL" or "STATUS_FORFEIT" => "final",
-                "STATUS_IN_PROGRESS" or "STATUS_HALFTIME" => "live",
-                "STATUS_POSTPONED" or "STATUS_CANCELED" or "STATUS_CANCELLED"
-                    or "STATUS_SUSPENDED" or "STATUS_ABANDONED" => "postponed",
-                _ => "scheduled"
-            }
-            : null;
+    {
+        if (!competition.TryGetProperty("status", out var status)
+            || !status.TryGetProperty("type", out var type)
+            || !type.TryGetProperty("name", out var name))
+            return null;
+
+        // ESPN's coarse state beside the name: pre, in or post. It is what catches the in-game
+        // statuses nobody listed — a rain delay, the end of an inning or a quarter, overtime —
+        // which used to fall through to "scheduled" and walk a game in progress back to before
+        // its first pitch.
+        var state = type.TryGetProperty("state", out var s) ? s.GetString() : null;
+
+        return name.GetString() switch
+        {
+            // A forfeit is a final with a score. A suspended or abandoned game is not
+            // coming back on this date: folding it into "scheduled" kept its date owed
+            // and the results sweep re-walking every box score on it for weeks.
+            "STATUS_FINAL" or "STATUS_FORFEIT" => "final",
+            "STATUS_IN_PROGRESS" or "STATUS_HALFTIME" => "live",
+            "STATUS_POSTPONED" or "STATUS_CANCELED" or "STATUS_CANCELLED"
+                or "STATUS_SUSPENDED" or "STATUS_ABANDONED" => "postponed",
+            _ when state == "in" => "live",
+            _ => "scheduled"
+        };
+    }
 
     /// <summary>
     /// Box-score shapes differ per sport, so the per-player stat line is kept as jsonb

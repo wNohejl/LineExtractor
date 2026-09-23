@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Ingestion.Configuration;
@@ -170,7 +171,7 @@ public class IngestionJobs(
         {
             var outcome = key switch
             {
-                EspnSlate => await RunStatsAsync(EspnSlate, DateOnly.FromDateTime(DateTime.UtcNow), schedulesOnly: true, ct),
+                EspnSlate => await RunSlateAsync(ct),
                 EspnResults => await RunResultsAsync(ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
@@ -191,6 +192,47 @@ public class IngestionJobs(
             logger.LogError(ex, "Job {Job} failed", key);
             return new JobOutcome(key, false, 0, 1, $"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Today's scoreboard, and the day of any game still in play from before midnight.
+    ///
+    /// <para>
+    /// The live poll runs this pass. A game that starts at 10:10pm Eastern is still being played
+    /// at half past midnight, and it is listed on the scoreboard of the day it started, not the
+    /// day it is now — so asking only for today would poll every ninety seconds for a board that
+    /// no longer holds it, and its score would stop at the seventh inning until the results sweep.
+    /// </para>
+    /// </summary>
+    private async Task<JobOutcome> RunSlateAsync(CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        List<DateTimeOffset> inPlay;
+
+        await using (var scope = scopeFactory.CreateAsyncScope())
+        {
+            inPlay = await scope.ServiceProvider.GetRequiredService<LineOpsDbContext>().Games
+                .Where(g => g.StartsAt <= now
+                            && g.StartsAt >= now.AddDays(-1)
+                            && g.Status != GameStatus.Final
+                            && g.Status != GameStatus.Postponed)
+                .Select(g => g.StartsAt)
+                .ToListAsync(ct);
+        }
+
+        var days = inPlay.Select(LeagueClock.DateOf).Append(LeagueClock.Today()).Distinct().Order();
+
+        var rows = 0;
+        var failures = 0;
+
+        foreach (var day in days)
+        {
+            var outcome = await RunStatsAsync(EspnSlate, day, schedulesOnly: true, ct);
+            rows += outcome.Rows;
+            failures += outcome.Failures;
+        }
+
+        return new JobOutcome(EspnSlate, failures == 0, rows, failures, null);
     }
 
     /// <summary>
@@ -319,7 +361,7 @@ public class IngestionJobs(
         // Nothing outstanding still means yesterday, so pressing the button by hand does
         // something sensible on a desk that is already up to date.
         if (owed.Count == 0)
-            owed = [DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)];
+            owed = [LeagueClock.Today().AddDays(-1)];
 
         // A date that has been swept and is still owed is one a sweep does not heal — a game
         // ESPN never lists as final, or one whose event has moved to another date. Walking it
@@ -400,7 +442,7 @@ public class IngestionJobs(
             .ToListAsync(ct);
 
         return starts
-            .Select(s => DateOnly.FromDateTime(s.UtcDateTime))
+            .Select(LeagueClock.DateOf)
             .Distinct()
             .OrderBy(d => d)
             .ToList();

@@ -292,21 +292,16 @@ else
     private record SportOption(string Key, string Label);
 
     /// <summary>
-    /// How far back the board reaches: to the start of today, in the desk's own time.
+    /// How far back the board reaches: to the start of today, in the leagues' own day.
     ///
     /// The board is today's slate. A fixed reach of fourteen hours held "how did tonight go"
     /// in the evening, and last night's finals on the following morning — yesterday's game
     /// sitting at the top of today's board. The Journal and History windows are for looking
-    /// back; the board stops at midnight.
+    /// back; the board stops at midnight — Eastern, the scoreboard's midnight, not the host's,
+    /// so a container in UTC does not drop tonight's late games at 8pm.
     /// </summary>
     private static TimeSpan Lookback
-    {
-        get
-        {
-            var now = DateTimeOffset.Now;
-            return now - new DateTimeOffset(now.Date, now.Offset);
-        }
-    }
+        => DateTimeOffset.UtcNow - LeagueClock.StartOf(LeagueClock.Today());
 
     private static readonly IReadOnlyList<DeskSwitchOption<int>> Horizons =
     [
@@ -466,7 +461,7 @@ else
 
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            var dayStart = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+            var dayStart = LeagueClock.StartOf(LeagueClock.Today());
             _movesToday = await db.OddsSnapshots.LongCountAsync(s => s.CapturedAt >= dayStart);
 
             _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);

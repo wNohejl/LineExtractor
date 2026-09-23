@@ -68,6 +68,26 @@ public class EspnPortTests
         Assert.Equal("scheduled", game.Status);
     }
 
+    [Theory]
+    [InlineData("STATUS_RAIN_DELAY", "in", "live")]         // stopped mid-game: still in progress
+    [InlineData("STATUS_END_PERIOD", "in", "live")]         // between innings or quarters
+    [InlineData("STATUS_DELAYED", "pre", "scheduled")]      // delayed before the first pitch
+    [InlineData("STATUS_SOMETHING_NEW", "in", "live")]      // a name nobody has listed yet
+    public void ParseScoreboard_ReadsAnUnlistedStatusByItsState(string name, string state, string expected)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.scoreboard.json")))!;
+
+        var ev = root["events"]!.AsArray().Single(e => (string?)e!["id"] == "401816201")!;
+        var type = ev["competitions"]![0]!["status"]!["type"]!;
+        type["name"] = name;
+        type["state"] = state;
+
+        var games = EspnStatsAdapter.ParseScoreboard(JsonDocument.Parse(root.ToJsonString()).RootElement, "mlb");
+
+        Assert.Equal(expected, games.Single(g => g.SourceGameId == "401816201").Status);
+    }
+
     [Fact]
     public void ParseScoreboard_DropsAnEventWhoseTeamCannotBeNamed()
     {

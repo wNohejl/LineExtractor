@@ -29,13 +29,15 @@ public static class SeasonCalendar
     /// </summary>
     public static int YearOf(string sportKey, DateTimeOffset startsAt)
     {
-        var utc = startsAt.UtcDateTime;
+        // The league's own day, not UTC's: a 9pm Eastern game on 30 September is a
+        // September game, whatever the date in Greenwich (see LeagueClock).
+        var local = LeagueClock.LocalTime(startsAt);
 
         return Normalise(sportKey) switch
         {
-            "nfl" or "ncaaf" => utc.Month < 3 ? utc.Year - 1 : utc.Year,
-            "nba" or "nhl" or "ncaab" => utc.Month < 9 ? utc.Year - 1 : utc.Year,
-            _ => utc.Year
+            "nfl" or "ncaaf" => local.Month < 3 ? local.Year - 1 : local.Year,
+            "nba" or "nhl" or "ncaab" => local.Month < 9 ? local.Year - 1 : local.Year,
+            _ => local.Year
         };
     }
 
@@ -46,7 +48,7 @@ public static class SeasonCalendar
     /// </summary>
     public static Entities.SeasonType TypeOf(string sportKey, DateTimeOffset startsAt)
     {
-        var utc = startsAt.UtcDateTime;
+        var local = LeagueClock.LocalTime(startsAt);
 
         return Normalise(sportKey) switch
         {
@@ -54,17 +56,17 @@ public static class SeasonCalendar
             // Day, so its last game is the Monday of week 18 — 5 January for the 2025 season,
             // 11 January for 2026. A fixed day of the month cannot follow a calendar that
             // shifts a week each year; the league's own rule can.
-            "nfl" => utc > NflRegularSeasonEnd(YearOf("nfl", startsAt))
+            "nfl" => DateOnly.FromDateTime(local) > NflRegularSeasonEnd(YearOf("nfl", startsAt))
                 ? Entities.SeasonType.Postseason
                 : Entities.SeasonType.Regular,
 
             // The regular season ends in the last days of September; October is the playoffs.
-            "mlb" => utc.Month >= 10
+            "mlb" => local.Month >= 10
                 ? Entities.SeasonType.Postseason
                 : Entities.SeasonType.Regular,
 
             // Playoffs run mid-April to June.
-            "nba" or "nhl" => utc.Month is >= 4 and <= 6 && !(utc.Month == 4 && utc.Day < 15)
+            "nba" or "nhl" => local.Month is >= 4 and <= 6 && !(local.Month == 4 && local.Day < 15)
                 ? Entities.SeasonType.Postseason
                 : Entities.SeasonType.Regular,
 
@@ -102,10 +104,11 @@ public static class SeasonCalendar
 
     /// <summary>
     /// The end of the NFL regular season: the Monday of week 18, seventeen weeks and four days
-    /// after kickoff. Anything later in that season is the postseason.
+    /// after kickoff. Anything later in that season is the postseason. A league date, so the
+    /// Monday night game that kicks off at 8:15pm Eastern — already Tuesday in UTC — is week 18.
     /// </summary>
-    public static DateTime NflRegularSeasonEnd(int seasonYear)
-        => NflKickoff(seasonYear).AddDays(17 * 7 + 4).ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+    public static DateOnly NflRegularSeasonEnd(int seasonYear)
+        => NflKickoff(seasonYear).AddDays(17 * 7 + 4);
 
     private static string Normalise(string sportKey) => sportKey.Trim().ToLowerInvariant();
 }

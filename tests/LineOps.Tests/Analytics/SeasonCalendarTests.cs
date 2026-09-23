@@ -65,4 +65,11 @@ public class SeasonCalendarTests
         Assert.Equal(2025, SeasonCalendar.CurrentYear("nfl", At("2026-01-20")));
         Assert.Equal(2026, SeasonCalendar.CurrentYear("mlb", At("2026-01-20")));
     }
+
+    [Theory]
+    [InlineData("nfl", "2027-01-12T01:15:00Z", SeasonType.Regular)]  // week 18 Monday night, 8:15pm Eastern
+    [InlineData("mlb", "2026-10-01T01:40:00Z", SeasonType.Regular)]  // 30 September, 9:40pm Eastern
+    public void An_evening_game_belongs_to_the_day_it_is_played_in_the_United_States(
+        string sport, string startsAt, SeasonType expected)
+        => Assert.Equal(expected, SeasonCalendar.TypeOf(sport, DateTimeOffset.Parse(startsAt)));
 }

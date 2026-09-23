@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Ingestion.Configuration;
@@ -34,7 +35,10 @@ public class ResultsOwedTests(PostgresFixture fixture)
             NullLogger<IngestionJobs>.Instance);
     }
 
-    private static async Task<DateOnly> SeedGameAsync(LineOpsDbContext db, int daysAgo, GameStatus status)
+    private static Task<DateOnly> SeedGameAsync(LineOpsDbContext db, int daysAgo, GameStatus status)
+        => SeedGameAsync(db, DateTimeOffset.UtcNow.AddDays(-daysAgo), status);
+
+    private static async Task<DateOnly> SeedGameAsync(LineOpsDbContext db, DateTimeOffset startsAt, GameStatus status)
     {
         var suffix = Guid.NewGuid().ToString("N")[..6];
 
@@ -47,8 +51,6 @@ public class ResultsOwedTests(PostgresFixture fixture)
         db.Teams.AddRange(home, away);
         await db.SaveChangesAsync();
 
-        var startsAt = DateTimeOffset.UtcNow.AddDays(-daysAgo);
-
         db.Games.Add(new Game
         {
             SportId = sport.Id,
@@ -60,7 +62,7 @@ public class ResultsOwedTests(PostgresFixture fixture)
         });
         await db.SaveChangesAsync();
 
-        return DateOnly.FromDateTime(startsAt.UtcDateTime);
+        return LeagueClock.DateOf(startsAt);
     }
 
     [Fact]
@@ -71,6 +73,23 @@ public class ResultsOwedTests(PostgresFixture fixture)
 
         var owed = await Jobs().DatesAwaitingResultsAsync(TimeSpan.FromHours(4));
 
+        Assert.Contains(day, owed);
+    }
+
+    [Fact]
+    public async Task A_late_game_is_owed_on_the_day_its_scoreboard_lists_it()
+    {
+        // 10:10pm Eastern five days ago: already the next day in UTC. ESPN lists it on the
+        // evening's scoreboard, so that is the day the sweep has to ask for — asking for the
+        // UTC day is how three games sat at Live for a week in September 2026.
+        var evening = LeagueClock.StartOf(LeagueClock.Today().AddDays(-5)).AddHours(22).AddMinutes(10);
+
+        await using var db = fixture.CreateContext();
+        var day = await SeedGameAsync(db, evening, GameStatus.Live);
+
+        var owed = await Jobs().DatesAwaitingResultsAsync(TimeSpan.FromHours(4));
+
+        Assert.Equal(DateOnly.FromDateTime(evening.UtcDateTime).AddDays(-1), day);
         Assert.Contains(day, owed);
     }
 

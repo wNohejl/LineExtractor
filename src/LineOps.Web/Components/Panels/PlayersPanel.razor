@@ -280,7 +280,7 @@ else
             var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
             var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
 
-            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            var yesterday = LeagueClock.Today().AddDays(-1);
             var rows = 0;
 
             foreach (var source in registry.StatsSources)

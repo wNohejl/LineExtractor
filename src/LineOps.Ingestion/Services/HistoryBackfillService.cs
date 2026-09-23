@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
@@ -104,7 +105,7 @@ public class HistoryBackfillService(
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = LeagueClock.Today();
         var sports = EffectiveSports();
 
         // Each sport reaches back to its own season start, so "earliest" is the earliest of
@@ -172,7 +173,7 @@ public class HistoryBackfillService(
     /// </summary>
     private int EffectiveDays()
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = LeagueClock.Today();
 
         return EffectiveSports()
             .Select(s => DaysFor(s, today))
@@ -252,7 +253,7 @@ public class HistoryBackfillService(
 
         var sports = EffectiveSports();
         var days = EffectiveDays();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = LeagueClock.Today();
 
         if (days == 0)
         {
