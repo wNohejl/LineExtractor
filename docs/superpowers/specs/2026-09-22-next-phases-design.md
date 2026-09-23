@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; nothing implemented
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phase 1 done (§6)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -255,3 +255,32 @@ data is misfiled.
 - A plaintext The Odds API key sits in `src/LineOps.Worker/appsettings.Local.json` (gitignored,
   not in history). Moving it to user-secrets, as the Web host does, removes the one copy that
   could be committed by accident.
+
+---
+
+## 6. What was done — Phase 1 (2026-09-22)
+
+- **League clock** (`b338e14`). `LeagueClock` (US Eastern) answers every "which day" question
+  about games: slate, results sweep, backfill walk, season rules, the board's midnight. Two
+  more instances of the same bug surfaced on the way: the backfill checkpointed tonight's ET
+  slate while it was in play (how 3058–3060 got stuck), and `SeasonCalendar` filed a Monday
+  night week-18 game as postseason. The slate pass also fetches the day of any game still in
+  play from before midnight. ESPN statuses are read by `state` when the name is unlisted.
+- **Operations** (`c053004`). Three sourceless data rules (`unfinished_games`,
+  `finals_without_stats`, `finals_without_close`) with runbook sections; `OrphanRuns` closes
+  runs a stopped host left Running (7 reaped); `OddsOnDemand`, set from the polling mode,
+  stands the odds freshness rule down under Manual polling.
+- **Images** (`2d60640`). Neither image built (`docs/runbook.md` excluded from the context,
+  Observability not restored) and the worker image lacked the ASP.NET framework; all fixed.
+  The retired demo flag is gone from compose.
+- **Remediation.** Worker run in Docker; backfill walked 34 days, 0 failed, 225 games, 18,652
+  rows. NFL 2026 weeks 1–2 complete (32 finals, all with stats and closes); every MLB final
+  has a box score. The four "Scheduled" games of 27 Aug were not owed results — they were
+  duplicate fixtures from a second The Odds API event id a minute off the real games, the only
+  such rows in history; deleted with their 62 duplicate closes. `unfinished_games` resolved
+  itself on the next tick. Snapshot refreshed (`1a73847`).
+- **Not done:** the balldontlie configuration is untouched (inert). Why the resolver accepted
+  a second odds id for an existing fixture on 27 Aug is unexplained; it has not recurred.
+
+Tests: 394 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green — run in the .NET SDK
+container, because Smart App Control on the desktop blocks some fresh unsigned builds.
