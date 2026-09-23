@@ -13,6 +13,10 @@ incident to engineering change is visible later.
 **Means:** no successful ingestion run for this source in over 26 hours (SLO configurable via
 `Reliability:FreshnessSlo`).
 
+Odds sources are exempt while line polling is `Manual`: a feed that runs only when someone
+presses **Pull lines** is idle between presses, not stale (`Reliability:OddsOnDemand`, set from
+`Ingestion:LinePolling:Mode` rather than by hand).
+
 **Urgency:** real. Every downstream number — current lines, CLV resolution, settlement — is
 working from stale data, and CLV in particular is *unrecoverable* if the close is missed: once
 a game starts, the closing price that was never captured cannot be backfilled.
@@ -99,6 +103,61 @@ no rows.
    the polling frequency rather than adding regions.
 3. Consider whether the intraday movement window (`Ingestion:MovementWindow`, default 36h) is
    wider than it needs to be. Narrowing it is the cheapest lever.
+
+---
+
+## `unfinished_games` — Warn
+
+**Means:** games in an enabled sport started more than 12 hours ago
+(`Reliability:StuckGameAfter`) and are neither final nor postponed, within the last 45 days
+(`Reliability:DataQualityLookback`). The message names each sport, the count, and the earliest.
+
+**Urgency:** same day. Settlement grades only final games, so any bet on one waits; and the
+results sweep, which runs from four hours after a start, has already had eight hours to heal it
+and has not.
+
+**Triage**
+1. Was a host down? **Runs**, filter to `espn:results`. A gap in the runs is an outage; the
+   sweep heals it on its own once the host is back, as long as the games are inside
+   `Ingestion:GamePasses:ResultsLookback`.
+2. Runs present but the games still open → the sweep is asking ESPN for a day that does not
+   list them. Every date is the league's (US Eastern, `LeagueClock`); check the game's start
+   against the scoreboard for that date by hand.
+3. A game ESPN itself shows as suspended or delayed is waiting on the league, not on us. Note it
+   and let it resolve when the game is resumed or called.
+4. Outside the lookback → run the backfill from **History**; the sweep will not reach it.
+
+---
+
+## `finals_without_stats` — Warn
+
+**Means:** final games in an enabled sport with no player stat lines — a box score that never
+arrived.
+
+**Urgency:** same day. Player and team windows under-count, and nothing downstream says so.
+
+**Triage**
+1. Usually the same outage as `unfinished_games`: the score was caught by a slate pass but the
+   summary never fetched. The results sweep fetches box scores; a manual **Results owed** pull from
+   the Board's pull menu closes it.
+2. Persists after a pull → the summary for that game is empty or failed to parse. Fetch it by
+   hand; if the shape changed, record it as a fixture first (see `volume_anomaly`).
+
+---
+
+## `finals_without_close` — Info
+
+**Means:** final games with no closing line from any source — no book market close and no ESPN
+reference close.
+
+**Urgency:** low. ESPN occasionally publishes no close for a game, and where no source has one
+there is no line; nothing fabricates one. It matters when it is many games at once, which means
+the ESPN summary stopped carrying `pickcenter`, or the odds promotion at first pitch stopped.
+
+**Triage**
+1. One or two games → leave it; it resolves when the game ages out of the lookback.
+2. A whole day or more → compare with `finals_without_stats`. Both at once is a missed summary
+   fetch; this alone means the close blocks are missing from the summaries themselves.
 
 ---
 

@@ -56,6 +56,7 @@ public class ReliabilityEvaluator(
             var kpi = scope.ServiceProvider.GetRequiredService<KpiCalculator>();
             var alerts = scope.ServiceProvider.GetRequiredService<AlertEngine>();
 
+            await ReapOrphanRunsAsync(scope.ServiceProvider.GetRequiredService<LineOpsDbContext>(), ct);
             await kpi.RollupDailyAsync(ct);
             await alerts.EvaluateAsync(ct);
             await AutoOpenIncidentsAsync(scope.ServiceProvider, ct);
@@ -64,6 +65,14 @@ public class ReliabilityEvaluator(
         {
             logger.LogError(ex, "Reliability evaluation failed; will retry next interval");
         }
+    }
+
+    private async Task ReapOrphanRunsAsync(LineOpsDbContext db, CancellationToken ct)
+    {
+        var reaped = await OrphanRuns.ReapAsync(db, _options.OrphanRunAfter, ct);
+
+        if (reaped > 0)
+            logger.LogWarning("Closed {Count} runs left Running by a host that stopped", reaped);
     }
 
     /// <summary>

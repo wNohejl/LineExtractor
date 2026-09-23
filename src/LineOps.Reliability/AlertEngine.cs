@@ -15,6 +15,11 @@ public static class AlertRules
     public const string SuccessRate = "success_rate";
     public const string VolumeAnomaly = "volume_anomaly";
     public const string BudgetPressure = "budget_pressure";
+
+    // Data rules: about the games, not a feed, so they carry no source.
+    public const string UnfinishedGames = "unfinished_games";
+    public const string FinalsWithoutStats = "finals_without_stats";
+    public const string FinalsWithoutClose = "finals_without_close";
 }
 
 /// <summary>
@@ -48,7 +53,10 @@ public class AlertEngine(
             if (health.NeverRun)
                 continue;
 
-            if (health.IsStale(_options.FreshnessSlo))
+            // Odds pulled only on request are idle between requests, not stale.
+            var onDemand = _options.OddsOnDemand && source.Kind == SourceKind.Odds;
+
+            if (!onDemand && health.IsStale(_options.FreshnessSlo))
             {
                 var age = health.FreshnessMinutes is { } m
                     ? $"{m / 60:F1}h"
@@ -79,8 +87,38 @@ public class AlertEngine(
                 candidates.Add(pressure);
         }
 
+        candidates.AddRange(await DataQualityAsync(ct));
+
         await ReconcileAsync(candidates, ct);
         return candidates;
+    }
+
+    /// <summary>
+    /// One alert per data rule, naming every sport it holds for. Warn, not Critical: a hole in
+    /// the data wants a sweep or a backfill, not a page, and it must never open an incident on
+    /// its own. A missing close is Info — sometimes the provider simply has none.
+    /// </summary>
+    private async Task<IEnumerable<AlertCandidate>> DataQualityAsync(CancellationToken ct)
+    {
+        var quality = new DataQuality(db);
+        var lookback = _options.DataQualityLookback;
+        var grace = _options.StuckGameAfter;
+        var found = new List<AlertCandidate>();
+
+        if (await quality.UnfinishedAsync(grace, lookback, ct) is { Count: > 0 } unfinished)
+            found.Add(new AlertCandidate(AlertRules.UnfinishedGames, null, AlertSeverity.Warn,
+                $"Games unfinished {grace.TotalHours:F0}h after the start: {DataQuality.Describe(unfinished)}. "
+                + "The results sweep is not healing them."));
+
+        if (await quality.FinalsWithoutStatsAsync(grace, lookback, ct) is { Count: > 0 } noStats)
+            found.Add(new AlertCandidate(AlertRules.FinalsWithoutStats, null, AlertSeverity.Warn,
+                $"Finals without a box score: {DataQuality.Describe(noStats)}."));
+
+        if (await quality.FinalsWithoutCloseAsync(grace, lookback, ct) is { Count: > 0 } noClose)
+            found.Add(new AlertCandidate(AlertRules.FinalsWithoutClose, null, AlertSeverity.Info,
+                $"Finals without a closing line: {DataQuality.Describe(noClose)}."));
+
+        return found;
     }
 
     /// <summary>

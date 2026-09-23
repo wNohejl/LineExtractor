@@ -54,9 +54,9 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
             RowsIngested = rows
         };
 
-    private static AlertEngine CreateEngine(LineOpsDbContext db)
+    private static AlertEngine CreateEngine(LineOpsDbContext db, ReliabilityOptions? options = null)
         => new(db, new KpiCalculator(db), new BudgetCalculator(db),
-            new OptionsWrapper<ReliabilityOptions>(Options), NullLogger<AlertEngine>.Instance);
+            new OptionsWrapper<ReliabilityOptions>(options ?? Options), NullLogger<AlertEngine>.Instance);
 
     [Fact]
     public async Task FreshnessIsMeasuredFromTheLastSuccessfulRun()
@@ -149,6 +149,49 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
         // And it must be persisted, not merely returned.
         Assert.True(await db.Alerts.AnyAsync(
             a => a.SourceId == source.Id && a.RuleKey == AlertRules.Freshness && a.ResolvedAt == null));
+    }
+
+    [Fact]
+    public async Task AnOddsFeedPulledOnlyOnRequestIsIdleNotStale()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db);
+
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, DateTimeOffset.UtcNow.AddHours(-30)));
+        await db.SaveChangesAsync();
+
+        var onDemand = new ReliabilityOptions { FreshnessSlo = Options.FreshnessSlo, OddsOnDemand = true };
+        var candidates = await CreateEngine(db, onDemand).EvaluateAsync();
+
+        // Manual line polling: a day without a press is a quiet day, not an outage. A critical
+        // here would open an incident for it (ADR 0017's "criticals are furniture").
+        Assert.DoesNotContain(candidates, c => c.RuleKey == AlertRules.Freshness && c.SourceId == source.Id);
+    }
+
+    [Fact]
+    public async Task ARunLeftRunningByAStoppedHostIsClosedAsFailed()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db);
+
+        var orphan = Run(source.Id, RunStatus.Running, DateTimeOffset.UtcNow.AddHours(-5));
+        orphan.FinishedAt = null;
+        var current = Run(source.Id, RunStatus.Running, DateTimeOffset.UtcNow.AddMinutes(-2));
+        current.FinishedAt = null;
+        db.IngestionRuns.AddRange(orphan, current);
+        await db.SaveChangesAsync();
+
+        await OrphanRuns.ReapAsync(db, TimeSpan.FromHours(2));
+
+        var runs = await db.IngestionRuns.AsNoTracking()
+            .Where(r => r.SourceId == source.Id).ToDictionaryAsync(r => r.Id);
+
+        Assert.Equal(RunStatus.Failed, runs[orphan.Id].Status);
+        Assert.Equal(OrphanRuns.Reason, runs[orphan.Id].Error);
+        Assert.NotNull(runs[orphan.Id].FinishedAt);
+
+        // A run still inside the ceiling may simply be running.
+        Assert.Equal(RunStatus.Running, runs[current.Id].Status);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
+using LineOps.Reliability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,13 @@ public static class IngestionServiceCollectionExtensions
         // config, it becomes all three. That is the real fix; this pass only removes duplicates
         // someone typed by hand, which the binder would otherwise send straight to the wire.
         services.PostConfigure<IngestionOptions>(Normalise);
+
+        // The reliability layer cannot see the ingestion options, and should not be configured
+        // twice by hand to agree with them: when odds are pulled only on request, an odds feed
+        // that has not run today is idle, and its freshness rule stands down.
+        services.AddOptions<ReliabilityOptions>()
+            .PostConfigure<IOptions<IngestionOptions>>((reliability, ingestion) =>
+                reliability.OddsOnDemand = !ingestion.Value.LinePolling.RunsUnattended);
 
         services.AddScoped<EntityResolver>();
         services.AddScoped<CreditBudgetGuard>();
