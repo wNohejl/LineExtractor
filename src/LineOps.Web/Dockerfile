@@ -11,11 +11,14 @@ COPY src/LineOps.Desk/LineOps.Desk.csproj               src/LineOps.Desk/
 COPY src/LineOps.Data/LineOps.Data.csproj               src/LineOps.Data/
 COPY src/LineOps.Reliability/LineOps.Reliability.csproj src/LineOps.Reliability/
 COPY src/LineOps.Ingestion/LineOps.Ingestion.csproj     src/LineOps.Ingestion/
+COPY src/LineOps.Observability/LineOps.Observability.csproj src/LineOps.Observability/
 COPY src/LineOps.Web/LineOps.Web.csproj                 src/LineOps.Web/
 
 RUN dotnet restore src/LineOps.Web/LineOps.Web.csproj
 
 COPY src/ src/
+# Embedded into LineOps.Reliability; the build fails without it.
+COPY docs/runbook.md docs/
 RUN dotnet publish src/LineOps.Web/LineOps.Web.csproj \
     -c Release -o /app --no-restore
 

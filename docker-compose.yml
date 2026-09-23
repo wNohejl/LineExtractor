@@ -73,8 +73,6 @@ services:
       # Blazor circuits and antiforgery tokens.
       DataProtection__KeyPath: /keys
 
-      # Demo sources stay on so a fresh stack works with no API keys and no spend.
-      Ingestion__Demo__Enabled: "true"
       # Populate the dashboard on first boot instead of waiting for the 09:00 slate job.
       Ingestion__RunOnStartup: "true"
 
@@ -116,7 +114,6 @@ services:
     environment:
       ConnectionStrings__LineOps: "Host=postgres;Port=5432;Database=lineops;Username=lineops;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};SSL Mode=Prefer;Trust Server Certificate=true"
       DOTNET_ENVIRONMENT: Production
-      Ingestion__Demo__Enabled: "true"
       Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
       Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
       Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}

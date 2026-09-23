@@ -12,6 +12,8 @@
 tests/
 docs/
 *.md
+# ...except the runbook, which LineOps.Reliability embeds so the Ops desk can show it.
+!docs/runbook.md
 
 # Never bake local secrets into an image layer.
 **/appsettings.Local.json
