@@ -99,15 +99,18 @@ else
             .ToArray();
 
         var clvs = entries
-            .Where(e => e.ClosingPrice is not null && e.PriceTaken != 0)
-            .Select(e => new ClvResult(e.PriceTaken, e.ClosingPrice!.Value))
+            .Where(e => e.IsGraded)
+            .Select(e => PerformanceAnalytics.ComputeClv(e))
+            .OfType<ClvResult>()
             .ToList();
 
+        // Beat-the-close counts every reading; the average price edge only those at the same
+        // number, because a price at -2.5 against one at -1.5 is not a price difference.
         if (clvs.Count > 0)
-        {
             _beatRate = ((double)clvs.Count(c => c.BeatClose) / clvs.Count).ToString("P0");
-            _avgClv = clvs.Average(c => c.CentsPercent);
-        }
+
+        if (clvs.Where(c => c.SameNumber).ToList() is { Count: > 0 } sameNumber)
+            _avgClv = sameNumber.Average(c => c.CentsPercent);
 
         // CLV is the honest signal, so it — not profit — sets this window's state.
         Report(

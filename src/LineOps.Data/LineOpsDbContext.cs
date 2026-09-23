@@ -180,12 +180,15 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.Stake).HasPrecision(12, 2);
             e.Property(x => x.Payout).HasPrecision(12, 2);
             e.Property(x => x.LineTaken).HasPrecision(10, 2);
+            e.Property(x => x.ClosingPoints).HasPrecision(10, 2);
+            e.Property(x => x.ClosingBook).HasMaxLength(64);
             e.HasIndex(x => x.PlacedAt);
             e.HasIndex(x => x.ParlayGroupId);
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.Ignore(x => x.NetReturn);
             e.Ignore(x => x.IsSettled);
+            e.Ignore(x => x.IsGraded);
         });
 
         b.Entity<IngestionRun>(e =>

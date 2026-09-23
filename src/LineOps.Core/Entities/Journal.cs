@@ -68,12 +68,26 @@ public class JournalEntry
     /// <summary>The closing price, denormalised at resolution time so CLV survives pruning.</summary>
     public int? ClosingPrice { get; set; }
 
+    /// <summary>
+    /// The handicap or total the close was quoted at, for the same outcome. A price only means
+    /// something at its number: -110 at -2.5 is not -110 at -1.5, and comparing the two as if
+    /// they were scored a point of line value as zero. Null for a moneyline.
+    /// </summary>
+    public decimal? ClosingPoints { get; set; }
+
+    /// <summary>
+    /// The book whose close this entry was compared with. Usually the entry's own; when that
+    /// book was not tracked, whichever close settlement fell back to — a weaker comparison,
+    /// and one the desk should say it made.
+    /// </summary>
+    public string? ClosingBook { get; set; }
+
     public string? Note { get; set; }
 
     /// <summary>Groups legs of the same parlay. Null for straight entries.</summary>
     public Guid? ParlayGroupId { get; set; }
 
-    /// <summary>Profit relative to stake. Negative on a loss, zero on push/pending.</summary>
+    /// <summary>Profit relative to stake. Negative on a loss, zero on push, void and pending.</summary>
     public decimal NetReturn => Result switch
     {
         EntryResult.Win => (Payout ?? 0m) - Stake,
@@ -81,6 +95,16 @@ public class JournalEntry
         _ => 0m
     };
 
-    /// <summary>Entries that have settled and therefore count toward ROI.</summary>
-    public bool IsSettled => Result is EntryResult.Win or EntryResult.Loss or EntryResult.Push;
+    /// <summary>
+    /// No longer waiting on anything: graded, or voided. A void used to be left out, so a voided
+    /// entry kept its "Settle…" menu and was counted as pending for ever.
+    /// </summary>
+    public bool IsSettled => IsGraded || Result == EntryResult.Void;
+
+    /// <summary>
+    /// Settled with action — won, lost or pushed — and therefore counted toward ROI. A void is
+    /// settled but had no action: its stake came back and was never really risked, so counting
+    /// it as staked would dilute the return on the bets that were.
+    /// </summary>
+    public bool IsGraded => Result is EntryResult.Win or EntryResult.Loss or EntryResult.Push;
 }

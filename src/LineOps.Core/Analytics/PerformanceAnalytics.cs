@@ -5,8 +5,20 @@ namespace LineOps.Core.Analytics;
 /// <summary>Closing line value for a single settled entry.</summary>
 /// <param name="PriceTaken">The price recorded when the wager was placed.</param>
 /// <param name="ClosingPrice">The last pre-start price for the same book/market/outcome.</param>
-public readonly record struct ClvResult(int PriceTaken, int ClosingPrice)
+/// <param name="PointsGained">
+/// On a spread or a total, how many points of line the entry got over the close, signed so that
+/// positive is in the bettor's favour: taking -1.5 into a -2.5 close is +1, an over at 8.5 into a
+/// 9 close is +0.5. Null for a moneyline, or where either number is unknown.
+/// </param>
+public readonly record struct ClvResult(int PriceTaken, int ClosingPrice, decimal? PointsGained = null)
 {
+    /// <summary>
+    /// The close was quoted at the number the entry was taken at, so the two prices are a fair
+    /// comparison. When the line moved, they are prices for different bets, and the points are
+    /// the measure.
+    /// </summary>
+    public bool SameNumber => PointsGained is null or 0m;
+
     /// <summary>Probability implied by the price taken.</summary>
     public double TakenProbability => OddsMath.ImpliedProbability(PriceTaken);
 
@@ -15,13 +27,23 @@ public readonly record struct ClvResult(int PriceTaken, int ClosingPrice)
 
     /// <summary>
     /// Percentage edge over the close: how much more a unit stake returns at the taken
-    /// price than at the close. Positive means the line moved in your favour.
+    /// price than at the close. Positive means the price moved in your favour. Only a
+    /// like-for-like reading when <see cref="SameNumber"/>; averages should skip the rest.
     /// </summary>
     public double CentsPercent
         => (OddsMath.ToDecimal(PriceTaken) / OddsMath.ToDecimal(ClosingPrice) - 1.0) * 100.0;
 
-    /// <summary>Beating the close is the standard proxy for skill.</summary>
-    public bool BeatClose => CentsPercent > 0;
+    /// <summary>
+    /// Beating the close is the standard proxy for skill. Points decide it when the line moved —
+    /// a point and a half of spread outweighs any difference in juice on the way — and the price
+    /// decides it when it did not.
+    /// </summary>
+    public bool BeatClose => PointsGained switch
+    {
+        > 0m => true,
+        < 0m => false,
+        _ => CentsPercent > 0
+    };
 }
 
 /// <summary>Aggregate performance across a set of settled entries.</summary>
@@ -70,7 +92,26 @@ public static class PerformanceAnalytics
         if (closingPrice is null || entry.PriceTaken == 0)
             return null;
 
-        return new ClvResult(entry.PriceTaken, closingPrice.Value);
+        return new ClvResult(entry.PriceTaken, closingPrice.Value, PointsGained(entry));
+    }
+
+    /// <summary>
+    /// Points of line over the close, from the bettor's side. A spread is quoted from the backed
+    /// side, so a bigger number is better whichever side it is: +3.5 beats +2.5, -1.5 beats -2.5.
+    /// An over wants the total lower than it closed, an under higher.
+    /// </summary>
+    public static decimal? PointsGained(JournalEntry entry)
+    {
+        if (entry.LineTaken is not { } taken || entry.ClosingPoints is not { } close)
+            return null;
+
+        return entry.Market switch
+        {
+            Markets.Spread => taken - close,
+            Markets.Total when entry.Outcome.Equals("over", StringComparison.OrdinalIgnoreCase) => close - taken,
+            Markets.Total when entry.Outcome.Equals("under", StringComparison.OrdinalIgnoreCase) => taken - close,
+            _ => null
+        };
     }
 
     /// <summary>CLV from the entry's own denormalised close, which is the usual case.</summary>
@@ -79,7 +120,8 @@ public static class PerformanceAnalytics
 
     public static PerformanceSummary Summarise(IEnumerable<JournalEntry> entries)
     {
-        var settled = entries.Where(e => e.IsSettled).ToList();
+        // Graded, not merely settled: a void returned its stake and is left out of ROI.
+        var settled = entries.Where(e => e.IsGraded).ToList();
 
         return new PerformanceSummary(
             SettledCount: settled.Count,
@@ -101,7 +143,7 @@ public static class PerformanceAnalytics
         var points = new List<(DateTimeOffset, decimal)>();
         var running = startingBankroll;
 
-        foreach (var entry in entries.Where(e => e.IsSettled).OrderBy(e => e.PlacedAt))
+        foreach (var entry in entries.Where(e => e.IsGraded).OrderBy(e => e.PlacedAt))
         {
             running += entry.NetReturn;
             points.Add((entry.PlacedAt, running));
@@ -116,7 +158,7 @@ public static class PerformanceAnalytics
         Func<JournalEntry, TKey> keySelector)
         where TKey : notnull
         => entries
-            .Where(e => e.IsSettled)
+            .Where(e => e.IsGraded)
             .GroupBy(keySelector)
             .ToDictionary(g => g.Key, Summarise);
 

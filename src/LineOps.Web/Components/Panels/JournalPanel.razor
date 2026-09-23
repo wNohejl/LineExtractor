@@ -163,9 +163,12 @@ else
             <CellTemplate>
                 @if (Clv(context.Item) is { } clv)
                 {
-                    <span class="@(clv.BeatClose ? "up" : "down")"
-                          title="Took @Price(context.Item.PriceTaken), closed @Price(context.Item.ClosingPrice!.Value)">
-                        @clv.CentsPercent.ToString("+0.0;-0.0")%
+                    @* When the line moved, the points are the reading; the two prices are for
+                       different numbers and their difference means nothing on its own. *@
+                    <span class="@(clv.BeatClose ? "up" : "down")" title="@ClvTitle(context.Item)">
+                        @(clv.SameNumber
+                            ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
+                            : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
                     </span>
                 }
                 else
@@ -177,7 +180,9 @@ else
 
         <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right">
             <CellTemplate>
-                @if (!context.Item.IsSettled)
+                @* Graded rows are done; a void stays open to a correction, because an automatic
+                   void is the common rule and a given book may have ruled otherwise. *@
+                @if (!context.Item.IsGraded)
                 {
                     @* An action rather than a value: nothing is bound, so the control keeps
                        showing "Settle…" and the pick is the whole event. *@
@@ -259,10 +264,21 @@ else
             _entries.Count == 0 ? null : $"{pending} pending");
     }
 
-    private static ClvResult? Clv(JournalEntry entry)
-        => entry.ClosingPrice is { } close && entry.PriceTaken != 0
-            ? new ClvResult(entry.PriceTaken, close)
-            : null;
+    private static ClvResult? Clv(JournalEntry entry) => PerformanceAnalytics.ComputeClv(entry);
+
+    /// <summary>"Took -1.5 -110 at DraftKings; closed -2.5 -110 at FanDuel" — what was compared.</summary>
+    private static string ClvTitle(JournalEntry e)
+    {
+        static string At(decimal? points, int price)
+            => points is { } p ? $"{p:+0.#;-0.#} {Price(price)}" : Price(price);
+
+        var close = At(e.ClosingPoints, e.ClosingPrice!.Value);
+        var book = string.Equals(e.ClosingBook, e.Book, StringComparison.OrdinalIgnoreCase) || e.ClosingBook is null
+            ? ""
+            : $" at {e.ClosingBook} (no close for {e.Book})";
+
+        return $"Took {At(e.LineTaken, e.PriceTaken)}; closed {close}{book}";
+    }
 
     private async Task OpenGameAsync(int gameId)
     {
@@ -338,7 +354,7 @@ else
             var summary = await scope.ServiceProvider
                 .GetRequiredService<SettlementService>().SettleAsync();
 
-            _message = $"{summary.Graded} graded · {summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
+            _message = $"{summary.Graded} graded · {summary.Voided} voided · {summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
             await LoadAsync();
         }
         finally

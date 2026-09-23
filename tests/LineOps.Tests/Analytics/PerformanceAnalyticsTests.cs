@@ -183,4 +183,90 @@ public class PerformanceAnalyticsTests
         Assert.Equal(0m, byMarket[Markets.Spread].NetProfit);
         Assert.Equal(100m, byMarket[Markets.Total].NetProfit);
     }
+
+    [Fact]
+    public void A_void_is_settled_but_not_graded_and_stays_out_of_roi()
+    {
+        var won = Entry(EntryResult.Win, stake: 110m, price: -110);
+        var voided = Entry(EntryResult.Void, stake: 500m);
+
+        // Settled: nothing is owed on it any more, so it is not pending.
+        Assert.True(voided.IsSettled);
+        Assert.False(voided.IsGraded);
+        Assert.Equal(500m, voided.Payout);
+        Assert.Equal(0m, voided.NetReturn);
+
+        // Not graded: its stake was never at risk, so it must not dilute the return.
+        var summary = PerformanceAnalytics.Summarise([won, voided]);
+        Assert.Equal(1, summary.SettledCount);
+        Assert.Equal(110m, summary.TotalStaked);
+        Assert.Equal(100m / 110m, summary.Roi, precision: 4);
+    }
+
+    [Theory]
+    [InlineData(Markets.Spread, "home", -1.5, -2.5, 1.0)]   // laid a point and a half less than the close
+    [InlineData(Markets.Spread, "away", 3.5, 2.5, 1.0)]     // got the hook the close did not have
+    [InlineData(Markets.Spread, "home", -3.0, -2.5, -0.5)]  // laid more than it closed at
+    [InlineData(Markets.Total, "over", 8.5, 9.0, 0.5)]      // an over wants the lower number
+    [InlineData(Markets.Total, "under", 8.5, 9.0, -0.5)]    // an under wants the higher one
+    [InlineData(Markets.Total, "UNDER", 47.5, 45.5, 2.0)]
+    public void Points_gained_are_signed_from_the_bettors_side(
+        string market, string outcome, double taken, double closed, double expected)
+    {
+        var entry = new JournalEntry
+        {
+            Market = market, Outcome = outcome, PriceTaken = -110,
+            LineTaken = (decimal)taken, ClosingPoints = (decimal)closed
+        };
+
+        Assert.Equal((decimal)expected, PerformanceAnalytics.PointsGained(entry));
+    }
+
+    [Fact]
+    public void A_moneyline_has_no_points_and_is_read_by_price()
+    {
+        var entry = new JournalEntry { Market = Markets.Moneyline, Outcome = "home", PriceTaken = 150, ClosingPrice = 120 };
+
+        var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
+
+        Assert.Null(clv.PointsGained);
+        Assert.True(clv.SameNumber);
+        Assert.True(clv.BeatClose);
+    }
+
+    [Fact]
+    public void When_the_line_moved_the_points_decide_whatever_the_juice_did()
+    {
+        // -1.5 at -120 into a -2.5 -105 close: the price looks 7% worse, the bet is a point and a
+        // half better. Scoring it on price alone called this losing to the close.
+        var entry = new JournalEntry
+        {
+            Market = Markets.Spread, Outcome = "home",
+            PriceTaken = -120, LineTaken = -1.5m,
+            ClosingPrice = -105, ClosingPoints = -2.5m
+        };
+
+        var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
+
+        Assert.False(clv.SameNumber);
+        Assert.Equal(1.0m, clv.PointsGained);
+        Assert.True(clv.CentsPercent < 0);
+        Assert.True(clv.BeatClose);
+    }
+
+    [Fact]
+    public void At_the_same_number_the_price_decides()
+    {
+        var entry = new JournalEntry
+        {
+            Market = Markets.Spread, Outcome = "home",
+            PriceTaken = -115, LineTaken = -2.5m,
+            ClosingPrice = -105, ClosingPoints = -2.5m
+        };
+
+        var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
+
+        Assert.True(clv.SameNumber);
+        Assert.False(clv.BeatClose);
+    }
 }

@@ -283,4 +283,93 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
         Assert.Equal(first.Payout, after.Payout);
         Assert.Equal(first.ClosingSnapshotId, after.ClosingSnapshotId);
     }
+
+    private static JournalEntry Pending(Game game, string outcome, string market = Markets.Moneyline,
+        decimal? line = null, string book = "draftkings", int price = -110)
+        => new()
+        {
+            GameId = game.Id,
+            Market = market,
+            Outcome = outcome,
+            LineTaken = line,
+            Book = book,
+            PriceTaken = price,
+            Stake = 100m,
+            PlacedAt = game.StartsAt.AddHours(-2),
+            Result = EntryResult.Pending
+        };
+
+    [Fact]
+    public async Task A_bet_on_a_game_postponed_past_the_window_is_voided()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, _) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddDays(-3));
+        game.Status = GameStatus.Postponed;
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+
+        db.JournalEntries.Add(Pending(game, home.Name));
+        await db.SaveChangesAsync();
+
+        var summary = await CreateService(db).SettleAsync();
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+        Assert.Equal(EntryResult.Void, entry.Result);
+        Assert.Equal(100m, entry.Payout);
+        Assert.True(summary.Voided >= 1);
+    }
+
+    [Fact]
+    public async Task A_bet_on_a_game_postponed_today_waits_for_the_make_up()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, _) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddHours(-5));
+        game.Status = GameStatus.Postponed;
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+
+        db.JournalEntries.Add(Pending(game, home.Name));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).SettleAsync();
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+        Assert.Equal(EntryResult.Pending, entry.Result);
+    }
+
+    [Fact]
+    public async Task A_spread_records_the_number_it_closed_at_and_scores_the_points()
+    {
+        await using var db = fixture.CreateContext();
+        var startsAt = DateTimeOffset.UtcNow.AddHours(-4);
+        var (game, source) = await SeedGameAsync(db, startsAt);
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+
+        // The book's own close, written with the capital the reference feed uses: the journal
+        // says "draftkings", and a case-sensitive match used to miss its own book.
+        db.ClosingLines.Add(new ClosingLine
+        {
+            GameId = game.Id, SourceId = source.Id, Book = "DraftKings",
+            Market = Markets.Spread, Outcome = home.Name, Line = -2.5m, PriceAmerican = -110,
+            CapturedAt = startsAt.AddMinutes(-3), PromotedAt = startsAt.AddMinutes(10)
+        });
+        db.ClosingLines.Add(new ClosingLine
+        {
+            GameId = game.Id, SourceId = source.Id, Book = "fanduel",
+            Market = Markets.Spread, Outcome = home.Name, Line = -1.5m, PriceAmerican = -130,
+            CapturedAt = startsAt.AddMinutes(-1), PromotedAt = startsAt.AddMinutes(10)
+        });
+        db.JournalEntries.Add(Pending(game, home.Name, Markets.Spread, line: -1.5m, price: -110));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).MarkFinalAsync(game.Id, homeScore: 24, awayScore: 20);
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+
+        Assert.Equal(EntryResult.Win, entry.Result);
+        Assert.Equal("DraftKings", entry.ClosingBook);   // its own book, not the later FanDuel close
+        Assert.Equal(-2.5m, entry.ClosingPoints);
+
+        var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
+        Assert.Equal(1.0m, clv.PointsGained);
+        Assert.True(clv.BeatClose);
+    }
 }
