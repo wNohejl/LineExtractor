@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–5 done (§6–§10)
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–6 done (§6–§11)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -432,3 +432,50 @@ Verified live: Ctrl+K → "mets" → Enter opened the Mets' Team window; "board"
 Board; the Board's team filter narrowed the slate to the Blue Jays' games.
 
 Tests: 447 in `LineOps.Tests`, 280 in `LineOps.Web.Tests`, all green (in the SDK container).
+
+---
+
+## 11. What was done — Phase 6 (2026-09-23)
+
+- **A scan's price comes from the adapter.** `IOddsSource` now says what markets it asks for per
+  sport (`MarketsFor`) and what a scan of a sport bills (`CreditsPerScan`); The Odds API's is its
+  market count, one region unit. `SourceOptions.MarketsBySport` sets a list per sport — e.g.
+  totals for NFL only. The planner paces on the adapters' figures (the configured
+  `CreditsPerSportPerScan` is now only the fallback for a source that declares nothing — ADR
+  0012's open item), the Pull lines menu quotes each sport's real markets and credits, and Ops
+  shows, before anything is switched on, what each sport's scan buys and costs and how often
+  automatic polling would scan at that price. The planner cannot overspend; a longer list shows
+  up as a slower cadence, which is its real cost.
+- **Not switched on.** Totals and automatic polling spend the free tier deliberately, and that
+  is the operator's call (§4.2). Nothing here changes a market list or the polling mode.
+- **The MLB spine is called.** `MlbSpineService` reads MLB's schedule after each slate pass (at
+  most every 30 minutes, today and tomorrow) and annotates ESPN's games — it never creates one:
+  MLB's `gamePk`, the doubleheader number (in play order), and both probable starters, as MLB
+  states them, including taking a scratched one back. Team names agree between the two
+  providers for all thirty clubs; the MLB team id is written onto each team on first match. The
+  Board shows "Game 2" and "Van Eyk v Gibson" under the matchup; the Game window shows the
+  starters in full. First live pass: 16 of 16 of the day's games matched, all with starters,
+  including a Blue Jays–Orioles doubleheader numbered 1 and 2. Tomorrow's games attach once ESPN
+  has created them.
+- **Two people with one name are two players.** The name fallback in player resolution no longer
+  merges an athlete into a player the same source already knows under a different id, and where
+  several same-named players remain, the team decides — or nothing is merged (ADR 0009's open
+  item). Players already merged before this remain merged; splitting them needs a re-ingest of
+  their games.
+
+Found on the way: the Board cut "CJ Van Eyk" to "Eyk" (last word as surname); it now drops only
+the first name. The Docker hosts have no odds source at all — the key lives in the host-only
+`appsettings.Local.json`, `.env` has none, and the image's `TheOddsApi.Enabled` is false — so odds
+are pulled only when the web host runs from the SDK.
+
+Tests: 455 in `LineOps.Tests`, 285 in `LineOps.Web.Tests`, all green (in the SDK container).
+
+## 12. After the six phases
+
+What the plan named and did not do, for whoever picks it up:
+- Totals and automatic polling (§4.2) — priced in Ops, waiting on the operator.
+- Player props — a paid tier first (§4.3).
+- Splitting players merged before Phase 6.
+- Display times in one zone rather than the server's (a task is open for it).
+- Porting the desk changes to TicketMiser (a task is open for it).
+- `DESIGN.md` still describes the desk as it was before these phases.
