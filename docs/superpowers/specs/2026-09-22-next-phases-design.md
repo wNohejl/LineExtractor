@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–4 done (§6–§9)
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–5 done (§6–§10)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -399,3 +399,36 @@ was saved, since the first entry in this journal should be a real one.
 
 Tests: 437 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container). The
 worker applied the `ParlaysAndSettlement` migration on start.
+
+---
+
+## 10. What was done — Phase 5 (2026-09-23)
+
+- **A command palette.** Ctrl+K (⌘K) from anywhere, or the search key in the header. It lives in
+  the desk and knows nothing about sports: the desk supplies its own windows and workspaces, and
+  an application registers an `IDeskSearch` (scoped, so it opens windows on the circuit's own
+  desk) for what it knows — LineOps' `AppDeskSearch` adds teams, players and games. Empty, it is
+  a keyboard launcher over the windows that open on nothing; typing asks the application after a
+  200 ms pause; arrows and Enter pick, Escape or a click outside closes. A window whose name
+  starts with what was typed leads the application's results — found live, when "board" opened a
+  Giants player called Board instead of the Board.
+- **One search rule.** `SearchService` (Data) finds teams, players and games: every word must
+  match one of the fields it could mean ("reds braves", "smith rams"), typed `%` and `_` are
+  characters, hidden leagues stay hidden, players who have played lead, games nearest to today
+  first. The palette, the journal's game picker and the Players window use it, and the Board uses
+  its in-memory twin (`MatchesAllWords`) to filter the loaded slate by team.
+- **Players finds people; the windows say how they are going.** A row opens the Player window
+  (it used to keep a lesser game log of its own, cut to eight stat columns alphabetically), a
+  team name opens the Team window, the search waits for a pause, and a capped list says so.
+- **Line movement** lists the games that have moves on record — the ones it can draw — instead of
+  the last fourteen days, and the season-wide game picker reaches any other; its empty state says
+  where a finished game's close is.
+
+Found by the tests: the palette marked its highlighted row `aria-selected=""` — Blazor renders a
+bare boolean that way — which screen readers do not read as selected. The rest of the desk's
+ARIA state attributes already used strings.
+
+Verified live: Ctrl+K → "mets" → Enter opened the Mets' Team window; "board" → Enter opens the
+Board; the Board's team filter narrowed the slate to the Blue Jays' games.
+
+Tests: 447 in `LineOps.Tests`, 280 in `LineOps.Web.Tests`, all green (in the SDK container).
