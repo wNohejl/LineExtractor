@@ -19,8 +19,13 @@ RUN dotnet restore src/LineOps.Web/LineOps.Web.csproj
 COPY src/ src/
 # Embedded into LineOps.Reliability; the build fails without it.
 COPY docs/runbook.md docs/
+# Publish restores again, now that the source is here. The restore above only sees project
+# files, and the SDK adds Blazor's framework scripts (_framework/blazor.web.js, from
+# Microsoft.AspNetCore.App.Internal.Assets) only for a project it can see Razor components
+# in — so a --no-restore publish shipped a page whose script 404'd and whose circuit never
+# started. The packages are already in the layer above; this pass only adds that one.
 RUN dotnet publish src/LineOps.Web/LineOps.Web.csproj \
-    -c Release -o /app --no-restore
+    -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
