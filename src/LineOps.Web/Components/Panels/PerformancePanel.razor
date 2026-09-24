@@ -234,7 +234,7 @@ else
 
         var stride = Math.Max(1, curve.Count / 6);
         _labels = curve
-            .Select((p, i) => i % stride == 0 ? p.At.ToLocalTime().ToString("MMM d") : string.Empty)
+            .Select((p, i) => i % stride == 0 ? DisplayTime.Day(p.At) : string.Empty)
             .ToArray();
 
         ReadClv(set.Selections);

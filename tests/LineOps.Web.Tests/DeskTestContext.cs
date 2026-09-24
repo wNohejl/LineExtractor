@@ -32,6 +32,8 @@ public abstract class DeskTestContext : TestContext
         // a render test should not have to say either. The application's own catalogue is
         // the honest answer for the second: these tests read its keys by name.
         Services.AddSingleton(new LineOps.Desk.DeskBrand("LINE", "OPS", "test desk"));
+        Services.AddSingleton(new LineOps.Desk.DeskClock(
+            LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
         Services.AddSingleton<LineOps.Desk.Windowing.DeskSignals>();
         Services.AddScoped<LineOps.Desk.Windowing.WindowManager>();

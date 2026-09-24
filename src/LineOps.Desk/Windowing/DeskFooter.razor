@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject WindowManager Manager
 @inject DeskSignals Signals
+@inject DeskClock Clock
 
 @*
     Fixed footer: the desk's operating conditions — column count, effective size, and
@@ -42,7 +43,7 @@
         @(Signals.Live ? "live" : "polling")
     </span>
     <span class="ftr__divider"></span>
-    <span class="ftr__stat num">@DateTime.Now.ToString("HH:mm")</span>
+    <span class="ftr__stat num" title="Desk time: every time shown here is in this zone">@Clock.Now().ToString("HH:mm") @Clock.Label</span>
 </footer>
 
 @code {

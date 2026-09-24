@@ -47,8 +47,8 @@ public class FormRunTests : DeskTestContext
         Assert.Single(marked);
         Assert.Same(tags[^1], marked[0]);
 
-        // Keyed on the score rather than the date: titles render in local time, so a UTC
-        // midnight fixture would name the previous day on any machine behind Greenwich.
+        // Keyed on the score rather than the date: titles render in Eastern time, so a UTC
+        // midnight fixture names the previous day.
         Assert.Contains("Yankees", marked[0].GetAttribute("title"));
         Assert.Contains("(0-1)", marked[0].GetAttribute("title"));
         Assert.Contains("most recent", marked[0].GetAttribute("title"));

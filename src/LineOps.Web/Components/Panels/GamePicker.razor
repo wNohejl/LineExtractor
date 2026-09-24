@@ -52,7 +52,7 @@
 
     private static string Describe(Game game)
         => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"} — "
-           + $"{game.StartsAt.ToLocalTime():MMM d} · {game.Sport?.Key.ToUpperInvariant()}";
+           + $"{DisplayTime.Day(game.StartsAt)} · {game.Sport?.Key.ToUpperInvariant()}";
 
     private async Task OnTextChanged(string? text)
     {

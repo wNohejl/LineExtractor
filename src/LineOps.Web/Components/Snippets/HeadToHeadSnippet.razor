@@ -109,7 +109,7 @@ else
         }
     }
 
-    private static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("MMM d, yyyy");
+    private static string Day(DateTimeOffset at) => DisplayTime.Format(at, "MMM d, yyyy");
 
     private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
 

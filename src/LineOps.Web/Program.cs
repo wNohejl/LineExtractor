@@ -47,8 +47,11 @@ builder.Services.AddMudServices(options =>
 
 // The desk — window manager, toasts, confirms, theme — is its own project and knows nothing
 // about sports. It is told what this application is called, and reads its windows from the
-// catalogue registered beneath it. See src/LineOps.Desk/DeskHost.cs for what each seam is.
-builder.Services.AddDesk(new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations"));
+// catalogue registered beneath it, and it tells time in the zone the leagues keep — the same one
+// every panel formats in (DisplayTime). See src/LineOps.Desk/DeskHost.cs for what each seam is.
+builder.Services.AddDesk(
+    new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations"),
+    new DeskClock(LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
 builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
 // Open windows refresh when the data under them changes, whichever process wrote it.

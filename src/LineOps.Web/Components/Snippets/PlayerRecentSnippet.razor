@@ -44,7 +44,7 @@ else
             @foreach (var row in _rows)
             {
                 <tr>
-                    <td class="dim">@row.StartsAt.ToLocalTime().ToString("MMM d")</td>
+                    <td class="dim">@DisplayTime.Day(row.StartsAt)</td>
                     <td class="trunc">@(row.Home ? "vs" : "at") @row.Opponent</td>
                     <td class="r">
                         @if (row.Won is { } won)

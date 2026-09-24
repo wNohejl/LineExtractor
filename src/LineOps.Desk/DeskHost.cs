@@ -12,6 +12,30 @@ namespace LineOps.Desk;
 public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline);
 
 /// <summary>
+/// The zone the desk tells time in, and the short name it labels that time with.
+///
+/// <para>
+/// Blazor Server renders on the server, so <c>DateTime.Now</c> is the host's clock, not the
+/// reader's — UTC in a container, whatever the desktop is set to under <c>dotnet run</c>. An
+/// application that means a zone says which one here; the desk never guesses.
+/// </para>
+/// </summary>
+public sealed record DeskClock(TimeZoneInfo Zone, string Label)
+{
+    /// <summary>Where "now" comes from. The system clock, unless a test says otherwise.</summary>
+    public TimeProvider Time { get; init; } = TimeProvider.System;
+
+    /// <summary>What a desk shows when its application names no zone: UTC, and says so.</summary>
+    public static readonly DeskClock Utc = new(TimeZoneInfo.Utc, "UTC");
+
+    /// <summary>The wall-clock time in <see cref="Zone"/> at a moment.</summary>
+    public DateTime At(DateTimeOffset instant) => TimeZoneInfo.ConvertTime(instant, Zone).DateTime;
+
+    /// <summary>The wall-clock time in <see cref="Zone"/> now.</summary>
+    public DateTime Now() => At(Time.GetUtcNow());
+}
+
+/// <summary>
 /// Every window an application can open, and the arrangements it names.
 ///
 /// <para>
@@ -45,9 +69,10 @@ public static class DeskServiceCollectionExtensions
     /// singleton would hand every operator on the server whoever acted last.
     /// </para>
     /// </summary>
-    public static IServiceCollection AddDesk(this IServiceCollection services, DeskBrand brand)
+    public static IServiceCollection AddDesk(this IServiceCollection services, DeskBrand brand, DeskClock? clock = null)
     {
         services.AddSingleton(brand);
+        services.AddSingleton(clock ?? DeskClock.Utc);
         services.AddScoped<WindowManager>();
         services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();

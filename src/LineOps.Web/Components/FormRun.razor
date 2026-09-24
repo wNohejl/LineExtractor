@@ -65,7 +65,7 @@
     private static string Describe(FormResult g, bool latest)
     {
         var venue = g.Home ? "vs" : "at";
-        var day = g.StartsAt.ToLocalTime().ToString("MMM d");
+        var day = DisplayTime.Day(g.StartsAt);
         var score = g.HasScore ? $" ({g.ScoreFor}-{g.ScoreAgainst})" : string.Empty;
         var when = latest ? " — most recent" : string.Empty;
 

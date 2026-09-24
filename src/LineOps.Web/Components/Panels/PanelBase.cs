@@ -161,11 +161,12 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// Not the day of week. "Sat 14:30" only reads as a date for the two days either side of
     /// today, and a desk that now holds a full season of games is regularly looking at neither.
     /// A date is unambiguous at any distance, which is what a column of them needs to be.
+    /// In the league's zone, labelled — see <see cref="DisplayTime"/>.
     /// </summary>
-    protected static string Starts(DateTimeOffset at) => at.ToLocalTime().ToString("MMM d HH:mm");
+    protected static string Starts(DateTimeOffset at) => DisplayTime.Stamp(at);
 
     /// <summary>Just the day, for columns where the time is noise.</summary>
-    protected static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("MMM d");
+    protected static string Day(DateTimeOffset at) => DisplayTime.Day(at);
 
     /// <summary>
     /// A game named in full: "Colorado Rockies at San Francisco Giants".

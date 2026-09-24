@@ -235,7 +235,7 @@ else
                     <PropertyColumn T="PlayerForm" TProperty="DateTimeOffset" Property="p => p.LastPlayed"
                                     Title="Last" Align="Align.Right">
                         <CellTemplate>
-                            <span class="dim">@context.Item.LastPlayed.ToLocalTime().ToString("MMM d")</span>
+                            <span class="dim">@DisplayTime.Day(context.Item.LastPlayed)</span>
                         </CellTemplate>
                     </PropertyColumn>
                 </DeskGrid>
@@ -343,7 +343,7 @@ else
         var stride = Math.Max(1, times.Count / 6);
 
         _labels = times
-            .Select((t, i) => i % stride == 0 ? t.ToLocalTime().ToString("dd HH:mm") : string.Empty)
+            .Select((t, i) => i % stride == 0 ? DisplayTime.Format(t, "dd HH:mm") : string.Empty)
             .ToArray();
 
         // What the y-axis is made of. Handicap markets move the number; the moneyline has no
@@ -446,8 +446,8 @@ else
         var unit = _plotsHandicap ? "Handicap" : "Implied probability (%)";
 
         var span = times.Count > 1
-            ? $"{times[0].ToLocalTime():MMM d HH:mm} to {times[^1].ToLocalTime():HH:mm}"
-            : times[0].ToLocalTime().ToString("MMM d HH:mm");
+            ? $"{DisplayTime.Format(times[0], "MMM d HH:mm")} to {DisplayTime.Format(times[^1], "HH:mm")} {DisplayTime.Label}"
+            : DisplayTime.Stamp(times[0]);
 
         _takeaway = $"{unit}, {span} · {_current.Count} book/selection "
                     + $"{(_current.Count == 1 ? "pair" : "pairs")}";

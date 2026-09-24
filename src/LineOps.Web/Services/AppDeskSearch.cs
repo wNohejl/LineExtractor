@@ -30,7 +30,7 @@ public sealed class AppDeskSearch(IServiceScopeFactory scopes, WindowManager man
 
             .. games.Select(g => new DeskSearchResult(
                 "Games", $"{g.AwayTeam?.Name} at {g.HomeTeam?.Name}",
-                $"{g.StartsAt.ToLocalTime():ddd MMM d, HH:mm} · {g.Sport?.Key.ToUpperInvariant()} · {g.Status}",
+                $"{LineOps.Web.Components.DisplayTime.Format(g.StartsAt, "ddd MMM d, HH:mm")} {LineOps.Web.Components.DisplayTime.Label} · {g.Sport?.Key.ToUpperInvariant()} · {g.Status}",
                 Icons.Material.Filled.Event, () => manager.OpenGame(g))),
 
             .. players.Select(p => new DeskSearchResult(
