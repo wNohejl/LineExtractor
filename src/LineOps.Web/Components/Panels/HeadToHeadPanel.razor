@@ -149,6 +149,10 @@ else
 }
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     /// <summary>
     /// The upcoming game whose two sides are being looked up. An id rather than an object so
     /// the view can be hosted as a desk window.

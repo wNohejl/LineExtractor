@@ -549,6 +549,146 @@ public class WindowManager
 
     public WindowInstance? Find(string id) => _windows.FirstOrDefault(w => w.Id == id);
 
+    private readonly List<Workspace> _userWorkspaces = [];
+
+    /// <summary>Workspaces the operator saved on this machine, after the application's own.</summary>
+    public IReadOnlyList<Workspace> UserWorkspaces => _userWorkspaces;
+
+    /// <summary>
+    /// Saves the row as a named workspace, replacing one of the same name. Only windows that
+    /// open on nothing go in: a workspace is a starting arrangement, and "this game's movement"
+    /// is not something to start a morning on.
+    /// </summary>
+    public Workspace? SaveWorkspace(string name)
+    {
+        name = name.Trim();
+        var keys = _windows
+            .Where(w => w.Parameters.Count == 0)
+            .OrderBy(w => w.Sequence)
+            .Select(w => w.Definition.Key)
+            .ToList();
+
+        if (name.Length == 0 || keys.Count == 0)
+            return null;
+
+        var workspace = new Workspace(name, $"{keys.Count} {(keys.Count == 1 ? "window" : "windows")}, saved here", keys);
+
+        _userWorkspaces.RemoveAll(w => string.Equals(w.Name, name, StringComparison.OrdinalIgnoreCase));
+        _userWorkspaces.Add(workspace);
+        Notify();
+        return workspace;
+    }
+
+    public void DeleteWorkspace(string name)
+    {
+        if (_userWorkspaces.RemoveAll(w => w.Name == name) > 0)
+            Notify();
+    }
+
+    /// <summary>The desk as it can be written down. See <see cref="DeskLayout"/>.</summary>
+    public DeskLayout Capture()
+    {
+        var row = _windows.OrderBy(w => w.Sequence).ToList();
+        var focused = row.FindIndex(w => w.Id == FocusedId);
+
+        return new DeskLayout
+        {
+            MaxConcurrentWindows = Settings.MaxConcurrentWindows,
+            CeilingChosen = _ceilingChosen,
+            PrimaryWindowKey = Settings.PrimaryWindowKey,
+            PrimaryShare = Settings.PrimaryShare,
+            ResolutionMode = Settings.ResolutionMode,
+            CustomWidth = Settings.CustomWidth,
+            CustomHeight = Settings.CustomHeight,
+            Windows = row.Select(w => new DeskLayoutWindow(
+                w.Definition.Key,
+                w.TitleOverride,
+                w.Weight,
+                w.Minimised,
+                w.Parameters.Count == 0
+                    ? null
+                    : w.Parameters.ToDictionary(p => p.Key, p => System.Text.Json.JsonSerializer.SerializeToElement(p.Value))))
+                .ToList(),
+            Focused = focused >= 0 ? focused : null,
+            Workspaces = _userWorkspaces.Select(w => new DeskLayoutWorkspace(w.Name, w.WindowKeys)).ToList()
+        };
+    }
+
+    /// <summary>
+    /// Puts a written-down desk back. Windows the catalogue no longer has are dropped rather than
+    /// failing the rest — a layout outlives the version of the application that saved it.
+    /// </summary>
+    public void Restore(DeskLayout layout)
+    {
+        _windows.Clear();
+        FocusedId = null;
+        LastEviction = null;
+
+        _ceilingChosen = layout.CeilingChosen;
+        Settings.MaxConcurrentWindows = Math.Clamp(layout.MaxConcurrentWindows, 1, 12);
+        Settings.PrimaryWindowKey = layout.PrimaryWindowKey is { } key && Catalog.Find(key) is not null
+            ? key
+            : layout.PrimaryWindowKey is null ? null : Catalog.DefaultPrimary;
+        Settings.PrimaryShare = Math.Clamp(layout.PrimaryShare, 0.2, 0.8);
+        Settings.ResolutionMode = layout.ResolutionMode;
+        Settings.CustomWidth = layout.CustomWidth > 0 ? layout.CustomWidth : Settings.CustomWidth;
+        Settings.CustomHeight = layout.CustomHeight > 0 ? layout.CustomHeight : Settings.CustomHeight;
+
+        string? focusedId = null;
+
+        foreach (var (saved, index) in layout.Windows.Select((w, i) => (w, i)))
+        {
+            if (Catalog.Find(saved.Key) is not { } definition)
+                continue;
+
+            var instance = new WindowInstance
+            {
+                Id = $"{definition.Key}-{++_sequence}",
+                Sequence = _sequence,
+                Definition = definition,
+                TitleOverride = saved.TitleOverride,
+                Weight = saved.Weight > 0 ? saved.Weight : definition.DefaultWeight,
+                Minimised = saved.Minimised,
+                LastFocusedAt = DateTimeOffset.UtcNow
+            };
+
+            foreach (var (name, value) in saved.Parameters ?? new Dictionary<string, System.Text.Json.JsonElement>())
+            {
+                if (ToParameter(value) is { } parameter)
+                    instance.Parameters[name] = parameter;
+            }
+
+            _windows.Add(instance);
+
+            if (index == layout.Focused)
+                focusedId = instance.Id;
+        }
+
+        EnforceCeiling(null);
+        LastEviction = null;
+
+        _userWorkspaces.Clear();
+        _userWorkspaces.AddRange(layout.Workspaces
+            .Where(w => w.WindowKeys.Any(k => Catalog.Find(k) is not null))
+            .Select(w => new Workspace(w.Name, $"{w.WindowKeys.Count} windows, saved here",
+                w.WindowKeys.Where(k => Catalog.Find(k) is not null).ToList())));
+
+        FocusedId = focusedId ?? _windows.FirstOrDefault()?.Id;
+        Relayout();
+    }
+
+    /// <summary>A stored parameter back to the type a component expects: ids are ints.</summary>
+    private static object? ToParameter(System.Text.Json.JsonElement value) => value.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Number when value.TryGetInt32(out var i) => i,
+        System.Text.Json.JsonValueKind.Number when value.TryGetInt64(out var l) => l,
+        System.Text.Json.JsonValueKind.Number => value.GetDouble(),
+        System.Text.Json.JsonValueKind.String => value.GetString(),
+        System.Text.Json.JsonValueKind.True => true,
+        System.Text.Json.JsonValueKind.False => false,
+        _ => null
+    };
+
     private WindowInstance? MostRecent()
         => _windows.Where(w => !w.Minimised).OrderByDescending(w => w.LastFocusedAt).FirstOrDefault();
 

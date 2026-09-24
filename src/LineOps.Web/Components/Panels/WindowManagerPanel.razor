@@ -1,7 +1,6 @@
 @using LineOps.Desk.Windowing
 @using LineOps.Desk.Theming
 @inherits PanelBase
-@implements IDisposable
 @inject ThemeService Theme
 
 @*
@@ -146,8 +145,51 @@
     </Note>
 }
 
+<PanelHeader>Workspaces</PanelHeader>
+<div class="row">
+    @* Saves what is open now, left to right, under a name; it then sits in the brand menu beside
+       the built-in ones. Windows opened on something — a game, a player — are left out, since a
+       workspace is a desk to start from, not a particular game's. *@
+    <DeskField TValue="string" Immediate="true" placeholder="Name this desk" style="flex:1; min-width:160px"
+               @bind-Value="_workspaceName" />
+    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.BookmarkAdd"
+                Disabled="@(string.IsNullOrWhiteSpace(_workspaceName) || !Manager.Windows.Any(w => w.Parameters.Count == 0))"
+                OnClick="SaveWorkspace">
+        Save
+    </DeskButton>
+</div>
+
+@if (Manager.UserWorkspaces.Count == 0)
+{
+    <p class="empty" style="padding-top:6px">
+        None saved yet. The layout itself is kept for you anyway — a reload puts the row back as
+        it was.
+    </p>
+}
+else
+{
+    @foreach (var workspace in Manager.UserWorkspaces)
+    {
+        <div class="row" style="margin-top:6px">
+            <span style="flex:1">@workspace.Name <span class="dim">· @string.Join(", ", workspace.WindowKeys.Select(k => Manager.Catalog.Find(k)?.Title ?? k))</span></span>
+            <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Delete"
+                        OnClick="@(_ => Manager.DeleteWorkspace(workspace.Name))">
+                Delete
+            </DeskButton>
+        </div>
+    }
+}
+
 @code {
     private DeskSettings S => Manager.Settings;
+
+    private string? _workspaceName;
+
+    private void SaveWorkspace()
+    {
+        if (Manager.SaveWorkspace(_workspaceName ?? string.Empty) is not null)
+            _workspaceName = null;
+    }
 
     // Dark first, because it is the desk the product is: the gate reads left-to-right as
     // "what it was, the alternative, let the machine decide".
@@ -184,7 +226,7 @@
 
     private Task OnThemeChanged() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Theme.Changed -= OnThemeChanged;
+    protected override void OnDispose() => Theme.Changed -= OnThemeChanged;
 
     private void AdjustMax(int delta) => Manager.UpdateSettings(s =>
         s.MaxConcurrentWindows = Math.Clamp(s.MaxConcurrentWindows + delta, 1, 12));

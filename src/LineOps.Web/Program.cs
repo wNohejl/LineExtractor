@@ -51,6 +51,9 @@ builder.Services.AddMudServices(options =>
 builder.Services.AddDesk(new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations"));
 builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
+// Open windows refresh when the data under them changes, whichever process wrote it.
+builder.Services.AddHostedService<LineOps.Web.Services.DataChangeListener>();
+
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
 // circuit and antiforgery token. Unset (the default when running from the SDK) keeps the

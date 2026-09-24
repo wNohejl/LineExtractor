@@ -5,7 +5,6 @@
 @using LineOps.Desk.Windowing
 @using Microsoft.EntityFrameworkCore
 @inherits PanelBase
-@implements IDisposable
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject HistoryBackfillService Backfill
 @inject BackfillCoordinator Coordinator
@@ -204,6 +203,10 @@
 </DeskGrid>
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     private IReadOnlyList<SourceEligibility> _eligibility = [];
     private BackfillCoverage? _coverage;
     private List<BackfillCheckpoint> _recent = [];
@@ -269,5 +272,5 @@
 
     private void Stop() => Coordinator.Stop();
 
-    public void Dispose() => Coordinator.Changed -= OnCoordinatorChanged;
+    protected override void OnDispose() => Coordinator.Changed -= OnCoordinatorChanged;
 }

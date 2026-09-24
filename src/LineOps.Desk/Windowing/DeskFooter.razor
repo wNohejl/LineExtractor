@@ -1,6 +1,7 @@
 @using LineOps.Desk.Windowing
 @implements IDisposable
 @inject WindowManager Manager
+@inject DeskSignals Signals
 
 @*
     Fixed footer: the desk's operating conditions — column count, effective size, and
@@ -35,6 +36,12 @@
         }
     </span>
     <span class="ftr__divider"></span>
+    <span class="ftr__stat" title="@(Signals.Live
+                                        ? "Windows refresh as soon as the data under them changes."
+                                        : "The change feed is not connected; windows refresh once a minute.")">
+        @(Signals.Live ? "live" : "polling")
+    </span>
+    <span class="ftr__divider"></span>
     <span class="ftr__stat num">@DateTime.Now.ToString("HH:mm")</span>
 </footer>
 
@@ -48,15 +55,19 @@
     protected override void OnInitialized()
     {
         Manager.Changed += OnChanged;
+        Signals.LiveChanged += OnLiveChanged;
         _clock = new Timer(_ => InvokeAsync(StateHasChanged), null,
             TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20));
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
+    private void OnLiveChanged(bool _) => InvokeAsync(StateHasChanged);
+
     public void Dispose()
     {
         Manager.Changed -= OnChanged;
+        Signals.LiveChanged -= OnLiveChanged;
         _clock?.Dispose();
     }
 }

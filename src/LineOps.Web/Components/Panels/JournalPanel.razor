@@ -201,6 +201,10 @@ else
 }
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     private const string FreeText = "__free__";
 
     private class Form

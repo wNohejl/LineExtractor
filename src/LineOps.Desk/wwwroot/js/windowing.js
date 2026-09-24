@@ -26,6 +26,28 @@ export function reportViewport() {
     dotNet.invokeMethodAsync('OnViewportChanged', rect.width, rect.height);
 }
 
+// ---------------------------------------------------------------- layout (persist) ----
+
+// The desk's layout lives in localStorage so a reload, or a restarted server, puts the row
+// back as it was. Guarded like the theme: storage throws outright in a private window or under
+// blocked site data, and a forgotten layout is not worth a broken desk.
+
+export function loadLayout(key) {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+
+export function saveLayout(key, json) {
+    try {
+        localStorage.setItem(key, json);
+    } catch {
+        /* forgotten, not fatal */
+    }
+}
+
 // ---------------------------------------------------------------- divider (resize) ----
 
 /** Wires one divider. Safe to call repeatedly — rebinds cleanly on re-render. */

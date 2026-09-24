@@ -285,6 +285,10 @@ else
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Alerts };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     /// <summary>Which part of the day a reader wants on screen.</summary>
     private enum BoardPhase { Any, Upcoming, Live, Played }
 

@@ -310,7 +310,11 @@ public static class WindowCatalog
         new(
             "Review",
             "Settled entries against the numbers they produced.",
-            [Journal, Performance])
+            [Journal, Performance]),
+        new(
+            "Bet a game",
+            "The board to find it, the journal to log it, the numbers it adds to.",
+            [Board, Journal, Performance])
     ];
 }
 

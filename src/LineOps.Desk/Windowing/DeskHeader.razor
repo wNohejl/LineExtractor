@@ -51,6 +51,22 @@
                 </button>
             }
 
+            @if (Manager.UserWorkspaces.Count > 0)
+            {
+                <div class="launcher__group">Saved here</div>
+                @foreach (var workspace in Manager.UserWorkspaces)
+                {
+                    <button class="launcher__item" type="button" role="menuitem"
+                            @onclick="() => Apply(workspace)">
+                        <Glyph Icon="@Icons.Material.Filled.Bookmark" />
+                        <span>
+                            @workspace.Name
+                            <span class="launcher__desc">@workspace.Description</span>
+                        </span>
+                    </button>
+                }
+            }
+
             <div class="launcher__group">Clear</div>
             <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
                 <Glyph Icon="@Icons.Material.Filled.ClearAll" />

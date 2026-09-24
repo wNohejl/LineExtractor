@@ -277,6 +277,10 @@ else if (_plan is { } plan)
 </div>
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs, DataTopics.Alerts };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     private IReadOnlyList<SourceHealth> _health = [];
     private IReadOnlyList<OddsProviderState> _feeds = [];
     private PollPlan? _plan;

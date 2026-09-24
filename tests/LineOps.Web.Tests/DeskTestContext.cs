@@ -33,6 +33,8 @@ public abstract class DeskTestContext : TestContext
         // the honest answer for the second: these tests read its keys by name.
         Services.AddSingleton(new LineOps.Desk.DeskBrand("LINE", "OPS", "test desk"));
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
+        Services.AddSingleton<LineOps.Desk.Windowing.DeskSignals>();
+        Services.AddScoped<LineOps.Desk.Windowing.WindowManager>();
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }

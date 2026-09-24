@@ -138,6 +138,10 @@ else
 }
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Odds };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     /// <summary>Set when opened from the slate; otherwise the first upcoming game is shown.</summary>
     [Parameter] public int? GameId { get; set; }
 

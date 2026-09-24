@@ -49,6 +49,7 @@ public static class DeskServiceCollectionExtensions
     {
         services.AddSingleton(brand);
         services.AddScoped<WindowManager>();
+        services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();
         services.AddScoped<IDeskAlerts, DeskAlerts>();
         services.AddScoped<ThemeService>();

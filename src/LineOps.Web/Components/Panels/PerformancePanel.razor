@@ -64,6 +64,10 @@ else
 }
 
 @code {
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal };
+
+    protected override Task RefreshAsync() => LoadAsync();
+
     private PerformanceSummary _summary;
     private double[] _bankroll = [];
     private List<ChartSeries<double>> _bankrollSeries = [];
@@ -76,10 +80,15 @@ else
     private string _beatRate = "—";
     private double _avgClv;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
+        _beatRate = "—";
+        _avgClv = 0;
+
         await using var db = await DbFactory.CreateDbContextAsync();
-        var entries = await db.JournalEntries.ToListAsync();
+        var entries = await db.JournalEntries.AsNoTracking().ToListAsync();
 
         _summary = PerformanceAnalytics.Summarise(entries);
         _byMarket = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Market));
