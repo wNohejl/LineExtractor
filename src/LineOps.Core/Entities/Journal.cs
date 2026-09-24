@@ -50,6 +50,12 @@ public class JournalEntry
     public decimal? Payout { get; set; }
 
     /// <summary>
+    /// When the result was recorded. The bankroll moves when a bet settles, not when it is
+    /// placed, so this — not <see cref="PlacedAt"/> — orders the curve.
+    /// </summary>
+    public DateTimeOffset? SettledAt { get; set; }
+
+    /// <summary>
     /// The <c>ClosingLine</c> this entry was priced against — the line at first pitch for the
     /// same book, market and outcome.
     ///
@@ -84,8 +90,15 @@ public class JournalEntry
 
     public string? Note { get; set; }
 
-    /// <summary>Groups legs of the same parlay. Null for straight entries.</summary>
+    /// <summary>
+    /// The parlay this entry is a leg of. Null for a straight bet. A leg carries no money of its
+    /// own — its stake is zero and the parlay holds the stake and the payout — but it is graded,
+    /// and priced against the close, like any other selection.
+    /// </summary>
     public Guid? ParlayGroupId { get; set; }
+    public Parlay? Parlay { get; set; }
+
+    public bool IsParlayLeg => ParlayGroupId is not null;
 
     /// <summary>Profit relative to stake. Negative on a loss, zero on push, void and pending.</summary>
     public decimal NetReturn => Result switch
@@ -107,4 +120,61 @@ public class JournalEntry
     /// it as staked would dilute the return on the bets that were.
     /// </summary>
     public bool IsGraded => Result is EntryResult.Win or EntryResult.Loss or EntryResult.Push;
+}
+
+/// <summary>
+/// A parlay logged in the journal: one stake, one payout, several legs.
+///
+/// <para>
+/// Its own row rather than a convention over its legs. The legs used to share a group id and
+/// nothing else, which left nowhere to put the stake without copying it onto every leg — and
+/// then every reader that summed stakes would have had to know to fold them back together.
+/// </para>
+/// </summary>
+public class Parlay
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public string Book { get; set; } = string.Empty;
+    public decimal Stake { get; set; }
+
+    /// <summary>
+    /// The combined price the book quoted, when it did. Books price correlated and boosted
+    /// parlays their own way, so where it is known it is what a clean win pays; the product of
+    /// the legs' prices is the fallback, and the only way to reprice after a push.
+    /// </summary>
+    public int? PriceQuoted { get; set; }
+
+    public DateTimeOffset PlacedAt { get; set; }
+
+    public EntryResult Result { get; set; } = EntryResult.Pending;
+
+    /// <summary>Total returned including stake. Null while pending.</summary>
+    public decimal? Payout { get; set; }
+
+    public DateTimeOffset? SettledAt { get; set; }
+
+    public string? Note { get; set; }
+
+    public List<JournalEntry> Legs { get; set; } = [];
+
+    public decimal NetReturn => Result switch
+    {
+        EntryResult.Win => (Payout ?? 0m) - Stake,
+        EntryResult.Loss => -Stake,
+        _ => 0m
+    };
+
+    public bool IsGraded => Result is EntryResult.Win or EntryResult.Loss or EntryResult.Push;
+
+    public bool IsSettled => IsGraded || Result == EntryResult.Void;
+}
+
+/// <summary>A named setting the operator owns, such as the starting bankroll. Travels with the data.</summary>
+public class AppSetting
+{
+    public const string StartingBankroll = "journal.starting_bankroll";
+
+    public string Key { get; set; } = string.Empty;
+    public string Value { get; set; } = string.Empty;
 }

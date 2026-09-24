@@ -44,6 +44,7 @@ public static class IngestionServiceCollectionExtensions
         services.AddScoped<OddsIngestionService>();
         services.AddScoped<StatsIngestionService>();
         services.AddScoped<SettlementService>();
+        services.AddScoped<JournalService>();
         services.AddScoped<OddsRetentionService>();
         services.AddScoped<OddsFeedStatus>();
         services.AddScoped<LinePollPlanner>();

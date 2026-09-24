@@ -1,0 +1,104 @@
+@using LineOps.Ingestion.Services
+@implements IDisposable
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Finds the game a bet was on by team, across the season, rather than offering the last
+    seven days in one long list. Type "mets", or "mets braves" for the matchup; the nearest
+    games to today come first.
+*@
+<div class="row" style="flex-wrap:wrap">
+    <DeskField TValue="string" Immediate="true" style="max-width:200px"
+               placeholder="Find a game — team"
+               Value="_text" ValueChanged="OnTextChanged" />
+
+    <DeskSelect TValue="int?" style="max-width:320px" Value="_value" ValueChanged="OnPicked">
+        <option value="">@(_value is null ? "No game (future / other)" : "Clear the game")</option>
+        @if (_selected is { } selected && _results.All(g => g.Id != selected.Id))
+        {
+            <option value="@selected.Id">@Describe(selected)</option>
+        }
+        @foreach (var game in _results)
+        {
+            <option value="@game.Id">@Describe(game)</option>
+        }
+    </DeskSelect>
+
+    @if (_searched && _results.Count == 0)
+    {
+        <span class="dim" style="font-size:12px">No game in this season's reach matches "@_text".</span>
+    }
+</div>
+
+@code {
+    [Parameter] public int? Value { get; set; }
+    [Parameter] public EventCallback<int?> ValueChanged { get; set; }
+
+    /// <summary>The game already chosen, so an edit shows it before anything is searched.</summary>
+    [Parameter] public Game? Selected { get; set; }
+
+    private int? _value;
+    private Game? _selected;
+    private string? _text;
+    private List<Game> _results = [];
+    private bool _searched;
+    private CancellationTokenSource? _pending;
+
+    protected override void OnParametersSet()
+    {
+        _value = Value;
+        _selected = Selected is not null && Selected.Id == Value ? Selected : _selected?.Id == Value ? _selected : null;
+    }
+
+    private static string Describe(Game game)
+        => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"} — "
+           + $"{game.StartsAt.ToLocalTime():MMM d} · {game.Sport?.Key.ToUpperInvariant()}";
+
+    private async Task OnTextChanged(string? text)
+    {
+        _text = text;
+
+        // A query per keystroke was the Players window's mistake; this waits for a pause.
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+        var token = _pending.Token;
+
+        try
+        {
+            await Task.Delay(250, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _results = [];
+            _searched = false;
+            return;
+        }
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var found = await scope.ServiceProvider.GetRequiredService<JournalService>().SearchGamesAsync(text, ct: token);
+
+        if (token.IsCancellationRequested)
+            return;
+
+        _results = found.ToList();
+        _searched = true;
+
+        // One match is the answer; pick it rather than making the operator open the list.
+        if (_results.Count == 1 && _value != _results[0].Id)
+            await OnPicked(_results[0].Id);
+    }
+
+    private async Task OnPicked(int? id)
+    {
+        _value = id;
+        _selected = id is null ? null : _results.FirstOrDefault(g => g.Id == id) ?? _selected;
+        await ValueChanged.InvokeAsync(id);
+    }
+
+    public void Dispose() => _pending?.Cancel();
+}

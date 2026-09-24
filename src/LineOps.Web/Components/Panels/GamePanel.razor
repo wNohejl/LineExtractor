@@ -89,6 +89,44 @@ else
         </div>
     </div>
 
+    @* The journal wired into the desk: what you have riding on this game, where you are
+       looking at it, rather than in a list in another window. *@
+    @if (_bets.Count > 0)
+    {
+        <PanelHeader Tight>
+            Your bets on this game
+            <DeskLink Destination="journal" OnClick="() => Manager.OpenJournal()">Journal</DeskLink>
+        </PanelHeader>
+        <div class="stack" style="gap:4px; margin-bottom:14px">
+            @foreach (var bet in _bets)
+            {
+                var clv = PerformanceAnalytics.ComputeClv(bet);
+                <div class="row" style="gap:8px">
+                    <Tag State="@BetState(bet.Result)">@bet.Result</Tag>
+                    <span>
+                        @(bet.FreeTextMarket ?? bet.Outcome)
+                        @if (bet.LineTaken is { } l)
+                        {
+                            <span class="dim num"> @Line(l)</span>
+                        }
+                    </span>
+                    <span class="dim">@bet.Market · @bet.Book</span>
+                    @if (bet.PriceTaken != 0)
+                    {
+                        <span class="num">@Price(bet.PriceTaken)</span>
+                    }
+                    <span class="dim">@(bet.IsParlayLeg ? $"leg of a {bet.Parlay?.Stake:C0} parlay" : bet.Stake.ToString("C0"))</span>
+                    @if (clv is { } c)
+                    {
+                        <span class="@(c.BeatClose ? "up" : "down")">
+                            @(c.SameNumber ? c.CentsPercent.ToString("+0.0;-0.0") + "% CLV" : c.PointsGained!.Value.ToString("+0.#;-0.#") + " pts CLV")
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
     <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
               @bind-Value="_section">
         @if (context == Section.Markets)
@@ -119,6 +157,16 @@ else
     [Parameter, EditorRequired] public int GameId { get; set; }
 
     private BoardRow? _row;
+    private IReadOnlyList<JournalEntry> _bets = [];
+
+    private static DeskState BetState(EntryResult result) => result switch
+    {
+        EntryResult.Win => DeskState.Positive,
+        EntryResult.Loss => DeskState.Negative,
+        EntryResult.Push => DeskState.Info,
+        EntryResult.Void => DeskState.Neutral,
+        _ => DeskState.Warning
+    };
     private MatchupForm? _matchup;
     private TeamForm? _homeTeam;
     private TeamForm? _awayTeam;
@@ -229,6 +277,8 @@ else
 
             if (_row is null)
                 return;
+
+            _bets = await scope.ServiceProvider.GetRequiredService<LineOps.Ingestion.Services.JournalService>().OnGameAsync(GameId);
 
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();

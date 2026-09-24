@@ -269,4 +269,37 @@ public class PerformanceAnalyticsTests
         Assert.True(clv.SameNumber);
         Assert.False(clv.BeatClose);
     }
+
+    [Fact]
+    public void The_curve_runs_in_the_order_bets_settled_from_the_starting_bankroll()
+    {
+        var early = DateTimeOffset.Parse("2026-09-01T12:00:00Z");
+
+        // Placed first, settled last: a futures-style bet must not move Tuesday's bankroll.
+        var slow = Entry(EntryResult.Win, stake: 100m, price: 100, placedAt: early);
+        slow.SettledAt = early.AddDays(10);
+        var quick = Entry(EntryResult.Loss, stake: 50m, placedAt: early.AddDays(1));
+        quick.SettledAt = early.AddDays(1);
+
+        var curve = PerformanceAnalytics.BankrollCurve([slow, quick], startingBankroll: 1000m);
+
+        Assert.Equal([950m, 1050m], curve.Select(p => p.Cumulative));
+        Assert.Equal(quick.SettledAt, curve[0].At);
+    }
+
+    [Theory]
+    [InlineData(null, null, null, "No close")]
+    [InlineData(-110, "draftkings", -2.5, "Same number")]
+    [InlineData(-110, "DraftKings", -3.5, "Line moved")]
+    [InlineData(-110, "fanduel", -2.5, "Another book's close")]
+    public void Each_reading_says_what_it_was_measured_against(int? closePrice, string? closeBook, double? closePoints, string expected)
+    {
+        var entry = new JournalEntry
+        {
+            Market = Markets.Spread, Outcome = "home", Book = "draftkings", PriceTaken = -110, LineTaken = -2.5m,
+            ClosingPrice = closePrice, ClosingBook = closeBook, ClosingPoints = (decimal?)closePoints
+        };
+
+        Assert.Equal(expected, PerformanceAnalytics.ClvBasis(entry));
+    }
 }

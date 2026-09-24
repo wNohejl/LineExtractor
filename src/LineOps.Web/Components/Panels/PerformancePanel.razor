@@ -1,13 +1,11 @@
-@using LineOps.Data
+@using LineOps.Ingestion.Services
 @using LineOps.Desk.Windowing
-@using Microsoft.EntityFrameworkCore
 @inherits PanelBase
-@inject IDbContextFactory<LineOpsDbContext> DbFactory
+@inject IServiceScopeFactory ScopeFactory
 
-@if (_summary.SettledCount == 0)
+@if (!_anySettled)
 {
-    @* This panel had no control of any kind: a screen that names the window you need and then
-       makes you go and find it. The one step out of an empty screen belongs on the screen. *@
+    @* The one step out of an empty screen belongs on the screen. *@
     <EmptyState Kind="EmptyStateKind.New">
         <ChildContent>
             No settled entries yet. Log entries in the Journal and settle them once games
@@ -24,43 +22,125 @@
 }
 else
 {
-    <MetricRow Style="margin-bottom:16px">
-        <Metric Label="ROI"
-                Value='@_summary.Roi.ToString("P1")'
-                Note='@($"{_summary.SettledCount} settled")'
-                State="@(_summary.Roi > 0 ? DeskState.Positive : _summary.Roi < 0 ? DeskState.Negative : DeskState.Neutral)" />
-        <Metric Label="Net"
-                Value='@_summary.NetProfit.ToString("C0")'
-                Note='@($"on {_summary.TotalStaked.ToString("C0")} staked")'
-                State="@(_summary.NetProfit > 0 ? DeskState.Positive : _summary.NetProfit < 0 ? DeskState.Negative : DeskState.Neutral)" />
-        <Metric Label="Win rate"
-                Value='@_summary.WinRate.ToString("P0")'
-                Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
-        <Metric Label="Beat the close"
-                Value="@_beatRate"
-                Note='@($"avg {_avgClv.ToString("+0.00;-0.00")}%")'
-                State="@(_avgClv > 0 ? DeskState.Positive : _avgClv < 0 ? DeskState.Negative : DeskState.Neutral)" />
-    </MetricRow>
+    <div class="row" style="margin:12px 0; flex-wrap:wrap">
+        <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
+                    Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+        <DeskSelect TValue="string" style="max-width:120px"
+                    Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
+            <option value="">All sports</option>
+            @foreach (var sport in _sports)
+            {
+                <option value="@sport">@sport.ToUpperInvariant()</option>
+            }
+        </DeskSelect>
+        @if (_seasons.Count > 1)
+        {
+            <DeskSelect TValue="int?" style="max-width:120px"
+                        Value="_season" ValueChanged="@((int? y) => FilterAsync(() => _season = y))">
+                <option value="">All seasons</option>
+                @foreach (var year in _seasons)
+                {
+                    <option value="@year">@year</option>
+                }
+            </DeskSelect>
+        }
+        <DeskSelect TValue="string" style="max-width:140px"
+                    Value="_book" ValueChanged="@((string? b) => FilterAsync(() => _book = b))">
+            <option value="">All books</option>
+            @foreach (var book in _books)
+            {
+                <option value="@book">@book</option>
+            }
+        </DeskSelect>
+        <DeskSelect TValue="string" style="max-width:140px"
+                    Value="_market" ValueChanged="@((string? m) => FilterAsync(() => _market = m))">
+            <option value="">All markets</option>
+            @foreach (var market in _markets)
+            {
+                <option value="@market">@market</option>
+            }
+        </DeskSelect>
+    </div>
 
-    <PanelHeader>Bankroll</PanelHeader>
-    @if (_bankroll.Length > 1)
+    @if (_summary.SettledCount == 0)
     {
-        <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
-                   Family="DeskChartFamily.Ledger"
-                   ShowLegend="false"
-                   Takeaway="Cumulative units across every settled entry, oldest first."
-                   Description="Line chart of cumulative units won or lost over settled entries." />
+        <EmptyState Kind="EmptyStateKind.Filtered">No settled bets match these filters.</EmptyState>
     }
     else
     {
-        <EmptyState Kind="EmptyStateKind.New">Two settled entries are needed to plot a curve.</EmptyState>
+        <MetricRow Style="margin-bottom:16px">
+            <Metric Label="ROI"
+                    Value='@_summary.Roi.ToString("P1")'
+                    Note='@($"{_summary.SettledCount} bets")'
+                    State="@Sign(_summary.Roi)" />
+            <Metric Label="Net"
+                    Value='@_summary.NetProfit.ToString("C0")'
+                    Note='@($"on {_summary.TotalStaked.ToString("C0")} staked")'
+                    State="@Sign(_summary.NetProfit)" />
+            <Metric Label="Win rate"
+                    Value='@_summary.WinRate.ToString("P0")'
+                    Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
+            <Metric Label="Beat the close"
+                    Value="@_beatRate"
+                    Note="@_clvNote"
+                    State="@(_avgClv > 0 ? DeskState.Positive : _avgClv < 0 ? DeskState.Negative : DeskState.Neutral)" />
+            @if (_startingBankroll > 0)
+            {
+                <Metric Label="Bankroll"
+                        Value='@((_startingBankroll + _summary.NetProfit).ToString("C0"))'
+                        Note='@($"from {_startingBankroll.ToString("C0")}")'
+                        State="@Sign(_summary.NetProfit)" />
+            }
+        </MetricRow>
+
+        <PanelHeader>Bankroll</PanelHeader>
+        <div class="row" style="margin-bottom:8px">
+            @* The curve used to be cumulative profit from zero and called a bankroll. With a
+               starting figure it is one; it is stored with the data, not the browser. *@
+            <span class="dim" style="font-size:12px">Starting bankroll</span>
+            <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50" style="max-width:110px"
+                       Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
+            <DeskButton style="height:24px" Disabled="@(_bankrollInput == _startingBankroll)" OnClick="SaveBankrollAsync">
+                Set
+            </DeskButton>
+        </div>
+
+        @if (_bankroll.Length > 1)
+        {
+            <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
+                       Family="DeskChartFamily.Ledger"
+                       ShowLegend="false"
+                       Takeaway="@(_startingBankroll > 0 ? "The bankroll after each bet, in the order they settled." : "Cumulative profit after each bet, in the order they settled.")"
+                       Description="Line chart of the bankroll over settled bets." />
+        }
+        else
+        {
+            <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
+        }
+
+        <PanelHeader>By market</PanelHeader>
+        @Breakdown(_byMarket)
+
+        <PanelHeader>By sport</PanelHeader>
+        @Breakdown(_bySport)
+
+        <PanelHeader>By book</PanelHeader>
+        @Breakdown(_byBook)
+
+        <PanelHeader>What CLV was measured against</PanelHeader>
+        <DeskGrid T="BasisRow" Items="_byBasis" EmptyText="No selections with a close.">
+            <PropertyColumn T="BasisRow" TProperty="string" Property="r => r.Basis" Title="Compared with" />
+            <PropertyColumn T="BasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right">
+                <CellTemplate><span class="dim">@context.Item.Count</span></CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn T="BasisRow" Title="Beat the close" Align="Align.Right" Sortable="false">
+                <CellTemplate>@(context.Item.BeatRate is { } r ? r.ToString("P0") : "—")</CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn T="BasisRow" Title="Average" Align="Align.Right" Sortable="false">
+                <CellTemplate><span class="dim">@context.Item.Average</span></CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
     }
-
-    <PanelHeader>By market</PanelHeader>
-    @Breakdown(_byMarket)
-
-    <PanelHeader>By book</PanelHeader>
-    @Breakdown(_byBook)
 }
 
 @code {
@@ -68,58 +148,96 @@ else
 
     protected override Task RefreshAsync() => LoadAsync();
 
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> Periods =
+    [
+        new(30, "30d", "Settled in the last 30 days"),
+        new(90, "90d", "Settled in the last 90 days"),
+        new(365, "1y", "Settled in the last year"),
+        new(0, "All", "Every settled bet")
+    ];
+
+    private bool _anySettled;
     private PerformanceSummary _summary;
+    private decimal _startingBankroll;
+    private decimal? _bankrollInput;
     private double[] _bankroll = [];
     private List<ChartSeries<double>> _bankrollSeries = [];
     private string[] _labels = [];
+
     // Held flat rather than as the dictionaries the analytics return: a grid binds to rows, and
     // rebuilding that list inside the render would hand MudDataGrid a new collection every time,
     // throwing away the sort the operator had just clicked.
     private List<BreakdownRow> _byMarket = [];
     private List<BreakdownRow> _byBook = [];
+    private List<BreakdownRow> _bySport = [];
+    private List<BasisRow> _byBasis = [];
+
     private string _beatRate = "—";
+    private string _clvNote = "no closes yet";
     private double _avgClv;
+
+    private int _days;
+    private string? _sport;
+    private int? _season;
+    private string? _book;
+    private string? _market;
+    private List<string> _sports = [];
+    private List<int> _seasons = [];
+    private List<string> _books = [];
+    private List<string> _markets = [];
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
+    private async Task FilterAsync(Action change)
+    {
+        change();
+        await LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
-        _beatRate = "—";
-        _avgClv = 0;
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var entries = await db.JournalEntries.AsNoTracking().ToListAsync();
+        // The pickers come from everything settled, so a filter never hides its own way back.
+        var everything = await journal.PerformanceAsync(new PerformanceFilter());
+        var settled = everything.Ledger.Where(e => e.IsGraded).ToList();
 
-        _summary = PerformanceAnalytics.Summarise(entries);
-        _byMarket = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Market));
-        _byBook = Rows(PerformanceAnalytics.SummariseBy(entries, e => e.Book));
+        _anySettled = settled.Count > 0;
+        _sports = settled.Select(e => e.Game?.Sport?.Key).OfType<string>().Distinct().Order().ToList();
+        _seasons = settled.Select(e => e.Game?.SeasonYear).OfType<int>().Where(y => y > 0).Distinct().OrderDescending().ToList();
+        _books = settled.Select(e => e.Book).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
+        _markets = settled.Select(e => e.Market).Distinct().Order().ToList();
 
-        var curve = PerformanceAnalytics.BankrollCurve(entries);
+        var set = await journal.PerformanceAsync(new PerformanceFilter(
+            _sport, _season, _book, _market, _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days)));
+
+        // A refresh must not take a figure out from under someone typing one: the box follows
+        // the stored value only while it still shows the stored value.
+        var stored = await journal.StartingBankrollAsync();
+        if (_bankrollInput is null || _bankrollInput == _startingBankroll)
+            _bankrollInput = stored;
+        _startingBankroll = stored;
+
+        _summary = PerformanceAnalytics.Summarise(set.Ledger);
+        _byMarket = Rows(PerformanceAnalytics.SummariseBy(set.Ledger, e => e.Market));
+        _byBook = Rows(PerformanceAnalytics.SummariseBy(set.Ledger, e => e.Book));
+        _bySport = Rows(PerformanceAnalytics.SummariseBy(set.Ledger, e => e.Game?.Sport?.Key.ToUpperInvariant() ?? "Mixed / none"));
+
+        var curve = PerformanceAnalytics.BankrollCurve(set.Ledger, _startingBankroll);
         _bankroll = curve.Select(p => (double)p.Cumulative).ToArray();
 
         // Built once here rather than in the markup: DeskChart rebuilds the plot when the
         // series reference changes, and an expression in the template hands it a new list
         // on every render of the panel.
-        _bankrollSeries = [new ChartSeries<double> { Name = "Cumulative", Data = _bankroll }];
+        _bankrollSeries = [new ChartSeries<double> { Name = "Bankroll", Data = _bankroll }];
 
         var stride = Math.Max(1, curve.Count / 6);
         _labels = curve
             .Select((p, i) => i % stride == 0 ? p.At.ToLocalTime().ToString("MMM d") : string.Empty)
             .ToArray();
 
-        var clvs = entries
-            .Where(e => e.IsGraded)
-            .Select(e => PerformanceAnalytics.ComputeClv(e))
-            .OfType<ClvResult>()
-            .ToList();
-
-        // Beat-the-close counts every reading; the average price edge only those at the same
-        // number, because a price at -2.5 against one at -1.5 is not a price difference.
-        if (clvs.Count > 0)
-            _beatRate = ((double)clvs.Count(c => c.BeatClose) / clvs.Count).ToString("P0");
-
-        if (clvs.Where(c => c.SameNumber).ToList() is { Count: > 0 } sameNumber)
-            _avgClv = sameNumber.Average(c => c.CentsPercent);
+        ReadClv(set.Selections);
 
         // CLV is the honest signal, so it — not profit — sets this window's state.
         Report(
@@ -129,19 +247,78 @@ else
             _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
     }
 
+    /// <summary>
+    /// Beat-the-close over every selection with a close — straight bets and parlay legs alike —
+    /// and the average price edge only where the close was at the same number, because a price at
+    /// -2.5 against one at -1.5 is not a price difference.
+    /// </summary>
+    private void ReadClv(IReadOnlyList<JournalEntry> selections)
+    {
+        _beatRate = "—";
+        _clvNote = "no closes yet";
+        _avgClv = 0;
+
+        var readings = selections
+            .Select(e => (Entry: e, Clv: PerformanceAnalytics.ComputeClv(e)))
+            .Where(x => x.Clv is not null)
+            .Select(x => (x.Entry, Clv: x.Clv!.Value))
+            .ToList();
+
+        if (readings.Count > 0)
+        {
+            _beatRate = ((double)readings.Count(r => r.Clv.BeatClose) / readings.Count).ToString("P0");
+
+            var same = readings.Where(r => r.Clv.SameNumber).ToList();
+            _avgClv = same.Count > 0 ? same.Average(r => r.Clv.CentsPercent) : 0;
+            _clvNote = same.Count > 0
+                ? $"avg {_avgClv:+0.00;-0.00}% at the same number"
+                : $"{readings.Count} read in points";
+        }
+
+        _byBasis = selections
+            .GroupBy(PerformanceAnalytics.ClvBasis)
+            .Select(g =>
+            {
+                var clvs = g.Select(e => PerformanceAnalytics.ComputeClv(e)).OfType<ClvResult>().ToList();
+                var beat = clvs.Count == 0 ? (double?)null : (double)clvs.Count(c => c.BeatClose) / clvs.Count;
+                var average = g.Key switch
+                {
+                    "No close" => "—",
+                    "Line moved" when clvs.Count > 0 => $"{clvs.Average(c => (double)(c.PointsGained ?? 0)):+0.0;-0.0} pts",
+                    _ when clvs.Count > 0 => $"{clvs.Average(c => c.CentsPercent):+0.00;-0.00}%",
+                    _ => "—"
+                };
+
+                return new BasisRow(g.Key, g.Count(), beat, average);
+            })
+            .OrderByDescending(r => r.Count)
+            .ToList();
+    }
+
+    private async Task SaveBankrollAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>()
+            .SetStartingBankrollAsync(Math.Max(0, _bankrollInput ?? 0));
+        await LoadAsync();
+    }
+
+    private static DeskState Sign(decimal value)
+        => value > 0 ? DeskState.Positive : value < 0 ? DeskState.Negative : DeskState.Neutral;
+
     private static List<BreakdownRow> Rows(IReadOnlyDictionary<string, PerformanceSummary> data)
         => data.Select(kv => new BreakdownRow(kv.Key, kv.Value)).ToList();
 
     private RenderFragment Breakdown(List<BreakdownRow> data) => @<text>
         @if (data.Count == 0)
         {
-            <EmptyState Kind="EmptyStateKind.Filtered">No settled entries.</EmptyState>
+            <EmptyState Kind="EmptyStateKind.Filtered">No settled bets.</EmptyState>
         }
         else
         {
             <DeskGrid T="BreakdownRow"
                       Items="data"
-                      EmptyText="No settled entries.">
+                      EmptyText="No settled bets.">
                 <PropertyColumn T="BreakdownRow" TProperty="string" Property="r => r.Key" Title="Key" />
 
                 <PropertyColumn T="BreakdownRow" TProperty="int" Property="r => r.Summary.SettledCount"
@@ -170,4 +347,6 @@ else
 
     /// <summary>One breakdown line. The dictionary is flattened because a grid sorts rows.</summary>
     private sealed record BreakdownRow(string Key, PerformanceSummary Summary);
+
+    private sealed record BasisRow(string Basis, int Count, double? BeatRate, string Average);
 }

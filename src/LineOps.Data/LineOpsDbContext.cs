@@ -18,6 +18,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<PlayerGameStat> PlayerGameStats => Set<PlayerGameStat>();
 
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<Parlay> Parlays => Set<Parlay>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     public DbSet<IngestionRun> IngestionRuns => Set<IngestionRun>();
     public DbSet<BackfillCheckpoint> BackfillCheckpoints => Set<BackfillCheckpoint>();
@@ -189,6 +191,31 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Ignore(x => x.NetReturn);
             e.Ignore(x => x.IsSettled);
             e.Ignore(x => x.IsGraded);
+            e.Ignore(x => x.IsParlayLeg);
+        });
+
+        b.Entity<Parlay>(e =>
+        {
+            e.Property(x => x.Book).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Stake).HasPrecision(12, 2);
+            e.Property(x => x.Payout).HasPrecision(12, 2);
+            e.Property(x => x.Result).HasConversion<string>().HasMaxLength(16);
+            e.HasIndex(x => x.PlacedAt);
+
+            // A parlay's legs are part of it: deleting the parlay deletes them.
+            e.HasMany(x => x.Legs).WithOne(x => x.Parlay).HasForeignKey(x => x.ParlayGroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.Ignore(x => x.NetReturn);
+            e.Ignore(x => x.IsSettled);
+            e.Ignore(x => x.IsGraded);
+        });
+
+        b.Entity<AppSetting>(e =>
+        {
+            e.HasKey(x => x.Key);
+            e.Property(x => x.Key).HasMaxLength(64);
+            e.Property(x => x.Value).HasMaxLength(1024).IsRequired();
         });
 
         b.Entity<IngestionRun>(e =>

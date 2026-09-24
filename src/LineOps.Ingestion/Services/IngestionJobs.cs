@@ -421,7 +421,7 @@ public class IngestionJobs(
         var summary = await settlement.SettleAsync(ct);
 
         return new JobOutcome(Settle, true, summary.Graded + summary.ClvResolved, 0,
-            $"{summary.Graded} graded, {summary.Voided} voided, {summary.ClvResolved} CLV resolved, {summary.LeftPending} pending.");
+            $"{summary.Graded} graded, {summary.Voided} voided, {summary.ParlaysSettled} parlays, {summary.ClvResolved} CLV resolved, {summary.LeftPending} pending.");
     }
 
     /// <summary>Games that have started but are not final here, i.e. results we are still owed.</summary>

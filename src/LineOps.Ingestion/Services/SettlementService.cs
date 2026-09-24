@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace LineOps.Ingestion.Services;
 
-public record SettlementSummary(int Graded, int ClvResolved, int LeftPending, int Voided = 0);
+public record SettlementSummary(int Graded, int ClvResolved, int LeftPending, int Voided = 0, int ParlaysSettled = 0);
 
 /// <summary>
 /// Settles journal entries once their game finishes, and resolves closing-line value.
@@ -104,7 +104,9 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
 
         clvResolved += await BackfillMissingClvAsync(ct);
 
-        if (graded > 0 || clvResolved > 0 || voided > 0)
+        var parlays = await SettleParlaysAsync(ct);
+
+        if (graded > 0 || clvResolved > 0 || voided > 0 || parlays > 0)
             await db.SaveChangesAsync(ct);
 
         if (graded > 0 || clvResolved > 0 || pending > 0 || voided > 0)
@@ -114,7 +116,34 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
                 graded, voided, clvResolved, pending);
         }
 
-        return new SettlementSummary(graded, clvResolved, pending, voided);
+        return new SettlementSummary(graded, clvResolved, pending, voided, parlays);
+    }
+
+    /// <summary>
+    /// Grades every pending parlay whose legs now decide it. Runs after the legs are graded in
+    /// the same pass, and reads them through the same context, so a parlay settles on the tick
+    /// its last leg does rather than one tick later.
+    /// </summary>
+    private async Task<int> SettleParlaysAsync(CancellationToken ct)
+    {
+        var pending = await db.Parlays
+            .Include(p => p.Legs)
+            .Where(p => p.Result == EntryResult.Pending)
+            .ToListAsync(ct);
+
+        var settled = 0;
+
+        foreach (var parlay in pending)
+        {
+            var outcome = ParlayGrading.Grade(parlay, parlay.Legs);
+            if (outcome.Result == EntryResult.Pending)
+                continue;
+
+            ParlayGrading.Apply(parlay, outcome);
+            settled++;
+        }
+
+        return settled;
     }
 
     /// <summary>

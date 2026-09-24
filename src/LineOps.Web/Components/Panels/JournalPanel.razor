@@ -5,6 +5,7 @@
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
+@inject IDeskAlerts Alerts
 
 <Note Style="margin:12px 0">
     LineOps does not place wagers and has no connection to any sportsbook. Entries here are
@@ -12,15 +13,18 @@
 </Note>
 
 <div class="row" style="margin-bottom:12px">
-    @* Opens the form; it does not close it. This was a toggle, which meant the desk had two
-       ways out of the same form — this key and the Cancel sitting inside it — reached by
-       pressing a key still labelled "Log entry". One way out, and the key says why it is
-       spent while the form it opened is on screen. *@
+    @* Opens a form; it does not close it. One way out of a form — its own Cancel — and the key
+       says why it is spent while the form it opened is on screen. *@
     <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
-                Disabled="@_showForm"
-                Title="@(_showForm ? "The entry form is open below." : null)"
-                OnClick="ShowForm">
+                Disabled="@(_mode != FormMode.None)"
+                Title="@(_mode != FormMode.None ? "A form is open below." : null)"
+                OnClick="ShowEntryForm">
         Log entry
+    </DeskButton>
+    <DeskButton Icon="@Icons.Material.Filled.AccountTree"
+                Disabled="@(_mode != FormMode.None)"
+                OnClick="ShowParlayForm">
+        Log parlay
     </DeskButton>
     <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
         Settle finished games
@@ -31,64 +35,123 @@
     }
 </div>
 
-@if (_showForm)
+<div class="row" style="margin-bottom:12px; flex-wrap:wrap">
+    <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
+                Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
+    <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
+                Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+    <DeskSelect TValue="string" style="max-width:120px"
+                Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
+        <option value="">All sports</option>
+        @foreach (var sport in _sports)
+        {
+            <option value="@sport">@sport.ToUpperInvariant()</option>
+        }
+    </DeskSelect>
+    <DeskSelect TValue="string" style="max-width:140px"
+                Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
+        <option value="">All books</option>
+        @foreach (var book in _books)
+        {
+            <option value="@book">@book</option>
+        }
+    </DeskSelect>
+</div>
+
+@if (_mode == FormMode.Entry)
 {
     <div class="stack" style="padding:12px; background:var(--surface-2); border:1px solid var(--separator); border-radius:4px; margin-bottom:14px">
-        <PanelHeader Tight>New entry</PanelHeader>
+        <PanelHeader Tight>@(_editing is null ? "New entry" : "Edit entry")</PanelHeader>
 
-        <div class="row">
-            <DeskSelect TValue="int?" style="max-width:260px" @bind-Value="_form.GameId">
-                <option value="">No game (future / other)</option>
-                @foreach (var g in _games)
-                {
-                    <option value="@g.Id">@MatchupWithDate(g)</option>
-                }
-            </DeskSelect>
-
-            <DeskSelect TValue="string" @bind-Value="_form.Market">
-                <option value="@Markets.Moneyline">Moneyline</option>
-                <option value="@Markets.Spread">Spread</option>
-                <option value="@Markets.Total">Total</option>
-                <option value="@FreeText">Other (describe)</option>
-            </DeskSelect>
-        </div>
-
-        @if (_form.Market == FreeText)
+        @if (_editing is { IsGraded: true })
         {
-            <DeskField TValue="string"
-                       placeholder="e.g. Player X over 1.5 receiving TDs" @bind-Value="_form.FreeTextMarket" />
+            <Note>
+                This entry is graded. Changing the game, market, selection, line, price, stake or book
+                sends it back to pending, and settlement grades it again from the game.
+            </Note>
         }
 
+        @LegFields(_entry, true)
+
         <div class="row">
-            <DeskField TValue="string" style="max-width:190px"
-                       placeholder="Selection" @bind-Value="_form.Outcome" />
-            <DeskField TValue="decimal?" Mono="true" style="max-width:90px" type="number" step="0.5"
-                       placeholder="Line" @bind-Value="_form.LineTaken" />
-            <DeskField TValue="int" Mono="true" style="max-width:90px" type="number"
-                       placeholder="Price" @bind-Value="_form.PriceTaken" />
-            <DeskField TValue="decimal" Mono="true" style="max-width:90px" type="number"
-                       placeholder="Stake" @bind-Value="_form.Stake" />
-            <DeskField TValue="string" style="max-width:130px"
-                       placeholder="Book" @bind-Value="_form.Book" />
+            <DeskField TValue="decimal" Mono="true" style="max-width:100px" type="number"
+                       placeholder="Stake" @bind-Value="_entry.Stake" />
+            @BookPicker(_entry.Book, b => _entry.Book = b)
+            <DeskField TValue="string" style="flex:1; min-width:160px"
+                       placeholder="Note (optional)" @bind-Value="_entry.Note" />
         </div>
 
         <div class="row">
             @* A disabled key that does not say what it is waiting for is a key the operator
-               has to guess at. Three fields decide it, so the title names all three. *@
-            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveAsync" Disabled="@(!Valid)"
-                        Title="@(Valid ? null : "Needs a selection, a stake above zero and a price.")">
-                Save entry
+               has to guess at. *@
+            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
+                        Title="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
+                @(_editing is null ? "Save entry" : "Save changes")
             </DeskButton>
-            <DeskButton OnClick="() => _showForm = false">Cancel</DeskButton>
+            <DeskButton OnClick="CloseForm">Cancel</DeskButton>
         </div>
     </div>
 }
 
-@if (_entries.Count == 0)
+@if (_mode == FormMode.Parlay)
 {
-    <EmptyState Kind="EmptyStateKind.New">No entries logged yet.</EmptyState>
+    <div class="stack" style="padding:12px; background:var(--surface-2); border:1px solid var(--separator); border-radius:4px; margin-bottom:14px">
+        <PanelHeader Tight>New parlay</PanelHeader>
+
+        @for (var i = 0; i < _legs.Count; i++)
+        {
+            var index = i;
+            var leg = _legs[index];
+
+            <div class="stack" style="padding:8px 0; border-bottom:1px solid var(--separator)">
+                <div class="row">
+                    <span class="dim" style="font-size:12px">Leg @(index + 1)</span>
+                    @if (_legs.Count > 2)
+                    {
+                        <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Close"
+                                    OnClick="() => _legs.RemoveAt(index)">
+                            Remove
+                        </DeskButton>
+                    }
+                </div>
+                @LegFields(leg, false)
+            </div>
+        }
+
+        <div class="row">
+            <DeskButton Icon="@Icons.Material.Filled.Add" OnClick="() => _legs.Add(new Draft())">Add a leg</DeskButton>
+        </div>
+
+        <div class="row">
+            <DeskField TValue="decimal" Mono="true" style="max-width:100px" type="number"
+                       placeholder="Stake" @bind-Value="_parlay.Stake" />
+            @* The book's own price for the parlay, when it gave one: it is what a clean win pays.
+               Without it the legs' prices are multiplied, which is also how a push is repriced. *@
+            <DeskField TValue="int?" Mono="true" style="max-width:110px" type="number"
+                       placeholder="Parlay price" @bind-Value="_parlay.PriceQuoted" />
+            @BookPicker(_parlay.Book, b => _parlay.Book = b)
+            <DeskField TValue="string" style="flex:1; min-width:160px"
+                       placeholder="Note (optional)" @bind-Value="_parlay.Note" />
+        </div>
+
+        <div class="row">
+            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayAsync" Disabled="@(!ParlayValid)"
+                        Title="@(ParlayValid ? null : "Needs two legs with a selection each, a stake above zero, a book, and either a parlay price or every leg's price.")">
+                Save parlay
+            </DeskButton>
+            <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+        </div>
+    </div>
 }
-else
+
+@if (_entries.Count == 0 && _parlays.Count == 0)
+{
+    <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
+        @(Filtered ? "No entries match these filters." : "No entries logged yet.")
+    </EmptyState>
+}
+
+@if (_entries.Count > 0)
 {
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
         <PropertyColumn T="JournalEntry" TProperty="DateTimeOffset" Property="e => e.PlacedAt" Title="Placed"
@@ -98,28 +161,10 @@ else
 
         <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection">
             <CellTemplate>
-                @if (!string.IsNullOrWhiteSpace(context.Item.FreeTextMarket))
+                @Selection(context.Item)
+                @if (context.Item.Note is { } note)
                 {
-                    @context.Item.FreeTextMarket
-                }
-                else if (context.Item.GameId is { } gameId)
-                {
-                    @* An entry against a tracked game reaches its market. *@
-                    <DeskLink Destination="game" OnClick="() => OpenGameAsync(gameId)">
-                        @context.Item.Outcome
-                        @if (context.Item.LineTaken is { } l)
-                        {
-                            <span class="dim num"> @Line(l)</span>
-                        }
-                    </DeskLink>
-                }
-                else
-                {
-                    @context.Item.Outcome
-                    @if (context.Item.LineTaken is { } l)
-                    {
-                        <span class="dim num"> @Line(l)</span>
-                    }
+                    <div class="dim" style="font-size:11px">@note</div>
                 }
             </CellTemplate>
         </PropertyColumn>
@@ -152,52 +197,130 @@ else
             </CellTemplate>
         </PropertyColumn>
 
-        @* Sorts on the actual cents value, so "worst CLV" is a click — an unresolved entry
-           sorts below every real reading rather than as zero.
-
-           A TemplateColumn rather than a PropertyColumn because the sort key is computed:
-           PropertyColumn takes an expression tree, which cannot contain the null-propagating
-           operator this needs, while SortBy takes an ordinary delegate. *@
+        @* Sorts on the reading itself, so "worst CLV" is a click; an unresolved entry sorts below
+           every real one rather than as zero. A TemplateColumn because the key is computed. *@
         <TemplateColumn T="JournalEntry" Title="CLV" Align="Align.Right"
                         SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
-            <CellTemplate>
-                @if (Clv(context.Item) is { } clv)
-                {
-                    @* When the line moved, the points are the reading; the two prices are for
-                       different numbers and their difference means nothing on its own. *@
-                    <span class="@(clv.BeatClose ? "up" : "down")" title="@ClvTitle(context.Item)">
-                        @(clv.SameNumber
-                            ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
-                            : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
-                    </span>
-                }
-                else
-                {
-                    <span class="dim">—</span>
-                }
-            </CellTemplate>
+            <CellTemplate>@ClvCell(context.Item)</CellTemplate>
         </TemplateColumn>
 
         <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right">
             <CellTemplate>
-                @* Graded rows are done; a void stays open to a correction, because an automatic
-                   void is the common rule and a given book may have ruled otherwise. *@
-                @if (!context.Item.IsGraded)
-                {
-                    @* An action rather than a value: nothing is bound, so the control keeps
-                       showing "Settle…" and the pick is the whole event. *@
-                    <DeskSelect TValue="string" style="height:24px"
-                                ValueChanged="v => SetResultAsync(context.Item.Id, v)">
-                        <option value="">Settle…</option>
-                        <option value="@EntryResult.Win">Win</option>
-                        <option value="@EntryResult.Loss">Loss</option>
-                        <option value="@EntryResult.Push">Push</option>
-                        <option value="@EntryResult.Void">Void</option>
-                    </DeskSelect>
-                }
+                <div class="row" style="justify-content:flex-end; gap:4px">
+                    @* Graded rows are done; a void stays open to a correction, because an automatic
+                       void is the common rule and a given book may have ruled otherwise. *@
+                    @if (!context.Item.IsGraded)
+                    {
+                        <DeskSelect TValue="string" style="height:24px"
+                                    ValueChanged="v => SetResultAsync(context.Item.Id, v)">
+                            <option value="">Settle…</option>
+                            <option value="@EntryResult.Win">Win</option>
+                            <option value="@EntryResult.Loss">Loss</option>
+                            <option value="@EntryResult.Push">Push</option>
+                            <option value="@EntryResult.Void">Void</option>
+                        </DeskSelect>
+                    }
+                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Edit"
+                                Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
+                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
+                                Title="Delete this entry" OnClick="() => DeleteEntryAsync(context.Item)" />
+                </div>
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
+}
+
+@if (_parlays.Count > 0)
+{
+    <PanelHeader>Parlays</PanelHeader>
+
+    <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
+        <PropertyColumn T="Parlay" TProperty="DateTimeOffset" Property="p => p.PlacedAt" Title="Placed"
+                        Align="Align.Right" InitialDirection="SortDirection.Descending">
+            <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
+        </PropertyColumn>
+
+        <TemplateColumn T="Parlay" Title="Legs" Sortable="false">
+            <CellTemplate>
+                @foreach (var leg in context.Item.Legs.OrderBy(l => l.Id))
+                {
+                    <div class="row" style="gap:6px">
+                        <Tag State="@ResultState(leg.Result)">@leg.Result</Tag>
+                        @Selection(leg)
+                        @if (leg.PriceTaken != 0)
+                        {
+                            <span class="dim num">@Price(leg.PriceTaken)</span>
+                        }
+                        @ClvCell(leg)
+                    </div>
+                }
+                @if (context.Item.Note is { } note)
+                {
+                    <div class="dim" style="font-size:11px">@note</div>
+                }
+                @if (context.Item.Result == EntryResult.Pending && Stuck(context.Item) is { } reason)
+                {
+                    <div class="dim" style="font-size:11px">@reason</div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book">
+            <CellTemplate><span class="dim">@context.Item.Book</span></CellTemplate>
+        </PropertyColumn>
+
+        <TemplateColumn T="Parlay" Title="Price" Align="Align.Right" Sortable="false">
+            <CellTemplate>@(context.Item.PriceQuoted is { } q ? Price(q) : "—")</CellTemplate>
+        </TemplateColumn>
+
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.Stake" Title="Stake" Align="Align.Right">
+            <CellTemplate>@context.Item.Stake.ToString("C0")</CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Parlay" TProperty="EntryResult" Property="p => p.Result" Title="Result">
+            <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.NetReturn" Title="Net" Align="Align.Right">
+            <CellTemplate>
+                <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
+                    @(context.Item.IsSettled ? context.Item.NetReturn.ToString("C0") : "—")
+                </span>
+            </CellTemplate>
+        </PropertyColumn>
+
+        <TemplateColumn T="Parlay" Title="" Sortable="false" Align="Align.Right">
+            <CellTemplate>
+                <div class="row" style="justify-content:flex-end; gap:4px">
+                    @* Legs grade themselves and the parlay follows. This is for the parlay a
+                       missing price left pending, or a book that ruled otherwise. A win is only
+                       offered where there is a price to pay it at. *@
+                    @if (!context.Item.IsGraded)
+                    {
+                        <DeskSelect TValue="string" style="height:24px"
+                                    ValueChanged="v => SetParlayResultAsync(context.Item, v)">
+                            <option value="">Settle…</option>
+                            @if (context.Item.PriceQuoted is not null)
+                            {
+                                <option value="@EntryResult.Win">Win</option>
+                            }
+                            <option value="@EntryResult.Loss">Loss</option>
+                            <option value="@EntryResult.Void">Void</option>
+                        </DeskSelect>
+                    }
+                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
+                                Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
+    </DeskGrid>
+}
+
+@if (_entries.Count >= _take || _parlays.Count >= _take)
+{
+    <div class="row" style="margin-top:10px">
+        <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
+    </div>
 }
 
 @code {
@@ -206,71 +329,385 @@ else
     protected override Task RefreshAsync() => LoadAsync();
 
     private const string FreeText = "__free__";
+    private const int Step = 100;
 
-    private class Form
+    private enum FormMode { None, Entry, Parlay }
+
+    /// <summary>One selection as the form holds it — a straight bet, or a parlay leg.</summary>
+    private sealed class Draft
     {
         public int? GameId { get; set; }
+        public Game? Game { get; set; }
         public string Market { get; set; } = Markets.Spread;
         public string? FreeTextMarket { get; set; }
         public string Outcome { get; set; } = string.Empty;
         public decimal? LineTaken { get; set; }
         public int PriceTaken { get; set; } = -110;
         public decimal Stake { get; set; } = 100m;
-        public string Book { get; set; } = "draftkings";
+        public string Book { get; set; } = string.Empty;
+        public string? Note { get; set; }
+
+        public EntryDraft ToDraft() => new(
+            GameId, Market == FreeText ? "other" : Market,
+            Market == FreeText ? FreeTextMarket : null,
+            Outcome, LineTaken, PriceTaken, Stake, Book, Note);
     }
 
+    private sealed class ParlayForm
+    {
+        public decimal Stake { get; set; } = 10m;
+        public int? PriceQuoted { get; set; }
+        public string Book { get; set; } = string.Empty;
+        public string? Note { get; set; }
+    }
+
+    private static readonly IReadOnlyList<DeskSwitchOption<JournalStatus>> Statuses =
+    [
+        new(JournalStatus.All, "All"),
+        new(JournalStatus.Pending, "Pending"),
+        new(JournalStatus.Settled, "Settled")
+    ];
+
+    // 0 is "all time": the switch needs a value for it, and no journal is older than that.
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> Periods =
+    [
+        new(7, "7d", "Placed in the last 7 days"),
+        new(30, "30d", "Placed in the last 30 days"),
+        new(90, "90d", "Placed in the last 90 days"),
+        new(0, "All", "Every entry")
+    ];
+
     private List<JournalEntry> _entries = [];
-    private List<Game> _games = [];
-    private Form _form = new();
-    private bool _showForm;
+    private List<Parlay> _parlays = [];
+    private List<string> _books = [];
+    private List<string> _sports = [];
+
+    private JournalStatus _status = JournalStatus.All;
+    private int _days;
+    private string? _sport;
+    private string? _bookFilter;
+    private int _take = Step;
+
+    private FormMode _mode;
+    private Draft _entry = new();
+    private JournalEntry? _editing;
+    private List<Draft> _legs = [];
+    private ParlayForm _parlay = new();
+
     private bool _busy;
     private string? _message;
 
-    private bool Valid
-        => _form.Stake > 0 && _form.PriceTaken != 0
-           && (!string.IsNullOrWhiteSpace(_form.Outcome) || !string.IsNullOrWhiteSpace(_form.FreeTextMarket));
+    private bool Filtered => _status != JournalStatus.All || _days != 0 || _sport is { Length: > 0 } || _bookFilter is { Length: > 0 };
+
+    private static bool EntryValid(Draft d, bool needsPrice)
+        => d.Stake > 0
+           && (!needsPrice || d.PriceTaken != 0)
+           && !string.IsNullOrWhiteSpace(d.Book)
+           && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
+
+    private bool ParlayValid
+        => _legs.Count >= 2
+           && _parlay.Stake > 0
+           && !string.IsNullOrWhiteSpace(_parlay.Book)
+           && _legs.All(l => l.Market == FreeText ? !string.IsNullOrWhiteSpace(l.FreeTextMarket) : !string.IsNullOrWhiteSpace(l.Outcome))
+           // Something has to price a win: the book's figure, or every leg's.
+           && (_parlay.PriceQuoted is not (null or 0) || _legs.All(l => l.PriceTaken != 0));
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    /// <summary>
-    /// Opens the entry form.
-    ///
-    /// The last result line goes with it: "Entry logged." was written once and never cleared,
-    /// so it sat in the toolbar describing an entry from some earlier minute while a new one
-    /// was being typed underneath it.
-    /// </summary>
-    private void ShowForm()
-    {
-        _message = null;
-        _showForm = true;
-    }
-
     private async Task LoadAsync()
     {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
+
+        var filter = new JournalFilter(
+            _status,
+            _sport,
+            _bookFilter,
+            _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days),
+            _take);
+
+        _entries = (await journal.EntriesAsync(filter)).ToList();
+        _parlays = (await journal.ParlaysAsync(filter)).ToList();
+        _books = (await journal.KnownBooksAsync()).ToList();
+
         await using var db = await DbFactory.CreateDbContextAsync();
+        _sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync();
 
-        _entries = await db.JournalEntries
-            .Include(e => e.Game).ThenInclude(g => g!.HomeTeam)
-            .Include(e => e.Game).ThenInclude(g => g!.AwayTeam)
-            .OrderByDescending(e => e.PlacedAt)
-            .Take(200)
-            .ToListAsync();
-
-        _games = await db.Games
-            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
-            .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddDays(-7))
-            .OrderBy(g => g.StartsAt).Take(80)
-            .ToListAsync();
-
-        var pending = _entries.Count(e => !e.IsSettled);
+        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
+                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
 
         Report(pending > 0 ? PulseState.Warn : PulseState.Healthy,
-            _entries.Count == 0 ? null : $"{pending} pending");
+            _entries.Count + _parlays.Count == 0 && !Filtered ? null : $"{pending} pending");
     }
+
+    private async Task FilterAsync(Action change)
+    {
+        change();
+        _take = Step;
+        await LoadAsync();
+    }
+
+    private async Task ShowMoreAsync()
+    {
+        _take += Step;
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Opens the entry form. The last result line goes with it: a stale "Entry logged." sitting
+    /// over a new one being typed describes some earlier minute.
+    /// </summary>
+    private void ShowEntryForm()
+    {
+        _message = null;
+        _editing = null;
+        _entry = new Draft { Book = _bookFilter ?? LastBook() };
+        _mode = FormMode.Entry;
+    }
+
+    private void ShowParlayForm()
+    {
+        _message = null;
+        _legs = [new Draft(), new Draft()];
+        _parlay = new ParlayForm { Book = _bookFilter ?? LastBook() };
+        _mode = FormMode.Parlay;
+    }
+
+    /// <summary>The book of the latest entry: most bets are logged at the book the last one was.</summary>
+    private string LastBook()
+        => _entries.FirstOrDefault()?.Book ?? _parlays.FirstOrDefault()?.Book ?? "draftkings";
+
+    private void EditEntry(JournalEntry entry)
+    {
+        _message = null;
+        _editing = entry;
+        _entry = new Draft
+        {
+            GameId = entry.GameId,
+            Game = entry.Game,
+            Market = entry.FreeTextMarket is null ? entry.Market : FreeText,
+            FreeTextMarket = entry.FreeTextMarket,
+            Outcome = entry.Outcome == "—" ? string.Empty : entry.Outcome,
+            LineTaken = entry.LineTaken,
+            PriceTaken = entry.PriceTaken,
+            Stake = entry.Stake,
+            Book = entry.Book,
+            Note = entry.Note
+        };
+        _mode = FormMode.Entry;
+    }
+
+    private void CloseForm()
+    {
+        _mode = FormMode.None;
+        _editing = null;
+    }
+
+    private async Task SaveEntryAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>()
+            .SaveEntryAsync(_entry.ToDraft(), _editing?.Id);
+
+        _message = _editing is null ? "Entry logged." : "Entry saved.";
+        CloseForm();
+        await LoadAsync();
+    }
+
+    private async Task SaveParlayAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveParlayAsync(new ParlayDraft(
+            _parlay.Book, _parlay.Stake, _parlay.PriceQuoted, _parlay.Note,
+            _legs.Select(l => l.ToDraft()).ToList()));
+
+        _message = $"{_legs.Count}-leg parlay logged.";
+        CloseForm();
+        await LoadAsync();
+    }
+
+    private async Task DeleteEntryAsync(JournalEntry entry)
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Delete this entry?",
+            $"{Describe(entry)} — {entry.Stake:C0} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
+            confirmLabel: "Delete", destructive: true);
+
+        if (!confirmed)
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteEntryAsync(entry.Id);
+
+        _message = "Entry deleted.";
+        await LoadAsync();
+    }
+
+    private async Task DeleteParlayAsync(Parlay parlay)
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Delete this parlay?",
+            $"{parlay.Legs.Count} legs, {parlay.Stake:C0}. The parlay and all its legs leave the journal.",
+            confirmLabel: "Delete", destructive: true);
+
+        if (!confirmed)
+            return;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteParlayAsync(parlay.Id);
+
+        _message = "Parlay deleted.";
+        await LoadAsync();
+    }
+
+    private async Task SetResultAsync(int entryId, string? value)
+    {
+        if (!Enum.TryParse<EntryResult>(value, out var result))
+            return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
+
+        PerformanceAnalytics.ApplyResult(entry, result);
+        await db.SaveChangesAsync();
+        await LoadAsync();
+    }
+
+    private async Task SetParlayResultAsync(Parlay parlay, string? value)
+    {
+        if (!Enum.TryParse<EntryResult>(value, out var result))
+            return;
+
+        var payout = result == EntryResult.Win && parlay.PriceQuoted is { } q
+            ? OddsMath.PayoutOnWin(q, parlay.Stake)
+            : (decimal?)null;
+
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().SetParlayResultAsync(parlay.Id, result, payout);
+        await LoadAsync();
+    }
+
+    private async Task SettleAsync()
+    {
+        _busy = true;
+        Report(PulseState.Active, "settling");
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var summary = await scope.ServiceProvider
+                .GetRequiredService<SettlementService>().SettleAsync();
+
+            _message = $"{summary.Graded} graded · {summary.Voided} voided · {summary.ParlaysSettled} parlays · "
+                       + $"{summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Why a pending parlay whose legs are all in has not settled, if that is the case.</summary>
+    private static string? Stuck(Parlay parlay)
+        => parlay.Legs.All(l => l.Result != EntryResult.Pending)
+            ? ParlayGrading.Grade(parlay, parlay.Legs).Reason
+            : null;
+
+    private RenderFragment LegFields(Draft d, bool straight) => @<text>
+        <GamePicker Value="d.GameId" Selected="d.Game" ValueChanged="@((int? id) => d.GameId = id)" />
+
+        <div class="row">
+            <DeskSelect TValue="string" @bind-Value="d.Market">
+                <option value="@Markets.Moneyline">Moneyline</option>
+                <option value="@Markets.Spread">Spread</option>
+                <option value="@Markets.Total">Total</option>
+                <option value="@FreeText">Other (describe)</option>
+            </DeskSelect>
+
+            @if (d.Market == FreeText)
+            {
+                <DeskField TValue="string" style="flex:1; min-width:200px"
+                           placeholder="e.g. Player X over 1.5 receiving TDs" @bind-Value="d.FreeTextMarket" />
+            }
+            else
+            {
+                <DeskField TValue="string" style="max-width:190px"
+                           placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")" @bind-Value="d.Outcome" />
+            }
+
+            @if (d.Market is Markets.Spread or Markets.Total)
+            {
+                <DeskField TValue="decimal?" Mono="true" style="max-width:90px" type="number" step="0.5"
+                           placeholder="Line" @bind-Value="d.LineTaken" />
+            }
+
+            @* A leg's price is optional: some books show only the parlay's. *@
+            <DeskField TValue="int" Mono="true" style="max-width:90px" type="number"
+                       placeholder="@(straight ? "Price" : "Leg price")" @bind-Value="d.PriceTaken" />
+        </div>
+    </text>;
+
+    private RenderFragment BookPicker(string current, Action<string> set) => @<text>
+        <DeskSelect TValue="string" style="max-width:140px" Value="current" ValueChanged="@((string? b) => set(b ?? string.Empty))">
+            <option value="">Book…</option>
+            @foreach (var book in _books)
+            {
+                <option value="@book">@book</option>
+            }
+        </DeskSelect>
+    </text>;
+
+    private RenderFragment Selection(JournalEntry e) => @<text>
+        @if (!string.IsNullOrWhiteSpace(e.FreeTextMarket))
+        {
+            @e.FreeTextMarket
+        }
+        else if (e.GameId is { } gameId)
+        {
+            @* An entry against a tracked game reaches its market. *@
+            <DeskLink Destination="game" OnClick="() => OpenGameAsync(gameId)">
+                @e.Outcome
+                @if (e.LineTaken is { } l)
+                {
+                    <span class="dim num"> @Line(l)</span>
+                }
+            </DeskLink>
+        }
+        else
+        {
+            @e.Outcome
+            @if (e.LineTaken is { } l)
+            {
+                <span class="dim num"> @Line(l)</span>
+            }
+        }
+    </text>;
+
+    private RenderFragment ClvCell(JournalEntry e) => @<text>
+        @if (Clv(e) is { } clv)
+        {
+            @* When the line moved, the points are the reading; the two prices are for different
+               numbers and their difference means nothing on its own. *@
+            <span class="@(clv.BeatClose ? "up" : "down")" title="@ClvTitle(e)">
+                @(clv.SameNumber
+                    ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
+                    : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
+            </span>
+        }
+        else
+        {
+            <span class="dim">—</span>
+        }
+    </text>;
+
+    private static string Describe(JournalEntry e)
+        => e.FreeTextMarket ?? $"{e.Outcome}{(e.LineTaken is { } l ? " " + (l > 0 ? $"+{l}" : l.ToString()) : "")} {e.Market}";
 
     private static ClvResult? Clv(JournalEntry entry) => PerformanceAnalytics.ComputeClv(entry);
 
-    /// <summary>"Took -1.5 -110 at DraftKings; closed -2.5 -110 at FanDuel" — what was compared.</summary>
+    /// <summary>"Took -1.5 -110; closed -2.5 -110 at fanduel (no close for draftkings)" — what was compared.</summary>
     private static string ClvTitle(JournalEntry e)
     {
         static string At(decimal? points, int price)
@@ -304,66 +741,4 @@ else
         EntryResult.Void => DeskState.Neutral,
         _ => DeskState.Warning
     };
-
-    private async Task SaveAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        var free = _form.Market == FreeText;
-
-        db.JournalEntries.Add(new JournalEntry
-        {
-            GameId = _form.GameId,
-            Market = free ? "other" : _form.Market,
-            FreeTextMarket = free ? _form.FreeTextMarket : null,
-            Outcome = string.IsNullOrWhiteSpace(_form.Outcome) ? "—" : _form.Outcome,
-            LineTaken = _form.LineTaken,
-            PriceTaken = _form.PriceTaken,
-            Stake = _form.Stake,
-            Book = _form.Book,
-            PlacedAt = DateTimeOffset.UtcNow,
-            Result = EntryResult.Pending
-        });
-
-        await db.SaveChangesAsync();
-
-        _form = new Form();
-        _showForm = false;
-        _message = "Entry logged.";
-
-        await LoadAsync();
-    }
-
-    private async Task SetResultAsync(int entryId, string? value)
-    {
-        if (!Enum.TryParse<EntryResult>(value, out var result))
-            return;
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
-
-        PerformanceAnalytics.ApplyResult(entry, result);
-        await db.SaveChangesAsync();
-        await LoadAsync();
-    }
-
-    private async Task SettleAsync()
-    {
-        _busy = true;
-        Report(PulseState.Active, "settling");
-
-        try
-        {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var summary = await scope.ServiceProvider
-                .GetRequiredService<SettlementService>().SettleAsync();
-
-            _message = $"{summary.Graded} graded · {summary.Voided} voided · {summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
-            await LoadAsync();
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
 }

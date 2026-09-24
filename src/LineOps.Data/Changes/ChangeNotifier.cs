@@ -28,7 +28,7 @@ public static class DataTopics
     {
         nameof(Game) or nameof(PlayerGameStat) or nameof(StatSnapshot) or nameof(Player) => Games,
         nameof(OddsSnapshot) or nameof(ClosingLine) => Odds,
-        nameof(JournalEntry) => Journal,
+        nameof(JournalEntry) or nameof(Parlay) or nameof(AppSetting) => Journal,
         nameof(Alert) or nameof(Incident) => Alerts,
         nameof(IngestionRun) or nameof(BackfillCheckpoint) => Runs,
         _ => null

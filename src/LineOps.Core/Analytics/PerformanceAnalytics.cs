@@ -118,6 +118,22 @@ public static class PerformanceAnalytics
     public static ClvResult? ComputeClv(JournalEntry entry)
         => ComputeClv(entry, entry.ClosingPrice);
 
+    /// <summary>
+    /// What an entry's CLV was measured against — the honesty of the reading. A close at the same
+    /// number at the entry's own book is the clean comparison; a moved line is read in points; a
+    /// close borrowed from another book is weaker; and some entries have none.
+    /// </summary>
+    public static string ClvBasis(JournalEntry entry)
+    {
+        if (entry.ClosingPrice is null)
+            return "No close";
+
+        if (entry.ClosingBook is { } book && !string.Equals(book, entry.Book, StringComparison.OrdinalIgnoreCase))
+            return "Another book's close";
+
+        return PointsGained(entry) is { } points && points != 0m ? "Line moved" : "Same number";
+    }
+
     public static PerformanceSummary Summarise(IEnumerable<JournalEntry> entries)
     {
         // Graded, not merely settled: a void returned its stake and is left out of ROI.
@@ -133,8 +149,8 @@ public static class PerformanceAnalytics
     }
 
     /// <summary>
-    /// Running bankroll over time, ordered by settlement. Each point is the cumulative
-    /// net profit after that entry — this is what the bankroll curve plots.
+    /// Running bankroll over time, ordered by settlement. Each point is the starting bankroll
+    /// plus the cumulative net after that entry — this is what the bankroll curve plots.
     /// </summary>
     public static IReadOnlyList<(DateTimeOffset At, decimal Cumulative)> BankrollCurve(
         IEnumerable<JournalEntry> entries,
@@ -143,10 +159,13 @@ public static class PerformanceAnalytics
         var points = new List<(DateTimeOffset, decimal)>();
         var running = startingBankroll;
 
-        foreach (var entry in entries.Where(e => e.IsGraded).OrderBy(e => e.PlacedAt))
+        // By settlement: the bankroll moves when a bet pays, and a Sunday bet placed on Tuesday
+        // did not change it on Tuesday. Entries settled before SettledAt existed fall back to
+        // when they were placed.
+        foreach (var entry in entries.Where(e => e.IsGraded).OrderBy(e => e.SettledAt ?? e.PlacedAt))
         {
             running += entry.NetReturn;
-            points.Add((entry.PlacedAt, running));
+            points.Add((entry.SettledAt ?? entry.PlacedAt, running));
         }
 
         return points;
@@ -167,9 +186,10 @@ public static class PerformanceAnalytics
     /// Grading itself (did the pick cover?) lives in the settlement service; this
     /// applies the result consistently.
     /// </summary>
-    public static void ApplyResult(JournalEntry entry, EntryResult result)
+    public static void ApplyResult(JournalEntry entry, EntryResult result, DateTimeOffset? at = null)
     {
         entry.Result = result;
+        entry.SettledAt = result == EntryResult.Pending ? null : at ?? DateTimeOffset.UtcNow;
         entry.Payout = result switch
         {
             EntryResult.Win => OddsMath.PayoutOnWin(entry.PriceTaken, entry.Stake),
