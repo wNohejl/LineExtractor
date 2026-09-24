@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1 and 2 done (§6, §7)
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–3 done (§6–§8)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -321,3 +321,46 @@ Tests: 407 in `LineOps.Tests`, 263 in `LineOps.Web.Tests`, all green (in the SDK
 The Worker applied the migration on start. The end-to-end check against a hand-logged wager
 waits for the first real one — the journal is still empty, and a test row in it would be data
 the analytics then count.
+
+---
+
+## 8. What was done — Phase 3 (2026-09-23)
+
+- **A change feed.** `ChangeNotifier`, a save interceptor on every `LineOpsDbContext`, sends
+  `pg_notify('lineops_changes', 'games,runs')` after each save, naming the topics its rows belong
+  to (`DataTopics`). One interceptor covers every writer — the worker, the web host's own
+  schedule, the wager form, settlement — and crosses the process boundary. Bulk
+  `ExecuteUpdate` calls (the orphan reaper) do not pass through it; nothing waits on them.
+- **One listener per web host.** `DataChangeListener` holds a dedicated connection on
+  `LISTEN`, reconnects on its own, publishes every topic once on reconnect, and while it is down
+  publishes every topic once a minute, so windows degrade to polling rather than going quiet.
+  The footer says which: `live` or `polling`.
+- **Panels refresh themselves.** `DeskSignals` (in the desk, domain-free) carries topics;
+  `PanelBase` subscribes for any panel that names `Watches`, settles for a second so a burst is
+  one reload, and reloads through `RefreshAsync`. Twelve panels watch: Board, Game, Head to head,
+  Team, Player, Line movement, Journal, Performance, Ops, Incidents, Runs, History. The Board's
+  follow-ups and the wager form do not — a form refreshing under a hand is worse than stale.
+- **The desk survives a reload.** `DeskLayout` — windows, order, weights, minimised, the ids they
+  were opened on, focus, ceiling, primary, resolution — goes to `localStorage` under a per-brand
+  key, written half a second after a change and only when it differs. Operators can save the row
+  as a named workspace (Window manager → Workspaces); it appears in the brand menu under "Saved
+  here". A new built-in, "Bet a game": Board, Journal, Performance.
+- **Verified live** in the browser against the running worker: with the desk untouched, a live
+  poll moved Reds–Braves from 2–1 to 2–2 on the open Board; a reload put the three-window
+  workspace back; `psql LISTEN` showed the worker announcing `games,runs`.
+
+Found on the way, and fixed:
+
+- **The web image served a page that never started.** Its restore ran against project files only,
+  and the .NET 10 SDK adds `Microsoft.AspNetCore.App.Internal.Assets` (Blazor's
+  `_framework/blazor.web.js`) only for a project whose Razor components it can see — so the
+  `--no-restore` publish shipped without the script, and the circuit never connected. Publish now
+  restores once the source is in.
+- **The Inter font 404'd** since the desk became its own project (`ea2a860`): the stylesheet moved
+  to `LineOps.Desk` and asks for `../fonts/`, the files stayed in `LineOps.Web`. Moved, with the
+  OFL licence TicketMiser's copy already carries.
+- **Postgres had stopped again**, cleanly, ~22 hours earlier (a fast-shutdown request, cause
+  unknown — no script in the repo stops it). The hosts crash-looped on it until it was started.
+
+Not done: the desk shows times in the server's zone (`ToLocalTime`), which in a container is UTC.
+Tests: 416 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container).
