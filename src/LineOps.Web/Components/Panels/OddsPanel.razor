@@ -7,20 +7,20 @@
 @inject IServiceScopeFactory ScopeFactory
 
 <div class="row" style="margin-bottom:12px">
-    @* With no game inside the window this rendered as an empty picker — a control offering a
-       choice it does not have. It says which instead, and refuses the press. *@
+    @* The games with moves on record — the ones this chart can draw. Scans are kept until
+       first pitch and then folded into one closing line (ADR 0010), so "the last 14 days" was
+       mostly finished games with nothing left to plot. Any other game is a search away. *@
     <DeskSelect TValue="int?" style="max-width:280px"
                 disabled="@(_games.Count == 0)"
-                Value="_gameId" ValueChanged="OnGameChanged">
-        @if (_games.Count == 0)
-        {
-            <option value="">No game in the last 14 days</option>
-        }
+                Value="@(_games.Any(g => g.Id == _gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
+        <option value="">@(_games.Count == 0 ? "No game has moves on record" : "Games with moves…")</option>
         @foreach (var g in _games)
         {
             <option value="@g.Id">@MatchupWithDate(g)</option>
         }
     </DeskSelect>
+
+    <GamePicker Value="_gameId" Selected="_picked" ValueChanged="OnGameChanged" />
 
     <DeskSwitch Options="_marketOptions" Label="Market"
                 Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
@@ -30,7 +30,8 @@
 {
     <EmptyState Kind="EmptyStateKind.Filtered">
         No stored moves for this game and market. Prices are only written when they change,
-        so a market that has not moved has nothing to plot.
+        so a market that has not moved has nothing to plot — and once a game starts its moves
+        are folded into one closing line, which the Game window shows.
     </EmptyState>
 }
 else
@@ -146,6 +147,7 @@ else
     [Parameter] public int? GameId { get; set; }
 
     private List<Game> _games = [];
+    private Game? _picked;
     private List<OddsSnapshot> _current = [];
     private List<ChartSeries<double>> _series = [];
     private string[] _labels = [];
@@ -245,22 +247,35 @@ else
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        _games = await db.Games
+        _games = await db.Games.AsNoTracking()
             .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
-            .Where(g => g.StartsAt > DateTimeOffset.UtcNow.AddDays(-14))
+            .Where(g => db.OddsSnapshots.Any(s => s.GameId == g.Id))
             .OrderBy(g => g.StartsAt)
             .Take(120)
             .ToListAsync();
 
         _gameId = GameId ?? _games.FirstOrDefault()?.Id;
+        _picked = await PickedAsync(db);
         await LoadAsync();
     }
 
     private async Task OnGameChanged(int? id)
     {
         _gameId = id;
+
+        await using (var db = await DbFactory.CreateDbContextAsync())
+            _picked = await PickedAsync(db);
+
         await LoadAsync();
     }
+
+    /// <summary>The chosen game with its teams and sport, so the picker can name it before any search.</summary>
+    private async Task<Game?> PickedAsync(LineOpsDbContext db)
+        => _gameId is { } id
+            ? await db.Games.AsNoTracking()
+                .Include(g => g.HomeTeam).Include(g => g.AwayTeam).Include(g => g.Sport)
+                .FirstOrDefaultAsync(g => g.Id == id)
+            : null;
 
     private async Task SetMarketAsync(string market)
     {

@@ -1,5 +1,5 @@
-@using System.Text.Json
 @using LineOps.Data
+@using LineOps.Data.CrossReference
 @using LineOps.Ingestion.Services
 @using LineOps.Ingestion.Configuration
 @using LineOps.Desk.Windowing
@@ -10,32 +10,35 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<IngestionOptions> IngestionOptions
 
-@if (_player is null)
+@*
+    The roster finder. It used to keep a game log of its own, a second and lesser copy of the
+    Player window; a player's name now opens that window, and a team's name the Team window —
+    this list finds people, and the windows it opens say how they have been going.
+*@
+<div class="row" style="margin-bottom:12px">
+    <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
+        <option value="">All sports</option>
+        @foreach (var s in _sports)
+        {
+            <option value="@s.Id">@s.Name</option>
+        }
+    </DeskSelect>
+
+    @* Filters as you type, after a pause: two queries per keystroke was a query storm for
+       anyone typing a whole name. A player's team works too — "judge nyy". *@
+    <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
+               placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
+
+    @* The one thing this window does rather than shows, so it carries the panel's weight. *@
+    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
+                OnClick="SyncAsync" Busy="@_busy">
+        Sync stats
+    </DeskButton>
+</div>
+
+@if (_rows.Count == 0)
 {
-    <div class="row" style="margin-bottom:12px">
-        <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
-            <option value="">All sports</option>
-            @foreach (var s in _sports)
-            {
-                <option value="@s.Id">@s.Name</option>
-            }
-        </DeskSelect>
-
-        @* Immediate: the list filters as you type, which is the one case where per-keystroke
-           is the point rather than an interruption. *@
-        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
-                   placeholder="Search players" Value="_search" ValueChanged="OnSearchChanged" />
-
-        @* The one thing this window does rather than shows, so it carries the panel's weight.
-           Busy rather than Disabled-plus-a-relabel: the shimmer already says the work is
-           running, and a label that changes under the pointer is a second control's name. *@
-        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
-                    OnClick="SyncAsync" Busy="@_busy">
-            Sync stats
-        </DeskButton>
-    </div>
-
-    @if (_rows.Count == 0)
+    @if (string.IsNullOrWhiteSpace(_search) && string.IsNullOrEmpty(_sport))
     {
         <EmptyState Kind="EmptyStateKind.New">
             No players yet. <strong>Sync stats</strong> pulls rosters and box scores — ESPN
@@ -44,145 +47,76 @@
     }
     else
     {
-        <DeskGrid T="Row" Items="_rows" Class="deskgrid--clickable"
-                  OnRowClick="@(e => SelectAsync(e.Item.Player.Id))"
-                  EmptyText="No players match this filter.">
-            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.FullName" Title="Player"
-                            InitialDirection="SortDirection.Ascending">
-                <CellTemplate>
-                    <DeskLink Destination="game log"
-                              Icon="@Icons.Material.Filled.MenuBook"
-                              OnClick="() => SelectAsync(context.Item.Player.Id)">
-                        @context.Item.Player.FullName
-                    </DeskLink>
-                </CellTemplate>
-            </PropertyColumn>
-
-            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
-                <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
-            </PropertyColumn>
-
-            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
-                <CellTemplate><span class="dim">@(context.Item.Player.Position ?? "—")</span></CellTemplate>
-            </PropertyColumn>
-
-            <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Team!.Name" Title="Team">
-                <CellTemplate><span class="dim">@(context.Item.Player.Team?.Name ?? "—")</span></CellTemplate>
-            </PropertyColumn>
-
-            <PropertyColumn T="Row" TProperty="int" Property="r => r.Games" Title="Games" Align="Align.Right" />
-        </DeskGrid>
+        <EmptyState Kind="EmptyStateKind.Filtered">No players match this filter.</EmptyState>
     }
 }
 else
 {
-    <div class="row" style="margin-bottom:10px">
-        <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _player = null">
-            Players
-        </DeskButton>
-        <Tag>@_player.Sport?.Name</Tag>
-        @if (_player.Position is not null)
-        {
-            <Tag>@_player.Position</Tag>
-        }
-    </div>
+    <DeskGrid T="Row" Items="_rows" Class="deskgrid--clickable"
+              OnRowClick="@(e => Manager.OpenPlayer(e.Item.Player.Id, e.Item.Player.FullName))"
+              EmptyText="No players match this filter.">
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.FullName" Title="Player"
+                        InitialDirection="SortDirection.Ascending">
+            <CellTemplate>
+                <DeskLink Destination="player"
+                          OnClick="() => Manager.OpenPlayer(context.Item.Player.Id, context.Item.Player.FullName)">
+                    @context.Item.Player.FullName
+                </DeskLink>
+            </CellTemplate>
+        </PropertyColumn>
 
-    <PanelHeader>@_player.FullName — game log</PanelHeader>
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
+            <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
+        </PropertyColumn>
 
-    @if (_log.Count == 0)
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
+            <CellTemplate><span class="dim">@(context.Item.Player.Position ?? "—")</span></CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Team!.Name" Title="Team">
+            <CellTemplate>
+                @if (context.Item.Player.Team is { } team)
+                {
+                    <DeskLink Destination="team" OnClick="() => Manager.OpenTeam(team.Id, team.Name)">@team.Name</DeskLink>
+                }
+                else
+                {
+                    <span class="dim">—</span>
+                }
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn T="Row" TProperty="int" Property="r => r.Games" Title="Games" Align="Align.Right" />
+    </DeskGrid>
+
+    @if (_capped)
     {
-        <EmptyState Kind="EmptyStateKind.New">No per-game statistics recorded for this player yet.</EmptyState>
-    }
-    else
-    {
-        <DeskGrid T="LogRow" Items="_log" EmptyText="No games recorded.">
-            <PropertyColumn T="LogRow" TProperty="DateTimeOffset" Property="r => r.Date" Title="Date"
-                            Align="Align.Right" InitialDirection="SortDirection.Descending">
-                <CellTemplate><span class="dim">@Day(context.Item.Date)</span></CellTemplate>
-            </PropertyColumn>
-
-            <PropertyColumn T="LogRow" TProperty="string" Property="r => r.Matchup" Title="Matchup">
-                <CellTemplate>
-                    @if (context.Item.GameId is { } gameId)
-                    {
-                        <DeskLink Destination="game"
-                                  OnClick="() => OpenGameAsync(gameId)">@context.Item.Matchup</DeskLink>
-                    }
-                    else
-                    {
-                        @context.Item.Matchup
-                    }
-                </CellTemplate>
-            </PropertyColumn>
-
-            @* Stat keys differ per sport and source, so the columns are built from the data
-               rather than declared. Each still sorts, on the numeric value where there is one. *@
-            @foreach (var column in _columns)
-            {
-                <TemplateColumn T="LogRow" Title="@column" Align="Align.Right"
-                                SortBy="@(r => SortValue(r, column))">
-                    <CellTemplate>@context.Item.Stats.GetValueOrDefault(column, "—")</CellTemplate>
-                </TemplateColumn>
-            }
-        </DeskGrid>
+        @* The list stops at a limit; it says so, rather than letting the last row read as the
+           last player there is. *@
+        <p class="dim" style="font-size:12px; margin-top:8px">
+            Showing the first @Limit by name. Narrow the search, or pick a sport, to see the rest.
+        </p>
     }
 }
 
 @code {
-    /// <summary>Set when opened from a player's name elsewhere on the desk.</summary>
-    [Parameter] public int? PlayerId { get; set; }
+    private const int Limit = 150;
 
     private record Row(Player Player, int Games);
-    private record LogRow(DateTimeOffset Date, string Matchup, int? GameId, Dictionary<string, string> Stats);
 
     private List<Row> _rows = [];
     private List<Sport> _sports = [];
-    private Player? _player;
-    private List<LogRow> _log = [];
-    private List<string> _columns = [];
     private string _sport = string.Empty;
     private string _search = string.Empty;
+    private bool _capped;
     private bool _busy;
+    private CancellationTokenSource? _pending;
 
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
         await LoadAsync();
-
-        // Arriving via a shortcut opens straight onto that player's game log rather than the
-        // list they would then have to find them in.
-        if (PlayerId is { } id)
-            await SelectAsync(id);
-    }
-
-    /// <summary>
-    /// Sorts a derived stat column. Numeric where the value parses, alphabetical otherwise, so
-    /// a column of times or compound values still orders predictably instead of not at all.
-    /// </summary>
-    private static object SortValue(LogRow row, string column)
-    {
-        var raw = row.Stats.GetValueOrDefault(column);
-
-        if (raw is null)
-            return double.MinValue;
-
-        return double.TryParse(raw, System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out var value)
-            ? value
-            : raw;
-    }
-
-    private async Task OpenGameAsync(int gameId)
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        var game = await db.Games
-            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
-            .FirstOrDefaultAsync(g => g.Id == gameId);
-
-        if (game is not null)
-            Manager.OpenGame(game);
     }
 
     private async Task OnSportChanged(string value)
@@ -194,6 +128,19 @@ else
     private async Task OnSearchChanged(string value)
     {
         _search = value ?? string.Empty;
+
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(250, _pending.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -201,15 +148,26 @@ else
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        var query = db.Players.Include(p => p.Sport).Include(p => p.Team).AsQueryable();
+        var query = db.Players.AsNoTracking()
+            .Include(p => p.Sport).Include(p => p.Team)
+            .Where(p => p.Sport!.Enabled);
 
         if (int.TryParse(_sport, out var sportId))
             query = query.Where(p => p.SportId == sportId);
 
-        if (!string.IsNullOrWhiteSpace(_search))
-            query = query.Where(p => EF.Functions.ILike(p.FullName, $"%{_search}%"));
+        // Every word must match the name or the team, with LIKE's own characters escaped, the
+        // same rule the command palette uses.
+        foreach (var pattern in SearchService.Patterns(_search))
+        {
+            query = query.Where(p => EF.Functions.ILike(p.FullName, pattern, @"\")
+                                     || (p.Team != null && (EF.Functions.ILike(p.Team.Name, pattern, @"\")
+                                                            || EF.Functions.ILike(p.Team.Abbrev, pattern, @"\"))));
+        }
 
-        var players = await query.OrderBy(p => p.FullName).Take(150).ToListAsync();
+        var players = await query.OrderBy(p => p.FullName).Take(Limit + 1).ToListAsync();
+        _capped = players.Count > Limit;
+        players = players.Take(Limit).ToList();
+
         var ids = players.Select(p => p.Id).ToList();
 
         var counts = await db.PlayerGameStats
@@ -221,52 +179,7 @@ else
         _rows = players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList();
 
         Report(_rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
-            _rows.Count == 0 ? null : $"{_rows.Count} players");
-    }
-
-    private async Task SelectAsync(int playerId)
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        _player = await db.Players
-            .Include(p => p.Sport).Include(p => p.Team)
-            .FirstOrDefaultAsync(p => p.Id == playerId);
-
-        if (_player is null)
-            return;
-
-        var stats = await db.PlayerGameStats
-            .Include(s => s.Game).ThenInclude(g => g!.HomeTeam)
-            .Include(s => s.Game).ThenInclude(g => g!.AwayTeam)
-            .Where(s => s.PlayerId == playerId)
-            .OrderByDescending(s => s.Game!.StartsAt)
-            .Take(50)
-            .ToListAsync();
-
-        _log = stats.Select(s => new LogRow(
-            s.Game?.StartsAt ?? s.CapturedAt,
-            Matchup(s.Game),
-            s.GameId,
-            Parse(s.StatLine))).ToList();
-
-        // Stat shapes differ per sport and source, so columns come from the data.
-        _columns = _log
-            .SelectMany(r => r.Stats.Keys)
-            .Where(k => k != "category")
-            .Distinct().OrderBy(k => k).Take(8)
-            .ToList();
-    }
-
-    private static Dictionary<string, string> Parse(string json)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
+            _rows.Count == 0 ? null : $"{_rows.Count}{(_capped ? "+" : "")} players");
     }
 
     private async Task SyncAsync()
@@ -305,4 +218,6 @@ else
             _busy = false;
         }
     }
+
+    protected override void OnDispose() => _pending?.Cancel();
 }

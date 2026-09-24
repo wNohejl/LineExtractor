@@ -32,6 +32,11 @@ public class WindowManager
     /// <summary>Raised whenever anything the UI renders has changed.</summary>
     public event Action? Changed;
 
+    /// <summary>Raised when something asks for the command palette — the hotkey or the header key.</summary>
+    public event Action? PaletteRequested;
+
+    public void RequestPalette() => PaletteRequested?.Invoke();
+
     /// <summary>The windows this desk can open. Supplied by the application, read by everything here.</summary>
     public IWindowCatalog Catalog { get; }
 

@@ -88,6 +88,12 @@
 
     @* What is left of the desk's own controls: both are about the row as a whole. *@
     <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
+        <button class="rail__btn" type="button" title="Go to anything (Ctrl+K)"
+                aria-label="Go to anything" aria-keyshortcuts="Control+K Meta+K"
+                @onclick="Manager.RequestPalette">
+            <Glyph Icon="@Icons.Material.Filled.Search" />
+        </button>
+
         <button class="rail__btn" type="button" title="Reset column widths"
                 aria-label="Reset column widths"
                 disabled="@(Manager.OpenCount == 0)"

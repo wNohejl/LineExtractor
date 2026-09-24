@@ -54,6 +54,9 @@ builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCat
 // Open windows refresh when the data under them changes, whichever process wrote it.
 builder.Services.AddHostedService<LineOps.Web.Services.DataChangeListener>();
 
+// What the command palette (Ctrl+K) finds beyond the desk's own windows: teams, players, games.
+builder.Services.AddScoped<LineOps.Desk.Windowing.IDeskSearch, LineOps.Web.Services.AppDeskSearch>();
+
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
 // circuit and antiforgery token. Unset (the default when running from the SDK) keeps the

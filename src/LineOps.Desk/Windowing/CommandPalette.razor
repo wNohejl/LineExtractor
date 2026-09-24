@@ -1,0 +1,213 @@
+@using LineOps.Desk.Windowing
+@implements IDisposable
+@inject WindowManager Manager
+@inject IEnumerable<IDeskSearch> Providers
+
+@*
+    Ctrl+K (⌘K), or the search key in the header: one field that reaches anything on the desk.
+    Windows and workspaces come from the desk itself; teams, players and games from whatever
+    the application registers. Before anything is typed it lists the windows, so it doubles as a
+    keyboard launcher.
+*@
+@if (_open)
+{
+    <div class="palette" role="presentation" @onclick="Close">
+        <div class="palette__panel" role="dialog" aria-modal="true" aria-label="Go to anything"
+             @onclick:stopPropagation="true">
+            <div class="palette__field">
+                <Glyph Icon="@Icons.Material.Filled.Search" />
+                <input @ref="_input" class="palette__input" type="text" autocomplete="off" spellcheck="false"
+                       placeholder="Go to a team, player, game or window"
+                       aria-label="Search the desk" aria-controls="palette-results"
+                       aria-activedescendant="@(_results.Count > 0 ? $"palette-{_active}" : null)"
+                       value="@_text" @oninput="OnInput" @onkeydown="OnKey" />
+                <kbd class="palette__kbd">esc</kbd>
+            </div>
+
+            <div id="palette-results" class="palette__results" role="listbox">
+                @if (_results.Count == 0)
+                {
+                    <p class="palette__empty">
+                        @(_searching ? "Searching…" : string.IsNullOrWhiteSpace(_text) ? "Nothing to show." : $"Nothing matches \"{_text}\".")
+                    </p>
+                }
+                else
+                {
+                    var index = 0;
+                    foreach (var group in _results.GroupBy(r => r.Group))
+                    {
+                        <div class="launcher__group">@group.Key</div>
+                        foreach (var result in group)
+                        {
+                            var i = index++;
+                            <button id="palette-@i" type="button" role="option" aria-selected="@(i == _active ? "true" : "false")"
+                                    class="launcher__item @(i == _active ? "palette__item--active" : null)"
+                                    @onmouseenter="() => _active = i"
+                                    @onclick="() => Choose(result)">
+                                <Glyph Icon="@result.Icon" />
+                                <span>
+                                    @result.Title
+                                    @if (result.Detail is { } detail)
+                                    {
+                                        <span class="launcher__desc">@detail</span>
+                                    }
+                                </span>
+                            </button>
+                        }
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>A pause long enough that a typist's burst is one query, short enough to feel instant.</summary>
+    private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(200);
+
+    private const int PerGroup = 6;
+
+    private bool _open;
+    private bool _focus;
+    private bool _searching;
+    private string _text = string.Empty;
+    private int _active;
+    private List<DeskSearchResult> _results = [];
+    private ElementReference _input;
+    private CancellationTokenSource? _pending;
+
+    protected override void OnInitialized() => Manager.PaletteRequested += OnRequested;
+
+    private void OnRequested() => InvokeAsync(() =>
+    {
+        _open = true;
+        _focus = true;
+        _text = string.Empty;
+        _active = 0;
+        _results = Local(string.Empty);
+        StateHasChanged();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focus && _open)
+        {
+            _focus = false;
+            await _input.FocusAsync();
+        }
+    }
+
+    private void Close()
+    {
+        _pending?.Cancel();
+        _open = false;
+    }
+
+    private void Choose(DeskSearchResult result)
+    {
+        Close();
+        result.Open();
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape":
+                Close();
+                break;
+            case "ArrowDown" when _results.Count > 0:
+                _active = (_active + 1) % _results.Count;
+                break;
+            case "ArrowUp" when _results.Count > 0:
+                _active = (_active - 1 + _results.Count) % _results.Count;
+                break;
+            case "Enter" when _results.Count > 0:
+                Choose(_results[Math.Clamp(_active, 0, _results.Count - 1)]);
+                break;
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? string.Empty;
+        _active = 0;
+
+        _pending?.Cancel();
+        _pending = new CancellationTokenSource();
+        var token = _pending.Token;
+
+        // The desk's own entries answer at once; the application's wait for the pause.
+        var local = Local(_text);
+        _results = local;
+
+        if (string.IsNullOrWhiteSpace(_text))
+            return;
+
+        _searching = true;
+
+        try
+        {
+            await Task.Delay(Settle, token);
+
+            var found = new List<DeskSearchResult>();
+            foreach (var provider in Providers)
+            {
+                try
+                {
+                    found.AddRange(await provider.SearchAsync(_text.Trim(), token));
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // One source failing costs its results, not the palette.
+                }
+            }
+
+            if (token.IsCancellationRequested)
+                return;
+
+            // A window or workspace whose name starts with what was typed leads: someone typing
+            // "board" wants the Board, not a player called Board. Otherwise what the application
+            // knows leads — a team is what someone typing "mets" is after — and the desk's other
+            // matches follow.
+            var typed = _text.Trim();
+            var named = local.Where(r => r.Title.StartsWith(typed, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _results = named
+                .Concat(found.GroupBy(r => r.Group).SelectMany(g => g.Take(PerGroup)))
+                .Concat(local.Except(named))
+                .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+                _searching = false;
+        }
+    }
+
+    /// <summary>The desk's own entries: the windows that open on nothing, and the workspaces.</summary>
+    private List<DeskSearchResult> Local(string text)
+    {
+        bool Matches(string title) => text.Length == 0 || title.Contains(text.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        var windows = Manager.Catalog.All
+            .Where(d => !d.RequiresSubject && Matches(d.Title))
+            .Select(d => new DeskSearchResult("Windows", d.Title, d.Description, d.Icon, () => Manager.Open(d)));
+
+        var workspaces = Manager.Catalog.Workspaces.Concat(Manager.UserWorkspaces)
+            .Where(w => Matches(w.Name))
+            .Select(w => new DeskSearchResult("Workspaces", w.Name, w.Description,
+                Icons.Material.Filled.Dashboard, () => Manager.ApplyWorkspace(w)));
+
+        return windows.Concat(workspaces).ToList();
+    }
+
+    public void Dispose()
+    {
+        Manager.PaletteRequested -= OnRequested;
+        _pending?.Cancel();
+    }
+}

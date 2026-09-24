@@ -53,6 +53,11 @@
                     Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
     }
 
+    @* Narrows the slate to a team or a matchup — "mets", "reds braves" — by the same rule the
+       command palette finds games with. The slate is already loaded, so this asks nothing. *@
+    <DeskField TValue="string" Immediate="true" style="max-width:170px"
+               placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
+
     <span class="ftr__spacer"></span>
 
     <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
@@ -140,7 +145,7 @@ else
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
-              EmptyText="No games in this window.">
+              EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
         <TemplateColumn T="BoardRow" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
@@ -323,6 +328,13 @@ else
     private BoardRow? _open;
     private string _sport = string.Empty;
     private BoardPhase _phase = BoardPhase.Any;
+    private string _team = string.Empty;
+
+    private void SetTeam(string? team)
+    {
+        _team = team ?? string.Empty;
+        ApplyFilter();
+    }
     private int _windowHours = 24;
     private int _bookCount;
     private int _priced;
@@ -491,6 +503,13 @@ else
                 .ToList(),
             _ => _rows
         };
+
+        if (!string.IsNullOrWhiteSpace(_team))
+        {
+            _visible = _visible.Where(r => SearchService.MatchesAllWords(_team,
+                r.Game.HomeTeam?.Name, r.Game.AwayTeam?.Name,
+                r.Game.HomeTeam?.Abbrev, r.Game.AwayTeam?.Abbrev)).ToList();
+        }
 
         _closing = _visible.Count(r => r.PricesAreClosing);
     }

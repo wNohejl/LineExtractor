@@ -83,6 +83,8 @@
     </div>
 
     <DeskFooter />
+
+    <CommandPalette />
 </div>
 
 @code {
@@ -177,6 +179,10 @@
     [JSInvokable]
     public void OnReordered(string[] orderedIds)
         => Manager.Reorder(orderedIds);
+
+    /// <summary>Ctrl+K or ⌘K, from anywhere on the page. See windowing.js.</summary>
+    [JSInvokable]
+    public void OnPaletteRequested() => Manager.RequestPalette();
 
     [JSInvokable]
     public void OnViewportChanged(double width, double height)

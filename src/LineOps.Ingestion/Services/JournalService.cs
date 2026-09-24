@@ -1,6 +1,7 @@
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data;
+using LineOps.Data.CrossReference;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineOps.Ingestion.Services;
@@ -297,41 +298,9 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
             .ToList();
     }
 
-    /// <summary>
-    /// Games to log a bet against, found by team: "mets", or "mets braves" for the matchup. Across
-    /// the enabled sports and a season's reach rather than the last seven days, nearest to now
-    /// first — the game being bet on is usually today's, and the one being logged late is
-    /// usually last week's.
-    /// </summary>
-    public async Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, CancellationToken ct = default)
-    {
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (words.Length == 0)
-            return [];
-
-        var now = DateTimeOffset.UtcNow;
-        var query = db.Games.AsNoTracking()
-            .Include(g => g.HomeTeam).Include(g => g.AwayTeam).Include(g => g.Sport)
-            .Where(g => g.Sport!.Enabled
-                        && g.StartsAt >= now.AddDays(-200)
-                        && g.StartsAt <= now.AddDays(30));
-
-        foreach (var word in words)
-        {
-            var pattern = $"%{EscapeLike(word)}%";
-            query = query.Where(g =>
-                EF.Functions.ILike(g.HomeTeam!.Name, pattern, @"\")
-                || EF.Functions.ILike(g.AwayTeam!.Name, pattern, @"\")
-                || EF.Functions.ILike(g.HomeTeam!.Abbrev, pattern, @"\")
-                || EF.Functions.ILike(g.AwayTeam!.Abbrev, pattern, @"\"));
-        }
-
-        // A team's whole reach is under two hundred games, so the nearest-first order is taken
-        // in memory rather than asked of the database as an interval expression.
-        var found = await query.OrderByDescending(g => g.StartsAt).Take(200).ToListAsync(ct);
-
-        return found.OrderBy(g => (g.StartsAt - now).Duration()).Take(take).ToList();
-    }
+    /// <summary>Games to log a bet against, found by team across the season (see <see cref="SearchService.GamesAsync"/>).</summary>
+    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, CancellationToken ct = default)
+        => new SearchService(db).GamesAsync(text, take, ct);
 
     /// <summary>
     /// Writes the draft onto the entry. Returns true when a field the grade depends on changed on
@@ -382,8 +351,4 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     private static string Normalise(string book) => book.Trim().ToLowerInvariant();
 
     private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-
-    /// <summary>A typed % or _ is a character to find, not a wildcard.</summary>
-    private static string EscapeLike(string text)
-        => text.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 }
