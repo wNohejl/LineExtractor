@@ -95,6 +95,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.HasIndex(x => new { x.SportId, x.SeasonYear, x.StartsAt });
             e.Property(x => x.SeasonType).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.HomeProbablePitcher).HasMaxLength(128);
+            e.Property(x => x.AwayProbablePitcher).HasMaxLength(128);
             e.Property(x => x.ExternalIds).HasColumnType("jsonb")
                 .HasConversion(dictConverter, dictComparer);
             e.HasOne(x => x.HomeTeam).WithMany().HasForeignKey(x => x.HomeTeamId)

@@ -109,7 +109,21 @@ public class IngestionJobs(
 
         // What one sport's lines actually cost, in the unit the provider bills. Stated per sport
         // because that is how it is charged and how it is now spent.
-        var creditsPerSport = odds * _options.LinePolling.CreditsPerSportPerScan;
+        // The adapters say, per sport, from the markets they will actually ask for; the
+        // configured figure stands in only for a source that declares nothing.
+        int CreditsFor(string sport)
+        {
+            var declared = registry.OddsSources.Sum(s => s.CreditsPerScan(sport));
+            return declared > 0 ? declared : odds * _options.LinePolling.CreditsPerSportPerScan;
+        }
+
+        string MarketsFor(string sport)
+        {
+            var names = registry.OddsSources.SelectMany(s => s.MarketsFor(sport)).Distinct()
+                .Select(m => m switch { Markets.Moneyline => "moneyline", Markets.Spread => "spread", Markets.Total => "total", _ => m })
+                .ToList();
+            return names.Count == 0 ? "Lines" : char.ToUpperInvariant(names[0][0]) + string.Join(", ", names)[1..];
+        }
 
         var jobs = new List<IngestionJob>
         {
@@ -151,10 +165,10 @@ public class IngestionJobs(
             jobs.Add(new IngestionJob(
                 Key: OddsLinesPrefix + sport,
                 Label: $"Pull lines — {sport.ToUpperInvariant()}",
-                Description: $"Moneyline and spread across every book for {sport.ToUpperInvariant()} "
+                Description: $"{MarketsFor(sport)} across every book for {sport.ToUpperInvariant()} "
                              + "games that have not started.",
                 EstimatedRequests: odds,
-                EstimatedCredits: creditsPerSport,
+                EstimatedCredits: CreditsFor(sport),
                 Available: odds > 0,
                 Unavailable: odds > 0 ? null : "No odds source registered."));
         }
@@ -232,7 +246,49 @@ public class IngestionJobs(
             failures += outcome.Failures;
         }
 
+        await SyncSpineAsync(ct);
+
         return new JobOutcome(EspnSlate, failures == 0, rows, failures, null);
+    }
+
+    /// <summary>When MLB's schedule was last read. The live poll runs the slate every 90 seconds;
+    /// probable pitchers do not change that often, and one call per half hour is plenty.</summary>
+    private DateTimeOffset _spineSyncedAt = DateTimeOffset.MinValue;
+
+    private static readonly TimeSpan SpineInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// MLB's ids, doubleheader numbers and probable pitchers for today and tomorrow — tomorrow's
+    /// starters are usually announced the day before. After ESPN's pass, because it only
+    /// annotates games ESPN has created. Best effort: a failure here is logged and costs the
+    /// annotations, never the slate.
+    /// </summary>
+    private async Task SyncSpineAsync(CancellationToken ct)
+    {
+        if (!_options.EffectiveSports.Contains("mlb", StringComparer.OrdinalIgnoreCase)
+            || DateTimeOffset.UtcNow - _spineSyncedAt < SpineInterval)
+            return;
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        if (scope.ServiceProvider.GetService<MlbSpineService>() is not { } spine)
+            return;
+
+        _spineSyncedAt = DateTimeOffset.UtcNow;
+        var today = LeagueClock.Today();
+
+        foreach (var day in new[] { today, today.AddDays(1) })
+        {
+            try
+            {
+                var outcome = await spine.SyncAsync(day, ct);
+                logger.LogInformation("MLB spine {Date}: {Matched}/{Scheduled} matched, {Probables} with probables",
+                    day, outcome.Matched, outcome.Scheduled, outcome.Probables);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "MLB spine {Date} failed; the slate is unaffected", day);
+            }
+        }
     }
 
     /// <summary>

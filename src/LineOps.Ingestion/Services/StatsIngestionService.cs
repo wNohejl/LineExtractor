@@ -334,10 +334,12 @@ public class StatsIngestionService(
 
         foreach (var canonical in canonicals)
         {
-            var player = existing.FirstOrDefault(p =>
-                             p.ExternalIds.TryGetValue(sourceKey, out var id)
-                             && id == canonical.SourcePlayerId)
-                         ?? existing.FirstOrDefault(p => p.FullName == canonical.FullName);
+            // The team first, so a name shared by two people can be told apart by it.
+            var team = canonical.TeamName is null
+                ? null
+                : await resolver.ResolveTeamAsync(sport, sourceKey, canonical.TeamName, ct);
+
+            var player = MatchPlayer(existing, canonical, sourceKey, team?.Id);
 
             if (player is null)
             {
@@ -362,16 +364,48 @@ public class StatsIngestionService(
             }
 
             // Players move between teams mid-season, so team is refreshed on every sync.
-            if (canonical.TeamName is not null)
-            {
-                var team = await resolver.ResolveTeamAsync(sport, sourceKey, canonical.TeamName, ct);
+            if (team is not null)
                 player.TeamId = team.Id;
-            }
 
             map[canonical.SourcePlayerId] = player;
         }
 
         await db.SaveChangesAsync(ct);
         return map;
+    }
+
+    /// <summary>
+    /// The stored player a source's athlete is, if any.
+    ///
+    /// <para>
+    /// By the source's own id first — that is identity. By name only as a fallback, for a player
+    /// another source created, and never onto a player this source already knows under a
+    /// different id: that is a different person with the same name. It used to take any name
+    /// match, so two ESPN athletes called Will Smith became one player and one of every pair of
+    /// their stat lines was thrown away as a duplicate (ADR 0009's open item). Where more than one
+    /// name match remains, the one on the athlete's team is the one; where the team cannot decide
+    /// between them, none is taken and a new player is made — a duplicate row can be merged
+    /// later, a merged person cannot be split.
+    /// </para>
+    /// </summary>
+    public static Player? MatchPlayer(
+        IReadOnlyList<Player> existing, CanonicalPlayer canonical, string sourceKey, int? teamId)
+    {
+        var byId = existing.FirstOrDefault(p =>
+            p.ExternalIds.TryGetValue(sourceKey, out var id) && id == canonical.SourcePlayerId);
+
+        if (byId is not null)
+            return byId;
+
+        var byName = existing
+            .Where(p => string.Equals(p.FullName, canonical.FullName, StringComparison.Ordinal)
+                        && !p.ExternalIds.ContainsKey(sourceKey))
+            .ToList();
+
+        if (byName.Count <= 1)
+            return byName.FirstOrDefault(p => teamId is null || p.TeamId is null || p.TeamId == teamId);
+
+        var onTeam = byName.Where(p => teamId is not null && p.TeamId == teamId).ToList();
+        return onTeam.Count == 1 ? onTeam[0] : null;
     }
 }

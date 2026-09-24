@@ -110,6 +110,8 @@ public static class IngestionServiceCollectionExtensions
                     client.Timeout = TimeSpan.FromSeconds(30);
                 })
                 .AddStandardResilienceHandler();
+
+            services.AddScoped<MlbSpineService>();
         }
 
         if (options.OddsApiIo.Enabled && !string.IsNullOrWhiteSpace(options.OddsApiIo.ApiKey))

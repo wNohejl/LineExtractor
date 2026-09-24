@@ -54,6 +54,10 @@ else
             }
         </PanelHeader>
         <Tag State="@StatusState(game.Status)">@StatusLabel(game)</Tag>
+        @if (game.DoubleHeaderGame is { } number)
+        {
+            <Tag State="DeskState.Info">Game @number of a doubleheader</Tag>
+        }
         @* Which season this game belongs to, and which part of it — a February game that is
            the prior year's postseason says so rather than leaving the date to imply it. *@
         <Tag State="DeskState.Info">
@@ -63,6 +67,14 @@ else
 
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
+        @if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
+        {
+            @* In full here, where there is room: the Board shortens them to surnames. *@
+            <span style="font-size:11.5px">
+                <span class="dim">Starters</span>
+                @(game.AwayProbablePitcher ?? "TBD") <span class="dim">v</span> @(game.HomeProbablePitcher ?? "TBD")
+            </span>
+        }
 
         @* Which season the team data and rosters below are drawn from. Defaults to the game's
            own season; for a game that season has not yet produced games for, the one before.

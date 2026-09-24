@@ -171,6 +171,16 @@ else
                 <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
                     @Matchup(context.Item.Game)
                 </DeskLink>
+                @if (context.Item.Game.DoubleHeaderGame is { } number)
+                {
+                    <Tag State="DeskState.Info">Game @number</Tag>
+                }
+                @* The starters, where MLB has named them: the one fact that moves a baseball line
+                   more than any other, beside the matchup it belongs to. *@
+                @if (Probables(context.Item.Game) is { } probables)
+                {
+                    <div class="dim" style="font-size:11px" title="Probable starting pitchers, away v home">@probables</div>
+                }
 
                 @if (context.Item.Unpriced is { } reason)
                 {

@@ -122,5 +122,20 @@ public class Game
     public int? HomeScore { get; set; }
     public int? AwayScore { get; set; }
 
+    /// <summary>
+    /// The starting pitchers MLB has announced, as MLB names them — the single most useful
+    /// handicapping fact on a baseball slate, and one the schedule call returned and nothing
+    /// kept. Null where none is announced yet; it changes when a starter is scratched.
+    /// </summary>
+    public string? HomeProbablePitcher { get; set; }
+    public string? AwayProbablePitcher { get; set; }
+
+    /// <summary>
+    /// Game 1 or 2 of a doubleheader, as MLB numbers it; null for a single game. Two games with
+    /// the same teams on the same day are told apart by this rather than by start time, which
+    /// a rain delay can reorder.
+    /// </summary>
+    public int? DoubleHeaderGame { get; set; }
+
     public Dictionary<string, string> ExternalIds { get; set; } = [];
 }

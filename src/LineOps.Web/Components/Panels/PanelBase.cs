@@ -181,6 +181,28 @@ public abstract class PanelBase : ComponentBase, IDisposable
             ? "—"
             : $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
 
+    /// <summary>
+    /// "Senga v Sale" — the announced starters, away first like the matchup. A side MLB has not
+    /// named reads TBD; null when neither is known, so nothing is drawn for a game without them.
+    /// </summary>
+    protected static string? Probables(Game game)
+        => game.AwayProbablePitcher is null && game.HomeProbablePitcher is null
+            ? null
+            : $"{Surname(game.AwayProbablePitcher)} v {Surname(game.HomeProbablePitcher)}";
+
+    /// <summary>
+    /// Everything after the first name, not the last word: the last word of "CJ Van Eyk" is
+    /// "Eyk", and of "Vladimir Guerrero Jr." is "Jr.".
+    /// </summary>
+    private static string Surname(string? fullName)
+    {
+        if (fullName is null)
+            return "TBD";
+
+        var space = fullName.Trim().IndexOf(' ');
+        return space < 0 ? fullName.Trim() : fullName.Trim()[(space + 1)..];
+    }
+
     /// <summary>A game named in full, with its start date — for pickers listing many games.</summary>
     protected static string MatchupWithDate(Game? game)
         => game is null ? "—" : $"{Matchup(game)} — {Day(game.StartsAt)}";
