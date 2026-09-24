@@ -1,7 +1,7 @@
 # The next phases — research and design
 
 **Date:** 2026-09-22
-**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–3 done (§6–§8)
+**Status:** Research and plan, researched against `LineX_Development` at `d1120f0`; Phases 1–4 done (§6–§9)
 **Method:** the live database (read-only, measured today), a read of every panel under
 `src/LineOps.Web/Components/Panels`, the ingestion, data, reliability and worker code, and
 ADRs 0009–0017. Claims that carry a phase were checked by hand; file:line references are to
@@ -364,3 +364,38 @@ Found on the way, and fixed:
 
 Not done: the desk shows times in the server's zone (`ToLocalTime`), which in a container is UTC.
 Tests: 416 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container).
+
+---
+
+## 9. What was done — Phase 4 (2026-09-23)
+
+- **Parlays are bets.** A `Parlays` row holds the stake, the book's quoted price when there was one,
+  the result and the payout; its legs are journal entries pointing at it (the old
+  `ParlayGroupId` became the foreign key; deleting a parlay deletes its legs). `ParlayGrading`
+  grades it the way books do — a loss loses it, a push or void drops a leg and reprices, all
+  pushed returns the stake — and pays a clean sweep at the quoted price, otherwise at the
+  product of the legs. A win with nothing to price it by stays pending with the reason rather
+  than being paid at an invented number. Settlement grades parlays in the same pass as their
+  legs. `ParlayGrading.Ledger` is what every money figure reads: straight bets as they are, each
+  parlay once, legs never. Legs are still priced against the close, so CLV counts them.
+- **The Journal is editable.** Edit (a change to anything the grade depends on sends a graded
+  entry back to pending and through settlement again; a note alone does not), delete with a
+  confirmation, a parlay form, filters by status, period, sport and book, "show more" in steps
+  of 100, notes shown, a book picker over the common books and every book the data has seen
+  (written lower-case, so "DraftKings" and "draftkings" are one book), and a game picker that
+  searches the season by team — "reds braves" — nearest to today first. `JournalService` holds
+  all of it, so the panel has no queries of its own.
+- **Performance is filterable and has a bankroll.** Period, sport, season, book and market; a
+  starting bankroll stored with the data (`AppSettings`), a bankroll metric, and the curve by
+  when bets settled (`SettledAt`, new) rather than when they were placed. Breakdowns by market,
+  sport and book, and a table of what CLV was measured against — same number, line moved,
+  another book's close, no close — with beat-the-close and the average for each.
+- **The Game window lists your bets on the game**, straight and legs, with result and CLV.
+
+A bug the tests caught before any person could: `SaveEntryAsync` guarded the draft-writing call
+behind `id is not null &&`, so a new entry was saved blank. Verified live: the forms, filters,
+book list and the season-wide game search render and work against the running stack; nothing
+was saved, since the first entry in this journal should be a real one.
+
+Tests: 437 in `LineOps.Tests`, 273 in `LineOps.Web.Tests`, all green (in the SDK container). The
+worker applied the `ParlaysAndSettlement` migration on start.
