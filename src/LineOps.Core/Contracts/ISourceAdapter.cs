@@ -108,6 +108,21 @@ public interface IOddsSource
         string sportKey,
         IReadOnlyList<string> markets,
         CancellationToken ct);
+
+    /// <summary>
+    /// The markets to request for one sport. Totals matter more in baseball than a spread that
+    /// is nearly always ±1.5, so a source can ask for a different list per sport; by default it
+    /// is the same list everywhere.
+    /// </summary>
+    IReadOnlyList<string> MarketsFor(string sportKey) => SupportedMarkets;
+
+    /// <summary>
+    /// What one scan of one sport bills, in the provider's credits — zero for a source that bills
+    /// in requests or not at all. The adapter says, because the billing rule is its provider's:
+    /// a hand-set figure in configuration drifted from the market list the first time someone
+    /// added a market.
+    /// </summary>
+    int CreditsPerScan(string sportKey) => 0;
 }
 
 /// <summary>

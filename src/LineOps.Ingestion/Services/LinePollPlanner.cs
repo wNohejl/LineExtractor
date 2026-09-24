@@ -42,9 +42,37 @@ namespace LineOps.Ingestion.Services;
 public class LinePollPlanner(
     LineOpsDbContext db,
     IOptions<IngestionOptions> options,
-    ILogger<LinePollPlanner> logger)
+    ILogger<LinePollPlanner> logger,
+    SourceRegistry? registry = null)
 {
     private readonly IngestionOptions _options = options.Value;
+
+    /// <summary>
+    /// What one scan of every configured sport bills a source, in credits. The adapter's own
+    /// forecast where it gives one — it knows its market list and its provider's rule — and the
+    /// configured per-sport figure only for a source that declares nothing.
+    /// </summary>
+    private int CreditsPerScan(string sourceKey)
+    {
+        var declared = registry?.FindOdds(sourceKey) is { } source
+            ? _options.EffectiveSports.Sum(source.CreditsPerScan)
+            : 0;
+
+        return declared > 0
+            ? declared
+            : _options.EffectiveSports.Length * _options.LinePolling.CreditsPerSportPerScan;
+    }
+
+    /// <summary>The markets each sport is scanned for, and what that costs, per source that bills credits.</summary>
+    public IReadOnlyList<SportMarkets> MarketsBySport(IReadOnlyList<string> oddsSourceKeys)
+        => _options.EffectiveSports
+            .Select(sport =>
+            {
+                var sources = oddsSourceKeys.Select(k => registry?.FindOdds(k)).OfType<Core.Contracts.IOddsSource>().ToList();
+                var markets = sources.SelectMany(s => s.MarketsFor(sport)).Distinct().ToList();
+                return new SportMarkets(sport, markets, sources.Sum(s => s.CreditsPerScan(sport)));
+            })
+            .ToList();
 
     /// <summary>
     /// The interval to wait before the next scan, and the reasoning behind it.
@@ -118,7 +146,7 @@ public class LinePollPlanner(
         return new PollPlan(
             Interval: Clamp(interval * urgency, settings),
             CostPerScan: perScan,
-            CreditsPerScan: sports * settings.CreditsPerSportPerScan,
+            CreditsPerScan: oddsSourceKeys.Sum(CreditsPerScan),
             ScansRemainingToday: scansLeft == int.MaxValue ? null : scansLeft,
             BoundBy: binding,
             Window: monthlyBound ? BudgetWindow.Month : BudgetWindow.Day,
@@ -184,8 +212,7 @@ public class LinePollPlanner(
                 .Where(r => r.SourceId == source.Id && r.StartedAt >= monthStart)
                 .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0;
 
-            var creditsPerScan = Math.Max(
-                1, _options.EffectiveSports.Length * settings.CreditsPerSportPerScan);
+            var creditsPerScan = Math.Max(1, CreditsPerScan(source.Key));
 
             var usable = Math.Max(0, monthly - settings.MonthlyCreditReserve - spent);
             fromMonthly = usable / creditsPerScan;
@@ -315,6 +342,9 @@ public class LinePollPlanner(
 /// The multiplier applied for how close the next start is. Below 1 means scanning faster than the
 /// even spread, above 1 slower; 1 means nothing is close enough to matter either way.
 /// </param>
+/// <summary>One sport's scan: the markets asked for and the credits they bill.</summary>
+public record SportMarkets(string Sport, IReadOnlyList<string> Markets, int Credits);
+
 public record PollPlan(
     TimeSpan Interval,
     int CostPerScan,

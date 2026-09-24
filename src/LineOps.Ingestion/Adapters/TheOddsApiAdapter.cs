@@ -36,6 +36,16 @@ public class TheOddsApiAdapter(
     /// </summary>
     public IReadOnlyList<string> SupportedMarkets => _config.EffectiveMarkets;
 
+    public IReadOnlyList<string> MarketsFor(string sportKey) => _config.MarketsFor(sportKey);
+
+    /// <summary>
+    /// Markets times one region unit. The selector in <see cref="FetchSlateAsync"/> names up to
+    /// ten books — one unit — or falls back to <c>regions=us</c>, also one, so a scan of a sport
+    /// costs exactly its market count. The header on the response remains the record of what was
+    /// actually billed; this is the forecast the planner paces on.
+    /// </summary>
+    public int CreditsPerScan(string sportKey) => MarketsFor(sportKey).Count;
+
     public async Task<OddsFetchResult> FetchSlateAsync(
         string sportKey,
         IReadOnlyList<string> markets,

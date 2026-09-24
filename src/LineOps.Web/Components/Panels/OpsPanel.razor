@@ -64,6 +64,34 @@
         }
         Use <strong>Pull data → Pull lines</strong>.
     </p>
+
+    @* The price, before anything is spent: what each sport's scan asks for and bills, and how
+       often the scheduler would scan at that price if it were switched on. The planner paces on
+       what is left, so it never overspends — a longer market list shows up here as a slower
+       cadence, which is the real cost of adding one. *@
+    @if (_plan is { } projected && _marketsBySport.Count > 0)
+    {
+        <p class="empty" style="padding:0 0 9px">
+            @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
+            {
+                @(index > 0 ? " · " : "")<span class="mono">@sport.Sport.ToUpperInvariant()</span>
+                <text> @string.Join(", ", sport.Markets.Select(MarketName))</text>
+                @if (sport.Credits > 0)
+                {
+                    <text> (<span class="mono">@sport.Credits</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
+                }
+            }.
+            @if (projected.ScansRemainingToday is { } left && left > 0)
+            {
+                <text>
+                    Switched to automatic, this list would scan about every
+                    <span class="mono">@Cadence(projected.BudgetInterval)</span> for the rest of
+                    @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
+                    first pitch, slower far from it.
+                </text>
+            }
+        </p>
+    }
 }
 else if (_plan is { } plan)
 {
@@ -288,6 +316,16 @@ else if (_plan is { } plan)
     private LineOps.Ingestion.Configuration.LinePollingOptions LinePolling => Ingestion.Value.LinePolling;
 
     /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
+    private IReadOnlyList<SportMarkets> _marketsBySport = [];
+
+    private static string MarketName(string market) => market switch
+    {
+        Markets.Moneyline => "moneyline",
+        Markets.Spread => "spread",
+        Markets.Total => "total",
+        _ => market
+    };
+
     private static string Cadence(TimeSpan interval)
         => interval.TotalHours >= 1
             ? $"{interval.TotalHours:0.#}h"
@@ -323,8 +361,10 @@ else if (_plan is { } plan)
         // Recomputed here rather than read off the scheduler: it is a pure function of the
         // budget already spent, so the panel and the scheduler reach the same answer without
         // the panel needing a handle on a background service.
-        _plan = await scope.ServiceProvider.GetRequiredService<LinePollPlanner>()
-            .PlanAsync(registry.OddsSources.Select(s => s.Key).ToList());
+        var planner = scope.ServiceProvider.GetRequiredService<LinePollPlanner>();
+        var oddsKeys = registry.OddsSources.Select(s => s.Key).ToList();
+        _plan = await planner.PlanAsync(oddsKeys);
+        _marketsBySport = oddsKeys.Count == 0 ? [] : planner.MarketsBySport(oddsKeys);
 
         var o = Options.Value;
 

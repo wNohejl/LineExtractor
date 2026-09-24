@@ -70,7 +70,7 @@ public class OddsIngestionService(
             if (source is IFailureInjectable injectable)
                 injectable.FailureMode = sourceRow.FailureMode;
 
-            var result = await source.FetchSlateAsync(sportKey, source.SupportedMarkets, ct);
+            var result = await source.FetchSlateAsync(sportKey, source.MarketsFor(sportKey), ct);
 
             run.RequestsMade = result.Cost.Requests;
             run.CreditsSpent = result.Cost.Credits;

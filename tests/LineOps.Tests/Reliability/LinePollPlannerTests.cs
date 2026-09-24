@@ -414,4 +414,36 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         // 400 usable credits at 3 a scan is 133, against 200 at 2.
         Assert.Equal(133, plan!.ScansRemainingToday);
     }
+
+    /// <summary>A credit-billed source that declares its own price per sport, as the adapters now do.</summary>
+    private sealed class PricedSource(string key, Dictionary<string, int> credits) : LineOps.Core.Contracts.IOddsSource
+    {
+        public string Key => key;
+        public IReadOnlyList<string> SupportedMarkets => ["h2h", "spread"];
+        public int CreditsPerScan(string sportKey) => credits.GetValueOrDefault(sportKey);
+
+        public Task<LineOps.Core.Contracts.OddsFetchResult> FetchSlateAsync(
+            string sportKey, IReadOnlyList<string> markets, CancellationToken ct) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task A_scan_costs_what_the_adapter_says_its_markets_cost_not_a_configured_guess()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+
+        // Totals added to NFL: three markets there, two for MLB — five credits a scan. The old
+        // configured two-per-sport would have said four, and paced a month on the wrong price.
+        var registry = new SourceRegistry([new PricedSource(source.Key, new() { ["mlb"] = 2, ["nfl"] = 3 })], []);
+        var options = new IngestionOptions { Sports = ["mlb", "nfl"] };
+
+        var planner = new LinePollPlanner(db, Options.Create(options), NullLogger<LinePollPlanner>.Instance, registry);
+        var plan = await planner.PlanAsync([source.Key]);
+
+        Assert.Equal(5, plan!.CreditsPerScan);
+        Assert.Equal(400 / 5, plan.ScansRemainingToday);
+
+        var markets = planner.MarketsBySport([source.Key]);
+        Assert.Equal([2, 3], markets.Select(m => m.Credits));
+    }
 }

@@ -394,6 +394,20 @@ public class SourceOptions
     /// </summary>
     public string[] Markets { get; set; } = [];
 
+    /// <summary>
+    /// Markets per sport, overriding <see cref="Markets"/> for the sports named — e.g.
+    /// <c>{ "mlb": ["moneyline", "total"], "nfl": ["moneyline", "spread", "total"] }</c>. A
+    /// credit-billed provider charges each market on every call, so this is where the price of a
+    /// scan is decided sport by sport. Ops shows what the list costs before anything is spent.
+    /// </summary>
+    public Dictionary<string, string[]> MarketsBySport { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The markets to request for one sport: its own list if it has one, else the common one.</summary>
+    public string[] MarketsFor(string sportKey)
+        => MarketsBySport.TryGetValue(sportKey, out var own) && own.Length > 0
+            ? own.Select(NormaliseMarket).Where(m => m is not null).Distinct().ToArray()!
+            : EffectiveMarkets;
+
     /// <summary>The markets to request, falling back to every market the platform models.</summary>
     public string[] EffectiveMarkets
         => Markets.Length > 0
