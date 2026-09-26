@@ -28,7 +28,7 @@ of what landed follows from closing that gap.
 | `feat(settlement)` | **§2.1 option A.** A market close counts only if captured within three hours of the start; otherwise ESPN's first-pitch reference is the close and there is no fair close. ADR 0011 amended. Standalone — drop the commit to keep the old rule. |
 | `docs` | README host-side runs; DESIGN.md caught up. |
 
-Tests: 509 + 296 = 805, from 746, all green. The Worker applied `FairClose` on start.
+Tests: 516 + 297 = 813, from 746, all green. The Worker applied `FairClose` on start.
 
 ## 2. Findings that need a decision
 
@@ -79,12 +79,24 @@ Totals and automatic polling (§4.2); player props (§4.3); splitting players me
 Phase 6; porting the desk changes to TicketMiser; `KpiDailies` computed and read by nothing;
 `balldontlie` configured with no adapter.
 
-## 3. Proposed next
+## 3. The proposed next items, as they landed (second round, same day)
 
-1. §2.1 option C (automatic polling) once the credits are committed, so market closes are closes.
-2. An EV column on the board that sorts (the price cells are not sortable today), once live
-   prices exist to verify it against.
-3. Performance by CLV basis split by fair basis (Pinnacle vs consensus), once there are bets.
+1. **Automatic polling is a switch in Ops** (`feat(ops)`), not a config edit per host. The mode
+   lives in `AppSettings` (`odds.line_polling`); the scheduler (web and worker alike) and the
+   alert engine read it, configuration decides until someone chooses, and turning scanning on is
+   confirmed beside its price. **It is still off** — switching it on spends the credits, and is
+   the operator's press, not this branch's.
+2. **A Value column on the board** (`feat(board)`), each game's best bet against the fair price,
+   sortable. Verified on the first live NFL pull (26 Sep, 17:29 UTC, 2 credits, pressed from the
+   desk): the Chargers ML at FanDuel +295 at +2.0%, then the Browns +2.5 at DraftKings −108 at
+   +0.5%. Making it sort found that **fourteen columns in eight panels never sorted**: MudBlazor's
+   `TemplateColumn` ignores `SortBy` unless `Sortable="true"`. All fixed, with a convention test.
+3. **Performance by fair basis** (`feat(performance)`): value at close for Pinnacle, consensus
+   and no-fair-close selections, from `PerformanceAnalytics.ValueAtClose`. Unit-tested; not yet
+   seen rendered, since the journal is still empty.
+
+Next, when there is a reason: switch polling on in Ops once the month's credits are committed;
+log the first real bet and watch it settle and value end to end.
 
 ## 4. Testing this branch
 
@@ -95,7 +107,7 @@ dotnet run --project src/LineOps.Web --launch-profile http   # applies FairClose
 
 - **Fair value, without spending credits:** Ctrl+K → "chiefs broncos" → the 14 Sep game. Hover the
   moneyline: "Fair −136 (Pinnacle, no-vig)" and each book's value.
-- **With a pull:** Board → Pull lines (costs credits). +EV prices light up in the cells; the "+EV"
+- **With a pull:** Board → Pull lines (costs credits); tomorrow's NFL slate already has one. Sort the Value column. +EV prices light up in the cells; the "+EV"
   key narrows the slate; Place wager opens on the best-value side and shows its value.
 - **Seasons:** open History → Seasons.
 - **Settlement:** covered by `SettlementIntegrationTests` (no real bet needed).
