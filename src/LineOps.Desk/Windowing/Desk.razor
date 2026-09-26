@@ -127,6 +127,11 @@
     private string? _savedLayout;
     private bool _saveQueued;
 
+    // What the page was last told. 1 is what the stylesheet declares, so a desk at 100% never
+    // makes the call at all.
+    private double _appliedUiScale = 1;
+    private double _appliedTextScale = 1;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -145,6 +150,16 @@
 
         if (_module is null)
             return;
+
+        // The scale is the manager's setting and the page's zoom; this is the one place that
+        // owns both the setting and the module, so it is the one place that keeps them agreed.
+        // Compared rather than pushed on every render, because every pulse re-renders the desk.
+        var (ui, text) = (Manager.Settings.UiScale, Manager.Settings.TextScale);
+        if (ui != _appliedUiScale || text != _appliedTextScale)
+        {
+            (_appliedUiScale, _appliedTextScale) = (ui, text);
+            await _module.InvokeVoidAsync("applyScale", ui, text);
+        }
 
         // Rebind dividers only when the set of adjacent pairs actually changes — a drag
         // causes renders, and rewiring mid-gesture would drop it.

@@ -60,15 +60,21 @@
         const c = container.getBoundingClientRect();
         const t = target.getBoundingClientRect();
 
+        // Rectangles are visual pixels; the plate's size and offset are written in the
+        // container's layout pixels. They differ under the Window manager's UI scale
+        // (CSS zoom), and currentCSSZoom is the factor between them wherever the cluster
+        // sits — on the desk, or inside a popover MudBlazor's layer re-zooms.
+        const z = container.currentCSSZoom || 1;
+
         // A fresh plate materialises under the control rather than sliding in
         // from wherever it last was.
         if (fresh) plate.classList.add('glide-plate--still');
 
-        plate.style.width = t.width + 'px';
-        plate.style.height = t.height + 'px';
+        plate.style.width = t.width / z + 'px';
+        plate.style.height = t.height / z + 'px';
         plate.style.transform =
-            'translate(' + (t.left - c.left + container.scrollLeft) + 'px,'
-                         + (t.top - c.top + container.scrollTop) + 'px)';
+            'translate(' + ((t.left - c.left) / z + container.scrollLeft) + 'px,'
+                         + ((t.top - c.top) / z + container.scrollTop) + 'px)';
 
         const tone = target.getAttribute('data-glide-tone');
         if (tone) plate.setAttribute('data-tone', tone);
@@ -211,6 +217,14 @@
         document.addEventListener('DOMContentLoaded', seatAll);
     else
         seatAll();
+
+    // The observer above only hears the DOM change. A resting child can also change
+    // size with no mutation at all — the Window manager's scale moving, or the browser
+    // being resized — and the marble would keep the old tab's measurements. Both are
+    // announced, so both reseat; windowing.js raises lineops:rescaled after it has set
+    // the new scale, when getBoundingClientRect already reports the new layout.
+    window.addEventListener('lineops:rescaled', seatAll);
+    window.addEventListener('resize', seatAll, { passive: true });
 
     // Blazor renders the toolbar after the script runs, and a resting child that
     // appears later still has to be found.

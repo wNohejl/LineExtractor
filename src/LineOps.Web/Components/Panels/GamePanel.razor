@@ -66,11 +66,11 @@ else
     </div>
 
     <div class="row" style="margin-bottom:14px">
-        <span class="dim" style="font-size:11.5px">@Starts(game.StartsAt)</span>
+        <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@Starts(game.StartsAt)</span>
         @if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
         {
             @* In full here, where there is room: the Board shortens them to surnames. *@
-            <span style="font-size:11.5px">
+            <span style="font-size:calc(11.5px * var(--text-scale))">
                 <span class="dim">Starters</span>
                 @(game.AwayProbablePitcher ?? "TBD") <span class="dim">v</span> @(game.HomeProbablePitcher ?? "TBD")
             </span>
@@ -360,21 +360,21 @@ else
         {
             <div class="row" style="gap:18px; margin-bottom:14px; flex-wrap:wrap">
                 <div>
-                    <div class="dim" style="font-size:11px; margin-bottom:4px">Moneyline</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
-                    <div class="dim" style="font-size:11px; margin-bottom:4px">Spread</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
-                    <div class="dim" style="font-size:11px; margin-bottom:4px">Total</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />
@@ -398,11 +398,11 @@ else
 
             @if (form is null || form.Recent.Count == 0)
             {
-                <div class="dim" style="font-size:11.5px">No games recorded in the window.</div>
+                <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">No games recorded in the window.</div>
             }
             else
             {
-                <div class="dim" style="font-size:11.5px">
+                <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">
                     @form.Wins-@form.Losses over @form.Recent.Count games
                 </div>
                 <div class="row" style="margin-top:3px">
@@ -441,7 +441,7 @@ else
         {
             var columns = GameBoxScore.ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:calc(12px * var(--text-scale)); font-weight:600">@teamName</h5>
             <div class="gridwrap">
                 <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
                     <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
@@ -494,7 +494,7 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:12px; font-weight:600">@teamName</h5>
+            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:calc(12px * var(--text-scale)); font-weight:600">@teamName</h5>
             @*
                 The row opens the way every other row on the desk opens.
 

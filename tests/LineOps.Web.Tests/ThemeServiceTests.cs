@@ -18,20 +18,22 @@ namespace LineOps.Web.Tests;
 public class ThemeServiceTests : TestContext
 {
     private const string DarkAttribute = "apple-dark";
-    private const string LightAttribute = "light";
+    private const string LightAttribute = "apple-light";
 
     /// <summary>
     /// Stands the module up with a stored choice and a machine preference.
     /// </summary>
     private BunitJSModuleInterop _module = default!;
 
-    private ThemeService Arrange(string? stored, bool prefersDark)
+    private ThemeService Arrange(string? stored, bool prefersDark, string? storedFamily = null)
     {
         _module = JSInterop.SetupModule("./_content/LineOps.Desk/js/theme.js");
 
         _module.Setup<bool>("prefersDark").SetResult(prefersDark);
         _module.Setup<string?>("read").SetResult(stored);
+        _module.Setup<string?>("readFamily").SetResult(storedFamily);
         _module.SetupVoid("store", _ => true).SetVoidResult();
+        _module.SetupVoid("storeFamily", _ => true).SetVoidResult();
         _module.SetupVoid("watch", _ => true).SetVoidResult();
         _module.SetupVoid("unwatch").SetVoidResult();
         _module.SetupVoid("apply", _ => true).SetVoidResult();
@@ -212,6 +214,120 @@ public class ThemeServiceTests : TestContext
         await service.InitializeAsync();
 
         Assert.Equal(1, CallCount("watch"));
+    }
+
+    // ---- Families ------------------------------------------------------------
+
+    [Fact]
+    public async Task With_no_family_stored_the_desk_is_Standard()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskThemeFamily.Standard, service.Family);
+        Assert.Equal(DarkAttribute, LastPaint());
+    }
+
+    [Fact]
+    public async Task A_stored_family_is_painted_in_the_appearance_showing()
+    {
+        var service = Arrange(stored: "Light", prefersDark: true, storedFamily: "Nord");
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskThemeFamily.Nord, service.Family);
+        Assert.Equal("nord-light", LastPaint());
+        Assert.Same(DeskPalettes.NordLight, service.Palette);
+    }
+
+    /// <summary>
+    /// The same rule the mode follows: an unreadable value is not a choice. "3" is in the list
+    /// because Enum.TryParse accepts a number as a member, and a number is not a name anyone
+    /// stored — a stale integer would otherwise select whichever family happens to sit fourth.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("Dracula")]
+    [InlineData("3")]
+    [InlineData("99")]
+    public async Task An_unreadable_stored_family_falls_back_to_Standard(string storedFamily)
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedFamily);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskThemeFamily.Standard, service.Family);
+        Assert.Equal(DarkAttribute, LastPaint());
+    }
+
+    [Fact]
+    public async Task Choosing_a_family_persists_it_repaints_and_announces()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetFamilyAsync(DeskThemeFamily.Solarized);
+
+        Assert.Contains("Solarized", Calls("storeFamily"));
+        Assert.Equal("solarized-dark", LastPaint());
+        Assert.Equal(1, announced);
+
+        // The mode was not touched: a family is the finer choice, not a replacement for it.
+        Assert.Empty(Stored());
+        Assert.Equal(DeskThemeMode.Dark, service.Mode);
+    }
+
+    [Fact]
+    public async Task Choosing_the_family_already_showing_does_nothing()
+    {
+        var service = Arrange(stored: null, prefersDark: true, storedFamily: "RosePine");
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetFamilyAsync(DeskThemeFamily.RosePine);
+
+        Assert.Equal(0, announced);
+        Assert.Empty(Calls("storeFamily"));
+    }
+
+    /// <summary>
+    /// The reason a family is not a fourth appearance. On System, a family keeps following the
+    /// machine — the Nord desk turns at sunset exactly as the Standard one does.
+    /// </summary>
+    [Fact]
+    public async Task Under_System_a_family_follows_the_machine_too()
+    {
+        var service = Arrange(stored: "System", prefersDark: false, storedFamily: "HighContrast");
+        await service.InitializeAsync();
+
+        Assert.Equal("contrast-light", LastPaint());
+
+        await service.OnSystemPreferenceChanged(prefersDark: true);
+
+        Assert.Equal("contrast-dark", LastPaint());
+        Assert.Same(DeskPalettes.ContrastDark, service.Palette);
+    }
+
+    /// <summary>
+    /// MudThemeProvider is handed the family's theme and the desk's own tokens come from the
+    /// attribute; both are derived from the same two fields, so they cannot disagree.
+    /// </summary>
+    [Fact]
+    public async Task Mud_gets_the_family_the_desk_is_painted_in()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedFamily: "Nord");
+        await service.InitializeAsync();
+
+        Assert.Same(DeskTheme.For(DeskThemeFamily.Nord), service.MudTheme);
+        Assert.Equal(
+            new MudBlazor.Utilities.MudColor(DeskPalettes.NordDark.Accent).Value,
+            service.MudTheme.PaletteDark.Primary.Value);
     }
 
     [Fact]

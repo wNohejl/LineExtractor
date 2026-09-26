@@ -1,6 +1,6 @@
 // The desk's theme, on the browser side.
 //
-// Three jobs, and only three: read and write the operator's choice in localStorage,
+// Three jobs, and only three: read and write the operator's choices in localStorage,
 // stamp the resolved theme onto <html> so the token block switches, and report what
 // prefers-color-scheme currently says. Everything about *which* theme should be
 // showing is decided in ThemeService; this file holds no policy, because a policy
@@ -27,16 +27,38 @@ export function store(mode) {
     }
 }
 
+// The family — which palette — kept under its own key rather than folded into the mode's.
+// The two are independent choices, and a browser that stored "Light" before families existed
+// must go on reading it as a mode without having to be migrated.
+const FAMILY_KEY = 'lineops.theme.family';
+
+export function readFamily() {
+    try {
+        return localStorage.getItem(FAMILY_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function storeFamily(family) {
+    try {
+        localStorage.setItem(FAMILY_KEY, family);
+    } catch {
+        /* forgotten, not fatal */
+    }
+}
+
 export function prefersDark() {
     return window.matchMedia
         ? window.matchMedia('(prefers-color-scheme: dark)').matches
         : true;
 }
 
-// The whole switch, in one attribute. Both token blocks weigh (0,1,0) and the light
-// one is written second, so stamping "light" here is enough to hand the entire desk
-// over; "apple-dark" is set explicitly rather than by removing the attribute so that
-// what is showing is always readable in the DOM inspector.
+// The whole switch, in one attribute: "<family>-<dark|light>", which names exactly one
+// token block in lineops.css or themes.css. Every block weighs (0,1,0) and each is written
+// after :root, so stamping any of them hands the entire desk over; "apple-dark" is set
+// explicitly rather than by removing the attribute so that what is showing is always
+// readable in the DOM inspector.
 export function apply(theme) {
     document.documentElement.setAttribute('data-theme', theme);
 }

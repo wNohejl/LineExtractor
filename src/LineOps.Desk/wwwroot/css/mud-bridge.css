@@ -19,7 +19,8 @@
         in MudBlazor's stylesheet rather than driven by a variable.
 
    Load order matters and is fixed in App.razor: MudBlazor.min.css, then
-   lineops.css (which defines the tokens), then this file. Nothing here uses
+   lineops.css (which defines the tokens), then themes.css (the other families'
+   token blocks), then this file. Nothing here uses
    !important; every override either raises specificity honestly or wins on
    source order at equal specificity. If a rule below stops working after a
    MudBlazor upgrade, that is the signal to re-read their stylesheet, not to
@@ -60,6 +61,11 @@
     --mud-typography-h4-family: var(--face-ui);
     --mud-typography-h5-family: var(--face-ui);
     --mud-typography-h6-family: var(--face-ui);
+
+    /* The default size is written from C# as a literal 13px (DeskTheme's Typography),
+       which is --text-body only at 100%. Pointed at the token, it follows the
+       operator's Text size like everything else. */
+    --mud-typography-default-size: var(--text-body);
 
     /* Buttons are set like body text now. The uppercase tracking left with the
        gloss — Apple sets button labels in the same face and case as everything
@@ -124,7 +130,7 @@
 }
 
 .mud-list-item {
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
     padding-top: 6px;
     padding-bottom: 6px;
 }
@@ -254,7 +260,7 @@
 .deskgrid .column-header:hover .sort-direction-icon { opacity: .6; }
 .deskgrid .sort-direction-icon.mud-direction-asc,
 .deskgrid .sort-direction-icon.mud-direction-desc { opacity: 1; }
-.deskgrid .sort-direction-icon .mud-icon-root { font-size: 14px; }
+.deskgrid .sort-direction-icon .mud-icon-root { font-size: calc(14px * var(--text-scale)); }
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
 
@@ -438,7 +444,7 @@
     box-shadow: var(--shadow-sheet);
     color: var(--text-primary);
     font-family: var(--face-ui);
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--text-scale));
     font-weight: 400; /* .mud-alert-filled-* asks for 500; nothing else on the desk does */
     letter-spacing: .01em;
     padding: 4px 12px;
@@ -464,7 +470,7 @@
     opacity: 1;
 }
 
-.mud-snackbar.desk-toast .mud-snackbar-icon .mud-icon-root { font-size: 16px; }
+.mud-snackbar.desk-toast .mud-snackbar-icon .mud-icon-root { font-size: calc(16px * var(--text-scale)); }
 
 /* The close button is an escape, not a button — flat, dim, and it brightens rather than
    fills. Giving it a fill would make the notice look pressable.
@@ -478,12 +484,12 @@
 }
 
 .mud-snackbar.desk-toast .mud-snackbar-close-button:hover { color: var(--text-primary); }
-.mud-snackbar.desk-toast .mud-snackbar-close-button .mud-icon-root { font-size: 15px; }
+.mud-snackbar.desk-toast .mud-snackbar-close-button .mud-icon-root { font-size: calc(15px * var(--text-scale)); }
 
 /* Charts are the one thing MudBlazor was already trusted with. Their labels get the same
    face as everything else, named explicitly because MudChart draws its own SVG text rather
    than inheriting the typography block above. */
-.mud-chart text { font-family: var(--face-ui); font-size: 10px; fill: var(--text-secondary); }
+.mud-chart text { font-family: var(--face-ui); font-size: calc(10px * var(--text-scale)); fill: var(--text-secondary); }
 .mud-charts-grid-line { stroke: var(--separator); }
 
 /* ----------------------------------------------------------------- charts ---- */
@@ -512,14 +518,14 @@
    the window already said what this panel is. */
 .deskchart__headline {
     color: var(--text-primary);
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .01em;
 }
 
 .deskchart__takeaway {
     color: var(--text-tertiary);
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     line-height: 1.35;
 }
 
@@ -533,7 +539,7 @@
 .deskchart .mud-chart-legend {
     color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     letter-spacing: .04em;
 }
 
@@ -585,3 +591,31 @@
    MudBlazor cannot be out-specified — so DeskTheme.cs sets ActionDisabled to the
    desk's dim text and the two agree instead of fighting. Nothing is needed here;
    this note exists so the next person does not go looking for the missing rule. */
+
+/* ------------------------------------------------------------ 4. UI scale ---- */
+
+/* The Window manager's UI scale is zoom on <html> (lineops.css, "Scale"), and
+   zoom has one consequence MudBlazor does not know about: getBoundingClientRect
+   reports visual pixels, but a position written into style.left lands in the
+   element's own, zoomed, layout pixels. Mud's popover positioner reads the
+   anchor's rectangle and writes it straight into the popover's left and top, so
+   at 125% a menu anchored at x=215 rendered at x=268 — measured, not reasoned.
+
+   The fix is two rules and no JavaScript. The provider is zoomed back to 1, so
+   the popover's left and top land in visual pixels, which is what Mud measured
+   in. Then everything inside a popover is zoomed forward again, so the menu, the
+   select list and the tooltip still render at the desk's scale. The popover box
+   itself is the one thing left at 1, and it has no size of its own to lose: it
+   shrink-wraps its content, and Mud's flip logic measures that content in the
+   same visual pixels it positions in.
+
+   Dialogs and snackbars need nothing: MudBlazor centres and pins them with CSS
+   alone, which zoom scales correctly. The desk's own floating dialogs are
+   positioned by dialogs.js, which divides by the zoom itself. */
+.mud-popover-provider {
+    zoom: calc(1 / var(--ui-scale));
+}
+
+.mud-popover > * {
+    zoom: var(--ui-scale);
+}

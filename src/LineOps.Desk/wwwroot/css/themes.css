@@ -1,0 +1,475 @@
+/* ============================================================================
+   LineOps — the other theme families
+
+   lineops.css holds the Standard desk: :root / [data-theme="apple-dark"] and
+   [data-theme="apple-light"]. This file holds everything else, as eight more
+   blocks of exactly that shape — one per family per appearance, stamped on
+   <html> by ThemeService as "<family>-<dark|light>".
+
+   The rule from ADR 0016 holds unchanged, and it is the whole reason a family
+   costs a token block rather than a component rewrite:
+
+     - every block redeclares every colour token the Standard dark block declares,
+       and nothing else — type, spacing, radii, motion and layers fall through
+       from :root, and --focus-ring re-resolves on its own because it is written
+       in var()s;
+     - no rule outside a token block may key off [data-theme]. Nothing does.
+
+   DeskThemeTests enforces the first mechanically for every block here, holds
+   each to its C# mirror in Theming/DeskPalette.cs, and computes the contrast
+   of secondary and tertiary text in every block rather than trusting a table.
+
+   Load order: after lineops.css. Every block weighs (0,1,0), the same as :root,
+   and wins on source order alone.
+
+   Each family also paints its own swatch in the Window manager: the swatch
+   carries this block's data-theme, so a family's preview is the family, not a
+   picture of it.
+   ============================================================================ */
+
+
+/* ---------------------------------------------------------------- Nord ----
+   Arctic Ice Studio's palette. Polar Night grounds the dark desk, Snow Storm the
+   light one. The dark accent is Frost (nord8) — pale enough that a filled
+   control takes dark ink, which Nord's own UIs do too. On Snow Storm nord8 would
+   vanish, so the light accent steps down to nord10 and carries white ink.
+   Aurora supplies the states: nord14 green, nord11 red, nord13 yellow on dark;
+   the light desk deepens green and trades yellow for nord12's orange, because
+   pale yellow on white is not a warning anyone reads. */
+
+[data-theme="nord-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #2B303B; /* a step under nord0, so panels lift off the ground */
+    --surface-1: #2E3440; /* nord0 */
+    --surface-2: #3B4252; /* nord1 */
+    --surface-3: #434C5E; /* nord2 */
+
+    --separator: rgba(236, 239, 244, .10);
+    --separator-strong: rgba(236, 239, 244, .16);
+
+    /* nord6 at tiers. Secondary measures 5.70:1 over --surface-1, level with
+       the Standard desk's 5.72:1. */
+    --text-primary: rgba(236, 239, 244, .92);
+    --text-secondary: rgba(236, 239, 244, .66);
+    --text-tertiary: rgba(236, 239, 244, .30);
+
+    --accent: #88C0D0;
+    --accent-hover: #A3D0DC;
+    --accent-press: #78AFBF;
+    --accent-wash: rgba(136, 192, 208, .16);
+    --accent-wash-strong: rgba(136, 192, 208, .26);
+    --on-accent: #2E3440;
+
+    --state-positive: #A3BE8C;
+    --state-negative: #BF616A;
+    --state-negative-hover: #CC7A82;
+    --state-warning: #EBCB8B;
+    --state-positive-wash: rgba(163, 190, 140, .16);
+    --state-negative-wash: rgba(191, 97, 106, .18);
+    --state-warning-wash: rgba(235, 203, 139, .16);
+
+    --chart-neutral: #7B88A1;
+    --chart-neutral-dim: #4C566A;
+
+    --material-ultrathin: rgba(59, 66, 82, .55);
+    --material-thin: rgba(52, 58, 72, .70);
+    --material-regular: rgba(46, 52, 64, .82);
+    --material-thick: rgba(43, 48, 59, .92);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(15, 17, 22, .30);
+    --shadow-2: 0 4px 12px -2px rgba(15, 17, 22, .45), 0 1px 3px rgba(15, 17, 22, .30);
+    --shadow-3: 0 16px 40px -8px rgba(15, 17, 22, .60), 0 4px 12px rgba(15, 17, 22, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(15, 17, 22, .75), 0 8px 24px rgba(15, 17, 22, .45);
+    --shadow-inset: inset 0 1px 2px rgba(15, 17, 22, .35);
+
+    --sheen: rgba(236, 239, 244, .16);
+    --sheen-soft: rgba(236, 239, 244, .06);
+}
+
+[data-theme="nord-light"] {
+    color-scheme: light;
+
+    --surface-0: #E5E9F0; /* nord5 */
+    --surface-1: #F4F6F9; /* a breath above nord6, so panels read as paper */
+    --surface-2: #D8DEE9; /* nord4 */
+    --surface-3: #C8D0DD;
+
+    --separator: rgba(46, 52, 64, .12);
+    --separator-strong: rgba(46, 52, 64, .20);
+
+    /* nord0 at tiers. Secondary measures 5.61:1 over --surface-1. */
+    --text-primary: rgba(46, 52, 64, .92);
+    --text-secondary: rgba(46, 52, 64, .76);
+    --text-tertiary: rgba(46, 52, 64, .34);
+
+    --accent: #5E81AC; /* nord10 */
+    --accent-hover: #52739C;
+    --accent-press: #486690;
+    --accent-wash: rgba(94, 129, 172, .12);
+    --accent-wash-strong: rgba(94, 129, 172, .20);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #7A9A5E;
+    --state-negative: #BF616A;
+    --state-negative-hover: #A8505A;
+    --state-warning: #D08770;
+    --state-positive-wash: rgba(122, 154, 94, .15);
+    --state-negative-wash: rgba(191, 97, 106, .14);
+    --state-warning-wash: rgba(208, 135, 112, .15);
+
+    --chart-neutral: #7B88A1;
+    --chart-neutral-dim: #A5AFC0;
+
+    --material-ultrathin: rgba(244, 246, 249, .62);
+    --material-thin: rgba(240, 242, 246, .76);
+    --material-regular: rgba(236, 239, 244, .86);
+    --material-thick: rgba(229, 233, 240, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(46, 52, 64, .10);
+    --shadow-2: 0 4px 12px -2px rgba(46, 52, 64, .14), 0 1px 3px rgba(46, 52, 64, .10);
+    --shadow-3: 0 16px 40px -8px rgba(46, 52, 64, .20), 0 4px 12px rgba(46, 52, 64, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(46, 52, 64, .28), 0 8px 24px rgba(46, 52, 64, .16);
+    --shadow-inset: inset 0 1px 2px rgba(46, 52, 64, .08);
+
+    --sheen: rgba(46, 52, 64, .10);
+    --sheen-soft: rgba(46, 52, 64, .05);
+}
+
+
+/* ----------------------------------------------------------- Solarized ----
+   Ethan Schoonover's palette, whose premise is that the accents do not move
+   between modes — only the ground and the ink swap, base03/base02 for
+   base3/base2. So the accent is blue (#268BD2) on both desks and the states are
+   green, red and yellow on both; only their hover and press travel, lighter on
+   dark and deeper on light, as everywhere else on the desk.
+
+   The ink is not Solarized's own body tone. base0 on base03 measures about
+   4.75:1 and base00 on base3 about 4.1:1 — the palette was tuned for code, where
+   a hint of low contrast is the point. A desk's secondary text has to clear AA,
+   so the tiers are built on base2 (dark) and base02 (light) instead, the
+   palette's own emphasis inks. */
+
+[data-theme="solarized-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #00212B;
+    --surface-1: #002B36; /* base03 */
+    --surface-2: #073642; /* base02 */
+    --surface-3: #0D4250;
+
+    --separator: rgba(238, 232, 213, .10);
+    --separator-strong: rgba(238, 232, 213, .16);
+
+    /* base2 at tiers. Secondary measures 5.54:1 over --surface-1. */
+    --text-primary: rgba(238, 232, 213, .90);
+    --text-secondary: rgba(238, 232, 213, .62);
+    --text-tertiary: rgba(238, 232, 213, .30);
+
+    --accent: #268BD2;
+    --accent-hover: #3E9BDC;
+    --accent-press: #1F77B4;
+    --accent-wash: rgba(38, 139, 210, .18);
+    --accent-wash-strong: rgba(38, 139, 210, .28);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #859900;
+    --state-negative: #DC322F;
+    --state-negative-hover: #E5504D;
+    --state-warning: #B58900;
+    --state-positive-wash: rgba(133, 153, 0, .18);
+    --state-negative-wash: rgba(220, 50, 47, .18);
+    --state-warning-wash: rgba(181, 137, 0, .18);
+
+    --chart-neutral: #839496; /* base0 */
+    --chart-neutral-dim: #586E75; /* base01 */
+
+    --material-ultrathin: rgba(7, 54, 66, .60);
+    --material-thin: rgba(4, 48, 59, .74);
+    --material-regular: rgba(0, 43, 54, .84);
+    --material-thick: rgba(0, 33, 43, .93);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(0, 16, 21, .35);
+    --shadow-2: 0 4px 12px -2px rgba(0, 16, 21, .50), 0 1px 3px rgba(0, 16, 21, .35);
+    --shadow-3: 0 16px 40px -8px rgba(0, 16, 21, .65), 0 4px 12px rgba(0, 16, 21, .40);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 16, 21, .80), 0 8px 24px rgba(0, 16, 21, .50);
+    --shadow-inset: inset 0 1px 2px rgba(0, 16, 21, .40);
+
+    --sheen: rgba(238, 232, 213, .14);
+    --sheen-soft: rgba(238, 232, 213, .06);
+}
+
+[data-theme="solarized-light"] {
+    color-scheme: light;
+
+    --surface-0: #EEE8D5; /* base2 */
+    --surface-1: #FDF6E3; /* base3 */
+    --surface-2: #E6DFC8;
+    --surface-3: #D9D1B8;
+
+    --separator: rgba(7, 54, 66, .12);
+    --separator-strong: rgba(7, 54, 66, .20);
+
+    /* base02 at tiers. Secondary measures 5.63:1 over --surface-1. */
+    --text-primary: rgba(7, 54, 66, .92);
+    --text-secondary: rgba(7, 54, 66, .74);
+    --text-tertiary: rgba(7, 54, 66, .32);
+
+    --accent: #268BD2;
+    --accent-hover: #1F77B4;
+    --accent-press: #1A6699;
+    --accent-wash: rgba(38, 139, 210, .14);
+    --accent-wash-strong: rgba(38, 139, 210, .22);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #859900;
+    --state-negative: #DC322F;
+    --state-negative-hover: #B8201D;
+    --state-warning: #B58900;
+    --state-positive-wash: rgba(133, 153, 0, .15);
+    --state-negative-wash: rgba(220, 50, 47, .13);
+    --state-warning-wash: rgba(181, 137, 0, .15);
+
+    --chart-neutral: #93A1A1; /* base1 */
+    --chart-neutral-dim: #BFC6BE;
+
+    --material-ultrathin: rgba(253, 246, 227, .62);
+    --material-thin: rgba(250, 243, 223, .76);
+    --material-regular: rgba(246, 239, 218, .86);
+    --material-thick: rgba(238, 232, 213, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(0, 43, 54, .10);
+    --shadow-2: 0 4px 12px -2px rgba(0, 43, 54, .14), 0 1px 3px rgba(0, 43, 54, .10);
+    --shadow-3: 0 16px 40px -8px rgba(0, 43, 54, .20), 0 4px 12px rgba(0, 43, 54, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 43, 54, .28), 0 8px 24px rgba(0, 43, 54, .16);
+    --shadow-inset: inset 0 1px 2px rgba(0, 43, 54, .08);
+
+    --sheen: rgba(7, 54, 66, .10);
+    --sheen-soft: rgba(7, 54, 66, .05);
+}
+
+
+/* ----------------------------------------------------------- Rosé Pine ----
+   Main by night, Dawn by day. Iris is the accent in both — pale on the dark
+   desk, where it takes dark ink, and deeper on Dawn, where it takes white.
+   Rosé Pine has no green, so "positive" is Foam, the colour the palette itself
+   gives to success; love is negative and gold is warning in both. */
+
+[data-theme="rose-pine-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #191724; /* base */
+    --surface-1: #1F1D2E; /* surface */
+    --surface-2: #26233A; /* overlay */
+    --surface-3: #33304A;
+
+    --separator: rgba(224, 222, 244, .10);
+    --separator-strong: rgba(224, 222, 244, .16);
+
+    /* text (#E0DEF4) at tiers. Secondary measures 5.62:1 over --surface-1. */
+    --text-primary: rgba(224, 222, 244, .92);
+    --text-secondary: rgba(224, 222, 244, .62);
+    --text-tertiary: rgba(224, 222, 244, .32);
+
+    --accent: #C4A7E7; /* iris */
+    --accent-hover: #D3BCEE;
+    --accent-press: #B393DC;
+    --accent-wash: rgba(196, 167, 231, .16);
+    --accent-wash-strong: rgba(196, 167, 231, .26);
+    --on-accent: #191724;
+
+    --state-positive: #9CCFD8; /* foam */
+    --state-negative: #EB6F92; /* love */
+    --state-negative-hover: #F08AA7;
+    --state-warning: #F6C177; /* gold */
+    --state-positive-wash: rgba(156, 207, 216, .15);
+    --state-negative-wash: rgba(235, 111, 146, .16);
+    --state-warning-wash: rgba(246, 193, 119, .15);
+
+    --chart-neutral: #908CAA; /* subtle */
+    --chart-neutral-dim: #6E6A86; /* muted */
+
+    --material-ultrathin: rgba(38, 35, 58, .58);
+    --material-thin: rgba(33, 31, 50, .72);
+    --material-regular: rgba(31, 29, 46, .84);
+    --material-thick: rgba(25, 23, 36, .93);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(10, 9, 16, .32);
+    --shadow-2: 0 4px 12px -2px rgba(10, 9, 16, .48), 0 1px 3px rgba(10, 9, 16, .32);
+    --shadow-3: 0 16px 40px -8px rgba(10, 9, 16, .62), 0 4px 12px rgba(10, 9, 16, .38);
+    --shadow-sheet: 0 32px 80px -12px rgba(10, 9, 16, .78), 0 8px 24px rgba(10, 9, 16, .48);
+    --shadow-inset: inset 0 1px 2px rgba(10, 9, 16, .38);
+
+    --sheen: rgba(224, 222, 244, .16);
+    --sheen-soft: rgba(224, 222, 244, .06);
+}
+
+[data-theme="rose-pine-light"] {
+    color-scheme: light;
+
+    --surface-0: #F2E9E1; /* Dawn overlay, as the ground */
+    --surface-1: #FFFAF3; /* Dawn surface */
+    --surface-2: #EBE2D9;
+    --surface-3: #DFDAD9; /* Dawn highlight-med */
+
+    --separator: rgba(87, 82, 121, .14);
+    --separator-strong: rgba(87, 82, 121, .24);
+
+    /* Dawn text (#575279) at tiers. It is a soft ink, so primary is the full
+       colour (7.00:1) and secondary sits close under it at 5.46:1 — the tiers
+       are nearer than on other desks because there is less ink to spend. */
+    --text-primary: rgba(87, 82, 121, 1);
+    --text-secondary: rgba(87, 82, 121, .90);
+    --text-tertiary: rgba(87, 82, 121, .40);
+
+    --accent: #907AA9; /* Dawn iris */
+    --accent-hover: #7F6899;
+    --accent-press: #6F5889;
+    --accent-wash: rgba(144, 122, 169, .14);
+    --accent-wash-strong: rgba(144, 122, 169, .22);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #56949F; /* Dawn foam */
+    --state-negative: #B4637A; /* Dawn love */
+    --state-negative-hover: #9E4F66;
+    --state-warning: #EA9D34; /* Dawn gold */
+    --state-positive-wash: rgba(86, 148, 159, .15);
+    --state-negative-wash: rgba(180, 99, 122, .14);
+    --state-warning-wash: rgba(234, 157, 52, .16);
+
+    --chart-neutral: #9893A5; /* Dawn muted */
+    --chart-neutral-dim: #CECACD; /* Dawn highlight-high */
+
+    --material-ultrathin: rgba(255, 250, 243, .62);
+    --material-thin: rgba(250, 244, 237, .76);
+    --material-regular: rgba(246, 239, 231, .86);
+    --material-thick: rgba(242, 233, 225, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(87, 82, 121, .10);
+    --shadow-2: 0 4px 12px -2px rgba(87, 82, 121, .14), 0 1px 3px rgba(87, 82, 121, .10);
+    --shadow-3: 0 16px 40px -8px rgba(87, 82, 121, .20), 0 4px 12px rgba(87, 82, 121, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(87, 82, 121, .28), 0 8px 24px rgba(87, 82, 121, .16);
+    --shadow-inset: inset 0 1px 2px rgba(87, 82, 121, .08);
+
+    --sheen: rgba(87, 82, 121, .10);
+    --sheen-soft: rgba(87, 82, 121, .05);
+}
+
+
+/* ------------------------------------------------------- High contrast ----
+   For a desk read from across a room, and for eyes that need more than AA.
+   Secondary text clears AAA (7:1) rather than AA, hairlines are visible at a
+   glance rather than felt, and the accent carries ink that clears 7:1 on it.
+   Materials go almost opaque, because translucency is contrast given away.
+
+   Tertiary text still sits below AA, and deliberately: it is a hint, a
+   placeholder, a unit nobody must read, on this desk as on every other. A high-
+   contrast desk whose hints shout as loud as its values has flattened the one
+   hierarchy the operator relies on. It is raised — about 3.4–3.8:1, against
+   2.1–2.7 elsewhere — and no further. */
+
+[data-theme="contrast-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #000000;
+    --surface-1: #0A0A0A;
+    --surface-2: #1F1F1F;
+    --surface-3: #333333;
+
+    --separator: rgba(255, 255, 255, .38);
+    --separator-strong: rgba(255, 255, 255, .60);
+
+    /* Secondary measures 12.58:1 over --surface-1; tertiary 3.77:1. */
+    --text-primary: rgba(255, 255, 255, 1);
+    --text-secondary: rgba(255, 255, 255, .80);
+    --text-tertiary: rgba(255, 255, 255, .40);
+
+    --accent: #4DB8FF;
+    --accent-hover: #80CCFF;
+    --accent-press: #2FA4F0;
+    --accent-wash: rgba(77, 184, 255, .22);
+    --accent-wash-strong: rgba(77, 184, 255, .34);
+    --on-accent: #000000;
+
+    --state-positive: #3DDC6E;
+    --state-negative: #FF5C5C;
+    --state-negative-hover: #FF8080;
+    --state-warning: #FFB224;
+    --state-positive-wash: rgba(61, 220, 110, .20);
+    --state-negative-wash: rgba(255, 92, 92, .20);
+    --state-warning-wash: rgba(255, 178, 36, .20);
+
+    --chart-neutral: #A0A0A0;
+    --chart-neutral-dim: #6E6E6E;
+
+    --material-ultrathin: rgba(20, 20, 20, .92);
+    --material-thin: rgba(14, 14, 14, .95);
+    --material-regular: rgba(8, 8, 8, .97);
+    --material-thick: rgba(0, 0, 0, .98);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .60);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .75), 0 1px 3px rgba(0, 0, 0, .60);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .85), 0 4px 12px rgba(0, 0, 0, .65);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .90), 0 8px 24px rgba(0, 0, 0, .70);
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, .60);
+
+    --sheen: rgba(255, 255, 255, .24);
+    --sheen-soft: rgba(255, 255, 255, .10);
+}
+
+[data-theme="contrast-light"] {
+    color-scheme: light;
+
+    --surface-0: #E6E6E6;
+    --surface-1: #FFFFFF;
+    --surface-2: #D4D4D4;
+    --surface-3: #BDBDBD;
+
+    --separator: rgba(0, 0, 0, .40);
+    --separator-strong: rgba(0, 0, 0, .62);
+
+    /* Secondary measures 12.63:1 over --surface-1; tertiary 3.35:1. */
+    --text-primary: rgba(0, 0, 0, 1);
+    --text-secondary: rgba(0, 0, 0, .80);
+    --text-tertiary: rgba(0, 0, 0, .45);
+
+    --accent: #0050C8;
+    --accent-hover: #003F9E;
+    --accent-press: #00337F;
+    --accent-wash: rgba(0, 80, 200, .14);
+    --accent-wash-strong: rgba(0, 80, 200, .24);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #007A1F;
+    --state-negative: #C8001E;
+    --state-negative-hover: #A00018;
+    --state-warning: #A35A00;
+    --state-positive-wash: rgba(0, 122, 31, .14);
+    --state-negative-wash: rgba(200, 0, 30, .12);
+    --state-warning-wash: rgba(163, 90, 0, .14);
+
+    --chart-neutral: #6E6E6E;
+    --chart-neutral-dim: #A8A8A8;
+
+    --material-ultrathin: rgba(255, 255, 255, .94);
+    --material-thin: rgba(252, 252, 252, .96);
+    --material-regular: rgba(248, 248, 248, .98);
+    --material-thick: rgba(242, 242, 242, .99);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, .20);
+    --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, .26), 0 1px 3px rgba(0, 0, 0, .20);
+    --shadow-3: 0 16px 40px -8px rgba(0, 0, 0, .32), 0 4px 12px rgba(0, 0, 0, .22);
+    --shadow-sheet: 0 32px 80px -12px rgba(0, 0, 0, .40), 0 8px 24px rgba(0, 0, 0, .26);
+    --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, .18);
+
+    --sheen: rgba(0, 0, 0, .14);
+    --sheen-soft: rgba(0, 0, 0, .07);
+}

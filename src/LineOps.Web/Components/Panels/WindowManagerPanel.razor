@@ -53,13 +53,70 @@
     that is @(Theme.IsDark ? "dark" : "light").
 </p>
 
+@* The family, beneath the appearance rather than beside it, because it is the finer choice:
+   every family has a dark and a light desk, so the appearance above still decides which one
+   of the pair is showing. Each swatch is painted by its own family's token block in the
+   appearance showing now — flip Light above and every swatch turns with the desk. *@
+<div class="swatches" role="group" aria-label="Theme" style="margin-top:var(--space-3)">
+    @foreach (var family in DeskThemeFamilies.All)
+    {
+        var on = family == Theme.Family;
+
+        <button type="button"
+                class="swatch @(on ? "swatch--on" : null)"
+                data-theme="@DeskThemeFamilies.Attribute(family, Theme.IsDark)"
+                aria-pressed="@(on ? "true" : "false")"
+                title="@DeskThemeFamilies.Name(family)"
+                @onclick="@(() => Theme.SetFamilyAsync(family))">
+            <span class="swatch__panel" aria-hidden="true">
+                <span class="swatch__ink"></span>
+                <span class="swatch__ink swatch__ink--secondary"></span>
+                <span class="swatch__marks">
+                    <span class="swatch__pill"></span>
+                    <span class="swatch__dot swatch__dot--positive"></span>
+                    <span class="swatch__dot swatch__dot--warning"></span>
+                    <span class="swatch__dot swatch__dot--negative"></span>
+                </span>
+            </span>
+            <span class="swatch__name">@DeskThemeFamilies.Name(family)</span>
+        </button>
+    }
+</div>
+
+@*
+    Scale sits with appearance because it is the other half of "how the desk looks", and like
+    everything on this panel it has no preview: the desk behind the window is the preview, and
+    this window grows with it. The values are the manager's settings, so they are kept with the
+    layout — per browser, restored on reload — rather than beside the theme.
+*@
+<PanelHeader>Scale</PanelHeader>
+<div class="row">
+    <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Interface</span>
+    <DeskSwitch Options="_uiScales" Label="Interface scale" Mono="true"
+                Value="S.UiScale" ValueChanged="@((double scale) => SetUiScale(scale))" />
+</div>
+<div class="row" style="margin-top:10px">
+    <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Text</span>
+    <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
+                Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
+</div>
+<p class="empty" style="padding-top:6px">
+    Interface scales everything — type, spacing, controls — so fewer windows fit a row
+    @(S.UiScale > 1 ? $"(this desk now fits {Manager.RecommendedCapacity})" : "at larger sizes").
+    Text grows only the words and leaves the layout where it is.
+    @if (S.UiScale != 1 || S.TextScale != 1)
+    {
+        <DeskButton style="height:22px" OnClick="ResetScale">Reset to 100%</DeskButton>
+    }
+</p>
+
 <PanelHeader>Concurrent windows</PanelHeader>
 <div class="row">
     <DeskButton Title="One fewer window" aria-label="One fewer window"
                 OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= 1)">
         <Glyph Icon="@Icons.Material.Filled.Remove" />
     </DeskButton>
-    <span class="num" style="min-width:2.5ch; text-align:center; font-size:19px">@S.MaxConcurrentWindows</span>
+    <span class="num" style="min-width:2.5ch; text-align:center; font-size:calc(19px * var(--text-scale))">@S.MaxConcurrentWindows</span>
     <DeskButton Title="One more window" aria-label="One more window"
                 OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= 12)">
         <Glyph Icon="@Icons.Material.Filled.Add" />
@@ -91,7 +148,7 @@
 @if (S.PrimaryWindowKey is not null)
 {
     <div class="row" style="margin-top:10px">
-        <span class="dim" style="min-width:70px; font-size:12px">Share</span>
+        <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Share</span>
         <input type="range" min="20" max="80" step="5"
                value="@((int)(S.PrimaryShare * 100))"
                @oninput="OnShareChanged"
@@ -125,7 +182,7 @@
     </div>
 
     <div class="row" style="margin-top:10px">
-        <span class="dim" style="min-width:70px; font-size:12px">Custom</span>
+        <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Custom</span>
         @* int? rather than int so that clearing the box is "no number yet" rather than a
            zero the clamp would turn into 640. *@
         <DeskField TValue="int?" Mono="true" type="number" min="640" max="7680" step="10"
@@ -200,6 +257,27 @@ else
         new(DeskThemeMode.System, "System")
     ];
 
+    // Five positions each, the gate's honest ceiling. Interface reaches down to 80% because a
+    // laptop running a four-window desk is the case for shrinking; text starts at 90% because
+    // the desk's footnote is already 11px and going smaller only makes it unreadable.
+    private static readonly IReadOnlyList<DeskSwitchOption<double>> _uiScales =
+    [
+        new(0.8, "80%"),
+        new(0.9, "90%"),
+        new(1.0, "100%"),
+        new(1.25, "125%"),
+        new(1.5, "150%")
+    ];
+
+    private static readonly IReadOnlyList<DeskSwitchOption<double>> _textScales =
+    [
+        new(0.9, "90%"),
+        new(1.0, "100%"),
+        new(1.1, "110%"),
+        new(1.25, "125%"),
+        new(1.4, "140%")
+    ];
+
     private static readonly IReadOnlyList<DeskSwitchOption<ResolutionMode>> _modes =
     [
         new(ResolutionMode.Auto, "Follow browser"),
@@ -222,11 +300,24 @@ else
         // System that changes both the cap's position and the sentence beneath it.
         // Neither is a parameter, so nothing else would ask this panel to look again.
         Theme.Changed += OnThemeChanged;
+
+        // The desk's measured size moves under this panel too, and a scale change is the case
+        // that makes it visible: the click re-renders the panel at once, but the browser only
+        // reports the desk's new layout width after the zoom has landed — so "Desk" and "Fits
+        // readably" would describe the desk as it was until the next click. The manager says
+        // when it has relaid out; this panel is the one that reports on it.
+        Manager.Changed += OnManagerChanged;
     }
 
     private Task OnThemeChanged() => InvokeAsync(StateHasChanged);
 
-    protected override void OnDispose() => Theme.Changed -= OnThemeChanged;
+    private void OnManagerChanged() => InvokeAsync(StateHasChanged);
+
+    protected override void OnDispose()
+    {
+        Theme.Changed -= OnThemeChanged;
+        Manager.Changed -= OnManagerChanged;
+    }
 
     private void AdjustMax(int delta) => Manager.UpdateSettings(s =>
         s.MaxConcurrentWindows = Math.Clamp(s.MaxConcurrentWindows + delta, 1, 12));
@@ -245,6 +336,18 @@ else
         if (int.TryParse(e.Value?.ToString(), out var percent))
             Manager.UpdateSettings(s => s.PrimaryShare = percent / 100d);
     }
+
+    private void SetUiScale(double scale) => Manager.UpdateSettings(s =>
+        s.UiScale = DeskSettings.ClampScale(scale, DeskSettings.MinUiScale, DeskSettings.MaxUiScale));
+
+    private void SetTextScale(double scale) => Manager.UpdateSettings(s =>
+        s.TextScale = DeskSettings.ClampScale(scale, DeskSettings.MinTextScale, DeskSettings.MaxTextScale));
+
+    private void ResetScale() => Manager.UpdateSettings(s =>
+    {
+        s.UiScale = 1;
+        s.TextScale = 1;
+    });
 
     private void SetMode(ResolutionMode mode)
         => Manager.UpdateSettings(s => s.ResolutionMode = mode);

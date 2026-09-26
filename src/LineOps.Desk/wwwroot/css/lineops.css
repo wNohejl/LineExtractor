@@ -13,7 +13,9 @@
    ============================================================================ */
 
 /* The default theme is apple-dark. The light theme, below, is that second block:
-   it redeclares the same names and changes nothing else in this file. */
+   it redeclares the same names and changes nothing else in this file. The other
+   families — Nord, Solarized, Rosé Pine, High contrast — are eight more blocks of
+   the same shape in themes.css, loaded straight after this file. */
 :root,
 [data-theme="apple-dark"] {
     /* Native chrome — scrollbars, form controls, the canvas behind the app —
@@ -92,16 +94,18 @@
        font-variant-numeric: tabular-nums, which is what .num and .mono below set. */
     --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
 
-    /* The HIG text-style ramp. A call site names the style, never the pixels. */
-    --text-largetitle: 26px;
-    --text-title1: 22px;
-    --text-title2: 17px;
-    --text-title3: 15px;
-    --text-headline: 13px; /* same size as body, distinguished by weight */
-    --text-body: 13px;
-    --text-subheadline: 12px;
-    --text-footnote: 11px;
-    --text-caption: 10px;
+    /* The HIG text-style ramp. A call site names the style, never the pixels.
+       Each rung is multiplied by --text-scale, the operator's Text size from the
+       Window manager — see "Scale" below the theme blocks. */
+    --text-largetitle: calc(26px * var(--text-scale));
+    --text-title1: calc(22px * var(--text-scale));
+    --text-title2: calc(17px * var(--text-scale));
+    --text-title3: calc(15px * var(--text-scale));
+    --text-headline: calc(13px * var(--text-scale)); /* same size as body, distinguished by weight */
+    --text-body: calc(13px * var(--text-scale));
+    --text-subheadline: calc(12px * var(--text-scale));
+    --text-footnote: calc(11px * var(--text-scale));
+    --text-caption: calc(10px * var(--text-scale));
 
     --leading-title: 1.25;
     --leading-body: 1.45;
@@ -196,10 +200,14 @@
    it re-resolves to the light accent on its own. DeskThemeTests enforces the
    split mechanically, in both directions, so "colour" is not a judgment call.
 
-   Specificity: [data-theme="light"] and :root both weigh (0,1,0), so this block
-   wins on source order alone. It must stay AFTER the block above.
+   Specificity: [data-theme="apple-light"] and :root both weigh (0,1,0), so this
+   block wins on source order alone. It must stay AFTER the block above.
+
+   It was [data-theme="light"] while it was the only other desk. With five
+   families each carrying a dark and a light, every block is named
+   <family>-<appearance>, and this one is Standard's light.
    ============================================================================ */
-[data-theme="light"] {
+[data-theme="apple-light"] {
     color-scheme: light;
 
     /* --- Surfaces -----------------------------------------------------------
@@ -316,6 +324,40 @@
     /* The sweep inverts outright — a white highlight is invisible on white. */
     --sheen: rgba(0, 0, 0, .10);
     --sheen-soft: rgba(0, 0, 0, .05);
+}
+
+/* ============================================================================
+   Scale.
+
+   Two multipliers, both set on <html> by the Window manager (windowing.js
+   applyScale) and both 1 until an operator moves them.
+
+   --ui-scale is the whole desk — type, spacing, controls, chrome — and it is
+   spent once, as zoom on html, below. Multiplying every length in this file by
+   a variable was the alternative; it means several hundred call sites plus the
+   panels' inline styles, and the one that is missed stays small forever. The
+   cost of zoom is that rectangles and pointer coordinates come back in visual
+   pixels while positions are written in layout pixels, so the few scripts that
+   turn one into the other divide by currentCSSZoom, and MudBlazor's popover
+   layer is zoomed back to 1 in mud-bridge.css. Both are explained where they are.
+
+   --text-scale is type only. It multiplies the text-style ramp above and every
+   literal font-size in this file, mud-bridge.css and the panels, so the layout
+   keeps its geometry and only the words grow.
+
+   Declared here, in a plain :root rule, rather than in a theme block: a swatch
+   in the Window manager carries its own data-theme to paint itself, and if the
+   block it matched redeclared these it would reset the operator's scale inside
+   the swatch. Custom properties inherit, so outside a theme block they reach
+   every element from <html> down whichever block is painting it.
+   ============================================================================ */
+:root {
+    --ui-scale: 1;
+    --text-scale: 1;
+}
+
+html {
+    zoom: var(--ui-scale);
 }
 
 /* Inter, self-hosted. The variable file covers every weight the ramp asks for,
@@ -1024,7 +1066,7 @@ html, body {
     border-radius: 4px;
     color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .09em;
     text-transform: uppercase;
@@ -1145,7 +1187,7 @@ html, body {
 .ftr__divider { width: 1px; height: 16px; background: var(--separator); flex: 0 0 auto; }
 
 .ftr__stat {
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     color: var(--text-tertiary);
     white-space: nowrap;
     letter-spacing: .04em;
@@ -1154,7 +1196,7 @@ html, body {
 
 .ftr__flag {
     color: var(--accent);
-    font-size: 9.5px;
+    font-size: calc(9.5px * var(--text-scale));
     text-transform: uppercase;
     letter-spacing: .1em;
     margin-left: 4px;
@@ -1170,7 +1212,7 @@ html, body {
     background: var(--state-warning-wash);
     border-radius: 4px;
     color: var(--state-warning);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--text-scale));
     flex: 0 1 auto;
     min-width: 0;
 }
@@ -1662,14 +1704,14 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     outline: none;
     color: var(--text-primary);
     font: inherit;
-    font-size: 16px;
+    font-size: calc(16px * var(--text-scale));
 }
 
 .palette__input::placeholder { color: var(--text-tertiary); }
 
 .palette__kbd {
     font-family: inherit;
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     color: var(--text-tertiary);
     border: 1px solid var(--separator-strong);
     border-radius: var(--radius-sm);
@@ -1678,7 +1720,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .palette__results { overflow-y: auto; padding: 6px; }
 
-.palette__empty { margin: 0; padding: 14px 10px; color: var(--text-secondary); font-size: 13px; }
+.palette__empty { margin: 0; padding: 14px 10px; color: var(--text-secondary); font-size: calc(13px * var(--text-scale)); }
 
 /* The keyboard's row is marked the way a hovered one is, plus the accent's edge: arrow keys move
    it, and the pointer moves it too, so there is only ever one lit row. */
@@ -1692,7 +1734,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 .launcher__group {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
@@ -1713,7 +1755,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     text-align: left;
     cursor: pointer;
     font-family: inherit;
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
 }
 
 /* Neutral, not accent: a launcher row lights under the pointer, it is not selected.
@@ -1722,20 +1764,20 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .launcher__item:hover { background: var(--surface-3); }
 .launcher__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .launcher__item svg { width: 17px; height: 17px; color: var(--text-secondary); margin-top: 1px; flex: 0 0 auto; }
-.launcher__desc { display: block; color: var(--text-tertiary); font-size: 11.5px; margin-top: 2px; line-height: 1.4; }
+.launcher__desc { display: block; color: var(--text-tertiary); font-size: calc(11.5px * var(--text-scale)); margin-top: 2px; line-height: 1.4; }
 
 .launcher__note {
     padding: 8px 11px;
     margin: 4px 0 0;
     border-top: 1px solid var(--separator);
     color: var(--state-warning);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--text-scale));
     line-height: 1.45;
 }
 
 /* Already open: clicking still focuses it, so this informs rather than disables. */
 .launcher__open {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     letter-spacing: .11em;
     text-transform: uppercase;
     color: var(--state-positive);
@@ -1750,7 +1792,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 /* --------------------------------------------------- panel typography ---- */
 
 .panel-h {
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .13em;
     text-transform: uppercase;
@@ -1774,7 +1816,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .metric__value {
     font-variant-numeric: tabular-nums;
-    font-size: 22px;
+    font-size: calc(22px * var(--text-scale));
     font-weight: var(--weight-medium);
     line-height: 1.05;
     letter-spacing: -.02em;
@@ -1786,14 +1828,14 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .metric--info .metric__value { color: var(--accent); }
 
 .metric__label {
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--text-secondary);
     margin-top: 5px;
 }
 
-.metric__note { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.metric__note { font-size: calc(11px * var(--text-scale)); color: var(--text-tertiary); margin-top: 2px; }
 
 /* A tile that is also the way to the thing it counts.
    Gloss is the desk's affordance channel (ADR 0008), so the tile that leads somewhere is
@@ -1820,7 +1862,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     box-shadow: var(--focus-ring);
 }
 
-.metric__go { float: right; font-size: 15px; line-height: 1; color: var(--text-tertiary); }
+.metric__go { float: right; font-size: calc(15px * var(--text-scale)); line-height: 1; color: var(--text-tertiary); }
 .metric--action:hover .metric__go { color: var(--text-primary); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1924,19 +1966,19 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .price__line {
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     color: var(--text-secondary);
 }
 
 .price__odds {
     font-variant-numeric: tabular-nums;
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
     color: var(--text-primary);
 }
 
 /* The book that holds the best number, in two letters. */
 .price__book {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     font-weight: 500;
     letter-spacing: .1em;
     color: var(--accent);
@@ -1986,7 +2028,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    does not compete with the ticks. */
 .price__edge {
     font-variant-numeric: tabular-nums;
-    font-size: 9.5px;
+    font-size: calc(9.5px * var(--text-scale));
     letter-spacing: .04em;
     color: var(--text-tertiary);
     opacity: 0;
@@ -2079,7 +2121,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .board__gap {
     margin-top: 3px;
     color: var(--state-warning);
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     line-height: 1.35;
     max-width: 34ch;
 }
@@ -2122,7 +2164,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 .board__actions-label {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .12em;
     text-transform: uppercase;
@@ -2203,7 +2245,7 @@ body.dialog-dragging { user-select: none; }
    even though there is no second family left to set them in. */
 .deskdialog__sub {
     font-variant-numeric: tabular-nums;
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     color: var(--text-tertiary);
     white-space: nowrap;
     overflow: hidden;
@@ -2335,13 +2377,13 @@ body.dialog-dragging { user-select: none; }
     gap: 12px;
 }
 
-.pullmenu__label { font-size: 13px; }
+.pullmenu__label { font-size: calc(13px * var(--text-scale)); }
 
 /* The price is stated before the click, not discovered afterwards. */
 .pullmenu__cost {
     flex: 0 0 auto;
     font-variant-numeric: tabular-nums;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--text-tertiary);
@@ -2351,7 +2393,7 @@ body.dialog-dragging { user-select: none; }
     display: block;
     margin-top: 2px;
     color: var(--text-tertiary);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--text-scale));
     line-height: 1.4;
 }
 
@@ -2402,7 +2444,7 @@ body.dialog-dragging { user-select: none; }
     flex: 0 0 auto;
     opacity: 0;
     color: var(--accent);
-    font-size: 9.5px;
+    font-size: calc(9.5px * var(--text-scale));
     font-weight: 600;
     letter-spacing: .1em;
     text-transform: uppercase;
@@ -2782,7 +2824,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border-radius: 4px;
     background: var(--surface-2);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     line-height: 1.5;
 }
 
@@ -2835,7 +2877,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     padding: 8px 11px;
     cursor: pointer;
     color: var(--text-primary);
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     font-weight: 600;
     list-style: none;
     display: flex;
@@ -2859,7 +2901,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     padding: 2px 11px 11px;
     border-top: 1px solid var(--separator);
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     line-height: 1.55;
 }
 
@@ -2881,7 +2923,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    platform stack, not a bundled font: nothing here has to match Inter's metrics. */
 .runbook__body code {
     font-family: ui-monospace, monospace;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     background: var(--surface-1);
     padding: 1px 4px;
     border-radius: 3px;
@@ -2988,11 +3030,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     margin-bottom: 5px;
     color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: 11.5px;
+    font-size: calc(11.5px * var(--text-scale));
     line-height: 1.3;
 }
 
-.prog__pct { color: var(--text-primary); font-size: 11.5px; flex: 0 0 auto; }
+.prog__pct { color: var(--text-primary); font-size: calc(11.5px * var(--text-scale)); flex: 0 0 auto; }
 
 .prog__track {
     height: 4px;
@@ -3146,7 +3188,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     padding: 6px 9px;
     background: var(--surface-2);
     border-bottom: 1px solid var(--separator);
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
 }
 
 .snippet__icon { display: inline-flex; color: var(--text-secondary); }
@@ -3158,7 +3200,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     color: var(--text-secondary);
 }
 
-.snippet__note { color: var(--text-tertiary); font-size: 10.5px; }
+.snippet__note { color: var(--text-tertiary); font-size: calc(10.5px * var(--text-scale)); }
 .snippet__spacer { flex: 1 1 auto; }
 
 /* The escape hatch. Quiet by default — the snippet is usually the answer, and a
@@ -3172,7 +3214,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border-radius: 4px;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     padding: 2px 6px;
     cursor: pointer;
     transition: color .12s ease, border-color .12s ease;
@@ -3188,7 +3230,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__markets { display: flex; gap: 18px; flex-wrap: wrap; }
 
 .snippet__market-name {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--text-tertiary);
@@ -3201,21 +3243,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     display: flex;
     align-items: baseline;
     gap: 6px;
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
 }
 
 .snippet__side--empty { color: var(--text-tertiary); }
 .snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .snippet__line { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .snippet__price { color: var(--text-primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.snippet__book { font-size: 10.5px; }
+.snippet__book { font-size: calc(10.5px * var(--text-scale)); }
 
 /* Form snippet: one run of results per side. */
 .snippet__form { display: flex; gap: 22px; flex-wrap: wrap; }
 .snippet__formside { display: flex; flex-direction: column; gap: 3px; }
 
 .snippet__formname {
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
     max-width: 22ch;
@@ -3242,19 +3284,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 .fact__label {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--text-tertiary);
     margin-bottom: 3px;
 }
 
-.fact__value { font-size: 12.5px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.fact__value { font-size: calc(12.5px * var(--text-scale)); color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .fact__value .good { color: var(--state-positive); }
 .fact__value .bad { color: var(--state-negative); }
 
 /* A tighter grid, for tables that live inside a snippet rather than a window. */
-.grid--tight { font-size: 12px; }
+.grid--tight { font-size: calc(12px * var(--text-scale)); }
 .grid--tight th { padding: 0 7px 5px; position: static; }
 .grid--tight td { padding: 5px 7px; }
 
@@ -3278,7 +3320,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border-radius: 4px;
     color: var(--text-secondary);
     font: inherit;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     padding: 3px 9px;
     cursor: pointer;
     transition: color .12s ease, border-color .12s ease, background .12s ease;
@@ -3286,7 +3328,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .splits__key:hover { color: var(--text-primary); border-color: var(--separator-strong); }
 
-.splits__pick { max-width: 190px; margin-left: auto; font-size: 11px; }
+.splits__pick { max-width: 190px; margin-left: auto; font-size: calc(11px * var(--text-scale)); }
 
 /* ---- Log rows --------------------------------------------------------------
    A game or a player, expandable in place. Not a table, because the expanded
@@ -3315,7 +3357,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border: 0;
     color: var(--text-primary);
     font: inherit;
-    font-size: 12.5px;
+    font-size: calc(12.5px * var(--text-scale));
     text-align: left;
     cursor: pointer;
     transition: background .12s ease;
@@ -3325,7 +3367,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    is being pointed at, not opened — opening it is what .logrow--open reports. */
 .logrow__head:hover { background: var(--surface-3); }
 
-.logrow__date { font-size: 11.5px; min-width: 7ch; font-variant-numeric: tabular-nums; }
+.logrow__date { font-size: calc(11.5px * var(--text-scale)); min-width: 7ch; font-variant-numeric: tabular-nums; }
 
 .logrow__opp {
     flex: 1 1 auto;
@@ -3365,7 +3407,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     padding-top: 7px;
     border-top: 1px solid var(--separator);
     color: var(--text-tertiary);
-    font-size: 10.5px;
+    font-size: calc(10.5px * var(--text-scale));
     line-height: 1.5;
 }
 
@@ -3394,7 +3436,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    difference. Tracked, and set in a 3px-radius chip rather than a capsule — a capsule
    is the tag's shape and means "a state", which this is not: it names a side. */
 .price__sel {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     font-weight: var(--weight-semibold);
     letter-spacing: .04em;
     color: var(--text-secondary);
@@ -3601,6 +3643,104 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    a keyboard operator could not tell from the real thing. DeskAlert now focuses the default
    button outright, so .desk-btn:focus-visible paints it when a keyboard opened the alert
    and leaves it alone when a pointer did. The ring is earned rather than drawn. */
+
+/* ---- Theme swatches ----------------------------------------------------------
+   The Window manager's family picker. Each swatch carries its own data-theme —
+   the family it offers, in the appearance showing now — so every var() inside it
+   resolves against that family's token block. The swatch is not a picture of a
+   theme; it is a patch of the theme, painted by the same block that would paint
+   the desk, which means it cannot drift from what choosing it does.
+
+   Its anatomy is the desk in miniature: the ground, a panel resting on it, two
+   lines of ink at the primary and secondary tiers, the accent as a filled pill,
+   and the three states. Those are the tokens that make one family read
+   differently from another at a glance; the rest are shared shape.
+
+   Selection is the swatch's own accent as a ring, because selection is one of
+   the three things an accent is for — and the ring is drawn in the family's
+   accent rather than the desk's, so it reads as "this one" in the colours of
+   the one it marks. */
+.swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: var(--space-2);
+}
+
+.swatch {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px var(--separator);
+    transition: box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+
+.swatch:hover { transform: translateY(-1px); }
+.swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.swatch--on,
+.swatch--on:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+
+.swatch__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: var(--space-2) var(--space-2) 0;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    box-shadow: var(--shadow-1);
+}
+
+.swatch__ink {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-primary);
+}
+
+.swatch__ink--secondary { width: 70%; background: var(--text-secondary); }
+
+.swatch__marks {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.swatch__pill {
+    width: 22px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--accent);
+    margin-right: auto;
+}
+
+.swatch__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.swatch__dot--positive { background: var(--state-positive); }
+.swatch__dot--warning { background: var(--state-warning); }
+.swatch__dot--negative { background: var(--state-negative); }
+
+.swatch__name {
+    padding: 0 var(--space-2) var(--space-2);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+}
+
+.swatch--on .swatch__name { color: var(--text-primary); }
 
 /* ---- Material fallbacks -----------------------------------------------------
    Opaque fallbacks for every material surface. This block must stay LAST in the

@@ -12,22 +12,24 @@ namespace LineOps.Desk.Theming;
 /// </para>
 ///
 /// <para>
-/// The two consumers want different things and both are served from <see cref="IsDark"/>.
-/// The desk's own components read the <c>[data-theme]</c> attribute this stamps onto
+/// A theme is two choices: the <see cref="Family"/> — which palette — and the <see cref="Mode"/>
+/// — dark, light, or whatever the machine says. They are independent on purpose; see
+/// <see cref="DeskThemeFamily"/> for why a family is not a fourth appearance.
+/// </para>
+///
+/// <para>
+/// The two consumers want different things and both are served from the same pair. The
+/// desk's own components read the <c>[data-theme]</c> attribute this stamps onto
 /// <c>&lt;html&gt;</c> — that is the token block switching, and it is the whole mechanism.
-/// MudBlazor cannot read a token block, so <c>MudThemeProvider.IsDarkMode</c> is bound to
-/// the same boolean; the two are never computed separately, because a desk whose Mud
-/// components disagree with its own panels is worse than either theme alone.
+/// MudBlazor cannot read a token block, so <c>MudThemeProvider</c> is handed
+/// <see cref="MudTheme"/> and <see cref="IsDark"/>, resolved from the same two fields; they are
+/// never computed separately, because a desk whose Mud components disagree with its own panels
+/// is worse than either theme alone.
 /// </para>
 /// </summary>
 public sealed class ThemeService : IAsyncDisposable
 {
     private const string ModulePath = "./_content/LineOps.Desk/js/theme.js";
-
-    /// <summary>The value stamped on <c>&lt;html&gt;</c>. Must match the selectors in lineops.css.</summary>
-    internal const string DarkTheme = "apple-dark";
-
-    internal const string LightTheme = "light";
 
     private readonly IJSRuntime _js;
 
@@ -56,10 +58,22 @@ public sealed class ThemeService : IAsyncDisposable
         _ => _systemPrefersDark
     };
 
+    /// <summary>The operator's palette. Standard until they choose, and after anything unreadable.</summary>
+    public DeskThemeFamily Family { get; private set; } = DeskThemeFamily.Standard;
+
+    /// <summary>The value on <c>&lt;html&gt;</c>, and the selector of the token block that is showing.</summary>
+    public string Attribute => DeskThemeFamilies.Attribute(Family, IsDark);
+
+    /// <summary>The showing desk's colours, for the charts, which cannot read a token block.</summary>
+    public DeskPalette Palette => DeskThemeFamilies.Palette(Family, IsDark);
+
+    /// <summary>The family's theme for <c>MudThemeProvider</c>; <see cref="IsDark"/> picks the palette inside it.</summary>
+    public MudBlazor.MudTheme MudTheme => DeskTheme.For(Family);
+
     /// <summary>
-    /// Raised whenever <see cref="IsDark"/> may have moved. The layout re-renders on it,
-    /// because <c>MudThemeProvider</c> takes its mode as a parameter rather than reading
-    /// it back, and nothing else would tell it to look again.
+    /// Raised whenever the showing desk may have moved — its family or its appearance. The
+    /// layout re-renders on it, because <c>MudThemeProvider</c> takes its theme and mode as
+    /// parameters rather than reading them back, and nothing else would tell it to look again.
     /// </summary>
     public event Func<Task>? Changed;
 
@@ -87,6 +101,16 @@ public sealed class ThemeService : IAsyncDisposable
         if (Enum.TryParse<DeskThemeMode>(stored, ignoreCase: true, out var mode))
             Mode = mode;
 
+        // Same rule as the mode: whatever is stored is either a family this version knows or
+        // not a choice at all. Enum.TryParse alone would take "3" as a family, so the name has
+        // to be one the enum actually defines.
+        var storedFamily = await module.InvokeAsync<string?>("readFamily");
+
+        if (Enum.TryParse<DeskThemeFamily>(storedFamily, ignoreCase: true, out var family)
+            && Enum.IsDefined(family)
+            && !int.TryParse(storedFamily, out _))
+            Family = family;
+
         _self ??= DotNetObjectReference.Create(this);
         await module.InvokeVoidAsync("watch", _self);
 
@@ -104,6 +128,21 @@ public sealed class ThemeService : IAsyncDisposable
 
         var module = await ModuleAsync();
         await module.InvokeVoidAsync("store", mode.ToString());
+
+        await PaintAsync();
+        await NotifyAsync();
+    }
+
+    /// <summary>Records a new family, persists it, and repaints. A no-op if nothing moved.</summary>
+    public async Task SetFamilyAsync(DeskThemeFamily family)
+    {
+        if (family == Family)
+            return;
+
+        Family = family;
+
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("storeFamily", family.ToString());
 
         await PaintAsync();
         await NotifyAsync();
@@ -136,7 +175,7 @@ public sealed class ThemeService : IAsyncDisposable
     private async Task PaintAsync()
     {
         var module = await ModuleAsync();
-        await module.InvokeVoidAsync("apply", IsDark ? DarkTheme : LightTheme);
+        await module.InvokeVoidAsync("apply", Attribute);
     }
 
     private Task NotifyAsync() => Changed?.Invoke() ?? Task.CompletedTask;

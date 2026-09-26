@@ -88,14 +88,14 @@ else
 
             @if (log.Count == 0)
             {
-                <span class="dim" style="font-size:11.5px">No games in the last @WindowDays days.</span>
+                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">No games in the last @WindowDays days.</span>
             }
             else
             {
                 var (wins, losses) = GameLogSplits.Record(log);
                 var (covers, fails, pushes) = GameLogSplits.AtsRecord(log);
 
-                <span class="dim mono" style="font-size:11.5px">@wins-@losses</span>
+                <span class="dim mono" style="font-size:calc(11.5px * var(--text-scale))">@wins-@losses</span>
 
                 <FormRun Log="@FormResult.From(log)" />
 
@@ -103,7 +103,7 @@ else
                    would read as "never covered" rather than "never priced". *@
                 @if (covers + fails + pushes > 0)
                 {
-                    <span class="dim" style="font-size:11px">
+                    <span class="dim" style="font-size:calc(11px * var(--text-scale))">
                         @covers-@fails@(pushes > 0 ? $"-{pushes}" : "") ATS
                     </span>
                 }

@@ -605,6 +605,8 @@ public class WindowManager
             ResolutionMode = Settings.ResolutionMode,
             CustomWidth = Settings.CustomWidth,
             CustomHeight = Settings.CustomHeight,
+            UiScale = Settings.UiScale,
+            TextScale = Settings.TextScale,
             Windows = row.Select(w => new DeskLayoutWindow(
                 w.Definition.Key,
                 w.TitleOverride,
@@ -638,6 +640,8 @@ public class WindowManager
         Settings.ResolutionMode = layout.ResolutionMode;
         Settings.CustomWidth = layout.CustomWidth > 0 ? layout.CustomWidth : Settings.CustomWidth;
         Settings.CustomHeight = layout.CustomHeight > 0 ? layout.CustomHeight : Settings.CustomHeight;
+        Settings.UiScale = DeskSettings.ClampScale(layout.UiScale, DeskSettings.MinUiScale, DeskSettings.MaxUiScale);
+        Settings.TextScale = DeskSettings.ClampScale(layout.TextScale, DeskSettings.MinTextScale, DeskSettings.MaxTextScale);
 
         string? focusedId = null;
 

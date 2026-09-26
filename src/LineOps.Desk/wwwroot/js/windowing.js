@@ -29,12 +29,37 @@ function paletteHotkey(e) {
     }
 }
 
+// The desk is laid out in layout pixels, and under the UI scale (CSS zoom on <html>) that is not
+// what getBoundingClientRect or a pointer's clientX report — both come back in visual pixels,
+// while offsetWidth and anything written to style.left are layout pixels. Every place below that
+// turns a measured rectangle or a pointer distance into a width or a position divides by this.
+// currentCSSZoom is the zoom in effect at the element, whoever set it, so a browser's own zoom
+// on top (Ctrl +/−) does not enter into it; engines without it have no CSS zoom to undo.
+function zoomOf(element) {
+    return element?.currentCSSZoom || 1;
+}
+
 export function reportViewport() {
     const desk = document.querySelector('[data-desk]');
     if (!desk || !dotNet) return;
 
     const rect = desk.getBoundingClientRect();
-    dotNet.invokeMethodAsync('OnViewportChanged', rect.width, rect.height);
+    const zoom = zoomOf(desk);
+    dotNet.invokeMethodAsync('OnViewportChanged', rect.width / zoom, rect.height / zoom);
+}
+
+// ------------------------------------------------------------------ scale (apply) ----
+
+// The Window manager's two scales, set where the stylesheet reads them (lineops.css, "Scale").
+// The desk's width in layout pixels changes with the UI scale, so the viewport is reported again
+// straight away rather than waiting for a resize that is not coming. Anything else that measured
+// the page — desk-glide.js's marble — hears lineops:rescaled, since no DOM changed for it to see.
+export function applyScale(ui, text) {
+    const root = document.documentElement.style;
+    root.setProperty('--ui-scale', String(ui));
+    root.setProperty('--text-scale', String(text));
+    reportViewport();
+    window.dispatchEvent(new Event('lineops:rescaled'));
 }
 
 // ---------------------------------------------------------------- layout (persist) ----
@@ -89,6 +114,7 @@ function beginSplit(event, handle, leftId, rightId) {
     event.preventDefault();
 
     const startX = event.clientX;
+    const zoom = zoomOf(handle);
     const leftStart = left.offsetWidth;
     const rightStart = right.offsetWidth;
     const rightOrigin = parseFloat(right.style.left) || 0;
@@ -105,7 +131,7 @@ function beginSplit(event, handle, leftId, rightId) {
     document.body.classList.add('splitting');
 
     const onMove = (e) => {
-        const delta = Math.min(Math.max(e.clientX - startX, lowerBound), upperBound);
+        const delta = Math.min(Math.max((e.clientX - startX) / zoom, lowerBound), upperBound);
 
         left.style.width = `${leftStart + delta}px`;
         right.style.left = `${rightOrigin + delta}px`;
@@ -169,17 +195,18 @@ function beginTabDrag(event, win, handle) {
     if (!desk) return;
 
     const startX = event.clientX;
+    const zoom = zoomOf(win);
     const originLeft = parseFloat(win.style.left) || 0;
     const width = win.offsetWidth;
-    const deskRect = desk.getBoundingClientRect();
+    const deskWidth = desk.getBoundingClientRect().width / zoom;
 
     let dragging = false;
 
     const onMove = (e) => {
-        const dx = e.clientX - startX;
+        const dx = (e.clientX - startX) / zoom;
 
         if (!dragging) {
-            if (Math.abs(dx) < DRAG_THRESHOLD) return;
+            if (Math.abs(e.clientX - startX) < DRAG_THRESHOLD) return;
 
             // Past the threshold: this is a drag, not a click. Lift the tab so it visibly
             // floats in front of whatever it passes over while it looks for a new slot.
@@ -189,7 +216,7 @@ function beginTabDrag(event, win, handle) {
         }
 
         const min = 0;
-        const max = Math.max(min, deskRect.width - width);
+        const max = Math.max(min, deskWidth - width);
         win.style.left = `${Math.min(Math.max(originLeft + dx, min), max)}px`;
     };
 

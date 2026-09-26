@@ -31,7 +31,7 @@
     </DeskButton>
     @if (_message is not null)
     {
-        <span class="dim" style="font-size:12px">@_message</span>
+        <span class="dim" style="font-size:calc(12px * var(--text-scale))">@_message</span>
     }
 </div>
 
@@ -105,7 +105,7 @@
 
             <div class="stack" style="padding:8px 0; border-bottom:1px solid var(--separator)">
                 <div class="row">
-                    <span class="dim" style="font-size:12px">Leg @(index + 1)</span>
+                    <span class="dim" style="font-size:calc(12px * var(--text-scale))">Leg @(index + 1)</span>
                     @if (_legs.Count > 2)
                     {
                         <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Close"
@@ -164,7 +164,7 @@
                 @Selection(context.Item)
                 @if (context.Item.Note is { } note)
                 {
-                    <div class="dim" style="font-size:11px">@note</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@note</div>
                 }
             </CellTemplate>
         </PropertyColumn>
@@ -256,11 +256,11 @@
                 }
                 @if (context.Item.Note is { } note)
                 {
-                    <div class="dim" style="font-size:11px">@note</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@note</div>
                 }
                 @if (context.Item.Result == EntryResult.Pending && Stuck(context.Item) is { } reason)
                 {
-                    <div class="dim" style="font-size:11px">@reason</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@reason</div>
                 }
             </CellTemplate>
         </TemplateColumn>

@@ -224,3 +224,49 @@ at all. A token gate has to cover `*.razor` and `*.cs`, not just `*.css`.
 a `DeskState`, doc comments describing "the desk's dial" and "steam for money you kept", a
 summary reading "Critical reads as Stop" over a method returning `Negative`. The compiler is
 indifferent to prose, and prose is what the next reader learns the system from.
+
+## Amendment — five families, and a scale the operator sets
+
+*2026-09-26.* The Consequences above promised that a second theme would be a second token block.
+The light desk proved it; this amendment spends the promise eight more times and adds scale.
+
+**A theme is a family crossed with an appearance.** Standard (this ADR's desk), Nord, Solarized,
+Rosé Pine and High contrast, each with a dark and a light block, picked independently of the
+Dark / Light / System control. A family is deliberately not a fourth appearance: every family has
+both variants, so System keeps following the machine whichever palette is chosen. Blocks are named
+`<family>-<appearance>`, so the light desk's `[data-theme="light"]` became `apple-light`. The
+other eight live in `themes.css`, loaded after `lineops.css`. Nothing outside a token block keys
+off `data-theme`, so no component changed.
+
+The rules this ADR set hold for every block, and `DeskThemeTests` now asks them of each desk in
+the catalogue rather than of one pair:
+
+- each block redeclares every colour token and invents none;
+- each block declares its `color-scheme`;
+- each block matches its C# `DeskPalette`;
+- `--text-secondary` clears AA and `--text-tertiary` stays below it, including on High contrast,
+  whose secondary clears AAA while its hints stay hints;
+- no family reuses Standard's accent or its whole surface ramp.
+
+MudBlazor gets one `MudTheme` per family from `DeskTheme.For`, and charts take the showing
+`DeskPalette`, so a chart on a Nord desk is drawn in Nord.
+
+**Scale is two settings in the Window manager.** Interface (80–150%) is CSS `zoom` on `<html>`;
+Text (90–140%) multiplies the type ramp and every literal `font-size`. Both are kept with the desk
+layout. Zoom reports rectangles and pointer positions in visual pixels while positions are written
+in layout pixels, so:
+
+- the desk's own scripts (windowing, dialogs, the glide) divide by `currentCSSZoom`;
+- MudBlazor's popover layer is zoomed back to 1 with its content zoomed forward, a CSS-only fix
+  in `mud-bridge.css`.
+
+Before that fix, a menu anchored at x=215 was measured rendering at x=268 at 125%. After it, the
+menu sat on its anchor.
+
+**What building it found.** Two things measured stale once the page could change size without
+the DOM changing. The Window manager's own Desk and Fits readably figures re-rendered on the click
+but before the browser reported the new width, so the panel now listens to the manager. The
+header's glide marble kept the old tab's size, so it now reseats on a scale change and on window
+resize. Both were already true of a browser resize; scale made them visible. And a gate asking
+that no rung of a new surface ramp equal Standard's failed on High contrast's white panel, which
+is a legitimate choice rather than a copy. The gate now compares the ramp whole.

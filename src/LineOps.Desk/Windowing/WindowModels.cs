@@ -40,6 +40,29 @@ public class DeskSettings
     public int CustomWidth { get; set; } = 1920;
     public int CustomHeight { get; set; } = 1080;
 
+    /// <summary>
+    /// The whole desk's scale — type, spacing, controls, chrome — as a multiplier. Spent as
+    /// CSS zoom on the page, so the desk lays out in fewer, larger pixels: at 1.25 a 1600px
+    /// browser is a 1280px desk, and <see cref="WindowManager.RecommendedCapacity"/> says so.
+    /// </summary>
+    public double UiScale { get; set; } = 1;
+
+    /// <summary>Type only, as a multiplier. The layout keeps its geometry and the words grow inside it.</summary>
+    public double TextScale { get; set; } = 1;
+
+    public const double MinUiScale = 0.8;
+    public const double MaxUiScale = 1.5;
+    public const double MinTextScale = 0.9;
+    public const double MaxTextScale = 1.4;
+
+    /// <summary>
+    /// A scale as it may be stored: inside its range, and 1 for anything that is not a number
+    /// at all — which is what a layout saved before scale existed reads as, since its missing
+    /// field deserialises to 0.
+    /// </summary>
+    public static double ClampScale(double value, double min, double max)
+        => double.IsFinite(value) && value > 0 ? Math.Clamp(value, min, max) : 1;
+
     /// <summary>Narrowest a column may become when the operator drags a divider.</summary>
     public const int MinColumnWidth = 260;
 

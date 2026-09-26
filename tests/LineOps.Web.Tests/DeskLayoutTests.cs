@@ -71,6 +71,59 @@ public class DeskLayoutTests
         => Assert.Null(DeskLayout.Parse(json));
 
     [Fact]
+    public void The_scale_travels_with_the_layout()
+    {
+        var before = NewManager();
+        before.UpdateSettings(s =>
+        {
+            s.UiScale = 1.25;
+            s.TextScale = 1.1;
+        });
+
+        var after = NewManager();
+        after.Restore(DeskLayout.Parse(before.Capture().Serialise())!);
+
+        Assert.Equal(1.25, after.Settings.UiScale);
+        Assert.Equal(1.1, after.Settings.TextScale);
+    }
+
+    /// <summary>
+    /// Every browser that used the desk before scale existed holds a layout with no scale in it.
+    /// Its missing fields read as 0, and 0% is not a scale anyone chose — it is 100%. Bumping the
+    /// layout version would have been the other way to say so, at the price of every saved row.
+    /// </summary>
+    [Fact]
+    public void A_layout_saved_before_scale_existed_restores_at_100_percent()
+    {
+        const string before = "{\"version\":1,\"maxConcurrentWindows\":3,\"windows\":[]}";
+
+        var manager = NewManager();
+        manager.Restore(DeskLayout.Parse(before)!);
+
+        Assert.Equal(1, manager.Settings.UiScale);
+        Assert.Equal(1, manager.Settings.TextScale);
+    }
+
+    /// <summary>
+    /// localStorage holds whatever was written, including by hand. A desk at 900% cannot show the
+    /// Window manager that would set it back, so a stored scale is held to the range the control
+    /// offers rather than trusted.
+    /// </summary>
+    [Theory]
+    [InlineData(9.0, 0.1, DeskSettings.MaxUiScale, DeskSettings.MinTextScale)]
+    [InlineData(0.1, 9.0, DeskSettings.MinUiScale, DeskSettings.MaxTextScale)]
+    [InlineData(-1.0, double.NaN, 1.0, 1.0)]
+    public void A_stored_scale_is_held_to_the_range_the_control_offers(
+        double ui, double text, double expectedUi, double expectedText)
+    {
+        var manager = NewManager();
+        manager.Restore(new DeskLayout { MaxConcurrentWindows = 4, UiScale = ui, TextScale = text });
+
+        Assert.Equal(expectedUi, manager.Settings.UiScale);
+        Assert.Equal(expectedText, manager.Settings.TextScale);
+    }
+
+    [Fact]
     public void A_saved_workspace_keeps_the_row_but_not_windows_opened_on_something()
     {
         var manager = NewManager();

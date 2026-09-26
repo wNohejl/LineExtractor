@@ -12,6 +12,14 @@
 
 const MARGIN = 8;
 
+// Under the Window manager's UI scale (CSS zoom on <html>) a rectangle, a pointer's clientX and
+// the window's innerWidth are visual pixels, while style.left and offsetWidth are layout pixels.
+// Everything below is worked out in layout pixels — the space the dialog is positioned in — by
+// dividing the visual measurements by the zoom at the dialog.
+function zoomOf(element) {
+    return element?.currentCSSZoom || 1;
+}
+
 export function attachDrag(handle, dialog, dotNetRef) {
     if (!handle || !dialog) return;
 
@@ -24,19 +32,20 @@ function beginDrag(event, handle, dialog, dotNetRef) {
 
     event.preventDefault();
 
+    const zoom = zoomOf(dialog);
     const start = dialog.getBoundingClientRect();
-    const offsetX = event.clientX - start.left;
-    const offsetY = event.clientY - start.top;
+    const offsetX = (event.clientX - start.left) / zoom;
+    const offsetY = (event.clientY - start.top) / zoom;
 
     dialog.classList.add('deskdialog--dragging');
     document.body.classList.add('dialog-dragging');
 
     const move = e => {
-        const maxLeft = window.innerWidth - dialog.offsetWidth - MARGIN;
-        const maxTop = window.innerHeight - dialog.offsetHeight - MARGIN;
+        const maxLeft = window.innerWidth / zoom - dialog.offsetWidth - MARGIN;
+        const maxTop = window.innerHeight / zoom - dialog.offsetHeight - MARGIN;
 
-        const left = Math.min(Math.max(MARGIN, e.clientX - offsetX), Math.max(MARGIN, maxLeft));
-        const top = Math.min(Math.max(MARGIN, e.clientY - offsetY), Math.max(MARGIN, maxTop));
+        const left = Math.min(Math.max(MARGIN, e.clientX / zoom - offsetX), Math.max(MARGIN, maxLeft));
+        const top = Math.min(Math.max(MARGIN, e.clientY / zoom - offsetY), Math.max(MARGIN, maxTop));
 
         dialog.style.left = `${left}px`;
         dialog.style.top = `${top}px`;
@@ -74,8 +83,9 @@ export function cascade(dialog, index) {
     if (!dialog) return;
 
     const step = 26;
-    const left = Math.min(120 + index * step, Math.max(MARGIN, window.innerWidth - dialog.offsetWidth - MARGIN));
-    const top = Math.min(90 + index * step, Math.max(MARGIN, window.innerHeight - dialog.offsetHeight - MARGIN));
+    const zoom = zoomOf(dialog);
+    const left = Math.min(120 + index * step, Math.max(MARGIN, window.innerWidth / zoom - dialog.offsetWidth - MARGIN));
+    const top = Math.min(90 + index * step, Math.max(MARGIN, window.innerHeight / zoom - dialog.offsetHeight - MARGIN));
 
     dialog.style.left = `${left}px`;
     dialog.style.top = `${top}px`;

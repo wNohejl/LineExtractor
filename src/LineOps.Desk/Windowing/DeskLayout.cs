@@ -28,6 +28,15 @@ public sealed record DeskLayout
     public int CustomWidth { get; init; }
     public int CustomHeight { get; init; }
 
+    /// <summary>
+    /// Added without a version bump: a layout written before scale existed has neither field, reads
+    /// them as 0, and <see cref="DeskSettings.ClampScale"/> turns 0 into 100%. Bumping the version
+    /// would instead have thrown every operator's saved row away to add two numbers.
+    /// </summary>
+    public double UiScale { get; init; }
+
+    public double TextScale { get; init; }
+
     public IReadOnlyList<DeskLayoutWindow> Windows { get; init; } = [];
 
     /// <summary>Index into <see cref="Windows"/> of the focused one, if any.</summary>

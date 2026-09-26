@@ -40,7 +40,7 @@ else
     </div>
 
     <div class="row" style="margin-bottom:12px">
-        <span class="dim" style="font-size:11.5px">
+        <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
             @_wins-@_losses @SeasonPhrase
             (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
         </span>
@@ -87,21 +87,21 @@ else
            leaving the operator to count tags. ATS is only shown when there is market data
            behind it — a 0-0-0 would read as "never covered" rather than "never priced". *@
         <div class="row" style="gap:14px; margin:0 0 8px; flex-wrap:wrap">
-            <span class="dim mono" style="font-size:11.5px">@_wins-@_losses</span>
+            <span class="dim mono" style="font-size:calc(11.5px * var(--text-scale))">@_wins-@_losses</span>
 
             @if (_atsWins + _atsLosses + _atsPushes > 0)
             {
-                <span class="dim" style="font-size:11.5px">
+                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
                     @_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS
                 </span>
             }
 
             @if (_overs + _unders > 0)
             {
-                <span class="dim" style="font-size:11.5px">@_overs O / @_unders U</span>
+                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@_overs O / @_unders U</span>
             }
 
-            <span class="dim" style="font-size:11.5px; margin-left:auto">
+            <span class="dim" style="font-size:calc(11.5px * var(--text-scale)); margin-left:auto">
                 @_covered of @_visible.Count with a closing line
             </span>
         </div>

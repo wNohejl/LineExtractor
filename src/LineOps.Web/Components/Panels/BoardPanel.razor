@@ -201,7 +201,7 @@ else
                    more than any other, beside the matchup it belongs to. *@
                 @if (Probables(context.Item.Game) is { } probables)
                 {
-                    <div class="dim" style="font-size:11px" title="Probable starting pitchers, away v home">@probables</div>
+                    <div class="dim" style="font-size:calc(11px * var(--text-scale))" title="Probable starting pitchers, away v home">@probables</div>
                 }
 
                 @if (context.Item.Unpriced is { } reason)

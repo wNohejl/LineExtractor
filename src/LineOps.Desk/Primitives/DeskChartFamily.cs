@@ -49,79 +49,55 @@ public enum DeskChartFamily
 
 /// <summary>
 /// The palettes behind <see cref="DeskChartFamily"/>, in one place rather than at every call
-/// site. Colours come from <see cref="DeskTheme"/> so the chart and the rest of the desk move
-/// together; a chart cannot read <c>var(--accent)</c> because MudBlazor hands these values to
-/// SVG attributes and to its own legend markup, which need resolved colours.
+/// site. Colours come from the showing theme's <see cref="DeskPalette"/> so the chart and the rest
+/// of the desk move together; a chart cannot read <c>var(--accent)</c> because MudBlazor hands
+/// these values to SVG attributes and to its own legend markup, which need resolved colours.
 /// </summary>
 public static class DeskChartPalette
 {
-    /// <summary>
-    /// Cycled once the named colours run out — the desk names four colours, a game has more
-    /// series than that.
-    /// Opaque on purpose: these reach MudBlazor's SVG renderer directly, and a
-    /// translucent colour would composite differently over gridlines and overlapping
-    /// series instead of staying one fixed hue.
-    /// </summary>
-    private const string ChartNeutral = DeskTheme.ChartNeutral;
-    private const string ChartNeutralDim = DeskTheme.ChartNeutralDim;
-
-    private static readonly string[] Movement =
-        [DeskTheme.Accent, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, ChartNeutral, ChartNeutralDim];
-
-    private static readonly string[] Ledger =
-        [DeskTheme.StatePositive, DeskTheme.StateNegative, DeskTheme.Accent, DeskTheme.StateWarning, ChartNeutral, ChartNeutralDim];
-
-    private static readonly string[] Health =
-        [DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative, DeskTheme.Accent, ChartNeutral, ChartNeutralDim];
-
-    private static readonly string[] Volume =
-        [ChartNeutral, DeskTheme.Accent, ChartNeutralDim, DeskTheme.StatePositive, DeskTheme.StateWarning, DeskTheme.StateNegative];
-
-    // The same four families against a pale plot background.
-    //
-    // This is the one corner of the desk a token block cannot reach, and the reason is in
-    // the summary above: MudChart writes these into SVG attributes and legend markup, where
-    // a var() does not resolve. So a chart is the single place where the second theme costs
-    // a second array rather than nothing — and it is exactly the place where forgetting
-    // would go unnoticed longest, because the dark series colours are saturated enough to
-    // still look deliberate on white. The dim neutral is what gives it away: #636366 on a
-    // pale plot is not a quiet series, it is the darkest thing in the window.
-
-    private static readonly string[] LightMovement =
-        [DeskTheme.LightAccent, DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
-
-    private static readonly string[] LightLedger =
-        [DeskTheme.LightStatePositive, DeskTheme.LightStateNegative, DeskTheme.LightAccent, DeskTheme.LightStateWarning, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
-
-    private static readonly string[] LightHealth =
-        [DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative, DeskTheme.LightAccent, DeskTheme.LightChartNeutral, DeskTheme.LightChartNeutralDim];
-
-    private static readonly string[] LightVolume =
-        [DeskTheme.LightChartNeutral, DeskTheme.LightAccent, DeskTheme.LightChartNeutralDim, DeskTheme.LightStatePositive, DeskTheme.LightStateWarning, DeskTheme.LightStateNegative];
-
-    /// <summary>The colour order for a family. The array is shared, so treat it as read-only.</summary>
+    /// <summary>The colour order for a family on the Standard dark desk.</summary>
     public static string[] For(DeskChartFamily family) => For(family, isDark: true);
 
+    /// <summary>The colour order for a family on the Standard desk in the given appearance.</summary>
+    /// <remarks>
+    /// Kept, and kept meaning Standard, so a call site that has no palette to hand degrades to the
+    /// desk the product already was rather than to a compile error.
+    /// </remarks>
+    public static string[] For(DeskChartFamily family, bool isDark)
+        => For(family, isDark ? DeskPalettes.AppleDark : DeskPalettes.AppleLight);
+
     /// <summary>
-    /// The colour order for a family on the desk that is currently showing.
+    /// The colour order for a family on whichever desk is showing — pass <c>ThemeService.Palette</c>.
     /// </summary>
     /// <remarks>
-    /// The theme is a parameter rather than something this class reads, because it is static
-    /// and the theme is per-circuit. The single-argument overload above is kept, and kept
-    /// meaning the dark desk, so a call site that has no theme to hand degrades to the desk
-    /// the product already was rather than to a compile error.
+    /// <para>
+    /// The order is per family and never per theme. A theme change recolours every series in
+    /// place and moves none of them, so the accent series is the accent series in Nord as it is
+    /// in Standard. A theme that reordered its slots would silently swap two lines' colours on a
+    /// switch.
+    /// </para>
+    /// <para>
+    /// The neutrals come in opaque on purpose: these reach MudBlazor's SVG renderer directly, and
+    /// a translucent colour would composite differently over gridlines and overlapping series
+    /// instead of staying one fixed hue. The dim neutral is what gives a forgotten theme away —
+    /// a dark desk's dim grey on a pale plot is not a quiet series, it is the darkest thing in the
+    /// window — which is why every palette carries its own.
+    /// </para>
     /// </remarks>
-    public static string[] For(DeskChartFamily family, bool isDark) => (family, isDark) switch
+    public static string[] For(DeskChartFamily family, DeskPalette palette)
     {
-        (DeskChartFamily.Ledger, true) => Ledger,
-        (DeskChartFamily.Ledger, false) => LightLedger,
-        (DeskChartFamily.Health, true) => Health,
-        (DeskChartFamily.Health, false) => LightHealth,
-        (DeskChartFamily.Volume, true) => Volume,
-        (DeskChartFamily.Volume, false) => LightVolume,
-        (_, true) => Movement,
-        (_, false) => LightMovement
-    };
+        var (accent, positive, negative, warning) =
+            (palette.Accent, palette.StatePositive, palette.StateNegative, palette.StateWarning);
+        var (neutral, dim) = (palette.ChartNeutral, palette.ChartNeutralDim);
+
+        return family switch
+        {
+            DeskChartFamily.Ledger => [positive, negative, accent, warning, neutral, dim],
+            DeskChartFamily.Health => [positive, warning, negative, accent, neutral, dim],
+            DeskChartFamily.Volume => [neutral, accent, dim, positive, warning, negative],
+            _ => [accent, positive, warning, negative, neutral, dim]
+        };
+    }
 }
 
 /// <summary>

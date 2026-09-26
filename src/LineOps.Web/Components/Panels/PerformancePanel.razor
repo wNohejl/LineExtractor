@@ -107,7 +107,7 @@ else
         <div class="row" style="margin-bottom:8px">
             @* The curve used to be cumulative profit from zero and called a bankroll. With a
                starting figure it is one; it is stored with the data, not the browser. *@
-            <span class="dim" style="font-size:12px">Starting bankroll</span>
+            <span class="dim" style="font-size:calc(12px * var(--text-scale))">Starting bankroll</span>
             <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50" style="max-width:110px"
                        Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
             <DeskButton style="height:24px" Disabled="@(_bankrollInput == _startingBankroll)" OnClick="SaveBankrollAsync">

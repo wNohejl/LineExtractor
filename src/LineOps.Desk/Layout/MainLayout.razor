@@ -13,12 +13,12 @@
     css/mud-bridge.css as well, and burying it in a layout made it look like layout
     configuration instead of the design system it is.
 
-    What *is* layout's business is which of the two palettes is live, because
-    MudThemeProvider takes that as a parameter and this is the only component that renders
+    What *is* layout's business is which family's theme and which of its two palettes are live,
+    because MudThemeProvider takes both as parameters and this is the only component that renders
     it. ThemeService owns the decision; the layout owns the wire.
 *@
 
-<MudThemeProvider IsDarkMode="Theme.IsDark" Theme="DeskTheme.Instance" />
+<MudThemeProvider IsDarkMode="Theme.IsDark" Theme="Theme.MudTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />

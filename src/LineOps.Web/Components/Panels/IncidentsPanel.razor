@@ -113,10 +113,10 @@ else
         @foreach (var note in _timeline)
         {
             <div>
-                <div class="mono dim" style="font-size:10.5px">
+                <div class="mono dim" style="font-size:calc(10.5px * var(--text-scale))">
                     @DisplayTime.Format(note.At, "MMM d HH:mm:ss") @DisplayTime.Label
                 </div>
-                <div style="font-size:12.5px">@note.Note</div>
+                <div style="font-size:calc(12.5px * var(--text-scale))">@note.Note</div>
             </div>
         }
     </div>

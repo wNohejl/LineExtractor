@@ -67,7 +67,8 @@ The existing gates generalise from one pair to every block:
 Both live on `DeskSettings`, are saved with the desk layout, and restore with it. A layout saved
 before this change reads as 100% on both.
 
-- **UI scale** — 80, 90, 100, 110, 125, 150%. Everything grows: type, spacing, controls, chrome.
+- **UI scale** — 80, 90, 100, 125, 150%. Everything grows: type, spacing, controls, chrome. Five
+  positions each, because five is the gate control's ceiling.
 - **Text size** — 90, 100, 110, 125, 140%. Only type grows; the layout keeps its geometry.
 
 ### UI scale is CSS `zoom` on `<html>`

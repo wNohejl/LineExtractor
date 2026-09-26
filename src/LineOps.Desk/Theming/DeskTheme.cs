@@ -18,7 +18,9 @@ namespace LineOps.Desk.Theming;
 ///
 /// <para>
 /// So the constants below are the pairing seam, and they must match the <c>:root</c>
-/// block in lineops.css exactly. Everything that is <i>not</i> a colour — radii, type,
+/// block in lineops.css exactly. They are the Standard family; the other families' values
+/// sit in <see cref="DeskPalettes"/> against their blocks in <c>themes.css</c>, and every
+/// family reaches MudBlazor through <see cref="For"/>. Everything that is <i>not</i> a colour — radii, type,
 /// elevation, z-index — is remapped in <c>wwwroot/css/mud-bridge.css</c> instead,
 /// because CSS can express it and one place beats two.
 /// </para>
@@ -58,7 +60,7 @@ public static class DeskTheme
 
     // ---- The light desk -----------------------------------------------------
     //
-    // The same roles against a pale ground, mirroring the [data-theme="light"] block
+    // The same roles against a pale ground, mirroring the [data-theme="apple-light"] block
     // in lineops.css value for value. They are constants on the same class rather
     // than a second class because the pairing is per-token, not per-theme: what has
     // to be kept honest is that LightSurface1 and --surface-1 agree, and a reader
@@ -144,161 +146,46 @@ public static class DeskTheme
     // replaces had gone stale in nine values and was read by nothing.
 
     /// <summary>
-    /// The single theme instance, carrying both palettes.
+    /// The dark desk's modal scrim: the desk void at 62%, matching <see cref="Surface0"/> channel
+    /// for channel. MudBlazor paints <c>.mud-overlay-scrim.mud-overlay-dark</c> straight from the
+    /// palette's <c>OverlayDark</c>, so there is no CSS token for it to mirror.
+    /// </summary>
+    public const string Overlay = "rgba(28, 28, 30, .62)";
+
+    private static readonly Dictionary<DeskThemeFamily, MudTheme> Themes = DeskThemeFamilies.All
+        .ToDictionary(family => family, family => Build(
+            DeskThemeFamilies.Palette(family, isDark: true),
+            DeskThemeFamilies.Palette(family, isDark: false)));
+
+    /// <summary>
+    /// The Standard desk's theme, carrying both its palettes. What <see cref="For"/> returns for
+    /// <see cref="DeskThemeFamily.Standard"/>, kept by this name because it is what a call site
+    /// with no family to hand should get.
+    /// </summary>
+    public static MudTheme Instance => Themes[DeskThemeFamily.Standard];
+
+    /// <summary>
+    /// One family's theme, carrying its dark and light palettes.
     ///
     /// <para>
-    /// Static because it still never varies per circuit: which of the two palettes is
-    /// live is <see cref="MudThemeProvider.IsDarkMode"/>, a per-circuit flag driven by
-    /// <c>ThemeService</c>, not a second theme object. The desk's own components do not
-    /// consult either palette — they read the <c>[data-theme]</c> token block, and these
-    /// two are here only so MudBlazor's derivations (<c>-hover</c>, <c>-darken</c>,
-    /// <c>-rgb</c>) land on the desk's colours in whichever theme is showing.
+    /// Static and built once per family, because a theme never varies per circuit: which family
+    /// is showing is <c>ThemeService.Family</c> and which of its two palettes is live is
+    /// <see cref="MudThemeProvider.IsDarkMode"/>, both per-circuit and both driven by
+    /// <c>ThemeService</c>. The desk's own components consult neither palette — they read the
+    /// <c>[data-theme]</c> token block. These exist so MudBlazor's derivations (<c>-hover</c>,
+    /// <c>-darken</c>, <c>-rgb</c>) land on the desk's colours in whichever desk is showing.
     /// </para>
     /// </summary>
-    public static readonly MudTheme Instance = new()
+    public static MudTheme For(DeskThemeFamily family)
+        => Themes.TryGetValue(family, out var theme) ? theme : Instance;
+
+    private static MudTheme Build(DeskPalette dark, DeskPalette light) => new()
     {
-        PaletteDark = new PaletteDark
-        {
-            Black = Surface0,
-            White = TextPrimary,
-
-            Background = Surface0,
-            BackgroundGray = Surface0,
-            Surface = Surface1,
-            DrawerBackground = Surface1,
-            AppbarBackground = Surface2,
-
-            DrawerText = TextPrimary,
-            DrawerIcon = TextSecondary,
-            AppbarText = TextPrimary,
-
-            TextPrimary = TextPrimary,
-            TextSecondary = TextSecondary,
-            TextDisabled = TextTertiary,
-
-            // Cannot be out-specified: .mud-button-root:disabled sets colour with
-            // !important. Agreeing with the desk beats fighting the stylesheet.
-            ActionDefault = TextSecondary,
-            ActionDisabled = TextTertiary,
-            ActionDisabledBackground = Surface2,
-
-            LinesDefault = Separator,
-            LinesInputs = Separator,
-            Divider = Separator,
-            DividerLight = Separator,
-            TableLines = Separator,
-            TableStriped = Surface2,
-            TableHover = Surface2,
-
-            // The modal scrim, and the only place it can be set. MudBlazor paints it on
-            // .mud-overlay-scrim.mud-overlay-dark, whose background-color is literally
-            // var(--mud-palette-overlay-dark) — this value. The overlay root carries
-            // .mud-overlay-dialog, but that class only sets z-index and the scrim child
-            // covers it edge to edge, so a bridge rule aimed there paints nothing. The
-            // desk void at 62%, matching Surface0 channel for channel.
-            OverlayDark = "rgba(28, 28, 30, .62)",
-
-            GrayDefault = Surface2,
-            GrayLight = Surface3,
-            GrayLighter = TextSecondary,
-            GrayDark = Surface2,
-            GrayDarker = Surface1,
-
-            // One accent. Interactivity, focus, selection — nothing else.
-            Primary = Accent,
-            PrimaryContrastText = OnAccent,
-            Info = Accent,
-            InfoContrastText = OnAccent,
-            Success = StatePositive,
-            SuccessContrastText = OnAccent,
-            Error = StateNegative,
-            ErrorContrastText = OnAccent,
-            Warning = StateWarning,
-            WarningContrastText = OnAccent,
-
-            // Secondary and Tertiary have no meaning on this desk — there is no second
-            // brand colour, only states. Pointing them at the accent means a component
-            // that reaches for one degrades to the desk's one interactive colour rather
-            // than importing Material's pink.
-            Secondary = Accent,
-            SecondaryContrastText = OnAccent,
-            Tertiary = Accent,
-            TertiaryContrastText = OnAccent,
-
-            Dark = Surface2,
-            DarkContrastText = TextPrimary
-        },
-
-        // The same entries, in the same order, pointing at the light constants. Kept
-        // structurally identical to the block above on purpose: the two palettes are a
-        // diff, and a reader checking that the light desk did not quietly lose an entry
-        // should be able to do it by reading down two columns rather than by reasoning.
-        PaletteLight = new PaletteLight
-        {
-            // Not a mirror of PaletteDark's. These two entries are MudBlazor's literal
-            // black and white rather than roles, and a component reaching for "black" on
-            // a light desk wants ink, not the ground it is printed on.
-            Black = LightTextPrimary,
-            White = LightSurface1,
-
-            Background = LightSurface0,
-            BackgroundGray = LightSurface0,
-            Surface = LightSurface1,
-            DrawerBackground = LightSurface1,
-            AppbarBackground = LightSurface2,
-
-            DrawerText = LightTextPrimary,
-            DrawerIcon = LightTextSecondary,
-            AppbarText = LightTextPrimary,
-
-            TextPrimary = LightTextPrimary,
-            TextSecondary = LightTextSecondary,
-            TextDisabled = LightTextTertiary,
-
-            // Same reason as the dark desk: .mud-button-root:disabled sets colour with
-            // !important, so the palette agrees with the desk instead of fighting it.
-            ActionDefault = LightTextSecondary,
-            ActionDisabled = LightTextTertiary,
-            ActionDisabledBackground = LightSurface2,
-
-            LinesDefault = LightSeparator,
-            LinesInputs = LightSeparator,
-            Divider = LightSeparator,
-            DividerLight = LightSeparator,
-            TableLines = LightSeparator,
-            TableStriped = LightSurface2,
-            TableHover = LightSurface2,
-
-            // Still the only place the scrim can be set — MudBlazor paints
-            // .mud-overlay-scrim.mud-overlay-dark straight from this entry, whichever
-            // palette is live. See LightOverlay for why it is not the pale ground at 62%.
-            OverlayDark = LightOverlay,
-
-            GrayDefault = LightSurface2,
-            GrayLight = LightSurface3,
-            GrayLighter = LightTextSecondary,
-            GrayDark = LightSurface2,
-            GrayDarker = LightSurface1,
-
-            Primary = LightAccent,
-            PrimaryContrastText = LightOnAccent,
-            Info = LightAccent,
-            InfoContrastText = LightOnAccent,
-            Success = LightStatePositive,
-            SuccessContrastText = LightOnAccent,
-            Error = LightStateNegative,
-            ErrorContrastText = LightOnAccent,
-            Warning = LightStateWarning,
-            WarningContrastText = LightOnAccent,
-
-            Secondary = LightAccent,
-            SecondaryContrastText = LightOnAccent,
-            Tertiary = LightAccent,
-            TertiaryContrastText = LightOnAccent,
-
-            Dark = LightSurface2,
-            DarkContrastText = LightTextPrimary
-        },
+        // The two palettes are filled by the same method on purpose: they used to be two
+        // hand-written blocks kept structurally identical so a lost entry showed up by reading
+        // down two columns. One method makes a lost entry impossible instead of visible.
+        PaletteDark = Fill(new PaletteDark(), dark),
+        PaletteLight = Fill(new PaletteLight(), light),
 
         Typography = new Typography
         {
@@ -311,7 +198,8 @@ public static class DeskTheme
             // about, but a role it misses falls through to whatever is named here. That
             // used to be Archivo, which no longer loads, so the fallback was silently
             // Segoe UI on Windows — the exact failure the bundled Inter exists to prevent.
-            // FontSize matches --text-body (13px).
+            // FontSize matches --text-body (13px) at 100% text size; the operator's text
+            // scale reaches Mud through the bridge, which reads the scaled token.
             Default = new DefaultTypography
             {
                 FontFamily = ["-apple-system", "BlinkMacSystemFont", "Inter var", "Inter", "Segoe UI", "system-ui", "sans-serif"],
@@ -319,4 +207,80 @@ public static class DeskTheme
             }
         }
     };
+
+    private static T Fill<T>(T palette, DeskPalette desk) where T : Palette
+    {
+        // MudBlazor's literal black and white rather than roles. On a dark desk "black" is the
+        // void and "white" is ink; on a light desk a component reaching for "black" wants ink,
+        // not the ground it is printed on — so the two swap with the appearance.
+        palette.Black = desk.IsDark ? desk.Surface0 : desk.TextPrimary;
+        palette.White = desk.IsDark ? desk.TextPrimary : desk.Surface1;
+
+        palette.Background = desk.Surface0;
+        palette.BackgroundGray = desk.Surface0;
+        palette.Surface = desk.Surface1;
+        palette.DrawerBackground = desk.Surface1;
+        palette.AppbarBackground = desk.Surface2;
+
+        palette.DrawerText = desk.TextPrimary;
+        palette.DrawerIcon = desk.TextSecondary;
+        palette.AppbarText = desk.TextPrimary;
+
+        palette.TextPrimary = desk.TextPrimary;
+        palette.TextSecondary = desk.TextSecondary;
+        palette.TextDisabled = desk.TextTertiary;
+
+        // Cannot be out-specified: .mud-button-root:disabled sets colour with
+        // !important. Agreeing with the desk beats fighting the stylesheet.
+        palette.ActionDefault = desk.TextSecondary;
+        palette.ActionDisabled = desk.TextTertiary;
+        palette.ActionDisabledBackground = desk.Surface2;
+
+        palette.LinesDefault = desk.Separator;
+        palette.LinesInputs = desk.Separator;
+        palette.Divider = desk.Separator;
+        palette.DividerLight = desk.Separator;
+        palette.TableLines = desk.Separator;
+        palette.TableStriped = desk.Surface2;
+        palette.TableHover = desk.Surface2;
+
+        // The modal scrim, and the only place it can be set. MudBlazor paints it on
+        // .mud-overlay-scrim.mud-overlay-dark, whose background-color is literally
+        // var(--mud-palette-overlay-dark) — this value, whichever palette is live. The
+        // overlay root carries .mud-overlay-dialog, but that class only sets z-index and
+        // the scrim child covers it edge to edge, so a bridge rule aimed there paints nothing.
+        palette.OverlayDark = desk.Overlay;
+
+        palette.GrayDefault = desk.Surface2;
+        palette.GrayLight = desk.Surface3;
+        palette.GrayLighter = desk.TextSecondary;
+        palette.GrayDark = desk.Surface2;
+        palette.GrayDarker = desk.Surface1;
+
+        // One accent. Interactivity, focus, selection — nothing else.
+        palette.Primary = desk.Accent;
+        palette.PrimaryContrastText = desk.OnAccent;
+        palette.Info = desk.Accent;
+        palette.InfoContrastText = desk.OnAccent;
+        palette.Success = desk.StatePositive;
+        palette.SuccessContrastText = desk.OnAccent;
+        palette.Error = desk.StateNegative;
+        palette.ErrorContrastText = desk.OnAccent;
+        palette.Warning = desk.StateWarning;
+        palette.WarningContrastText = desk.OnAccent;
+
+        // Secondary and Tertiary have no meaning on this desk — there is no second
+        // brand colour, only states. Pointing them at the accent means a component
+        // that reaches for one degrades to the desk's one interactive colour rather
+        // than importing Material's pink.
+        palette.Secondary = desk.Accent;
+        palette.SecondaryContrastText = desk.OnAccent;
+        palette.Tertiary = desk.Accent;
+        palette.TertiaryContrastText = desk.OnAccent;
+
+        palette.Dark = desk.Surface2;
+        palette.DarkContrastText = desk.TextPrimary;
+
+        return palette;
+    }
 }

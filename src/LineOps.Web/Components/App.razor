@@ -15,11 +15,13 @@
 
     @*
         Order is load-bearing. MudBlazor first, so it can be overridden; lineops.css next,
-        because it defines the tokens; mud-bridge.css last, because it spends them on
-        MudBlazor's variables and out-specifies what MudBlazor hard-codes.
+        because it defines the tokens; themes.css after it, because its token blocks tie
+        with :root on specificity and win on source order; mud-bridge.css last, because it
+        spends the tokens on MudBlazor's variables and out-specifies what MudBlazor hard-codes.
     *@
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/lineops.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/themes.css"]" />
     <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/mud-bridge.css"]" />
     @* Scoped-component styles — ReconnectModal relies on these. *@
     <link rel="stylesheet" href="@Assets["LineOps.Web.styles.css"]" />
