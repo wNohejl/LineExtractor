@@ -234,10 +234,12 @@ their most recent game.
   a season was split. Lines with no side fall back to the current team, as before.
 - NFL 2025 and 2026 re-walked (387 days, 318 games, 0 failures): every NFL line has a side.
   MLB was not re-walked; its lines fall back until the next walk over them.
-- The re-walk exposed 33 lines from the 5 September load that sit on the wrong one of two
+- The re-walk exposed 33 lines from the 5 September load that sat on the wrong one of two
   same-named players (Byron Young, Jaylon Jones, Jonah Williams, Jordan Phillips, Aaron
-  Brewer) — stored by name before ADR 0009's fix. Each now has an identical line on the right
-  player; the stale copies have no side and are left for a deliberate cleanup.
+  Brewer) — stored by name before ADR 0009's fix. The re-walk wrote an identical line on the
+  right player for each, and the 33 stale copies were deleted: each had no side, an exact twin
+  on the other player, and an owner whose team was not in the game. NFL now holds 18,389 lines
+  for 2025 and 2,156 for 2026, every one with a side.
 
 ## 7. Open questions
 1. "Share data for users": the desk's own consumers (this document's reading), or a second
