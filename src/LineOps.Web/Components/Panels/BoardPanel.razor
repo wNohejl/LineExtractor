@@ -169,7 +169,7 @@ else
               OnRowClick="@(e => Toggle(e.Item))"
               EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
-        <TemplateColumn T="BoardRow" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
                 <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
                 @* Which league, and only while the board is showing more than one. *@
@@ -188,7 +188,7 @@ else
             Putting them in the widest column means no dead width for the rows that are closed,
             and only the open row changes height.
         *@
-        <TemplateColumn T="BoardRow" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
                     @Matchup(context.Item.Game)
@@ -227,7 +227,7 @@ else
             (ADR 0008), so colouring a losing side negative would be a second vocabulary in the
             same table. The tag beside it carries the state, in a word.
         *@
-        <TemplateColumn T="BoardRow" Title="Score" SortBy="@(r => (int)r.Game.Status)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Score" SortBy="@(r => (int)r.Game.Status)">
             <CellTemplate>
                 @if (context.Item.Game.Status == GameStatus.Scheduled)
                 {
@@ -257,6 +257,28 @@ else
                             </span>
                         }
                     </div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* The row's best bet against the fair price, and the column the board sorts by when the
+           question is where the value is. Read across every book, so it can name a book that
+           holds no cell's best price; a close has nothing left to take and reads as a dash. *@
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Value" Align="Align.Right"
+                        SortBy="@(r => r.BestEv ?? double.MinValue)">
+            <CellTemplate>
+                @if (context.Item.BestPick is { } pick)
+                {
+                    <div class="value" title="@ValueTitle(context.Item, pick)">
+                        <span class="value__ev @(pick.Book.Ev > 0 ? "up" : "dim")">
+                            @PriceCell.EvLabel(pick.Book.Ev!.Value).Replace(" EV", "")
+                        </span>
+                        <span class="value__bet">@PickLabel(context.Item, pick)</span>
+                    </div>
+                }
+                else
+                {
+                    <span class="dim">—</span>
                 }
             </CellTemplate>
         </TemplateColumn>
@@ -473,6 +495,27 @@ else
     /// blank: the reader still learns which side they are looking at.
     /// </para>
     /// </summary>
+    /// <summary>"LAC ML · FD +295" — the side, the market, and where to take it.</summary>
+    private static string PickLabel(BoardRow row, ValuePick pick)
+    {
+        var first = pick.IsFirstSide(row.Game);
+        var side = pick.Market == Markets.Total ? (first ? "O" : "U") : Side(row, first);
+        var bet = pick.Market switch
+        {
+            Markets.Moneyline => $"{side} ML",
+            _ when pick.Book.Line is { } line => pick.Market == Markets.Total
+                ? $"{OddsMath.FormatLine(line, pick.Outcome)}"
+                : $"{side} {OddsMath.FormatLine(line, pick.Outcome)}",
+            _ => side
+        };
+
+        return $"{bet} · {PriceCell.Monogram(pick.Book.Book)} {OddsMath.FormatPrice(pick.Book.PriceAmerican)}";
+    }
+
+    private static string ValueTitle(BoardRow row, ValuePick pick)
+        => $"{pick.Outcome} at {pick.Book.Book}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
+           + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price — the most value on this game.";
+
     private static string Side(BoardRow row, bool home)
     {
         var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;

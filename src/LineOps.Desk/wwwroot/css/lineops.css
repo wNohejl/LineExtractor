@@ -2011,6 +2011,31 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     transition: opacity .1s ease;
 }
 
+/* The board's value column: the row's best bet against the fair price, the figure on top
+   and the bet it belongs to beneath. Positive is lit by the shared .up; anything else is a
+   reading, not a call to act, and sits back. */
+.value {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 88px;
+}
+
+.value__ev {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.value__bet {
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+    letter-spacing: .03em;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
 .mud-table-row:hover .price__ev,
 .board__row--open .price__ev { opacity: 1; }
 

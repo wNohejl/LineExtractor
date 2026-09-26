@@ -185,7 +185,7 @@ else
     /// A book's two-character mark. Colour means state on this desk, so a book is identified
     /// typographically instead — see ADR 0008.
     /// </summary>
-    private static string Monogram(string book) => book.ToLowerInvariant() switch
+    public static string Monogram(string book) => book.ToLowerInvariant() switch
     {
         "pinnacle" => "PN",
         "draftkings" => "DK",

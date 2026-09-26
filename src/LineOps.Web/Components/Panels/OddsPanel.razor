@@ -219,7 +219,7 @@ else
                         @* Rates are averaged, counts are totalled, and the header says
                            which so a number is never ambiguous. A player with no reading
                            sorts below every real one rather than beside the zeroes. *@
-                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
                                         Align="Align.Right"
                                         SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                             <CellTemplate>

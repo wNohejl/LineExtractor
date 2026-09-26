@@ -474,11 +474,27 @@ public record BoardRow(
     /// the book with the most value is not always the one with the best number. A close is left
     /// out — there is nothing left to take.
     /// </summary>
-    public double? BestEv
-        => new[] { Moneyline.First, Moneyline.Second, Spread.First, Spread.Second, Total.First, Total.Second }
-            .Where(o => o is { IsClosing: false })
-            .SelectMany(o => o!.Rungs)
-            .Max(r => r.Ev);
+    public double? BestEv => BestPick?.Book.Ev;
+
+    /// <summary>The bet behind <see cref="BestEv"/>: which market, which side, at which book's price.</summary>
+    public ValuePick? BestPick
+        => new[] { Moneyline, Spread, Total }
+            .SelectMany(pair => new[] { pair.First, pair.Second }
+                .Where(o => o is { IsClosing: false })
+                .SelectMany(o => o!.Rungs
+                    .Where(r => r.Ev is not null)
+                    .Select(r => new ValuePick(pair.Market, o!.Outcome, r))))
+            .MaxBy(p => p.Book.Ev);
+}
+
+/// <summary>One bet on the board: a market, a side, and the book price that carries its value.</summary>
+public record ValuePick(string Market, string Outcome, BookPrice Book)
+{
+    /// <summary>Whether the side is the one the board lists first — home, or the over.</summary>
+    public bool IsFirstSide(Game game)
+        => Market == Markets.Total
+            ? Outcome.Equals("over", StringComparison.OrdinalIgnoreCase)
+            : Outcome == game.HomeTeam?.Name;
 }
 
 /// <summary>Both sides of a market. Home/over first, away/under second.</summary>

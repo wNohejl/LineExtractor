@@ -199,7 +199,7 @@
 
         @* Sorts on the reading itself, so "worst CLV" is a click; an unresolved entry sorts below
            every real one rather than as zero. A TemplateColumn because the key is computed. *@
-        <TemplateColumn T="JournalEntry" Title="CLV" Align="Align.Right"
+        <TemplateColumn T="JournalEntry" Sortable="true" Title="CLV" Align="Align.Right"
                         SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
             <CellTemplate>@ClvCell(context.Item)</CellTemplate>
         </TemplateColumn>

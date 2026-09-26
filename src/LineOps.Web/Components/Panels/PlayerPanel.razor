@@ -123,7 +123,7 @@ else
                 @foreach (var c in _columns)
                 {
                     var key = c;
-                    <TemplateColumn T="PlayerGameRow" Title="@key" Align="Align.Right"
+                    <TemplateColumn T="PlayerGameRow" Sortable="true" Title="@key" Align="Align.Right"
                                     SortBy="@(r => StatSortKey(r, key))">
                         <CellTemplate>
                             <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
