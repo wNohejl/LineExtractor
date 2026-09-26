@@ -37,6 +37,11 @@ else
     }
     else
     {
+        @if (FairOf(market) is { Length: > 0 } fair)
+        {
+            <div class="dim" style="font-size:11px;margin:2px 0 6px">@fair</div>
+        }
+
         <div class="gridwrap" style="margin-bottom:14px">
             <DeskGrid T="string" Items="BooksIn(market)" EmptyText="Not priced by any book yet.">
                 <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book">
@@ -53,6 +58,21 @@ else
                 <TemplateColumn T="string" Title="@SideName(market, first: false)"
                                 Align="Align.Right" Sortable="false">
                     <CellTemplate>@Cell(market.Second, context.Item)</CellTemplate>
+                </TemplateColumn>
+
+                @* What the book keeps: its two prices' overshoot past certainty. The cheapest
+                   book to bet into over a season is the one with the lowest number here. *@
+                <TemplateColumn T="string" Title="Hold" Align="Align.Right" Sortable="false">
+                    <CellTemplate>
+                        @if (HoldOf(market, context.Item) is { } hold)
+                        {
+                            <span class="mono dim">@((hold * 100).ToString("0.0"))%</span>
+                        }
+                        else
+                        {
+                            <span class="dim" title="This book does not quote both sides on the same number.">—</span>
+                        }
+                    </CellTemplate>
                 </TemplateColumn>
             </DeskGrid>
         </div>
@@ -135,5 +155,41 @@ else
         builder.AddContent(3, line + OddsMath.FormatPrice(rung.PriceAmerican));
 
         builder.CloseElement();
+
+        // Value against the fair price, where this book's number has one. Positive is lit in
+        // the same tone as the best price: both are reasons to bet here.
+        if (rung.Ev is { } ev && !offer.IsClosing)
+        {
+            builder.OpenElement(4, "span");
+            builder.AddAttribute(5, "class", ev > 0 ? "up" : "dim");
+            builder.AddAttribute(6, "style", "font-size:10px;margin-left:6px");
+            builder.AddContent(7, PriceCell.EvLabel(ev));
+            builder.CloseElement();
+        }
     };
+
+    /// <summary>A book's margin on a market, read from whichever side it quotes a pair on.</summary>
+    private static double? HoldOf(MarketPair market, string book)
+        => market.First?.Rungs.FirstOrDefault(r => r.Book == book)?.Hold
+           ?? market.Second?.Rungs.FirstOrDefault(r => r.Book == book)?.Hold;
+
+    /// <summary>
+    /// What the market's value is measured against — both sides' fair prices on the best
+    /// offers' numbers — or nothing, when there is no reference to measure by.
+    /// </summary>
+    private static string FairOf(MarketPair market)
+    {
+        var sides = new[] { market.First, market.Second }
+            .Where(o => o?.Fair is not null)
+            .Select(o => $"{o!.Outcome}{(o.Line is { } l ? " " + OddsMath.FormatLine(l, o.Outcome) : "")} {OddsMath.FormatPrice(o.Fair!.PriceAmerican)}")
+            .ToList();
+
+        if (sides.Count == 0)
+            return string.Empty;
+
+        var basis = (market.First?.Fair ?? market.Second?.Fair)!;
+        var source = basis.Basis == FairValue.SharpBook ? "Pinnacle, no-vig" : $"{basis.Books}-book no-vig consensus";
+
+        return $"Fair: {string.Join(" / ", sides)} ({source})";
+    }
 }

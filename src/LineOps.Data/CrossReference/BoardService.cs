@@ -83,14 +83,76 @@ public class BoardService(LineOpsDbContext db)
                 .AsNoTracking()
                 .ToListAsync(ct));
 
-        var newest = latest.Count == 0 ? (DateTimeOffset?)null : latest.Max(s => s.CapturedAt);
+        // Only asked for the leagues with a row that will have to explain itself. It used to be
+        // the newest scan among the window's own games, so a slate nobody had priced yet — the
+        // morning after a pull, or any day under manual polling — told every row that no scan
+        // had ever run, on a desk with weeks of scans behind it.
+        var unexplained = games
+            .Where(g => !byGame.ContainsKey(g.Id) && !closesByGame.ContainsKey(g.Id))
+            .Select(g => g.SportId)
+            .Distinct()
+            .ToList();
+
+        var lastPull = unexplained.Count == 0
+            ? []
+            : await LastPullBySportAsync(
+                games.Where(g => unexplained.Contains(g.SportId)).Select(g => g.Sport!).DistinctBy(s => s.Id).ToList(),
+                ct);
 
         return games.Select(game => Compose(
             game,
             byGame.GetValueOrDefault(game.Id),
             closesByGame.GetValueOrDefault(game.Id),
-            newest)).ToList();
+            lastPull.TryGetValue(game.SportId, out var at) ? at : null)).ToList();
     }
+
+    /// <summary>
+    /// When each league was last priced: its newest scan, or its last successful lines pull,
+    /// whichever is later.
+    ///
+    /// <para>
+    /// The scans alone cannot answer it. Promotion deletes a game's scans at first pitch (ADR
+    /// 0010), so once every game a manual pull priced has started, the league has no scans left
+    /// and looked as though it had never been priced at all. The run log keeps the pull. Only a
+    /// league's own pull counts (<c>odds:lines:mlb</c>): the all-leagues job does not record
+    /// which leagues it reached, and it runs under automatic polling, which keeps the upcoming
+    /// slate in the scan tier anyway.
+    /// </para>
+    /// </summary>
+    private async Task<Dictionary<int, DateTimeOffset>> LastPullBySportAsync(List<Sport> sports, CancellationToken ct)
+    {
+        var ids = sports.Select(s => s.Id).ToList();
+
+        var scans = await db.OddsSnapshots
+            .Where(s => ids.Contains(s.Game!.SportId))
+            .GroupBy(s => s.Game!.SportId)
+            .Select(g => new { SportId = g.Key, At = g.Max(s => s.CapturedAt) })
+            .ToDictionaryAsync(x => x.SportId, x => x.At, ct);
+
+        var jobs = sports.ToDictionary(s => OddsLinesJobPrefix + s.Key, s => s.Id);
+        var jobKeys = jobs.Keys.ToList();
+
+        var pulls = await db.IngestionRuns
+            .Where(r => jobKeys.Contains(r.JobKey) && (r.Status == RunStatus.Success || r.Status == RunStatus.Partial))
+            .GroupBy(r => r.JobKey)
+            .Select(g => new { JobKey = g.Key, At = g.Max(r => r.StartedAt) })
+            .ToListAsync(ct);
+
+        foreach (var pull in pulls)
+        {
+            var sportId = jobs[pull.JobKey];
+            if (!scans.TryGetValue(sportId, out var scanned) || pull.At > scanned)
+                scans[sportId] = pull.At;
+        }
+
+        return scans;
+    }
+
+    /// <summary>
+    /// The job key of a one-league lines pull, less the league. Mirrors
+    /// <c>IngestionJobs.OddsLinesPrefix</c>, which this project cannot reference.
+    /// </summary>
+    public const string OddsLinesJobPrefix = "odds:lines:";
 
     /// <summary>A closing line with the kind of source that wrote it.</summary>
     private sealed record ClosedQuote(ClosingLine Line, SourceKind Kind);
@@ -133,7 +195,7 @@ public class BoardService(LineOpsDbContext db)
         Game game,
         List<Quote>? live,
         List<Quote>? closing,
-        DateTimeOffset? newestScanAnywhere)
+        DateTimeOffset? lastScanInLeague)
     {
         var isClosing = live is not { Count: > 0 } && closing is { Count: > 0 };
         var prices = live is { Count: > 0 } ? live : closing ?? [];
@@ -146,7 +208,7 @@ public class BoardService(LineOpsDbContext db)
             BookCount: prices.Select(p => p.Book).Distinct().Count(),
             PricedAt: prices.Count == 0 ? null : prices.Max(p => p.CapturedAt),
             PricesAreClosing: isClosing,
-            Unpriced: prices.Count > 0 ? null : ExplainGap(game, newestScanAnywhere));
+            Unpriced: prices.Count > 0 ? null : ExplainGap(game, lastScanInLeague));
     }
 
     /// <summary>
@@ -163,15 +225,35 @@ public class BoardService(LineOpsDbContext db)
     /// only reaches this now when no close was ever captured for it.
     /// </para>
     /// </summary>
-    private static string ExplainGap(Game game, DateTimeOffset? newestScanAnywhere)
+    private static string ExplainGap(Game game, DateTimeOffset? lastScanInLeague)
     {
-        if (game.StartsAt <= DateTimeOffset.UtcNow)
+        var now = DateTimeOffset.UtcNow;
+
+        if (game.StartsAt <= now)
             return "Under way — and no closing line was captured before it started.";
 
-        return newestScanAnywhere is null
-            ? "No odds scan has run yet. Pull data → Pull lines."
-            : "The last scan did not cover this fixture.";
+        if (lastScanInLeague is not { } last)
+            return "No odds scan has run yet. Pull data → Pull lines.";
+
+        // A pull from days ago "not covering" a fixture that did not exist yet is not a
+        // coverage gap. Under manual polling it is the common case, and the fact worth acting
+        // on is the age of the last pull, not the fixture.
+        var age = now - last;
+        if (age >= StalePull)
+            return $"No lines pulled in {Ago(age)}. Pull data → Pull lines.";
+
+        return "The last scan did not cover this fixture.";
     }
+
+    /// <summary>
+    /// How old a league's newest scan can be before an unpriced row blames the pull rather than
+    /// the fixture. A day: automatic polling scans far more often than that, and a manual pull
+    /// older than a day predates most of the slate it would be asked about.
+    /// </summary>
+    public static readonly TimeSpan StalePull = TimeSpan.FromDays(1);
+
+    private static string Ago(TimeSpan age)
+        => age.TotalDays >= 2 ? $"{(int)age.TotalDays} days" : $"{(int)age.TotalHours} hours";
 
     /// <summary>
     /// One game's row, for a view opened against a game id rather than handed a row.
@@ -214,12 +296,9 @@ public class BoardService(LineOpsDbContext db)
         // only used to tell "the feed has never run" apart from "the feed skipped this
         // fixture". Passing null unconditionally made every unpriced game claim no scan had
         // ever run — which reads as a broken platform on a desk holding a full slate of prices.
-        var scanned = live.Count > 0 || closing.Count > 0
+        DateTimeOffset? scanned = live.Count > 0 || closing.Count > 0
             ? null
-            : await db.OddsSnapshots
-                .OrderByDescending(s => s.CapturedAt)
-                .Select(s => (DateTimeOffset?)s.CapturedAt)
-                .FirstOrDefaultAsync(ct);
+            : (await LastPullBySportAsync([game.Sport!], ct)).TryGetValue(game.SportId, out var at) ? at : null;
 
         return Compose(game, live, closing, scanned);
     }
@@ -262,10 +341,15 @@ public class BoardService(LineOpsDbContext db)
             : (game.HomeTeam?.Name ?? outcomes.FirstOrDefault() ?? "",
                game.AwayTeam?.Name ?? outcomes.Skip(1).FirstOrDefault() ?? "");
 
+        // Both sides paired once, so every offer on either side reads its fair price and each
+        // book's margin from the same pairing.
+        var fair = FairMarket.Build(market, first, second,
+            inMarket.Select(p => new SidePrice(p.Book, p.Outcome, p.Line, p.PriceAmerican)));
+
         return new MarketPair(
             market,
-            Best(inMarket.Where(p => p.Outcome == first).ToList(), market, closing),
-            Best(inMarket.Where(p => p.Outcome == second).ToList(), market, closing));
+            Best(inMarket.Where(p => p.Outcome == first).ToList(), market, closing, fair),
+            Best(inMarket.Where(p => p.Outcome == second).ToList(), market, closing, fair));
     }
 
     /// <summary>
@@ -285,7 +369,7 @@ public class BoardService(LineOpsDbContext db)
     /// is a per-market comparator rather than one <c>OrderByDescending</c>.
     /// </para>
     /// </summary>
-    private static BestOffer? Best(List<Quote> side, string market, bool closing)
+    private static BestOffer? Best(List<Quote> side, string market, bool closing, FairMarket fair)
     {
         if (side.Count == 0)
             return null;
@@ -321,7 +405,11 @@ public class BoardService(LineOpsDbContext db)
                 p.Book,
                 p.PriceAmerican,
                 p.Line,
-                OddsMath.ImpliedProbability(p.PriceAmerican)))
+                OddsMath.ImpliedProbability(p.PriceAmerican))
+            {
+                Ev = fair.Ev(p.Outcome, p.Line, p.PriceAmerican),
+                Hold = fair.Hold(p.Book, p.Outcome, p.Line),
+            })
             .ToList();
 
         // What shopping is worth here, in points of implied probability against the worst book.
@@ -346,7 +434,11 @@ public class BoardService(LineOpsDbContext db)
             EdgePoints: edge,
             LinesVary: linesVary,
             IsClosing: closing,
-            Rungs: rungs);
+            Rungs: rungs)
+        {
+            Fair = fair.For(best.Outcome, best.Line),
+            Ev = fair.Ev(best.Outcome, best.Line, best.PriceAmerican),
+        };
     }
 }
 
@@ -393,7 +485,33 @@ public record BestOffer(
     double? EdgePoints,
     bool LinesVary,
     bool IsClosing,
-    IReadOnlyList<BookPrice> Rungs);
+    IReadOnlyList<BookPrice> Rungs)
+{
+    /// <summary>
+    /// The side's fair price on the best offer's number, or null where there is none — no
+    /// Pinnacle and fewer than two books, or a number nobody else priced (see
+    /// <see cref="FairValue"/>).
+    /// </summary>
+    public FairPrice? Fair { get; init; }
+
+    /// <summary>Expected return per unit at the best offer's price, against <see cref="Fair"/>.</summary>
+    public double? Ev { get; init; }
+
+    /// <summary>
+    /// The book with the most value on this side, which is not always the best price: a book
+    /// hanging an extra half point ranks first on line and has no fair price to be scored by,
+    /// while a better price on the reference's number does. Null when no rung can be scored.
+    /// </summary>
+    public BookPrice? BestValue
+        => Rungs.Where(r => r.Ev is not null).OrderByDescending(r => r.Ev).FirstOrDefault();
+}
 
 /// <summary>One book's standing on a side.</summary>
-public record BookPrice(string Book, int PriceAmerican, decimal? Line, double Implied);
+public record BookPrice(string Book, int PriceAmerican, decimal? Line, double Implied)
+{
+    /// <summary>Expected return per unit at this book's price, where its number has a fair price.</summary>
+    public double? Ev { get; init; }
+
+    /// <summary>This book's margin on the pair, where it quotes both sides on the same number.</summary>
+    public double? Hold { get; init; }
+}

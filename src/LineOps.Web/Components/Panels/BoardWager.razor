@@ -44,6 +44,17 @@
                     State="DeskState.Info"
                     Numeric="true" />
             <Metric Label="Book" Value="@chosen.Offer.Book" Numeric="true" />
+            @* Against what the bet is worth, not only what it pays. Absent rather than zero where
+               there is no fair price on this number: "no reading" and "a fair bet" are different
+               facts (ADR 0003). *@
+            @if (chosen.Offer.Ev is { } ev && chosen.Offer.Fair is { } fair)
+            {
+                <Metric Label="Value"
+                        Value="@PriceCell.EvLabel(ev)"
+                        Note="@ValueNote(fair, ev)"
+                        State="@(ev > 0 ? DeskState.Positive : DeskState.Warning)"
+                        Numeric="true" />
+            }
             <Metric Label="Returns"
                     Value='@Payout.ToString("C0")'
                     Note="stake plus profit"
@@ -127,11 +138,26 @@
 
         _choices = Build().ToList();
 
-        // Default to the market with the most to gain from shopping — the reason this game is
-        // worth looking at is usually the one with the widest spread between books.
+        // Default to the side with the most value against the fair price. Where nothing can be
+        // scored, the market with the most to gain from shopping — the widest spread between
+        // books is the next best reason this game is worth looking at. The spread used to
+        // decide on its own, but it only says the books disagree — not that the best of them
+        // is worth taking.
         _chosen = _choices
-            .OrderByDescending(c => c.Offer.EdgePoints ?? 0)
+            .OrderByDescending(c => c.Offer.Ev ?? double.MinValue)
+            .ThenByDescending(c => c.Offer.EdgePoints ?? 0)
             .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// The fair price the value is measured against, and what it comes to on the stake typed.
+    /// </summary>
+    private string ValueNote(FairPrice fair, double ev)
+    {
+        var against = fair.Basis == FairValue.SharpBook ? "Pinnacle" : "consensus";
+        var basis = $"fair {Price(fair.PriceAmerican)} ({against})";
+
+        return _stake > 0 ? $"{basis} · {(decimal)ev * _stake:+$0.00;−$0.00} expected" : basis;
     }
 
     private IEnumerable<Choice> Build()

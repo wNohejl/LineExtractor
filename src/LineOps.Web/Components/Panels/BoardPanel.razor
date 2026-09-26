@@ -101,8 +101,17 @@
 @if (Visible.Count > 0 && _unpriced > 0)
 {
     <Note State="DeskState.Warning" Style="margin:12px 0">
-        @_unpriced of @_rows.Count fixtures have no price at all. Open a row to see why —
-        a gap is usually a fixture the scan did not cover, not a broken feed.
+        @_unpriced of @_rows.Count fixtures have no price at all.
+        @* One reason for the whole gap is stated here, since it is the same fact thirteen
+           times over; only a mix sends the reader row by row. *@
+        @if (SharedGap is { } why)
+        {
+            @why
+        }
+        else
+        {
+            @:Open a row to see why — a gap is usually a fixture the scan did not cover, not a broken feed.
+        }
     </Note>
 }
 
@@ -349,6 +358,16 @@ else
     private int _bookCount;
     private int _priced;
     private int _unpriced;
+
+    /// <summary>The reason every unpriced row gives, when they all give the same one.</summary>
+    private string? SharedGap
+    {
+        get
+        {
+            var reasons = _rows.Where(r => r.Unpriced is not null).Select(r => r.Unpriced!).Distinct().Take(2).ToList();
+            return reasons.Count == 1 ? reasons[0] : null;
+        }
+    }
     private int _closing;
     private long _movesToday;
     private int _alerts;

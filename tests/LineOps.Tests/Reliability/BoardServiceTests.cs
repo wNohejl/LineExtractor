@@ -527,4 +527,149 @@ public class BoardServiceTests(PostgresFixture fixture)
         Assert.NotNull(row);
         Assert.Contains("did not cover", row!.Unpriced!, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ---- Fair value -------------------------------------------------------------------
+    // The best price is not the same as a good price; these pin the board's reading of which
+    // is which, through the same query the desk runs.
+
+    [Fact]
+    public async Task PinnacleSetsTheFairPriceAndTheBestOfferIsScoredAgainstIt()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Pinnacle -105 both ways: a fair coin. DraftKings hangs +110 on the home side.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Moneyline, s.Home.Name, -105),
+            Price(s, "pinnacle", Markets.Moneyline, s.Away.Name, -105),
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110),
+            Price(s, "draftkings", Markets.Moneyline, s.Away.Name, -130));
+        await db.SaveChangesAsync();
+
+        var home = (await LoadAsync(db, s)).Moneyline.First!;
+
+        Assert.Equal("draftkings", home.Book);
+        Assert.Equal(FairValue.SharpBook, home.Fair!.Basis);
+        Assert.Equal(0.5, home.Fair.Probability, precision: 9);
+        Assert.Equal(0.05, home.Ev!.Value, precision: 4);
+        Assert.Equal(FairValue.Hold(110, -130), home.Rungs.Single(r => r.Book == "draftkings").Hold!.Value, precision: 9);
+    }
+
+    [Fact]
+    public async Task AMarketWithOneOrdinaryBookHasNoFairPrice()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.AddRange(
+            Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110),
+            Price(s, "draftkings", Markets.Moneyline, s.Away.Name, -130));
+        await db.SaveChangesAsync();
+
+        var home = (await LoadAsync(db, s)).Moneyline.First!;
+
+        Assert.Null(home.Fair);
+        Assert.Null(home.Ev);
+        Assert.NotNull(home.Rungs.Single().Hold);
+    }
+
+    [Fact]
+    public async Task AnExtraHalfPointRanksFirstButHasNoValueReading()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // FanDuel's +2.5 is the best line, and nobody else priced 2.5, so it cannot be scored;
+        // DraftKings' +1.5 is on Pinnacle's number and can.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Spread, s.Home.Name, -110, -1.5m),
+            Price(s, "pinnacle", Markets.Spread, s.Away.Name, -110, 1.5m),
+            Price(s, "draftkings", Markets.Spread, s.Away.Name, 105, 1.5m),
+            Price(s, "fanduel", Markets.Spread, s.Away.Name, -160, 2.5m));
+        await db.SaveChangesAsync();
+
+        var away = (await LoadAsync(db, s)).Spread.Second!;
+
+        Assert.Equal("fanduel", away.Book);
+        Assert.Null(away.Ev);
+        Assert.Equal("draftkings", away.BestValue!.Book);
+        Assert.True(away.BestValue.Ev > 0);
+    }
+
+    [Fact]
+    public async Task ASlateNobodyHasPricedDoesNotClaimTheFeedHasNeverRun()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // Last week's game in the same league was priced; today's slate has not been yet.
+        var lastWeek = new Game
+        {
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Away.Id,
+            AwayTeamId = s.Home.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(-7),
+            Status = GameStatus.Final
+        };
+        db.Games.Add(lastWeek);
+        await db.SaveChangesAsync();
+
+        db.OddsSnapshots.Add(new OddsSnapshot
+        {
+            GameId = lastWeek.Id,
+            SourceId = s.Source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = s.Away.Name,
+            PriceAmerican = -110,
+            CapturedAt = DateTimeOffset.UtcNow.AddDays(-8),
+            IngestionRunId = 0
+        });
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.DoesNotContain("no odds scan", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("No lines pulled in 8 days", row.Unpriced!);
+    }
+
+    [Fact]
+    public async Task AnotherLeaguesScansSayNothingAboutThisOne()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+        var other = await SeedAsync(db);
+
+        db.OddsSnapshots.Add(Price(other, "draftkings", Markets.Moneyline, other.Home.Name, -110));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Contains("no odds scan", row.Unpriced!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ALeaguesLastPullIsReadFromTheRunLogOnceItsScansArePromoted()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // A manual pull three days ago; every game it priced has since started and had its
+        // scans promoted away, so the scan tier holds nothing for the league.
+        db.IngestionRuns.Add(new IngestionRun
+        {
+            SourceId = s.Source.Id,
+            JobKey = BoardService.OddsLinesJobPrefix + s.Sport.Key,
+            StartedAt = DateTimeOffset.UtcNow.AddDays(-3),
+            FinishedAt = DateTimeOffset.UtcNow.AddDays(-3),
+            Status = RunStatus.Success
+        });
+        await db.SaveChangesAsync();
+
+        var listed = await LoadAsync(db, s);
+        var byId = await new BoardService(db).GetRowAsync(s.Game.Id);
+
+        Assert.Contains("No lines pulled in 3 days", listed.Unpriced!);
+        Assert.Contains("No lines pulled in 3 days", byId!.Unpriced!);
+    }
 }

@@ -1998,6 +1998,28 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .price__edge--wide { color: var(--state-positive); }
 
+/* Expected value against the fair price. A price worth taking says so without a hover —
+   that is the one reading the board exists to surface — and in the same positive tone as a
+   wide market, because both mean "act here". A price at or below fair is a detail, revealed
+   like the edge on the row being read. */
+.price__ev {
+    font-variant-numeric: tabular-nums;
+    font-size: 9.5px;
+    letter-spacing: .04em;
+    color: var(--text-tertiary);
+    opacity: 0;
+    transition: opacity .1s ease;
+}
+
+.mud-table-row:hover .price__ev,
+.board__row--open .price__ev { opacity: 1; }
+
+.price__ev--plus {
+    color: var(--state-positive);
+    font-weight: 600;
+    opacity: 1;
+}
+
 /* A closing line is not a price you can take — the game has started and the book
    is gone. It stays on the board because it is what the market concluded and what
    CLV is measured against (ADR 0010), but it steps back a tone so it cannot be
@@ -2084,7 +2106,8 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .price__edge { transition: none; }
+    .price__edge,
+    .price__ev { transition: none; }
 }
 
 /* ---- Floating dialog -------------------------------------------------------

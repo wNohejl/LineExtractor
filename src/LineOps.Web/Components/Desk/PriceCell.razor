@@ -105,8 +105,30 @@ else
                    not a detail about it. *@
                 <span class="price__edge price__edge--closing">closed</span>
             }
+
+            @* Value against the fair price, where there is one. Only for a live price: at the
+               close there is nothing left to take, and the fair close is in the tooltip. *@
+            @if (!closing && Offer.Ev is { } ev)
+            {
+                <span class="price__ev @(ev > 0 ? "price__ev--plus" : null)">@EvLabel(ev)</span>
+            }
         </div>
     </text>;
+
+    /// <summary>
+    /// Expected value, as a percentage of the stake, signed. "+2.1% EV".
+    /// </summary>
+    public static string EvLabel(double ev)
+    {
+        var percent = ev * 100;
+        return Math.Abs(percent) < 0.05 ? "fair price" : $"{(percent > 0 ? "+" : "−")}{Math.Abs(percent):0.0}% EV";
+    }
+
+    /// <summary>
+    /// The fair price and where it came from, in a phrase. "Fair −118 (Pinnacle, no-vig)".
+    /// </summary>
+    public static string FairLabel(FairPrice fair)
+        => $"Fair {FormatPrice(fair.PriceAmerican)} ({(fair.Basis == FairValue.SharpBook ? "Pinnacle" : $"{fair.Books}-book consensus")}, no-vig)";
 
     /// <summary>
     /// What a closing price is, how long before the start it was captured, and where every book
@@ -116,6 +138,17 @@ else
         => Offer is null
             ? string.Empty
             : $"{PriceProvenance.Explain(Offer.CapturedAt, StartsAt)}\n{Tooltip}";
+
+    /// <summary>
+    /// The fair price the cell's value is measured against, when it has one — the first thing a
+    /// reader asks of "+2.1% EV" is "against what".
+    /// </summary>
+    private string FairLine
+        => Offer?.Fair is { } fair
+            ? FairLabel(fair) + (Offer.BestValue is { } value && value.Book != Offer.Book && value.Ev > Offer.Ev
+                ? $" · most value at {Monogram(value.Book)} {FormatPrice(value.PriceAmerican)}"
+                : "")
+            : string.Empty;
 
     /// <summary>
     /// What shopping is worth here, said plainly. A differing line is reported as such rather
@@ -154,6 +187,7 @@ else
     /// </summary>
     private static string Monogram(string book) => book.ToLowerInvariant() switch
     {
+        "pinnacle" => "PN",
         "draftkings" => "DK",
         "fanduel" => "FD",
         "bet365" => "B3",
@@ -181,10 +215,19 @@ else
     }
 
     private string Tooltip
-        => Offer is null
-            ? string.Empty
-            : string.Join("   ", Offer.Rungs.Select(r =>
-                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
+    {
+        get
+        {
+            if (Offer is null)
+                return string.Empty;
+
+            var books = string.Join("   ", Offer.Rungs.Select(r =>
+                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"
+                + (r.Ev is { } ev ? $" ({EvLabel(ev)})" : "")));
+
+            return FairLine.Length == 0 ? books : $"{FairLine}\n{books}";
+        }
+    }
 
     private static string FormatPrice(int american) => OddsMath.FormatPrice(american);
 
