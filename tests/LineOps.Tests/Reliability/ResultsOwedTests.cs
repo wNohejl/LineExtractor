@@ -119,6 +119,21 @@ public class ResultsOwedTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task A_final_with_no_box_score_is_owed_in_a_sport_we_ingest()
+    {
+        // 22 September 2026: the live poll saw every game go final from the scoreboard, and the
+        // box scores were never fetched because a final game was never owed.
+        await using var db = fixture.CreateContext();
+        var day = await SeedGameAsync(db, daysAgo: 4, GameStatus.Final);
+        var key = (await db.Games.Include(g => g.Sport).OrderByDescending(g => g.Id).FirstAsync()).Sport!.Key;
+
+        var options = new IngestionOptions { Sports = [key] };
+        var owed = await Jobs(options).DatesAwaitingResultsAsync(TimeSpan.FromHours(4));
+
+        Assert.Contains(day, owed);
+    }
+
+    [Fact]
     public async Task A_final_game_is_never_owed()
     {
         await using var db = fixture.CreateContext();

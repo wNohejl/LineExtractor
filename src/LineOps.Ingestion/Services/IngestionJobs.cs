@@ -480,7 +480,19 @@ public class IngestionJobs(
             $"{summary.Graded} graded, {summary.Voided} voided, {summary.ParlaysSettled} parlays, {summary.ClvResolved} CLV resolved, {summary.LeftPending} pending.");
     }
 
-    /// <summary>Games that have started but are not final here, i.e. results we are still owed.</summary>
+    /// <summary>
+    /// Days we are still owed results for: a game that has started and is not final here, or a
+    /// final in a sport we ingest that has no box score.
+    ///
+    /// <para>
+    /// The second half is the one that was missing. The live poll reads the scoreboard, which
+    /// carries the score and the final status but not the box score; a game it saw go final was
+    /// never owed again, so the results sweep never fetched its stats. All fifteen games of
+    /// 22 September 2026 sat final without a stat line until this — the data-quality alert
+    /// named them and nothing healed them. A final ESPN never gives a box score for is retried on
+    /// the sweep's own back-off, not every tick.
+    /// </para>
+    /// </summary>
     public async Task<IReadOnlyList<DateOnly>> DatesAwaitingResultsAsync(
         TimeSpan settleAfter, CancellationToken ct = default)
     {
@@ -488,12 +500,15 @@ public class IngestionJobs(
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
         var cutoff = DateTimeOffset.UtcNow - settleAfter;
+        var sports = _options.EffectiveSports;
 
         var starts = await db.Games
             .Where(g => g.StartsAt <= cutoff
                         && g.StartsAt >= cutoff - _options.GamePasses.ResultsLookback
-                        && g.Status != GameStatus.Final
-                        && g.Status != GameStatus.Postponed)
+                        && g.Status != GameStatus.Postponed
+                        && (g.Status != GameStatus.Final
+                            || (sports.Contains(g.Sport!.Key)
+                                && !db.PlayerGameStats.Any(s => s.GameId == g.Id))))
             .Select(g => g.StartsAt)
             .ToListAsync(ct);
 
