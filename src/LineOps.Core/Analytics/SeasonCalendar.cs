@@ -110,5 +110,26 @@ public static class SeasonCalendar
     public static DateOnly NflRegularSeasonEnd(int seasonYear)
         => NflKickoff(seasonYear).AddDays(17 * 7 + 4);
 
+    /// <summary>
+    /// How many games a season part is scheduled to hold, where the league fixes it — the
+    /// "expected" a coverage report holds the data against.
+    ///
+    /// <para>
+    /// MLB: thirty clubs, 162 games each, 2,430. The NFL: seventeen games a club since 2021
+    /// (272), sixteen before (256); a postseason of thirteen since the 2020 season widened the
+    /// field to fourteen, eleven before. MLB's postseason length depends on how many series go
+    /// the distance, so it has no expectation rather than a guessed one — nor does a league or
+    /// season part not named here.
+    /// </para>
+    /// </summary>
+    public static int? ExpectedGames(string sportKey, int seasonYear, Entities.SeasonType type)
+        => (Normalise(sportKey), type) switch
+        {
+            ("mlb", Entities.SeasonType.Regular) => 2430,
+            ("nfl", Entities.SeasonType.Regular) => seasonYear >= 2021 ? 272 : 256,
+            ("nfl", Entities.SeasonType.Postseason) => seasonYear >= 2020 ? 13 : 11,
+            _ => null
+        };
+
     private static string Normalise(string sportKey) => sportKey.Trim().ToLowerInvariant();
 }

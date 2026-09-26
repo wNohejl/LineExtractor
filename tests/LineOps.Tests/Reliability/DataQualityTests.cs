@@ -144,4 +144,65 @@ public class DataQualityTests(PostgresFixture fixture)
         await db.SaveChangesAsync();
         return source;
     }
+
+    [Fact]
+    public async Task A_season_is_counted_as_held_final_with_stats_and_with_a_close_of_each_kind()
+    {
+        await using var db = fixture.CreateContext();
+        var seeded = await NewSportAsync(db);
+
+        await seeded.Add(30, GameStatus.Final);   // bare: neither stats nor a close
+        var marketClosed = await seeded.Add(40, GameStatus.Final);
+        var referenceClosed = await seeded.Add(50, GameStatus.Final);
+        await seeded.Add(60, GameStatus.Postponed);
+        await seeded.Add(-20, GameStatus.Scheduled);
+
+        var stats = await SourceAsync(db);
+        var odds = new Source
+        {
+            Key = $"dq-odds-{Guid.NewGuid():N}", Name = "Test odds", Kind = SourceKind.Odds,
+            BaseUrl = "local://test", Enabled = true
+        };
+        db.Sources.Add(odds);
+        var player = new Player { SportId = seeded.Sport.Id, FullName = $"Player {Guid.NewGuid():N}" };
+        db.Players.Add(player);
+        await db.SaveChangesAsync();
+
+        foreach (var game in new[] { marketClosed, referenceClosed })
+            db.PlayerGameStats.Add(new PlayerGameStat
+            {
+                GameId = game.Id, PlayerId = player.Id, SourceId = stats.Id, CapturedAt = game.StartsAt
+            });
+
+        ClosingLine Close(Game game, Source source) => new()
+        {
+            GameId = game.Id, SourceId = source.Id, Book = "draftkings", Market = Markets.Moneyline,
+            Outcome = "home", PriceAmerican = -120, CapturedAt = game.StartsAt, PromotedAt = game.StartsAt
+        };
+        db.ClosingLines.AddRange(Close(marketClosed, odds), Close(referenceClosed, stats));
+        await db.SaveChangesAsync();
+
+        var season = Assert.Single(await new DataQuality(db).SeasonsAsync(),
+            s => s.SportKey == seeded.Sport.Key);
+
+        Assert.Equal(2026, season.SeasonYear);
+        Assert.Equal(5, season.Held);
+        Assert.Equal(3, season.Final);
+        Assert.Equal(1, season.Postponed);
+        Assert.Equal(2, season.WithStats);
+        Assert.Equal(1, season.FinalsWithoutStats);
+        Assert.Equal(1, season.WithMarketClose);
+        Assert.Equal(2, season.WithClose);
+        Assert.Null(season.Expected);   // a test league has no published schedule
+    }
+
+    [Fact]
+    public async Task A_hidden_league_has_no_season_report()
+    {
+        await using var db = fixture.CreateContext();
+        var seeded = await NewSportAsync(db, enabled: false);
+        await seeded.Add(30, GameStatus.Final);
+
+        Assert.DoesNotContain(await new DataQuality(db).SeasonsAsync(), s => s.SportKey == seeded.Sport.Key);
+    }
 }

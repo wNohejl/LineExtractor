@@ -1,6 +1,7 @@
 @using LineOps.Core.Entities
 @using LineOps.Data
 @using LineOps.Ingestion.Services
+@using LineOps.Reliability
 @using LineOps.Desk.Primitives
 @using LineOps.Desk.Windowing
 @using Microsoft.EntityFrameworkCore
@@ -168,6 +169,77 @@
     </Note>
 }
 
+@* The whole record, one row per season part: whether "we have the 2025 season" is true is a
+   number here rather than a belief. Held against the league's schedule where it fixes one. *@
+<PanelHeader>Seasons</PanelHeader>
+
+<DeskGrid T="SeasonCoverage" Items="_seasons"
+          EmptyText="No games on record for the leagues in play.">
+    <PropertyColumn T="SeasonCoverage" TProperty="string" Property="s => s.SportKey" Title="League">
+        <CellTemplate><span class="mono">@context.Item.SportKey.ToUpperInvariant()</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.SeasonYear" Title="Season"
+                    InitialDirection="SortDirection.Descending">
+        <CellTemplate>
+            <span class="mono">@context.Item.SeasonYear</span>
+            <span class="dim">@context.Item.SeasonType.ToString().ToLowerInvariant()</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Held" Title="Games" Align="Align.Right">
+        <CellTemplate>
+            <span class="mono">@context.Item.Held.ToString("N0")</span>
+            @if (context.Item.Expected is { } expected)
+            {
+                <span class="dim"> of @expected.ToString("N0")</span>
+            }
+            @if (context.Item.Missing is > 0 and var missing)
+            {
+                <Tag State="DeskState.Warning"
+                     Title="Scheduled by the league and not on record at all — a game the schedule never reached, or one called off and not made up.">
+                    @missing missing
+                </Tag>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Final" Title="Final" Align="Align.Right">
+        <CellTemplate>
+            <span class="mono">@context.Item.Final.ToString("N0")</span>
+            @if (context.Item.Postponed > 0)
+            {
+                <span class="dim" title="Postponed, cancelled or suspended."> · @context.Item.Postponed pp</span>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.FinalsWithoutStats" Title="Box scores" Align="Align.Right">
+        <CellTemplate>
+            @if (context.Item.FinalsWithoutStats == 0)
+            {
+                <Tag State="DeskState.Positive">all</Tag>
+            }
+            else
+            {
+                <span class="mono">@context.Item.WithStats.ToString("N0")</span>
+                <Tag State="DeskState.Warning" Title="Finals with no player stat lines.">@context.Item.FinalsWithoutStats short</Tag>
+            }
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* A book market's close and the stats provider's one-book reference are different things
+       (ADR 0011), so the count says how many of each. *@
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right">
+        <CellTemplate>
+            <span class="mono">@context.Item.WithClose.ToString("N0")</span>
+            <span class="dim" title="Closed by a book market; the rest by the stats provider's single-book reference.">
+                · @context.Item.WithMarketClose.ToString("N0") market
+            </span>
+        </CellTemplate>
+    </PropertyColumn>
+</DeskGrid>
+
 <PanelHeader>Recent days</PanelHeader>
 
 <DeskGrid T="BackfillCheckpoint" Items="_recent"
@@ -210,6 +282,7 @@
     private IReadOnlyList<SourceEligibility> _eligibility = [];
     private BackfillCoverage? _coverage;
     private List<BackfillCheckpoint> _recent = [];
+    private IReadOnlyList<SeasonCoverage> _seasons = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -238,6 +311,8 @@
                 .OrderByDescending(c => c.CompletedAt)
                 .Take(40)
                 .ToListAsync();
+
+            _seasons = await new DataQuality(db).SeasonsAsync();
         },
         settle: () => Coordinator.IsRunning ? PulseState.Active
             : _coverage is { Failed: > 0 } ? PulseState.Warn

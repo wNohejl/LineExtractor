@@ -9,6 +9,32 @@ namespace LineOps.Reliability;
 public record DataQualityCount(string SportKey, int Games, DateTimeOffset Earliest);
 
 /// <summary>
+/// One season part and how much of it the data accounts for.
+/// </summary>
+/// <param name="Expected">What the league schedules, where it fixes a number (<see cref="SeasonCalendar.ExpectedGames"/>).</param>
+/// <param name="Held">Games on record, whatever their state.</param>
+/// <param name="WithMarketClose">Finals closed by a book market rather than the stats provider's single-book reference.</param>
+/// <param name="WithClose">Finals with any close, market or reference.</param>
+public record SeasonCoverage(
+    string SportKey,
+    int SeasonYear,
+    SeasonType SeasonType,
+    int? Expected,
+    int Held,
+    int Final,
+    int Postponed,
+    int WithStats,
+    int WithMarketClose,
+    int WithClose)
+{
+    /// <summary>Scheduled games the record does not hold at all, where the schedule is known.</summary>
+    public int? Missing => Expected is { } expected ? Math.Max(0, expected - Held) : null;
+
+    /// <summary>Finals the record holds but cannot yet use for a player's line.</summary>
+    public int FinalsWithoutStats => Final - WithStats;
+}
+
+/// <summary>
 /// What is wrong with the data, as opposed to with a source.
 ///
 /// <para>
@@ -85,6 +111,49 @@ public class DataQuality(LineOpsDbContext db)
         return rows
             .Select(r => new DataQualityCount(keys[r.SportId], r.Games, r.Earliest))
             .OrderBy(c => c.SportKey)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every season the enabled leagues hold, and how much of it is accounted for.
+    ///
+    /// <para>
+    /// The alert rules above look at a recent window; this is the whole record, one row per
+    /// season part, so "we have the 2025 NFL season" is a number rather than a belief — the
+    /// report the seasons research asked for in the History window (its §4.6).
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<SeasonCoverage>> SeasonsAsync(CancellationToken ct = default)
+    {
+        var rows = await db.Games.AsNoTracking()
+            .Where(g => g.Sport!.Enabled)
+            .GroupBy(g => new { g.Sport!.Key, g.SeasonYear, g.SeasonType })
+            .Select(x => new
+            {
+                x.Key.Key,
+                x.Key.SeasonYear,
+                x.Key.SeasonType,
+                Held = x.Count(),
+                Final = x.Count(g => g.Status == GameStatus.Final),
+                Postponed = x.Count(g => g.Status == GameStatus.Postponed),
+                WithStats = x.Count(g => g.Status == GameStatus.Final
+                                         && db.PlayerGameStats.Any(s => s.GameId == g.Id)),
+                WithMarketClose = x.Count(g => g.Status == GameStatus.Final
+                                               && db.ClosingLines.Any(c => c.GameId == g.Id
+                                                                           && c.Source!.Kind == SourceKind.Odds)),
+                WithClose = x.Count(g => g.Status == GameStatus.Final
+                                         && db.ClosingLines.Any(c => c.GameId == g.Id)),
+            })
+            .ToListAsync(ct);
+
+        return rows
+            .Select(r => new SeasonCoverage(
+                r.Key, r.SeasonYear, r.SeasonType,
+                SeasonCalendar.ExpectedGames(r.Key, r.SeasonYear, r.SeasonType),
+                r.Held, r.Final, r.Postponed, r.WithStats, r.WithMarketClose, r.WithClose))
+            .OrderBy(s => s.SportKey)
+            .ThenByDescending(s => s.SeasonYear)
+            .ThenBy(s => s.SeasonType)
             .ToList();
     }
 
