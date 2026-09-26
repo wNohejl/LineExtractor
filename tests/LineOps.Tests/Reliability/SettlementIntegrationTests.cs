@@ -374,12 +374,12 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
     }
 
     private static ClosingLine Close(Game game, Source source, string book, string outcome, int price,
-        string market = Markets.Moneyline, decimal? line = null)
+        string market = Markets.Moneyline, decimal? line = null, DateTimeOffset? at = null)
         => new()
         {
             GameId = game.Id, SourceId = source.Id, Book = book, Market = market, Outcome = outcome,
             Line = line, PriceAmerican = price,
-            CapturedAt = game.StartsAt.AddMinutes(-2), PromotedAt = game.StartsAt.AddMinutes(10)
+            CapturedAt = at ?? game.StartsAt.AddMinutes(-2), PromotedAt = game.StartsAt.AddMinutes(10)
         };
 
     [Fact]
@@ -435,5 +435,71 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
         Assert.NotNull(entry.ClosingPrice);
         Assert.Null(entry.ClosingFairProbability);
         Assert.Null(PerformanceAnalytics.ComputeClv(entry)!.Value.EvAtClose);
+    }
+
+    private static async Task<Source> ReferenceSourceAsync(LineOpsDbContext db)
+    {
+        var source = new Source
+        {
+            Key = $"ref-{Guid.NewGuid():N}", Name = "Test reference", Kind = SourceKind.Stats, BaseUrl = "local://test"
+        };
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+        return source;
+    }
+
+    [Fact]
+    public async Task A_market_close_pulled_days_early_gives_way_to_the_first_pitch_reference()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, odds) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddHours(-4));
+        var reference = await ReferenceSourceAsync(db);
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+        var away = await db.Teams.FirstAsync(t => t.Id == game.AwayTeamId);
+
+        // The last manual pull was five days out; ESPN's reference closed at first pitch.
+        var early = game.StartsAt.AddDays(-5);
+        db.ClosingLines.AddRange(
+            Close(game, odds, "pinnacle", home.Name, -105, at: early),
+            Close(game, odds, "pinnacle", away.Name, -105, at: early),
+            Close(game, odds, "draftkings", home.Name, -110, at: early),
+            Close(game, reference, "DraftKings", home.Name, -135, at: game.StartsAt));
+        db.JournalEntries.Add(Pending(game, home.Name, price: -110));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).MarkFinalAsync(game.Id, homeScore: 5, awayScore: 3);
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+
+        Assert.Equal(-135, entry.ClosingPrice);
+        Assert.Equal(game.StartsAt, entry.ClosingCapturedAt!.Value, TimeSpan.FromMilliseconds(1));   // Postgres keeps microseconds
+        // One book is not a market, so an early market leaves no fair close rather than a stale one.
+        Assert.Null(entry.ClosingFairProbability);
+    }
+
+    [Fact]
+    public async Task A_market_close_near_the_start_still_outranks_the_reference()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, odds) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddHours(-4));
+        var reference = await ReferenceSourceAsync(db);
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+        var away = await db.Teams.FirstAsync(t => t.Id == game.AwayTeamId);
+
+        var nearStart = game.StartsAt.AddHours(-2);
+        db.ClosingLines.AddRange(
+            Close(game, odds, "pinnacle", home.Name, -105, at: nearStart),
+            Close(game, odds, "pinnacle", away.Name, -105, at: nearStart),
+            Close(game, odds, "draftkings", home.Name, -115, at: nearStart),
+            Close(game, reference, "DraftKings", home.Name, -135, at: game.StartsAt));
+        db.JournalEntries.Add(Pending(game, home.Name, price: -110));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).MarkFinalAsync(game.Id, homeScore: 5, awayScore: 3);
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+
+        Assert.Equal(-115, entry.ClosingPrice);
+        Assert.Equal(0.5, entry.ClosingFairProbability!.Value, precision: 9);
     }
 }

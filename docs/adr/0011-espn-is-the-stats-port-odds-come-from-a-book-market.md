@@ -94,3 +94,16 @@ binary than the one that had just passed its tests. Combined with the content-ro
 [ADR 0010](0010-odds-are-scans-until-first-pitch-then-one-closing-line.md), the rule is that
 verifying a running app means building *that app* and checking what it actually loaded — twice
 now, a "fix that did not work" was a fix that was never running.
+
+## Amendment (2026-09-26): a market close has to be a close
+
+The rule above — the book market's close outranks ESPN's reference — assumed the market's close
+was taken near the start. Under manual polling it is whenever lines were last pulled: of 139
+market-closed games, 107 closed more than six hours early and 31 more than three days early,
+while 106 of those 107 also carried ESPN's reference, taken at first pitch. For closing-line
+value the rule now reads: a market close captured within three hours of the start
+(`SettlementService.FreshCloseWithin`, the longest gap automatic polling leaves) outranks the
+reference; an earlier one ranks below it. A fair close is read only from a market that closed in
+that window — the reference is one book, which has no fair price — so a game whose market
+closed early has no fair close rather than a stale one. The board is unchanged: it shows the
+market's number, and its tooltip already says how long before the start it was taken.
