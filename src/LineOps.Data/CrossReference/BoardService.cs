@@ -467,6 +467,18 @@ public record BoardRow(
 
     /// <summary>Whether the game has a result to show, however partial.</summary>
     public bool HasScore => Scoreline.Has(Game);
+
+    /// <summary>
+    /// The most value any book's live price on this row offers against the fair price, or null
+    /// where nothing can be scored. Read across every book rather than each side's best price:
+    /// the book with the most value is not always the one with the best number. A close is left
+    /// out — there is nothing left to take.
+    /// </summary>
+    public double? BestEv
+        => new[] { Moneyline.First, Moneyline.Second, Spread.First, Spread.Second, Total.First, Total.Second }
+            .Where(o => o is { IsClosing: false })
+            .SelectMany(o => o!.Rungs)
+            .Max(r => r.Ev);
 }
 
 /// <summary>Both sides of a market. Home/over first, away/under second.</summary>

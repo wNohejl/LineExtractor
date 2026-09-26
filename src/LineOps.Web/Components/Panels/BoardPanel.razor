@@ -58,6 +58,19 @@
     <DeskField TValue="string" Immediate="true" style="max-width:170px"
                placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
 
+    @* The games where some book is paying more than the fair price. Offered only while there
+       are any, for the same reason the state switch is: a filter with nothing to narrow is
+       chrome pretending to be a control. *@
+    @if (_valueRows > 0)
+    {
+        <DeskButton Size="DeskKeySize.Small"
+                    Emphasis="@(_valueOnly ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                    Title="Only games where some book's live price beats the fair price"
+                    OnClick="ToggleValue">
+            +EV · @_valueRows
+        </DeskButton>
+    }
+
     <span class="ftr__spacer"></span>
 
     <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
@@ -354,6 +367,16 @@ else
         _team = team ?? string.Empty;
         ApplyFilter();
     }
+
+    private bool _valueOnly;
+    private int _valueRows;
+
+    /// <summary>Narrows to the games with value, most first.</summary>
+    private void ToggleValue()
+    {
+        _valueOnly = !_valueOnly;
+        ApplyFilter();
+    }
     private int _windowHours = 24;
     private int _bookCount;
     private int _priced;
@@ -539,6 +562,16 @@ else
                 r.Game.HomeTeam?.Name, r.Game.AwayTeam?.Name,
                 r.Game.HomeTeam?.Abbrev, r.Game.AwayTeam?.Abbrev)).ToList();
         }
+
+        // Counted over the whole slate, so the key says how many there are before it is pressed;
+        // and let go of once a refresh leaves none, rather than showing an empty board for a
+        // reason the operator can no longer see.
+        _valueRows = _rows.Count(r => r.BestEv > 0);
+        if (_valueRows == 0)
+            _valueOnly = false;
+
+        if (_valueOnly)
+            _visible = _visible.Where(r => r.BestEv > 0).OrderByDescending(r => r.BestEv).ToList();
 
         _closing = _visible.Count(r => r.PricesAreClosing);
     }

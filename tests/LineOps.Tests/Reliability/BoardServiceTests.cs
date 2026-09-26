@@ -672,4 +672,36 @@ public class BoardServiceTests(PostgresFixture fixture)
         Assert.Contains("No lines pulled in 3 days", listed.Unpriced!);
         Assert.Contains("No lines pulled in 3 days", byId!.Unpriced!);
     }
+
+    [Fact]
+    public async Task ARowsBestValueIsReadAcrossEveryBookNotOnlyTheBestPrice()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        // FanDuel's +2.5 is the away side's best line and cannot be scored; DraftKings' +1.5 on
+        // Pinnacle's number is worth taking, and that is the row's value.
+        db.OddsSnapshots.AddRange(
+            Price(s, "pinnacle", Markets.Spread, s.Home.Name, -110, -1.5m),
+            Price(s, "pinnacle", Markets.Spread, s.Away.Name, -110, 1.5m),
+            Price(s, "draftkings", Markets.Spread, s.Away.Name, 105, 1.5m),
+            Price(s, "fanduel", Markets.Spread, s.Away.Name, -160, 2.5m));
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+
+        Assert.Equal(FairValue.Ev(0.5, 105), row.BestEv!.Value, precision: 9);
+    }
+
+    [Fact]
+    public async Task ARowWithNothingToScoreHasNoValueReading()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.OddsSnapshots.Add(Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 110));
+        await db.SaveChangesAsync();
+
+        Assert.Null((await LoadAsync(db, s)).BestEv);
+    }
 }
