@@ -125,7 +125,7 @@ else
 
         return market.Market == LineOps.Core.Entities.Markets.Total
             ? (first ? "Over" : "Under")
-            : (first ? Row.Game.HomeTeam?.Name ?? "Home" : Row.Game.AwayTeam?.Name ?? "Away");
+            : (first ? Row!.Game.HomeTeam?.Name ?? "Home" : Row!.Game.AwayTeam?.Name ?? "Away");
     }
 
     /// <summary>Every book quoting either side, so a book missing one side still gets a row.</summary>
