@@ -25,9 +25,10 @@ of what landed follows from closing that gap.
 | `fix(odds)` | The Odds API writes totals "Over"/"Under"; everything else says "over". Switching totals on would have made every total from the feed invisible. Found by the adapter's first tests (12). |
 | `feat(history)` | **Seasons table** in History — the seasons research §4.6 report: held against the league's schedule, finals, box scores, market vs reference closes. First reading: MLB 2026 holds 2,427 of 2,430. |
 | `feat(board)` | **+EV filter** on the board, most value first. |
+| `feat(settlement)` | **§2.1 option A.** A market close counts only if captured within three hours of the start; otherwise ESPN's first-pitch reference is the close and there is no fair close. ADR 0011 amended. Standalone — drop the commit to keep the old rule. |
 | `docs` | README host-side runs; DESIGN.md caught up. |
 
-Tests: 505 + 296 = 801, from 746, all green. The Worker applied `FairClose` on start.
+Tests: 509 + 296 = 805, from 746, all green. The Worker applied `FairClose` on start.
 
 ## 2. Findings that need a decision
 
@@ -62,7 +63,8 @@ Options, cheapest first:
   already on the table.
 
 A is independent of B/C and worth doing now: the journal is empty, so it changes no number anyone
-has read. Recommendation: A, then C when the credits allow.
+has read. **A landed on the branch** (`feat(settlement)`, three hours); B or C is still the
+operator's call, and is what makes the market's own close usable again.
 
 ### 2.2 bUnit 2
 
@@ -79,7 +81,7 @@ Phase 6; porting the desk changes to TicketMiser; `KpiDailies` computed and read
 
 ## 3. Proposed next
 
-1. §2.1 option A, with the settlement tests extended to an early market close.
+1. §2.1 option C (automatic polling) once the credits are committed, so market closes are closes.
 2. An EV column on the board that sorts (the price cells are not sortable today), once live
    prices exist to verify it against.
 3. Performance by CLV basis split by fair basis (Pinnacle vs consensus), once there are bets.
