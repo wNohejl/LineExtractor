@@ -142,11 +142,22 @@ public class IngestionScheduler(
 
         // Lines are the one thing the scheduler will not fetch on its own initiative unless
         // explicitly told it may. Everything above this line is free; this is not.
-        if (_options.LinePolling.RunsUnattended && Due(_lastLineScan, _lineInterval, now))
+        //
+        // Asked of the data rather than of configuration, so a switch made in Ops reaches this
+        // host and the worker alike without a restart — and switching back stops the spending
+        // at the next tick.
+        if (Due(_lastLineScan, _lineInterval, now) && await LinesRunUnattendedAsync(ct))
         {
             await ScanLinesAsync(ct);
             _lastLineScan = now;
         }
+    }
+
+    private async Task<bool> LinesRunUnattendedAsync(CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+        return await db.LinesRunUnattendedAsync(_options.LinePolling.RunsUnattended, ct);
     }
 
     private static bool Due(DateTimeOffset? last, TimeSpan every, DateTimeOffset now)

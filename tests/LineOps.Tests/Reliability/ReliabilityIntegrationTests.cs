@@ -468,4 +468,54 @@ public class ReliabilityIntegrationTests(PostgresFixture fixture)
         Assert.Single(rows);
         Assert.Equal(42, rows[0].RowsIngested);
     }
+
+    [Fact]
+    public async Task A_polling_choice_made_in_Ops_outranks_configuration_and_is_undone_by_clearing_it()
+    {
+        await using var db = fixture.CreateContext();
+
+        try
+        {
+            Assert.False(await db.LinesRunUnattendedAsync(configured: false));
+            Assert.True(await db.LinesRunUnattendedAsync(configured: true));
+
+            await db.SetSettingAsync(AppSetting.LinePolling, AppSetting.LinePollingScheduled);
+            Assert.True(await db.LinesRunUnattendedAsync(configured: false));
+
+            await db.SetSettingAsync(AppSetting.LinePolling, AppSetting.LinePollingManual);
+            Assert.False(await db.LinesRunUnattendedAsync(configured: true));
+        }
+        finally
+        {
+            await db.SetSettingAsync(AppSetting.LinePolling, null);
+        }
+
+        Assert.Null(await db.GetSettingAsync(AppSetting.LinePolling));
+    }
+
+    [Fact]
+    public async Task An_odds_feed_switched_to_automatic_in_Ops_is_owed_freshness_again()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await NewSourceAsync(db);
+
+        db.IngestionRuns.Add(Run(source.Id, RunStatus.Success, DateTimeOffset.UtcNow.AddHours(-30)));
+        await db.SaveChangesAsync();
+
+        // Configured as manual, but the operator has since switched scanning on.
+        var configuredManual = new ReliabilityOptions { FreshnessSlo = Options.FreshnessSlo, OddsOnDemand = true };
+
+        try
+        {
+            await db.SetSettingAsync(AppSetting.LinePolling, AppSetting.LinePollingScheduled);
+
+            var candidates = await CreateEngine(db, configuredManual).EvaluateAsync();
+
+            Assert.Contains(candidates, c => c.RuleKey == AlertRules.Freshness && c.SourceId == source.Id);
+        }
+        finally
+        {
+            await db.SetSettingAsync(AppSetting.LinePolling, null);
+        }
+    }
 }

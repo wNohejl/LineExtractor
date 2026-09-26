@@ -193,6 +193,16 @@ public class AppSetting
 {
     public const string StartingBankroll = "journal.starting_bankroll";
 
+    /// <summary>
+    /// Whether the scheduler may spend on lines by itself: <see cref="LinePollingScheduled"/> or
+    /// <see cref="LinePollingManual"/>. Absent, configuration decides. Stored with the data so the
+    /// web host and the worker obey the one choice, and an operator can make it from Ops.
+    /// </summary>
+    public const string LinePolling = "odds.line_polling";
+
+    public const string LinePollingScheduled = "Scheduled";
+    public const string LinePollingManual = "Manual";
+
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 }
