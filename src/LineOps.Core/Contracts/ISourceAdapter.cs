@@ -48,10 +48,17 @@ public record CanonicalPlayer(
     string? TeamName,
     string Status = "active");
 
+/// <summary>
+/// One player's line from one game. <paramref name="TeamName"/> is the side the player was on
+/// in <i>that</i> game — which a box score states and a roster does not — so a line keeps its
+/// team after the player has moved on. Null from a source that does not say.
+/// </summary>
 public record CanonicalPlayerStat(
     string SourcePlayerId,
     string SourceGameId,
-    string StatLineJson);
+    string StatLineJson,
+    string? SourceTeamId = null,
+    string? TeamName = null);
 
 /// <summary>
 /// What a fetch cost us. Providers meter differently — odds-api.io counts requests,

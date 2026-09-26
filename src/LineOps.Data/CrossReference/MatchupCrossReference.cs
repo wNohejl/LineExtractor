@@ -203,34 +203,40 @@ public class MatchupCrossReference(LineOpsDbContext db)
     }
 
     /// <summary>
-    /// One team's roster, with their appearances inside a window — or inside a season, when
-    /// one is named. Shared by the team lookup above; the per-matchup lookup keeps its own
+    /// The players who appeared for one team inside a window — or inside a season, when one is
+    /// named — with those appearances. Shared by the team lookup above; the per-matchup lookup
+    /// prices the game ahead, so it reads current rosters instead and keeps its own
     /// two-team query because it can resolve both rosters in one round trip, which this
     /// single-team case has no need of.
     /// </summary>
     private async Task<List<PlayerForm>> RosterFormAsync(
         int teamId, DateTimeOffset since, DateTimeOffset before, int max, int? seasonYear, CancellationToken ct)
     {
-        var players = await db.Players
-            .Where(p => p.TeamId == teamId)
-            .Select(p => new { p.Id, p.FullName, p.Position })
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        if (players.Count == 0)
-            return [];
-
-        var playerIds = players.Select(p => p.Id).ToList();
-
         var prior = seasonYear is { } year
             ? db.Games.Where(g => g.StartsAt < before && g.SeasonYear == year)
             : db.Games.Where(g => g.StartsAt < before && g.StartsAt >= since);
 
+        // The roster is who played for the team in these games, read from the side each line
+        // was made for — not who is on its books today. Otherwise last season's view of a club
+        // lists this season's signings with the numbers they put up somewhere else, and a
+        // player gone in the offseason vanishes from the season they actually played in. A
+        // line stored before sides were recorded falls back to the player's current team.
         var lines = await db.PlayerGameStats
-            .Where(s => playerIds.Contains(s.PlayerId))
+            .Where(s => s.TeamId == teamId || (s.TeamId == null && s.Player!.TeamId == teamId))
             .Join(prior,
                 s => s.GameId, g => g.Id,
                 (s, g) => new { s.PlayerId, s.StatLine, g.StartsAt })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        if (lines.Count == 0)
+            return [];
+
+        var playerIds = lines.Select(l => l.PlayerId).Distinct().ToList();
+
+        var players = await db.Players
+            .Where(p => playerIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.FullName, p.Position })
             .AsNoTracking()
             .ToListAsync(ct);
 

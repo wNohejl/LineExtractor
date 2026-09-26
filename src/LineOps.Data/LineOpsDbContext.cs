@@ -170,8 +170,14 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             // instead.
             e.HasIndex(x => x.GameId).HasDatabaseName("ix_player_game_stat_game");
 
+            // A team's season roster is read from the appearances made for it rather than from
+            // who is on its books today, so the side a line was made for is a lookup path too.
+            e.HasIndex(x => x.TeamId).HasDatabaseName("ix_player_game_stat_team");
+
             e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId);
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         b.Entity<JournalEntry>(e =>

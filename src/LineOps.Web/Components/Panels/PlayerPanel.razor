@@ -46,6 +46,13 @@ else
     <div class="row" style="margin-bottom:14px">
         <span class="dim" style="font-size:11.5px">
             @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
+            @* The team beside the name above is where the player is now. When the season on
+               screen was played somewhere else, it says so, rather than letting last year's
+               numbers read as this club's. *@
+            @if (PlayedElsewhere)
+            {
+                <span> · for @string.Join(", then ", _playedFor)</span>
+            }
         </span>
 
         @* One position per season the player has appeared in, newest first. A player with a
@@ -90,6 +97,15 @@ else
                                 Title="Date" InitialDirection="SortDirection.Descending">
                     <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
                 </PropertyColumn>
+
+                @* Only when the season was split between clubs; one team all season is already
+                   said once above, and a column repeating it on every row says nothing. *@
+                @if (_playedFor.Count > 1)
+                {
+                    <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Team" Title="For">
+                        <CellTemplate><span class="dim">@context.Item.Team</span></CellTemplate>
+                    </PropertyColumn>
+                }
 
                 <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Opponent" Title="Opponent">
                     <CellTemplate>
@@ -151,6 +167,12 @@ else
     private IReadOnlyList<PlayerGameRow> _rows = [];
     private List<string> _columns = [];
 
+    /// <summary>The teams the season on screen was played for, in the order played.</summary>
+    private List<string> _playedFor = [];
+
+    private bool PlayedElsewhere
+        => _playedFor.Count > 1 || (_playedFor.Count == 1 && _playedFor[0] != _player?.Team?.Name);
+
     /// <summary>The season on screen; null only for a player with no appearance on record.</summary>
     private int? _seasonYear;
     private IReadOnlyList<int> _seasons = [];
@@ -201,6 +223,12 @@ else
                 .ToList();
 
             _rows = await log.PlayerGameLogAsync(PlayerId, WholeSeason, _seasonYear);
+
+            _playedFor = _rows
+                .OrderBy(r => r.StartsAt)
+                .Select(r => r.Team)
+                .Distinct()
+                .ToList();
 
             // Wider than the snippet's, because a window has the room and the whole point of
             // opening it was that the snippet did not show enough.

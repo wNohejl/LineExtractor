@@ -215,6 +215,30 @@ Everything in §5 except the coverage report in the History window, in one pass:
 
 Tests: 362 in `LineOps.Tests`, 262 in `LineOps.Web.Tests`, all green.
 
+### 8.1 A stat line keeps the team it was made for (2026-09-26)
+
+With two NFL seasons held, the season gate separated the *games* but not the *sides*: which
+team a player was on was read from `Player.TeamId`, where the player is now. 265 players
+appeared for a different club in 2026 than in 2025, so the 2025 view of a team listed this
+year's signings with numbers made elsewhere, and dropped the players who had left. Worse, a
+backfill walks newest day first and every day rewrote `Player.TeamId`, so it left players on
+the oldest club the walk reached — 53 NFL and 39 MLB players were on a team that was not in
+their most recent game.
+
+- `PlayerGameStats.TeamId` (migration `AppearanceTeam`) records the side the ESPN box score
+  listed the line under; a side that resolves to neither team in the game is not stored.
+- `Player.TeamId` moves only when the day being ingested is at least as new as the player's
+  latest stored appearance.
+- The Team window's season roster is read from the lines made for that team; the Player window
+  says who a season was played for when it was not the current club, with a "For" column when
+  a season was split. Lines with no side fall back to the current team, as before.
+- NFL 2025 and 2026 re-walked (387 days, 318 games, 0 failures): every NFL line has a side.
+  MLB was not re-walked; its lines fall back until the next walk over them.
+- The re-walk exposed 33 lines from the 5 September load that sit on the wrong one of two
+  same-named players (Byron Young, Jaylon Jones, Jonah Williams, Jordan Phillips, Aaron
+  Brewer) — stored by name before ADR 0009's fix. Each now has an identical line on the right
+  player; the stale copies have no side and are left for a deliberate cleanup.
+
 ## 7. Open questions
 1. "Share data for users": the desk's own consumers (this document's reading), or a second
    user? If the latter, F8 makes it small — an owner on `JournalEntries` and an auth layer —

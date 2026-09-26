@@ -171,7 +171,7 @@ public class GameLogService(LineOpsDbContext db)
             .Where(s => s.PlayerId == playerId)
             .Join(db.Games.Include(g => g.HomeTeam).Include(g => g.AwayTeam),
                 s => s.GameId, g => g.Id,
-                (s, g) => new { s.StatLine, Game = g })
+                (s, g) => new { s.StatLine, s.TeamId, Game = g })
             // A season, when named, bounds the log; the count is then the season's, not a cap.
             .Where(x => seasonYear == null || x.Game.SeasonYear == seasonYear)
             .OrderByDescending(x => x.Game.StartsAt)
@@ -182,11 +182,10 @@ public class GameLogService(LineOpsDbContext db)
         if (rows.Count == 0)
             return [];
 
-        // Which side the player was on is not recorded on the stat line, so it is inferred
-        // from their current team. A player traded mid-season will read wrong for games before
-        // the move; that is a known limit of storing team on the player rather than on the
-        // appearance, and it is better than omitting the column.
-        var teamId = await db.Players
+        // The side is the one the box score listed the player under. Only a line stored before
+        // sides were recorded falls back to the player's current team, and reads wrong if the
+        // player has since moved — the limit this column exists to remove.
+        var currentTeamId = await db.Players
             .Where(p => p.Id == playerId)
             .Select(p => p.TeamId)
             .FirstOrDefaultAsync(ct);
@@ -194,11 +193,13 @@ public class GameLogService(LineOpsDbContext db)
         return rows.Select(x =>
         {
             var g = x.Game;
+            var teamId = x.TeamId ?? currentTeamId;
             var isHome = g.HomeTeamId == teamId;
 
             return new PlayerGameRow(
                 GameId: g.Id,
                 StartsAt: g.StartsAt,
+                Team: (isHome ? g.HomeTeam?.Name : g.AwayTeam?.Name) ?? "—",
                 Opponent: (isHome ? g.AwayTeam?.Name : g.HomeTeam?.Name) ?? "—",
                 Home: isHome,
                 ScoreFor: isHome ? g.HomeScore : g.AwayScore,
@@ -238,7 +239,9 @@ public class GameLogService(LineOpsDbContext db)
         var lines = await db.PlayerGameStats
             .Where(s => s.GameId == gameId)
             .Join(db.Players, s => s.PlayerId, p => p.Id,
-                (s, p) => new { s.StatLine, p.Id, p.FullName, p.Position, p.TeamId })
+                // The side the line was made for; the player's current team only for a line
+                // stored before sides were, which is wrong for anyone who has since moved.
+                (s, p) => new { s.StatLine, p.Id, p.FullName, p.Position, TeamId = s.TeamId ?? p.TeamId })
             .AsNoTracking()
             .ToListAsync(ct);
 
@@ -503,10 +506,14 @@ public record HeadToHeadRow(
            && AwayScore is not null;
 }
 
-/// <summary>One appearance, with the stat line exactly as it was recorded.</summary>
+/// <summary>
+/// One appearance, with the stat line exactly as it was recorded. <see cref="Team"/> is the
+/// side the player was on in that game, which across seasons is often not the current one.
+/// </summary>
 public record PlayerGameRow(
     int GameId,
     DateTimeOffset StartsAt,
+    string Team,
     string Opponent,
     bool Home,
     int? ScoreFor,

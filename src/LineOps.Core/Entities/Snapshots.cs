@@ -132,6 +132,20 @@ public class PlayerGameStat
     public int SourceId { get; set; }
     public Source? Source { get; set; }
 
+    /// <summary>
+    /// The side the player was on in this game, as the box score reported it.
+    ///
+    /// <para>
+    /// Not the same thing as <see cref="Player.TeamId"/>, which is where the player is
+    /// <i>now</i>. A player who changed clubs between seasons played last year's games for the
+    /// old one, and reading those games through the new one puts a season's stats on a team
+    /// the player never suited up for. Null only on lines stored before this was recorded;
+    /// readers fall back to the player's current team for those.
+    /// </para>
+    /// </summary>
+    public int? TeamId { get; set; }
+    public Team? Team { get; set; }
+
     /// <summary>jsonb: pts/reb/ast, pass yds, shots on goal… per sport.</summary>
     public string StatLine { get; set; } = "{}";
 

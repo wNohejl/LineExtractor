@@ -534,6 +534,11 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
         var lines = new Dictionary<string, PlayerLine>();
         var groupOrdinal = 0;
 
+        // The side each player's line was listed under. The box score is grouped by team, so
+        // this is what the player played for in this game — which the player list above cannot
+        // say, because it is deduplicated across a whole day's payload.
+        var sides = new Dictionary<string, (string? Id, string? Name)>();
+
         foreach (var teamGroup in teamGroups.EnumerateArray())
         {
             var teamName = teamGroup.TryGetProperty("team", out var team)
@@ -604,6 +609,8 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
                     if (!lines.TryGetValue(playerId, out var line))
                         lines[playerId] = line = new PlayerLine();
 
+                    sides.TryAdd(playerId, (teamId, teamName));
+
                     for (var i = 0; i < values.Length && i < labels.Length; i++)
                         line.Merge(groupLabel, labels[i], values[i], named);
                 }
@@ -618,8 +625,10 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
             if (line.Categories.Count > 0)
                 line.Values["category"] = string.Join(',', line.Categories);
 
+            var side = sides.GetValueOrDefault(playerId);
+
             stats.Add(new CanonicalPlayerStat(
-                playerId, sourceGameId, JsonSerializer.Serialize(line.Values)));
+                playerId, sourceGameId, JsonSerializer.Serialize(line.Values), side.Id, side.Name));
         }
     }
 

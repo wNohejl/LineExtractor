@@ -173,7 +173,13 @@ public class StatsIngestionService(
                 sourceRow.Key, sportKey, participants.Count, result.Players.Count);
         }
 
-        var playerMap = await UpsertPlayersAsync(sport, sourceRow.Key, participants, ct);
+        // The newest game each player appears in within this payload, which decides whether it
+        // is allowed to say where the player is now (see UpsertPlayersAsync).
+        var playedAt = resolved
+            .GroupBy(r => r.Stat.SourcePlayerId)
+            .ToDictionary(g => g.Key, g => g.Max(r => r.Game.StartsAt));
+
+        var playerMap = await UpsertPlayersAsync(sport, sourceRow.Key, participants, playedAt, ct);
         rows += playerMap.Count;
 
         // Storage allows one line per player per game per source, and the key is the
@@ -210,6 +216,8 @@ public class StatsIngestionService(
                 continue;
             }
 
+            var side = await SideAsync(sport, sourceRow.Key, stat, game, ct);
+
             // Upsert: a re-run of the same day refreshes the line rather than duplicating it.
             var existing = await db.PlayerGameStats.FirstOrDefaultAsync(
                 s => s.PlayerId == player.Id && s.GameId == game.Id && s.SourceId == sourceRow.Id, ct);
@@ -221,6 +229,7 @@ public class StatsIngestionService(
                     PlayerId = player.Id,
                     GameId = game.Id,
                     SourceId = sourceRow.Id,
+                    TeamId = side,
                     StatLine = stat.StatLineJson,
                     CapturedAt = DateTimeOffset.UtcNow,
                     IngestionRunId = runId
@@ -229,9 +238,13 @@ public class StatsIngestionService(
                 db.PlayerGameStats.Add(existing);
                 rows++;
             }
-            else if (existing.StatLine != stat.StatLineJson)
+            else if (existing.StatLine != stat.StatLineJson
+                     || (side is not null && existing.TeamId != side))
             {
+                // A re-walk is also how a line stored before sides were recorded gets one, so
+                // a line whose numbers have not moved is still refreshed when its side has.
                 existing.StatLine = stat.StatLineJson;
+                existing.TeamId = side ?? existing.TeamId;
                 existing.CapturedAt = DateTimeOffset.UtcNow;
                 existing.IngestionRunId = runId;
                 rows++;
@@ -322,8 +335,29 @@ public class StatsIngestionService(
         return written;
     }
 
+    /// <summary>
+    /// The team a stat line was made for, when the source said and it is one of the game's two
+    /// sides. A name that resolves to neither is not believed: storing it would credit a game
+    /// to a club that was not in it, which is worse than falling back to the player's team.
+    /// </summary>
+    private async Task<int?> SideAsync(
+        Sport sport, string sourceKey, CanonicalPlayerStat stat, Game game, CancellationToken ct)
+    {
+        if (stat.TeamName is null)
+            return null;
+
+        var team = await resolver.ResolveTeamAsync(
+            sport, sourceKey, new CanonicalTeamRef(stat.TeamName, stat.SourceTeamId), ct);
+
+        return team.Id == game.HomeTeamId || team.Id == game.AwayTeamId ? team.Id : null;
+    }
+
     private async Task<Dictionary<string, Player>> UpsertPlayersAsync(
-        Sport sport, string sourceKey, IReadOnlyList<CanonicalPlayer> canonicals, CancellationToken ct)
+        Sport sport,
+        string sourceKey,
+        IReadOnlyList<CanonicalPlayer> canonicals,
+        IReadOnlyDictionary<string, DateTimeOffset> playedAt,
+        CancellationToken ct)
     {
         var map = new Dictionary<string, Player>();
 
@@ -331,6 +365,16 @@ public class StatsIngestionService(
             return map;
 
         var existing = await db.Players.Where(p => p.SportId == sport.Id).ToListAsync(ct);
+
+        // Each known player's most recent stored appearance. A payload older than that is
+        // history, and history does not get to say where a player is now: a backfill walks
+        // newest day first, so letting every day write the team left each player on the
+        // oldest club the walk reached.
+        var latest = await db.PlayerGameStats
+            .Where(s => s.Game!.SportId == sport.Id)
+            .GroupBy(s => s.PlayerId)
+            .Select(g => new { g.Key, Latest = g.Max(s => s.Game!.StartsAt) })
+            .ToDictionaryAsync(x => x.Key, x => x.Latest, ct);
 
         foreach (var canonical in canonicals)
         {
@@ -363,8 +407,13 @@ public class StatsIngestionService(
                 };
             }
 
-            // Players move between teams mid-season, so team is refreshed on every sync.
-            if (team is not null)
+            // Players move between teams, so the team follows the newest game on record — and
+            // only the newest. An older day re-walked keeps its side on the stat line instead.
+            var current = !latest.TryGetValue(player.Id, out var last)
+                          || !playedAt.TryGetValue(canonical.SourcePlayerId, out var played)
+                          || played >= last;
+
+            if (team is not null && current)
                 player.TeamId = team.Id;
 
             map[canonical.SourcePlayerId] = player;

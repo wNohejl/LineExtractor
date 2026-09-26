@@ -49,6 +49,20 @@ public class EspnStatsAdapterTests
     }
 
     [Fact]
+    public void ParseBoxScore_StampsEachLineWithTheSideItWasListedUnder()
+    {
+        var (_, stats) = Parse("espn.summary.json", "nfl");
+
+        // The box score is grouped by team, and that group is the side the player was on in
+        // this game — which stays true after the player has signed somewhere else.
+        Assert.All(stats, s =>
+        {
+            Assert.Equal("12", s.SourceTeamId);
+            Assert.Equal("Seattle Seahawks", s.TeamName);
+        });
+    }
+
+    [Fact]
     public void ParseBoxScore_KeepsKeysPlainWhenGroupsDoNotCollide()
     {
         var (_, stats) = Parse("espn.summary.json", "nfl");
