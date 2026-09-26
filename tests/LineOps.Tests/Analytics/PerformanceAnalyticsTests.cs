@@ -319,4 +319,41 @@ public class PerformanceAnalyticsTests
     [Fact]
     public void Without_a_fair_close_there_is_no_value_reading()
         => Assert.Null(new ClvResult(-110, -120).EvAtClose);
+
+    private static JournalEntry Valued(decimal stake, int price, double? fair, string? basis = FairValue.SharpBook)
+        => new()
+        {
+            Market = Markets.Moneyline, Outcome = "home", Book = "draftkings", PriceTaken = price,
+            Stake = stake, Result = EntryResult.Win, ClosingPrice = price,
+            ClosingFairProbability = fair, ClosingFairBasis = fair is null ? null : basis
+        };
+
+    [Fact]
+    public void Value_at_close_is_weighted_by_stake_like_ROI()
+    {
+        // $300 at five cents of value and $100 at minus 1/22: (15 - 4.545) / 400.
+        var entries = new[] { Valued(300m, 110, 0.5), Valued(100m, -110, 0.5) };
+
+        var value = PerformanceAnalytics.ValueAtClose(entries)!.Value;
+
+        Assert.Equal((double)((300m * 0.05m + 100m * (decimal)(-1.0 / 22)) / 400m), value.Rate, precision: 9);
+        Assert.Equal(2, value.Bets);
+        Assert.Equal(15m - 100m / 22m, value.Expected, precision: 6);
+    }
+
+    [Fact]
+    public void Bets_without_a_fair_close_or_a_stake_do_not_count_toward_value()
+    {
+        var leg = Valued(0m, 110, 0.5);                 // a parlay leg: the parlay holds the stake
+        var unvalued = Valued(100m, 110, fair: null);   // the close had no fair price
+
+        Assert.Null(PerformanceAnalytics.ValueAtClose([leg, unvalued]));
+    }
+
+    [Theory]
+    [InlineData(FairValue.SharpBook, 0.5, "Pinnacle")]
+    [InlineData(FairValue.Consensus, 0.5, "Consensus")]
+    [InlineData(null, null, "No fair close")]
+    public void A_fair_close_says_what_it_was_read_from(string? basis, double? fair, string expected)
+        => Assert.Equal(expected, PerformanceAnalytics.FairBasis(Valued(100m, 110, fair, basis)));
 }

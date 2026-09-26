@@ -58,6 +58,12 @@ public readonly record struct ClvResult(
     };
 }
 
+/// <summary>Stake-weighted value at the fair close over a set of bets.</summary>
+/// <param name="Rate">Expected return per dollar staked.</param>
+/// <param name="Expected">Expected dollars, summed.</param>
+/// <param name="Bets">How many bets it was read from.</param>
+public readonly record struct ValueReading(double Rate, decimal Expected, int Bets);
+
 /// <summary>Aggregate performance across a set of settled entries.</summary>
 public readonly record struct PerformanceSummary(
     int SettledCount,
@@ -144,6 +150,37 @@ public static class PerformanceAnalytics
             return "Another book's close";
 
         return PointsGained(entry) is { } points && points != 0m ? "Line moved" : "Same number";
+    }
+
+    /// <summary>
+    /// What an entry's fair close was read from — the other half of how honest its value reading
+    /// is. Pinnacle's close is the sharp reference; an average of books is a softer one; and a
+    /// single book, or a market that closed early, leaves none.
+    /// </summary>
+    public static string FairBasis(JournalEntry entry) => entry.ClosingFairProbability is null
+        ? "No fair close"
+        : entry.ClosingFairBasis == FairValue.SharpBook ? "Pinnacle" : "Consensus";
+
+    /// <summary>
+    /// What a set of bets was worth by the close, per dollar staked: expected dollars over
+    /// dollars staked, the same shape as ROI so the two read side by side as "what it was worth"
+    /// and "what it made". Only bets with a fair close and a stake of their own count — a parlay
+    /// leg's stake is the parlay's. Null when none do.
+    /// </summary>
+    public static ValueReading? ValueAtClose(IEnumerable<JournalEntry> entries)
+    {
+        var valued = entries
+            .Where(e => e.Stake > 0)
+            .Select(e => (Entry: e, Ev: ComputeClv(e)?.EvAtClose))
+            .Where(x => x.Ev is not null)
+            .ToList();
+
+        var staked = valued.Sum(x => x.Entry.Stake);
+        if (staked <= 0)
+            return null;
+
+        var expected = valued.Sum(x => (decimal)x.Ev!.Value * x.Entry.Stake);
+        return new ValueReading((double)(expected / staked), expected, valued.Count);
     }
 
     public static PerformanceSummary Summarise(IEnumerable<JournalEntry> entries)

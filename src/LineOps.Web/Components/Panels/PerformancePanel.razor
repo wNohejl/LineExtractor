@@ -150,6 +150,31 @@ else
                 <CellTemplate><span class="dim">@context.Item.Average</span></CellTemplate>
             </TemplateColumn>
         </DeskGrid>
+
+        @* The value at close, by the reference that priced it. Pinnacle's close is the one to
+           trust; a consensus of recreational books is softer; and the rest had no fair close —
+           one book, or a market that closed hours early. *@
+        <PanelHeader>What value was measured against</PanelHeader>
+        <DeskGrid T="FairBasisRow" Items="_byFairBasis" EmptyText="No settled selections.">
+            <PropertyColumn T="FairBasisRow" TProperty="string" Property="r => r.Basis" Title="Fair close from" />
+            <PropertyColumn T="FairBasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right">
+                <CellTemplate><span class="dim">@context.Item.Count</span></CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn T="FairBasisRow" Title="Value at close" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => r.Value?.Rate ?? double.MinValue)">
+                <CellTemplate>
+                    @if (context.Item.Value is { } v)
+                    {
+                        <span class="@(v.Rate > 0 ? "up" : v.Rate < 0 ? "down" : "dim")">@v.Rate.ToString("+0.0%;−0.0%")</span>
+                        <span class="dim"> · @Dollars(v.Expected)</span>
+                    }
+                    else
+                    {
+                        <span class="dim">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
     }
 }
 
@@ -287,23 +312,20 @@ else
                 : $"{readings.Count} read in points";
         }
 
-        // Stake-weighted: expected dollars over dollars staked, the same shape as ROI, so the
-        // two sit side by side as "what it was worth" and "what it made". Parlay legs carry no
-        // stake of their own and so weigh nothing here.
-        _valueAtClose = null;
-        _valueNote = null;
+        var value = PerformanceAnalytics.ValueAtClose(selections);
+        _valueAtClose = value?.Rate;
+        _valueNote = value is { } v
+            ? $"{Dollars(v.Expected)} expected · {v.Bets} of {readings.Count} bets"
+            : null;
 
-        var valued = readings
-            .Where(r => r.Clv.EvAtClose is not null && r.Entry.Stake > 0)
+        // Split by what the fair close was read from, so a headline carried by consensus closes
+        // can be told from one Pinnacle stands behind. Every selection is listed, the ones with
+        // no fair close included: how many there are is itself the reading.
+        _byFairBasis = selections
+            .GroupBy(PerformanceAnalytics.FairBasis)
+            .Select(g => new FairBasisRow(g.Key, g.Count(), PerformanceAnalytics.ValueAtClose(g)))
+            .OrderBy(r => r.Basis switch { "Pinnacle" => 0, "Consensus" => 1, _ => 2 })
             .ToList();
-
-        var staked = valued.Sum(r => r.Entry.Stake);
-        if (staked > 0)
-        {
-            var expected = valued.Sum(r => (decimal)r.Clv.EvAtClose!.Value * r.Entry.Stake);
-            _valueAtClose = (double)(expected / staked);
-            _valueNote = $"{expected.ToString("+$#,0;−$#,0;$0")} expected · {valued.Count} of {readings.Count} bets";
-        }
 
         _byBasis = selections
             .GroupBy(PerformanceAnalytics.ClvBasis)
@@ -379,4 +401,10 @@ else
     private sealed record BreakdownRow(string Key, PerformanceSummary Summary);
 
     private sealed record BasisRow(string Basis, int Count, double? BeatRate, string Average);
+
+    private sealed record FairBasisRow(string Basis, int Count, ValueReading? Value);
+
+    private List<FairBasisRow> _byFairBasis = [];
+
+    private static string Dollars(decimal amount) => amount.ToString("+$#,0;−$#,0;$0");
 }
