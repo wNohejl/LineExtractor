@@ -302,4 +302,21 @@ public class PerformanceAnalyticsTests
 
         Assert.Equal(expected, PerformanceAnalytics.ClvBasis(entry));
     }
+
+    [Fact]
+    public void A_price_is_worth_what_the_fair_close_says_not_what_one_book_closed_at()
+    {
+        // -110 into a -110 close compares as nothing, but the fair close was a coin: the bet
+        // cost 1/22 of the stake. +110 into the same close was five cents of value.
+        var even = new ClvResult(-110, -110, FairAtClose: 0.5);
+        var plus = new ClvResult(110, -110, FairAtClose: 0.5);
+
+        Assert.Equal(0.0, even.CentsPercent, precision: 9);
+        Assert.Equal(-1.0 / 22, even.EvAtClose!.Value, precision: 9);
+        Assert.Equal(0.05, plus.EvAtClose!.Value, precision: 9);
+    }
+
+    [Fact]
+    public void Without_a_fair_close_there_is_no_value_reading()
+        => Assert.Null(new ClvResult(-110, -120).EvAtClose);
 }

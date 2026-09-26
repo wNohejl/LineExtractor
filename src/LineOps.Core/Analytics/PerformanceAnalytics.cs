@@ -10,8 +10,20 @@ namespace LineOps.Core.Analytics;
 /// positive is in the bettor's favour: taking -1.5 into a -2.5 close is +1, an over at 8.5 into a
 /// 9 close is +0.5. Null for a moneyline, or where either number is unknown.
 /// </param>
-public readonly record struct ClvResult(int PriceTaken, int ClosingPrice, decimal? PointsGained = null)
+/// <param name="FairAtClose">
+/// The closing market's no-vig chance of the side at the number taken, where it had one. See
+/// <see cref="JournalEntry.ClosingFairProbability"/>.
+/// </param>
+public readonly record struct ClvResult(
+    int PriceTaken, int ClosingPrice, decimal? PointsGained = null, double? FairAtClose = null)
 {
+    /// <summary>
+    /// What the price taken was worth by the close: expected return per unit at the fair
+    /// closing chance. +0.03 is three cents on the dollar. Null without a fair close.
+    /// </summary>
+    public double? EvAtClose
+        => FairAtClose is { } fair ? FairValue.Ev(fair, PriceTaken) : null;
+
     /// <summary>
     /// The close was quoted at the number the entry was taken at, so the two prices are a fair
     /// comparison. When the line moved, they are prices for different bets, and the points are
@@ -92,7 +104,7 @@ public static class PerformanceAnalytics
         if (closingPrice is null || entry.PriceTaken == 0)
             return null;
 
-        return new ClvResult(entry.PriceTaken, closingPrice.Value, PointsGained(entry));
+        return new ClvResult(entry.PriceTaken, closingPrice.Value, PointsGained(entry), entry.ClosingFairProbability);
     }
 
     /// <summary>

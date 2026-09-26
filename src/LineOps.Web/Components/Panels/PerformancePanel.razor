@@ -84,6 +84,16 @@ else
                     Value="@_beatRate"
                     Note="@_clvNote"
                     State="@(_avgClv > 0 ? DeskState.Positive : _avgClv < 0 ? DeskState.Negative : DeskState.Neutral)" />
+            @* What the bets were worth by the close, margin removed: the estimate of edge that
+               does not need a season of results to mean something. Absent, not zero, until a
+               bet has a fair close to be valued at. *@
+            @if (_valueAtClose is { } value)
+            {
+                <Metric Label="Value at close"
+                        Value='@value.ToString("+0.0%;−0.0%")'
+                        Note="@_valueNote"
+                        State="@(value > 0 ? DeskState.Positive : value < 0 ? DeskState.Negative : DeskState.Neutral)" />
+            }
             @if (_startingBankroll > 0)
             {
                 <Metric Label="Bankroll"
@@ -175,6 +185,8 @@ else
     private string _beatRate = "—";
     private string _clvNote = "no closes yet";
     private double _avgClv;
+    private double? _valueAtClose;
+    private string? _valueNote;
 
     private int _days;
     private string? _sport;
@@ -273,6 +285,24 @@ else
             _clvNote = same.Count > 0
                 ? $"avg {_avgClv:+0.00;-0.00}% at the same number"
                 : $"{readings.Count} read in points";
+        }
+
+        // Stake-weighted: expected dollars over dollars staked, the same shape as ROI, so the
+        // two sit side by side as "what it was worth" and "what it made". Parlay legs carry no
+        // stake of their own and so weigh nothing here.
+        _valueAtClose = null;
+        _valueNote = null;
+
+        var valued = readings
+            .Where(r => r.Clv.EvAtClose is not null && r.Entry.Stake > 0)
+            .ToList();
+
+        var staked = valued.Sum(r => r.Entry.Stake);
+        if (staked > 0)
+        {
+            var expected = valued.Sum(r => (decimal)r.Clv.EvAtClose!.Value * r.Entry.Stake);
+            _valueAtClose = (double)(expected / staked);
+            _valueNote = $"{expected.ToString("+$#,0;−$#,0;$0")} expected · {valued.Count} of {readings.Count} bets";
         }
 
         _byBasis = selections

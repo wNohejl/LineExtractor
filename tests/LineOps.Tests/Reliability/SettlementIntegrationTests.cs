@@ -372,4 +372,68 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
         Assert.Equal(1.0m, clv.PointsGained);
         Assert.True(clv.BeatClose);
     }
+
+    private static ClosingLine Close(Game game, Source source, string book, string outcome, int price,
+        string market = Markets.Moneyline, decimal? line = null)
+        => new()
+        {
+            GameId = game.Id, SourceId = source.Id, Book = book, Market = market, Outcome = outcome,
+            Line = line, PriceAmerican = price,
+            CapturedAt = game.StartsAt.AddMinutes(-2), PromotedAt = game.StartsAt.AddMinutes(10)
+        };
+
+    [Fact]
+    public async Task A_price_is_valued_at_the_fair_close_not_at_one_books_close()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, source) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddHours(-4));
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+        var away = await db.Teams.FirstAsync(t => t.Id == game.AwayTeamId);
+
+        // Pinnacle closed a fair coin. DraftKings closed the home side at -110, the price taken,
+        // so the price comparison reads zero — but -110 on a coin costs 1/22 of the stake.
+        db.ClosingLines.AddRange(
+            Close(game, source, "pinnacle", home.Name, -105),
+            Close(game, source, "pinnacle", away.Name, -105),
+            Close(game, source, "draftkings", home.Name, -110),
+            Close(game, source, "draftkings", away.Name, -110));
+        db.JournalEntries.Add(Pending(game, home.Name, price: -110));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).MarkFinalAsync(game.Id, homeScore: 5, awayScore: 3);
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+        var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
+
+        Assert.Equal(0.5, entry.ClosingFairProbability!.Value, precision: 9);
+        Assert.Equal(FairValue.SharpBook, entry.ClosingFairBasis);
+        Assert.Equal(0.0, clv.CentsPercent, precision: 9);
+        Assert.Equal(-1.0 / 22, clv.EvAtClose!.Value, precision: 6);
+    }
+
+    [Fact]
+    public async Task A_number_the_market_closed_off_has_no_fair_close()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, source) = await SeedGameAsync(db, DateTimeOffset.UtcNow.AddHours(-4));
+        var home = await db.Teams.FirstAsync(t => t.Id == game.HomeTeamId);
+        var away = await db.Teams.FirstAsync(t => t.Id == game.AwayTeamId);
+
+        // Taken at -1.5; everyone closed -2.5. The points say how the bet did against the move;
+        // what -1.5 was worth at the close is not something the close priced.
+        db.ClosingLines.AddRange(
+            Close(game, source, "pinnacle", home.Name, -105, Markets.Spread, -2.5m),
+            Close(game, source, "pinnacle", away.Name, -105, Markets.Spread, 2.5m),
+            Close(game, source, "draftkings", home.Name, -110, Markets.Spread, -2.5m));
+        db.JournalEntries.Add(Pending(game, home.Name, Markets.Spread, line: -1.5m, price: -110));
+        await db.SaveChangesAsync();
+
+        await CreateService(db).MarkFinalAsync(game.Id, homeScore: 5, awayScore: 3);
+
+        var entry = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.GameId == game.Id);
+
+        Assert.NotNull(entry.ClosingPrice);
+        Assert.Null(entry.ClosingFairProbability);
+        Assert.Null(PerformanceAnalytics.ComputeClv(entry)!.Value.EvAtClose);
+    }
 }

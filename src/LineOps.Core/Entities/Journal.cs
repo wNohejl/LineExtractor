@@ -88,6 +88,24 @@ public class JournalEntry
     /// </summary>
     public string? ClosingBook { get; set; }
 
+    /// <summary>
+    /// The closing market's fair chance of this side at the number it was taken on — the close
+    /// with the margin taken out (<see cref="Analytics.FairValue"/>), Pinnacle's where it closed.
+    ///
+    /// <para>
+    /// Comparing the price taken with one book's closing price counts that book's margin as the
+    /// bettor's loss: -110 into a -110 close reads as zero, though the fair price was +100 and
+    /// the bet cost 4.5 cents. Valuing the price taken at the fair close is the reading that
+    /// does not flatter or punish the book's cut, and summed over a journal it is the best
+    /// available estimate of edge long before the results can say. Null where the close had no
+    /// fair price at the entry's number — one book, or a line that moved off it.
+    /// </para>
+    /// </summary>
+    public double? ClosingFairProbability { get; set; }
+
+    /// <summary>What <see cref="ClosingFairProbability"/> was read from: "pinnacle" or "consensus".</summary>
+    public string? ClosingFairBasis { get; set; }
+
     public string? Note { get; set; }
 
     /// <summary>

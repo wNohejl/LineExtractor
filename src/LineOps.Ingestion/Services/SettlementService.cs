@@ -205,7 +205,45 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
         entry.ClosingPrice = closing.PriceAmerican;
         entry.ClosingPoints = closing.Line;
         entry.ClosingBook = closing.Book;
+
+        await ResolveFairCloseAsync(entry, game, ct);
         return true;
+    }
+
+    /// <summary>
+    /// The closing market's fair chance of the entry's side at the number it was taken on.
+    ///
+    /// <para>
+    /// Read from the whole close rather than the one row the price comparison uses: a fair price
+    /// needs both sides and, where Pinnacle did not close the market, several books. The same
+    /// source rule as the board (ADR 0011) — a book market where the feed covered the game, the
+    /// stats provider's single-book reference only where it did not, and never the two mixed.
+    /// </para>
+    /// </summary>
+    private async Task ResolveFairCloseAsync(JournalEntry entry, Game game, CancellationToken ct)
+    {
+        var closes = await db.ClosingLines
+            .Where(c => c.GameId == game.Id && c.Market == entry.Market)
+            .Select(c => new { c.Book, c.Outcome, c.Line, c.PriceAmerican, c.Source!.Kind })
+            .ToListAsync(ct);
+
+        var market = closes.Any(c => c.Kind == SourceKind.Odds)
+            ? closes.Where(c => c.Kind == SourceKind.Odds).ToList()
+            : closes;
+
+        // The other side of a two-way market is whichever outcome is not the entry's.
+        var other = market
+            .Select(c => c.Outcome)
+            .FirstOrDefault(o => !o.Equals(entry.Outcome, StringComparison.OrdinalIgnoreCase));
+
+        var fair = other is null
+            ? null
+            : FairMarket.Build(entry.Market, entry.Outcome, other,
+                    market.Select(c => new SidePrice(c.Book, c.Outcome, c.Line, c.PriceAmerican)))
+                .For(entry.Outcome, entry.LineTaken);
+
+        entry.ClosingFairProbability = fair?.Probability;
+        entry.ClosingFairBasis = fair?.Basis;
     }
 
     /// <summary>

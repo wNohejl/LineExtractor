@@ -186,6 +186,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.LineTaken).HasPrecision(10, 2);
             e.Property(x => x.ClosingPoints).HasPrecision(10, 2);
             e.Property(x => x.ClosingBook).HasMaxLength(64);
+            e.Property(x => x.ClosingFairBasis).HasMaxLength(32);
             e.HasIndex(x => x.PlacedAt);
             e.HasIndex(x => x.ParlayGroupId);
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
