@@ -1,0 +1,26 @@
+# TLS for the desk. Caddy obtains and renews a Let's Encrypt certificate for LINEOPS_HOST on
+# its own; the DNS A/AAAA record must point at this server before the first start.
+{
+	email {$ACME_EMAIL}
+}
+
+{$LINEOPS_HOST} {
+	encode zstd gzip
+
+	# Blazor Server's circuit is a WebSocket; reverse_proxy upgrades it without being told.
+	# X-Forwarded-For and -Proto are set by default, and web trusts them (Hosting__BehindProxy).
+	reverse_proxy web:8080
+
+	# The app sends its own security headers; this is the one only the edge should own. Deferred,
+	# so it replaces the app's shorter HSTS on the way out rather than going out beside it.
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -1,0 +1,71 @@
+name: Images
+
+# Builds the web and worker images and publishes them to GitHub Container Registry, where
+# deploy/compose.yml pulls them from (ADR 0019).
+#
+# Only after CI has passed on main, or by hand. Tags: `main` follows the branch; `sha-<commit>`
+# pins one build, which is what a rollback names. Nothing here deploys: the server pulls when
+# the operator runs deploy/deploy.sh, so no key that can reach production lives in GitHub.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    # A manual run always builds; a CI-triggered run only when CI passed.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - name: lineops-web
+            dockerfile: src/LineOps.Web/Dockerfile
+          - name: lineops-worker
+            dockerfile: src/LineOps.Worker/Dockerfile
+
+    steps:
+      # workflow_run starts on the default branch's head; build the commit CI actually tested.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # The tag names the commit built, not github.sha, which under workflow_run is whatever
+      # the default branch points at by the time this starts.
+      - id: commit
+        run: echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # GHCR names must be lower case; the owner is not.
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=main
+            type=raw,value=sha-${{ steps.commit.outputs.short }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.image.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
