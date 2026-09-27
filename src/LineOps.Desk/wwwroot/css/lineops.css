@@ -2046,7 +2046,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    like the edge on the row being read. */
 .price__ev {
     font-variant-numeric: tabular-nums;
-    font-size: 9.5px;
+    font-size: calc(9.5px * var(--text-scale));
     letter-spacing: .04em;
     color: var(--text-tertiary);
     opacity: 0;
@@ -2066,13 +2066,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .value__ev {
     font-variant-numeric: tabular-nums;
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
     font-weight: 600;
 }
 
 .value__bet {
     font-variant-numeric: tabular-nums;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     letter-spacing: .03em;
     color: var(--text-tertiary);
     white-space: nowrap;
