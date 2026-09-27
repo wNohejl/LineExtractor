@@ -14,6 +14,12 @@
 .PARAMETER Commit
     Also commit the snapshot (author: your git identity, no trailer) and push to origin.
 
+.PARAMETER IncludePersonal
+    Also snapshot the rows that are yours rather than the market's: journal entries, parlays
+    and operator settings (the bankroll, the polling switch). Left out by default because the
+    snapshot is committed, and the repository is public: a bet log is not market data. Their
+    tables are still created on restore, empty, so the schema matches the code either way.
+
 .EXAMPLE
     .\scripts\publish-data.ps1 -Commit
 #>
@@ -21,7 +27,8 @@ param(
     [string]$Container = "lineops-postgres",
     [string]$Database = "lineops",
     [string]$User = "lineops",
-    [switch]$Commit
+    [switch]$Commit,
+    [switch]$IncludePersonal
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,7 +56,15 @@ $pgEnv = "PGPASSWORD=$($Matches[1].Trim())"
 # the container's /tmp is a tmpfs mount (see docker-compose.yml's hardening), which
 # `docker cp` cannot read. PowerShell would re-encode binary stdout as text, so the
 # redirection is done by cmd, which passes bytes through untouched.
-Invoke-Native { cmd /c "docker exec -e $pgEnv $Container pg_dump -U $User -Fc -Z 6 $Database > `"$dump`"" }
+#
+# Personal tables keep their schema and lose their rows (see -IncludePersonal). The names are
+# double-quoted for pg_dump, which folds an unquoted pattern to lower case; \" is how cmd hands
+# docker a literal quote.
+$personal = @('JournalEntries', 'Parlays', 'AppSettings')
+$exclude = if ($IncludePersonal) { '' } else {
+    ($personal | ForEach-Object { "--exclude-table-data=\`"$_\`"" }) -join ' '
+}
+Invoke-Native { cmd /c "docker exec -e $pgEnv $Container pg_dump -U $User -Fc -Z 6 $exclude $Database > `"$dump`"" }
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed" }
 
 # A manifest beside the dump, so a reader knows what is in it without restoring it. The
@@ -62,6 +77,7 @@ select json_build_object(
   'players', (select count(*) from "Players"),
   'statLines', (select count(*) from "PlayerGameStats"),
   'closingLines', (select count(*) from "ClosingLines"),
+  'personal', '$(if ($IncludePersonal) { 'included' } else { 'excluded' })',
   'seasons', (select json_object_agg(k, ys) from (select s."Key" k, json_agg(distinct g."SeasonYear") ys from "Games" g join "Sports" s on s."Id"=g."SportId" group by 1) t)
 )::text;
 "@
