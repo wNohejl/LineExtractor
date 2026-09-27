@@ -49,6 +49,9 @@ public static class WindowCatalog
     public const string Wager = "wager";
     public const string Form = "form";
 
+    /// <summary>The desk session's slip: wagers banked from any Place wager window, logged together.</summary>
+    public const string Slip = "slip";
+
     // What clicking a game, a team or a player resolves to, from anywhere on the desk.
     public const string Game = "game";
     public const string Team = "team";
@@ -96,6 +99,19 @@ public static class WindowCatalog
             // A form, not a table — it reads fine narrow.
             DefaultWeight = 0.8,
             MinWidth = 340
+        },
+        new()
+        {
+            Key = Slip,
+            Title = "Slip",
+            Icon = Icons.Material.Filled.Receipt,
+            Group = "Data",
+            ComponentType = typeof(SlipPanel),
+            Description = "Wagers banked this session, logged as straight bets or one parlay.",
+            // One slip per desk session; a second window onto it would be the same list twice.
+            Singleton = true,
+            DefaultWeight = 0.9,
+            MinWidth = 380
         },
         new()
         {

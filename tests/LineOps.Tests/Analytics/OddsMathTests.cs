@@ -113,4 +113,27 @@ public class OddsMathTests
         Assert.Throws<ArgumentOutOfRangeException>(() => OddsMath.FromDecimal(1.0));
         Assert.Throws<ArgumentOutOfRangeException>(() => OddsMath.FromDecimal(0.5));
     }
+
+    // ---- A parlay's combined price ------------------------------------------------------
+    //
+    // The product of the legs' decimal prices. The slip quotes it as an American price; the
+    // settlement reprices after a push on the unrounded product, so a payout is never paid on
+    // a number rounded to the nearest cent of American odds.
+
+    [Fact]
+    public void CombinedAmerican_MultipliesTheLegsDecimalPrices()
+        // 1.78125 × 1.95238 = 3.4777 → +248
+        => Assert.Equal(248, OddsMath.CombinedAmerican([-128, -105]));
+
+    [Fact]
+    public void CombinedAmerican_TwoLegsAtMinus110IsPlus264()
+        => Assert.Equal(264, OddsMath.CombinedAmerican([-110, -110]));
+
+    [Fact]
+    public void CombinedDecimal_IsTheUnroundedProduct()
+        => Assert.Equal(1.78125 * (1.0 + 100.0 / 105.0), OddsMath.CombinedDecimal([-128, -105]), 10);
+
+    [Fact]
+    public void CombinedPrice_NeedsALeg()
+        => Assert.Throws<ArgumentException>(() => OddsMath.CombinedAmerican([]));
 }

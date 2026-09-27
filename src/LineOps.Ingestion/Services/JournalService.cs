@@ -238,6 +238,54 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         return parlay;
     }
 
+    /// <summary>
+    /// Logs several straight bets as one save — the slip's straight mode. One
+    /// <c>SaveChangesAsync</c> is one implicit transaction, so a slip is logged whole or not at
+    /// all: a half-logged slip would leave the operator guessing which bets reached the journal.
+    /// </summary>
+    public async Task<IReadOnlyList<JournalEntry>> SaveEntriesAsync(IReadOnlyList<EntryDraft> drafts, CancellationToken ct = default)
+    {
+        if (drafts.Count == 0)
+            return [];
+
+        var placed = DateTimeOffset.UtcNow;
+        var entries = new List<JournalEntry>(drafts.Count);
+
+        foreach (var draft in drafts)
+        {
+            var entry = new JournalEntry { PlacedAt = placed, Result = EntryResult.Pending };
+            Apply(entry, draft);
+            entries.Add(entry);
+        }
+
+        db.JournalEntries.AddRange(entries);
+        await db.SaveChangesAsync(ct);
+        return entries;
+    }
+
+    /// <summary>
+    /// The newest straight bet on one side since a moment, at any book — what the wager window's
+    /// duplicate check names. Any book, because a second bet on the Bills is the same exposure
+    /// whether it went on at DraftKings or at Pinnacle; the check's sentence names the book the
+    /// earlier one was at. A parlay leg is left out: it has no stake of its own, and "already $0
+    /// on this side" is not a sentence. Outcome compares without case, because the manual form
+    /// takes a typed team name.
+    /// </summary>
+    public async Task<JournalEntry?> LatestOnSideAsync(
+        int gameId, string market, string outcome, DateTimeOffset since, CancellationToken ct = default)
+    {
+        var side = outcome.Trim().ToLower();
+
+        return await db.JournalEntries.AsNoTracking()
+            .Where(e => e.ParlayGroupId == null
+                        && e.GameId == gameId
+                        && e.Market == market
+                        && e.PlacedAt >= since
+                        && e.Outcome.ToLower() == side)
+            .OrderByDescending(e => e.PlacedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
     /// <summary>Deletes a straight entry. A leg goes with its parlay, not on its own.</summary>
     public async Task DeleteEntryAsync(int id, CancellationToken ct = default)
     {

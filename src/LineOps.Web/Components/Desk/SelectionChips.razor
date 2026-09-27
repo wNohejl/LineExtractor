@@ -1,0 +1,37 @@
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Services
+
+@*
+    The six-chip selection strip: every priced side of a game, one chip each.
+
+    The chosen side is Tinted rather than Filled: this is a selector reporting which side you are
+    on, not the thing the window commits. The Filled key belongs to Log. One definition, shared by
+    every window that logs a wager (SelectionGuardTests).
+*@
+
+<div class="row selection-chips">
+    @foreach (var choice in SelectionChoice.All(Row))
+    {
+        var chosen = IsChosen(choice);
+        <DeskButton Size="DeskKeySize.Small"
+                    Emphasis="@(chosen ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                    aria-pressed="@(chosen ? "true" : "false")"
+                    OnClick="() => OnChoose.InvokeAsync(choice)">
+            @choice.Label
+        </DeskButton>
+    }
+</div>
+
+@code {
+    [Parameter] public BoardRow? Row { get; set; }
+
+    /// <summary>The chosen side's market (<c>Markets.*</c>). Null: nothing chosen.</summary>
+    [Parameter] public string? Market { get; set; }
+
+    [Parameter] public string? Outcome { get; set; }
+
+    [Parameter] public EventCallback<SelectionChoice> OnChoose { get; set; }
+
+    private bool IsChosen(SelectionChoice choice)
+        => choice.Market == Market && string.Equals(choice.Offer.Outcome, Outcome, StringComparison.OrdinalIgnoreCase);
+}

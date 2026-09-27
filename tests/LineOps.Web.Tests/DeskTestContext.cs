@@ -37,6 +37,7 @@ public abstract class DeskTestContext : TestContext
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
         Services.AddSingleton<LineOps.Desk.Windowing.DeskSignals>();
         Services.AddScoped<LineOps.Desk.Windowing.WindowManager>();
+        Services.AddScoped<LineOps.Desk.Windowing.DeskFollowUps>();
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }

@@ -1791,13 +1791,22 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* --------------------------------------------------- panel typography ---- */
 
+/* A section header, Apple's grouped-list way: footnote size, semibold, capitals, lightly
+   tracked, in --text-secondary.
+
+   It used to be 10.5px at --text-tertiary with .13em of tracking. Tertiary is the tier for an
+   annotation nobody has to read — 30% white on the panel is under 3:1 — and a header is how
+   the eye finds a section, so it has to be read. The wide tracking made the capitals shimmer
+   at that size rather than hold together as a word. Distinction comes from case and weight
+   against body text, not from being faint. */
 .panel-h {
-    font-size: calc(10.5px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .13em;
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    letter-spacing: .06em;
+    line-height: var(--leading-tight);
     text-transform: uppercase;
-    color: var(--text-tertiary);
-    margin: 0 0 9px;
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-2);
 }
 
 .panel-h + .panel-h { margin-top: 18px; }
@@ -2225,6 +2234,8 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     user-select: none;
 }
 
+/* Focused so Escape reaches it; the dialog is not a control, so no ring. */
+.deskdialog:focus { outline: none; }
 .deskdialog--dragging { box-shadow: var(--shadow-sheet), 0 0 0 1px var(--separator-strong); }
 .deskdialog--dragging .deskdialog__bar { cursor: grabbing; }
 body.dialog-dragging { user-select: none; }
@@ -2817,18 +2828,25 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .stack--end { align-items: flex-end; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
+/* A note is a filled shape, not a framed one. It used to carry a hairline outline and a 2px
+   accent bar down its left edge — the Material callout this system replaced (ADR 0016:
+   hairlines separate, they never outline; accent means interactivity, and a note is not
+   interactive). The fill alone sets it apart from the body; a warning takes the warning
+   wash, so the one distinction a note makes is still made, by tint, alongside the text
+   that says what the cost is. */
 .note {
-    padding: 9px 11px;
-    border: 1px solid var(--separator);
-    border-left: 2px solid var(--accent);
-    border-radius: 4px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius);
     background: var(--surface-2);
     color: var(--text-secondary);
-    font-size: calc(12px * var(--text-scale));
-    line-height: 1.5;
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
 }
 
-.note--warn { border-left-color: var(--state-warning); }
+.note--warn {
+    background: var(--state-warning-wash);
+    color: var(--text-primary);
+}
 
 /* An empty state is an absence, not a card: no border, no fill, no box — just a line
    of --text-secondary at the desk's body size. The old --text-tertiary was the tier for
@@ -3766,3 +3784,181 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     .mud-dialog.desk-sheet { background: var(--surface-2); }
     .pullmenu__panel { background: var(--surface-2); }
 }
+
+/* ---- The wager window, its advisory checks, and the slip ------------------------------
+
+   Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
+   (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
+   body — one step up the ramp — with no outline: the fill is the boundary (hairlines separate,
+   they never outline). Rows inside a group are divided by an inset hairline that starts where
+   the text does, not at the group's edge. Sections are spaced a full --space-6 apart and a
+   header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
+   then the next section — the distinction is in the rhythm, not in boxes around boxes.
+
+   State colour lands on marks, tags and the number it describes (ADR 0016); the one surface
+   that takes a state is a slip card that cannot be logged, as a wash, because that card IS a
+   status. Everything else stays neutral. */
+
+.wsections { display: flex; flex-direction: column; gap: var(--space-6); }
+.wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
+
+.wgroup {
+    background: var(--surface-2);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+}
+
+.wgroup__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 36px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+}
+
+/* The inset hairline: from the text's left edge to the group's right, as grouped lists draw it. */
+.wgroup__row + .wgroup__row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--space-3);
+    border-top: 1px solid var(--separator);
+}
+
+.wgroup__row--pad { padding: var(--space-3); }
+
+/* ---- The offer: the one number this window is about, set as the window's title. */
+.wager-offer { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); }
+.wager-offer__top { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.wager-offer__price {
+    font-size: var(--text-largetitle);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    letter-spacing: -.01em;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.wager-offer__book { font-size: var(--text-headline); font-weight: var(--weight-semibold); }
+.wager-offer__of { font-size: var(--text-subheadline); color: var(--text-secondary); }
+.wager-offer__age {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+    white-space: nowrap;
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+}
+/* Glyph is a bare 24-unit SVG with no size of its own; unsized it fills the line box. */
+.wager-offer__age svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.wager-offer__value { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.wager-offer__ev { font-weight: var(--weight-semibold); }
+.wager-offer__ev--up { color: var(--state-positive); }
+.wager-offer__ev--down { color: var(--state-warning); }
+
+/* ---- The checks: a grouped list of facts, a mark leading each row. */
+/* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
+   right-aligned, instead of pinching the sentence into a column one word wide. */
+.check { align-items: flex-start; flex-wrap: wrap; row-gap: var(--space-2); }
+.check__mark {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;             /* centred on the first line of a sentence that may wrap */
+    border-radius: 50%;
+    background: var(--text-tertiary);
+}
+.check--positive .check__mark { background: var(--state-positive); }
+.check--warning .check__mark { background: var(--state-warning); }
+.check--negative .check__mark { background: var(--state-negative); }
+.check__text { flex: 1 1 200px; min-width: 0; color: var(--text-primary); }
+.check .desk-btn { flex: none; margin-left: auto; }
+
+/* ---- The wager: stake, returns, note. */
+.stake-row { align-items: center; }
+.stake-row__returns {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: var(--leading-tight);
+    font-variant-numeric: tabular-nums;
+}
+.stake-row__returns-label {
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.stake-row__returns strong { font-size: var(--text-title3); font-weight: var(--weight-semibold); color: var(--text-primary); }
+.stake-row__profit { font-size: var(--text-footnote); color: var(--text-secondary); }
+
+/* ---- The action bar: the window's one Filled key and its companions, set off by a hairline
+   across the whole width — the one full-width rule in the window, because it is the boundary
+   between reading and committing. */
+.waction {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--separator);
+}
+.waction__keys { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.waction__keys > .waction__lead { margin-right: auto; }
+.wager-why, .slip-why { font-size: var(--text-footnote); text-align: right; }
+
+.wfoot { margin: 0; font-size: var(--text-footnote); line-height: var(--leading-body); color: var(--text-secondary); }
+
+.slip-badge {
+    display: inline-block;
+    min-width: 18px;
+    margin-left: var(--space-1);
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent-wash);
+    color: var(--accent);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- The slip: each wager a group of its own. */
+.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.slip-card--blocked { background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2)); }
+.slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
+.slip-card__top > div:first-child { flex: 1; min-width: 0; }
+.slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.slip-card__meta { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-card__stake { max-width: 96px; text-align: right; }
+.slip-card__state { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-subheadline); color: var(--text-primary); }
+.slip-card__state .tag { flex: none; }
+.slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-cards { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.slip-parlay { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.slip-parlay__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.slip-parlay__price {
+    margin-left: auto;
+    font-size: var(--text-title1);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    font-variant-numeric: tabular-nums;
+}
+.slip-parlay__note { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-report .desk-btn { margin-left: var(--space-2); }
+.slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
+
+.price--take { cursor: pointer; }
+.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent); }
+.price--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.take { all: unset; cursor: pointer; }
+.take:hover span { color: var(--accent); }
+.take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

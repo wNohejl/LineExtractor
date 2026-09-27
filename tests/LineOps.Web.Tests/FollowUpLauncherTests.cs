@@ -176,4 +176,58 @@ public class FollowUpLauncherTests
         Assert.Empty(launcher.Open);
         Assert.Equal(0, changes);
     }
+
+    /// <summary>A door names more than the game: the side and the book travel with it.</summary>
+    [Fact]
+    public void A_follow_up_can_carry_several_parameters()
+    {
+        var manager = EmptyDesk();
+        var launcher = new FollowUpLauncher();
+
+        launcher.Launch(manager, WindowCatalog.Wager,
+            new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h", ["Outcome"] = "Kansas City Chiefs", ["Book"] = "fanduel" },
+            7, "Bills at Chiefs");
+
+        var window = Assert.Single(manager.Windows);
+        Assert.Equal("fanduel", window.Parameters["Book"]);
+        Assert.Equal(7, window.Parameters["GameId"]);
+    }
+
+    [Fact]
+    public void Relaunching_a_floating_follow_up_re_aims_it_rather_than_stacking_another()
+    {
+        var launcher = new FollowUpLauncher();
+        var desk = FullDesk();
+
+        launcher.Launch(desk, WindowCatalog.Wager, new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h" }, 7, "x");
+        launcher.Launch(desk, WindowCatalog.Wager, new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "spread" }, 7, "x");
+
+        var only = Assert.Single(launcher.Open);
+        Assert.Equal("spread", only.Parameters["Market"]);
+    }
+
+    /// <summary>
+    /// The wager window is a singleton: opening it again focuses the one on the desk rather than
+    /// adding a second. So a door that names another game or side must re-aim that window, or the
+    /// press lands on the wager it was already showing.
+    /// </summary>
+    [Fact]
+    public void Relaunching_a_singleton_window_re_aims_it_rather_than_showing_the_old_subject()
+    {
+        var manager = EmptyDesk();
+        var launcher = new FollowUpLauncher();
+
+        launcher.Launch(manager, WindowCatalog.Wager,
+            new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h", ["Book"] = "fanduel" }, 7, "Bills at Chiefs");
+        launcher.Launch(manager, WindowCatalog.Wager,
+            new Dictionary<string, object> { ["GameId"] = 8, ["Market"] = "spread" }, 8, "Jets at Dolphins");
+
+        var window = Assert.Single(manager.Windows);
+        Assert.Equal(8, window.Parameters["GameId"]);
+        Assert.Equal("spread", window.Parameters["Market"]);
+        Assert.Equal("Place wager · Jets at Dolphins", window.Title);
+        // Not named by the second press, so not left at the first press's book.
+        Assert.Null(window.Parameters["Book"]);
+        Assert.Empty(launcher.Open);
+    }
 }

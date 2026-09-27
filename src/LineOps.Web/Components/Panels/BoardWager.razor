@@ -1,11 +1,11 @@
 @using LineOps.Core.Analytics
 @using LineOps.Core.Entities
-@using LineOps.Data
 @using LineOps.Data.CrossReference
-@using LineOps.Desk.Primitives
-@using Microsoft.EntityFrameworkCore
-@inject IDbContextFactory<LineOpsDbContext> DbFactory
-@inject IServiceScopeFactory ScopeFactory
+@using LineOps.Ingestion.Services
+@using LineOps.Web.Services
+@inherits PanelBase
+@inject IWagerData Data
+@inject WagerSlip Slip
 @inject DeskToasts Toasts
 
 @*
@@ -15,98 +15,136 @@
     game, the market, the side, the price and the book that has it. Retyping any of it is an
     opportunity to record a bet you did not make, so the form starts filled and the operator
     only supplies what the board cannot: how much.
+
+    A panel (spec §6): it watches the odds and the journal, so a pull re-prices an open form
+    instead of leaving it quoting a number the board has moved off. A door can name the side and
+    the book (§5). Before Log, a strip of checks says what is worth knowing (§4); only a closing
+    line blocks. Add to slip banks the wager on the desk's slip and hands the operator back to
+    the board (§3.3).
 *@
 
-<div class="stack" style="gap:10px">
-    <div>
-        <div class="panel-h" style="margin-bottom:6px">Selection</div>
-        <div class="row">
-            @foreach (var choice in _choices)
-            {
-                @* The chosen side is Tinted rather than Filled: this is a selector reporting
-                   which side you are on, not the thing the panel commits. The Filled key in
-                   this panel is the one that logs the wager. *@
-                <DeskButton Size="DeskKeySize.Small"
-                            Emphasis="@(IsChosen(choice) ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
-                            OnClick="() => Choose(choice)">
-                    @choice.Label
-                </DeskButton>
-            }
-        </div>
-    </div>
-
-    @if (_chosen is { } chosen)
+@*
+    Laid out as grouped sections (lineops.css, "The wager window"): the side, the price, what is
+    worth knowing, the wager, then the action bar. Each section is a quiet header over a filled
+    group; the action bar is the one full-width rule, between reading and committing.
+*@
+<div class="wsections">
+    @if (_loading)
     {
-        <MetricRow>
-            <Metric Label="Price"
-                    Value="@Price(chosen.Offer.PriceAmerican)"
-                    Note='@($"best of {chosen.Offer.Rungs.Count}")'
-                    State="DeskState.Info"
-                    Numeric="true" />
-            <Metric Label="Book" Value="@chosen.Offer.Book" Numeric="true" />
-            @* Against what the bet is worth, not only what it pays. Absent rather than zero where
-               there is no fair price on this number: "no reading" and "a fair bet" are different
-               facts (ADR 0003). *@
-            @if (chosen.Offer.Ev is { } ev && chosen.Offer.Fair is { } fair)
-            {
-                <Metric Label="Value"
-                        Value="@PriceCell.EvLabel(ev)"
-                        Note="@ValueNote(fair, ev)"
-                        State="@(ev > 0 ? DeskState.Positive : DeskState.Warning)"
-                        Numeric="true" />
-            }
-            <Metric Label="Returns"
-                    Value='@Payout.ToString("C0")'
-                    Note="stake plus profit"
-                    State="@(_stake > 0 ? DeskState.Positive : DeskState.Neutral)"
-                    Numeric="true" />
-        </MetricRow>
-
-        <div class="row">
-            @* Immediate: the payout beside it recomputes as you type, so this is a field
-               whose typing is the action rather than one waiting to be validated. *@
-            <DeskField TValue="decimal" Mono="true" Immediate="true"
-                       type="number" step="5" min="0" style="max-width:130px"
-                       placeholder="Stake" @bind-Value="_stake" />
-
-            @foreach (var quick in new[] { 25m, 50m, 100m })
-            {
-                <DeskButton Size="DeskKeySize.Small" OnClick="() => _stake = quick">
-                    @quick.ToString("C0")
-                </DeskButton>
-            }
+        @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
+        <div class="stack wager-loading" style="gap:10px" aria-busy="true">
+            <DeskSkeleton Lines="1" />
+            <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
         </div>
-
-        <DeskField TValue="string" placeholder="Note (optional)" @bind-Value="_note" />
-
-        @if (_error is not null)
-        {
-            <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
-        }
-
-        @if (_logged is not null)
-        {
-            <Note State="DeskState.Positive" Style="margin:0">@_logged</Note>
-        }
-
-        <div class="row row--end">
-            <DeskButton Emphasis="DeskEmphasis.Filled"
-                        Icon="@Icons.Material.Filled.Bolt"
-                        Busy="@_saving"
-                        Disabled="@(_stake <= 0)"
-                        OnClick="PlaceAsync">
-                Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
-            </DeskButton>
-        </div>
-
-        <p class="empty" style="padding:0">
-            Logged against the price shown. CLV resolves on its own once the game starts and the
-            closing line is recorded.
-        </p>
     }
     else
     {
-        <EmptyState Kind="EmptyStateKind.New">Pick a side to price it.</EmptyState>
+        <section class="wsection" aria-labelledby="wager-side-h">
+            <PanelHeader Tight id="wager-side-h">Selection</PanelHeader>
+            <SelectionChips Row="Row" Market="@_offer?.Market" Outcome="@_offer?.Outcome" OnChoose="ChooseAsync" />
+        </section>
+
+        @if (_offer is { } offer)
+        {
+            <section class="wsection" aria-labelledby="wager-price-h">
+                <PanelHeader Tight id="wager-price-h">Price</PanelHeader>
+                <div class="wgroup">
+                    <div class="wager-offer">
+                        <div class="wager-offer__top">
+                            <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                            <span class="wager-offer__book">@offer.Book</span>
+                            <span class="wager-offer__of">@(offer.IsBest ? "best" : "one") of @offer.BooksQuoting books</span>
+                            <span class="wager-offer__age">
+                                <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(offer)
+                            </span>
+                        </div>
+                        <div class="wager-offer__value">
+                            @if (offer.Ev is { } ev)
+                            {
+                                @* The state colour sits on the number it describes, and nowhere else. *@
+                                <span class="wager-offer__ev @(ev > 0 ? "wager-offer__ev--up" : "wager-offer__ev--down")">@PriceCell.EvLabel(ev)</span>
+                                @if (offer.Fair is { } fair)
+                                {
+                                    <span> · @PriceCell.FairLabel(fair)</span>
+                                }
+                            }
+                            else
+                            {
+                                <span>No fair price on this number</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (_moved is not null)
+                {
+                    @* Said, not swapped silently: the operator was looking at the old number. *@
+                    <Note State="DeskState.Positive" Style="margin:0" Class="wager-moved">@_moved</Note>
+                }
+            </section>
+
+            <CheckList Items="Strip" />
+
+            <section class="wsection" aria-labelledby="wager-stake-h">
+                <PanelHeader Tight id="wager-stake-h">Your wager</PanelHeader>
+                <div class="wgroup">
+                    <div class="wgroup__row wgroup__row--pad">
+                        <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="offer.PriceAmerican" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--pad">
+                        @* Immediate: a note bound on change is committed by the blur, and a press of
+                           Add to slip or Log straight from the field could run before it — the wager
+                           went on with no note. Bound as it is typed, the key reads what it shows. *@
+                        <DeskField TValue="string" Immediate="true" placeholder="Note (optional)"
+                                   aria-label="Note" style="flex:1" @bind-Value="_note" />
+                    </div>
+                </div>
+            </section>
+
+            <div class="waction">
+                @if (_error is not null)
+                {
+                    <Note State="DeskState.Warning" Style="margin:0 0 var(--space-2)">@_error</Note>
+                }
+
+                @if (_logged is not null)
+                {
+                    <Note State="DeskState.Positive" Style="margin:0 0 var(--space-2)" Class="wager-logged">@_logged</Note>
+                }
+
+                <div class="waction__keys">
+                    @* Plain: the window's one Filled key is Log. The badge is the acknowledgment;
+                       the slip does not open (spec §11.3). *@
+                    <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
+                                Title="Bank this wager on the desk's slip">
+                        Add to slip
+                        <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
+                    </DeskButton>
+
+                    <DeskButton Emphasis="DeskEmphasis.Filled"
+                                Icon="@Icons.Material.Filled.Bolt"
+                                Busy="@_saving"
+                                Disabled="@(!CanLog)"
+                                OnClick="PlaceAsync">
+                        Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
+                    </DeskButton>
+                </div>
+
+                @if (Waiting is { } why)
+                {
+                    <div class="warnc wager-why">@why</div>
+                }
+            </div>
+
+            <p class="wfoot">
+                Logged against the price shown; CLV resolves once the game starts and the close is
+                recorded. LineOps records bets placed elsewhere; nothing here reaches a sportsbook.
+            </p>
+        }
+        else
+        {
+            <EmptyState Kind="EmptyStateKind.New">Pick a side to price it.</EmptyState>
+        }
     }
 </div>
 
@@ -117,92 +155,224 @@
     /// </summary>
     [Parameter, EditorRequired] public int GameId { get; set; }
 
+    /// <summary>The side a door names (<c>Markets.*</c>). With <see cref="Outcome"/>; otherwise the most value.</summary>
+    [Parameter] public string? Market { get; set; }
+
+    [Parameter] public string? Outcome { get; set; }
+
+    /// <summary>The book a door names. Where it quotes the side, the window shows its price, not the best.</summary>
+    [Parameter] public string? Book { get; set; }
+
     [Parameter] public EventCallback OnPlaced { get; set; }
 
+    protected override IReadOnlySet<string> Watches { get; } =
+        new HashSet<string> { DataTopics.Odds, DataTopics.Journal };
+
+    /// <summary>
+    /// Odds or journal: the refresh does not say which, and both reads are cheap, so the row is
+    /// re-priced and the journal re-read either way.
+    /// </summary>
+    protected override Task RefreshAsync() => ReloadAsync();
+
     private BoardRow? Row;
-
-    private sealed record Choice(string Label, string Market, BestOffer Offer);
-
-    private List<Choice> _choices = [];
-    private Choice? _chosen;
+    private WagerOffer? _offer;
+    private string? _pinnedBook;
+    private bool _loading;
     private decimal _stake;
     private string? _note;
     private string? _error;
     private string? _logged;
+    private string? _moved;
     private bool _saving;
+
+    // The duplicate check's reading: a field the render reads, never a query from the render.
+    private JournalEntry? _prior;
+    private bool _priorRead;
+
+    private IngestionJob? _linesJob;
+    private bool _pulling;
+
+    protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+
+    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
 
     protected override async Task OnParametersSetAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        Row = await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+        // A first read shows the skeleton; a door re-aiming a loaded window does not flash it.
+        _loading = Row is null;
+        _pinnedBook = Book;
+        _moved = null;
 
-        _choices = Build().ToList();
+        try
+        {
+            Row = await Data.RowAsync(GameId);
+            _linesJob = Row?.Game.Sport is { } sport ? await Data.LinesJobAsync(sport.Key) : null;
+        }
+        finally
+        {
+            _loading = false;
+        }
 
-        // Default to the side with the most value against the fair price. Where nothing can be
-        // scored, the market with the most to gain from shopping — the widest spread between
-        // books is the next best reason this game is worth looking at. The spread used to
-        // decide on its own, but it only says the books disagree — not that the best of them
-        // is worth taking.
-        _chosen = _choices
-            .OrderByDescending(c => c.Offer.Ev ?? double.MinValue)
-            .ThenByDescending(c => c.Offer.EdgePoints ?? 0)
-            .FirstOrDefault();
+        _offer = SelectionChoice.Land(Row, Market, Outcome, _pinnedBook);
+        await ReadPriorAsync();
+    }
+
+    /// <summary>After a change the window watches: the same side, re-priced, and the journal re-read.</summary>
+    private async Task ReloadAsync()
+    {
+        var before = _offer;
+        Row = await Data.RowAsync(GameId);
+
+        _offer = before is null
+            ? SelectionChoice.Land(Row, Market, Outcome, _pinnedBook)
+            : SelectionChoice.Land(Row, before.Market, before.Outcome, _pinnedBook);
+
+        if (before is not null && _offer is not null
+            && _offer.Market == before.Market && _offer.Outcome == before.Outcome
+            && (_offer.PriceAmerican != before.PriceAmerican || _offer.Line != before.Line))
+        {
+            _moved = $"Price moved since you opened this: {LinePrice(before)} → {LinePrice(_offer)} ({_offer.Book}).";
+        }
+
+        await ReadPriorAsync();
     }
 
     /// <summary>
-    /// The fair price the value is measured against, and what it comes to on the stake typed.
+    /// The duplicate check's one query, keyed on the side (game, market, outcome) at any book, inside
+    /// the activity wrapper so the title bar pulses while it runs.
     /// </summary>
-    private string ValueNote(FairPrice fair, double ev)
+    private async Task ReadPriorAsync()
     {
-        var against = fair.Basis == FairValue.SharpBook ? "Pinnacle" : "consensus";
-        var basis = $"fair {Price(fair.PriceAmerican)} ({against})";
+        if (_offer is not { } offer || Row is null)
+        {
+            _prior = null;
+            _priorRead = false;
+            return;
+        }
 
-        return _stake > 0 ? $"{basis} · {(decimal)ev * _stake:+$0.00;−$0.00} expected" : basis;
+        _priorRead = false;
+
+        await WithActivityAsync(async () =>
+        {
+            _prior = await Data.LatestOnSideAsync(Row.Game.Id, offer.Market, offer.Outcome,
+                DateTimeOffset.UtcNow - Checks.DuplicateWindow);
+            _priorRead = true;
+        }, () => PulseState.Healthy);
     }
 
-    private IEnumerable<Choice> Build()
+    private async Task ChooseAsync(SelectionChoice choice)
     {
-        if (Row is null)
-            yield break;
+        // A chip is the operator choosing, so the door's book no longer applies.
+        _pinnedBook = null;
+        _moved = null;
+        _offer = WagerOffer.Best(choice.Market, choice.Offer);
+        await ReadPriorAsync();
+    }
 
-        foreach (var (pair, name) in new[]
-        {
-            (Row.Moneyline, "ML"),
-            (Row.Spread, "Spread"),
-            (Row.Total, "Total")
-        })
-        {
-            if (pair.First is { } first)
-                yield return new Choice($"{name} · {Short(first.Outcome)}{LineOf(first)}", pair.Market, first);
+    private void SetStake(decimal stake) => _stake = stake;
 
-            if (pair.Second is { } second)
-                yield return new Choice($"{name} · {Short(second.Outcome)}{LineOf(second)}", pair.Market, second);
+    private bool CanLog => _offer is { IsClosing: false } && _stake > 0 && Row is not null;
+
+    /// <summary>What the Log key is waiting for, said under it.</summary>
+    private string? Waiting
+        => _offer is { IsClosing: true } ? "Log it from the Journal with the price you got."
+           : _stake <= 0 ? "Needs a stake above zero."
+           : null;
+
+    private IReadOnlyList<Check> Strip
+        => _offer is { } offer && Row is not null
+            ? Checks.Build(offer, Row.Game.StartsAt, DateTimeOffset.UtcNow, _priorRead, _prior, _stake,
+                new CheckActions(PullLabel, _pulling ? null : (Func<Task>)PullAsync, OpenJournalAsync))
+            : [];
+
+    /// <summary>"Pull NFL lines · 2 credits": the same job the Board row's pull runs, at the cost the menu quotes.</summary>
+    private string? PullLabel
+    {
+        get
+        {
+            if (_linesJob is not { Available: true } job || Row?.Game.Sport is not { } sport)
+                return null;
+
+            var league = sport.Key.ToUpperInvariant();
+            return job.EstimatedCredits > 0 ? $"Pull {league} lines · {job.EstimatedCredits} credits" : $"Pull {league} lines";
         }
     }
 
-    private static string LineOf(BestOffer offer)
-        => offer.Line is { } l ? " " + OddsMath.FormatLine(l, offer.Outcome) : "";
+    private async Task PullAsync()
+    {
+        if (_linesJob is not { Available: true } job || _pulling)
+            return;
 
-    /// <summary>Team names are long and these are buttons; the last word identifies a club.</summary>
-    private static string Short(string outcome)
-        => outcome.Contains(' ') && !outcome.Equals("over", StringComparison.OrdinalIgnoreCase)
-           && !outcome.Equals("under", StringComparison.OrdinalIgnoreCase)
-            ? outcome[(outcome.LastIndexOf(' ') + 1)..]
-            : outcome;
+        _pulling = true;
 
-    private bool IsChosen(Choice choice)
-        => _chosen is { } c && c.Market == choice.Market && c.Offer.Outcome == choice.Offer.Outcome;
+        try
+        {
+            var outcome = await Data.RunJobAsync(job.Key);
 
-    private void Choose(Choice choice) => _chosen = choice;
+            if (outcome.Succeeded)
+                Toasts.Success(outcome.Detail ?? $"{job.Label}: {outcome.Rows:N0} rows.");
+            else
+                Toasts.Warn(outcome.Detail ?? $"{job.Label}: {outcome.Failures} source failed.");
 
-    private decimal Payout
-        => _chosen is null || _stake <= 0
-            ? 0
-            : OddsMath.PayoutOnWin(_chosen.Offer.PriceAmerican, _stake);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Toasts.Fail($"{job.Label} failed: {ex.Message}");
+        }
+        finally
+        {
+            _pulling = false;
+        }
+    }
+
+    private Task OpenJournalAsync()
+    {
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        return Task.CompletedTask;
+    }
+
+    private static string Captured(WagerOffer offer)
+    {
+        if (offer.IsClosing)
+            return "closing price";
+
+        // The same words as the price-age check beneath it ("1h 49m", not "1.8h"), so the two
+        // lines about one number never disagree in form.
+        var age = DateTimeOffset.UtcNow - offer.CapturedAt;
+        return age < TimeSpan.FromMinutes(1) ? "captured just now" : $"captured {Checks.Span(age)} ago";
+    }
+
+    private static string LinePrice(WagerOffer offer)
+        => (offer.Line is { } line ? OddsMath.FormatLine(line, offer.Outcome) + " " : "") + Price(offer.PriceAmerican);
+
+    /// <summary>
+    /// Banks the wager on the slip. Zero stake is allowed — it can be set on the card — and a
+    /// closing price is allowed too: the card carries the same block the Log key does here.
+    /// </summary>
+    private void AddToSlip()
+    {
+        if (_offer is not { } offer || Row is null)
+            return;
+
+        // The duplicate check's reading travels with the card, so the slip can say it too.
+        Slip.Add(offer.ToSlipItem(Row.Game, Matchup(Row.Game), _stake, _note) with
+        {
+            InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
+        });
+
+        _error = null;
+        _logged = $"Added {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
+        Toasts.Success(_logged);
+        _stake = 0;
+        _note = null;
+    }
 
     private async Task PlaceAsync()
     {
-        if (_chosen is not { } chosen || Row is null || _stake <= 0)
+        if (!CanLog || _offer is not { } offer || Row is null)
             return;
 
         _saving = true;
@@ -210,34 +380,20 @@
 
         try
         {
-            await using var db = await DbFactory.CreateDbContextAsync();
+            await Data.LogStraightsAsync([offer.ToDraft(Row.Game.Id, _stake, _note)]);
 
-            db.JournalEntries.Add(new JournalEntry
-            {
-                GameId = Row.Game.Id,
-                Market = chosen.Market,
-                Outcome = chosen.Offer.Outcome,
-                Book = chosen.Offer.Book,
-                PriceTaken = chosen.Offer.PriceAmerican,
-                LineTaken = chosen.Offer.Line,
-                Stake = _stake,
-                PlacedAt = DateTimeOffset.UtcNow,
-                Result = EntryResult.Pending,
-                Note = string.IsNullOrWhiteSpace(_note) ? null : _note
-            });
-
-            await db.SaveChangesAsync();
-
-            // The form used to be closed by its host after a save. Hosted as a window it has
-            // no host to do that, so it says what it did and clears itself: a form that stayed
-            // exactly as it was, key still lit, logged the same wager twice on the next press.
-            _logged = $"Logged {_stake:C0} on {chosen.Label} at {Price(chosen.Offer.PriceAmerican)} ({chosen.Offer.Book}).";
+            // Hosted as a window there is no host to close the form, so it says what it did and
+            // clears the stake: a form left exactly as it was, key still lit, logged the same
+            // wager twice on the next press. The side stays, so the journal check can name it.
+            _logged = $"Logged {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}).";
             Toasts.Success(_logged);
             _stake = 0;
-            _chosen = null;
             _note = null;
 
             await OnPlaced.InvokeAsync();
+
+            // The change notice will re-read the journal; this reads it now rather than a second later.
+            await ReadPriorAsync();
         }
         catch (Exception ex)
         {
@@ -248,6 +404,4 @@
             _saving = false;
         }
     }
-
-    private static string Price(int american) => OddsMath.FormatPrice(american);
 }

@@ -60,6 +60,11 @@ builder.Services.AddHostedService<LineOps.Web.Services.DataChangeListener>();
 // What the command palette (Ctrl+K) finds beyond the desk's own windows: teams, players, games.
 builder.Services.AddScoped<LineOps.Desk.Windowing.IDeskSearch, LineOps.Web.Services.AppDeskSearch>();
 
+// The slip: one per desk session. Scoped is circuit-scoped under Interactive Server, so every
+// window on this desk shares it and it goes with the circuit (spec §3.1).
+builder.Services.AddScoped<LineOps.Web.Services.WagerSlip>();
+builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services.WagerData>();
+
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
 // circuit and antiforgery token. Unset (the default when running from the SDK) keeps the

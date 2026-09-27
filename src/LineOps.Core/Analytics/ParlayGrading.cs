@@ -52,7 +52,7 @@ public static class ParlayGrading
                     ? "Won, but neither the parlay's price nor every leg's price was logged."
                     : "Won after a push, and a winning leg's price was not logged to reprice it.");
 
-        var multiplier = winners.Aggregate(1.0, (m, l) => m * OddsMath.ToDecimal(l.PriceTaken));
+        var multiplier = OddsMath.CombinedDecimal(winners.Select(l => l.PriceTaken));
         return new(EntryResult.Win, Math.Round(parlay.Stake * (decimal)multiplier, 2));
     }
 

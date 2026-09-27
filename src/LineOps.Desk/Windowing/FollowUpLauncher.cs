@@ -81,22 +81,52 @@ public sealed class FollowUpLauncher
         int subjectId,
         string subtitle,
         string width = "640px")
+        => Launch(manager, windowKey, new Dictionary<string, object> { [parameterName] = subjectId }, subjectId, subtitle, width);
+
+    /// <summary>
+    /// Opens a follow-up with several parameters — a game and the side and book a door names.
+    /// Re-launching the same view on the same subject while it floats re-aims it with the new
+    /// parameters and raises it, rather than stacking a second dialog on top.
+    /// </summary>
+    public void Launch(
+        WindowManager manager,
+        string windowKey,
+        IReadOnlyDictionary<string, object> parameters,
+        int subjectId,
+        string subtitle,
+        string width = "640px")
     {
         if (manager.Catalog.Find(windowKey) is not { } definition)
             return;
 
-        var parameters = new Dictionary<string, object> { [parameterName] = subjectId };
+        var copy = new Dictionary<string, object>(parameters);
+        var title = $"{definition.Title} · {subtitle}";
+
+        // A singleton already on the desk is focused rather than duplicated (WindowManager.Open),
+        // which kept the subject it was opened on: a Place wager on another game, or a door naming
+        // another side, landed on the wager the window was already showing. Re-aim it first, so
+        // opening it is a focus that shows what was asked for. Opening it adds no window, so the
+        // desk's capacity does not come into it.
+        if (definition.Singleton
+            && manager.Windows.FirstOrDefault(w => w.Definition.Key == windowKey) is { } onDesk)
+        {
+            Aim(onDesk.Parameters, copy);
+            onDesk.TitleOverride = title;
+            manager.Open(definition, copy, title);
+            return;
+        }
 
         if (!manager.AtCapacity)
         {
-            manager.Open(definition, parameters, $"{definition.Title} · {subtitle}");
+            manager.Open(definition, copy, title);
             return;
         }
 
         // Re-opening the same view for the same subject raises what is already there rather
-        // than stacking a duplicate on top of it.
+        // than stacking a duplicate on top of it, with the parameters the new press named.
         if (_open.FirstOrDefault(f => f.Key == windowKey && f.SubjectId == subjectId) is { } existing)
         {
+            Aim(existing.Parameters, copy);
             Raise(existing);
             return;
         }
@@ -106,13 +136,28 @@ public sealed class FollowUpLauncher
             Key = windowKey,
             SubjectId = subjectId,
             Definition = definition,
-            Parameters = parameters,
+            Parameters = copy,
             Subtitle = subtitle,
             Width = width,
             Order = ++_raiseCounter
         });
 
         Notify();
+    }
+
+    /// <summary>
+    /// Points an open view's parameters at a new press. A parameter the new press does not name
+    /// is set to null rather than dropped: Blazor leaves a parameter that is no longer supplied at
+    /// its old value, so a Place wager after a door that named a book would still show that book.
+    /// A null is skipped when a saved desk is restored, so nothing reopens on it.
+    /// </summary>
+    private static void Aim(Dictionary<string, object> target, IReadOnlyDictionary<string, object> with)
+    {
+        foreach (var key in target.Keys.Where(k => !with.ContainsKey(k)).ToList())
+            target[key] = null!;
+
+        foreach (var (key, value) in with)
+            target[key] = value;
     }
 
     public void Raise(FollowUp followUp)

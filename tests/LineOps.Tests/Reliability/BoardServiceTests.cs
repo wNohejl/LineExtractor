@@ -704,4 +704,32 @@ public class BoardServiceTests(PostgresFixture fixture)
 
         Assert.Null((await LoadAsync(db, s)).BestEv);
     }
+
+    /// <summary>
+    /// A door that opens the wager window on one book's price must be able to say how old that
+    /// book's number is, not the best book's.
+    /// </summary>
+    [Fact]
+    public async Task EveryRungCarriesWhenItsBookWasCaptured()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        var early = DateTimeOffset.UtcNow.AddMinutes(-50);
+        var late = DateTimeOffset.UtcNow.AddMinutes(-5);
+
+        var dk = Price(s, "draftkings", Markets.Moneyline, s.Home.Name, 120);
+        dk.CapturedAt = early;
+        var fd = Price(s, "fanduel", Markets.Moneyline, s.Home.Name, 135);
+        fd.CapturedAt = late;
+
+        db.OddsSnapshots.AddRange(dk, fd);
+        await db.SaveChangesAsync();
+
+        var row = await LoadAsync(db, s);
+        var rungs = row.Moneyline.First!.Rungs;
+
+        Assert.Equal(early, rungs.Single(r => r.Book == "draftkings").CapturedAt!.Value, TimeSpan.FromMilliseconds(1));
+        Assert.Equal(late, rungs.Single(r => r.Book == "fanduel").CapturedAt!.Value, TimeSpan.FromMilliseconds(1));
+    }
 }

@@ -1,0 +1,30 @@
+@*
+    The advisory checks as a grouped section: a quiet header over a filled group, one row per
+    fact — a mark, one sentence, and the remedy key where there is one. The mark's hue is the
+    second channel; the sentence carries the meaning.
+*@
+
+<section class="wsection checks" aria-labelledby="@_headerId">
+    <PanelHeader Tight id="@_headerId" Class="checks__title">@Title</PanelHeader>
+    <div class="wgroup" role="list" aria-labelledby="@_headerId">
+        @foreach (var check in Items)
+        {
+            <div class="wgroup__row check check--@(check.State.ToString().ToLowerInvariant())" role="listitem">
+                <span class="check__mark" aria-hidden="true"></span>
+                <span class="check__text">@check.Text</span>
+                @if (check.Remedy is { } remedy && check.Act is { } act)
+                {
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted" OnClick="() => act()">@remedy</DeskButton>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly string _headerId = $"checks-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public IReadOnlyList<Check> Items { get; set; } = [];
+
+    [Parameter] public string Title { get; set; } = "Before you log";
+}

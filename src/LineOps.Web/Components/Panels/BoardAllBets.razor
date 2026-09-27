@@ -1,7 +1,10 @@
 @using LineOps.Core.Analytics
 @using LineOps.Data.CrossReference
 @using LineOps.Desk.Primitives
-@inject IServiceScopeFactory ScopeFactory
+@using LineOps.Web.Services
+@inject IWagerData Data
+@inject WindowManager Manager
+@inject DeskFollowUps FollowUps
 
 @*
     Every book's number on every market for one game.
@@ -52,12 +55,12 @@ else
                    in Cell — so there is nothing here for Mud to sort on. *@
                 <TemplateColumn T="string" Title="@SideName(market, first: true)"
                                 Align="Align.Right" Sortable="false">
-                    <CellTemplate>@Cell(market.First, context.Item)</CellTemplate>
+                    <CellTemplate>@Cell(market, market.First, context.Item)</CellTemplate>
                 </TemplateColumn>
 
                 <TemplateColumn T="string" Title="@SideName(market, first: false)"
                                 Align="Align.Right" Sortable="false">
-                    <CellTemplate>@Cell(market.Second, context.Item)</CellTemplate>
+                    <CellTemplate>@Cell(market, market.Second, context.Item)</CellTemplate>
                 </TemplateColumn>
 
                 @* What the book keeps: its two prices' overshoot past certainty. The cheapest
@@ -90,13 +93,9 @@ else
 
     private BoardRow? Row;
 
-    protected override async Task OnParametersSetAsync()
-    {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var board = scope.ServiceProvider.GetRequiredService<BoardService>();
 
-        Row = await board.GetRowAsync(GameId);
-    }
+    protected override async Task OnParametersSetAsync()
+        => Row = await Data.RowAsync(GameId);
 
     private IEnumerable<MarketPair> Markets()
     {
@@ -136,7 +135,7 @@ else
             .OrderBy(b => b)
             .ToList();
 
-    private RenderFragment Cell(BestOffer? offer, string book) => builder =>
+    private RenderFragment Cell(MarketPair market, BestOffer? offer, string book) => builder =>
     {
         var rung = offer?.Rungs.FirstOrDefault(r => r.Book == book);
 
@@ -146,27 +145,63 @@ else
             return;
         }
 
+        // A live rung is a door (spec §5.3): it opens the wager window on this book's price.
+        // A close stays a reading, since it can no longer be taken.
+        var live = !offer.IsClosing;
+
+        if (live)
+        {
+            builder.OpenElement(1, "button");
+            builder.AddAttribute(2, "type", "button");
+            builder.AddAttribute(3, "class", "take");
+            builder.AddAttribute(4, "title", "Click to log this price.");
+            builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, () => Take(market, offer, book)));
+        }
+
         var isBest = book == offer.Book;
 
-        builder.OpenElement(1, "span");
-        builder.AddAttribute(2, "class", isBest ? "up" : "dim");
+        builder.OpenElement(6, "span");
+        builder.AddAttribute(7, "class", isBest ? "up" : "dim");
 
         var line = rung.Line is { } l ? OddsMath.FormatLine(l, offer.Outcome) + " " : "";
-        builder.AddContent(3, line + OddsMath.FormatPrice(rung.PriceAmerican));
+        builder.AddContent(8, line + OddsMath.FormatPrice(rung.PriceAmerican));
 
         builder.CloseElement();
 
         // Value against the fair price, where this book's number has one. Positive is lit in
         // the same tone as the best price: both are reasons to bet here.
-        if (rung.Ev is { } ev && !offer.IsClosing)
+        if (rung.Ev is { } ev && live)
         {
-            builder.OpenElement(4, "span");
-            builder.AddAttribute(5, "class", ev > 0 ? "up" : "dim");
-            builder.AddAttribute(6, "style", "font-size:calc(10px * var(--text-scale));margin-left:6px");
-            builder.AddContent(7, PriceCell.EvLabel(ev));
+            builder.OpenElement(9, "span");
+            builder.AddAttribute(10, "class", ev > 0 ? "up" : "dim");
+            builder.AddAttribute(11, "style", "font-size:calc(10px * var(--text-scale));margin-left:6px");
+            builder.AddContent(12, PriceCell.EvLabel(ev));
             builder.CloseElement();
         }
+
+        if (live)
+            builder.CloseElement();
     };
+
+    /// <summary>Door 3: a book's live price opens the wager window on that side at that book.</summary>
+    private void Take(MarketPair market, BestOffer offer, string book)
+    {
+        if (Row is null)
+            return;
+
+        var matchup = $"{Row.Game.AwayTeam?.Name ?? "Away"} at {Row.Game.HomeTeam?.Name ?? "Home"}";
+
+        // Door 3 floats above the desk when it is full, as the Board's doors do — on the desk's
+        // own layer, not one drawn in here: Every book is often itself a floating dialog, and a
+        // dialog drawn inside another is positioned against it and clipped by it.
+        FollowUps.Launcher.Launch(Manager, WindowCatalog.Wager, new Dictionary<string, object>
+        {
+            ["GameId"] = Row.Game.Id,
+            ["Market"] = market.Market,
+            ["Outcome"] = offer.Outcome,
+            ["Book"] = book
+        }, Row.Game.Id, matchup, "480px");
+    }
 
     /// <summary>A book's margin on a market, read from whichever side it quotes a pair on.</summary>
     private static double? HoldOf(MarketPair market, string book)

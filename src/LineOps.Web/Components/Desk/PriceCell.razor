@@ -65,11 +65,30 @@ else
     [Parameter] public DateTimeOffset? StartsAt { get; set; }
 
     /// <summary>
+    /// Opens the wager window on this price (spec §5.3). Only a live price is a door: a close is
+    /// a number that can no longer be taken, so it stays a reading.
+    /// </summary>
+    [Parameter] public EventCallback OnTake { get; set; }
+
+    private bool Takeable => OnTake.HasDelegate && Offer is { IsClosing: false };
+
+    private Task TakeAsync() => Takeable ? OnTake.InvokeAsync() : Task.CompletedTask;
+
+    private Task KeyAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+        => e.Key is "Enter" or " " ? TakeAsync() : Task.CompletedTask;
+
+    /// <summary>
     /// The cell itself, held apart from its wrapper so the live and closing paths render the
     /// same thing rather than two copies that drift.
     /// </summary>
     private RenderFragment Body(bool closing) => @<text>
-        <div class="price @(closing ? "price--closing" : null)" title="@(closing ? null : Tooltip)">
+        <div class="price @(closing ? "price--closing" : null) @(Takeable ? "price--take" : null)"
+             title="@(closing ? null : Tooltip)"
+             role="@(Takeable ? "button" : null)"
+             tabindex="@(Takeable ? "0" : null)"
+             @onclick="TakeAsync"
+             @onclick:stopPropagation="Takeable"
+             @onkeydown="KeyAsync">
             <div class="price__top">
                 @if (Selection is { Length: > 0 } selection)
                 {
@@ -225,7 +244,8 @@ else
                 $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"
                 + (r.Ev is { } ev ? $" ({EvLabel(ev)})" : "")));
 
-            return FairLine.Length == 0 ? books : $"{FairLine}\n{books}";
+            var text = FairLine.Length == 0 ? books : $"{FairLine}\n{books}";
+            return Takeable ? $"{text}\nClick to log this price." : text;
         }
     }
 

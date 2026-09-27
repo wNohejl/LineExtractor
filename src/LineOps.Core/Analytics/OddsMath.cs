@@ -51,6 +51,35 @@ public static class OddsMath
         => stake * (decimal)ToDecimal(american);
 
     /// <summary>
+    /// The legs' decimal prices multiplied: what one unit returns if every leg wins. Unrounded,
+    /// because settlement pays on it (<see cref="ParlayGrading"/>) and a payout must not move
+    /// with the rounding of a displayed price.
+    /// </summary>
+    public static double CombinedDecimal(IEnumerable<int> legsAmerican)
+    {
+        var product = 1.0;
+        var any = false;
+
+        foreach (var american in legsAmerican)
+        {
+            product *= ToDecimal(american);
+            any = true;
+        }
+
+        if (!any)
+            throw new ArgumentException("A combined price needs at least one leg.", nameof(legsAmerican));
+
+        return product;
+    }
+
+    /// <summary>
+    /// A parlay's price from its legs, as a whole American price. What the slip quotes when the
+    /// book's own parlay price was not given. -128 and -105 make +248.
+    /// </summary>
+    public static int CombinedAmerican(IEnumerable<int> legsAmerican)
+        => FromDecimal(CombinedDecimal(legsAmerican));
+
+    /// <summary>
     /// Removes the vig from a two-way market, normalising the pair of implied
     /// probabilities so they sum to 1. Returns the fair probability of the first side.
     /// </summary>

@@ -122,7 +122,7 @@ else
                             <span class="dim num"> @Line(l)</span>
                         }
                     </span>
-                    <span class="dim">@bet.Market · @bet.Book</span>
+                    <span class="dim">@LineOps.Web.Services.SelectionText.MarketName(bet.Market) · @bet.Book</span>
                     @if (bet.PriceTaken != 0)
                     {
                         <span class="num">@Price(bet.PriceTaken)</span>

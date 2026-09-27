@@ -409,6 +409,7 @@ public class BoardService(LineOpsDbContext db)
             {
                 Ev = fair.Ev(p.Outcome, p.Line, p.PriceAmerican),
                 Hold = fair.Hold(p.Book, p.Outcome, p.Line),
+                CapturedAt = p.CapturedAt,
             })
             .ToList();
 
@@ -542,4 +543,10 @@ public record BookPrice(string Book, int PriceAmerican, decimal? Line, double Im
 
     /// <summary>This book's margin on the pair, where it quotes both sides on the same number.</summary>
     public double? Hold { get; init; }
+
+    /// <summary>
+    /// When this book's number was observed. The best offer's <see cref="BestOffer.CapturedAt"/>
+    /// is the best book's; a wager logged at another book is only as fresh as that book's scan.
+    /// </summary>
+    public DateTimeOffset? CapturedAt { get; init; }
 }

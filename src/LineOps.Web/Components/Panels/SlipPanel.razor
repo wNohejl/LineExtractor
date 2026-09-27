@@ -1,0 +1,307 @@
+@using LineOps.Ingestion.Services
+@using LineOps.Web.Services
+@inherits PanelBase
+@inject WagerSlip Slip
+@inject IWagerData Data
+@inject DeskToasts Toasts
+@inject IDeskAlerts Alerts
+
+@*
+    The slip: the wagers banked this desk session, and the one place a parlay is logged.
+
+    Each card says whether it can be logged and, where it cannot, what would fix it. The rules
+    are WagerSlip's; this window only draws them. Log writes everything it can in one save and
+    reports what it left, so a closing price never blocks the rest of the slip (spec §3).
+*@
+
+<div class="wsections slip">
+    <section class="wsection" aria-labelledby="slip-mode-h">
+        <PanelHeader Tight id="slip-mode-h">Logged as</PanelHeader>
+        <div class="row" style="flex-wrap:wrap">
+            <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
+                        Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
+            <span class="wager-offer__of">Belongs to this desk session, not to a game.</span>
+        </div>
+    </section>
+
+    @if (_report is { } report)
+    {
+        <Note State="DeskState.Positive" Style="margin:0" Class="slip-report">
+            <strong>@report.Headline</strong>
+            <DeskButton Size="DeskKeySize.Small" OnClick="() => _showSteps = !_showSteps">
+                @(_showSteps ? "Hide steps" : "Show steps")
+            </DeskButton>
+            @if (_showSteps)
+            {
+                <ol class="slip-steps">
+                    @foreach (var step in report.Steps)
+                    {
+                        <li>@step</li>
+                    }
+                </ol>
+            }
+        </Note>
+    }
+
+    @if (_error is not null)
+    {
+        <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
+    }
+
+    @if (Slip.Items.Count == 0)
+    {
+        <EmptyState Kind="EmptyStateKind.New">
+            Nothing on the slip. Add to slip from any Place wager window banks the wager here.
+        </EmptyState>
+    }
+    else
+    {
+        <section class="wsection" aria-labelledby="slip-wagers-h">
+            <PanelHeader Tight id="slip-wagers-h">
+                @(Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers")
+            </PanelHeader>
+
+            <div class="slip-cards">
+                @foreach (var item in Slip.Items)
+                {
+                    var state = StateOf(item);
+
+                    @* Each wager is a group of its own: one card, one fact to settle. A card that
+                       cannot be logged takes a negative wash — the one surface here that carries a
+                       state, because the card itself is the status. *@
+                    <div class="wgroup slip-card @(state.State == DeskState.Negative ? "slip-card--blocked" : null)" @key="item.Id">
+                        <div class="slip-card__top">
+                            <div>
+                                <div class="slip-card__sel">@item.Selection</div>
+                                <div class="slip-card__meta">@item.Matchup · @Day(item.StartsAt) · @item.Book</div>
+                            </div>
+
+                            @if (Slip.Mode == SlipMode.Straight)
+                            {
+                                @* A leg carries no stake, so the field goes in parlay mode. *@
+                                <DeskField TValue="decimal" Mono="true" Immediate="true" Class="slip-card__stake"
+                                           type="number" step="5" min="0" aria-label="Stake on this wager"
+                                           Value="item.Stake"
+                                           ValueChanged="@((decimal s) => Slip.Touch(item.Id, i => i with { Stake = s }))" />
+                            }
+
+                            <DeskButton Icon="@Icons.Material.Filled.Close" Role="DeskRole.Destructive"
+                                        Title="Drop from the slip" aria-label="Drop from the slip"
+                                        OnClick="() => Slip.Remove(item.Id)" />
+                        </div>
+
+                        <div class="slip-card__state">
+                            <Tag State="state.State">@state.Word</Tag>
+                            <span>@state.Sentence</span>
+                        </div>
+
+                        @if (state.Remedy is { } remedy)
+                        {
+                            <div class="slip-card__remedy">@remedy</div>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        @if (Slip.Mode == SlipMode.Parlay)
+        {
+            <section class="wsection" aria-labelledby="slip-parlay-h">
+                <PanelHeader Tight id="slip-parlay-h">Parlay</PanelHeader>
+                <div class="wgroup">
+                    <div class="slip-parlay">
+                        <div class="slip-parlay__head">
+                            <span class="wager-offer__book">Combined</span>
+                            <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
+                        </div>
+                        <div class="slip-parlay__note">
+                            @(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs"), prices multiplied; a book's own parlay price can replace it.
+                        </div>
+                    </div>
+                    <div class="wgroup__row wgroup__row--pad">
+                        <StakeRow Stake="Slip.ParlayStake"
+                                  StakeChanged="@(s => Slip.SetParlay(s, Slip.ParlayPriceQuoted, Slip.ParlayBook))"
+                                  PriceAmerican="Slip.CombinedPrice" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--pad">
+                        @* The book's own price for the parlay, when it gave one: it is what a clean
+                           win pays. Without it the legs are multiplied, which is also how a push reprices. *@
+                        <DeskField TValue="int?" Mono="true" type="number" style="max-width:120px"
+                                   placeholder="Parlay price" aria-label="Parlay price" Value="Slip.ParlayPriceQuoted"
+                                   ValueChanged="@((int? p) => Slip.SetParlay(Slip.ParlayStake, p, Slip.ParlayBook))" />
+                        <DeskSelect TValue="string" style="max-width:140px" Value="Slip.ParlayBook"
+                                    aria-label="Book the parlay was placed at"
+                                    ValueChanged="@((string? b) => Slip.SetParlay(Slip.ParlayStake, Slip.ParlayPriceQuoted, b))">
+                            <option value="">Book…</option>
+                            @foreach (var book in Books)
+                            {
+                                <option value="@book">@book</option>
+                            }
+                        </DeskSelect>
+                    </div>
+                </div>
+            </section>
+        }
+
+        <div class="waction">
+            <div class="waction__keys slip-footer">
+                <DeskButton Class="waction__lead" OnClick="StartOverAsync">Start over</DeskButton>
+                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Bolt"
+                            Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync">
+                    @LogLabel
+                </DeskButton>
+            </div>
+
+            @if (Waiting is { } why)
+            {
+                <div class="warnc slip-why">@why</div>
+            }
+        </div>
+    }
+
+    <p class="wfoot">
+        A logged wager becomes a journal row and leaves the slip. LineOps records bets placed
+        elsewhere; nothing here reaches a sportsbook.
+    </p>
+</div>
+
+
+@code {
+    private static readonly IReadOnlyList<DeskSwitchOption<SlipMode>> Modes =
+    [
+        new(SlipMode.Straight, "Straight bets", "Each wager is its own bet"),
+        new(SlipMode.Parlay, "One parlay", "Every wager the market still offers is a leg")
+    ];
+
+    private sealed record CardState(DeskState State, string Word, string Sentence, string? Remedy = null);
+
+    private sealed record SlipReport(string Headline, IReadOnlyList<string> Steps);
+
+    private SlipReport? _report;
+    private bool _showSteps;
+    private string? _error;
+    private bool _saving;
+
+    protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+
+    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private IEnumerable<string> Books
+        => JournalService.CommonBooks
+            .Concat(Slip.Items.Select(i => i.Book))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase);
+
+    private CardState StateOf(SlipItem item)
+    {
+        if (item.IsClosing)
+            return Slip.Mode == SlipMode.Parlay
+                ? new CardState(DeskState.Negative, "Cannot log", "Not a leg: the game has started.",
+                    "Drop it, or log it from the Journal with the price you got.")
+                : new CardState(DeskState.Negative, "Cannot log", "Closing line: this price cannot have been taken.",
+                    "Drop it, or log it from the Journal with the price you got.");
+
+        if (Slip.Mode == SlipMode.Parlay && Slip.SharesGameWithLeg(item))
+            return new CardState(DeskState.Negative, "Not a leg",
+                "Another leg is already on this game; a parlay's legs are separate games.",
+                "Drop one, or log them as straight bets.");
+
+        if (Slip.Mode == SlipMode.Straight && item.Stake <= 0)
+            return new CardState(DeskState.Warning, "Needs a stake", "A straight bet is logged with a stake above zero.");
+
+        // The journal first: a bet already made outranks one only banked beside this one.
+        if (item.InJournal is { } prior)
+            return new CardState(DeskState.Warning, "Worth knowing",
+                $"Already in the journal: {prior}. Logging again records a second bet.");
+
+        if (Slip.HasTwin(item))
+            return new CardState(DeskState.Warning, "Worth knowing", "Another wager on the slip is on this side; logging both records two bets.");
+
+        // Ready says the card can be logged, not that it should be: green only where the price
+        // beats the fair one, so a green tag never sits beside a negative value.
+        return new CardState(item.Ev is > 0 ? DeskState.Positive : DeskState.Neutral, "Ready", ValueReading(item));
+    }
+
+    private static string ValueReading(SlipItem item)
+        => item.Ev is { } ev
+            ? PriceCell.EvLabel(ev) + (item.Fair is { } fair ? " · " + PriceCell.FairLabel(fair) : "")
+            : "No fair price on this number, so value is unread.";
+
+    /// <summary>What the Log key is waiting for, said under it.</summary>
+    private string? Waiting
+        => Slip.Mode == SlipMode.Straight
+            ? Slip.Ready.Count == 0 ? "Nothing on the slip can be logged as it stands." : null
+            : Slip.Legs.Count < 2 ? "A parlay needs two legs on separate games the market still offers."
+            : Slip.ParlayStake <= 0 ? "Needs a stake above zero."
+            : string.IsNullOrWhiteSpace(Slip.ParlayBook) ? "Needs the book the parlay was placed at."
+            : null;
+
+    private string LogLabel
+        => Slip.Mode == SlipMode.Straight
+            ? $"Log {Slip.Ready.Count} ready · {Slip.Ready.Sum(i => i.Stake):C0}"
+            : $"Log parlay · {(Slip.CombinedPrice is { } combined ? Price(combined) : "—")}";
+
+    private async Task LogAsync()
+    {
+        if (Waiting is not null || _saving)
+            return;
+
+        _saving = true;
+        _error = null;
+        _report = null;
+        _showSteps = false;
+
+        try
+        {
+            var parlay = Slip.Mode == SlipMode.Parlay;
+            var logged = parlay ? Slip.Legs : Slip.Ready;
+            var ids = logged.Select(i => i.Id).ToHashSet();
+
+            if (parlay)
+                await WithActivityAsync(() => Data.LogParlayAsync(Slip.ToParlayDraft()), () => PulseState.Healthy);
+            else
+                await WithActivityAsync(() => Data.LogStraightsAsync(Slip.StraightDrafts()), () => PulseState.Healthy);
+
+            // One line per item, in the order the slip holds them.
+            var steps = Slip.Items.Select(i => !ids.Contains(i.Id)
+                    ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : parlay ? "another leg is on this game" : "no stake")}."
+                    : parlay
+                        ? $"Leg: {i.Selection} ({i.Book})."
+                        : $"Logged {i.Stake:C0} on {i.Selection} ({i.Book}).")
+                .ToList();
+
+            if (parlay)
+                steps.Add($"Parlay: {Slip.ParlayStake:C0} at {(Slip.CombinedPrice is { } c ? Price(c) : "—")} ({Slip.ParlayBook}).");
+
+            Slip.Logged(ids);
+
+            var headline = $"{ids.Count} logged · {Slip.Items.Count} left on the slip";
+            _report = new SlipReport(headline, steps);
+            Toasts.Success(headline);
+        }
+        catch (Exception ex)
+        {
+            // The slip is untouched: nothing was written (one save), so nothing leaves it.
+            _error = $"Not logged: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task StartOverAsync()
+    {
+        if (Slip.Items.Count > 1
+            && !await Alerts.ConfirmAsync("Start the slip over?",
+                $"{Slip.Items.Count} wagers leave the slip. Nothing is logged.",
+                confirmLabel: "Start over", destructive: true))
+            return;
+
+        Slip.Clear();
+        _report = null;
+        _error = null;
+    }
+}

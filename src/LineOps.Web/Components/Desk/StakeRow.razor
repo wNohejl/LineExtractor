@@ -1,0 +1,44 @@
+@using LineOps.Core.Analytics
+
+@*
+    The stake: a field, three quick keys, and what it returns.
+
+    Immediate, because Returns beside it recomputes as you type — a field whose typing is the
+    action, not one waiting to be validated. Returns sits to the right, which is where the eye goes
+    after typing. One definition, shared by the wager window, the slip's parlay block and the
+    Journal's manual entry (SelectionGuardTests).
+*@
+
+<div class="row stake-row">
+    <DeskField TValue="decimal" Mono="true" Immediate="true"
+               type="number" step="5" min="0" style="max-width:130px"
+               placeholder="Stake" Value="Stake" ValueChanged="SetAsync" />
+
+    @foreach (var quick in Quick)
+    {
+        <DeskButton Size="DeskKeySize.Small" OnClick="() => SetAsync(quick)">@quick.ToString("C0")</DeskButton>
+    }
+
+    @if (PriceAmerican is { } price && price != 0 && Stake > 0)
+    {
+        @* Label, figure, detail — stacked, so the figure is the thing the eye lands on. *@
+        <span class="stake-row__returns num">
+            <span class="stake-row__returns-label">Returns</span>
+            <strong>@OddsMath.PayoutOnWin(price, Stake).ToString("C0")</strong>
+            <span class="stake-row__profit">@OddsMath.ProfitOnWin(price, Stake).ToString("C0") profit</span>
+        </span>
+    }
+</div>
+
+@code {
+    private static readonly decimal[] Quick = [25m, 50m, 100m];
+
+    [Parameter] public decimal Stake { get; set; }
+
+    [Parameter] public EventCallback<decimal> StakeChanged { get; set; }
+
+    /// <summary>The price the stake would be paid at. Null: no Returns (nothing to price it at yet).</summary>
+    [Parameter] public int? PriceAmerican { get; set; }
+
+    private Task SetAsync(decimal stake) => StakeChanged.InvokeAsync(stake);
+}

@@ -74,6 +74,7 @@ public static class DeskServiceCollectionExtensions
         services.AddSingleton(brand);
         services.AddSingleton(clock ?? DeskClock.Utc);
         services.AddScoped<WindowManager>();
+        services.AddScoped<DeskFollowUps>();
         services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();
         services.AddScoped<IDeskAlerts, DeskAlerts>();

@@ -32,6 +32,11 @@ function beginDrag(event, handle, dialog, dotNetRef) {
 
     event.preventDefault();
 
+    // preventDefault stops the text selection a drag would otherwise make, and with it the
+    // focus a press would have given: grabbing a dialog's bar has to leave it focused, or Escape
+    // lands on the page instead of the dialog the operator is holding.
+    dialog.focus({ preventScroll: true });
+
     const zoom = zoomOf(dialog);
     const start = dialog.getBoundingClientRect();
     const offsetX = (event.clientX - start.left) / zoom;
@@ -76,6 +81,34 @@ function beginDrag(event, handle, dialog, dotNetRef) {
     } catch {
         /* capture is an optimisation; the window listeners above carry the gesture regardless */
     }
+}
+
+/// After a dialog closes, gives focus to the frontmost one still open — so Escape, pressed again,
+/// closes the next dialog down instead of landing on the page.
+///
+/// Waits for the closing dialog to leave the DOM: .NET disposes it around the render batch that
+/// removes it, in no guaranteed order, and while it is still there focus is still inside it.
+/// Leaves focus alone if the operator has since put it somewhere real, or no dialog is left.
+export function focusFrontAfter(closing) {
+    const started = performance.now();
+
+    const tick = () => {
+        if (closing?.isConnected && performance.now() - started < 1000) {
+            requestAnimationFrame(tick);
+            return;
+        }
+
+        const active = document.activeElement;
+        if (active && active !== document.body && active.isConnected && !closing?.contains(active)) return;
+
+        const front = [...document.querySelectorAll('.deskdialog')]
+            .filter(d => d !== closing)
+            .sort((a, b) => (parseInt(b.style.zIndex) || 0) - (parseInt(a.style.zIndex) || 0))[0];
+
+        front?.focus({ preventScroll: true });
+    };
+
+    requestAnimationFrame(tick);
 }
 
 /// Places a new dialog without covering the last one exactly.

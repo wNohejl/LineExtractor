@@ -6,6 +6,8 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 @inject IDeskAlerts Alerts
+@using LineOps.Web.Services
+@inject IWagerData Wagers
 
 <Note Style="margin:12px 0">
     LineOps does not place wagers and has no connection to any sportsbook. Entries here are
@@ -21,10 +23,10 @@
                 OnClick="ShowEntryForm">
         Log entry
     </DeskButton>
-    <DeskButton Icon="@Icons.Material.Filled.AccountTree"
-                Disabled="@(_mode != FormMode.None)"
-                OnClick="ShowParlayForm">
-        Log parlay
+    @* Parlays are built on the slip now (spec §5.4): the form that duplicated the leg fields,
+       the stake row and the book picker retired into it. *@
+    <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="OpenSlip">
+        Open slip
     </DeskButton>
     <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
         Settle finished games
@@ -71,15 +73,22 @@
             </Note>
         }
 
-        @LegFields(_entry, true)
+        @LegFields(_entry)
+
+        <StakeRow Stake="_entry.Stake" StakeChanged="@(s => _entry.Stake = s)"
+                  PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)" />
 
         <div class="row">
-            <DeskField TValue="decimal" Mono="true" style="max-width:100px" type="number"
-                       placeholder="Stake" @bind-Value="_entry.Stake" />
-            @BookPicker(_entry.Book, b => _entry.Book = b)
+            @BookPicker(_entry.Book, SetEntryBookAsync)
             <DeskField TValue="string" style="flex:1; min-width:160px"
                        placeholder="Note (optional)" @bind-Value="_entry.Note" />
         </div>
+
+        @* The duplicate check only: value and price age need a live offer this form does not have. *@
+        @if (_entryCheck is { } check)
+        {
+            <CheckList Items="@(new[] { check })" Title="Before you save" />
+        }
 
         <div class="row">
             @* A disabled key that does not say what it is waiting for is a key the operator
@@ -93,61 +102,12 @@
     </div>
 }
 
-@if (_mode == FormMode.Parlay)
-{
-    <div class="stack" style="padding:12px; background:var(--surface-2); border:1px solid var(--separator); border-radius:4px; margin-bottom:14px">
-        <PanelHeader Tight>New parlay</PanelHeader>
-
-        @for (var i = 0; i < _legs.Count; i++)
-        {
-            var index = i;
-            var leg = _legs[index];
-
-            <div class="stack" style="padding:8px 0; border-bottom:1px solid var(--separator)">
-                <div class="row">
-                    <span class="dim" style="font-size:calc(12px * var(--text-scale))">Leg @(index + 1)</span>
-                    @if (_legs.Count > 2)
-                    {
-                        <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Close"
-                                    OnClick="() => _legs.RemoveAt(index)">
-                            Remove
-                        </DeskButton>
-                    }
-                </div>
-                @LegFields(leg, false)
-            </div>
-        }
-
-        <div class="row">
-            <DeskButton Icon="@Icons.Material.Filled.Add" OnClick="() => _legs.Add(new Draft())">Add a leg</DeskButton>
-        </div>
-
-        <div class="row">
-            <DeskField TValue="decimal" Mono="true" style="max-width:100px" type="number"
-                       placeholder="Stake" @bind-Value="_parlay.Stake" />
-            @* The book's own price for the parlay, when it gave one: it is what a clean win pays.
-               Without it the legs' prices are multiplied, which is also how a push is repriced. *@
-            <DeskField TValue="int?" Mono="true" style="max-width:110px" type="number"
-                       placeholder="Parlay price" @bind-Value="_parlay.PriceQuoted" />
-            @BookPicker(_parlay.Book, b => _parlay.Book = b)
-            <DeskField TValue="string" style="flex:1; min-width:160px"
-                       placeholder="Note (optional)" @bind-Value="_parlay.Note" />
-        </div>
-
-        <div class="row">
-            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayAsync" Disabled="@(!ParlayValid)"
-                        Title="@(ParlayValid ? null : "Needs two legs with a selection each, a stake above zero, a book, and either a parlay price or every leg's price.")">
-                Save parlay
-            </DeskButton>
-            <DeskButton OnClick="CloseForm">Cancel</DeskButton>
-        </div>
-    </div>
-}
-
 @if (_entries.Count == 0 && _parlays.Count == 0)
 {
     <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
-        @(Filtered ? "No entries match these filters." : "No entries logged yet.")
+        @(Filtered
+            ? "No entries match these filters."
+            : "No entries logged yet. Log entry records a bet by hand; parlays are built on the slip.")
     </EmptyState>
 }
 
@@ -170,7 +130,7 @@
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market">
-            <CellTemplate><span class="dim">@context.Item.Market</span></CellTemplate>
+            <CellTemplate><span class="dim">@SelectionText.MarketName(context.Item.Market)</span></CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book">
@@ -244,7 +204,9 @@
             <CellTemplate>
                 @foreach (var leg in context.Item.Legs.OrderBy(l => l.Id))
                 {
-                    <div class="row" style="gap:6px">
+                    @* One line per leg: wrapped, the tag, the team and the price each took a line
+                       of their own and the legs could not be told apart. *@
+                    <div class="row" style="gap:6px; flex-wrap:nowrap; white-space:nowrap">
                         <Tag State="@ResultState(leg.Result)">@leg.Result</Tag>
                         @Selection(leg)
                         @if (leg.PriceTaken != 0)
@@ -331,9 +293,9 @@
     private const string FreeText = "__free__";
     private const int Step = 100;
 
-    private enum FormMode { None, Entry, Parlay }
+    private enum FormMode { None, Entry }
 
-    /// <summary>One selection as the form holds it — a straight bet, or a parlay leg.</summary>
+    /// <summary>A straight bet as the manual entry form holds it. Parlays are built on the slip.</summary>
     private sealed class Draft
     {
         public int? GameId { get; set; }
@@ -351,14 +313,6 @@
             GameId, Market == FreeText ? "other" : Market,
             Market == FreeText ? FreeTextMarket : null,
             Outcome, LineTaken, PriceTaken, Stake, Book, Note);
-    }
-
-    private sealed class ParlayForm
-    {
-        public decimal Stake { get; set; } = 10m;
-        public int? PriceQuoted { get; set; }
-        public string Book { get; set; } = string.Empty;
-        public string? Note { get; set; }
     }
 
     private static readonly IReadOnlyList<DeskSwitchOption<JournalStatus>> Statuses =
@@ -391,8 +345,9 @@
     private FormMode _mode;
     private Draft _entry = new();
     private JournalEntry? _editing;
-    private List<Draft> _legs = [];
-    private ParlayForm _parlay = new();
+
+    // The manual entry's duplicate check: read when the side it is keyed on moves, never from the render.
+    private Check? _entryCheck;
 
     private bool _busy;
     private string? _message;
@@ -404,14 +359,6 @@
            && (!needsPrice || d.PriceTaken != 0)
            && !string.IsNullOrWhiteSpace(d.Book)
            && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
-
-    private bool ParlayValid
-        => _legs.Count >= 2
-           && _parlay.Stake > 0
-           && !string.IsNullOrWhiteSpace(_parlay.Book)
-           && _legs.All(l => l.Market == FreeText ? !string.IsNullOrWhiteSpace(l.FreeTextMarket) : !string.IsNullOrWhiteSpace(l.Outcome))
-           // Something has to price a win: the book's figure, or every leg's.
-           && (_parlay.PriceQuoted is not (null or 0) || _legs.All(l => l.PriceTaken != 0));
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -463,16 +410,11 @@
         _message = null;
         _editing = null;
         _entry = new Draft { Book = _bookFilter ?? LastBook() };
+        _entryCheck = null;
         _mode = FormMode.Entry;
     }
 
-    private void ShowParlayForm()
-    {
-        _message = null;
-        _legs = [new Draft(), new Draft()];
-        _parlay = new ParlayForm { Book = _bookFilter ?? LastBook() };
-        _mode = FormMode.Parlay;
-    }
+    private void OpenSlip() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!);
 
     /// <summary>The book of the latest entry: most bets are logged at the book the last one was.</summary>
     private string LastBook()
@@ -495,6 +437,7 @@
             Book = entry.Book,
             Note = entry.Note
         };
+        _entryCheck = null;
         _mode = FormMode.Entry;
     }
 
@@ -502,6 +445,35 @@
     {
         _mode = FormMode.None;
         _editing = null;
+        _entryCheck = null;
+    }
+
+    private async Task SetEntryBookAsync(string book)
+    {
+        _entry.Book = book;
+        await SideChangedAsync();
+    }
+
+    /// <summary>
+    /// Re-reads the duplicate check when the side it is keyed on moves — game, market, outcome,
+    /// book — and never from the render. Not for an edit: the entry being edited is its own match.
+    /// </summary>
+    private async Task SideChangedAsync()
+    {
+        if (_editing is not null
+            || _entry.GameId is not { } gameId
+            || _entry.Market == FreeText
+            || string.IsNullOrWhiteSpace(_entry.Outcome)
+            || string.IsNullOrWhiteSpace(_entry.Book))
+        {
+            _entryCheck = null;
+            return;
+        }
+
+        var prior = await Wagers.LatestOnSideAsync(gameId, _entry.Market, _entry.Outcome.Trim(),
+            DateTimeOffset.UtcNow - Checks.DuplicateWindow);
+
+        _entryCheck = Checks.Duplicate(true, prior, new CheckActions());
     }
 
     private async Task SaveEntryAsync()
@@ -511,18 +483,6 @@
             .SaveEntryAsync(_entry.ToDraft(), _editing?.Id);
 
         _message = _editing is null ? "Entry logged." : "Entry saved.";
-        CloseForm();
-        await LoadAsync();
-    }
-
-    private async Task SaveParlayAsync()
-    {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveParlayAsync(new ParlayDraft(
-            _parlay.Book, _parlay.Stake, _parlay.PriceQuoted, _parlay.Note,
-            _legs.Select(l => l.ToDraft()).ToList()));
-
-        _message = $"{_legs.Count}-leg parlay logged.";
         CloseForm();
         await LoadAsync();
     }
@@ -615,11 +575,13 @@
             ? ParlayGrading.Grade(parlay, parlay.Legs).Reason
             : null;
 
-    private RenderFragment LegFields(Draft d, bool straight) => @<text>
-        <GamePicker Value="d.GameId" Selected="d.Game" ValueChanged="@((int? id) => d.GameId = id)" />
+    private RenderFragment LegFields(Draft d) => @<text>
+        <GamePicker Value="d.GameId" Selected="d.Game"
+                    ValueChanged="@(async (int? id) => { d.GameId = id; await SideChangedAsync(); })" />
 
         <div class="row">
-            <DeskSelect TValue="string" @bind-Value="d.Market">
+            <DeskSelect TValue="string" Value="d.Market"
+                        ValueChanged="@(async (string? m) => { d.Market = m ?? Markets.Spread; await SideChangedAsync(); })">
                 <option value="@Markets.Moneyline">Moneyline</option>
                 <option value="@Markets.Spread">Spread</option>
                 <option value="@Markets.Total">Total</option>
@@ -634,7 +596,9 @@
             else
             {
                 <DeskField TValue="string" style="max-width:190px"
-                           placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")" @bind-Value="d.Outcome" />
+                           placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")"
+                           Value="d.Outcome"
+                           ValueChanged="@(async (string? o) => { d.Outcome = o ?? string.Empty; await SideChangedAsync(); })" />
             }
 
             @if (d.Market is Markets.Spread or Markets.Total)
@@ -643,14 +607,14 @@
                            placeholder="Line" @bind-Value="d.LineTaken" />
             }
 
-            @* A leg's price is optional: some books show only the parlay's. *@
             <DeskField TValue="int" Mono="true" style="max-width:90px" type="number"
-                       placeholder="@(straight ? "Price" : "Leg price")" @bind-Value="d.PriceTaken" />
+                       placeholder="Price" @bind-Value="d.PriceTaken" />
         </div>
     </text>;
 
-    private RenderFragment BookPicker(string current, Action<string> set) => @<text>
-        <DeskSelect TValue="string" style="max-width:140px" Value="current" ValueChanged="@((string? b) => set(b ?? string.Empty))">
+    private RenderFragment BookPicker(string current, Func<string, Task> set) => @<text>
+        <DeskSelect TValue="string" style="max-width:140px" Value="current"
+                    ValueChanged="@(async (string? b) => await set(b ?? string.Empty))">
             <option value="">Book…</option>
             @foreach (var book in _books)
             {
@@ -703,7 +667,7 @@
     </text>;
 
     private static string Describe(JournalEntry e)
-        => e.FreeTextMarket ?? $"{e.Outcome}{(e.LineTaken is { } l ? " " + (l > 0 ? $"+{l}" : l.ToString()) : "")} {e.Market}";
+        => e.FreeTextMarket ?? $"{e.Outcome}{(e.LineTaken is { } l ? " " + (l > 0 ? $"+{l}" : l.ToString()) : "")} {SelectionText.MarketName(e.Market)}";
 
     private static ClvResult? Clv(JournalEntry entry) => PerformanceAnalytics.ComputeClv(entry);
 

@@ -1,6 +1,7 @@
 @using LineOps.Desk.Windowing
 @implements IAsyncDisposable
 @inject WindowManager Manager
+@inject DeskFollowUps FollowUps
 @inject DeskBrand Brand
 @inject IJSRuntime JS
 
@@ -83,6 +84,9 @@
     </div>
 
     <DeskFooter />
+
+    @* Follow-ups opened from inside a floating dialog land here, where nothing clips them. *@
+    <LineOps.Desk.Primitives.FollowUpLayer Launcher="FollowUps.Launcher" />
 
     <CommandPalette />
 </div>

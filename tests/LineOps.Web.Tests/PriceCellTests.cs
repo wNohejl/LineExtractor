@@ -458,4 +458,46 @@ public class PriceCellTests : DeskTestContext
 
         Assert.Equal("PN", cut.Find(".price__book").TextContent);
     }
+
+    // ---- Door 2: a live price opens the wager window on itself --------------------------
+
+    [Fact]
+    public void A_live_cell_offers_the_take_and_says_so()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        var cell = cut.Find(".price");
+        Assert.Equal("button", cell.GetAttribute("role"));
+        Assert.EndsWith("Click to log this price.", cell.GetAttribute("title"));
+
+        cell.Click();
+        Assert.Equal(1, taken);
+    }
+
+    [Fact]
+    public void A_closing_cell_offers_no_take()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        var cell = cut.Find(".price");
+        Assert.Null(cell.GetAttribute("role"));
+
+        cell.Click();
+        Assert.Equal(0, taken);
+    }
+
+    [Fact]
+    public void Without_a_take_handler_the_cell_is_not_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524))));
+
+        Assert.Null(cut.Find(".price").GetAttribute("role"));
+        Assert.DoesNotContain("Click to log", cut.Find(".price").GetAttribute("title") ?? "");
+    }
 }

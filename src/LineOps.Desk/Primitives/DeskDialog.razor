@@ -21,7 +21,9 @@
      style="width:@Width; z-index:@ZIndex"
      role="dialog"
      aria-label="@Title"
-     @onmousedown="Raise">
+     tabindex="-1"
+     @onmousedown="Raise"
+     @onkeydown="OnKeyDown">
 
     <div @ref="_handle" class="deskdialog__bar">
         <span class="deskdialog__icon"><Glyph Icon="@Icon" /></span>
@@ -76,6 +78,9 @@
 
         await _module.InvokeVoidAsync("cascade", _element, Index);
         await _module.InvokeVoidAsync("attachDrag", _handle, _element, _self);
+
+        // Focus lands in the dialog it opened, so Escape closes it without a click first.
+        await _element.FocusAsync(preventScroll: true);
     }
 
     /// <summary>
@@ -88,6 +93,14 @@
 
     private Task Raise() => OnRaise.InvokeAsync();
 
+    /// <summary>
+    /// Escape closes the dialog it was pressed in. Handled on the dialog, not the document, so it
+    /// closes the one the operator is working in rather than whichever opened last; a control
+    /// inside that uses Escape itself (a row's snippet, a menu) stops it before it gets here.
+    /// </summary>
+    private Task OnKeyDown(KeyboardEventArgs e)
+        => e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+
     public async ValueTask DisposeAsync()
     {
         _self?.Dispose();
@@ -96,6 +109,8 @@
         {
             try
             {
+                // The next dialog down takes focus, so a second Escape closes it too.
+                await _module.InvokeVoidAsync("focusFrontAfter", _element);
                 await _module.DisposeAsync();
             }
             catch (JSDisconnectedException)
