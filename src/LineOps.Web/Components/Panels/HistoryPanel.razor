@@ -92,10 +92,18 @@
            "the work you started is still running on this control"; there is no work to start
            here, only a walk to report, and Stop beside it is the control. *@
         <Tag State="DeskState.Info">Walking</Tag>
-        <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
-                    Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
-            Stop
-        </DeskButton>
+        @if (Manager.Access.CanOperate)
+        {
+            <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                        Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+                Stop
+            </DeskButton>
+        }
+    }
+    else if (!Manager.Access.CanOperate)
+    {
+        @* A visitor reads what the history holds; walking it spends requests (ADR 0018). *@
+        <Tag State="DeskState.Neutral">Idle</Tag>
     }
     else
     {

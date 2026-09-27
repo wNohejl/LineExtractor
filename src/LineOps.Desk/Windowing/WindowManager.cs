@@ -37,13 +37,26 @@ public class WindowManager
 
     public void RequestPalette() => PaletteRequested?.Invoke();
 
-    /// <summary>The windows this desk can open. Supplied by the application, read by everything here.</summary>
+    /// <summary>
+    /// The windows this desk can open. Supplied by the application, read by everything here —
+    /// through <see cref="IDeskAccess"/>, so a visitor's catalogue has no operator-only window
+    /// in it and nothing that reads it has to remember to ask.
+    /// </summary>
     public IWindowCatalog Catalog { get; }
 
+    /// <summary>Who is at this desk. Read by the application where it draws a control that writes.</summary>
+    public IDeskAccess Access { get; }
+
     public WindowManager(IWindowCatalog catalog)
+        : this(catalog, OpenDeskAccess.Instance)
     {
-        Catalog = catalog;
-        Settings.PrimaryWindowKey = catalog.DefaultPrimary;
+    }
+
+    public WindowManager(IWindowCatalog catalog, IDeskAccess access)
+    {
+        Access = access;
+        Catalog = new AccessCatalog(catalog, access);
+        Settings.PrimaryWindowKey = Catalog.DefaultPrimary;
     }
 
     public IReadOnlyList<WindowInstance> Windows => _windows;
@@ -189,6 +202,12 @@ public class WindowManager
         Dictionary<string, object>? parameters = null,
         string? titleOverride = null)
     {
+        // Every way a visitor could reach an operator window goes through Catalog, which does
+        // not have one; arriving here with one means a control was drawn that should not have been.
+        if (definition.OperatorOnly && !Access.CanOperate)
+            throw new InvalidOperationException(
+                $"'{definition.Key}' is an operator window and this desk is a visitor's.");
+
         if (definition.Singleton)
         {
             var existing = _windows.FirstOrDefault(w => w.Definition.Key == definition.Key);

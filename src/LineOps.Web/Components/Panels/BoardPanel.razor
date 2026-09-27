@@ -139,11 +139,14 @@
             what it finds, and prices need an odds provider key — see Ops.
         </ChildContent>
         <Action>
-            <DeskButton Size="DeskKeySize.Small"
-                        Icon="@Icons.Material.Filled.CalendarMonth"
-                        OnClick="() => PullAsync(IngestionJobs.EspnSlate)">
-                Today's games
-            </DeskButton>
+            @if (Manager.Access.CanOperate)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.CalendarMonth"
+                            OnClick="() => PullAsync(IngestionJobs.EspnSlate)">
+                    Today's games
+                </DeskButton>
+            }
         </Action>
     </EmptyState>
 }
@@ -813,6 +816,10 @@ else
             }
         };
 
+        // A visitor reads the board — every book's number — but has no wager to log and no
+        // lines to pull (ADR 0018).
+        var operate = Manager.Access.CanOperate;
+
         if (row.HasPrices)
         {
             actions.Add(new RowAction
@@ -823,20 +830,23 @@ else
                 OpenWindow = () => Launch(WindowCatalog.Bets, "GameId", id, name, "680px")
             });
 
-            actions.Add(new RowAction
+            if (operate)
             {
-                Key = "wager",
-                Label = "Place wager",
-                Icon = Icons.Material.Filled.Bolt,
-                // Tinted, not Filled: the strip repeats on every row the operator opens, and a
-                // solid accent per row would put a dozen primaries on one slate — and the
-                // panel's one Filled is already spent on Pull data. The Board is a place to
-                // look; the wager is committed in the window this opens.
-                Emphasis = DeskEmphasis.Tinted,
-                OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
-            });
+                actions.Add(new RowAction
+                {
+                    Key = "wager",
+                    Label = "Place wager",
+                    Icon = Icons.Material.Filled.Bolt,
+                    // Tinted, not Filled: the strip repeats on every row the operator opens, and a
+                    // solid accent per row would put a dozen primaries on one slate — and the
+                    // panel's one Filled is already spent on Pull data. The Board is a place to
+                    // look; the wager is committed in the window this opens.
+                    Emphasis = DeskEmphasis.Tinted,
+                    OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
+                });
+            }
         }
-        else if (CanPull(row))
+        else if (operate && CanPull(row))
         {
             actions.Add(new RowAction
             {

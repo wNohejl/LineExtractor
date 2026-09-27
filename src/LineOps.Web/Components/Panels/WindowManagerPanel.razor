@@ -2,11 +2,39 @@
 @using LineOps.Desk.Theming
 @inherits PanelBase
 @inject ThemeService Theme
+@inject Microsoft.Extensions.Options.IOptions<LineOps.Web.Access.AccessOptions> AccessOptions
+@inject NavigationManager Navigation
 
 @*
     Desk configuration. Every control here changes the desk immediately — there is no Save,
     because the desk behind this window *is* the preview.
 *@
+
+@* Who is at this desk, on a desk that can be reached by more than one person (ADR 0018). A
+   sign-in is a page load, not a window: the cookie it sets needs an HTTP response. *@
+@if (AccessOptions.Value.Mode == LineOps.Web.Access.AccessMode.Gated)
+{
+    <div class="row" style="margin-bottom:12px; gap:8px">
+        @if (Manager.Access.CanOperate)
+        {
+            <Tag State="DeskState.Positive">Operator</Tag>
+            <span class="dim" style="flex:1">Everything on this desk is yours to change.</span>
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Logout"
+                        OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignOutPath, forceLoad: true))">
+                Sign out
+            </DeskButton>
+        }
+        else
+        {
+            <Tag State="DeskState.Info">Visitor</Tag>
+            <span class="dim" style="flex:1">This desk reads everything and changes nothing.</span>
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Login"
+                        OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignInPath, forceLoad: true))">
+                Operator sign-in
+            </DeskButton>
+        }
+    </div>
+}
 
 <MetricRow Style="margin-bottom:16px">
     <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
@@ -138,7 +166,7 @@
         <option value="">None — every window equal</option>
         @* A destination cannot be opened on its own, so it cannot be the window that opens
            on an empty desk either. *@
-        @foreach (var definition in WindowCatalog.All.Where(d => !d.RequiresSubject))
+        @foreach (var definition in Manager.Catalog.All.Where(d => !d.RequiresSubject))
         {
             <option value="@definition.Key">@definition.Title</option>
         }

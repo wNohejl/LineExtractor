@@ -15,12 +15,17 @@
    rules — so it is the panel's single Filled. Busy rather than Disabled: an evaluation in
    flight is a control that is occupied, not one that is not for you, and the shimmer says
    which. See ADR 0016. *@
-<div class="row row--end" style="margin-bottom:12px">
-    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
-                OnClick="EvaluateAsync" Busy="@_busy">
-        Evaluate now
-    </DeskButton>
-</div>
+@* A visitor reads Ops — source health, SLOs, the alerts and what they cost — and changes none of
+   it: no evaluation, no polling switch, no incident, no fault injected (ADR 0018). *@
+@if (Manager.Access.CanOperate)
+{
+    <div class="row row--end" style="margin-bottom:12px">
+        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                    OnClick="EvaluateAsync" Busy="@_busy">
+            Evaluate now
+        </DeskButton>
+    </div>
+}
 
 <MetricRow Style="margin-bottom:16px">
     <Metric Label="Sources in SLO"
@@ -119,7 +124,7 @@ else if (_plan is { } plan)
    the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
    turning it off stops spending and needs no second thought. Only offered with a live feed:
    scheduling scans of a provider that cannot be reached would spend nothing and say otherwise. *@
-@if (_feeds.Any(f => f.IsLive))
+@if (Manager.Access.CanOperate && _feeds.Any(f => f.IsLive))
 {
     <div class="row" style="gap:8px; margin:0 0 10px">
         @if (_unattended)
@@ -279,10 +284,13 @@ else if (_plan is { } plan)
         <CellTemplate>
             @if (context.Item.IncidentId is null)
             {
-                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                            OnClick="() => PromoteAsync(context.Item.Id)">
-                    Open incident
-                </DeskButton>
+                @if (Manager.Access.CanOperate)
+                {
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                OnClick="() => PromoteAsync(context.Item.Id)">
+                        Open incident
+                    </DeskButton>
+                }
             }
             else
             {
@@ -296,52 +304,56 @@ else if (_plan is { } plan)
     </TemplateColumn>
 </DeskGrid>
 
-<PanelHeader>On-call drill</PanelHeader>
-<Note Style="margin:12px 0">
-    Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
-    one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
-    With no fault injected the run is a real metered pull, so it scans the league with the most
-    games still to start rather than a league named in the code.
-</Note>
+@* The drill breaks a source on purpose; a visitor watches the result, never causes it. *@
+@if (Manager.Access.CanOperate)
+{
+    <PanelHeader>On-call drill</PanelHeader>
+    <Note Style="margin:12px 0">
+        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
+        one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
+        With no fault injected the run is a real metered pull, so it scans the league with the most
+        games still to start rather than a league named in the code.
+    </Note>
 
-<div class="stack" style="margin-top:10px">
-    @* Said rather than implied. With no injectable source registered the note above still
-       promises "inject a fault" and nothing on screen offers one, which reads as a missing
-       control rather than as a missing adapter. *@
-    @if (_injectable.Count == 0)
-    {
-        <EmptyState Kind="EmptyStateKind.Filtered">
-            No registered source accepts fault injection, so there is nothing to break on
-            purpose. The drill below still exercises the ingest → rollup → alert path.
-        </EmptyState>
-    }
+    <div class="stack" style="margin-top:10px">
+        @* Said rather than implied. With no injectable source registered the note above still
+           promises "inject a fault" and nothing on screen offers one, which reads as a missing
+           control rather than as a missing adapter. *@
+        @if (_injectable.Count == 0)
+        {
+            <EmptyState Kind="EmptyStateKind.Filtered">
+                No registered source accepts fault injection, so there is nothing to break on
+                purpose. The drill below still exercises the ingest → rollup → alert path.
+            </EmptyState>
+        }
 
-    @foreach (var source in _injectable)
-    {
+        @foreach (var source in _injectable)
+        {
+            <div class="row">
+                <span style="min-width:170px">@source.Name</span>
+                <DeskSelect TValue="string"
+                            Value="@(source.FailureMode ?? "")"
+                            ValueChanged="v => SetModeAsync(source.Id, v)">
+                    <option value="">Healthy</option>
+                    <option value="error">Upstream 503</option>
+                    <option value="timeout">Request timeout</option>
+                    <option value="empty">Empty payload (silent)</option>
+                </DeskSelect>
+                @if (source.FailureMode is not null)
+                {
+                    <Tag State="DeskState.Negative">Injecting</Tag>
+                }
+            </div>
+        }
+
         <div class="row">
-            <span style="min-width:170px">@source.Name</span>
-            <DeskSelect TValue="string"
-                        Value="@(source.FailureMode ?? "")"
-                        ValueChanged="v => SetModeAsync(source.Id, v)">
-                <option value="">Healthy</option>
-                <option value="error">Upstream 503</option>
-                <option value="timeout">Request timeout</option>
-                <option value="empty">Empty payload (silent)</option>
-            </DeskSelect>
-            @if (source.FailureMode is not null)
-            {
-                <Tag State="DeskState.Negative">Injecting</Tag>
-            }
+            <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
+                        OnClick="DrillAsync" Busy="@_busy">
+                Run ingest &amp; evaluate
+            </DeskButton>
         </div>
-    }
-
-    <div class="row">
-        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
-                    OnClick="DrillAsync" Busy="@_busy">
-            Run ingest &amp; evaluate
-        </DeskButton>
     </div>
-</div>
+}
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs, DataTopics.Alerts };

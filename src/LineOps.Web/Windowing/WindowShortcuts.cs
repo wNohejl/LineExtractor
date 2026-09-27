@@ -24,7 +24,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenGame(this WindowManager manager, Game game)
     {
-        if (WindowCatalog.Find(WindowCatalog.Game) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Game) is not { } definition)
             return;
 
         manager.Open(
@@ -36,7 +36,7 @@ public static class WindowShortcuts
     /// <summary>Line movement for one game, opened on its own when the trend is what's wanted.</summary>
     public static void OpenMovement(this WindowManager manager, int gameId, string? name = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Odds) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Odds) is not { } definition)
             return;
 
         manager.Open(
@@ -56,7 +56,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenPlayer(this WindowManager manager, int playerId, string? name = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Player) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Player) is not { } definition)
             return;
 
         manager.Open(
@@ -68,7 +68,7 @@ public static class WindowShortcuts
     /// <summary>The Team window, focused on one team's recent record and roster.</summary>
     public static void OpenTeam(this WindowManager manager, int teamId, string? name = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Team) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Team) is not { } definition)
             return;
 
         manager.Open(
@@ -83,7 +83,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenHeadToHead(this WindowManager manager, int gameId, string? name = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.HeadToHead) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.HeadToHead) is not { } definition)
             return;
 
         manager.Open(
@@ -95,7 +95,7 @@ public static class WindowShortcuts
     /// <summary>Ingestion runs, narrowed to one source.</summary>
     public static void OpenRuns(this WindowManager manager, int sourceId, string? sourceName = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Runs) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Runs) is not { } definition)
             return;
 
         manager.Open(
@@ -115,7 +115,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenOps(this WindowManager manager)
     {
-        if (WindowCatalog.Find(WindowCatalog.Ops) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Ops) is not { } definition)
             return;
 
         manager.Open(definition);
@@ -133,7 +133,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenHistory(this WindowManager manager)
     {
-        if (WindowCatalog.Find(WindowCatalog.History) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.History) is not { } definition)
             return;
 
         manager.Open(definition);
@@ -145,7 +145,7 @@ public static class WindowShortcuts
     /// </summary>
     public static void OpenJournal(this WindowManager manager)
     {
-        if (WindowCatalog.Find(WindowCatalog.Journal) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Journal) is not { } definition)
             return;
 
         manager.Open(definition);
@@ -154,7 +154,7 @@ public static class WindowShortcuts
     /// <summary>Incidents, opened on one incident.</summary>
     public static void OpenIncident(this WindowManager manager, int incidentId, string? title = null)
     {
-        if (WindowCatalog.Find(WindowCatalog.Incidents) is not { } definition)
+        if (manager.Catalog.Find(WindowCatalog.Incidents) is not { } definition)
             return;
 
         manager.Open(

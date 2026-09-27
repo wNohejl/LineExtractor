@@ -144,6 +144,12 @@ public record WindowDefinition
 
     /// <summary>One line, shown in the launcher. Says what the window does, plainly.</summary>
     public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Whether only the operator may see this window — a record of their own, or a form that
+    /// writes one. A visitor's desk leaves it out everywhere (<see cref="LineOps.Desk.IDeskAccess"/>).
+    /// </summary>
+    public bool OperatorOnly { get; init; }
 }
 
 /// <summary>One open window. Mutable — the manager owns it and raises change notifications.</summary>

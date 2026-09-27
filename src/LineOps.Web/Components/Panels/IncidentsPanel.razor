@@ -121,56 +121,72 @@ else
         }
     </div>
 
-    <div class="row" style="margin-top:10px">
-        @* Immediate: the Add key beside it is disabled until there is text, so the key has
-           to learn about the first keystroke rather than about the blur. *@
-        <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
-                   placeholder="Add a timeline note" @bind-Value="_newNote" />
-        <DeskButton OnClick="AddNoteAsync"
-                    Disabled="@string.IsNullOrWhiteSpace(_newNote)"
-                    Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
-            Add
-        </DeskButton>
-    </div>
-
-    <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
-    <Note State="@(_selected.Status == IncidentStatus.Resolved ? DeskState.Neutral : DeskState.Warning)"
-          Style="margin:12px 0">
-        Both fields are required to resolve. An incident without a cause and a fix teaches
-        nothing later.
-    </Note>
-
-    <div class="stack" style="margin-top:10px">
-        <DeskTextArea rows="4"
-                      placeholder="What actually broke, and why did it break now?"
-                      @bind-Value="_rootCause" />
-
-        <DeskTextArea rows="4"
-                      placeholder="What change prevents a recurrence? Reference the commit."
-                      @bind-Value="_corrective" />
-
-        @if (_error is not null)
+    @* Everything below writes: a note, an RCA, a resolution. A visitor reads the timeline and,
+       once it is resolved, the RCA — which is the point of keeping one (ADR 0018). *@
+    @if (!Manager.Access.CanOperate)
+    {
+        @if (_selected.Status == IncidentStatus.Resolved)
         {
-            <Note State="DeskState.Warning" Style="margin:12px 0">@_error</Note>
+            <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
+            <div class="stack" style="margin-top:10px">
+                <div style="font-size:calc(12.5px * var(--text-scale))">@_selected.RootCause</div>
+                <div style="font-size:calc(12.5px * var(--text-scale))">@_selected.CorrectiveActions</div>
+            </div>
         }
-
-        <div class="row">
-            @* Two different reasons this key is grey, and the operator cannot tell them apart
-               by looking: the RCA is short of a field, or the incident is already resolved and
-               there is nothing left to do. The Note above states the rule; the title states
-               which of the two is true right now. *@
-            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
-                        OnClick="ResolveAsync" Disabled="@(!CanResolve)"
-                        Title="@ResolveHint">
-                Resolve incident
+    }
+    else
+    {
+        <div class="row" style="margin-top:10px">
+            @* Immediate: the Add key beside it is disabled until there is text, so the key has
+               to learn about the first keystroke rather than about the blur. *@
+            <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
+                       placeholder="Add a timeline note" @bind-Value="_newNote" />
+            <DeskButton OnClick="AddNoteAsync"
+                        Disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                        Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
+                Add
             </DeskButton>
-
-            @if (_selected.Status == IncidentStatus.Open)
-            {
-                <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
-            }
         </div>
-    </div>
+
+        <PanelHeader Gap="PanelHeaderGap.Section">Root-cause analysis</PanelHeader>
+        <Note State="@(_selected.Status == IncidentStatus.Resolved ? DeskState.Neutral : DeskState.Warning)"
+              Style="margin:12px 0">
+            Both fields are required to resolve. An incident without a cause and a fix teaches
+            nothing later.
+        </Note>
+
+        <div class="stack" style="margin-top:10px">
+            <DeskTextArea rows="4"
+                          placeholder="What actually broke, and why did it break now?"
+                          @bind-Value="_rootCause" />
+
+            <DeskTextArea rows="4"
+                          placeholder="What change prevents a recurrence? Reference the commit."
+                          @bind-Value="_corrective" />
+
+            @if (_error is not null)
+            {
+                <Note State="DeskState.Warning" Style="margin:12px 0">@_error</Note>
+            }
+
+            <div class="row">
+                @* Two different reasons this key is grey, and the operator cannot tell them apart
+                   by looking: the RCA is short of a field, or the incident is already resolved and
+                   there is nothing left to do. The Note above states the rule; the title states
+                   which of the two is true right now. *@
+                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
+                            OnClick="ResolveAsync" Disabled="@(!CanResolve)"
+                            Title="@ResolveHint">
+                    Resolve incident
+                </DeskButton>
+
+                @if (_selected.Status == IncidentStatus.Open)
+                {
+                    <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
+                }
+            </div>
+        </div>
+    }
 }
 
 @code {

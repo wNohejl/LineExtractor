@@ -29,11 +29,15 @@
     <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
                placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
 
-    @* The one thing this window does rather than shows, so it carries the panel's weight. *@
-    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
-                OnClick="SyncAsync" Busy="@_busy">
-        Sync stats
-    </DeskButton>
+    @* The one thing this window does rather than shows, so it carries the panel's weight — on
+       the operator's desk. A visitor's only reads (ADR 0018). *@
+    @if (Manager.Access.CanOperate)
+    {
+        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
+                    OnClick="SyncAsync" Busy="@_busy">
+            Sync stats
+        </DeskButton>
+    }
 </div>
 
 @if (_rows.Count == 0)

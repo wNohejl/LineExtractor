@@ -3,6 +3,7 @@
 @using LineOps.Desk.Windowing
 @inject IngestionJobs Jobs
 @inject DeskToasts Toasts
+@inject LineOps.Desk.IDeskAccess Access
 
 @*
     The desk's one manual control over ingestion.
@@ -15,6 +16,9 @@
     Every entry runs the same job the scheduler runs. Nothing here is a second implementation.
 *@
 
+@* A visitor spends nothing: no menu is drawn, so there is nothing to press (ADR 0018). *@
+@if (Access.CanOperate)
+{
 <div class="pullmenu">
     <DeskButton Emphasis="DeskEmphasis.Filled"
                 Icon="@Icons.Material.Filled.CloudDownload"
@@ -52,6 +56,7 @@
         </div>
     }
 </div>
+}
 
 @* A pull's outcome is a toast, not a Note. A Note is the ambient tier — it sits beside the
    thing it describes and stays as long as that thing is true. "14 rows arrived" stops being
@@ -104,6 +109,9 @@
     /// </summary>
     public async Task RunAsync(string key)
     {
+        if (!Access.CanOperate)
+            return;
+
         if (_running is not null)
             return;
 
@@ -126,6 +134,9 @@
 
     private async Task RunJobAsync(IngestionJob job)
     {
+        if (!Access.CanOperate)
+            return;
+
         _open = false;
         _running = job.Key;
         _runningLabel = job.Label;

@@ -36,6 +36,10 @@ public abstract class DeskTestContext : TestContext
             LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
         Services.AddSingleton<LineOps.Desk.Windowing.DeskSignals>();
+        // Who is at the desk: the operator, as on the laptop, unless a test registers a visitor
+        // after this. Options because the Window manager asks how access is configured.
+        Services.AddSingleton<LineOps.Desk.IDeskAccess>(LineOps.Desk.OpenDeskAccess.Instance);
+        Services.AddOptions();
         Services.AddScoped<LineOps.Desk.Windowing.WindowManager>();
         Services.AddScoped<LineOps.Desk.Windowing.DeskFollowUps>();
 

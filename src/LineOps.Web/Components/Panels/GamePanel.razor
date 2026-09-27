@@ -290,7 +290,11 @@ else
             if (_row is null)
                 return;
 
-            _bets = await scope.ServiceProvider.GetRequiredService<LineOps.Ingestion.Services.JournalService>().OnGameAsync(GameId);
+            // The operator's own bets. A visitor's desk never reads the journal, so there is nothing
+            // personal to leak into a window it may see (ADR 0018).
+            _bets = Manager.Access.CanOperate
+                ? await scope.ServiceProvider.GetRequiredService<LineOps.Ingestion.Services.JournalService>().OnGameAsync(GameId)
+                : [];
 
             var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();

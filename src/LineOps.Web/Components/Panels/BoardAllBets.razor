@@ -147,7 +147,8 @@ else
 
         // A live rung is a door (spec §5.3): it opens the wager window on this book's price.
         // A close stays a reading, since it can no longer be taken.
-        var live = !offer.IsClosing;
+        // On a visitor's desk nothing is a door: there is no wager window to open (ADR 0018).
+        var live = !offer.IsClosing && Manager.Access.CanOperate;
 
         if (live)
         {

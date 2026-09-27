@@ -1,6 +1,7 @@
 @namespace LineOps.Desk.Primitives
 @using LineOps.Core.Analytics
 @using LineOps.Data.CrossReference
+@inject LineOps.Desk.IDeskAccess Access
 
 @*
     One market's best offer, and where the rest of the market stands.
@@ -70,7 +71,8 @@ else
     /// </summary>
     [Parameter] public EventCallback OnTake { get; set; }
 
-    private bool Takeable => OnTake.HasDelegate && Offer is { IsClosing: false };
+    // A visitor's price is a reading too: there is no wager window on their desk to open (ADR 0018).
+    private bool Takeable => Access.CanOperate && OnTake.HasDelegate && Offer is { IsClosing: false };
 
     private Task TakeAsync() => Takeable ? OnTake.InvokeAsync() : Task.CompletedTask;
 

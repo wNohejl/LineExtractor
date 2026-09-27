@@ -89,6 +89,7 @@ public static class WindowCatalog
         new()
         {
             Key = Wager,
+            OperatorOnly = true,
             RequiresSubject = true,
             ReachedBy = "Open a row on the Board and press Place wager.",
             Title = "Place wager",
@@ -103,6 +104,7 @@ public static class WindowCatalog
         new()
         {
             Key = Slip,
+            OperatorOnly = true,
             Title = "Slip",
             Icon = Icons.Material.Filled.Receipt,
             Group = "Data",
@@ -213,6 +215,7 @@ public static class WindowCatalog
         new()
         {
             Key = Journal,
+            OperatorOnly = true,
             Title = "Journal",
             Icon = Icons.Material.Filled.MenuBook,
             Group = "Analytics",
@@ -224,6 +227,7 @@ public static class WindowCatalog
         new()
         {
             Key = Performance,
+            OperatorOnly = true,
             Title = "Performance",
             Icon = Icons.Material.Filled.QueryStats,
             Group = "Analytics",

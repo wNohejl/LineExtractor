@@ -3,7 +3,9 @@ using LineOps.Desk;
 using LineOps.Ingestion;
 using LineOps.Observability;
 using LineOps.Reliability;
+using LineOps.Web.Access;
 using LineOps.Web.Components;
+using LineOps.Web.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using MudBlazor;
@@ -76,6 +78,12 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
         .SetApplicationName("LineOps");
 }
 
+// Who may reach the desk and what they may do there (ADR 0018), and what changes when a reverse
+// proxy stands in front of it (ADR 0019). Both register nothing in their defaults — open access,
+// no proxy — so a laptop runs exactly as it always has.
+builder.Services.AddLineOpsAccess(builder.Configuration);
+builder.Services.AddEdgeHardening(builder.Configuration);
+
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
 builder.Services.AddLineOpsReliability(builder.Configuration);
@@ -101,6 +109,8 @@ await using (var scope = app.Services.CreateAsyncScope())
     await initialiser.InitialiseAsync();
 }
 
+app.UseEdgeHardening();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -108,8 +118,24 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+
+// Behind a proxy, the proxy owns port 80 and the redirect; the host has no HTTPS port to send
+// anyone to.
+if (!app.Configuration.BehindProxy())
+    app.UseHttpsRedirection();
+
+var gated = app.Configuration.IsGated();
+if (gated)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.UseRateLimiter();
+}
+
 app.UseAntiforgery();
+
+if (gated)
+    app.MapLineOpsAccess();
 
 // Liveness answers for the process only, so a database outage never gets the container killed
 // and restarted into the same outage. Readiness is what compose and any orchestrator gate on.
@@ -121,7 +147,9 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
     Predicate = check => check.Tags.Contains(ObservabilityServiceCollectionExtensions.ReadyTag)
 }).AllowAnonymous();
 
-app.MapStaticAssets();
+// Stylesheets, scripts and the icon are not the desk; the sign-in page and the reconnect
+// overlay need them before anyone has signed in.
+app.MapStaticAssets().AllowAnonymous();
 
 // Global Interactive Server render mode: MudBlazor does not support static server
 // rendering, so interactivity is declared once at the root rather than per component.

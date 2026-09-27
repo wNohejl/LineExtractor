@@ -2,6 +2,7 @@ using LineOps.Desk.Primitives;
 using LineOps.Desk.Theming;
 using LineOps.Desk.Windowing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LineOps.Desk;
 
@@ -73,6 +74,9 @@ public static class DeskServiceCollectionExtensions
     {
         services.AddSingleton(brand);
         services.AddSingleton(clock ?? DeskClock.Utc);
+        // One person on their own machine, who may do everything — unless the application
+        // registers who is at the desk (IDeskAccess), before or after this call.
+        services.TryAddSingleton<IDeskAccess>(OpenDeskAccess.Instance);
         services.AddScoped<WindowManager>();
         services.AddScoped<DeskFollowUps>();
         services.AddSingleton<DeskSignals>();
