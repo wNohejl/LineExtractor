@@ -72,4 +72,23 @@ public class SeasonCalendarTests
     public void An_evening_game_belongs_to_the_day_it_is_played_in_the_United_States(
         string sport, string startsAt, SeasonType expected)
         => Assert.Equal(expected, SeasonCalendar.TypeOf(sport, DateTimeOffset.Parse(startsAt)));
+
+    [Theory]
+    [InlineData("mlb", 2026, SeasonType.Regular, 2430)]
+    [InlineData("MLB", 2026, SeasonType.Regular, 2430)]
+    [InlineData("nfl", 2025, SeasonType.Regular, 272)]
+    [InlineData("nfl", 2020, SeasonType.Regular, 256)]
+    [InlineData("nfl", 2025, SeasonType.Postseason, 13)]
+    [InlineData("nfl", 2019, SeasonType.Postseason, 11)]
+    public void A_league_that_fixes_its_schedule_has_an_expected_count(
+        string sport, int year, SeasonType type, int expected)
+        => Assert.Equal(expected, SeasonCalendar.ExpectedGames(sport, year, type));
+
+    [Theory]
+    // How long MLB's postseason runs depends on how many series go the distance.
+    [InlineData("mlb", SeasonType.Postseason)]
+    [InlineData("nba", SeasonType.Regular)]
+    [InlineData("nfl", SeasonType.Preseason)]
+    public void A_schedule_nobody_fixes_has_no_expectation(string sport, SeasonType type)
+        => Assert.Null(SeasonCalendar.ExpectedGames(sport, 2026, type));
 }

@@ -43,6 +43,10 @@ public class AlertEngine(
         var candidates = new List<AlertCandidate>();
         var sources = await db.Sources.Where(s => s.Enabled).ToListAsync(ct);
 
+        // The operator's stored polling choice outranks the configured one, as it does for the
+        // scheduler: a feed switched to automatic in Ops is owed freshness from then on.
+        var oddsOnDemand = !await db.LinesRunUnattendedAsync(!_options.OddsOnDemand, ct);
+
         foreach (var source in sources)
         {
             var health = await kpi.GetHealthAsync(
@@ -54,7 +58,7 @@ public class AlertEngine(
                 continue;
 
             // Odds pulled only on request are idle between requests, not stale.
-            var onDemand = _options.OddsOnDemand && source.Kind == SourceKind.Odds;
+            var onDemand = oddsOnDemand && source.Kind == SourceKind.Odds;
 
             if (!onDemand && health.IsStale(_options.FreshnessSlo))
             {

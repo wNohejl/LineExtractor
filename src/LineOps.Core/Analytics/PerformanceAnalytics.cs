@@ -10,8 +10,20 @@ namespace LineOps.Core.Analytics;
 /// positive is in the bettor's favour: taking -1.5 into a -2.5 close is +1, an over at 8.5 into a
 /// 9 close is +0.5. Null for a moneyline, or where either number is unknown.
 /// </param>
-public readonly record struct ClvResult(int PriceTaken, int ClosingPrice, decimal? PointsGained = null)
+/// <param name="FairAtClose">
+/// The closing market's no-vig chance of the side at the number taken, where it had one. See
+/// <see cref="JournalEntry.ClosingFairProbability"/>.
+/// </param>
+public readonly record struct ClvResult(
+    int PriceTaken, int ClosingPrice, decimal? PointsGained = null, double? FairAtClose = null)
 {
+    /// <summary>
+    /// What the price taken was worth by the close: expected return per unit at the fair
+    /// closing chance. +0.03 is three cents on the dollar. Null without a fair close.
+    /// </summary>
+    public double? EvAtClose
+        => FairAtClose is { } fair ? FairValue.Ev(fair, PriceTaken) : null;
+
     /// <summary>
     /// The close was quoted at the number the entry was taken at, so the two prices are a fair
     /// comparison. When the line moved, they are prices for different bets, and the points are
@@ -45,6 +57,12 @@ public readonly record struct ClvResult(int PriceTaken, int ClosingPrice, decima
         _ => CentsPercent > 0
     };
 }
+
+/// <summary>Stake-weighted value at the fair close over a set of bets.</summary>
+/// <param name="Rate">Expected return per dollar staked.</param>
+/// <param name="Expected">Expected dollars, summed.</param>
+/// <param name="Bets">How many bets it was read from.</param>
+public readonly record struct ValueReading(double Rate, decimal Expected, int Bets);
 
 /// <summary>Aggregate performance across a set of settled entries.</summary>
 public readonly record struct PerformanceSummary(
@@ -92,7 +110,7 @@ public static class PerformanceAnalytics
         if (closingPrice is null || entry.PriceTaken == 0)
             return null;
 
-        return new ClvResult(entry.PriceTaken, closingPrice.Value, PointsGained(entry));
+        return new ClvResult(entry.PriceTaken, closingPrice.Value, PointsGained(entry), entry.ClosingFairProbability);
     }
 
     /// <summary>
@@ -132,6 +150,37 @@ public static class PerformanceAnalytics
             return "Another book's close";
 
         return PointsGained(entry) is { } points && points != 0m ? "Line moved" : "Same number";
+    }
+
+    /// <summary>
+    /// What an entry's fair close was read from — the other half of how honest its value reading
+    /// is. Pinnacle's close is the sharp reference; an average of books is a softer one; and a
+    /// single book, or a market that closed early, leaves none.
+    /// </summary>
+    public static string FairBasis(JournalEntry entry) => entry.ClosingFairProbability is null
+        ? "No fair close"
+        : entry.ClosingFairBasis == FairValue.SharpBook ? "Pinnacle" : "Consensus";
+
+    /// <summary>
+    /// What a set of bets was worth by the close, per dollar staked: expected dollars over
+    /// dollars staked, the same shape as ROI so the two read side by side as "what it was worth"
+    /// and "what it made". Only bets with a fair close and a stake of their own count — a parlay
+    /// leg's stake is the parlay's. Null when none do.
+    /// </summary>
+    public static ValueReading? ValueAtClose(IEnumerable<JournalEntry> entries)
+    {
+        var valued = entries
+            .Where(e => e.Stake > 0)
+            .Select(e => (Entry: e, Ev: ComputeClv(e)?.EvAtClose))
+            .Where(x => x.Ev is not null)
+            .ToList();
+
+        var staked = valued.Sum(x => x.Entry.Stake);
+        if (staked <= 0)
+            return null;
+
+        var expected = valued.Sum(x => (decimal)x.Ev!.Value * x.Entry.Stake);
+        return new ValueReading((double)(expected / staked), expected, valued.Count);
     }
 
     public static PerformanceSummary Summarise(IEnumerable<JournalEntry> entries)

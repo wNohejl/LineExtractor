@@ -465,7 +465,7 @@ else
                     {
                         var key = c;
 
-                        <TemplateColumn T="BoxScoreLine" Title="@key" Align="Align.Right"
+                        <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@key" Align="Align.Right"
                                         SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
                             <CellTemplate>
                                 <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
@@ -541,7 +541,7 @@ else
                     {
                         var key = c;
 
-                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
                                         Align="Align.Right"
                                         SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                             <CellTemplate>

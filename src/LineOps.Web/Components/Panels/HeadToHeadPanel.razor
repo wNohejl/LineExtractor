@@ -89,7 +89,7 @@ else
             @* A meeting with no result sorts between the losses and the wins rather than with
                either — it is not evidence for one side, and burying it with the losses would
                make it read as one. *@
-            <TemplateColumn T="HeadToHeadRow" Title="Winner" Align="Align.Right"
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Winner" Align="Align.Right"
                             SortBy="@(r => r.SubjectWon is { } w ? (w ? 2 : 0) : 1)">
                 <CellTemplate>
                     @if (context.Item.SubjectWon is { } won)
@@ -105,14 +105,14 @@ else
                 </CellTemplate>
             </TemplateColumn>
 
-            <TemplateColumn T="HeadToHeadRow" Title="Line" Align="Align.Right"
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Line" Align="Align.Right"
                             SortBy="@(r => r.ClosingSpread ?? decimal.MinValue)">
                 <CellTemplate>
                     <span class="mono">@(context.Item.ClosingSpread is { } s ? Line(s) : "—")</span>
                 </CellTemplate>
             </TemplateColumn>
 
-            <TemplateColumn T="HeadToHeadRow" Title="ATS" Align="Align.Right"
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="ATS" Align="Align.Right"
                             SortBy="@(r => r.AtsResult is { } a ? (int)a : int.MinValue)">
                 <CellTemplate>
                     @if (context.Item.AtsResult is { } ats)
@@ -129,7 +129,7 @@ else
                 </CellTemplate>
             </TemplateColumn>
 
-            <TemplateColumn T="HeadToHeadRow" Title="Total" Align="Align.Right"
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Total" Align="Align.Right"
                             SortBy="@(r => r.TotalResult is { } t ? (int)t : int.MinValue)">
                 <CellTemplate>
                     @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line)

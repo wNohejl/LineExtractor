@@ -104,7 +104,7 @@ else
                     {
                         var key = c;
 
-                        <TemplateColumn T="PlayerForm" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
                                         Align="Align.Right"
                                         SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                             <CellTemplate>

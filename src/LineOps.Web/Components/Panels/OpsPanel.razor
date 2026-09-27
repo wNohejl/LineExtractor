@@ -48,7 +48,7 @@
    here regardless would describe a schedule that is not running — the number would be real
    arithmetic about an allowance nobody is spending. What is left still matters, because that is
    what a press of Pull lines draws on. *@
-@if (!LinePolling.RunsUnattended)
+@if (!_unattended)
 {
     <p class="empty" style="padding:0 0 9px">
         Lines are pulled on request only — nothing is fetched unasked.
@@ -113,6 +113,45 @@ else if (_plan is { } plan)
             <text>— nothing metered, so this is the politeness floor rather than a budget</text>
         }.
     </p>
+}
+
+@* The switch the paragraph above prices. Held with the data, so the web host and the worker obey
+   the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
+   turning it off stops spending and needs no second thought. Only offered with a live feed:
+   scheduling scans of a provider that cannot be reached would spend nothing and say otherwise. *@
+@if (_feeds.Any(f => f.IsLive))
+{
+    <div class="row" style="gap:8px; margin:0 0 10px">
+        @if (_unattended)
+        {
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.PanTool"
+                        OnClick="() => SetPollingAsync(automatic: false)">
+                Pull on request only
+            </DeskButton>
+        }
+        else if (_confirmAutomatic)
+        {
+            <span class="dim" style="font-size:11.5px">
+                Scan at this price until switched back, from this host and the worker alike?
+            </span>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.Schedule"
+                        OnClick="() => SetPollingAsync(automatic: true)">
+                Yes, scan automatically
+            </DeskButton>
+            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
+        }
+        else
+        {
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Schedule"
+                        OnClick="() => _confirmAutomatic = true">
+                Scan automatically…
+            </DeskButton>
+        }
+        <span class="dim" style="font-size:11px">
+            @(_pollingSetHere ? "Chosen here." : "From configuration until chosen here.")
+        </span>
+    </div>
 }
 
 <DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds providers configured.">
@@ -315,6 +354,27 @@ else if (_plan is { } plan)
 
     private LineOps.Ingestion.Configuration.LinePollingOptions LinePolling => Ingestion.Value.LinePolling;
 
+    /// <summary>Whether lines are scanned unasked — the stored choice where there is one, else configuration.</summary>
+    private bool _unattended;
+    private bool _pollingSetHere;
+    private bool _confirmAutomatic;
+
+    private async Task SetPollingAsync(bool automatic)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        await db.SetSettingAsync(AppSetting.LinePolling,
+            automatic ? AppSetting.LinePollingScheduled : AppSetting.LinePollingManual);
+
+        _confirmAutomatic = false;
+        Toasts.Success(automatic
+            ? "Lines are scanned automatically, paced to the allowance."
+            : "Lines are pulled on request only. Nothing more is spent unasked.");
+
+        await LoadAsync();
+    }
+
     /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
     private IReadOnlyList<SportMarkets> _marketsBySport = [];
 
@@ -357,6 +417,9 @@ else if (_plan is { } plan)
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
         _feeds = scope.ServiceProvider.GetRequiredService<OddsFeedStatus>().Describe();
+
+        _pollingSetHere = await db.GetSettingAsync(AppSetting.LinePolling) is not null;
+        _unattended = await db.LinesRunUnattendedAsync(LinePolling.RunsUnattended);
 
         // Recomputed here rather than read off the scheduler: it is a pure function of the
         // budget already spent, so the panel and the scheduler reach the same answer without

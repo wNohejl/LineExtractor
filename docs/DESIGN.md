@@ -1,10 +1,10 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
-**Status: BUILT.** All seven phases implemented and verified. 555 tests passing (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
+**Status: BUILT.** All seven phases implemented and verified. More than 600 tests (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
-**v1 scope:** Games, players, and stats for NFL / NBA / MLB / NHL; mainstream markets only (moneyline, spread, totals). Player props and exotic markets are the designed extension path, not v1.
+**v1 scope:** Games, players, and stats for **MLB and NFL**, named in `Ingestion:Sports` — the seeded NBA and NHL rows are switched off at startup by `ReferenceReconciler`, which hides them from the desk's pickers; mainstream markets only (moneyline, spread, totals). Player props and exotic markets are the designed extension path, not v1.
 **Repository:** `C:\Deploy\LineOps` — see §8 for build and run steps.
 
 **Purpose (public):** An operations platform that ingests sports statistics and market line data daily from multiple external sources, stores line-movement history as time-series, computes performance analytics (closing-line value, ROI, bankroll), and monitors its own ingestion health with KPIs, alerting, and an incident log.
@@ -21,22 +21,23 @@
 
 | Component | Source / plan | What's free | Verified limit |
 |---|---|---|---|
-| Odds (primary) | **odds-api.io** free tier | Moneyline, spreads, totals · all 34 sports incl. NFL/NBA/MLB/NHL · live + pre-match · 2 recreational books (e.g., DraftKings, FanDuel) | 100 req/h, 500 req/day, forever, no card |
-| Odds (secondary/reconciliation) | **The Odds API** Starter | All sports, books, and markets — but billed in credits (markets × regions per call) | 500 credits/mo — treat as a small reconciliation budget, never the primary feed |
-| Players & stats | **balldontlie** free tier | NBA, NFL, MLB, EPL — teams, players, games, stats | Free tier with rate limits; NHL stats fall to ESPN |
-| Scores/schedules/stats backfill | **ESPN undocumented JSON** | Scoreboards, schedules, box scores, athletes across 20+ sports | Free, no auth — but unofficial and can change without notice |
+| Odds — the book market | **The Odds API** free tier | Moneyline, spreads, totals, billed in credits (markets × regions per call). Named books bill as one region, so `pinnacle,draftkings,fanduel,betmgm` costs what `regions=us` does and reaches Pinnacle, which `us` does not carry (ADR 0014) | 500 credits/mo — paced over the month, not the day |
+| Odds — alternative adapter | **odds-api.io** free tier | Moneyline, spreads, totals · 2 recreational books by default | 100 req/h, 500 req/day, no card. Adapter built and tested; off unless enabled with a key |
+| Stats, schedules, scores, backfill | **ESPN undocumented JSON** | Scoreboards, schedules, box scores; one book's closing line per final, kept as a reference | Free, no auth — but unofficial and can change without notice |
+| Baseball identity | **MLB Stats API** (`statsapi.mlb.com`) | `gamePk`, doubleheader numbers, probable pitchers | Free, unauthenticated |
+| *(not built)* | **balldontlie** | — | Configuration and a seeded source row exist; there is **no adapter**, so it never runs |
 | Database | PostgreSQL 17 in Docker | Everything | $0, local |
 | Hosting | Your own machine (Docker Compose) | Web + worker + DB | $0 — the daily poll cadence doesn't need cloud hosting |
 | CI | GitHub Actions, public repo | Build/test minutes | Free for public repos |
 
-**Budget math for the daily cadence:** a full slate poll costs **2 requests per sport** (one `/events`, one `/odds/multi` batching every event), so four sports is 8 requests. With intraday movement polls the day lands in the low hundreds — inside odds-api.io's 500/day on its own, before touching the second source. `CreditBudgetGuard` (§4) enforces this rather than trusting it: a run that would breach an hourly, daily, or monthly ceiling is **refused and recorded as `Partial`**, not attempted.
+**Budget math:** a moneyline-and-spread scan of one sport on The Odds API costs **2 credits** whatever the slate size. 500 credits a month, less a 100-credit reserve, is 200 scans for the *month* (ADR 0014) — so line polling is **Manual by default**: lines are fetched when an operator presses **Pull lines**, and the scheduler spends on its own only when `LinePolling:Mode` is `Scheduled`, at a cadence `LinePollPlanner` derives from what is left (§4). `CreditBudgetGuard` enforces the ceiling rather than trusting it: a run that would breach an hourly, daily, or monthly ceiling is **refused and recorded as `Partial`**, not attempted.
 
 **The three honest caveats:**
 1. **$0 holds for v1 scope, not every conceivable bet.** Free odds tiers cover moneyline/spread/totals — exactly the "no obscure bets yet" scope. **Player props at meaningful volume are the first thing that costs money** (The Odds API's 500 credits/mo technically include props but evaporate in days). Props are therefore the documented upgrade path (§13), not a v1 promise.
 2. **Free tiers are "development and testing" use** per odds-api.io's terms. A personal portfolio/analytics project fits; reselling the data or going commercial would not.
-3. **ESPN endpoints are unofficial** and can break without notice. In this project that's a controlled risk by design — breakage feeds the incident/RCA loop (§5) — and every ESPN-sourced capability has a fallback or is non-critical.
+3. **ESPN endpoints are unofficial** and can break without notice. In this project that's a controlled risk by design — breakage feeds the incident/RCA loop (§5). It is not a hedged one: ESPN is the only stats source (balldontlie has no adapter), so a break stops schedules, scores and settlement until the adapter is fixed. The MLB Stats API annotates games but never creates them.
 
-**Depth limitation to state plainly:** at 2 books, "line shopping" is a comparison, not a market scan. That's fine for v1 — CLV, ROI, and bankroll analytics don't need book breadth, they need *time depth*, which is free. More books is a paid upgrade, listed in §13.
+**Depth limitation to state plainly:** at four books, "line shopping" is a comparison, not a market scan. That's fine for v1 — one of the four is Pinnacle, which is worth more as the fair-price reference (§6) than several more recreational books would be as alternatives, and CLV, ROI, and bankroll analytics need *time depth* rather than breadth. More books is a paid upgrade, listed in §13.
 
 ---
 
@@ -65,38 +66,57 @@ The public identity of this project is a **data-ingestion and analytics operatio
 ┌──────────────────────────────────────────────────────────────────┐
 │ LineOps.slnx                                                     │
 │                                                                  │
-│  LineOps.Web          Blazor Web App, global Interactive Server   │
-│    ├─ Windowing/  WindowManager · WindowCatalog (the desk)        │
-│    ├─ Windowing/  Desk · AppWindow · Rail · RailMenu             │
-│    ├─ Panels/     Dashboard · Odds · Players · Journal ·          │
-│    │              Performance · Ops · Incidents · Runs            │
-│    │              (ordinary components; know nothing of windows)  │
-│    └─ wwwroot/js/windowing.js — drag/resize, browser-side (§6)    │
+│  LineOps.Web          Blazor Web App, global Interactive Server  │
+│    ├─ Windowing/  WindowCatalog — every window, and workspaces   │
+│    ├─ Panels/     Board · Every book · Place wager · Recent form │
+│    │              Game · Team · Player · Head to head            │
+│    │              Line movement · Players · Journal · Performance│
+│    │              Ops · Incidents · Runs · History               │
+│    │              Window manager · Parts bin                     │
+│    │              (ordinary components; know nothing of windows) │
+│    └─ Services/   DataChangeListener (Postgres LISTEN → signals) │
 │                                                                  │
-│  LineOps.Worker       Worker-SDK host (OPTIONAL, own container)   │
-│    └─ Program.cs + appsettings only; composes the library below   │
+│  LineOps.Desk         Razor library — the desk, no domain types  │
+│    ├─ Windowing/  WindowManager · Desk · AppWindow · DeskHeader  │
+│    │              WindowBar · CommandPalette (Ctrl+K)            │
+│    │              DeskSignals · DeskLayout (kept in localStorage)│
+│    ├─ Primitives/ DeskGrid · DeskChart · DeskDialog · Metric …   │
+│    └─ wwwroot/js/windowing.js — reorder/resize in-browser (§6)   │
 │                                                                  │
-│  LineOps.Ingestion    LIBRARY — adapters, scheduler, settlement   │
-│    ├─ IngestionScheduler   (BackgroundService, daily + intraday)  │
-│    ├─ OddsIngestionService · StatsIngestionService                │
-│    ├─ SettlementService    (grading + CLV resolution)            │
-│    ├─ EntityResolver       (cross-source id/name matching)        │
-│    ├─ CreditBudgetGuard    (refuses runs over free-tier ceiling)  │
-│    └─ Adapters: IOddsSource / IStatsSource / IFailureInjectable   │
-│         OddsApiIoAdapter · TheOddsApiAdapter                      │
-│         EspnStatsAdapter  · MlbStatsApiAdapter                    │
+│  LineOps.Worker       Worker-SDK host (OPTIONAL, own container)  │
+│    └─ Program.cs + appsettings only; composes the libraries below│
 │                                                                  │
-│  LineOps.Reliability  Shared reliability library (§5)             │
-│    ├─ KpiCalculator · AlertEngine · IncidentService               │
-│    └─ ReliabilityEvaluator (BackgroundService)                    │
+│  LineOps.Ingestion    LIBRARY — adapters, scheduler, settlement  │
+│    ├─ IngestionScheduler   (BackgroundService, state-triggered)  │
+│    ├─ IngestionJobs        (named pulls; the Pull data menu too) │
+│    ├─ LinePollPlanner      (line cadence from what is left)      │
+│    ├─ OddsIngestionService · StatsIngestionService               │
+│    ├─ OddsRetentionService (scans → one closing line per book)   │
+│    ├─ SettlementService    (grading, CLV, fair close)            │
+│    ├─ EntityResolver       (cross-source id/name matching)       │
+│    ├─ MlbSpineService      (MLB ids, doubleheaders, probables)   │
+│    ├─ HistoryBackfillService · BackfillCoordinator               │
+│    ├─ CreditBudgetGuard    (refuses runs over free-tier ceiling) │
+│    └─ Adapters: IOddsSource / IStatsSource                       │
+│         TheOddsApiAdapter · OddsApiIoAdapter                     │
+│         EspnStatsAdapter  · MlbStatsApiAdapter (spine, own seam) │
 │                                                                  │
-│  LineOps.Core         Domain entities · OddsMath · Grading ·      │
-│                       PerformanceAnalytics  (no dependencies)     │
+│  LineOps.Reliability  Shared reliability library (§5)            │
+│    ├─ KpiCalculator · AlertEngine · IncidentService · DataQuality│
+│    └─ ReliabilityEvaluator (BackgroundService)                   │
 │                                                                  │
-│  LineOps.Data         EF Core 10 + Npgsql · migrations ·          │
-│                       partition maintenance · seeding             │
+│  LineOps.Observability  OpenTelemetry wiring · KPI gauges ·      │
+│                         /ready health check                      │
 │                                                                  │
-│  PostgreSQL 17        Docker, not published to the host (§7)      │
+│  LineOps.Core         Domain entities · OddsMath · FairValue ·   │
+│                       Grading · PerformanceAnalytics ·           │
+│                       SeasonCalendar  (no dependencies)          │
+│                                                                  │
+│  LineOps.Data         EF Core 10 + Npgsql · migrations ·         │
+│                       partition maintenance · seeding ·          │
+│                       BoardService and the cross-reference reads │
+│                                                                  │
+│  PostgreSQL 17        Docker, not published to the host (§7)     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -104,7 +124,8 @@ The public identity of this project is a **data-ingestion and analytics operatio
 
 - **Blazor Web App with global Interactive Server render mode** — MudBlazor doesn't support static SSR and doesn't officially target .NET 10 yet; global interactivity is the known-good configuration. Knowing a framework's rendering-model constraints is exactly the "advanced platform experience" bullet. → [ADR 0004]
 - **`LineOps.Ingestion` is a library; `LineOps.Worker` is the host.** Originally one Worker-SDK project. Containerising it produced `NETSDK1152` — two executables in one publish output, each with its own `appsettings.json`. The error was the symptom; the real problem was that a web app referencing another app's *executable* project is a layering smell, and whichever config file won would have been nondeterministic. Splitting by role fixed both. → [ADR 0005]
-- **Web and Worker are separate processes** sharing Core/Data/Reliability. The UI never blocks on ingestion; ingestion failures degrade freshness, not availability. Topology is a compose profile and a startup registration, not a code change — both hosts call the same `AddLineOpsIngestionScheduler()`.
+- **Web and Worker are separate processes** sharing Core/Data/Reliability/Ingestion/Observability. The UI never blocks on ingestion; ingestion failures degrade freshness, not availability. Topology is a compose profile and a startup registration, not a code change — both hosts call the same `AddLineOpsIngestionScheduler()`, and the web host skips it when `Ingestion:HostScheduler` is false.
+- **The desk is its own library.** `LineOps.Desk` references no other LineOps project: it knows windows, keys, topics and a clock, never games or odds. The application hands it an `IWindowCatalog` (`AppWindowCatalog` over `WindowCatalog`), an `IDeskSearch` for the command palette, and publishes data-change topics into `DeskSignals` — from `DataChangeListener`, which holds one Postgres `LISTEN` connection for the host and falls back to a once-a-minute refresh while it is down. Keeping domain types out is what keeps the window manager a window manager.
 - **Adapter pattern per external source** behind `IOddsSource`/`IStatsSource`. Sources differ in auth, rate limits, schemas, and billing (The Odds API bills credits = markets × regions, not per request — a genuine reconciliation problem). Normalisation to canonical records happens at the adapter boundary, so nothing above it knows a provider's shape.
 - **Defensive parsing by design.** Adapters read every field through alias fallbacks (`id`/`eventId`/`_id`, prices as number *or* string, teams as string *or* nested `{name}`) and return zero rows on an unrecognised shape rather than throwing. Schema drift therefore surfaces as a *volume anomaly* in the KPIs — a warn — instead of a crash. → §5, [ADR 0003]
 - **Three integration styles, deliberately:** synchronous REST pulls (adapters), scheduled bulk slate ingest (batched `/odds/multi`, one call per sport regardless of game count), and post-final settlement processing that joins the journal against the time-series. Matches the sync/async/bulk transport bullet in the Senior JD. *(The original design proposed `System.Threading.Channels` between fetch and persist; see §11 for why that was dropped.)*
@@ -128,10 +149,16 @@ source(id, key unique, name, kind, base_url,  -- kind: Odds|Stats
        failure_mode null)                     -- dev-only injection, persisted (§5)
 game(id, sport_id, home_team_id, away_team_id,
      starts_at timestamptz, status,           -- Scheduled|Live|Final|Postponed
+     season_year, season_type,                -- Regular|Postseason|Preseason|Exhibition,
+                                              -- stamped by the provider (SeasonCalendar
+                                              -- derives it for rows that predate the column)
      home_score null, away_score null,
+     home_probable_pitcher null,              -- MLB spine (§4)
+     away_probable_pitcher null,
+     double_header_game null,                 -- 1 or 2, as MLB numbers it
      external_ids jsonb)                      -- id per source; matching problem lives here
 
--- Time-series core (append-only, never updated)
+-- Scan tier (append-only, never updated; pruned once the game has a close — ADR 0010)
 odds_snapshot(
      id bigint generated by default as identity,
      captured_at timestamptz not null,
@@ -148,6 +175,14 @@ odds_snapshot(
    -- lineops_ensure_odds_partition(timestamptz) creates them on demand
    -- ix (game_id, market, book, captured_at)
    -- ux (game_id, source_id, book, market, outcome, captured_at)
+
+-- Permanent record: the line at first pitch (ADR 0010)
+closing_line(id, game_id, source_id, book, market, outcome,
+     line numeric null, price_american int, player_id null,
+     captured_at, promoted_at)
+  -- unique (game_id, book, market, outcome); not partitioned, never pruned.
+  -- Written by OddsRetentionService from the newest scan at or before the start, and by
+  -- the ESPN stats pass as a single-book *reference* close under ESPN's own source id
 
 stat_snapshot(id, game_id, source_id, payload jsonb,
      captured_at, ingestion_run_id)
@@ -167,11 +202,17 @@ journal_entry(id, note null, game_id null, market, outcome,
      stake numeric(12,2), placed_at timestamptz,
      result text,                             -- Pending|Win|Loss|Push|Void
      payout numeric(12,2) null,
-     parlay_group_id uuid null,               -- groups legs of one parlay
+     parlay_group_id uuid null,               -- the parlay row this leg belongs to
      -- CLV, held as plain columns rather than an FK — see ADR 0002
-     closing_snapshot_id bigint null,
-     closing_captured_at timestamptz null,    -- partition key, so lookups prune
-     closing_price int null)                  -- denormalised: CLV survives pruning
+     closing_snapshot_id bigint null,         -- now a closing_line id; still unenforced
+     closing_captured_at timestamptz null,
+     closing_price int null,                  -- denormalised: CLV survives pruning
+     closing_points numeric null,             -- the number the close was quoted at
+     closing_book text null,                  -- whose close it was compared with
+     closing_fair_probability null,           -- the no-vig close at the number taken (§6)
+     closing_fair_basis text null)            -- "pinnacle" | "consensus"
+parlay(id uuid, book, stake, price_quoted null, placed_at,
+     result, payout null, settled_at null, note null)   -- one stake over several legs
 
 -- Operations (§5)
 ingestion_run(id, source_id, job_key,         -- odds:slate | odds:movement | stats:boxscore…
@@ -182,7 +223,7 @@ ingestion_run(id, source_id, job_key,         -- odds:slate | odds:movement | st
 kpi_daily(day date, source_id, freshness_minutes,
      success_rate, rows_ingested, run_count,
      requests_made, api_credits_used,
-     PRIMARY KEY (day, source_id))
+     PRIMARY KEY (day, source_id))           -- rolled up, not yet read by anything (§5)
 alert(id, rule_key, source_id null, severity,  -- Info|Warn|Critical
      message, triggered_at, resolved_at null, incident_id null)
 incident(id, title, severity, status,          -- Open|Mitigated|Resolved
@@ -194,9 +235,10 @@ incident(id, title, severity, status,          -- Open|Mitigated|Resolved
 **Design points worth defending in an interview:**
 
 - **Append-only + native monthly partitioning** — the same discipline as the 2TB partitioned-Postgres migration on the resume, at hobby scale. "Current line" is a query (`newest row per game/book/market/outcome`), never a mutable column. Old months detach or drop as a metadata operation instead of a mass `DELETE`. → [ADR 0001]
+- **Two tiers with different lifetimes.** Almost nothing reads a game's price history once it has started; the one question left is "what was the number at first pitch". So `odds_snapshot` is a scan tier for games still ahead, and `OddsRetentionService` promotes the newest scan at or before the start into `closing_line` — ten minutes after the start, so a scan landing at first pitch is not beaten by a staler one — and only then prunes the scans behind it, dropping partitions left empty. Promote-then-prune is the safety property: nothing is deleted until what replaces it exists. The cost is stated plainly: line movement for a started game is gone for good. → [ADR 0010]
 - **The partition key forced a real trade-off.** A unique constraint on a partitioned table must include the partition key, so the PK is `(captured_at, id)` — which means `odds_snapshot` **cannot be a foreign-key target**. The closing-snapshot link became three plain columns. That turned out *better*: denormalising `closing_price` means **CLV survives dropping old partitions**, where an FK would have silently lost it. → [ADR 0002]
-- **`external_ids jsonb`** on game/team/player: cross-source entity resolution (ESPN's game id ≠ odds-api's id) is a genuine reconciliation problem. `EntityResolver` tries the provider's own id first (exact, cheap), falls back to normalised team names within a ±24h window, then records the discovered id so the next run takes the fast path.
-- **CLV materialisation:** when a game finishes, `SettlementService` finds the last pre-start snapshot matching the entry's book + market + outcome, falling back to *any* book if the entry's own book was never tracked (a cross-book close is weaker than a same-book one but far better than no CLV). This join across the journal and the time-series is the single best technical talking point in the app.
+- **`external_ids jsonb`** on game/team/player: cross-source entity resolution (ESPN's game id ≠ The Odds API's) is a genuine reconciliation problem. `EntityResolver` tries the provider's own id first (exact, cheap), falls back to normalised team names with start times no more than six hours apart (`SameFixtureDrift` — it was 24 hours, wide enough to catch the next game in a series or a doubleheader's second game), then records the discovered id so the next run takes the fast path. For baseball, MLB's own `gamePk` is the spine the others resolve into (§4).
+- **CLV materialisation:** when a game finishes, `SettlementService` reads `closing_line` for the entry's book + market + outcome, falling back to *any* book if the entry's own book was never tracked (a cross-book close is weaker than a same-book one but far better than no CLV). A book market's close outranks ESPN's reference close. The same pass values the price taken at the fair close (§6). This join across the journal and the time-series is the single best technical talking point in the app.
 - **`market` as text, `player_id` nullable, stat lines as jsonb** — chosen so props, futures and new sports are additive. Designing v1 so v2 needs no migration *is* the "scalable, durable" bullet.
 
 ---
@@ -205,10 +247,14 @@ incident(id, title, severity, status,          -- Open|Mitigated|Resolved
 
 `IngestionScheduler` is a `BackgroundService` in the `LineOps.Ingestion` library, hosted by the web app by default or by `LineOps.Worker` in its own container.
 
-**Schedule (free-tier friendly):**
-- **Daily 09:00 local** — bulk slate ingest, then yesterday's box scores, then a settlement pass.
-- **Intraday every 3 h** — movement snapshots, but only if a game actually starts within 36 h. No games close to starting means no requests spent.
-- **Post-final** — score settlement, grading, CLV resolution.
+**Schedule — named jobs, triggered by state rather than the clock.** → [ADR 0012]
+
+`IngestionJobs` names the pulls the platform can make — `espn:slate`, `espn:results`, `odds:lines` (and `odds:lines:<sport>`, one per league, because a credit-billed provider charges per sport), `settle` — and each states its cost before it runs. The Board's **Pull data** menu lists them with those costs; the scheduler runs the same entries, so the manual and automatic paths cannot drift. Nothing runs at a fixed hour:
+- **Before a game** — the ESPN slate refreshes when the next start falls inside `PreGameLead` (3 h), at most every `SlateRefresh` (30 min). The MLB spine follows it (below).
+- **While a game is on** — any game whose start has passed but is not final or postponed is polled every `LivePoll` (90 s), so a score moves during play.
+- **After a game** — results are swept once a started game is old enough to have finished (`ResultsAfterStart`, 4 h), retried until it is final here, and settlement runs in the same tick.
+- **Lines** — **Manual by default** (`LinePolling:Mode`): an operator presses **Pull lines** and nothing is spent unasked. With `Scheduled`, the scheduler also scans at a cadence `LinePollPlanner` derives from the provider's allowance — what is left, less a reserve, divided by the cost of a scan, spread over the hours left in the day or, for a credit-billed provider, the month — then stretched a day out and compressed inside three hours of first pitch, bounded by a floor and a ceiling (ADR 0014). An unattended scan is skipped unless a game starts inside the 36 h movement window, so a quiet slate spends nothing. Ops shows the cadence, computed by the same function.
+- **Retention** — every 15 minutes, promote closes and prune scans (§3).
 
 The loop ticks every minute and asks *what is due*, rather than sleeping until the next job. A restart therefore never skips a window, and the schedule survives clock drift. Any exception inside a tick is logged and the loop continues — a crashed scheduler would take the whole platform silent, which is worse than one failed run.
 
@@ -225,13 +271,16 @@ The loop ticks every minute and asks *what is due*, rather than sleeping until t
 - Every run writes an `ingestion_run` row, success or failure. That table is the sole raw feed for the reliability layer; a run that vanished would blind the KPIs.
 
 **Sources (v1 roster, all free — see §0):**
-- **odds-api.io** — primary odds: moneyline/spread/totals, NFL/NBA/MLB/NHL, 2 books. Two calls per sport (`/events` then `/odds/multi`).
-- **The Odds API** — secondary, for cross-source reconciliation only; hard 500-credit/mo budget.
-- **ESPN undocumented JSON** — schedules, scores, box scores, NHL gap-fill. No auth. Verified pulling real rosters in testing.
-- **balldontlie** — players/teams/games/stats (registered; enable with a key).
+- **The Odds API** — the book market the desk runs on. Credit-billed (markets × regions), so the market list is the cost control and a pull is per sport. Books are named rather than taken by region — `pinnacle`, `draftkings`, `fanduel`, `betmgm` bill as one region and bring Pinnacle, the fair-price reference (§6). Prices carry the book's own `last_update`, not our fetch time, so the movement chart records the market rather than our polling. Off until enabled with a key, which lives in the gitignored `appsettings.Local.json` or user-secrets. → [ADR 0011], [ADR 0014]
+- **ESPN undocumented JSON** — the stats port: schedules, live and final scores, box scores. No auth. ESPN publishes odds too, but from one book — a price, not a market — so it never supplies the board's prices. What it does supply is that book's **closing line** for each final, stored in `closing_line` under ESPN's own source id as a *reference*: a game the odds feed covered is always read from the market alone, and the reference fills only games no market covered. Early-season history has no ESPN line either, and nothing fabricates one. → [ADR 0011]
+- **MLB Stats API** — the entity spine for baseball, registered as itself rather than as an `IStatsSource`. After each slate pass `MlbSpineService` annotates the games ESPN created — MLB's `gamePk`, the doubleheader game number, and the announced probable pitchers — for today and tomorrow. It never creates a game. → [ADR 0014]
+- **odds-api.io** — a second odds adapter, moneyline/spread/totals at 100 req/h and 500 req/day; two calls per sport (`/events` then `/odds/multi`). Built and tested, off unless enabled with a key.
+- **balldontlie** — configuration (`Ingestion:BallDontLie`) and a seeded source row exist, but **there is no adapter**; enabling it does nothing.
 - *(Removed)* **Demo odds + stats fixtures** — deterministic offline sources that ran a cold clone with no keys. Withdrawn: the platform runs on real data only. → [ADR 0017], §11
 
-The daily bulk ingest includes a **player/stats pass**: roster upsert by external id (players move teams mid-season, so team is refreshed every sync) and post-final box scores into `player_game_stat`.
+Stats ingestion is a **results pass**: post-final box scores into `player_game_stat`, and a player is stored only once they appear in one — the ESPN roster method deliberately does nothing, because a roster is everyone on the books and appearing in a box score is what earns a row (ADR 0011). Games ESPN marks as spring training or the All-Star Game are rejected at the adapter boundary (ADR 0014).
+
+**History** is backfilled from unmetered sources only — `HistoryBackfillService` refuses a metered provider whatever configuration names — walking past days newest-first, paced and resumable through `backfill_checkpoint`, started from the History window rather than by default. → [ADR 0009]
 
 ---
 
@@ -239,10 +288,10 @@ The daily bulk ingest includes a **player/stats pass**: roster upsert by externa
 
 `LineOps.Reliability`, referenced by both hosts. **Framing:** "I extracted the reliability concerns into a shared library" — the Senior JD's "improve patterns/standards/shared libraries" bullet, verbatim.
 
-**KPIs** (derived from `ingestion_run`, materialised into `kpi_daily`, shown in the Ops Center):
+**KPIs** (computed live from `ingestion_run` by `KpiCalculator`, shown in the Ops window and published as gauges). `ReliabilityEvaluator` — and the Ops drill — also roll them up per source per day into `kpi_daily` (`RollupDailyAsync`), but nothing reads that table yet: every surface, alert and gauge computes from the run history directly.
 - **Freshness** — minutes since the last *successful* run. A later failure does not reset it. SLO < 26 h.
 - **Success rate** — successes / completed runs, 7-day rolling. SLO ≥ 95%. `Partial` counts as failure; `Running` is excluded.
-- **Volume anomaly** — today's rows vs. trailing 7-day median, warn below 50%. Returns *null* with fewer than three days of history rather than guessing, because a false alert on day one trains you to ignore alerts.
+- **Volume anomaly** — today's rows vs. trailing 7-day median, warn below 50%. Returns *null* with fewer than three days of history rather than guessing, because a false alert on day one trains you to ignore alerts — and null too when the source ran on half the baseline days or fewer, because a feed pulled on request has no daily volume to fall short of.
 - **Budget burn** — requests/credits against each provider's ceiling.
 
 **Two kinds of zero.** Because prices are only written on change, a healthy run on a quiet market writes zero rows — and so does a provider silently returning `HTTP 200` with a broken payload. Conflating them means either paging on every quiet Tuesday or never noticing a real outage. Status is therefore derived from what the *provider returned*, not from what was written:
@@ -260,13 +309,13 @@ The daily bulk ingest includes a **player/stats pass**: roster upsert by externa
 
 **Incident log with RCAs:** a critical alert can be promoted manually, or `ReliabilityEvaluator` auto-opens one after a critical persists across N evaluation cycles (transient blips don't earn an incident). **`ResolveAsync` throws unless both a root cause and a corrective action are supplied** — the discipline is enforced by the API, not by good intentions, so the accumulated history is a real RCA log rather than a list of things that broke.
 
-**On-call simulation:** per-source failure injection — `error` (503), `timeout`, and `empty` (HTTP 200, no rows — the silent one). Persisted on the `source` row rather than held in memory, so a drill survives a restart and is visible to anyone reading the config. Only development fixtures implement `IFailureInjectable`; no real-provider adapter does. This is how you honestly say "I built and operated the on-call loop" about a solo project.
+**On-call simulation:** per-source failure injection — `error` (503), `timeout`, and `empty` (HTTP 200, no rows — the silent one). Persisted on the `source` row rather than held in memory, so a drill survives a restart and is visible to anyone reading the config. This is how you honestly say "I built and operated the on-call loop" about a solo project. **As it stands:** the development fixtures were the only adapters implementing `IFailureInjectable`, and they retired with the demo source (ADR 0017). The interface, the `failure_mode` column and the drill UI remain, but no registered adapter accepts a fault, and the Ops window says so rather than offering a control that does nothing. The drill still runs a real, metered pull through ingest → rollup → alert, against the configured league with the most games still to start.
 
-**Ops Center UI:** KPI tiles with SLO status, per-source health cards, drill panel, open-alert feed with one-click incident promotion, incident list + timeline + RCA editor, filterable ingestion-run history.
+**Ops window:** headline metrics (sources in SLO, open alerts, rows today, open incidents), odds-feed readiness — each provider's state and why it is not running, and the line cadence in force — per-source health, the open-alert feed with one-click incident promotion, and the on-call drill. Incidents (timeline and RCA editor) and Runs (every ingestion run) are windows of their own.
 
 **The runbook is in the tool, not beside it.** `docs/runbook.md` is embedded in `LineOps.Reliability` and rendered inside the incident that raised the rule, so triage steps are in front of whoever is working it. And the relationship is a **test**: `RunbookCoverageTests` asserts a bijection between the `AlertRules` constants and the runbook's rule headings, in both directions. This came from a real failure — `budget_pressure` shipped documented, configured, and unreachable, because the budget data lived in `LineOps.Ingestion` and the reference direction is `Ingestion → Reliability`, so the alert engine structurally could not see it. The fix split *measuring* consumption (`BudgetCalculator`, in the reliability layer) from *enforcing* it (`CreditBudgetGuard`, still in ingestion), and made the drift a red build rather than a thing to remember.
 
-**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `LineOps.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `LineOps.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`lineops.source.freshness_minutes`, `lineops.budget.utilisation`, `lineops.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops Center uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
+**Standard telemetry beside the bespoke layer** → [ADR 0015]. OpenTelemetry carries signals to whatever the operator already runs; the reliability layer keeps the domain judgments no generic exporter can make (two kinds of zero, unconfigured-is-not-an-outage, a median needs three days, unmetered is not zero). Instrumentation is BCL only — `ActivitySource` and `Meter` names live in `LineOps.Core.Diagnostics`, so the working libraries emit with no vendor dependency and `LineOps.Observability` is the single project that references OTel. The observable gauges publish the project's *own* KPIs (`lineops.source.freshness_minutes`, `lineops.budget.utilisation`, `lineops.incidents.awaiting_rca`), computed by the same `KpiCalculator` the Ops window uses rather than reimplemented — which is what makes the bespoke layer legible to standard tooling without becoming a second source of truth. Gauges read a cached snapshot, never the database: a metrics callback runs on the collection path, and blocking it on I/O is how a monitoring system becomes the outage.
 
 **Liveness and readiness are different questions.** `/health` depends on nothing, so a database outage cannot get a container killed and restarted into the same outage. `/ready` reports Postgres reachable *and* schema at the expected version — a process pointed at a database with pending migrations starts, accepts traffic, and fails every request, and no restart fixes that. Verified by stopping Postgres: `/health` stayed 200, `/ready` returned 503, and it recovered on its own.
 
@@ -274,31 +323,52 @@ The daily bulk ingest includes a **player/stats pass**: roster upsert by externa
 
 ## 6. Interface — a desk, not a set of pages
 
-The UI is a **window manager**. One route hosts draggable, resizable, minimisable windows on
-a shared desk, with a rail (taskbar) that docks to any of the four edges. → [ADR 0007]
+The UI is a **window manager**, built as its own library (`LineOps.Desk`, §2). One route hosts
+a fixed header and footer, and between them a single **row of full-height tab windows**: each
+new window takes its place at the end of the row and the others give up the space. Windows are
+not freely placed — arbitrary placement is what dialogs and popovers above the desk are for —
+and there is no longer a rail docking to an edge. → [ADR 0007], [ADR 0013]
 
 Why: triaging an ingestion failure means reading source health, the incident, and the runs
 behind it *together*; a page-based UI can only ever show one. Pages fought the product.
 
-- **`WindowManager`** (scoped, one per circuit) owns placement, stacking, focus and rail
-  edge, so tiling, workspaces and keyboard actions can move windows — a drag is not the only
-  path. **`WindowCatalog`** is the registry: adding a window is one entry.
+- **Two gestures, on two different hit targets.** Dragging a tab (a window's title bar) past
+  a neighbour **reorders** the row; dragging the **divider** between two columns resizes just
+  those two, preserving their combined width so nothing else moves. A window can also be
+  collapsed to a slim tab or maximised. Nothing else about geometry is the operator's to set.
+- **`WindowManager`** (scoped, one per circuit) owns row order, widths, focus and collapse,
+  so workspaces and keyboard actions change the desk without a drag. **`WindowCatalog`** is
+  the registry: adding a window is one entry. Subject windows — a game, a team, a player, a
+  head-to-head — take an id, can be open several at once, and are reached by following a name
+  rather than from the launcher.
+- **The header is fixed furniture.** `DeskHeader` holds the brand (which opens the workspace
+  menu) and `WindowBar`, one key per catalogue window in catalogue order, lit while its window
+  is open; subject windows have no key. Keys never move, so the one you reach for is where it
+  was. **Ctrl+K** (⌘K) opens `CommandPalette` — windows, workspaces, and the teams, players and
+  games the application's search provides.
 - **Panels are ordinary components.** They receive their window id as a cascading value and
   know nothing else about being hosted. That inversion is what makes *any* sub-page a window.
-- **Workspaces** are named layouts stored as *fractions* of the desk — "Morning triage" (ops,
-  incidents, runs), "Line watch" (slate beside a movement chart), "Review" (journal beside
-  performance) — so a layout saved on a monitor still fits a laptop. Plus tile, columns,
-  cascade.
-- **Capacity is advice, not a rule.** `RecommendedCapacity` derives from the viewport
-  (~420×300 per readable window); the launcher says so once exceeded. The operator decides.
-- **Drag and resize run entirely in the browser.** Blazor Server routes events over a
+  A panel subscribes to `DeskSignals` topics and reloads when the data under it changes.
+- **Workspaces** are named lists of window keys in row order — "Morning triage" (ops,
+  incidents, runs), "Line watch" (the board beside a movement chart), "Review" (journal beside
+  performance), "Bet a game" (board, journal, performance). `ApplyWorkspace` opens them at
+  their default widths, so a workspace fits any screen; `SaveWorkspace` records the operator's
+  own from the windows that open on nothing.
+- **The desk survives a reload.** `DeskLayout` — open windows, order, widths as fractions of
+  the row, settings, saved workspaces — is written to `localStorage`, so a restarted server or
+  a refreshed tab puts the row back, and a layout from another version is ignored rather than
+  misread.
+- **Capacity is advice, not a rule.** `RecommendedCapacity` derives from the viewport and the
+  widest window's minimum; the first measurement sets the ceiling, and past it the least
+  recently used window is closed — never silently: the footer names what went and why.
+- **Reorder and resize run entirely in the browser.** Blazor Server routes events over a
   SignalR circuit, so a `@onpointermove` handler would put a network round trip inside every
   frame of a drag. `windowing.js` mutates the element directly at pointer rate and calls
-  .NET once, on pointer-up, with the final rectangle.
+  .NET once, on pointer-up, with the result.
 
 **The signature — the pulse strip.** Each window's title bar carries a 2px band encoding
-*that window's own* state, mirrored on its rail chip. A minimised window still reports: the
-Ops chip stays amber while you work in Journal. Peripheral awareness is the only reason a
+*that window's own* state, mirrored on its key in the header. A collapsed window still reports:
+the Ops key stays amber while you work in Journal. Peripheral awareness is the only reason a
 desk beats tabs, so it is the one loud element and everything around it stays quiet.
 
 **Visual language.** Apple's HIG: a true-neutral surface ramp (`--surface-0` … `--surface-3`)
@@ -314,13 +384,21 @@ second mono. → [ADR 0016]
 
 ### Panels
 
-- **Slate** — today's games, current moneyline per game, counters, manual **Ingest now**.
-- **Odds Explorer** — per-game movement chart, one series per book/outcome on a shared time axis, each carrying its last price forward (a missing point means *unchanged*, not *unknown*). Plus a current-market table with implied probability.
-- **Players & Stats** — searchable roster by sport, games-logged count, and per-player game logs whose **columns are derived from the data** rather than hard-coded, since stat shapes differ per sport and source.
-- **Bet Journal** — log entries, auto-graded on final score, per-entry CLV once the close resolves. Free-text market option for anything without a feed. *No wagering affordances of any kind (§1).*
-- **Performance** — ROI, net profit, win rate, "beat the close" rate and average CLV, bankroll curve, breakdowns by market and by book.
+Titles as `WindowCatalog` gives them.
 
-Charts via MudBlazor. All maths lives in `LineOps.Core` as pure functions — `OddsMath` (American ↔ decimal ↔ implied probability, no-vig, break-even rate), `Grading`, `PerformanceAnalytics` — and is unit-tested against hand-checked values rather than against its own output.
+- **Board** — the one games surface: every game in the slate horizon with its score, the best price on each market with a spread rail across the books, a league filter, a **+EV** filter, and the **Pull data** menu. It absorbed the old *Slate* window, whose key is simply absent from the catalogue, so a saved desk that had it reopens without it. Opening a row offers its follow-ups, each taking a game id: **Every book** (every book's number on every market, with each book's hold and the fair price), **Place wager** (the journal form, pre-filled from the board's best price, asking only for the stake), **Recent form** (both rosters) and **H2H**. → [ADR 0013]
+- **Game** — lines, team data and players for one game; live, the score and what is still open lead. **Team**, **Player** and **Head to head** are where following a name leads: a team's record and roster form, one player's game log, and every previous meeting with how the market called it.
+- **Line movement** — per-game movement chart, one series per book/outcome on a shared time axis, each carrying its last price forward (a missing point means *unchanged*, not *unknown*), plus a current-market table with implied probability and both rosters' recent form. Only games still ahead have movement to draw (§3).
+- **Players** — searchable roster by sport, and per-player game logs whose **columns are derived from the data** rather than hard-coded, since stat shapes differ per sport and source.
+- **Journal** — log entries, auto-graded on final score, per-entry CLV once the close resolves, and what the price was worth at the fair close. Free-text market option for anything without a feed. *No integration with any wagering system (§1).*
+- **Performance** — ROI, net profit, win rate, "beat the close" rate, **value at close**, bankroll curve, breakdowns by market, sport and book, and what each entry's CLV was measured against.
+- **Ops**, **Incidents**, **Runs** — §5.
+- **History** — starts and watches the backfill (§4) and reports, per league and season part, how much of each season the data holds: games held against what the league schedules (`SeasonCalendar.ExpectedGames` — 2,430 for an MLB regular season, 272 for an NFL one since 2021; none for an MLB postseason, whose length is not fixed), finals, finals still missing a box score, and finals with a close. The table is `DataQuality.SeasonsAsync`, so "we have the 2025 NFL season" is a number rather than a belief.
+- **Window manager** (ceiling, primary window and its share, resolution) and **Parts bin** (every desk primitive, live, for building panels against).
+
+**Fair value — what a price is worth, not only what it pays.** The best of four prices can still be a bad price, so the board holds each one against a fair price: the market's probability with the book's margin taken out (`LineOps.Core/Analytics/FairValue.cs`). `FairMarket` pairs each book's two sides *on the same number* — the two teams on a moneyline, over and under on one total, home −1.5 with away +1.5 on a handicap. The fair price is Pinnacle's de-margined pair where Pinnacle quotes that number, otherwise the average of the de-margined pairs of at least two books; one book judged against itself is always exactly its own margin short, which says nothing. A number the reference did not price gets **no** fair price and no expected value — Pinnacle's −1.5 says nothing about −2.5 without a model of how often games land on 2, and a guessed one would be a fabricated reading. `BoardService` attaches the fair price and EV to each side's `BestOffer`, and EV and hold to each book's `BookPrice`; the +EV filter and "best value" (not always the best price) read from those. At settlement, `SettlementService` stores the closing market's fair probability at the entry's number and its basis (`closing_fair_probability`, `closing_fair_basis` — "pinnacle" or "consensus"), read only from a book market that closed within three hours of the start (`FreshCloseWithin`) — a market "close" from a pull days earlier is not a close, so such a game is priced against ESPN's first-pitch reference and has no fair close (ADR 0011 amendment). `ClvResult.EvAtClose` then values the price *taken* at that fair close — unlike price-against-price CLV, it neither flatters nor punishes the book's cut — and Performance shows it stake-weighted as **Value at close**: expected dollars over dollars staked, beside ROI as "what it was worth" against "what it made".
+
+Charts via MudBlazor, behind the desk's own `DeskChart`. All maths lives in `LineOps.Core` as pure functions — `OddsMath` (American ↔ decimal ↔ implied probability, no-vig, break-even rate), `FairValue`, `Grading`, `PerformanceAnalytics`, `SeasonCalendar` — and is unit-tested against hand-checked values rather than against its own output.
 
 ---
 
@@ -361,7 +439,8 @@ Docker alone is enough to *run* LineOps. The SDK is only needed to develop or ru
 cd C:\Deploy\LineOps
 
 # Generates .env with strong random secrets and exports the HTTPS dev certificate
-# to %USERPROFILE%\.aspnet\https\LineOps.Web.pfx. Safe to re-run; use -Force to regenerate.
+# to %USERPROFILE%\.aspnet\https\LineOps.Web.pfx, then writes the connection string to
+# LineOps.Web's and LineOps.Worker's user-secrets (§8.5). Safe to re-run; -Force regenerates.
 ./scripts/setup.ps1
 
 # Optional but recommended — removes browser warnings.
@@ -381,7 +460,7 @@ docker compose up -d
 
 Open **<https://localhost:9443>**.
 
-On first start the web container waits for Postgres to report *healthy* (not merely *started* — the app migrates on boot and would otherwise race an unready server), applies migrations, creates the current and next two monthly partitions, seeds sports and sources, and runs one ingest so the dashboard isn't empty.
+On first start the web container waits for Postgres to report *healthy* (not merely *started* — the app migrates on boot and would otherwise race an unready server), applies migrations, creates the current and next two monthly partitions, and seeds sports and sources; `ReferenceReconciler` then enables exactly the configured leagues and registered sources. The scheduler's first tick fetches the ESPN slate, which is free, so the board is not empty — and never fetches lines, which are not.
 
 ```powershell
 docker compose logs -f web      # follow ingestion, alerts, settlement
@@ -412,15 +491,15 @@ Set `Ingestion__HostScheduler=false` on the `web` service at the same time, or b
 ### 8.5 Develop against the code (hot reload)
 
 ```powershell
-# Publishes Postgres on 127.0.0.1:5433 — a separate overlay so an exposed
-# database is opted into, not forgotten
-docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres
-
-# Supply the credential out of band; it is deliberately not in appsettings.json
-$env:ConnectionStrings__LineOps = "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=<POSTGRES_PASSWORD from .env>"
-
-dotnet run --project src/LineOps.Web      # http://localhost:5263
+.\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
+.\scripts\restore-data.ps1            # starts Postgres (compose.dev.yml) and loads the snapshot
+dotnet run --project src/LineOps.Web --launch-profile http   # http://localhost:5263
+dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
+
+Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `LineOps.Web` and `LineOps.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` to false on the web host, as in §8.4.
+
+`compose.dev.yml` is what publishes Postgres on `127.0.0.1:5433` — a separate overlay, so an exposed database is opted into, not forgotten. `restore-data.ps1` loads the committed snapshot (`data/snapshots/lineops.dump`) so a second machine develops against the same games, stats and closing lines; it refuses to overwrite a database that already holds games unless given `-Force`.
 
 Use this loop for UI work — hot reload and a debugger beat a 30-second image rebuild per CSS tweak. Use Docker to verify: containerising is what caught the publish-conflict layering smell, the Data Protection key reset, and the LAN-exposed database.
 
@@ -428,8 +507,8 @@ Use this loop for UI work — hot reload and a debugger beat a 30-second image r
 
 ```powershell
 dotnet restore
-dotnet build                              # solution: 6 projects + tests
-dotnet test                               # 555 tests
+dotnet build                              # solution: 8 projects + 2 test projects
+dotnet test                               # 800+ tests
 dotnet format --verify-no-changes         # CI enforces this
 ```
 
@@ -466,9 +545,9 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 ## 9. Engineering practices
 
-- **Repo layout:** `src/` (6 projects), `tests/`, `docs/adr/`, `docs/runbook.md`, `scripts/`, `.github/workflows/`.
+- **Repo layout:** `src/` (8 projects), `tests/` (2), `docs/adr/`, `docs/runbook.md`, `scripts/`, `data/snapshots/` (the committed database snapshot), `.github/workflows/`.
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
-- **Tests (555):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
+- **Tests (800+):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
 - **Docs:** seventeen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
@@ -525,11 +604,12 @@ Every one came from hitting a real constraint. These are the strongest interview
 | One row per poll, dedupe by natural key | **Store-on-change** | Unchanged prices carry no information. This made re-runs idempotent *by construction*, cut storage ~10×, and made every stored row a real line move. |
 | `RowsIngested == 0` means trouble | Status from what the *provider* returned | Store-on-change made "0 rows" ambiguous — quiet market vs. silent outage. Conflating them means alert fatigue or blindness. → [ADR 0003] |
 | FK from `journal_entry` → `odds_snapshot` | Three plain columns | Postgres can't FK a partitioned table without the partition key. Denormalising `closing_price` turned the constraint into a benefit: CLV survives partition pruning. → [ADR 0002] |
-| SharpAPI as second odds source | The Odds API | Better documented credit accounting, and it reports true spend in a response header — so the budget guard uses the provider's own number instead of an estimate. |
+| SharpAPI as second odds source | The Odds API — since promoted to *the* feed | Better documented credit accounting, and it reports true spend in a response header — so the budget guard uses the provider's own number instead of an estimate. It became the book market once it was found that naming books crosses regions at one region's price, which brings Pinnacle in for nothing. → [ADR 0014] |
+| Every price move kept for ever | Scans until first pitch, then one closing line per book | Nothing reads a started game's price stream except for its last element. Keeping the close and pruning the rest bounds storage per game; the cost, stated in the ADR, is that historical line movement is gone. → [ADR 0010] |
 | Real providers only | Demo fixture sources on by default — **then removed again** | The fixtures were added so a cold reviewer with no keys saw a working desk, and they earned that for a while. They were withdrawn once a real feed went in: fabricated prices land in the same tables as real ones under a different source id, where every reader treats them alike, and a fixture source going stale spent a critical alert slot on data that was never real. What a keyless clone gets now is everything ESPN and the MLB Stats API give away — real fixtures, real results — and no prices, reported as unconfigured. → [ADR 0017] |
 | HTTP on 8080 | HTTPS only on 9443, loopback-bound | The first pass published Postgres on `0.0.0.0` with a repo-committed password. Docker's short port syntax is the trap. → [ADR 0006] |
-| Nav-drawer, one page at a time | **Window manager** — every page is a panel on one desk | Ops work is inherently multi-view: health, incident and runs are read together. Pages fought the product. → [ADR 0007] |
-| MudBlazor components throughout | MudBlazor for charts only; chrome hand-built | The launcher is the primary way windows get created; it should not inherit another library's positioning and z-index rules, especially opening away from a rail that can be on any edge. |
+| Nav-drawer, one page at a time | **Window manager** — every page is a panel on one desk, a fixed row of tabs | Ops work is inherently multi-view: health, incident and runs are read together. Pages fought the product. Earlier versions of this document described draggable windows and a rail docking to any edge; the row replaced both, because a tiling row that is sometimes not a row forces every feature to handle both cases. → [ADR 0007] |
+| MudBlazor components throughout | MudBlazor behind the desk's own primitives (`DeskGrid`, `DeskChart`, `DeskButton`, `DeskSheet`); header, windows and menus hand-built | A panel states what it wants and MudBlazor's opinions stay behind one seam. The launcher and workspace menus are the primary way windows get created, so they should not inherit another library's positioning and z-index rules. → [ADR 0008], [ADR 0016] |
 | Connection string in `appsettings.json` | Throws if unconfigured | A fallback credential is a credential that eventually reaches production. |
 
 Three bugs that only containerisation revealed, all worth mentioning: the publish conflict above; Data Protection keys written to a path that vanishes with the container (silently invalidating every live Blazor circuit on replacement); and a `DateTimeOffset.UtcNow.Date` that bound with the machine's local offset and was rejected by `timestamptz`.
@@ -542,11 +622,11 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 |---|---|
 | Scheduled bulk ingest + batched REST adapters + settlement pass | "integration and data transport patterns (synchronous/asynchronous, bulk, loosely coupled)" |
 | `LineOps.Reliability` shared library | "improve patterns/standards/**shared libraries** to reduce technical debt" |
-| KPI rollups + Ops Center | "**report operational KPIs**" |
-| Alert engine + failure-injection drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
+| Live KPIs + Ops window | "**report operational KPIs**" |
+| Alert engine + on-call drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
-| 555 tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
+| 800+ tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
 | 17 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
@@ -562,8 +642,8 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 |---|---|---|
 | **Player props** | New `market` values + populate the existing `player_id`; one adapter method | First paid feature — The Odds API 20K ($30/mo) is the cheapest on-ramp |
 | **More books** (true line shopping) | Config change on a paid odds tier | Paid tier |
-| **More sports** (soccer, tennis, NCAA…) | New `sport` rows + adapter mappings; free tier already covers 34 sports | Free |
-| **Parlay modeling** | `parlay_group_id` already exists; add combined-odds maths | Free |
+| **More sports** (NBA, NHL, soccer, NCAA…) | Name the league in `Ingestion:Sports` with a season start in `Ingestion:Backfill:Seasons` — NBA and NHL are already seeded and mapped to ESPN; anything else also needs a `sport` row and an `EspnLeagues` entry. The odds free tiers already cover them | Free |
+| **Parlay modeling** | *Built:* a `parlay` row carries the one stake, and `ParlayGrading` grades the legs and reprices after a push or void | Free |
 | **Futures markets** | Same `market`-as-text mechanism + a season-long settlement job | Free |
 | **Cloud hosting** | Containerised already; add a reverse proxy for a real cert (§7) | Free–$5/mo |
 | **Notifications** (line moves to phone) | New channel on the existing alert engine | Free |
@@ -575,4 +655,4 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 **Resume bullet for the PROJECTS section:**
 
 > **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
-> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 555 unit, fixture and Testcontainers integration tests in GitHub Actions CI.
+> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 800+ unit, fixture and Testcontainers integration tests in GitHub Actions CI.

@@ -1,4 +1,5 @@
 using Bunit;
+using LineOps.Core.Analytics;
 using LineOps.Data.CrossReference;
 using LineOps.Desk.Primitives;
 using MudBlazor;
@@ -394,5 +395,67 @@ public class PriceCellTests : DeskTestContext
             Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
 
         Assert.Null(cut.Find(".price").GetAttribute("title"));
+    }
+
+    // ---- Value against the fair price ---------------------------------------------------
+
+    private static readonly FairPrice FairCoin = new(0.5, 100, FairValue.SharpBook, 1);
+
+    [Fact]
+    public void A_price_worth_taking_says_so_without_a_hover()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        var ev = cut.Find(".price__ev");
+        Assert.Equal("+5.0% EV", ev.TextContent);
+        Assert.Contains("price__ev--plus", ev.ClassName);
+    }
+
+    [Fact]
+    public void A_price_below_fair_is_a_detail_not_a_signal()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: -110, rungs: Rung("draftkings", -110, 0.524)) with { Fair = FairCoin, Ev = -1.0 / 22 }));
+
+        var ev = cut.Find(".price__ev");
+        Assert.Equal("−4.5% EV", ev.TextContent);
+        Assert.DoesNotContain("price__ev--plus", ev.ClassName);
+    }
+
+    [Fact]
+    public void No_fair_price_means_no_value_reading_rather_than_zero()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476))));
+
+        Assert.Empty(cut.FindAll(".price__ev"));
+    }
+
+    [Fact]
+    public void A_closing_price_is_not_scored_as_something_to_take()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, isClosing: true, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        Assert.Empty(cut.FindAll(".price__ev"));
+    }
+
+    [Fact]
+    public void The_tooltip_names_what_value_is_measured_against()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
+
+        Assert.StartsWith("Fair +100 (Pinnacle, no-vig)", cut.Find(".price").GetAttribute("title"));
+    }
+
+    [Fact]
+    public void Pinnacle_has_its_own_monogram()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(book: "pinnacle", rungs: Rung("pinnacle", -110, 0.524))));
+
+        Assert.Equal("PN", cut.Find(".price__book").TextContent);
     }
 }

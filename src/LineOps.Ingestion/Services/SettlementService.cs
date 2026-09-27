@@ -205,7 +205,52 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
         entry.ClosingPrice = closing.PriceAmerican;
         entry.ClosingPoints = closing.Line;
         entry.ClosingBook = closing.Book;
+
+        await ResolveFairCloseAsync(entry, game, ct);
         return true;
+    }
+
+    /// <summary>
+    /// The closing market's fair chance of the entry's side at the number it was taken on.
+    ///
+    /// <para>
+    /// Read from the whole close rather than the one row the price comparison uses: a fair price
+    /// needs both sides and, where Pinnacle did not close the market, several books. The same
+    /// source rule as the board (ADR 0011) — a book market where the feed covered the game, the
+    /// stats provider's single-book reference only where it did not, and never the two mixed.
+    /// </para>
+    /// </summary>
+    private async Task ResolveFairCloseAsync(JournalEntry entry, Game game, CancellationToken ct)
+    {
+        var closes = await db.ClosingLines
+            .Where(c => c.GameId == game.Id && c.Market == entry.Market)
+            .Select(c => new { c.Book, c.Outcome, c.Line, c.PriceAmerican, c.CapturedAt, c.Source!.Kind })
+            .ToListAsync(ct);
+
+        // Only a market that closed near the start is a fair close. An early one is the market
+        // as it stood when lines were last pulled, and valuing a bet at it would read days of
+        // drift as edge; the reference alone is one book, which has no fair price — so a game
+        // whose market closed early honestly has no fair close.
+        var freshFrom = game.StartsAt - FreshCloseWithin;
+        var fresh = closes.Where(c => c.Kind == SourceKind.Odds && c.CapturedAt >= freshFrom).ToList();
+
+        var market = fresh.Count > 0
+            ? fresh
+            : closes.Where(c => c.Kind != SourceKind.Odds).ToList();
+
+        // The other side of a two-way market is whichever outcome is not the entry's.
+        var other = market
+            .Select(c => c.Outcome)
+            .FirstOrDefault(o => !o.Equals(entry.Outcome, StringComparison.OrdinalIgnoreCase));
+
+        var fair = other is null
+            ? null
+            : FairMarket.Build(entry.Market, entry.Outcome, other,
+                    market.Select(c => new SidePrice(c.Book, c.Outcome, c.Line, c.PriceAmerican)))
+                .For(entry.Outcome, entry.LineTaken);
+
+        entry.ClosingFairProbability = fair?.Probability;
+        entry.ClosingFairBasis = fair?.Basis;
     }
 
     /// <summary>
@@ -232,14 +277,31 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
             query = query.Where(c => c.Book.ToLower() == entry.Book.ToLower());
 
         // Either lookup can match several rows — the same-book one a market close and ESPN's
-        // reference close for that book, the any-book one a close per book. A book market
-        // outranks the stats provider's reference close — which is stamped at first pitch and
-        // would otherwise always sort newest — and among markets the latest close wins.
+        // reference close for that book, the any-book one a close per book. A book market that
+        // closed near the start outranks the stats provider's reference, which is stamped at
+        // first pitch and would otherwise always sort newest; among markets the latest wins.
+        //
+        // A market "close" taken long before the start is not a close: under manual polling it
+        // is whenever lines were last pulled, and most were more than six hours early — one
+        // NFL game's was five days out. The reference, taken at first pitch, is then the truer
+        // number, so an early market close ranks below it and is used only where nothing else
+        // closed the game.
+        var freshFrom = game.StartsAt - FreshCloseWithin;
+
         return await query
-            .OrderByDescending(c => c.Source!.Kind == SourceKind.Odds)
+            .OrderByDescending(c => c.Source!.Kind == SourceKind.Odds && c.CapturedAt >= freshFrom)
+            .ThenByDescending(c => c.Source!.Kind != SourceKind.Odds)
             .ThenByDescending(c => c.CapturedAt)
             .FirstOrDefaultAsync(ct);
     }
+
+    /// <summary>
+    /// How near the start a market close must have been captured to count as the close. The
+    /// longest interval automatic polling leaves between scans (<c>LinePolling.MaximumInterval</c>),
+    /// so a close from a feed running as designed always qualifies, and a manual pull from the
+    /// morning of an evening game does not.
+    /// </summary>
+    public static readonly TimeSpan FreshCloseWithin = TimeSpan.FromHours(3);
 
     /// <summary>
     /// Marks games final from ingested scores. Real score feeds arrive via the stats sources;

@@ -7,6 +7,15 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- bUnit 1.x brings AngleSharp 1.2.0, under an mXSS advisory fixed in 1.5.0. The fix is not
+       reachable: AngleSharp 1.5 changed IHtmlCollection's indexer and bUnit 1.40, the last 1.x,
+       fails at runtime against it; bUnit 2 renames the API every test here uses. The parser only
+       ever reads markup these tests rendered themselves, in a test process, so the advisory has
+       nothing to act on. Revisit with the move to bUnit 2. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="bunit" />
     <PackageReference Include="coverlet.collector" />

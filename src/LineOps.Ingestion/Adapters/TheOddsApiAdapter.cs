@@ -9,8 +9,8 @@ using Microsoft.Extensions.Options;
 namespace LineOps.Ingestion.Adapters;
 
 /// <summary>
-/// Secondary odds feed (The Odds API), used for cross-source reconciliation rather than
-/// as a primary feed.
+/// The odds feed (The Odds API) — the book market ADR 0011 prices games from, and since ADR
+/// 0014 the one the desk actually runs on.
 ///
 /// It bills in credits, not requests: one /odds call costs markets x regions credits, so
 /// the 500-credit free month is consumed by roughly 55 three-market single-region calls.
@@ -174,6 +174,13 @@ public class TheOddsApiAdapter(
                         || !p.TryGetInt32(out var price)
                         || price == 0)
                         continue;
+
+                    // The provider writes a total's sides "Over" and "Under"; every other reader
+                    // on the platform — ESPN, odds-api.io, the board, settlement, fair value —
+                    // says "over" and "under". Left as sent, every total from this feed would
+                    // pair with nothing and never reach the board.
+                    if (canonical == Markets.Total)
+                        name = name.ToLowerInvariant();
 
                     decimal? point = outcome.TryGetProperty("point", out var pt)
                                      && pt.TryGetDecimal(out var d)

@@ -58,6 +58,19 @@
     <DeskField TValue="string" Immediate="true" style="max-width:170px"
                placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
 
+    @* The games where some book is paying more than the fair price. Offered only while there
+       are any, for the same reason the state switch is: a filter with nothing to narrow is
+       chrome pretending to be a control. *@
+    @if (_valueRows > 0)
+    {
+        <DeskButton Size="DeskKeySize.Small"
+                    Emphasis="@(_valueOnly ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                    Title="Only games where some book's live price beats the fair price"
+                    OnClick="ToggleValue">
+            +EV · @_valueRows
+        </DeskButton>
+    }
+
     <span class="ftr__spacer"></span>
 
     <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
@@ -101,8 +114,17 @@
 @if (Visible.Count > 0 && _unpriced > 0)
 {
     <Note State="DeskState.Warning" Style="margin:12px 0">
-        @_unpriced of @_rows.Count fixtures have no price at all. Open a row to see why —
-        a gap is usually a fixture the scan did not cover, not a broken feed.
+        @_unpriced of @_rows.Count fixtures have no price at all.
+        @* One reason for the whole gap is stated here, since it is the same fact thirteen
+           times over; only a mix sends the reader row by row. *@
+        @if (SharedGap is { } why)
+        {
+            @why
+        }
+        else
+        {
+            @:Open a row to see why — a gap is usually a fixture the scan did not cover, not a broken feed.
+        }
     </Note>
 }
 
@@ -147,7 +169,7 @@ else
               OnRowClick="@(e => Toggle(e.Item))"
               EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
-        <TemplateColumn T="BoardRow" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
                 <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
                 @* Which league, and only while the board is showing more than one. *@
@@ -166,7 +188,7 @@ else
             Putting them in the widest column means no dead width for the rows that are closed,
             and only the open row changes height.
         *@
-        <TemplateColumn T="BoardRow" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
                     @Matchup(context.Item.Game)
@@ -205,7 +227,7 @@ else
             (ADR 0008), so colouring a losing side negative would be a second vocabulary in the
             same table. The tag beside it carries the state, in a word.
         *@
-        <TemplateColumn T="BoardRow" Title="Score" SortBy="@(r => (int)r.Game.Status)">
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Score" SortBy="@(r => (int)r.Game.Status)">
             <CellTemplate>
                 @if (context.Item.Game.Status == GameStatus.Scheduled)
                 {
@@ -235,6 +257,28 @@ else
                             </span>
                         }
                     </div>
+                }
+            </CellTemplate>
+        </TemplateColumn>
+
+        @* The row's best bet against the fair price, and the column the board sorts by when the
+           question is where the value is. Read across every book, so it can name a book that
+           holds no cell's best price; a close has nothing left to take and reads as a dash. *@
+        <TemplateColumn T="BoardRow" Sortable="true" Title="Value" Align="Align.Right"
+                        SortBy="@(r => r.BestEv ?? double.MinValue)">
+            <CellTemplate>
+                @if (context.Item.BestPick is { } pick)
+                {
+                    <div class="value" title="@ValueTitle(context.Item, pick)">
+                        <span class="value__ev @(pick.Book.Ev > 0 ? "up" : "dim")">
+                            @PriceCell.EvLabel(pick.Book.Ev!.Value).Replace(" EV", "")
+                        </span>
+                        <span class="value__bet">@PickLabel(context.Item, pick)</span>
+                    </div>
+                }
+                else
+                {
+                    <span class="dim">—</span>
                 }
             </CellTemplate>
         </TemplateColumn>
@@ -345,10 +389,30 @@ else
         _team = team ?? string.Empty;
         ApplyFilter();
     }
+
+    private bool _valueOnly;
+    private int _valueRows;
+
+    /// <summary>Narrows to the games with value, most first.</summary>
+    private void ToggleValue()
+    {
+        _valueOnly = !_valueOnly;
+        ApplyFilter();
+    }
     private int _windowHours = 24;
     private int _bookCount;
     private int _priced;
     private int _unpriced;
+
+    /// <summary>The reason every unpriced row gives, when they all give the same one.</summary>
+    private string? SharedGap
+    {
+        get
+        {
+            var reasons = _rows.Where(r => r.Unpriced is not null).Select(r => r.Unpriced!).Distinct().Take(2).ToList();
+            return reasons.Count == 1 ? reasons[0] : null;
+        }
+    }
     private int _closing;
     private long _movesToday;
     private int _alerts;
@@ -431,6 +495,27 @@ else
     /// blank: the reader still learns which side they are looking at.
     /// </para>
     /// </summary>
+    /// <summary>"LAC ML · FD +295" — the side, the market, and where to take it.</summary>
+    private static string PickLabel(BoardRow row, ValuePick pick)
+    {
+        var first = pick.IsFirstSide(row.Game);
+        var side = pick.Market == Markets.Total ? (first ? "O" : "U") : Side(row, first);
+        var bet = pick.Market switch
+        {
+            Markets.Moneyline => $"{side} ML",
+            _ when pick.Book.Line is { } line => pick.Market == Markets.Total
+                ? $"{OddsMath.FormatLine(line, pick.Outcome)}"
+                : $"{side} {OddsMath.FormatLine(line, pick.Outcome)}",
+            _ => side
+        };
+
+        return $"{bet} · {PriceCell.Monogram(pick.Book.Book)} {OddsMath.FormatPrice(pick.Book.PriceAmerican)}";
+    }
+
+    private static string ValueTitle(BoardRow row, ValuePick pick)
+        => $"{pick.Outcome} at {pick.Book.Book}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
+           + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price — the most value on this game.";
+
     private static string Side(BoardRow row, bool home)
     {
         var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;
@@ -520,6 +605,16 @@ else
                 r.Game.HomeTeam?.Name, r.Game.AwayTeam?.Name,
                 r.Game.HomeTeam?.Abbrev, r.Game.AwayTeam?.Abbrev)).ToList();
         }
+
+        // Counted over the whole slate, so the key says how many there are before it is pressed;
+        // and let go of once a refresh leaves none, rather than showing an empty board for a
+        // reason the operator can no longer see.
+        _valueRows = _rows.Count(r => r.BestEv > 0);
+        if (_valueRows == 0)
+            _valueOnly = false;
+
+        if (_valueOnly)
+            _visible = _visible.Where(r => r.BestEv > 0).OrderByDescending(r => r.BestEv).ToList();
 
         _closing = _visible.Count(r => r.PricesAreClosing);
     }

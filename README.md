@@ -311,13 +311,20 @@ will poll the same providers and burn the free-tier budget twice.
 
 ### Developing against the code
 
-Run Postgres in Docker and the app on the host, for hot reload and a debugger:
+Run Postgres in Docker and the hosts on the host, for hot reload and a debugger:
 
 ```powershell
-docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres
-$env:ConnectionStrings__LineOps = "Host=localhost;Port=5433;Database=lineops;Username=lineops;Password=<POSTGRES_PASSWORD from .env>"
-dotnet run --project src/LineOps.Web
+.\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
+.\scripts\restore-data.ps1            # starts Postgres (compose.dev.yml) and loads the snapshot
+dotnet run --project src/LineOps.Web --launch-profile http
+dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
+
+Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which setup writes
+for both hosts from the password in `.env`; compose reads `.env` itself. Both launch profiles run
+as Development, which is the environment user-secrets load in. Running the worker beside a web
+host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` to
+false on one of them, as for the containers above.
 
 The dev overlay is what publishes Postgres on `127.0.0.1:5433`; it is a separate file so an
 exposed database is something you opt into rather than something you forget is on.

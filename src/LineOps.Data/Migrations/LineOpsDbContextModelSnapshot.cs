@@ -365,6 +365,13 @@ namespace LineOps.Data.Migrations
                     b.Property<DateTimeOffset?>("ClosingCapturedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ClosingFairBasis")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<double?>("ClosingFairProbability")
+                        .HasColumnType("double precision");
+
                     b.Property<decimal?>("ClosingPoints")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");

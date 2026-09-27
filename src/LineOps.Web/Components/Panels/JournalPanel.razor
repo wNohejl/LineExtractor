@@ -199,7 +199,7 @@
 
         @* Sorts on the reading itself, so "worst CLV" is a click; an unresolved entry sorts below
            every real one rather than as zero. A TemplateColumn because the key is computed. *@
-        <TemplateColumn T="JournalEntry" Title="CLV" Align="Align.Right"
+        <TemplateColumn T="JournalEntry" Sortable="true" Title="CLV" Align="Align.Right"
                         SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
             <CellTemplate>@ClvCell(context.Item)</CellTemplate>
         </TemplateColumn>
@@ -718,7 +718,11 @@
             ? ""
             : $" at {e.ClosingBook} (no close for {e.Book})";
 
-        return $"Took {At(e.LineTaken, e.PriceTaken)}; closed {close}{book}";
+        var fair = PerformanceAnalytics.ComputeClv(e) is { EvAtClose: { } ev }
+            ? $". Worth {ev * 100:+0.0;−0.0}% at the fair close ({(e.ClosingFairBasis == FairValue.SharpBook ? "Pinnacle" : "consensus")}, no-vig)"
+            : "";
+
+        return $"Took {At(e.LineTaken, e.PriceTaken)}; closed {close}{book}{fair}";
     }
 
     private async Task OpenGameAsync(int gameId)
