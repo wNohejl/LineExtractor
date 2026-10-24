@@ -25,7 +25,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $repoRoot '.env'
-$certDir = Join-Path $env:USERPROFILE '.aspnet\https'
+# $HOME rather than USERPROFILE, which exists only on Windows; the same folder either way.
+$certDir = Join-Path (Join-Path $HOME '.aspnet') 'https'
 $certFile = Join-Path $certDir 'LineOps.Web.pfx'
 
 function New-Secret {
@@ -49,7 +50,7 @@ else {
 
 POSTGRES_PASSWORD=$dbPassword
 CERT_PASSWORD=$certPassword
-CERT_PATH=`${USERPROFILE}/.aspnet/https
+CERT_PATH=$($certDir -replace '\\', '/')
 HTTPS_PORT=9443
 
 # Provider keys — blank runs on the free demo and ESPN sources.

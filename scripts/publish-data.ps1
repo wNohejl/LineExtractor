@@ -36,8 +36,9 @@ $ErrorActionPreference = "Stop"
 # into a terminating error while $ErrorActionPreference is Stop. They report failure by exit
 # code, so native calls run with Continue and the callers check $LASTEXITCODE or the output.
 function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue"; & $Block }
+. (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
-$dir = Join-Path $root "data\snapshots"
+$dir = Join-Path (Join-Path $root 'data') 'snapshots'
 $dump = Join-Path $dir "lineops.dump"
 $manifest = Join-Path $dir "lineops.dump.json"
 
@@ -48,24 +49,34 @@ if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start i
 # The container enforces SCRAM for local connections too (docker-compose.yml's
 # POSTGRES_INITDB_ARGS), so psql and pg_restore inside it need the password. It comes from
 # .env, the same place compose reads it, and reaches the tools through PGPASSWORD.
-$envText = Get-Content (Join-Path $root ".env") -Raw
-if ($envText -notmatch '(?m)^POSTGRES_PASSWORD=(.+)$') { throw ".env has no POSTGRES_PASSWORD. Run .\scripts\setup.ps1 first." }
-$pgEnv = "PGPASSWORD=$($Matches[1].Trim())"
+$pgPassword = Get-PgPassword $root
+$pgEnv = "PGPASSWORD=$pgPassword"
 
-# The archive is streamed out of the container rather than written inside it and copied:
-# the container's /tmp is a tmpfs mount (see docker-compose.yml's hardening), which
-# `docker cp` cannot read. PowerShell would re-encode binary stdout as text, so the
-# redirection is done by cmd, which passes bytes through untouched.
+# The dump is written by a sidecar into data/snapshots directly (scripts/_pg.ps1 says why),
+# first under a temporary name, so a failed or refused dump never replaces the last good one.
 #
 # Personal tables keep their schema and lose their rows (see -IncludePersonal). The names are
-# double-quoted for pg_dump, which folds an unquoted pattern to lower case; \" is how cmd hands
-# docker a literal quote.
+# double-quoted for pg_dump, which folds an unquoted pattern to lower case. Then the archive is
+# listed and refused if it holds a row from any of them anyway: the repository is public, and
+# this is the one place a bet log could leave the machine.
 $personal = @('JournalEntries', 'Parlays', 'AppSettings')
 $exclude = if ($IncludePersonal) { '' } else {
-    ($personal | ForEach-Object { "--exclude-table-data=\`"$_\`"" }) -join ' '
+    ($personal | ForEach-Object { "--exclude-table-data='`"$_`"'" }) -join ' '
 }
-Invoke-Native { cmd /c "docker exec -e $pgEnv $Container pg_dump -U $User -Fc -Z 6 $exclude $Database > `"$dump`"" }
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed" }
+$check = if ($IncludePersonal) { '' } else { @"
+if pg_restore -l /snapshots/lineops.dump.partial | grep -E 'TABLE DATA public "?($($personal -join '|'))"? '; then
+  echo 'refused: the archive holds personal rows; nothing was replaced' >&2
+  rm -f /snapshots/lineops.dump.partial
+  exit 3
+fi
+"@ }
+
+$exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory $dir -Script @"
+pg_dump -U $User -Fc -Z 6 $exclude -f /snapshots/lineops.dump.partial $Database
+$check
+mv /snapshots/lineops.dump.partial /snapshots/lineops.dump
+"@
+if ($exit -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed (exit $exit)" }
 
 # A manifest beside the dump, so a reader knows what is in it without restoring it. The
 # SQL goes over stdin: passed as an argument, PowerShell strips the double quotes that
