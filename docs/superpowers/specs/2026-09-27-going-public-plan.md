@@ -494,19 +494,24 @@ reported 153 errors in eleven test files. On Windows those errors hide among lin
 Fixed in `d39e829`. Until then, merging to `main` would have failed CI, and the Images workflow
 publishes only after CI passes, so deployment was blocked without anyone seeing it.
 
-**The data has a four-week hole.** The local Postgres has been stopped since 27 September, so
-the MLB postseason and NFL weeks 4–8 were never ingested. Most of it is recoverable for free:
-History's *Gather history* walks ESPN back over the gap through `StatsIngestionService`, which
-writes schedules, scores, box scores and ESPN's one-book reference close. What cannot come back
-is the multi-book market close for those games, and so their fair close (ADR 0010: odds are not
-backfillable). They will read "no fair close", which is the honest answer.
+**The stats are whole; the market is not.** Measured 24 October: all 114 MLB and NFL finals
+since 27 September have a box score and a close, with none missing. All 114 closes are ESPN's
+one-book reference. Not one has a market close, because line polling is still Manual and no
+lines were pulled in those four weeks. Those games have no fair close and never will (ADR 0010:
+odds cannot be backfilled), so value-at-close reads "no fair close" across the whole MLB
+postseason. Manual polling costs this every week it continues, and the 26 September finding
+(improvements §2.1) already named the fix: switch polling on in Ops, or take The Odds API 20K
+tier first so the switch is affordable.
 
 **The calendar moved the sequencing.** MLB is in its offseason until Opening Day, late March
 2027, so a showcase now shows NFL alone, and the next five months are the cheapest time to
 change MLB's stats port. Revised order:
 
-1. **Now, free:** start Postgres and the desk, run *Gather history* over 27 Sep → today, and
-   refresh the snapshot (`publish-data.ps1 -Commit`, which now leaves personal tables out).
+1. **Now:** switch automatic line polling on in Ops, so NFL's remaining weeks get market
+   closes. The free 500 credits, less the 100 reserve, buy 400 credits of scans at 2 credits per
+   league with games ahead: about 200 a month once MLB's World Series ends and NFL scans alone,
+   which the planner bunches toward kickoff. The
+   2026-10-24 snapshot is already taken, without personal tables.
 2. **Decision 2 (repository private)**, before anything below publishes more of the data.
 3. **Merge `LineX_Development` → `main`.** That is the first CI run since September and the
    first image build.
