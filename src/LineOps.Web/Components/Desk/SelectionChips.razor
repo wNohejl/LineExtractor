@@ -33,5 +33,5 @@
     [Parameter] public EventCallback<SelectionChoice> OnChoose { get; set; }
 
     private bool IsChosen(SelectionChoice choice)
-        => choice.Market == Market && string.Equals(choice.Offer.Outcome, Outcome, StringComparison.OrdinalIgnoreCase);
+        => choice.Market == Market && string.Equals(choice.Outcome, Outcome, StringComparison.OrdinalIgnoreCase);
 }

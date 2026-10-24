@@ -143,7 +143,7 @@ public class BoardWagerTests : WagerTestContext
         Key(cut, 50m.ToString("C0")).Click();
 
         Assert.True(Log(cut).HasAttribute("disabled"));
-        Assert.Equal("Log it from the Journal with the price you got.", cut.Find(".wager-why").TextContent.Trim());
+        Assert.Equal("This is the closing line. Enter my own price records the one you got.", cut.Find(".wager-why").TextContent.Trim());
         Assert.Contains("Closing line: the game started 42 min ago", cut.Find(".check--negative").TextContent);
 
         Key(cut, "Add to slip").Click();

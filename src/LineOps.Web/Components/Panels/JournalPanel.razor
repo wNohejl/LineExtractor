@@ -15,12 +15,11 @@
 </Note>
 
 <div class="row" style="margin-bottom:12px">
-    @* Opens a form; it does not close it. One way out of a form — its own Cancel — and the key
-       says why it is spent while the form it opened is on screen. *@
+    @* The same window the Board's Place wager opens, here on a game search: one form records a
+       bet, whichever door it is reached by. *@
     <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
-                Disabled="@(_mode != FormMode.None)"
-                Title="@(_mode != FormMode.None ? "A form is open below." : null)"
-                OnClick="ShowEntryForm">
+                Title="Find the game and log the bet in the wager window"
+                OnClick="OpenWager">
         Log entry
     </DeskButton>
     @* Parlays are built on the slip now (spec §5.4): the form that duplicated the leg fields,
@@ -63,7 +62,7 @@
 @if (_mode == FormMode.Entry)
 {
     <div class="stack" style="padding:12px; background:var(--surface-2); border:1px solid var(--separator); border-radius:4px; margin-bottom:14px">
-        <PanelHeader Tight>@(_editing is null ? "New entry" : "Edit entry")</PanelHeader>
+        <PanelHeader Tight>Edit entry</PanelHeader>
 
         @if (_editing is { IsGraded: true })
         {
@@ -71,6 +70,11 @@
                 This entry is graded. Changing the game, market, selection, line, price, stake or book
                 sends it back to pending, and settlement grades it again from the game.
             </Note>
+        }
+
+        @if (_entry.ManualPrice)
+        {
+            <Note Class="journal-manual-note">A price you entered by hand, not one the desk fetched.</Note>
         }
 
         @LegFields(_entry)
@@ -84,18 +88,12 @@
                        placeholder="Note (optional)" @bind-Value="_entry.Note" />
         </div>
 
-        @* The duplicate check only: value and price age need a live offer this form does not have. *@
-        @if (_entryCheck is { } check)
-        {
-            <CheckList Items="@(new[] { check })" Title="Before you save" />
-        }
-
         <div class="row">
             @* A disabled key that does not say what it is waiting for is a key the operator
                has to guess at. *@
             <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
                         Title="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
-                @(_editing is null ? "Save entry" : "Save changes")
+                Save changes
             </DeskButton>
             <DeskButton OnClick="CloseForm">Cancel</DeskButton>
         </div>
@@ -107,7 +105,7 @@
     <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
         @(Filtered
             ? "No entries match these filters."
-            : "No entries logged yet. Log entry records a bet by hand; parlays are built on the slip.")
+            : "No entries logged yet. Log entry finds the game and records the bet; parlays are built on the slip.")
     </EmptyState>
 }
 
@@ -138,7 +136,14 @@
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="int" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
-            <CellTemplate>@Price(context.Item.PriceTaken)</CellTemplate>
+            <CellTemplate>
+                @* Said where the number is: a typed price is the operator's word, not an observation. *@
+                @if (context.Item.ManualPrice)
+                {
+                    <span class="dim journal-manual" title="Entered by hand, not fetched">manual</span>
+                }
+                @Price(context.Item.PriceTaken)
+            </CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right">
@@ -295,9 +300,23 @@
 
     private enum FormMode { None, Entry }
 
-    /// <summary>A straight bet as the manual entry form holds it. Parlays are built on the slip.</summary>
+    /// <summary>
+    /// A straight bet as the edit form holds it. New bets are logged in the wager window; parlays
+    /// are built on the slip.
+    /// </summary>
     private sealed class Draft
     {
+        /// <summary>The price as logged, so an edit to it can be told from an edit to the stake.</summary>
+        public int OriginalPrice { get; init; }
+        public decimal? OriginalLine { get; init; }
+        public bool WasManual { get; init; }
+
+        /// <summary>
+        /// A typed price stays typed; a fetched one becomes typed once its number is edited here,
+        /// because the number in the journal is then the operator's, not the desk's.
+        /// </summary>
+        public bool ManualPrice => WasManual || PriceTaken != OriginalPrice || LineTaken != OriginalLine;
+
         public int? GameId { get; set; }
         public Game? Game { get; set; }
         public string Market { get; set; } = Markets.Spread;
@@ -312,7 +331,7 @@
         public EntryDraft ToDraft() => new(
             GameId, Market == FreeText ? "other" : Market,
             Market == FreeText ? FreeTextMarket : null,
-            Outcome, LineTaken, PriceTaken, Stake, Book, Note);
+            Outcome, LineTaken, PriceTaken, Stake, Book, Note, ManualPrice);
     }
 
     private static readonly IReadOnlyList<DeskSwitchOption<JournalStatus>> Statuses =
@@ -345,9 +364,6 @@
     private FormMode _mode;
     private Draft _entry = new();
     private JournalEntry? _editing;
-
-    // The manual entry's duplicate check: read when the side it is keyed on moves, never from the render.
-    private Check? _entryCheck;
 
     private bool _busy;
     private string? _message;
@@ -402,23 +418,16 @@
     }
 
     /// <summary>
-    /// Opens the entry form. The last result line goes with it: a stale "Entry logged." sitting
-    /// over a new one being typed describes some earlier minute.
+    /// Opens the wager window on its game search: the one form a new bet is recorded with. The
+    /// last result line goes: a stale "Entry saved." beside a new bet describes some earlier minute.
     /// </summary>
-    private void ShowEntryForm()
+    private void OpenWager()
     {
         _message = null;
-        _editing = null;
-        _entry = new Draft { Book = _bookFilter ?? LastBook() };
-        _entryCheck = null;
-        _mode = FormMode.Entry;
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!);
     }
 
     private void OpenSlip() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!);
-
-    /// <summary>The book of the latest entry: most bets are logged at the book the last one was.</summary>
-    private string LastBook()
-        => _entries.FirstOrDefault()?.Book ?? _parlays.FirstOrDefault()?.Book ?? "draftkings";
 
     private void EditEntry(JournalEntry entry)
     {
@@ -435,9 +444,11 @@
             PriceTaken = entry.PriceTaken,
             Stake = entry.Stake,
             Book = entry.Book,
-            Note = entry.Note
+            Note = entry.Note,
+            OriginalPrice = entry.PriceTaken,
+            OriginalLine = entry.LineTaken,
+            WasManual = entry.ManualPrice
         };
-        _entryCheck = null;
         _mode = FormMode.Entry;
     }
 
@@ -445,35 +456,12 @@
     {
         _mode = FormMode.None;
         _editing = null;
-        _entryCheck = null;
     }
 
-    private async Task SetEntryBookAsync(string book)
+    private Task SetEntryBookAsync(string book)
     {
         _entry.Book = book;
-        await SideChangedAsync();
-    }
-
-    /// <summary>
-    /// Re-reads the duplicate check when the side it is keyed on moves — game, market, outcome,
-    /// book — and never from the render. Not for an edit: the entry being edited is its own match.
-    /// </summary>
-    private async Task SideChangedAsync()
-    {
-        if (_editing is not null
-            || _entry.GameId is not { } gameId
-            || _entry.Market == FreeText
-            || string.IsNullOrWhiteSpace(_entry.Outcome)
-            || string.IsNullOrWhiteSpace(_entry.Book))
-        {
-            _entryCheck = null;
-            return;
-        }
-
-        var prior = await Wagers.LatestOnSideAsync(gameId, _entry.Market, _entry.Outcome.Trim(),
-            DateTimeOffset.UtcNow - Checks.DuplicateWindow);
-
-        _entryCheck = Checks.Duplicate(true, prior, new CheckActions());
+        return Task.CompletedTask;
     }
 
     private async Task SaveEntryAsync()
@@ -577,11 +565,11 @@
 
     private RenderFragment LegFields(Draft d) => @<text>
         <GamePicker Value="d.GameId" Selected="d.Game"
-                    ValueChanged="@(async (int? id) => { d.GameId = id; await SideChangedAsync(); })" />
+                    SelectedChanged="@((Game? g) => d.Game = g)" ValueChanged="@((int? id) => d.GameId = id)" />
 
         <div class="row">
             <DeskSelect TValue="string" Value="d.Market"
-                        ValueChanged="@(async (string? m) => { d.Market = m ?? Markets.Spread; await SideChangedAsync(); })">
+                        ValueChanged="@((string? m) => d.Market = m ?? Markets.Spread)">
                 <option value="@Markets.Moneyline">Moneyline</option>
                 <option value="@Markets.Spread">Spread</option>
                 <option value="@Markets.Total">Total</option>
@@ -598,7 +586,7 @@
                 <DeskField TValue="string" style="max-width:190px"
                            placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")"
                            Value="d.Outcome"
-                           ValueChanged="@(async (string? o) => { d.Outcome = o ?? string.Empty; await SideChangedAsync(); })" />
+                           ValueChanged="@((string? o) => d.Outcome = o ?? string.Empty)" />
             }
 
             @if (d.Market is Markets.Spread or Markets.Total)

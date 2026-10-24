@@ -1,32 +1,90 @@
-@using LineOps.Ingestion.Services
+@using LineOps.Web.Services
 @implements IDisposable
-@inject IServiceScopeFactory ScopeFactory
+@inject IWagerData Data
 
 @*
-    Finds the game a bet was on by team, across the season, rather than offering the last
-    seven days in one long list. Type "mets", or "mets braves" for the matchup; the nearest
-    games to today come first.
+    Finds the game a bet was on: one field that is its own dropdown. Type "steelers", or
+    "steelers saints" for the matchup, and the list beneath the field fills with that team's games
+    across the season, newest kickoff first: the order a season is read in when a bet is logged
+    late. Arrow keys move through the list, Enter picks, Escape closes it.
+
+    Once a game is chosen the field gives way to the game itself, with Change beside it: the
+    choice is what the rest of the form is about, so it reads as a fact rather than as a field
+    still being typed in.
 *@
-<div class="row" style="flex-wrap:wrap">
-    <DeskField TValue="string" Immediate="true" style="max-width:200px"
-               placeholder="Find a game — team"
-               Value="_text" ValueChanged="OnTextChanged" />
-
-    <DeskSelect TValue="int?" style="max-width:320px" Value="_value" ValueChanged="OnPicked">
-        <option value="">@(_value is null ? "No game (future / other)" : "Clear the game")</option>
-        @if (_selected is { } selected && _results.All(g => g.Id != selected.Id))
-        {
-            <option value="@selected.Id">@Describe(selected)</option>
-        }
-        @foreach (var game in _results)
-        {
-            <option value="@game.Id">@Describe(game)</option>
-        }
-    </DeskSelect>
-
-    @if (_searched && _results.Count == 0)
+<div class="game-search">
+    @if (_selected is { } chosen && !_searching)
     {
-        <span class="dim" style="font-size:calc(12px * var(--text-scale))">No game in this season's reach matches "@_text".</span>
+        <div class="wgroup">
+            <div class="wgroup__row game-search__chosen">
+                <div class="game-search__text">
+                    <span class="game-search__match">@Matchup(chosen)</span>
+                    <span class="game-search__when">@When(chosen)</span>
+                </div>
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Search" OnClick="StartSearch">
+                    Change
+                </DeskButton>
+            </div>
+        </div>
+    }
+    else if (_noGame && !_searching)
+    {
+        <div class="wgroup">
+            <div class="wgroup__row game-search__chosen">
+                <div class="game-search__text">
+                    <span class="game-search__match">No game</span>
+                    <span class="game-search__when">A future, or another bet the desk does not track</span>
+                </div>
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Search" OnClick="StartSearch">
+                    Find a game
+                </DeskButton>
+            </div>
+        </div>
+    }
+    else
+    {
+        <DeskField TValue="string" Immediate="true" style="width:100%"
+                   placeholder="Find a game: type a team"
+                   aria-label="Find a game"
+                   role="combobox"
+                   aria-autocomplete="list"
+                   aria-expanded="@(Open ? "true" : "false")"
+                   aria-controls="@_listId"
+                   autocomplete="off"
+                   @onkeydown="OnKeyAsync"
+                   Value="_text" ValueChanged="OnTextChanged" />
+
+        @if (Open)
+        {
+            <div class="wgroup game-search__list" role="listbox" id="@_listId">
+                @if (_results.Count == 0)
+                {
+                    <div class="wgroup__row game-search__empty">No game in this season's reach matches "@_text".</div>
+                }
+
+                @for (var i = 0; i < _results.Count; i++)
+                {
+                    var game = _results[i];
+                    var active = i == _active;
+                    <button type="button" role="option" aria-selected="@(active ? "true" : "false")"
+                            class="wgroup__row game-search__opt @(active ? "game-search__opt--active" : null)"
+                            @onclick="() => PickAsync(game)">
+                        <span class="game-search__match">@Matchup(game)</span>
+                        <span class="game-search__when">@When(game)</span>
+                    </button>
+                }
+
+                @if (OfferNoGame)
+                {
+                    var active = _active == _results.Count;
+                    <button type="button" role="option" aria-selected="@(active ? "true" : "false")"
+                            class="wgroup__row game-search__opt game-search__opt--none @(active ? "game-search__opt--active" : null)"
+                            @onclick="ChooseNoGameAsync">
+                        <span class="game-search__match">No game: a future or other bet</span>
+                    </button>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -37,26 +95,74 @@
     /// <summary>The game already chosen, so an edit shows it before anything is searched.</summary>
     [Parameter] public Game? Selected { get; set; }
 
-    private int? _value;
+    /// <summary>The chosen game itself, for a form that reads more than its id.</summary>
+    [Parameter] public EventCallback<Game?> SelectedChanged { get; set; }
+
+    /// <summary>Offers "No game" at the foot of the list, for a bet on nothing the desk tracks.</summary>
+    [Parameter] public bool OfferNoGame { get; set; }
+
+    /// <summary>"No game" is the choice.</summary>
+    [Parameter] public bool NoGame { get; set; }
+    [Parameter] public EventCallback<bool> NoGameChanged { get; set; }
+
+    private readonly string _listId = "games-" + Guid.NewGuid().ToString("N")[..8];
+
     private Game? _selected;
+    private bool _noGame;
+    private bool _searching;
     private string? _text;
     private List<Game> _results = [];
     private bool _searched;
+    private int _active;
     private CancellationTokenSource? _pending;
+
+    private bool Open => !string.IsNullOrWhiteSpace(_text) && _searched;
+
+    private int Options => _results.Count + (OfferNoGame ? 1 : 0);
+
+    // What the parameters last said: a re-render the pick itself caused, before the host has
+    // taken the new game in, must not put the old one back.
+    private (int? Value, Game? Selected, bool NoGame)? _given;
 
     protected override void OnParametersSet()
     {
-        _value = Value;
-        _selected = Selected is not null && Selected.Id == Value ? Selected : _selected?.Id == Value ? _selected : null;
+        var given = (Value, Selected, NoGame);
+        if (_given == given)
+            return;
+
+        _given = given;
+        _noGame = NoGame;
+        _selected = Value is null ? null
+            : Selected is not null && Selected.Id == Value ? Selected
+            : _selected?.Id == Value ? _selected
+            : null;
     }
 
-    private static string Describe(Game game)
-        => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"} — "
-           + $"{DisplayTime.Day(game.StartsAt)} · {game.Sport?.Key.ToUpperInvariant()}";
+    private static string Matchup(Game game)
+        => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
+
+    private static string When(Game game)
+        => $"{DisplayTime.Stamp(game.StartsAt)} · {game.Sport?.Key.ToUpperInvariant()}"
+           + (game.Status == GameStatus.Final ? " · final" : game.Status == GameStatus.Live ? " · live" : "");
+
+    private void StartSearch()
+    {
+        _searching = true;
+        Clear();
+    }
+
+    private void Clear()
+    {
+        _text = null;
+        _results = [];
+        _searched = false;
+        _active = 0;
+    }
 
     private async Task OnTextChanged(string? text)
     {
         _text = text;
+        _active = 0;
 
         // A query per keystroke was the Players window's mistake; this waits for a pause.
         _pending?.Cancel();
@@ -65,7 +171,7 @@
 
         try
         {
-            await Task.Delay(250, token);
+            await Task.Delay(200, token);
         }
         catch (OperationCanceledException)
         {
@@ -79,25 +185,60 @@
             return;
         }
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var found = await scope.ServiceProvider.GetRequiredService<JournalService>().SearchGamesAsync(text, ct: token);
+        var found = await Data.SearchGamesAsync(text, token);
 
         if (token.IsCancellationRequested)
             return;
 
         _results = found.ToList();
         _searched = true;
-
-        // One match is the answer; pick it rather than making the operator open the list.
-        if (_results.Count == 1 && _value != _results[0].Id)
-            await OnPicked(_results[0].Id);
     }
 
-    private async Task OnPicked(int? id)
+    private async Task OnKeyAsync(KeyboardEventArgs e)
     {
-        _value = id;
-        _selected = id is null ? null : _results.FirstOrDefault(g => g.Id == id) ?? _selected;
-        await ValueChanged.InvokeAsync(id);
+        switch (e.Key)
+        {
+            case "ArrowDown" when Open && Options > 0:
+                _active = (_active + 1) % Options;
+                break;
+            case "ArrowUp" when Open && Options > 0:
+                _active = (_active - 1 + Options) % Options;
+                break;
+            case "Enter" when Open && _active < _results.Count:
+                await PickAsync(_results[_active]);
+                break;
+            case "Enter" when Open && OfferNoGame && _active == _results.Count:
+                await ChooseNoGameAsync();
+                break;
+            case "Escape":
+                Clear();
+                _searching = false;
+                break;
+        }
+    }
+
+    private async Task PickAsync(Game game)
+    {
+        _selected = game;
+        _noGame = false;
+        _searching = false;
+        Clear();
+
+        await SelectedChanged.InvokeAsync(game);
+        await ValueChanged.InvokeAsync(game.Id);
+        await NoGameChanged.InvokeAsync(false);
+    }
+
+    private async Task ChooseNoGameAsync()
+    {
+        _selected = null;
+        _noGame = true;
+        _searching = false;
+        Clear();
+
+        await ValueChanged.InvokeAsync(null);
+        await SelectedChanged.InvokeAsync(null);
+        await NoGameChanged.InvokeAsync(true);
     }
 
     public void Dispose() => _pending?.Cancel();

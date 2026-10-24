@@ -38,7 +38,7 @@ public class SharedControlsTests : DeskTestContext
 
         Assert.NotNull(picked);
         Assert.Equal(Markets.Total, picked.Market);
-        Assert.Equal("Over", picked.Offer.Outcome);
+        Assert.Equal("Over", picked.Outcome);
     }
 
     [Fact]

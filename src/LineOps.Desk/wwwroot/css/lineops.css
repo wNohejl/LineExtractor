@@ -3962,3 +3962,58 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .take { all: unset; cursor: pointer; }
 .take:hover span { color: var(--accent); }
 .take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ---- A section header with something of its own beside it: a key, or a count. */
+.wsection__head { display: flex; align-items: center; gap: var(--space-2); min-height: 24px; padding: 0 var(--space-1); }
+.wsection__head > .panel-h { margin: 0; }
+.wsection__head > .desk-btn { margin-left: auto; }
+.wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+.wager-offer__line { font-size: var(--text-title3); font-weight: var(--weight-semibold); color: var(--text-secondary); }
+.wager-typed { flex-wrap: wrap; align-items: flex-end; }
+.wager-typed .field-set { margin: 0; }
+
+/* ---- The books: a filter of chips, each with its price, over a list to choose from. The chosen
+   row carries the accent on its mark and its price; the rest stay neutral. */
+.book-chips { flex-wrap: wrap; gap: var(--space-1); }
+.book-chip__price { margin-left: var(--space-1); opacity: .8; }
+.book-row {
+    width: 100%;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.book-row:hover { background: var(--surface-3); }
+.book-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.book-row__mark { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.book-row__mark svg { width: 16px; height: 16px; }
+.book-row__book { font-weight: var(--weight-semibold); }
+.book-row__age { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
+.book-row__line { min-width: 48px; text-align: right; color: var(--text-secondary); }
+.book-row__price { min-width: 52px; text-align: right; font-weight: var(--weight-semibold); }
+.book-row--chosen .book-row__price { color: var(--accent); }
+
+/* ---- The game search: one field, its results directly beneath, newest first. */
+.game-search { display: flex; flex-direction: column; gap: var(--space-1); }
+.game-search__list { max-height: 280px; overflow-y: auto; }
+.game-search__opt {
+    width: 100%;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    justify-content: space-between;
+}
+.game-search__opt:hover, .game-search__opt--active { background: var(--accent-wash); }
+.game-search__opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.game-search__opt--none .game-search__match { color: var(--text-secondary); font-weight: normal; }
+.game-search__chosen { justify-content: space-between; }
+.game-search__text { display: flex; flex-direction: column; min-width: 0; }
+.game-search__match { font-weight: var(--weight-semibold); }
+.game-search__when, .game-search__empty { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
+

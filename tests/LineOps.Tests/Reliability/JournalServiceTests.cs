@@ -90,6 +90,23 @@ public class JournalServiceTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task A_typed_price_is_stored_as_manual()
+    {
+        await using var db = fixture.CreateContext();
+        var (game, home, _) = await FinalGameAsync(db, home: 24, away: 20);
+        var journal = Service(db);
+
+        var saved = await journal.SaveEntriesAsync([
+            new EntryDraft(game.Id, Markets.Spread, null, home.Name, -3m, -105, 50m, "draftkings", null, ManualPrice: true),
+            new EntryDraft(game.Id, Markets.Moneyline, null, home.Name, null, -150, 50m, "draftkings", null)
+        ]);
+
+        var rows = await db.JournalEntries.AsNoTracking().Where(e => saved.Select(s => s.Id).Contains(e.Id)).ToListAsync();
+        Assert.True(rows.Single(e => e.Market == Markets.Spread).ManualPrice);
+        Assert.False(rows.Single(e => e.Market == Markets.Moneyline).ManualPrice);
+    }
+
+    [Fact]
     public async Task A_parlay_settles_as_one_bet_when_its_legs_do()
     {
         await using var db = fixture.CreateContext();

@@ -51,9 +51,10 @@ public class SearchService(LineOpsDbContext db)
     /// <summary>
     /// Games whose teams match every word, across a season's reach — two hundred days back, a
     /// month ahead — nearest to now first: the game being looked for is usually today's, and the
-    /// one being logged late usually last week's.
+    /// one being logged late usually last week's. With <paramref name="latestFirst"/>, newest kickoff first instead: the
+    /// order the wager window's game search lists one team's season in.
     /// </summary>
-    public async Task<IReadOnlyList<Game>> GamesAsync(string text, int take = 20, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Game>> GamesAsync(string text, int take = 20, bool latestFirst = false, CancellationToken ct = default)
     {
         var patterns = Patterns(text).ToList();
         if (patterns.Count == 0)
@@ -79,7 +80,9 @@ public class SearchService(LineOpsDbContext db)
         // memory rather than asked of the database as an interval expression.
         var found = await query.OrderByDescending(g => g.StartsAt).Take(200).ToListAsync(ct);
 
-        return found.OrderBy(g => (g.StartsAt - now).Duration()).Take(take).ToList();
+        return latestFirst
+            ? found.Take(take).ToList()
+            : found.OrderBy(g => (g.StartsAt - now).Duration()).Take(take).ToList();
     }
 
     /// <summary>

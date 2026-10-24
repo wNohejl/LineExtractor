@@ -16,7 +16,8 @@ public sealed record EntryDraft(
     int PriceTaken,
     decimal Stake,
     string Book,
-    string? Note);
+    string? Note,
+    bool ManualPrice = false);
 
 /// <summary>A parlay as the form holds it: the money on the parlay, the selections on the legs.</summary>
 public sealed record ParlayDraft(string Book, decimal Stake, int? PriceQuoted, string? Note, IReadOnlyList<EntryDraft> Legs);
@@ -347,8 +348,8 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     }
 
     /// <summary>Games to log a bet against, found by team across the season (see <see cref="SearchService.GamesAsync"/>).</summary>
-    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, CancellationToken ct = default)
-        => new SearchService(db).GamesAsync(text, take, ct);
+    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, bool latestFirst = false, CancellationToken ct = default)
+        => new SearchService(db).GamesAsync(text, take, latestFirst, ct);
 
     /// <summary>
     /// Writes the draft onto the entry. Returns true when a field the grade depends on changed on
@@ -373,6 +374,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         entry.Outcome = outcome;
         entry.LineTaken = draft.LineTaken;
         entry.PriceTaken = draft.PriceTaken;
+        entry.ManualPrice = draft.ManualPrice;
         entry.Stake = draft.Stake;
         entry.Note = Blank(draft.Note);
 

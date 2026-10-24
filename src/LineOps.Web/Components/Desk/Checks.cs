@@ -34,9 +34,12 @@ public static class Checks
 
     public const string OpenJournal = "Open Journal";
 
-    /// <summary>Value, then price age (or the closing line, which replaces it), then the journal.</summary>
+    /// <summary>
+    /// Value, then price age (or the closing line, or a typed price, which replace it), then the
+    /// journal. No start time: a bet on no game, which has no clock to be late against.
+    /// </summary>
     public static IReadOnlyList<Check> Build(
-        WagerOffer offer, DateTimeOffset startsAt, DateTimeOffset now,
+        WagerOffer offer, DateTimeOffset? startsAt, DateTimeOffset now,
         bool priorRead, JournalEntry? prior, decimal stake, CheckActions? actions = null)
     {
         actions ??= new CheckActions();
@@ -44,7 +47,9 @@ public static class Checks
         return
         [
             Value(offer, stake),
-            offer.IsClosing ? Closing(startsAt, now, actions) : Age(offer, now, actions),
+            offer.Manual ? Typed(startsAt, now)
+                : offer.IsClosing ? Closing(startsAt ?? now, now, actions)
+                : Age(offer, now, actions),
             Duplicate(priorRead, prior, actions)
         ];
     }
@@ -52,8 +57,10 @@ public static class Checks
     public static Check Value(WagerOffer offer, decimal stake)
     {
         if (offer.Ev is not { } ev)
-            return new Check(DeskState.Neutral,
-                "No fair price on this number: fewer than two books quote it, so value is unread rather than zero.");
+            return offer.Manual
+                ? new Check(DeskState.Neutral, "No fair price at this number, so value is unread rather than zero.")
+                : new Check(DeskState.Neutral,
+                    "No fair price on this number: fewer than two books quote it, so value is unread rather than zero.");
 
         var against = offer.Fair is { } fair
             ? $" against fair {OddsMath.FormatPrice(fair.PriceAmerican)} ({Basis(fair)}, no-vig)"
@@ -83,6 +90,15 @@ public static class Checks
             canPull ? actions.PullLabel : null,
             canPull ? actions.Pull : null);
     }
+
+    /// <summary>
+    /// A typed price has no capture time to age: it is the operator's word for what they took. Said
+    /// as a fact, with the game's clock where it has started, because a late entry is normal here.
+    /// </summary>
+    public static Check Typed(DateTimeOffset? startsAt, DateTimeOffset now)
+        => startsAt is { } starts && now > starts
+            ? new Check(DeskState.Neutral, $"Your own price: the game started {Span(now - starts)} ago, so this records the price you took.")
+            : new Check(DeskState.Neutral, "Your own price, entered by hand rather than read from a scan.");
 
     public static Check Closing(DateTimeOffset startsAt, DateTimeOffset now, CheckActions actions)
     {

@@ -396,6 +396,9 @@ namespace LineOps.Data.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
 
+                    b.Property<bool>("ManualPrice")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Market")
                         .IsRequired()
                         .HasMaxLength(64)

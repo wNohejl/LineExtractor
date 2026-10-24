@@ -12,7 +12,8 @@ public sealed record SlipItem(
     string Market, string Outcome, decimal? Line,
     string Book, int PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing,
     decimal Stake, string? Note,
-    FairPrice? Fair, double? Ev)
+    FairPrice? Fair, double? Ev,
+    bool ManualPrice = false)
 {
     /// <summary>"ML · Chiefs -128".</summary>
     public string Selection => $"{SelectionText.Of(Market, Outcome, Line)} {OddsMath.FormatPrice(PriceAmerican)}";
@@ -26,7 +27,7 @@ public sealed record SlipItem(
     public string? InJournal { get; init; }
 
     public EntryDraft ToDraft(decimal stake)
-        => new(GameId, Market, null, Outcome, Line, PriceAmerican, stake, Book, Note);
+        => new(GameId, Market, null, Outcome, Line, PriceAmerican, stake, Book, Note, ManualPrice);
 }
 
 /// <summary>

@@ -110,6 +110,31 @@ public class SearchServiceTests(PostgresFixture fixture)
         Assert.Empty(await new SearchService(db).TeamsAsync("%"));
     }
 
+    [Fact]
+    public async Task Latest_first_lists_the_season_newest_kickoff_first()
+    {
+        await using var db = fixture.CreateContext();
+        var w = await SeedAsync(db);
+
+        Game At(int days) => new()
+        {
+            SportId = w.Sport.Id, HomeTeamId = w.Home.Id, AwayTeamId = w.Away.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(days), Status = GameStatus.Scheduled, SeasonYear = 2026
+        };
+
+        var next = At(5);
+        var older = At(-20);
+        db.Games.AddRange(next, older);
+        await db.SaveChangesAsync();
+
+        var search = new SearchService(db);
+        var latest = await search.GamesAsync(w.Tag, latestFirst: true);
+        var nearest = await search.GamesAsync(w.Tag);
+
+        Assert.Equal(new[] { next.Id, w.Game.Id, older.Id }, latest.Select(g => g.Id));
+        Assert.Equal(w.Game.Id, nearest[0].Id);
+    }
+
     [Theory]
     [InlineData("reds braves", true)]
     [InlineData("REDS", true)]

@@ -1,30 +1,51 @@
+using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
 
 namespace LineOps.Web.Services;
 
-/// <summary>One side of one market on a board row: what a selection chip stands for.</summary>
-public sealed record SelectionChoice(string Market, BestOffer Offer)
+/// <summary>
+/// One side of one market on a board row: what a selection chip stands for. <see cref="Offer"/> is
+/// null where no book prices the side — the side can still be chosen, and logged at a typed price.
+/// </summary>
+public sealed record SelectionChoice(string Market, string Outcome, BestOffer? Offer)
 {
-    public string Label => SelectionText.Of(Market, Offer.Outcome, Offer.Line);
+    public SelectionChoice(string market, BestOffer offer) : this(market, offer.Outcome, offer)
+    {
+    }
 
-    /// <summary>Every priced side of the row, moneyline then spread then total, home/over first.</summary>
+    public string Label => SelectionText.Of(Market, Outcome, Offer?.Line);
+
+    /// <summary>
+    /// Every side of the row, moneyline then spread then total, home/over first. A side no book
+    /// prices is still listed, from the game's teams, so a bet taken where the desk has no number
+    /// — a book it does not scan, a game before its lines were pulled — can be recorded.
+    /// </summary>
     public static IReadOnlyList<SelectionChoice> All(BoardRow? row)
     {
         if (row is null)
             return [];
 
+        var home = row.Game.HomeTeam?.Name;
+        var away = row.Game.AwayTeam?.Name;
         var choices = new List<SelectionChoice>(6);
 
         foreach (var pair in new[] { row.Moneyline, row.Spread, row.Total })
         {
-            if (pair.First is { } first)
-                choices.Add(new SelectionChoice(pair.Market, first));
+            var (first, second) = pair.Market == Markets.Total ? ("Over", "Under") : (home, away);
 
-            if (pair.Second is { } second)
-                choices.Add(new SelectionChoice(pair.Market, second));
+            Add(pair.Market, first, pair.First);
+            Add(pair.Market, second, pair.Second);
         }
 
         return choices;
+
+        void Add(string market, string? outcome, BestOffer? offer)
+        {
+            if (offer is not null)
+                choices.Add(new SelectionChoice(market, offer));
+            else if (outcome is not null)
+                choices.Add(new SelectionChoice(market, outcome, null));
+        }
     }
 
     /// <summary>
@@ -36,20 +57,20 @@ public sealed record SelectionChoice(string Market, BestOffer Offer)
     /// </summary>
     public static WagerOffer? Land(BoardRow? row, string? market, string? outcome, string? book)
     {
-        var choices = All(row);
+        var choices = All(row).Where(c => c.Offer is not null).ToList();
 
         if (market is not null && outcome is not null
             && choices.FirstOrDefault(c => c.Market == market
-                                           && string.Equals(c.Offer.Outcome, outcome, StringComparison.OrdinalIgnoreCase)) is { } asked)
+                                           && string.Equals(c.Outcome, outcome, StringComparison.OrdinalIgnoreCase)) is { } asked)
         {
-            return (book is not null ? WagerOffer.AtBook(asked.Market, asked.Offer, book) : null)
-                   ?? WagerOffer.Best(asked.Market, asked.Offer);
+            return (book is not null ? WagerOffer.AtBook(asked.Market, asked.Offer!, book) : null)
+                   ?? WagerOffer.Best(asked.Market, asked.Offer!);
         }
 
         return choices
-            .OrderByDescending(c => c.Offer.Ev ?? double.MinValue)
-            .ThenByDescending(c => c.Offer.EdgePoints ?? 0)
-            .Select(c => WagerOffer.Best(c.Market, c.Offer))
+            .OrderByDescending(c => c.Offer!.Ev ?? double.MinValue)
+            .ThenByDescending(c => c.Offer!.EdgePoints ?? 0)
+            .Select(c => WagerOffer.Best(c.Market, c.Offer!))
             .FirstOrDefault();
     }
 }

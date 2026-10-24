@@ -20,7 +20,7 @@ public sealed class AppDeskSearch(IServiceScopeFactory scopes, WindowManager man
 
         var teams = await search.TeamsAsync(text, 5, ct);
         var players = await search.PlayersAsync(text, 6, ct);
-        var games = await search.GamesAsync(text, 6, ct);
+        var games = await search.GamesAsync(text, 6, ct: ct);
 
         return
         [

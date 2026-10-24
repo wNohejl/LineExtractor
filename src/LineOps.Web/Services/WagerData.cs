@@ -1,6 +1,8 @@
 using LineOps.Core.Entities;
+using LineOps.Data;
 using LineOps.Data.CrossReference;
 using LineOps.Ingestion.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace LineOps.Web.Services;
 
@@ -25,6 +27,17 @@ public interface IWagerData
     Task<IngestionJob?> LinesJobAsync(string sportKey, CancellationToken ct = default);
 
     Task<JobOutcome> RunJobAsync(string key, CancellationToken ct = default);
+
+    /// <summary>Games to log a bet against, by team, newest kickoff first.</summary>
+    Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default);
+
+    /// <summary>Every book the desk knows of — scanned, journalled, or common — for a typed price.</summary>
+    Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default);
+
+    /// <summary>The books the operator has filtered out of the Price list (<see cref="AppSetting.WagerHiddenBooks"/>).</summary>
+    Task<IReadOnlySet<string>> HiddenBooksAsync(CancellationToken ct = default);
+
+    Task SetHiddenBooksAsync(IReadOnlySet<string> books, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -32,7 +45,7 @@ public interface IWagerData
 /// never holds a DbContext across renders. Every write goes through <see cref="JournalService"/>,
 /// whose saves the change notifier announces to every open window.
 /// </summary>
-public sealed class WagerData(IServiceScopeFactory scopes, IngestionJobs jobs) : IWagerData
+public sealed class WagerData(IServiceScopeFactory scopes, IDbContextFactory<LineOpsDbContext> dbs, IngestionJobs jobs) : IWagerData
 {
     public async Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default)
     {
@@ -64,4 +77,35 @@ public sealed class WagerData(IServiceScopeFactory scopes, IngestionJobs jobs) :
         => (await jobs.DescribeAsync(ct)).FirstOrDefault(j => j.Key == IngestionJobs.OddsLinesPrefix + sportKey);
 
     public Task<JobOutcome> RunJobAsync(string key, CancellationToken ct = default) => jobs.RunAsync(key, ct);
+
+    public async Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<JournalService>()
+            .SearchGamesAsync(text, take: 30, latestFirst: true, ct: ct);
+    }
+
+    public async Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<JournalService>().KnownBooksAsync(ct);
+    }
+
+    public async Task<IReadOnlySet<string>> HiddenBooksAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbs.CreateDbContextAsync(ct);
+
+        var stored = await db.GetSettingAsync(AppSetting.WagerHiddenBooks, ct);
+        return (stored ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task SetHiddenBooksAsync(IReadOnlySet<string> books, CancellationToken ct = default)
+    {
+        await using var db = await dbs.CreateDbContextAsync(ct);
+
+        await db.SetSettingAsync(AppSetting.WagerHiddenBooks,
+            books.Count == 0 ? null : string.Join(',', books.Order(StringComparer.OrdinalIgnoreCase)), ct);
+    }
 }
