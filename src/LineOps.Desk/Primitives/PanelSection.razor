@@ -41,9 +41,9 @@
         }
     </div>
 
-    @if (Meta is not null)
+    @if (Detail is not null)
     {
-        <div class="psection__meta">@Meta</div>
+        <div class="psection__meta">@Detail</div>
     }
 
     <div class="psection__body">
@@ -64,7 +64,7 @@
     [Parameter] public RenderFragment? Keys { get; set; }
 
     /// <summary>One quiet line under the rule — what the section reports about itself.</summary>
-    [Parameter] public RenderFragment? Meta { get; set; }
+    [Parameter] public RenderFragment? Detail { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 

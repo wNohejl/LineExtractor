@@ -3446,7 +3446,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     align-items: center;
     gap: 4px;
     flex-wrap: wrap;
-    margin-bottom: 9px;
+    margin-bottom: 0;
 }
 
 .splits__key {

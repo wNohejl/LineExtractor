@@ -28,91 +28,93 @@
 }
 else
 {
-    <div class="row" style="margin-bottom:2px; align-items:baseline">
-        <PanelHeader Tight>@_team.Name</PanelHeader>
-        <Tag>@_team.Sport?.Name</Tag>
-        @* The season on screen, said even when there is only one and the gate below has
-           nothing to offer — a record without its season is a number without a unit. *@
-        @if (_seasonYear is { } seasonYear && _team.Sport?.Key is { } sportKey)
-        {
-            <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
-        }
-    </div>
-
-    <div class="row" style="margin-bottom:12px">
-        <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+    <PanelTitle>
+        <ChildContent>@_team.Name</ChildContent>
+        <Tags>
+            <Tag>@_team.Sport?.Name</Tag>
+            @* The season on screen, said even when there is only one and the gate below has
+               nothing to offer — a record without its season is a number without a unit. *@
+            @if (_seasonYear is { } seasonYear && _team.Sport?.Key is { } sportKey)
+            {
+                <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
+            }
+        </Tags>
+        <Detail>
             @_wins-@_losses @SeasonPhrase
             (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
-        </span>
-
+        </Detail>
         @* The season gate. One position per season this team has played in, newest first;
            it hides itself when there is only one, because one season is not a choice. *@
-        <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
-                    style="margin-left:auto"
-                    Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
-    </div>
+        <Keys>
+            <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+        </Keys>
+    </PanelTitle>
 
-    <PanelHeader Level="4">Recent games</PanelHeader>
-
-    @if (_log.Count == 0)
-    {
-        <EmptyState Kind="EmptyStateKind.Filtered">No games recorded in this window.</EmptyState>
-    }
-    else
-    {
-        @* The splits strip. Every option filters the same loaded log, so nothing here queries.
+    <PanelSection Title="Recent games">
+        @* The splits strip, on the rule's own line. Every option filters the same loaded log,
+           so nothing here queries.
 
            Picking an opponent is a filter the strip cannot express, so it answers by
            standing every position up and showing no cap at all — which is true, and
            reads better than leaving one lit under a filter it is not doing. *@
-        <div class="splits">
-            <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
-                        Value="@(_opponent is null ? _split : null)"
-                        ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
-
-            @if (_opponents.Count > 1)
+        <Keys>
+            @if (_log.Count > 0)
             {
-                <DeskSelect TValue="string" Class="splits__pick"
-                            Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
-                    <option value="">vs anyone</option>
-                    @foreach (var name in _opponents)
+                <div class="splits">
+                    <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                                Value="@(_opponent is null ? _split : null)"
+                                ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
+
+                    @if (_opponents.Count > 1)
                     {
-                        <option value="@name">vs @name</option>
+                        <DeskSelect TValue="string" Class="splits__pick"
+                                    Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                            <option value="">vs anyone</option>
+                            @foreach (var name in _opponents)
+                            {
+                                <option value="@name">vs @name</option>
+                            }
+                        </DeskSelect>
                     }
-                </DeskSelect>
+                </div>
             }
-        </div>
+        </Keys>
 
         @* The record for whatever is on screen, so a split states its own result rather than
            leaving the operator to count tags. ATS is only shown when there is market data
            behind it — a 0-0-0 would read as "never covered" rather than "never priced". *@
-        <div class="row" style="gap:14px; margin:0 0 8px; flex-wrap:wrap">
-            <span class="dim mono" style="font-size:calc(11.5px * var(--text-scale))">@_wins-@_losses</span>
-
-            @if (_atsWins + _atsLosses + _atsPushes > 0)
+        <Detail>
+            @if (_log.Count > 0)
             {
-                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
-                    @_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS
-                </span>
+                <span class="mono">@_wins-@_losses</span>
+
+                @if (_atsWins + _atsLosses + _atsPushes > 0)
+                {
+                    <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
+                }
+
+                @if (_overs + _unders > 0)
+                {
+                    <span>@_overs O / @_unders U</span>
+                }
+
+                <span style="margin-left:auto">@_covered of @_visible.Count with a closing line</span>
             }
+        </Detail>
 
-            @if (_overs + _unders > 0)
-            {
-                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@_overs O / @_unders U</span>
-            }
-
-            <span class="dim" style="font-size:calc(11.5px * var(--text-scale)); margin-left:auto">
-                @_covered of @_visible.Count with a closing line
-            </span>
-        </div>
-
-        @if (_visible.Count == 0)
+        <ChildContent>
+        @if (_log.Count == 0)
+        {
+            <EmptyState Kind="EmptyStateKind.Filtered">No games recorded in this window.</EmptyState>
+        }
+        else if (_visible.Count == 0)
         {
             <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
         }
         else
         {
-            <div class="stack" style="gap:4px; margin-bottom:18px">
+            <DeskStack Gap="DeskSpace.Space1">
                 @foreach (var row in _visible)
                 {
                     <div class="logrow @(_openGame == row.GameId ? "logrow--open" : "")">
@@ -166,19 +168,19 @@ else
                         }
                     </div>
                 }
-            </div>
+            </DeskStack>
         }
-    }
+        </ChildContent>
+    </PanelSection>
 
-    <PanelHeader Level="4">Roster form</PanelHeader>
-
+    <PanelSection Title="Roster form">
     @if (_roster.Count == 0)
     {
         <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster in the window.</EmptyState>
     }
     else
     {
-        <div class="stack" style="gap:4px">
+        <DeskStack Gap="DeskSpace.Space1">
             @foreach (var player in _roster)
             {
                 <div class="logrow @(_openPlayer == player.PlayerId ? "logrow--open" : "")">
@@ -208,8 +210,9 @@ else
                     }
                 </div>
             }
-        </div>
+        </DeskStack>
     }
+    </PanelSection>
 }
 
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />

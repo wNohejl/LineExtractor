@@ -38,7 +38,7 @@ public class PanelTitleTests : DeskTestContext
     {
         var cut = RenderComponent<PanelTitle>(p => p
             .AddChildContent("Mets at Braves")
-            .Add(x => x.Meta, "7:10 PM ET")
+            .Add(x => x.Detail, "7:10 PM ET")
             .Add(x => x.Keys, "<button>Season</button>"));
 
         Assert.Equal("7:10 PM ET", cut.Find(".ptitle__meta .ptitle__text").TextContent);

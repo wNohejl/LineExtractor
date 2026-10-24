@@ -26,25 +26,24 @@
 }
 else
 {
-    <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
-        <PanelHeader Tight>@_player.FullName</PanelHeader>
-        @if (_player.Position is { } position)
-        {
-            <Tag>@position</Tag>
-        }
-        @if (_seasonYear is { } seasonYear && _player.Sport?.Key is { } sportKey)
-        {
-            <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
-        }
-        @if (_player.Team?.Name is { } team)
-        {
-            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team)">@team</DeskLink>
-        }
-    </div>
-
-    <div class="row" style="margin-bottom:14px">
-        <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+    <PanelTitle>
+        <ChildContent>@_player.FullName</ChildContent>
+        <Tags>
+            @if (_player.Position is { } position)
+            {
+                <Tag>@position</Tag>
+            }
+            @if (_seasonYear is { } seasonYear && _player.Sport?.Key is { } sportKey)
+            {
+                <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
+            }
+            @if (_player.Team?.Name is { } team)
+            {
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                          OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team)">@team</DeskLink>
+            }
+        </Tags>
+        <Detail>
             @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
             @* The team beside the name above is where the player is now. When the season on
                screen was played somewhere else, it says so, rather than letting last year's
@@ -53,14 +52,14 @@ else
             {
                 <span> · for @string.Join(", then ", _playedFor)</span>
             }
-        </span>
-
+        </Detail>
         @* One position per season the player has appeared in, newest first. A player with a
            single season sees no gate — one season is not a choice. *@
-        <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
-                    style="margin-left:auto"
-                    Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
-    </div>
+        <Keys>
+            <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+        </Keys>
+    </PanelTitle>
 
     @if (_rows.Count == 0)
     {
@@ -71,25 +70,24 @@ else
     }
     else
     {
-        <PanelHeader Level="4">Averages</PanelHeader>
-
         @* The aggregate every other view shows, kept here beside the games behind it so the
            two can be read against each other rather than one standing in for the other. *@
-        <div class="snippet__facts" style="margin-bottom:16px">
-            @foreach (var column in _columns.Take(6))
-            {
-                <div class="fact">
-                    <div class="fact__label">@column</div>
-                    <div class="fact__value mono">@Average(column)</div>
-                </div>
-            }
-        </div>
-
-        <PanelHeader Level="4">Game log</PanelHeader>
+        <PanelSection Title="Averages">
+            <div class="snippet__facts">
+                @foreach (var column in _columns.Take(6))
+                {
+                    <div class="fact">
+                        <div class="fact__label">@column</div>
+                        <div class="fact__value mono">@Average(column)</div>
+                    </div>
+                }
+            </div>
+        </PanelSection>
 
         @* The log is the one view on the desk where sorting is the point rather than a
            convenience: "which were the big games" and "how did the away nights go" are both
            questions about this table, and neither can be asked of a fixed date order. *@
+        <PanelSection Title="Game log">
         <div class="gridwrap">
             <DeskGrid T="PlayerGameRow" Items="_rows"
                       EmptyText="No appearances on record for this player.">
@@ -148,6 +146,7 @@ else
                 }
             </DeskGrid>
         </div>
+        </PanelSection>
     }
 }
 

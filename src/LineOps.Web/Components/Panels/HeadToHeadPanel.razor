@@ -38,21 +38,22 @@ else if (_rows.Count == 0)
 }
 else
 {
-    <div class="row" style="margin-bottom:2px; align-items:baseline; flex-wrap:wrap">
-        <PanelHeader Tight>@_awayName v @_homeName</PanelHeader>
-        <Tag State="DeskState.Info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
-    </div>
-
-    @* Coverage is stated rather than implied: a column of dashes beside a record says nothing
-       about whether the market data is missing or the games were never priced. *@
-    <p class="dim" style="font-size:calc(11.5px * var(--text-scale)); margin:0 0 14px">
-        @_subjectWins-@_subjectLosses for @_homeName ·
-        @_covered of @_rows.Count with a closing line
-    </p>
+    <PanelTitle>
+        <ChildContent>@_awayName v @_homeName</ChildContent>
+        <Tags>
+            <Tag State="DeskState.Info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
+        </Tags>
+        @* Coverage is stated rather than implied: a column of dashes beside a record says
+           nothing about whether the market data is missing or the games were never priced. *@
+        <Detail>
+            @_subjectWins-@_subjectLosses for @_homeName ·
+            @_covered of @_rows.Count with a closing line
+        </Detail>
+    </PanelTitle>
 
     @if (_covered == 0)
     {
-        <Note Style="margin:12px 0">
+        <Note>
             None of these meetings has a stored closing line, so the market columns are empty.
             Prices are kept only from the point this desk started watching a fixture.
         </Note>

@@ -28,12 +28,12 @@
         @Tags
     </div>
 
-    @if (Meta is not null || Keys is not null)
+    @if (Detail is not null || Keys is not null)
     {
         <div class="ptitle__meta">
-            @if (Meta is not null)
+            @if (Detail is not null)
             {
-                <span class="ptitle__text">@Meta</span>
+                <span class="ptitle__text">@Detail</span>
             }
             @if (Keys is not null)
             {
@@ -51,7 +51,7 @@
     [Parameter] public RenderFragment? Tags { get; set; }
 
     /// <summary>One quiet line under the name: a start time, a record, a count.</summary>
-    [Parameter] public RenderFragment? Meta { get; set; }
+    [Parameter] public RenderFragment? Detail { get; set; }
 
     /// <summary>
     /// The control that scopes the whole window — a season switch, a pair of related
