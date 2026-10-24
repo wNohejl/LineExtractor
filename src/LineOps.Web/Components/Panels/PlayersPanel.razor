@@ -15,30 +15,23 @@
     Player window; a player's name now opens that window, and a team's name the Team window —
     this list finds people, and the windows it opens say how they have been going.
 *@
-<div class="row" style="margin-bottom:12px">
-    <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
-        <option value="">All sports</option>
-        @foreach (var s in _sports)
-        {
-            <option value="@s.Id">@s.Name</option>
-        }
-    </DeskSelect>
+<PanelToolbar Actions="@(Manager.Access.CanOperate ? SyncKey : null)">
+    <ChildContent>
+        <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
+            <option value="">All sports</option>
+            @foreach (var s in _sports)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </DeskSelect>
 
-    @* Filters as you type, after a pause: two queries per keystroke was a query storm for
-       anyone typing a whole name. A player's team works too — "judge nyy". *@
-    <DeskField TValue="string" Immediate="true" style="flex:1; min-width:150px"
-               placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
+        @* Filters as you type, after a pause: two queries per keystroke was a query storm for
+           anyone typing a whole name. A player's team works too — "judge nyy". *@
+        <DeskField TValue="string" Immediate="true"
+                   placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
+    </ChildContent>
 
-    @* The one thing this window does rather than shows, so it carries the panel's weight — on
-       the operator's desk. A visitor's only reads (ADR 0018). *@
-    @if (Manager.Access.CanOperate)
-    {
-        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
-                    OnClick="SyncAsync" Busy="@_busy">
-            Sync stats
-        </DeskButton>
-    }
-</div>
+</PanelToolbar>
 
 @if (_rows.Count == 0)
 {
@@ -104,6 +97,14 @@ else
 }
 
 @code {
+    /// <summary>
+    /// The one thing this window does rather than shows, so it carries the panel's weight — on
+    /// the operator's desk. A visitor only reads (ADR 0018), and the toolbar's actions slot is
+    /// not drawn at all.
+    /// </summary>
+    private RenderFragment SyncKey => @<DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync"
+                                                  OnClick="SyncAsync" Busy="@_busy">Sync stats</DeskButton>;
+
     private const int Limit = 150;
 
     private record Row(Player Player, int Games);

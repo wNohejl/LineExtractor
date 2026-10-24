@@ -19,15 +19,17 @@
    it: no evaluation, no polling switch, no incident, no fault injected (ADR 0018). *@
 @if (Manager.Access.CanOperate)
 {
-    <div class="row row--end" style="margin-bottom:12px">
-        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
-                    OnClick="EvaluateAsync" Busy="@_busy">
-            Evaluate now
-        </DeskButton>
-    </div>
+    <PanelToolbar>
+        <Actions>
+                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                            OnClick="EvaluateAsync" Busy="@_busy">
+                    Evaluate now
+                </DeskButton>
+        </Actions>
+    </PanelToolbar>
 }
 
-<MetricRow Style="margin-bottom:16px">
+<MetricRow>
     <Metric Label="Sources in SLO"
             State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
         @_healthy/@_health.Count
@@ -47,7 +49,7 @@
     provider is never registered, so it writes no runs and appears nowhere in source health.
     "No prices" and "no feed" look identical without this.
 *@
-<PanelHeader>Odds feeds</PanelHeader>
+<PanelSection Title="Odds feeds">
 
 @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
    here regardless would describe a schedule that is not running — the number would be real
@@ -128,7 +130,7 @@ else if (_plan is { } plan)
    scheduling scans of a provider that cannot be reached would spend nothing and say otherwise. *@
 @if (Manager.Access.CanOperate && _feeds.Any(f => f.IsLive))
 {
-    <div class="row" style="gap:8px; margin:0 0 10px">
+    <DeskRow Gap="DeskSpace.Space2" Style="margin-bottom:var(--space-2)">
         @if (_unattended)
         {
             <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.PanTool"
@@ -158,7 +160,7 @@ else if (_plan is { } plan)
         <span class="dim" style="font-size:calc(11px * var(--text-scale))">
             @(_pollingSetHere ? "Chosen here." : "From configuration until chosen here.")
         </span>
-    </div>
+    </DeskRow>
 }
 
 <DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds providers configured.">
@@ -188,8 +190,9 @@ else if (_plan is { } plan)
         <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</PanelSection>
 
-<PanelHeader>Source health</PanelHeader>
+<PanelSection Title="Source health">
 
 <DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered.">
     @* The source name goes through to its runs — "why is this stale" is answered there. *@
@@ -257,8 +260,9 @@ else if (_plan is { } plan)
         </CellTemplate>
     </TemplateColumn>
 </DeskGrid>
+</PanelSection>
 
-<PanelHeader>Open alerts</PanelHeader>
+<PanelSection Title="Open alerts">
 
 <DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
@@ -305,19 +309,20 @@ else if (_plan is { } plan)
         </CellTemplate>
     </TemplateColumn>
 </DeskGrid>
+</PanelSection>
 
 @* The drill breaks a source on purpose; a visitor watches the result, never causes it. *@
 @if (Manager.Access.CanOperate)
 {
-    <PanelHeader>On-call drill</PanelHeader>
-    <Note Style="margin:12px 0">
+    <PanelSection Title="On-call drill">
+    <Note>
         Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
         one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
         With no fault injected the run is a real metered pull, so it scans the league with the most
         games still to start rather than a league named in the code.
     </Note>
 
-    <div class="stack" style="margin-top:10px">
+    <DeskStack>
         @* Said rather than implied. With no injectable source registered the note above still
            promises "inject a fault" and nothing on screen offers one, which reads as a missing
            control rather than as a missing adapter. *@
@@ -354,7 +359,8 @@ else if (_plan is { } plan)
                 Run ingest &amp; evaluate
             </DeskButton>
         </div>
-    </div>
+    </DeskStack>
+    </PanelSection>
 }
 
 @code {
