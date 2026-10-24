@@ -39,10 +39,10 @@
     @if (_loading)
     {
         @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
-        <div class="stack wager-loading" style="gap:10px" aria-busy="true">
+        <DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">
             <DeskSkeleton Lines="1" />
             <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
-        </div>
+        </DeskStack>
     }
     else
     {

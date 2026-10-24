@@ -17,11 +17,11 @@
 <div class="wsections slip">
     <section class="wsection" aria-labelledby="slip-mode-h">
         <PanelHeader Tight id="slip-mode-h">Logged as</PanelHeader>
-        <div class="row" style="flex-wrap:wrap">
+        <DeskRow>
             <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
                         Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
             <span class="wager-offer__of">Belongs to this desk session, not to a game.</span>
-        </div>
+        </DeskRow>
     </section>
 
     @if (_report is { } report)

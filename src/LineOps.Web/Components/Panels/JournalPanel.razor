@@ -9,60 +9,58 @@
 @using LineOps.Web.Services
 @inject IWagerData Wagers
 
-<Note Style="margin:12px 0">
+<PanelToolbar Message="@_message">
+    <ChildContent>
+        <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
+                    Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
+        <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
+                    Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+        <DeskSelect TValue="string" style="max-width:120px"
+                    Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
+            <option value="">All sports</option>
+            @foreach (var sport in _sports)
+            {
+                <option value="@sport">@sport.ToUpperInvariant()</option>
+            }
+        </DeskSelect>
+        <DeskSelect TValue="string" style="max-width:140px"
+                    Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
+            <option value="">All books</option>
+            @foreach (var book in _books)
+            {
+                <option value="@book">@book</option>
+            }
+        </DeskSelect>
+    </ChildContent>
+    <Actions>
+        @* Parlays are built on the slip now (spec §5.4): the form that duplicated the leg fields,
+           the stake row and the book picker retired into it. *@
+        <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="OpenSlip">
+            Open slip
+        </DeskButton>
+        <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
+            Settle finished games
+        </DeskButton>
+        @* The same window the Board's Place wager opens, here on a game search: one form records
+           a bet, whichever door it is reached by. Tinted, not Filled: it opens a window rather
+           than committing anything here. *@
+        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
+                    Title="Find the game and log the bet in the wager window"
+                    OnClick="OpenWager">
+            Log entry
+        </DeskButton>
+    </Actions>
+</PanelToolbar>
+
+<Note>
     LineOps does not place wagers and has no connection to any sportsbook. Entries here are
     records of bets already placed elsewhere.
 </Note>
 
-<div class="row" style="margin-bottom:12px">
-    @* The same window the Board's Place wager opens, here on a game search: one form records a
-       bet, whichever door it is reached by. *@
-    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
-                Title="Find the game and log the bet in the wager window"
-                OnClick="OpenWager">
-        Log entry
-    </DeskButton>
-    @* Parlays are built on the slip now (spec §5.4): the form that duplicated the leg fields,
-       the stake row and the book picker retired into it. *@
-    <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="OpenSlip">
-        Open slip
-    </DeskButton>
-    <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
-        Settle finished games
-    </DeskButton>
-    @if (_message is not null)
-    {
-        <span class="dim" style="font-size:calc(12px * var(--text-scale))">@_message</span>
-    }
-</div>
-
-<div class="row" style="margin-bottom:12px; flex-wrap:wrap">
-    <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
-                Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
-    <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
-                Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
-    <DeskSelect TValue="string" style="max-width:120px"
-                Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
-        <option value="">All sports</option>
-        @foreach (var sport in _sports)
-        {
-            <option value="@sport">@sport.ToUpperInvariant()</option>
-        }
-    </DeskSelect>
-    <DeskSelect TValue="string" style="max-width:140px"
-                Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
-        <option value="">All books</option>
-        @foreach (var book in _books)
-        {
-            <option value="@book">@book</option>
-        }
-    </DeskSelect>
-</div>
-
 @if (_mode == FormMode.Entry)
 {
-    <div class="stack" style="padding:12px; background:var(--surface-2); border:1px solid var(--separator); border-radius:4px; margin-bottom:14px">
-        <PanelHeader Tight>Edit entry</PanelHeader>
+    <PanelForm Title="Edit entry">
+    <ChildContent>
 
         @if (_editing is { IsGraded: true })
         {
@@ -88,16 +86,17 @@
                        placeholder="Note (optional)" @bind-Value="_entry.Note" />
         </div>
 
-        <div class="row">
-            @* A disabled key that does not say what it is waiting for is a key the operator
-               has to guess at. *@
-            <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
-                        Title="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
-                Save changes
-            </DeskButton>
-            <DeskButton OnClick="CloseForm">Cancel</DeskButton>
-        </div>
-    </div>
+    </ChildContent>
+    <Footer>
+        <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+        @* A disabled key that does not say what it is waiting for is a key the operator
+           has to guess at. *@
+        <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
+                    Title="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
+            Save changes
+        </DeskButton>
+    </Footer>
+    </PanelForm>
 }
 
 @if (_entries.Count == 0 && _parlays.Count == 0)
@@ -171,7 +170,7 @@
 
         <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right">
             <CellTemplate>
-                <div class="row" style="justify-content:flex-end; gap:4px">
+                <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
                     @* Graded rows are done; a void stays open to a correction, because an automatic
                        void is the common rule and a given book may have ruled otherwise. *@
                     @if (!context.Item.IsGraded)
@@ -189,7 +188,7 @@
                                 Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
                     <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this entry" OnClick="() => DeleteEntryAsync(context.Item)" />
-                </div>
+                </DeskRow>
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
@@ -197,7 +196,7 @@
 
 @if (_parlays.Count > 0)
 {
-    <PanelHeader>Parlays</PanelHeader>
+    <PanelSection Title="Parlays">
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         <PropertyColumn T="Parlay" TProperty="DateTimeOffset" Property="p => p.PlacedAt" Title="Placed"
@@ -258,7 +257,7 @@
 
         <TemplateColumn T="Parlay" Title="" Sortable="false" Align="Align.Right">
             <CellTemplate>
-                <div class="row" style="justify-content:flex-end; gap:4px">
+                <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
                     @* Legs grade themselves and the parlay follows. This is for the parlay a
                        missing price left pending, or a book that ruled otherwise. A win is only
                        offered where there is a price to pay it at. *@
@@ -277,17 +276,18 @@
                     }
                     <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
-                </div>
+                </DeskRow>
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
+    </PanelSection>
 }
 
 @if (_entries.Count >= _take || _parlays.Count >= _take)
 {
-    <div class="row" style="margin-top:10px">
+    <DeskRow Style="margin-top:var(--space-2)">
         <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
-    </div>
+    </DeskRow>
 }
 
 @code {
