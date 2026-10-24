@@ -116,8 +116,13 @@ public class BoardWagerTests : WagerTestContext
     {
         Data.Latest = new JournalEntry
         {
-            GameId = BoardRows.GameId, Market = Markets.Moneyline, Outcome = BoardRows.Home, Book = "draftkings",
-            PriceTaken = -130, Stake = 50m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            GameId = BoardRows.GameId,
+            Market = Markets.Moneyline,
+            Outcome = BoardRows.Home,
+            Book = "draftkings",
+            PriceTaken = -130,
+            Stake = 50m,
+            PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
 
         var cut = Render();
@@ -167,8 +172,13 @@ public class BoardWagerTests : WagerTestContext
     {
         Data.Latest = new JournalEntry
         {
-            GameId = BoardRows.GameId, Market = Markets.Moneyline, Outcome = BoardRows.Home, Book = "draftkings",
-            PriceTaken = -130, Stake = 50m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            GameId = BoardRows.GameId,
+            Market = Markets.Moneyline,
+            Outcome = BoardRows.Home,
+            Book = "draftkings",
+            PriceTaken = -130,
+            Stake = 50m,
+            PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
         var cut = Render();
 

@@ -31,8 +31,12 @@ public class SlipLoggingIntegrationTests(PostgresFixture fixture)
 
         var game = new Game
         {
-            SportId = sport.Id, HomeTeamId = home.Id, AwayTeamId = away.Id,
-            StartsAt = DateTimeOffset.UtcNow.AddHours(5), Status = GameStatus.Scheduled, SeasonYear = 2026
+            SportId = sport.Id,
+            HomeTeamId = home.Id,
+            AwayTeamId = away.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(5),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
         };
         db.Games.Add(game);
         await db.SaveChangesAsync();
@@ -114,14 +118,46 @@ public class SlipLoggingIntegrationTests(PostgresFixture fixture)
         var journal = Service(db);
 
         db.JournalEntries.AddRange(
-            new JournalEntry { GameId = game.Id, Market = Markets.Moneyline, Outcome = home.Name, Book = "draftkings",
-                               PriceTaken = -130, Stake = 50m, PlacedAt = DateTimeOffset.UtcNow.AddDays(-10) },
-            new JournalEntry { GameId = game.Id, Market = Markets.Moneyline, Outcome = home.Name, Book = "draftkings",
-                               PriceTaken = -128, Stake = 25m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-2) },
-            new JournalEntry { GameId = game.Id, Market = Markets.Moneyline, Outcome = home.Name, Book = "draftkings",
-                               PriceTaken = -125, Stake = 40m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-3) },
-            new JournalEntry { GameId = game.Id, Market = Markets.Moneyline, Outcome = away.Name, Book = "draftkings",
-                               PriceTaken = 110, Stake = 10m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-1) });
+            new JournalEntry
+            {
+                GameId = game.Id,
+                Market = Markets.Moneyline,
+                Outcome = home.Name,
+                Book = "draftkings",
+                PriceTaken = -130,
+                Stake = 50m,
+                PlacedAt = DateTimeOffset.UtcNow.AddDays(-10)
+            },
+            new JournalEntry
+            {
+                GameId = game.Id,
+                Market = Markets.Moneyline,
+                Outcome = home.Name,
+                Book = "draftkings",
+                PriceTaken = -128,
+                Stake = 25m,
+                PlacedAt = DateTimeOffset.UtcNow.AddHours(-2)
+            },
+            new JournalEntry
+            {
+                GameId = game.Id,
+                Market = Markets.Moneyline,
+                Outcome = home.Name,
+                Book = "draftkings",
+                PriceTaken = -125,
+                Stake = 40m,
+                PlacedAt = DateTimeOffset.UtcNow.AddHours(-3)
+            },
+            new JournalEntry
+            {
+                GameId = game.Id,
+                Market = Markets.Moneyline,
+                Outcome = away.Name,
+                Book = "draftkings",
+                PriceTaken = 110,
+                Stake = 10m,
+                PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            });
         await db.SaveChangesAsync();
 
         var since = DateTimeOffset.UtcNow.AddDays(-7);
@@ -143,8 +179,13 @@ public class SlipLoggingIntegrationTests(PostgresFixture fixture)
 
         db.JournalEntries.Add(new JournalEntry
         {
-            GameId = game.Id, Market = Markets.Moneyline, Outcome = home.Name, Book = "draftkings",
-            PriceTaken = -130, Stake = 50m, PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            GameId = game.Id,
+            Market = Markets.Moneyline,
+            Outcome = home.Name,
+            Book = "draftkings",
+            PriceTaken = -130,
+            Stake = 50m,
+            PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
         });
         await db.SaveChangesAsync();
 

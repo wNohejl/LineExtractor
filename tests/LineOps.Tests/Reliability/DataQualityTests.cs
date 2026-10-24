@@ -82,12 +82,21 @@ public class DataQualityTests(PostgresFixture fixture)
 
         db.PlayerGameStats.Add(new PlayerGameStat
         {
-            GameId = whole.Id, PlayerId = player.Id, SourceId = source.Id, CapturedAt = whole.StartsAt
+            GameId = whole.Id,
+            PlayerId = player.Id,
+            SourceId = source.Id,
+            CapturedAt = whole.StartsAt
         });
         db.ClosingLines.Add(new ClosingLine
         {
-            GameId = whole.Id, SourceId = source.Id, Book = "DraftKings", Market = Markets.Moneyline,
-            Outcome = "home", PriceAmerican = -120, CapturedAt = whole.StartsAt, PromotedAt = whole.StartsAt
+            GameId = whole.Id,
+            SourceId = source.Id,
+            Book = "DraftKings",
+            Market = Markets.Moneyline,
+            Outcome = "home",
+            PriceAmerican = -120,
+            CapturedAt = whole.StartsAt,
+            PromotedAt = whole.StartsAt
         });
         await db.SaveChangesAsync();
 
@@ -137,8 +146,11 @@ public class DataQualityTests(PostgresFixture fixture)
     {
         var source = new Source
         {
-            Key = $"dq-src-{Guid.NewGuid():N}", Name = "Test stats", Kind = SourceKind.Stats,
-            BaseUrl = "local://test", Enabled = true
+            Key = $"dq-src-{Guid.NewGuid():N}",
+            Name = "Test stats",
+            Kind = SourceKind.Stats,
+            BaseUrl = "local://test",
+            Enabled = true
         };
         db.Sources.Add(source);
         await db.SaveChangesAsync();
@@ -160,8 +172,11 @@ public class DataQualityTests(PostgresFixture fixture)
         var stats = await SourceAsync(db);
         var odds = new Source
         {
-            Key = $"dq-odds-{Guid.NewGuid():N}", Name = "Test odds", Kind = SourceKind.Odds,
-            BaseUrl = "local://test", Enabled = true
+            Key = $"dq-odds-{Guid.NewGuid():N}",
+            Name = "Test odds",
+            Kind = SourceKind.Odds,
+            BaseUrl = "local://test",
+            Enabled = true
         };
         db.Sources.Add(odds);
         var player = new Player { SportId = seeded.Sport.Id, FullName = $"Player {Guid.NewGuid():N}" };
@@ -171,13 +186,22 @@ public class DataQualityTests(PostgresFixture fixture)
         foreach (var game in new[] { marketClosed, referenceClosed })
             db.PlayerGameStats.Add(new PlayerGameStat
             {
-                GameId = game.Id, PlayerId = player.Id, SourceId = stats.Id, CapturedAt = game.StartsAt
+                GameId = game.Id,
+                PlayerId = player.Id,
+                SourceId = stats.Id,
+                CapturedAt = game.StartsAt
             });
 
         ClosingLine Close(Game game, Source source) => new()
         {
-            GameId = game.Id, SourceId = source.Id, Book = "draftkings", Market = Markets.Moneyline,
-            Outcome = "home", PriceAmerican = -120, CapturedAt = game.StartsAt, PromotedAt = game.StartsAt
+            GameId = game.Id,
+            SourceId = source.Id,
+            Book = "draftkings",
+            Market = Markets.Moneyline,
+            Outcome = "home",
+            PriceAmerican = -120,
+            CapturedAt = game.StartsAt,
+            PromotedAt = game.StartsAt
         };
         db.ClosingLines.AddRange(Close(marketClosed, odds), Close(referenceClosed, stats));
         await db.SaveChangesAsync();

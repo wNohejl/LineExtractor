@@ -46,7 +46,10 @@ public class AppearanceTeamTests(PostgresFixture fixture)
         var sourceKey = $"stub-{suffix}";
         db.Sources.Add(new Source
         {
-            Key = sourceKey, Name = "Stub stats", Kind = SourceKind.Stats, BaseUrl = "local://stub"
+            Key = sourceKey,
+            Name = "Stub stats",
+            Kind = SourceKind.Stats,
+            BaseUrl = "local://stub"
         });
         await db.SaveChangesAsync();
 

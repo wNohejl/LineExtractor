@@ -121,8 +121,13 @@ public class AdvisoryChecksTests
     {
         var prior = new JournalEntry
         {
-            GameId = 7, Market = Markets.Moneyline, Outcome = "Kansas City Chiefs", Book = "draftkings",
-            PriceTaken = -130, Stake = 50m, PlacedAt = Now.AddHours(-1)
+            GameId = 7,
+            Market = Markets.Moneyline,
+            Outcome = "Kansas City Chiefs",
+            Book = "draftkings",
+            PriceTaken = -130,
+            Stake = 50m,
+            PlacedAt = Now.AddHours(-1)
         };
 
         var duplicate = Checks.Duplicate(true, prior, Actions);
@@ -149,7 +154,8 @@ public class AdvisoryChecksTests
             [
                 new LineOps.Data.CrossReference.BookPrice("draftkings", -128, null, 0.56) { Ev = 0.027 },
                 new LineOps.Data.CrossReference.BookPrice("fanduel", -135, null, 0.574) { Ev = -0.01, CapturedAt = captured }
-            ]) { Fair = Pinnacle, Ev = 0.027 };
+            ])
+        { Fair = Pinnacle, Ev = 0.027 };
 
         var rung = WagerOffer.AtBook(Markets.Moneyline, best, "FanDuel")!;
 

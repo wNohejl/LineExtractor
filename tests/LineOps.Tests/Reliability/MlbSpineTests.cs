@@ -48,8 +48,12 @@ public class MlbSpineTests(PostgresFixture fixture)
     private static Game Fixture(Sport sport, Team home, Team away, DateOnly day, int hourEastern)
         => new()
         {
-            SportId = sport.Id, HomeTeamId = home.Id, AwayTeamId = away.Id, SeasonYear = day.Year,
-            StartsAt = LeagueClock.StartOf(day).AddHours(hourEastern), Status = GameStatus.Scheduled
+            SportId = sport.Id,
+            HomeTeamId = home.Id,
+            AwayTeamId = away.Id,
+            SeasonYear = day.Year,
+            StartsAt = LeagueClock.StartOf(day).AddHours(hourEastern),
+            Status = GameStatus.Scheduled
         };
 
     private static MlbScheduledGame Scheduled(long pk, Team home, Team away, DateOnly day, int hourEastern,
@@ -143,7 +147,9 @@ public class MlbSpineTests(PostgresFixture fixture)
     private static Player Known(int id, string name, int? team, string? espnId)
         => new()
         {
-            Id = id, FullName = name, TeamId = team,
+            Id = id,
+            FullName = name,
+            TeamId = team,
             ExternalIds = espnId is null ? [] : new Dictionary<string, string> { ["espn"] = espnId }
         };
 

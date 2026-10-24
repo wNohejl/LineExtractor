@@ -347,15 +347,27 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
         // says "draftkings", and a case-sensitive match used to miss its own book.
         db.ClosingLines.Add(new ClosingLine
         {
-            GameId = game.Id, SourceId = source.Id, Book = "DraftKings",
-            Market = Markets.Spread, Outcome = home.Name, Line = -2.5m, PriceAmerican = -110,
-            CapturedAt = startsAt.AddMinutes(-3), PromotedAt = startsAt.AddMinutes(10)
+            GameId = game.Id,
+            SourceId = source.Id,
+            Book = "DraftKings",
+            Market = Markets.Spread,
+            Outcome = home.Name,
+            Line = -2.5m,
+            PriceAmerican = -110,
+            CapturedAt = startsAt.AddMinutes(-3),
+            PromotedAt = startsAt.AddMinutes(10)
         });
         db.ClosingLines.Add(new ClosingLine
         {
-            GameId = game.Id, SourceId = source.Id, Book = "fanduel",
-            Market = Markets.Spread, Outcome = home.Name, Line = -1.5m, PriceAmerican = -130,
-            CapturedAt = startsAt.AddMinutes(-1), PromotedAt = startsAt.AddMinutes(10)
+            GameId = game.Id,
+            SourceId = source.Id,
+            Book = "fanduel",
+            Market = Markets.Spread,
+            Outcome = home.Name,
+            Line = -1.5m,
+            PriceAmerican = -130,
+            CapturedAt = startsAt.AddMinutes(-1),
+            PromotedAt = startsAt.AddMinutes(10)
         });
         db.JournalEntries.Add(Pending(game, home.Name, Markets.Spread, line: -1.5m, price: -110));
         await db.SaveChangesAsync();
@@ -377,9 +389,15 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
         string market = Markets.Moneyline, decimal? line = null, DateTimeOffset? at = null)
         => new()
         {
-            GameId = game.Id, SourceId = source.Id, Book = book, Market = market, Outcome = outcome,
-            Line = line, PriceAmerican = price,
-            CapturedAt = at ?? game.StartsAt.AddMinutes(-2), PromotedAt = game.StartsAt.AddMinutes(10)
+            GameId = game.Id,
+            SourceId = source.Id,
+            Book = book,
+            Market = market,
+            Outcome = outcome,
+            Line = line,
+            PriceAmerican = price,
+            CapturedAt = at ?? game.StartsAt.AddMinutes(-2),
+            PromotedAt = game.StartsAt.AddMinutes(10)
         };
 
     [Fact]
@@ -441,7 +459,10 @@ public class SettlementIntegrationTests(PostgresFixture fixture)
     {
         var source = new Source
         {
-            Key = $"ref-{Guid.NewGuid():N}", Name = "Test reference", Kind = SourceKind.Stats, BaseUrl = "local://test"
+            Key = $"ref-{Guid.NewGuid():N}",
+            Name = "Test reference",
+            Kind = SourceKind.Stats,
+            BaseUrl = "local://test"
         };
         db.Sources.Add(source);
         await db.SaveChangesAsync();

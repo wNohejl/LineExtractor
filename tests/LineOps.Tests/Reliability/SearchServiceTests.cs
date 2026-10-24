@@ -28,8 +28,12 @@ public class SearchServiceTests(PostgresFixture fixture)
 
         var game = new Game
         {
-            SportId = sport.Id, HomeTeamId = home.Id, AwayTeamId = away.Id,
-            StartsAt = DateTimeOffset.UtcNow.AddDays(-1), Status = GameStatus.Final, SeasonYear = 2026
+            SportId = sport.Id,
+            HomeTeamId = home.Id,
+            AwayTeamId = away.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(-1),
+            Status = GameStatus.Final,
+            SeasonYear = 2026
         };
         var starter = new Player { SportId = sport.Id, TeamId = home.Id, FullName = $"Rowan {tag} Smith", Position = "SS" };
         var bench = new Player { SportId = sport.Id, TeamId = away.Id, FullName = $"Alex {tag} Smith", Position = "C" };

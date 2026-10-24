@@ -61,8 +61,13 @@ public class ChangeNotifierTests(PostgresFixture fixture)
         {
             db.JournalEntries.Add(new JournalEntry
             {
-                Market = "other", FreeTextMarket = "notifier test", Outcome = "—", Book = "draftkings",
-                PriceTaken = -110, Stake = 1m, PlacedAt = DateTimeOffset.UtcNow
+                Market = "other",
+                FreeTextMarket = "notifier test",
+                Outcome = "—",
+                Book = "draftkings",
+                PriceTaken = -110,
+                Stake = 1m,
+                PlacedAt = DateTimeOffset.UtcNow
             });
             await db.SaveChangesAsync();
         }

@@ -32,9 +32,14 @@ public class JournalServiceTests(PostgresFixture fixture)
 
         var game = new Game
         {
-            SportId = sport.Id, HomeTeamId = h.Id, AwayTeamId = a.Id,
-            StartsAt = DateTimeOffset.UtcNow.AddHours(-5), Status = GameStatus.Final,
-            HomeScore = home, AwayScore = away, SeasonYear = 2026
+            SportId = sport.Id,
+            HomeTeamId = h.Id,
+            AwayTeamId = a.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddHours(-5),
+            Status = GameStatus.Final,
+            HomeScore = home,
+            AwayScore = away,
+            SeasonYear = 2026
         };
         db.Games.Add(game);
         await db.SaveChangesAsync();

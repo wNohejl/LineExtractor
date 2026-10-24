@@ -215,8 +215,11 @@ public class PerformanceAnalyticsTests
     {
         var entry = new JournalEntry
         {
-            Market = market, Outcome = outcome, PriceTaken = -110,
-            LineTaken = (decimal)taken, ClosingPoints = (decimal)closed
+            Market = market,
+            Outcome = outcome,
+            PriceTaken = -110,
+            LineTaken = (decimal)taken,
+            ClosingPoints = (decimal)closed
         };
 
         Assert.Equal((decimal)expected, PerformanceAnalytics.PointsGained(entry));
@@ -241,9 +244,12 @@ public class PerformanceAnalyticsTests
         // half better. Scoring it on price alone called this losing to the close.
         var entry = new JournalEntry
         {
-            Market = Markets.Spread, Outcome = "home",
-            PriceTaken = -120, LineTaken = -1.5m,
-            ClosingPrice = -105, ClosingPoints = -2.5m
+            Market = Markets.Spread,
+            Outcome = "home",
+            PriceTaken = -120,
+            LineTaken = -1.5m,
+            ClosingPrice = -105,
+            ClosingPoints = -2.5m
         };
 
         var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
@@ -259,9 +265,12 @@ public class PerformanceAnalyticsTests
     {
         var entry = new JournalEntry
         {
-            Market = Markets.Spread, Outcome = "home",
-            PriceTaken = -115, LineTaken = -2.5m,
-            ClosingPrice = -105, ClosingPoints = -2.5m
+            Market = Markets.Spread,
+            Outcome = "home",
+            PriceTaken = -115,
+            LineTaken = -2.5m,
+            ClosingPrice = -105,
+            ClosingPoints = -2.5m
         };
 
         var clv = PerformanceAnalytics.ComputeClv(entry)!.Value;
@@ -296,8 +305,14 @@ public class PerformanceAnalyticsTests
     {
         var entry = new JournalEntry
         {
-            Market = Markets.Spread, Outcome = "home", Book = "draftkings", PriceTaken = -110, LineTaken = -2.5m,
-            ClosingPrice = closePrice, ClosingBook = closeBook, ClosingPoints = (decimal?)closePoints
+            Market = Markets.Spread,
+            Outcome = "home",
+            Book = "draftkings",
+            PriceTaken = -110,
+            LineTaken = -2.5m,
+            ClosingPrice = closePrice,
+            ClosingBook = closeBook,
+            ClosingPoints = (decimal?)closePoints
         };
 
         Assert.Equal(expected, PerformanceAnalytics.ClvBasis(entry));
@@ -323,9 +338,15 @@ public class PerformanceAnalyticsTests
     private static JournalEntry Valued(decimal stake, int price, double? fair, string? basis = FairValue.SharpBook)
         => new()
         {
-            Market = Markets.Moneyline, Outcome = "home", Book = "draftkings", PriceTaken = price,
-            Stake = stake, Result = EntryResult.Win, ClosingPrice = price,
-            ClosingFairProbability = fair, ClosingFairBasis = fair is null ? null : basis
+            Market = Markets.Moneyline,
+            Outcome = "home",
+            Book = "draftkings",
+            PriceTaken = price,
+            Stake = stake,
+            Result = EntryResult.Win,
+            ClosingPrice = price,
+            ClosingFairProbability = fair,
+            ClosingFairBasis = fair is null ? null : basis
         };
 
     [Fact]
