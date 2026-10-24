@@ -1,0 +1,79 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    The title block a subject window opens with.
+
+    A window about one thing — a game, a team, a player, a pairing — used to set that
+    thing's name with <PanelHeader Tight>, which is the 11px uppercase grey rule that names
+    a *section*. The name of the window was its smallest type, and the tags, the date line
+    and the season switch beside it were a hand-laid row with its own margins in every panel.
+
+    This is the first slot of the panel anatomy (spec 2026-10-24): the name in the title
+    ramp, tags on its baseline, one quiet meta line beneath, and a right-pinned slot on that
+    line for the control that scopes the whole window. Catalogue windows — Board, Ops,
+    Journal — have no title: the window bar already names them.
+
+    The margin below is this block's business, as every slot's is. The meta row is not drawn
+    at all when there is nothing to put on it, so a title with no meta does not reserve air
+    for a line that is not there.
+
+    class and style are held out of the splat and folded into the component's own, the
+    same shape DeskRow uses and for the same reason: a splatted style replaces the
+    element's style attribute outright.
+*@
+
+<div class="@Classes" style="@Styles" @attributes="Rest">
+    <div class="ptitle__row">
+        <h2 class="ptitle__name">@ChildContent</h2>
+        @Tags
+    </div>
+
+    @if (Meta is not null || Keys is not null)
+    {
+        <div class="ptitle__meta">
+            @if (Meta is not null)
+            {
+                <span class="ptitle__text">@Meta</span>
+            }
+            @if (Keys is not null)
+            {
+                <span class="ptitle__keys">@Keys</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The name of the thing. Links are welcome — a matchup is two team links.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Tags that sit on the name's baseline: status, season, position.</summary>
+    [Parameter] public RenderFragment? Tags { get; set; }
+
+    /// <summary>One quiet line under the name: a start time, a record, a count.</summary>
+    [Parameter] public RenderFragment? Meta { get; set; }
+
+    /// <summary>
+    /// The control that scopes the whole window — a season switch, a pair of related
+    /// windows — pinned to the right of the meta line. Never Filled.
+    /// </summary>
+    [Parameter] public RenderFragment? Keys { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', new[] { "ptitle", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private string? Styles => DeskLayout.MergeStyle(null, Extra) is { } splat
+        ? Style is { Length: > 0 } ? $"{Style}; {splat}" : splat
+        : Style;
+
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+}

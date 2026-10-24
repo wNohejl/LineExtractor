@@ -2862,6 +2862,36 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .stack--start { align-items: flex-start; }
 .stack--center { align-items: center; }
 .stack--end { align-items: flex-end; }
+
+/* ---- Panel anatomy (spec 2026-10-24) -------------------------------------
+   Every window body renders its parts in one order: title, toolbar, note,
+   metrics, sections, forms. Each part owns the air beneath it, so a panel never
+   writes a margin. Single-class and sibling selectors only; nothing here needs
+   to out-specify anything, because the panels stopped writing inline spacing.
+   --------------------------------------------------------------------------- */
+
+/* 1 · Title. The name of the thing the window is about, in the title ramp. */
+.ptitle { margin: 0 0 var(--space-4); }
+.ptitle__row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); }
+.ptitle__name {
+    margin: 0;
+    font-size: var(--text-title2);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-title);
+    color: var(--text-primary);
+}
+.ptitle__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    font-size: var(--text-subheadline);
+    color: var(--text-secondary);
+}
+.ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
+.ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
 /* A note is a filled shape, not a framed one. It used to carry a hairline outline and a 2px
@@ -3964,53 +3994,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 .wfoot { margin: 0; font-size: var(--text-footnote); line-height: var(--leading-body); color: var(--text-secondary); }
 
-.slip-badge {
-    display: inline-block;
-    min-width: 18px;
-    margin-left: var(--space-1);
-    padding: 0 5px;
-    border-radius: 9px;
-    background: var(--accent-wash);
-    color: var(--accent);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    line-height: 18px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ---- The slip: each wager a group of its own. */
-.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3); }
-.slip-card--blocked { background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2)); }
-.slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
-.slip-card__top > div:first-child { flex: 1; min-width: 0; }
-.slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.slip-card__meta { font-size: var(--text-footnote); color: var(--text-secondary); }
-.slip-card__stake { max-width: 96px; text-align: right; }
-.slip-card__state { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-subheadline); color: var(--text-primary); }
-.slip-card__state .tag { flex: none; }
-.slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
-.slip-cards { display: flex; flex-direction: column; gap: var(--space-2); }
-
-.slip-parlay { display: grid; gap: var(--space-2); padding: var(--space-3); }
-.slip-parlay__head { display: flex; align-items: baseline; gap: var(--space-2); }
-.slip-parlay__price {
-    margin-left: auto;
-    font-size: var(--text-title1);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-tight);
-    font-variant-numeric: tabular-nums;
-}
-.slip-parlay__note { font-size: var(--text-footnote); color: var(--text-secondary); }
-.slip-report .desk-btn { margin-left: var(--space-2); }
-.slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
-
-.price--take { cursor: pointer; }
-.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent); }
-.price--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.take { all: unset; cursor: pointer; }
-.take:hover span { color: var(--accent); }
-.take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* ---- A section header with something of its own beside it: a key, or a count. */
 .wsection__head { display: flex; align-items: center; gap: var(--space-2); min-height: 24px; padding: 0 var(--space-1); }
 .wsection__head > .panel-h { margin: 0; }
@@ -4066,3 +4049,50 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .game-search__when, .game-search__empty { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
 
+.slip-badge {
+    display: inline-block;
+    min-width: 18px;
+    margin-left: var(--space-1);
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent-wash);
+    color: var(--accent);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- The slip: each wager a group of its own. */
+.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.slip-card--blocked { background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2)); }
+.slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
+.slip-card__top > div:first-child { flex: 1; min-width: 0; }
+.slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.slip-card__meta { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-card__stake { max-width: 96px; text-align: right; }
+.slip-card__state { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-subheadline); color: var(--text-primary); }
+.slip-card__state .tag { flex: none; }
+.slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-cards { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.slip-parlay { display: grid; gap: var(--space-2); padding: var(--space-3); }
+.slip-parlay__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.slip-parlay__price {
+    margin-left: auto;
+    font-size: var(--text-title1);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    font-variant-numeric: tabular-nums;
+}
+.slip-parlay__note { font-size: var(--text-footnote); color: var(--text-secondary); }
+.slip-report .desk-btn { margin-left: var(--space-2); }
+.slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
+
+.price--take { cursor: pointer; }
+.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent); }
+.price--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.take { all: unset; cursor: pointer; }
+.take:hover span { color: var(--accent); }
+.take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
