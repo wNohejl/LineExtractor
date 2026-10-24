@@ -1,0 +1,62 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    The one row of controls that scope or act on a whole panel.
+
+    Second slot of the panel anatomy (spec 2026-10-24). Before it, every panel laid its own
+    opening row: Ops put a lone Filled key on a right-aligned row of its own, Players put
+    its Filled key in the middle of the filter row, Runs stacked selects under a note and
+    put Refresh after them. The operator's hand went to a different place in every window.
+
+    Order inside is fixed, left to right: pickers (the ChildContent), a search field that
+    takes the remaining width, a message the toolbar reports, then the actions slot pinned
+    to the right edge. The actions slot holds at most one Filled key, always last; Plain and
+    Tinted keys may sit before it. A toolbar may hold no Filled key at all — a key that only
+    opens a form in place is Tinted, and the key that commits the form is the Filled one.
+
+    The actions slot is not drawn when there is nothing to put in it, so a window a visitor
+    reads renders its pickers with no empty box after them and nothing moves.
+*@
+
+<div class="@Classes" style="@Styles" role="toolbar" @attributes="Rest">
+    @ChildContent
+
+    @if (Message is { Length: > 0 })
+    {
+        <span class="ptoolbar__msg">@Message</span>
+    }
+
+    @if (Actions is not null)
+    {
+        <div class="ptoolbar__actions">@Actions</div>
+    }
+</div>
+
+@code {
+    /// <summary>The pickers and the search field, in that order.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>What the toolbar last did — "Settled 3 games". Quiet, between search and actions.</summary>
+    [Parameter] public string? Message { get; set; }
+
+    /// <summary>The keys, pinned right. Plain or Tinted first, the one Filled key last.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', new[] { "ptoolbar", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private string? Styles => DeskLayout.MergeStyle(null, Extra) is { } splat
+        ? Style is { Length: > 0 } ? $"{Style}; {splat}" : splat
+        : Style;
+
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+}

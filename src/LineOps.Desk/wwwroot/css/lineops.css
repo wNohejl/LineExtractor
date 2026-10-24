@@ -2892,6 +2892,15 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
 .ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
 
+/* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
+   message, then the actions slot at the right edge — where the one Filled key lives
+   in every window. A bare search field is an <input> straight in the row; a labelled
+   one is wrapped in .field-set. Either takes the remaining width. */
+.ptoolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); }
+.ptoolbar > input.field, .ptoolbar > .field-set { flex: 1 1 160px; min-width: 150px; }
+.ptoolbar__msg { font-size: var(--text-subheadline); color: var(--text-secondary); }
+.ptoolbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
 /* A note is a filled shape, not a framed one. It used to carry a hairline outline and a 2px
