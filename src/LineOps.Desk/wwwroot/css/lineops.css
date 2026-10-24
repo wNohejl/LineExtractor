@@ -2901,6 +2901,23 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .ptoolbar__msg { font-size: var(--text-subheadline); color: var(--text-secondary); }
 .ptoolbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
+/* 5 · Section. The air between sections is the section's; its rule renders Tight,
+   so the global "heading after content" rule stands down and this one decides. */
+.psection { margin: 0; min-width: 0; }
+.psection + .psection { margin-top: var(--space-6); }
+.psection__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+.psection__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.psection__meta {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin: calc(-1 * var(--space-1)) 0 var(--space-2);
+    font-size: var(--text-subheadline);
+    color: var(--text-secondary);
+}
+.psection--subject .panel-h { color: var(--text-primary); }
+
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 
 /* A note is a filled shape, not a framed one. It used to carry a hairline outline and a 2px

@@ -1,0 +1,94 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A stretch of a panel under one rule.
+
+    Fifth slot of the panel anatomy (spec 2026-10-24). The rule is still PanelHeader, so
+    nothing looks different; what moved is whose job the spacing is. Every panel used to
+    decide for itself how far one section sat from the last — Gap="Section", a margin-top
+    on the first thing inside, the global "a heading after content gets 18px" rule, or
+    nothing — and the answer was different in every window. A section now carries the
+    air between itself and the next (.psection + .psection), and its header renders Tight,
+    which writes margin:0 inline and so stands down the global rule.
+
+    Keys sit on the rule's own line, pinned right: the split switch over Recent games, a
+    small Tinted key. Never a Filled key — a section's keys narrow what the section shows,
+    they do not commit anything — and never a destructive one. A Meta line under the rule
+    is for what the section is reporting about itself: a record, a coverage count.
+
+    Heading rank is inferred, not declared. A section straight in a window body is h3; one
+    inside another section is h4, by a cascading depth. The outline a screen reader walks
+    is title → section → subsection, which is what PanelHeader's Level parameter was asking
+    every caller to remember.
+*@
+
+<section class="@Classes" style="@Styles" @attributes="Rest">
+    <div class="psection__head">
+        <PanelHeader Tight Level="@Level">
+            @if (TitleContent is not null)
+            {
+                @TitleContent
+            }
+            else
+            {
+                @Title
+            }
+        </PanelHeader>
+
+        @if (Keys is not null)
+        {
+            <div class="psection__keys">@Keys</div>
+        }
+    </div>
+
+    @if (Meta is not null)
+    {
+        <div class="psection__meta">@Meta</div>
+    }
+
+    <div class="psection__body">
+        <CascadingValue Name="PanelSectionDepth" Value="@(Depth + 1)" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
+    </div>
+</section>
+
+@code {
+    /// <summary>The rule's words.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>The rule as markup, when it needs a link in it. Wins over <see cref="Title"/>.</summary>
+    [Parameter] public RenderFragment? TitleContent { get; set; }
+
+    /// <summary>Small keys on the rule's line, pinned right. Plain or Tinted; never Filled.</summary>
+    [Parameter] public RenderFragment? Keys { get; set; }
+
+    /// <summary>One quiet line under the rule — what the section reports about itself.</summary>
+    [Parameter] public RenderFragment? Meta { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    /// <summary>How many sections this one sits inside. Zero straight in a window body.</summary>
+    [CascadingParameter(Name = "PanelSectionDepth")]
+    public int Depth { get; set; }
+
+    private int Level => Depth == 0 ? 3 : 4;
+
+    private string Classes => string.Join(' ', new[] { "psection", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private string? Styles => DeskLayout.MergeStyle(null, Extra) is { } splat
+        ? Style is { Length: > 0 } ? $"{Style}; {splat}" : splat
+        : Style;
+
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+}

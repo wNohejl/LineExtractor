@@ -13,6 +13,10 @@
     The look still comes from .panel-h in lineops.css — this owns the spacing decisions,
     not the type.
 
+    Since the panel anatomy (spec 2026-10-24) a section spaces itself: PanelSection renders
+    this Tight and carries the air between sections. Gap and Level stay for the callers
+    that still place a rule by hand, and for nothing new.
+
     Attribute handling copies DeskSwitch: the component composes its own style and splats
     everything except style/class, so a caller's attributes can never blank out the
     spacing rule the component just decided on. Class and Style append last, so a genuine
