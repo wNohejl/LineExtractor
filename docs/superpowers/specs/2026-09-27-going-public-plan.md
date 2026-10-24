@@ -1,7 +1,7 @@
 # Going public — deployment, product, and the platform under both
 
 **Date:** 2026-09-27
-**Status:** Plan. Phase 0 is being built on `LineX_Development` alongside this document (§9).
+**Status:** Plan. Phase 0 built on `LineX_Development` (2026-09-27); reassessed 2026-10-24 (§10a).
 **Audience:** the developer deciding how far LineOps leaves the laptop, and what it becomes
 when it does.
 
@@ -391,16 +391,16 @@ Each phase ends with something running that can be pointed at.
 ### Phase 0 — Safe to expose (built now, 2026-09-27)
 
 - [x] This document.
-- [ ] Access modes, operator and guest codes, operator-only windows and controls (§5.1),
+- [x] Access modes, operator and guest codes, operator-only windows and controls (§5.1),
       with tests.
-- [ ] Edge hardening: forwarded headers behind a proxy, security headers, a sign-in rate
+- [x] Edge hardening: forwarded headers behind a proxy, security headers, a sign-in rate
       limit, `AllowedHosts` from configuration.
-- [ ] `deploy/`: a production compose file (Caddy, web without the scheduler, worker as the
+- [x] `deploy/`: a production compose file (Caddy, web without the scheduler, worker as the
       only scheduler, nightly backups), a `Caddyfile`, `.env.example`, `deploy.sh`,
       `backup.sh`, and the runbook for a new server.
-- [ ] An image-publish workflow: GHCR on push to `main`, and on demand.
-- [ ] `publish-data.ps1` leaves personal tables out of the snapshot unless asked.
-- [ ] ADR 0018 (access) and ADR 0019 (hosted topology).
+- [x] An image-publish workflow: GHCR on push to `main`, and on demand.
+- [x] `publish-data.ps1` leaves personal tables out of the snapshot unless asked.
+- [x] ADR 0018 (access) and ADR 0019 (hosted topology).
 
 **Exit:** `Access:Mode=Gated` locally shows a visitor desk with nothing personal and no
 control that writes, and an operator desk with everything; `dotnet test` green; the Worker
@@ -479,6 +479,42 @@ query the operator did not schedule.
   drift further apart and the extraction costs more.
 - **Terms drift.** Each provider's terms were read on 2026-09-27. Re-read them before
   Stage 2 and before Stage 3.
+
+---
+
+## 10a. Reassessed 2026-10-24
+
+Four weeks on, nothing in §8 has been decided and nothing has been deployed. Three things
+changed underneath the plan.
+
+**CI had never seen Phase 0, and would have failed it.** CI runs only on `main` and on pull
+requests, and `LineX_Development` was 177 commits ahead of `main`. Run the way CI runs it, on
+Linux from a fresh clone, the build and the pending-migration check passed, but `dotnet format`
+reported 153 errors in eleven test files. On Windows those errors hide among line-ending noise.
+Fixed in `d39e829`. Until then, merging to `main` would have failed CI, and the Images workflow
+publishes only after CI passes, so deployment was blocked without anyone seeing it.
+
+**The data has a four-week hole.** The local Postgres has been stopped since 27 September, so
+the MLB postseason and NFL weeks 4–8 were never ingested. Most of it is recoverable for free:
+History's *Gather history* walks ESPN back over the gap through `StatsIngestionService`, which
+writes schedules, scores, box scores and ESPN's one-book reference close. What cannot come back
+is the multi-book market close for those games, and so their fair close (ADR 0010: odds are not
+backfillable). They will read "no fair close", which is the honest answer.
+
+**The calendar moved the sequencing.** MLB is in its offseason until Opening Day, late March
+2027, so a showcase now shows NFL alone, and the next five months are the cheapest time to
+change MLB's stats port. Revised order:
+
+1. **Now, free:** start Postgres and the desk, run *Gather history* over 27 Sep → today, and
+   refresh the snapshot (`publish-data.ps1 -Commit`, which now leaves personal tables out).
+2. **Decision 2 (repository private)**, before anything below publishes more of the data.
+3. **Merge `LineX_Development` → `main`.** That is the first CI run since September and the
+   first image build.
+4. **Phase 1**, the showcase: decisions 3 and 4 (VM, domain), then `deploy/README.md`.
+5. **Phase 2 in the offseason:** the balldontlie adapter, NFL first because it is the league
+   in season and so the one a fixture can be checked against live; MLB before Opening Day.
+
+Decision 1 (employment) still gates Phase 5 and nothing earlier.
 
 ---
 
