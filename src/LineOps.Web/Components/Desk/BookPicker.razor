@@ -1,0 +1,159 @@
+@using LineOps.Core.Analytics
+@using LineOps.Web.Services
+
+@*
+    The book a price is from, as a menu on the price itself.
+
+    It used to be a section of its own beneath the price — a row of filter chips over a radio
+    list — so choosing the book and reading what it pays were two places apart, and the window
+    grew a section for what is really one control: "which book's number is this?". Folded into
+    the price, the trigger names the book the headline is from, and opening it lists every book
+    quoting the side with its line, price and age, best first. Picking one closes the menu and
+    re-reads the headline from that book.
+
+    The filter rides along at the foot of the menu: books the operator never uses can be taken
+    out of the list (remembered with their settings), and the count says how many are hidden.
+
+    The menu floats, so it takes the floating material, like the pull menu. A press anywhere
+    outside closes it, through an invisible scrim, so dismissing never also presses whatever was
+    underneath. Escape closes it too.
+*@
+
+<div class="book-picker" @onkeydown="OnKey">
+    <button type="button" class="book-picker__trigger"
+            aria-haspopup="listbox"
+            aria-expanded="@(_open ? "true" : "false")"
+            aria-controls="@_listId"
+            title="Change the book this price is from"
+            @onclick="Toggle">
+        <span class="book-picker__at">at</span>
+        <span class="wager-offer__book">@Chosen</span>
+        @if (ChosenIsBest)
+        {
+            <Tag State="DeskState.Positive">Best</Tag>
+        }
+        <Glyph Icon="@Icons.Material.Filled.UnfoldMore" />
+    </button>
+
+    @if (_open)
+    {
+        <div class="book-picker__scrim" @onclick="Close"></div>
+
+        <div class="book-picker__panel">
+            <div class="book-picker__head">
+                <span>Choose the book you bet with</span>
+                <span class="book-picker__aside">@Count</span>
+            </div>
+
+            @if (Shown.Count > 0)
+            {
+                <div class="book-picker__list" role="listbox" id="@_listId" aria-label="Books quoting this side">
+                    @foreach (var book in Shown)
+                    {
+                        var chosen = string.Equals(book.Book, Chosen, StringComparison.OrdinalIgnoreCase);
+                        <button type="button" role="option" aria-selected="@(chosen ? "true" : "false")"
+                                class="book-row @(chosen ? "book-row--chosen" : null)"
+                                @onclick="() => ChooseAsync(book.Book)">
+                            <span class="book-row__mark" aria-hidden="true">
+                                @if (chosen)
+                                {
+                                    <Glyph Icon="@Icons.Material.Filled.Check" />
+                                }
+                            </span>
+                            <span class="book-row__book">@book.Book</span>
+                            @if (book.IsBest)
+                            {
+                                <Tag State="DeskState.Positive">Best</Tag>
+                            }
+                            <span class="book-row__age" title="When this price was captured">@Age(book)</span>
+                            <span class="book-row__line num">@(book.Line is { } l ? OddsMath.FormatLine(l, book.Outcome) : "")</span>
+                            <span class="book-row__price num">@Price(book.PriceAmerican)</span>
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="book-picker__empty" id="@_listId">Every book quoting this side is hidden below.</p>
+            }
+
+            <div class="book-picker__filter">
+                <span class="book-picker__filter-label">Books in this list</span>
+                <div class="book-chips" role="group" aria-label="Books to show">
+                    @foreach (var book in Books)
+                    {
+                        var shown = !Hidden.Contains(book.Book);
+                        <DeskButton Size="DeskKeySize.Small"
+                                    Emphasis="@(shown ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                                    Class="book-chip"
+                                    aria-pressed="@(shown ? "true" : "false")"
+                                    Title="@(shown ? $"Hide {book.Book} from this list" : $"Show {book.Book} in this list")"
+                                    OnClick="() => OnToggleHidden.InvokeAsync(book.Book)">
+                            @book.Book
+                        </DeskButton>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Every book quoting the side, best first.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<WagerOffer> Books { get; set; } = [];
+
+    /// <summary>The book the headline price is from.</summary>
+    [Parameter] public string? Chosen { get; set; }
+
+    /// <summary>Books the operator has taken out of the list.</summary>
+    [Parameter] public IReadOnlySet<string> Hidden { get; set; } = new HashSet<string>();
+
+    [Parameter] public EventCallback<string> OnChoose { get; set; }
+
+    [Parameter] public EventCallback<string> OnToggleHidden { get; set; }
+
+    private readonly string _listId = "books-" + Guid.NewGuid().ToString("N")[..8];
+
+    private bool _open;
+
+    private IReadOnlyList<WagerOffer> Shown => Books.Where(b => !Hidden.Contains(b.Book)).ToList();
+
+    private bool ChosenIsBest
+        => Books.FirstOrDefault(b => string.Equals(b.Book, Chosen, StringComparison.OrdinalIgnoreCase))?.IsBest == true;
+
+    private string Count
+    {
+        get
+        {
+            var hidden = Books.Count(b => Hidden.Contains(b.Book));
+            return $"{Books.Count} quoting" + (hidden > 0 ? $" · {hidden} filtered out" : "");
+        }
+    }
+
+    private void Toggle() => _open = !_open;
+
+    private void Close() => _open = false;
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _open = false;
+    }
+
+    private async Task ChooseAsync(string book)
+    {
+        _open = false;
+        await OnChoose.InvokeAsync(book);
+    }
+
+    private static string Age(WagerOffer offer)
+    {
+        if (offer.IsClosing)
+            return "close";
+
+        var age = DateTimeOffset.UtcNow - offer.CapturedAt;
+        return age < TimeSpan.FromMinutes(1) ? "now" : Checks.Span(age);
+    }
+
+    private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
+}

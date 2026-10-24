@@ -4114,6 +4114,230 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .game-search__text { display: flex; flex-direction: column; min-width: 0; }
 .game-search__match { font-weight: var(--weight-semibold); }
 .game-search__when, .game-search__empty { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* ---- The game search's two halves, named so a played game never reads as this week's. */
+.game-search__group {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.game-search__group + .game-search__opt::before { display: none; }
+
+/* ---- The stepper (DeskSteps / DeskStep): a numbered marker on a rail down the left, the step
+   beside it. Done turns the number into a check and the rail beneath it into accent, so the
+   finished part of the form reads as a filled line; the current marker is solid accent with a
+   halo; a waiting step dims its title and says what it waits for. */
+.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.wstep {
+    position: relative;
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    column-gap: var(--space-3);
+    padding-bottom: var(--space-6);
+}
+.wstep:last-child { padding-bottom: 0; }
+/* The rail: from under this marker to the next one. */
+.wstep::before {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 34px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--separator);
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+.wstep:last-child::before { display: none; }
+.wstep--done::before { background: color-mix(in oklab, var(--accent) 55%, transparent); }
+.wstep__dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--separator);
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
+}
+.wstep__dot svg { width: 15px; height: 15px; }
+.wstep--current .wstep__dot {
+    color: var(--on-accent);
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-wash);
+}
+.wstep--done .wstep__dot { color: var(--accent); background: var(--accent-wash); box-shadow: none; }
+.wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.wstep__head { display: flex; align-items: center; gap: var(--space-2); min-height: 28px; }
+.wstep__title {
+    margin: 0;
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-title);
+    color: var(--text-primary);
+}
+.wstep--todo .wstep__title { color: var(--text-secondary); }
+.wstep__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
+.wstep__hint, .wstep__wait {
+    margin: calc(-1 * var(--space-1)) 0 0;
+    max-width: 72ch;
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wstep__wait { color: var(--text-tertiary); }
+.wstep__main > .note { margin: 0; }
+
+/* ---- Your bet: a labelled row per market, each option a tile that shows its side and its
+   best price. A tile, not a text key: it has to look like a choice before it is pointed at. */
+.selection-chips { display: flex; flex-direction: column; gap: var(--space-2); }
+.selection-group { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.selection-group__label {
+    flex: 0 0 84px;
+    font-size: var(--text-subheadline);
+    color: var(--text-secondary);
+    cursor: help;
+    text-decoration: underline dotted var(--text-tertiary);
+    text-underline-offset: 3px;
+}
+.selection-group__keys { display: flex; flex-wrap: wrap; gap: var(--space-2); flex: 1 1 260px; }
+.selection-chip {
+    flex: 1 1 140px;
+    max-width: 220px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 34px;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--separator);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--text-body);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+.selection-chip:hover { background: var(--surface-3); }
+.selection-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.selection-chip--on, .selection-chip--on:hover { background: var(--accent-wash); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.selection-chip__side { font-weight: var(--weight-semibold); white-space: nowrap; }
+.selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.selection-chip--on .selection-chip__price { color: var(--accent); font-weight: var(--weight-semibold); }
+.selection-chip__price--none { font-size: var(--text-footnote); color: var(--text-tertiary); }
+
+/* ---- Price and book: the number, the pencil that replaces it, the line, and the book menu,
+   on one row; what the number is worth beneath; where it came from at the foot. */
+/* The book menu hangs out of the card, so the card must not clip it the way a .wgroup clips its rows. */
+.wager-offer { gap: var(--space-2); overflow: visible; }
+.wager-offer__top { align-items: center; }
+.wager-offer__top > .wager-manual-key { margin-left: calc(-1 * var(--space-1)); color: var(--text-secondary); }
+.wager-offer__top > .wager-manual-key:hover { color: var(--text-primary); }
+.wager-offer__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--separator);
+}
+.wager-offer__meta .wager-offer__age { margin-left: auto; }
+.wager-price { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.wager-typed { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
+.wager-typed > .wager-manual-key { margin-left: auto; }
+
+.book-picker { position: relative; margin-left: auto; }
+.book-picker__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 32px;
+    padding: 0 var(--space-2) 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius);
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--separator);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    transition: box-shadow var(--dur-fast) var(--ease-standard);
+}
+.book-picker__trigger:hover { box-shadow: inset 0 0 0 1px var(--separator-strong); }
+.book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.book-picker__trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.book-picker__trigger svg { width: 16px; height: 16px; color: var(--text-secondary); }
+.book-picker__at { font-size: var(--text-footnote); color: var(--text-secondary); }
+.book-picker__scrim { position: fixed; inset: 0; z-index: var(--z-popover); background: transparent; }
+.book-picker__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: calc(var(--z-popover) + 1);
+    width: min(400px, 86vw);
+    padding: var(--space-1);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    background: var(--material-thick);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    box-shadow: var(--shadow-3);
+    transform-origin: top right;
+    animation: pullmenu-in var(--dur-fast) var(--ease-spring);
+}
+.book-picker__head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+}
+.book-picker__aside { margin-left: auto; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); }
+.book-picker__list { display: flex; flex-direction: column; }
+.book-picker__list .book-row { border-radius: var(--radius); padding: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
+.book-picker__list .book-row:hover { background: var(--accent-wash); }
+.book-picker__empty { margin: 0; padding: var(--space-2); font-size: var(--text-subheadline); color: var(--text-secondary); }
+.book-picker__filter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    padding: var(--space-2);
+    border-top: 1px solid var(--separator);
+}
+.book-picker__filter-label { font-size: var(--text-footnote); color: var(--text-secondary); }
+@media (prefers-reduced-motion: reduce) {
+    .book-picker__panel { animation: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .book-picker__panel { background: var(--surface-2); }
+}
+
+/* ---- Review and log: what is about to be recorded, in one sentence, above the keys. */
+.wreview {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-panel);
+    background: var(--surface-2);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wreview strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.wstep .waction { border-top: 0; padding-top: 0; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
 
 .slip-badge {

@@ -17,11 +17,12 @@
     to record a bet drifted apart once already, and a bet recorded the wrong way is a bet the
     journal misreads.
 
-    The price is the operator's to choose. Every book quoting the side is listed, best marked but
-    not forced; picking one re-reads the headline, the value, the checks and the returns from that
-    book's latest number. Books can be filtered out (remembered with the operator's settings), and
-    where the number taken is not one the desk fetched — earlier, or at a book it does not scan —
-    Enter my own price takes the number typed and the Journal tags it manual.
+    The price is the operator's to choose. The book is a menu on the price listing every book
+    quoting the side, best marked but not forced; picking one re-reads the headline, the value,
+    the checks and the returns from that book's latest number. Books can be filtered out of the
+    menu (remembered with the operator's settings), and where the number taken is not one the desk
+    fetched — earlier, or at a book it does not scan — the pencil on the price takes the number
+    typed and the Journal tags it manual.
 
     A panel (spec §6): it watches the odds and the journal, so a pull re-prices an open form
     instead of leaving it quoting a number the board has moved off. A typed price is never
@@ -30,284 +31,263 @@
 *@
 
 @*
-    Laid out as grouped sections (lineops.css, "The wager window"): the game when it was searched
-    for, the side, the price, the books, what is worth knowing, the wager, then the action bar.
-    Each section is a quiet header over a filled group; the action bar is the one full-width rule,
-    between reading and committing.
+    Laid out as a numbered stepper (DeskSteps): Game, Your bet, Price and book, Stake, Review and
+    log. It was a column of same-weight sections — game, selection, price, books, checks, wager —
+    and once a side and a book were chosen nothing said what had happened or what came next. Each
+    step now says whether it is done, the one to do now, or waiting and on what; the step to do
+    carries a sentence of guidance for someone who has never logged a bet. Every step stays on
+    screen, so a finished one can be changed without paging back.
+
+    The book is no longer a section of its own: it is a menu on the price (BookPicker), because
+    "which book is this number from?" is one question with one answer. The pencil that types a
+    price of your own sits on the number it replaces.
 *@
-<div class="wsections">
-    @if (_loading)
-    {
-        @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
-        <DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">
-            <DeskSkeleton Lines="1" />
-            <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
-        </DeskStack>
-    }
-    else
-    {
-        @if (Searching)
-        {
-            <section class="wsection" aria-labelledby="wager-game-h">
-                <PanelHeader Tight id="wager-game-h">Game</PanelHeader>
+@if (_loading)
+{
+    @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
+    <DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">
+        <DeskSkeleton Lines="1" />
+        <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
+    </DeskStack>
+}
+else if (!Searching && Row is null)
+{
+    <EmptyState Kind="EmptyStateKind.New">This game is no longer on the desk.</EmptyState>
+}
+else
+{
+    <DeskSteps Label="Log a wager">
+        @* ---- 1 · Game ------------------------------------------------------------------ *@
+        <DeskStep Number="1" Title="Game" State="@StateOf(1)"
+                  Hint="Find the game the bet was on: type a team, like Steelers, or two for the matchup. Upcoming games come first. For a future or anything without a game, choose No game.">
+            @if (Searching)
+            {
                 <GamePicker Value="_gameId" Selected="Row?.Game" OfferNoGame="true"
                             NoGame="_noGame" NoGameChanged="SetNoGame"
                             SelectedChanged="PickGameAsync" />
-            </section>
-        }
-
-        @if (Row is null && !_noGame)
-        {
-            @if (Searching)
-            {
-                <EmptyState Kind="EmptyStateKind.New">Find the game the bet was on, or choose No game for a future.</EmptyState>
             }
-            else
+            else if (Row is not null)
             {
-                <EmptyState Kind="EmptyStateKind.New">This game is no longer on the desk.</EmptyState>
-            }
-        }
-        else
-        {
-            <section class="wsection" aria-labelledby="wager-side-h">
-                <PanelHeader Tight id="wager-side-h">Selection</PanelHeader>
-                @if (_noGame)
-                {
-                    <div class="wgroup">
-                        <div class="wgroup__row wgroup__row--pad">
-                            <DeskField TValue="string" Immediate="true" style="flex:1"
-                                       placeholder="Describe the bet, e.g. Steelers to win the AFC North"
-                                       aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
+                @* Opened from a board row: the game is the door's, so it is a fact here, not a field. *@
+                <div class="wgroup">
+                    <div class="wgroup__row game-search__chosen">
+                        <div class="game-search__text">
+                            <span class="game-search__match">@Matchup(Row.Game)</span>
+                            <span class="game-search__when">@GameWhen(Row.Game)</span>
                         </div>
                     </div>
-                }
-                else
-                {
-                    <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
-                }
-            </section>
+                </div>
+            }
+        </DeskStep>
 
-            @if (HasSide)
+        @* ---- 2 · Your bet -------------------------------------------------------------- *@
+        <DeskStep Number="2" Title="Your bet" State="@StateOf(2)"
+                  Waiting="Pick a game first."
+                  Hint="@(_noGame
+                      ? "Describe the bet in your own words, the way you would read it back later."
+                      : "Pick the side you bet. Moneyline is the winner, spread is the winning margin, total is the combined score. Hover any option to read what it wins on.")">
+            @if (_noGame)
             {
-                <section class="wsection" aria-labelledby="wager-price-h">
-                    <div class="wsection__head">
-                        <PanelHeader Tight id="wager-price-h">Price</PanelHeader>
+                <DeskField TValue="string" Immediate="true" style="width:100%"
+                           placeholder="Describe the bet, e.g. Steelers to win the AFC North"
+                           aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
+            }
+            else if (Row is not null)
+            {
+                <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
+            }
+        </DeskStep>
+
+        @* ---- 3 · Price and book -------------------------------------------------------- *@
+        <DeskStep Number="3" Title="Price and book" State="@StateOf(3)"
+                  Waiting="Pick your bet first."
+                  Hint="@(Typing
+                      ? "Type the price you were given, like -110 or +150, and the book you used."
+                      : "The latest price for your bet. If you bet somewhere else, change the book from the menu on the price; if you got a different number, press the pencil to type it.")">
+            @if (Typing)
+            {
+                <div class="wgroup wager-price">
+                    <div class="wager-typed">
+                        <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
+                                   Label="Price" placeholder="-110" style="max-width:120px"
+                                   Value="_typedPrice" ValueChanged="SetTypedPrice" />
+                        @if (HasLine)
+                        {
+                            <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
+                                       Label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
+                                       style="max-width:100px"
+                                       Value="_typedLine" ValueChanged="SetTypedLine" />
+                        }
+                        <DeskField TValue="string" Immediate="true" Label="Book" placeholder="draftkings"
+                                   list="@_booksListId" style="flex:1; min-width:140px"
+                                   Value="_typedBook" ValueChanged="SetTypedBook" />
+                        <datalist id="@_booksListId">
+                            @foreach (var book in _knownBooks)
+                            {
+                                <option value="@book"></option>
+                            }
+                        </datalist>
                         @if (Side?.Offer is not null)
                         {
                             <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
-                                        Icon="@(_manual ? Icons.Material.Filled.CloudDownload : Icons.Material.Filled.Edit)"
-                                        aria-pressed="@(_manual ? "true" : "false")"
+                                        Icon="@Icons.Material.Filled.Undo"
+                                        aria-pressed="true"
+                                        Title="Go back to the price the desk fetched"
                                         OnClick="ToggleManual">
-                                @(_manual ? "Use a fetched price" : "Enter my own price")
+                                Use the fetched price
                             </DeskButton>
                         }
                     </div>
-
-                    @if (Typing)
+                    @if (_offer is { } typed)
                     {
-                        <div class="wgroup">
-                            <div class="wgroup__row wgroup__row--pad wager-typed">
-                                <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
-                                           Label="Price" placeholder="-110" style="max-width:110px"
-                                           Value="_typedPrice" ValueChanged="SetTypedPrice" />
-                                @if (HasLine)
-                                {
-                                    <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
-                                               Label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
-                                               style="max-width:100px"
-                                               Value="_typedLine" ValueChanged="SetTypedLine" />
-                                }
-                                <DeskField TValue="string" Immediate="true" Label="Book" placeholder="draftkings"
-                                           list="@_booksListId" style="flex:1; min-width:120px"
-                                           Value="_typedBook" ValueChanged="SetTypedBook" />
-                                <datalist id="@_booksListId">
-                                    @foreach (var book in _knownBooks)
-                                    {
-                                        <option value="@book"></option>
-                                    }
-                                </datalist>
-                            </div>
-                            @if (_offer is { } typed)
-                            {
-                                <div class="wgroup__row wager-offer__value">
-                                    @ValueLine(typed)
-                                </div>
-                            }
-                        </div>
-
-                        @if (Side?.Offer is null)
-                        {
-                            <Note Style="margin:0" Class="wager-typed-why">
-                                @(_noGame
-                                    ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
-                                    : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
-                            </Note>
-                        }
-                    }
-                    else if (_offer is { } offer)
-                    {
-                        <div class="wgroup">
-                            <div class="wager-offer">
-                                <div class="wager-offer__top">
-                                    <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
-                                    @if (offer.Line is { } line)
-                                    {
-                                        <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
-                                    }
-                                    <span class="wager-offer__book">@offer.Book</span>
-                                    <span class="wager-offer__of">@(offer.IsBest ? "best" : "one") of @offer.BooksQuoting books</span>
-                                    <span class="wager-offer__age">
-                                        <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(offer)
-                                    </span>
-                                </div>
-                                <div class="wager-offer__value">@ValueLine(offer)</div>
-                            </div>
-                        </div>
-
-                        @if (_moved is not null)
-                        {
-                            @* Said, not swapped silently: the operator was looking at the old number. *@
-                            <Note State="DeskState.Positive" Style="margin:0" Class="wager-moved">@_moved</Note>
-                        }
-                    }
-                </section>
-
-                @if (!Typing && Side?.Offer is { } quoted)
-                {
-                    <section class="wsection" aria-labelledby="wager-books-h">
-                        <div class="wsection__head">
-                            <PanelHeader Tight id="wager-books-h">Books</PanelHeader>
-                            <span class="wsection__aside">
-                                @quoted.Rungs.Count quoting@(HiddenHere(quoted) is > 0 and var n ? $" · {n} filtered out" : "")
-                            </span>
-                        </div>
-
-                        @* The filter: one chip per book quoting the side, each with its price. On is
-                           Tinted; off is Plain and leaves the list below. *@
-                        <div class="row book-chips" role="group" aria-label="Books to show">
-                            @foreach (var rung in quoted.Rungs)
-                            {
-                                var shown = !_hidden.Contains(rung.Book);
-                                <DeskButton Size="DeskKeySize.Small"
-                                            Emphasis="@(shown ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
-                                            Class="book-chip"
-                                            aria-pressed="@(shown ? "true" : "false")"
-                                            Title="@(shown ? $"Hide {rung.Book}" : $"Show {rung.Book}")"
-                                            OnClick="() => ToggleBookAsync(rung.Book)">
-                                    @rung.Book <span class="num book-chip__price">@Price(rung.PriceAmerican)</span>
-                                </DeskButton>
-                            }
-                        </div>
-
-                        @if (Visible(quoted) is { Count: > 0 } books)
-                        {
-                            <div class="wgroup book-list" role="radiogroup" aria-label="Book">
-                                @foreach (var book in books)
-                                {
-                                    var chosen = _offer is { } o && string.Equals(o.Book, book.Book, StringComparison.OrdinalIgnoreCase);
-                                    <button type="button" role="radio" aria-checked="@(chosen ? "true" : "false")"
-                                            class="wgroup__row book-row @(chosen ? "book-row--chosen" : null)"
-                                            @onclick="() => ChooseBook(book.Book)">
-                                        <span class="book-row__mark" aria-hidden="true">
-                                            @if (chosen)
-                                            {
-                                                <Glyph Icon="@Icons.Material.Filled.Check" />
-                                            }
-                                        </span>
-                                        <span class="book-row__book">@book.Book</span>
-                                        @if (book.IsBest)
-                                        {
-                                            <Tag State="DeskState.Positive">Best</Tag>
-                                        }
-                                        <span class="book-row__age">@Age(book)</span>
-                                        <span class="book-row__line num">@(book.Line is { } l ? OddsMath.FormatLine(l, book.Outcome) : "")</span>
-                                        <span class="book-row__price num">@Price(book.PriceAmerican)</span>
-                                    </button>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <Note State="DeskState.Warning" Style="margin:0">
-                                Every book quoting this side is filtered out.
-                                <DeskButton Size="DeskKeySize.Small" OnClick="ShowAllBooksAsync">Show all books</DeskButton>
-                            </Note>
-                        }
-                    </section>
-                }
-
-                @if (_offer is not null)
-                {
-                    <CheckList Items="Strip" />
-                }
-
-                <section class="wsection" aria-labelledby="wager-stake-h">
-                    <PanelHeader Tight id="wager-stake-h">Your wager</PanelHeader>
-                    <div class="wgroup">
-                        <div class="wgroup__row wgroup__row--pad">
-                            <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" />
-                        </div>
-                        <div class="wgroup__row wgroup__row--pad">
-                            @* Immediate: a note bound on change is committed by the blur, and a press of
-                               Add to slip or Log straight from the field could run before it — the wager
-                               went on with no note. Bound as it is typed, the key reads what it shows. *@
-                            <DeskField TValue="string" Immediate="true" placeholder="Note (optional)"
-                                       aria-label="Note" style="flex:1" @bind-Value="_note" />
-                        </div>
-                    </div>
-                </section>
-
-                <div class="waction">
-                    @if (_error is not null)
-                    {
-                        <Note State="DeskState.Warning" Style="margin:0 0 var(--space-2)">@_error</Note>
-                    }
-
-                    @if (_logged is not null)
-                    {
-                        <Note State="DeskState.Positive" Style="margin:0 0 var(--space-2)" Class="wager-logged">@_logged</Note>
-                    }
-
-                    <div class="waction__keys">
-                        @* Plain: the window's one Filled key is Log. The badge is the acknowledgment;
-                           the slip does not open (spec §11.3). A bet on no game has no slip card. *@
-                        @if (Row is not null)
-                        {
-                            <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
-                                        Disabled="@(_offer is null)"
-                                        Title="Bank this wager on the desk's slip">
-                                Add to slip
-                                <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
-                            </DeskButton>
-                        }
-
-                        <DeskButton Emphasis="DeskEmphasis.Filled"
-                                    Icon="@Icons.Material.Filled.Bolt"
-                                    Busy="@_saving"
-                                    Disabled="@(!CanLog)"
-                                    OnClick="PlaceAsync">
-                            Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
-                        </DeskButton>
-                    </div>
-
-                    @if (Waiting is { } why)
-                    {
-                        <div class="warnc wager-why">@why</div>
+                        <div class="wager-offer__value">@ValueLine(typed)</div>
                     }
                 </div>
 
-                <p class="wfoot">
-                    Logged against the price shown; CLV resolves once the game starts and the close is
-                    recorded. LineOps records bets placed elsewhere; nothing here reaches a sportsbook.
+                @if (Side?.Offer is null)
+                {
+                    <Note Class="wager-typed-why">
+                        @(_noGame
+                            ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
+                            : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
+                    </Note>
+                }
+            }
+            else if (_offer is { } offer && Side?.Offer is { } quoted)
+            {
+                <div class="wgroup wager-offer">
+                    <div class="wager-offer__top">
+                        <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                        <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
+                                    Icon="@Icons.Material.Filled.Edit"
+                                    aria-pressed="false"
+                                    aria-label="Enter my own price"
+                                    Title="Enter my own price"
+                                    OnClick="ToggleManual" />
+                        @if (offer.Line is { } line)
+                        {
+                            <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
+                        }
+                        <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" Hidden="_hidden"
+                                    OnChoose="ChooseBook" OnToggleHidden="ToggleBookAsync" />
+                    </div>
+                    <div class="wager-offer__value">@ValueLine(offer)</div>
+                    <div class="wager-offer__meta">
+                        <span class="wager-offer__of">
+                            @(offer.IsBest ? "Best" : "One") of @offer.BooksQuoting @(offer.BooksQuoting == 1 ? "book" : "books")
+                            @if (!offer.IsBest && WagerOffer.Best(_market!, quoted) is { } best)
+                            {
+                                <text> · best is @best.Book @Price(best.PriceAmerican)</text>
+                            }
+                        </span>
+                        <span class="wager-offer__age" title="When the desk last fetched this price">
+                            <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(offer)
+                        </span>
+                    </div>
+                </div>
+
+                @if (Visible(quoted).Count == 0)
+                {
+                    <Note State="DeskState.Warning">
+                        Every book quoting this side is filtered out.
+                        <DeskButton Size="DeskKeySize.Small" OnClick="ShowAllBooksAsync">Show all books</DeskButton>
+                    </Note>
+                }
+
+                @if (_moved is not null)
+                {
+                    @* Said, not swapped silently: the operator was looking at the old number. *@
+                    <Note State="DeskState.Positive" Class="wager-moved">@_moved</Note>
+                }
+            }
+        </DeskStep>
+
+        @* ---- 4 · Stake ----------------------------------------------------------------- *@
+        <DeskStep Number="4" Title="Stake" State="@StateOf(4)"
+                  Waiting="@(HasSide ? "Finish the price first." : "Pick your bet first.")"
+                  Hint="How much you put down. What it returns if it wins updates as you type.">
+            <div class="wgroup">
+                <div class="wgroup__row wgroup__row--pad">
+                    <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" />
+                </div>
+                <div class="wgroup__row wgroup__row--pad">
+                    @* Immediate: a note bound on change is committed by the blur, and a press of
+                       Add to slip or Log straight from the field could run before it — the wager
+                       went on with no note. Bound as it is typed, the key reads what it shows. *@
+                    <DeskField TValue="string" Immediate="true" placeholder="Note (optional)"
+                               aria-label="Note" style="flex:1" @bind-Value="_note" />
+                </div>
+            </div>
+        </DeskStep>
+
+        @* ---- 5 · Review and log -------------------------------------------------------- *@
+        <DeskStep Number="5" Title="Review and log" State="@StateOf(5)"
+                  Waiting="@(_offer is null ? "Your bet and its price come first." : null)"
+                  Hint="Check anything flagged, then log it. LineOps records the bet; nothing is sent to a sportsbook.">
+            @if (_offer is not null)
+            {
+                <CheckList Items="Strip" ShowTitle="false" />
+            }
+
+            @if (_offer is { } logging && _stake > 0)
+            {
+                <p class="wreview">
+                    You are logging <strong>@_stake.ToString("C0")</strong> on
+                    <strong>@logging.Label at @Price(logging.PriceAmerican)</strong> with @logging.Book@(logging.Manual ? ", your own price" : "").
+                    @if (logging.PriceAmerican != 0)
+                    {
+                        <text>It returns <strong>@OddsMath.PayoutOnWin(logging.PriceAmerican, _stake).ToString("C0")</strong> if it wins.</text>
+                    }
                 </p>
             }
-            else
-            {
-                <EmptyState Kind="EmptyStateKind.New">Pick the side you bet to price it.</EmptyState>
-            }
-        }
-    }
-</div>
+
+            <div class="waction">
+                @if (_error is not null)
+                {
+                    <Note State="DeskState.Warning">@_error</Note>
+                }
+
+                @if (_logged is not null)
+                {
+                    <Note State="DeskState.Positive" Class="wager-logged">@_logged</Note>
+                }
+
+                <div class="waction__keys">
+                    @* Plain: the window's one Filled key is Log. The badge is the acknowledgment;
+                       the slip does not open (spec §11.3). A bet on no game has no slip card. *@
+                    @if (Row is not null)
+                    {
+                        <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
+                                    Disabled="@(_offer is null)"
+                                    Title="Bank this wager on the desk's slip, to log later or build a parlay">
+                            Add to slip
+                            <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
+                        </DeskButton>
+                    }
+
+                    <DeskButton Emphasis="DeskEmphasis.Filled"
+                                Icon="@Icons.Material.Filled.Bolt"
+                                Busy="@_saving"
+                                Disabled="@(!CanLog)"
+                                Title="Record this bet in the Journal"
+                                OnClick="PlaceAsync">
+                        Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
+                    </DeskButton>
+                </div>
+
+                @if (Waiting is { } why)
+                {
+                    <div class="warnc wager-why">@why</div>
+                }
+            </div>
+
+            <p class="wfoot">
+                Logged against the price shown; closing-line value resolves once the game starts and
+                the close is recorded.
+            </p>
+        </DeskStep>
+    </DeskSteps>
+}
 
 @code {
     /// <summary>
@@ -389,6 +369,25 @@
     private bool Typing => _manual || _noGame || (Side is { Offer: null });
 
     private bool HasLine => !_noGame && _market is Markets.Spread or Markets.Total;
+
+    /// <summary>
+    /// Where each step stands. Done is the step's own fact — a game chosen, a side, a price, a
+    /// stake; the step to do is the first one that is not done, and everything after it waits.
+    /// Review is never done: it is where the window ends.
+    /// </summary>
+    private DeskStepState StateOf(int step)
+    {
+        bool[] done = [Row is not null || _noGame, HasSide, _offer is not null, _stake > 0, false];
+        var current = Array.IndexOf(done, false) + 1;
+
+        return done[step - 1] ? DeskStepState.Done
+            : step == current ? DeskStepState.Current
+            : DeskStepState.Todo;
+    }
+
+    private static string GameWhen(Game game)
+        => $"{DisplayTime.Stamp(game.StartsAt)} · {game.Sport?.Key.ToUpperInvariant()}"
+           + (game.Status == GameStatus.Final ? " · final" : game.Status == GameStatus.Live ? " · live" : "");
 
     protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
 

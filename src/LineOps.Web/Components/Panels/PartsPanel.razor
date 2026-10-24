@@ -246,6 +246,29 @@
 
 </PanelSection>
 
+<PanelSection Title="Steps">
+<p class="empty" style="padding:0 0 9px">
+    <span class="mono">DeskSteps</span> is a vertical stepper for a form that is a sequence. Every
+    step stays on screen; done turns its number into a check and fills the rail, the step to do
+    shows a sentence of guidance, and a waiting step says what it is waiting for instead of
+    showing controls that cannot be used yet. The Place wager window is built on it.
+</p>
+
+<DeskSteps Label="Example">
+    <DeskStep Number="1" Title="Game" State="DeskStepState.Done">
+        <span class="dim">Pittsburgh Steelers at New Orleans Saints</span>
+    </DeskStep>
+    <DeskStep Number="2" Title="Your bet" State="DeskStepState.Current"
+              Hint="Pick the side you bet. Hover any option to read what it wins on.">
+        <DeskRow Gap="DeskSpace.Space2">
+            <DeskButton Size="DeskKeySize.Small">Steelers -3</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">Saints +3</DeskButton>
+        </DeskRow>
+    </DeskStep>
+    <DeskStep Number="3" Title="Price and book" State="DeskStepState.Todo" Waiting="Pick your bet first." />
+</DeskSteps>
+</PanelSection>
+
 <PanelSection Title="Tabs">
 <p class="empty" style="padding:0 0 9px">
     The same marble, doing the other job. A gate changes what one reading is made of; tabs

@@ -1,24 +1,52 @@
+@using LineOps.Core.Analytics
 @using LineOps.Data.CrossReference
 @using LineOps.Web.Services
 
 @*
-    The six-chip selection strip: every priced side of a game, one chip each.
+    Every priced side of a game, grouped by market: Moneyline, Spread, Total, each a labelled row
+    of two options.
 
-    The chosen side is Tinted rather than Filled: this is a selector reporting which side you are
-    on, not the thing the window commits. The Filled key belongs to Log. One definition, shared by
-    every window that logs a wager (SelectionGuardTests).
+    The strip used to be six identical text keys — "ML · Saints", "Spread · Steelers -3" — that
+    read as words rather than choices, and that asked the reader to know what ML meant. Grouped,
+    the market is said once in full on the left, with what it means on hover, and each option
+    carries only what differs: the side, its number, and the best price on it, so the choice is
+    made seeing what it pays. Hovering an option says in words what it wins on.
+
+    One set of options across the three markets, so it is one radio group: a bet is one side.
+    The accessible name of each option is the desk's full label ("ML · Chiefs"), the same words
+    the slip card and the journal use, so a screen reader hears the market the eye gets from the
+    row. One definition, shared by every window that logs a wager (SelectionGuardTests).
 *@
 
-<div class="row selection-chips">
-    @foreach (var choice in SelectionChoice.All(Row))
+<div class="selection-chips" role="radiogroup" aria-label="Your bet">
+    @foreach (var group in SelectionChoice.All(Row).GroupBy(c => c.Market))
     {
-        var chosen = IsChosen(choice);
-        <DeskButton Size="DeskKeySize.Small"
-                    Emphasis="@(chosen ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
-                    aria-pressed="@(chosen ? "true" : "false")"
-                    OnClick="() => OnChoose.InvokeAsync(choice)">
-            @choice.Label
-        </DeskButton>
+        <div class="selection-group">
+            <span class="selection-group__label" title="@MarketHelp(group.Key)">@MarketTitle(group.Key)</span>
+            <div class="selection-group__keys">
+                @foreach (var choice in group)
+                {
+                    var chosen = IsChosen(choice);
+                    <button type="button"
+                            class="selection-chip @(chosen ? "selection-chip--on" : null)"
+                            role="radio"
+                            aria-checked="@(chosen ? "true" : "false")"
+                            aria-label="@choice.Label"
+                            title="@Explain(choice)"
+                            @onclick="() => OnChoose.InvokeAsync(choice)">
+                        <span class="selection-chip__side">@Side(choice)</span>
+                        @if (choice.Offer is { } offer)
+                        {
+                            <span class="selection-chip__price num">@Price(offer.PriceAmerican)</span>
+                        }
+                        else
+                        {
+                            <span class="selection-chip__price selection-chip__price--none">no price</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
     }
 </div>
 
@@ -34,4 +62,52 @@
 
     private bool IsChosen(SelectionChoice choice)
         => choice.Market == Market && string.Equals(choice.Outcome, Outcome, StringComparison.OrdinalIgnoreCase);
+
+    private static string MarketTitle(string market) => market switch
+    {
+        Markets.Moneyline => "Moneyline",
+        Markets.Spread => "Spread",
+        Markets.Total => "Total",
+        _ => market
+    };
+
+    private static string MarketHelp(string market) => market switch
+    {
+        Markets.Moneyline => "Moneyline: the side you pick wins the game, by any margin.",
+        Markets.Spread => "Spread: the side you pick has to beat the margin the book sets.",
+        Markets.Total => "Total: the two teams' combined score, over or under the book's number.",
+        _ => string.Empty
+    };
+
+    /// <summary>"Steelers -3", "Over 47.5", "Chiefs": the side and its number, without the market.</summary>
+    private static string Side(SelectionChoice choice)
+        => SelectionText.Short(choice.Outcome)
+           + (choice.Offer?.Line is not { } line ? ""
+              // "Over 47.5", not "Over o47.5": the word already says which side of the number.
+              : choice.Market == Markets.Total ? " " + Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)
+              : " " + OddsMath.FormatLine(line, choice.Outcome));
+
+    /// <summary>What the option wins on, in a sentence, for whoever does not read a line by eye.</summary>
+    private static string Explain(SelectionChoice choice)
+    {
+        var line = choice.Offer?.Line;
+        var by = line is { } l ? Math.Abs(l).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : null;
+
+        return choice.Market switch
+        {
+            Markets.Moneyline => $"{choice.Outcome} win the game.",
+            Markets.Spread when line is < 0 => $"{choice.Outcome} win by more than {by}.",
+            Markets.Spread when line is > 0 => $"{choice.Outcome} win, or lose by less than {by}.",
+            Markets.Spread => $"{choice.Outcome} cover the spread.",
+            Markets.Total when by is not null =>
+                $"The two teams score {(IsOver(choice) ? "more" : "fewer")} than {by} points combined.",
+            Markets.Total => $"The combined score goes {(IsOver(choice) ? "over" : "under")} the total.",
+            _ => choice.Label
+        };
+    }
+
+    private static bool IsOver(SelectionChoice choice)
+        => string.Equals(choice.Outcome, "over", StringComparison.OrdinalIgnoreCase);
+
+    private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
 }

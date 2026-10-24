@@ -29,25 +29,30 @@ public class WagerWindowBooksTests : WagerTestContext
 
     private static string Headline(IRenderedFragment cut) => cut.Find(".wager-offer__price").TextContent.Trim();
 
+    /// <summary>The books are a menu on the price now; their rows exist only while it is open.</summary>
+    private static void OpenBooks(IRenderedFragment cut) => cut.Find(".book-picker__trigger").Click();
+
     // ---- Books ----------------------------------------------------------------------------
 
     [Fact]
     public void Every_book_quoting_the_side_is_listed_best_first_and_marked()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
 
         var rows = cut.FindAll(".book-row");
         Assert.Equal(2, rows.Count);
         Assert.Contains("draftkings", rows[0].TextContent);
         Assert.Contains("Best", rows[0].TextContent);
         Assert.Contains("fanduel", rows[1].TextContent);
-        Assert.Equal("true", rows[0].GetAttribute("aria-checked"));
+        Assert.Equal("true", rows[0].GetAttribute("aria-selected"));
     }
 
     [Fact]
     public void Choosing_a_book_reprices_the_window_and_logs_at_that_book()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
 
         cut.FindAll(".book-row").First(r => r.TextContent.Contains("fanduel")).Click();
 
@@ -68,9 +73,10 @@ public class WagerWindowBooksTests : WagerTestContext
     public void The_chosen_book_is_kept_when_the_side_changes()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
         cut.FindAll(".book-row").First(r => r.TextContent.Contains("fanduel")).Click();
 
-        cut.FindAll(".selection-chips button").First(b => b.TextContent.Trim() == "ML · Bills").Click();
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
         Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Equal("+110", Headline(cut));
@@ -80,6 +86,7 @@ public class WagerWindowBooksTests : WagerTestContext
     public void Filtering_out_the_book_on_screen_moves_to_the_best_book_still_shown_and_is_remembered()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
 
         cut.FindAll(".book-chip").First(c => c.TextContent.Contains("draftkings")).Click();
 
@@ -87,7 +94,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Assert.Single(cut.FindAll(".book-row"));
         Assert.Contains("draftkings", Data.Hidden);
         Assert.Equal(1, Data.HiddenWrites);
-        Assert.Contains("1 filtered out", cut.Find(".wsection__aside").TextContent);
+        Assert.Contains("1 filtered out", cut.Find(".book-picker__aside").TextContent);
     }
 
     [Fact]
@@ -96,6 +103,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Data.Hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "draftkings" };
 
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+        OpenBooks(cut);
 
         Assert.Equal("-135", Headline(cut));
         Assert.Equal("false", cut.FindAll(".book-chip").First(c => c.TextContent.Contains("draftkings")).GetAttribute("aria-pressed"));
@@ -110,6 +118,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Assert.Contains("Every book quoting this side is filtered out.", cut.Markup);
 
         Key(cut, "Show all books").Click();
+        OpenBooks(cut);
 
         Assert.Equal(2, cut.FindAll(".book-row").Count);
         Assert.Empty(Data.Hidden);
@@ -122,7 +131,7 @@ public class WagerWindowBooksTests : WagerTestContext
     {
         var cut = Render(Markets.Spread, BoardRows.Home);
 
-        Key(cut, "Enter my own price").Click();
+        cut.Find(".wager-manual-key").Click();
 
         var price = cut.Find("input[placeholder='-110']");
         Assert.Equal("-110", price.GetAttribute("value"));
@@ -145,7 +154,7 @@ public class WagerWindowBooksTests : WagerTestContext
     public void A_typed_price_is_read_by_the_checks_and_not_overwritten_by_a_refresh()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Key(cut, "Enter my own price").Click();
+        cut.Find(".wager-manual-key").Click();
         cut.Find("input[placeholder='-110']").Input("-120");
 
         Assert.Contains("Your own price", cut.Markup);
@@ -168,7 +177,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Key(cut, 50m.ToString("C0")).Click();
         Assert.True(Log(cut).HasAttribute("disabled"));
 
-        Key(cut, "Enter my own price").Click();
+        cut.Find(".wager-manual-key").Click();
 
         Assert.False(Log(cut).HasAttribute("disabled"));
         Assert.Contains("the game started 42 min ago, so this records the price you took", cut.Markup);
@@ -181,7 +190,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Data.Row = row with { Spread = new MarketPair(Markets.Spread, null, null) };
         var cut = Render();
 
-        var chip = cut.FindAll(".selection-chips button").First(b => b.TextContent.Trim() == "Spread · Chiefs");
+        var chip = cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Spread · Chiefs");
         chip.Click();
 
         Assert.Contains("No book the desk scans prices this side", cut.Markup);
@@ -230,11 +239,11 @@ public class WagerWindowBooksTests : WagerTestContext
         cut.FindAll(".game-search__opt")[0].Click();
 
         cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", cut.Find(".game-search__chosen").TextContent));
-        Assert.Equal(6, cut.FindAll(".selection-chips button").Count);
-        Assert.Empty(cut.FindAll(".selection-chips .desk-btn--tinted"));
+        Assert.Equal(6, cut.FindAll(".selection-chip").Count);
+        Assert.Empty(cut.FindAll(".selection-chip--on"));
         Assert.Contains("Pick the side you bet", cut.Markup);
 
-        cut.FindAll(".selection-chips button").First(b => b.TextContent.Trim() == "ML · Chiefs").Click();
+        cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Chiefs").Click();
         Assert.Equal("-128", Headline(cut));
     }
 

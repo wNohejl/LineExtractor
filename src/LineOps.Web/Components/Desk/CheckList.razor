@@ -5,7 +5,16 @@
 *@
 
 <section class="wsection checks" aria-labelledby="@_headerId">
-    <PanelHeader Tight id="@_headerId" Class="checks__title">@Title</PanelHeader>
+    @if (ShowTitle)
+    {
+        <PanelHeader Tight id="@_headerId" Class="checks__title">@Title</PanelHeader>
+    }
+    else
+    {
+        @* The host already names the list (the wager stepper's Review step); the name stays
+           for the screen reader, out of sight. *@
+        <span id="@_headerId" class="sr-only">@Title</span>
+    }
     <div class="wgroup" role="list" aria-labelledby="@_headerId">
         @foreach (var check in Items)
         {
@@ -27,4 +36,7 @@
     [Parameter, EditorRequired] public IReadOnlyList<Check> Items { get; set; } = [];
 
     [Parameter] public string Title { get; set; } = "Before you log";
+
+    /// <summary>Draw the heading. Off where the host already titles the list.</summary>
+    [Parameter] public bool ShowTitle { get; set; } = true;
 }

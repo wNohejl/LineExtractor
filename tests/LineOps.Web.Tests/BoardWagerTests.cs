@@ -33,7 +33,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render();
 
         Assert.Equal("-128", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.Equal("ML · Chiefs", cut.Find(".selection-chips .desk-btn--tinted").TextContent.Trim());
+        Assert.Equal("ML · Chiefs", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render(Markets.Spread, BoardRows.Away);
 
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.Equal("Spread · Bills +2.5", cut.Find(".selection-chips .desk-btn--tinted").TextContent.Trim());
+        Assert.Equal("Spread · Bills +2.5", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
     }
 
     [Fact]

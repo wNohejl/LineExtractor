@@ -1,0 +1,78 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Windowing
+
+@*
+    One step of a DeskSteps: a numbered marker on the rail, a title, and the step's content.
+
+    Three states, each saying something different. Done: the number becomes a check and the
+    rail below it takes the accent, so finished work reads as a filled line. Current: the marker
+    is solid accent with a halo, and the step shows its guidance — one or two sentences on what
+    to do here, written for someone who has never done it. Todo: the title dims and, in place
+    of the controls, the step says what it is waiting for ("Pick a game first."), so an
+    unreachable control never sits on screen looking broken.
+
+    A step with no Waiting text shows its content even while Todo — for content worth reading
+    early, like the checks before a wager is complete.
+*@
+
+<li class="wstep wstep--@State.ToString().ToLowerInvariant()"
+    aria-current="@(State == DeskStepState.Current ? "step" : null)"
+    aria-labelledby="@_titleId">
+    <span class="wstep__dot" aria-hidden="true">
+        @if (State == DeskStepState.Done)
+        {
+            <Glyph Icon="@Icons.Material.Filled.Check" />
+        }
+        else
+        {
+            @Number
+        }
+    </span>
+
+    <div class="wstep__main">
+        <div class="wstep__head">
+            <h3 class="wstep__title" id="@_titleId">@Title</h3>
+            @if (Aside is not null)
+            {
+                <div class="wstep__aside">@Aside</div>
+            }
+        </div>
+
+        @if (State == DeskStepState.Current && Hint is { Length: > 0 })
+        {
+            <p class="wstep__hint">@Hint</p>
+        }
+
+        @if (State == DeskStepState.Todo && Waiting is { Length: > 0 })
+        {
+            <p class="wstep__wait">@Waiting</p>
+        }
+        else
+        {
+            @ChildContent
+        }
+    </div>
+</li>
+
+@code {
+    /// <summary>The step's place in the sequence, shown until it is done.</summary>
+    [Parameter, EditorRequired] public int Number { get; set; }
+
+    /// <summary>The step's name: short, sentence case — "Price and book".</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public DeskStepState State { get; set; }
+
+    /// <summary>What to do here, shown while the step is current.</summary>
+    [Parameter] public string? Hint { get; set; }
+
+    /// <summary>What the step needs first, shown instead of its content while it is Todo.</summary>
+    [Parameter] public string? Waiting { get; set; }
+
+    /// <summary>Something beside the title: a count, a small key.</summary>
+    [Parameter] public RenderFragment? Aside { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private readonly string _titleId = $"step-{Guid.NewGuid():N}";
+}

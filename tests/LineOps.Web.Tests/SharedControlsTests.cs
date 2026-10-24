@@ -21,9 +21,10 @@ public class SharedControlsTests : DeskTestContext
         var chips = cut.FindAll(".selection-chips button");
         Assert.Equal(6, chips.Count);
 
-        var chosen = Assert.Single(cut.FindAll(".selection-chips button.desk-btn--tinted"));
-        Assert.Equal("Spread · Bills +2.5", chosen.TextContent.Trim());
-        Assert.Equal("true", chosen.GetAttribute("aria-pressed"));
+        var chosen = Assert.Single(cut.FindAll(".selection-chip--on"));
+        Assert.Equal("Spread · Bills +2.5", chosen.GetAttribute("aria-label"));
+        Assert.Equal("Bills +2.5", chosen.QuerySelector(".selection-chip__side")!.TextContent.Trim());
+        Assert.Equal("true", chosen.GetAttribute("aria-checked"));
     }
 
     [Fact]
@@ -34,7 +35,9 @@ public class SharedControlsTests : DeskTestContext
             .Add(x => x.Row, BoardRows.Row())
             .Add(x => x.OnChoose, (SelectionChoice c) => picked = c));
 
-        cut.FindAll(".selection-chips button").First(b => b.TextContent.Trim() == "Total · Over o47.5").Click();
+        var over = cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Total · Over o47.5");
+        Assert.Equal("Over 47.5", over.QuerySelector(".selection-chip__side")!.TextContent.Trim());
+        over.Click();
 
         Assert.NotNull(picked);
         Assert.Equal(Markets.Total, picked.Market);

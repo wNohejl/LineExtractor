@@ -1,0 +1,22 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A vertical stepper: an ordered list of DeskStep, joined by a rail down the left.
+
+    For a form that is a sequence — the wager window's game, bet, price, stake, review — where
+    the reader needs to see where they are, what is finished and what comes next, without the
+    steps hiding one another. Every step stays on screen; the rail and the markers carry the
+    progress, so nothing has to be paged through to be checked.
+*@
+
+<ol class="wsteps" aria-label="@Label">
+    @ChildContent
+</ol>
+
+@code {
+    /// <summary>The steps, in order.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>What the sequence is, for a screen reader: "Log a wager".</summary>
+    [Parameter] public string? Label { get; set; }
+}

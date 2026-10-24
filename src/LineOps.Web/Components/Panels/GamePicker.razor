@@ -4,9 +4,9 @@
 
 @*
     Finds the game a bet was on: one field that is its own dropdown. Type "steelers", or
-    "steelers saints" for the matchup, and the list beneath the field fills with that team's games
-    across the season, from today backward, with the games still to come after them: a bet is
-    logged on the day or late, almost never early. Arrow keys move through the list, Enter picks,
+    "steelers saints" for the matchup, and the list beneath the field fills with that team's games:
+    today's and the ones to come first, soonest first, under Upcoming, then the season backward
+    under Played. The game a bet is on is nearly always this week's. Arrow keys move through the list, Enter picks,
     Escape closes it.
 
     Once a game is chosen the field gives way to the game itself, with Change beside it: the
@@ -67,6 +67,17 @@
                 {
                     var game = _results[i];
                     var active = i == _active;
+
+                    @* The list is the games to come, soonest first, then the season backward. The two
+                       halves are named, so a played game is never mistaken for this week's. *@
+                    @if (i == 0 && IsAhead(game))
+                    {
+                        <div class="game-search__group" role="presentation">Upcoming</div>
+                    }
+                    @if (!IsAhead(game) && (i == 0 || IsAhead(_results[i - 1])))
+                    {
+                        <div class="game-search__group" role="presentation">Played</div>
+                    }
                     <button type="button" role="option" aria-selected="@(active ? "true" : "false")"
                             class="wgroup__row game-search__opt @(active ? "game-search__opt--active" : null)"
                             @onclick="() => PickAsync(game)">
@@ -138,6 +149,10 @@
             : _selected?.Id == Value ? _selected
             : null;
     }
+
+    /// <summary>Today's or later: the search's first half. Today's finished games count, as the day's slate.</summary>
+    private static bool IsAhead(Game game)
+        => game.StartsAt >= LineOps.Core.Analytics.LeagueClock.StartOf(LineOps.Core.Analytics.LeagueClock.Today());
 
     private static string Matchup(Game game)
         => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
