@@ -33,6 +33,13 @@ public class IngestionRun
     /// <summary>Credits consumed for credit-billed providers.</summary>
     public int CreditsSpent { get; set; }
 
+    /// <summary>
+    /// What the provider said was left on the key after this run, when it says. The key is the
+    /// account's, not this database's: the same key used from a second machine spends the same
+    /// allowance, and only the provider sees both. See <c>MonthlyCredits</c>.
+    /// </summary>
+    public int? ProviderCreditsRemaining { get; set; }
+
     public string? Error { get; set; }
 
     public TimeSpan? Duration => FinishedAt is null ? null : FinishedAt - StartedAt;

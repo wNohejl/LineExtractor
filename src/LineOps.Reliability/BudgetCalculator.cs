@@ -107,7 +107,6 @@ public class BudgetCalculator(LineOpsDbContext db)
     public async Task<BudgetUsage> GetUsageAsync(Source source, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
 
         var runs = db.IngestionRuns.Where(r => r.SourceId == source.Id);
 
@@ -116,8 +115,8 @@ public class BudgetCalculator(LineOpsDbContext db)
                 .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
             RequestsLastDay: await runs.Where(r => r.StartedAt >= now.AddDays(-1))
                 .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
-            CreditsThisMonth: await runs.Where(r => r.StartedAt >= monthStart)
-                .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0,
+            // Not just this database's runs: the key may be spent from another machine too.
+            CreditsThisMonth: await MonthlyCredits.SpentAsync(db, source, now, ct),
             HourlyLimit: source.RateLimitPerHour,
             DailyLimit: source.RateLimitPerDay,
             MonthlyCreditLimit: source.MonthlyCreditBudget);

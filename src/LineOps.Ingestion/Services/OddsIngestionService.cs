@@ -74,6 +74,7 @@ public class OddsIngestionService(
 
             run.RequestsMade = result.Cost.Requests;
             run.CreditsSpent = result.Cost.Credits;
+            run.ProviderCreditsRemaining = result.Cost.CreditsRemaining;
 
             var rows = await PersistAsync(sourceRow, result, sportKey, run.Id, ct);
 

@@ -346,6 +346,71 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         Assert.Equal(50, plan!.ScansRemainingToday);
     }
 
+    /// <summary>
+    /// The same key used from the laptop and the desktop: this database recorded one 2-credit
+    /// scan, but the provider says only 150 of 500 are left, because the other machine spent the
+    /// rest. Pacing against this database alone would plan 199 scans the key cannot afford.
+    /// </summary>
+    [Fact]
+    public async Task AKeySpentFromAnotherMachineIsPacedByWhatTheProviderSaysIsLeft()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+
+        db.IngestionRuns.Add(new IngestionRun
+        {
+            SourceId = source.Id,
+            JobKey = "odds:lines:mlb",
+            StartedAt = EarlierThisMonth(TimeSpan.FromHours(1)),
+            FinishedAt = EarlierThisMonth(TimeSpan.FromHours(1)),
+            Status = RunStatus.Success,
+            CreditsSpent = 2,
+            ProviderCreditsRemaining = 150
+        });
+        await db.SaveChangesAsync();
+
+        var plan = await Create(db).PlanAsync([source.Key]);
+
+        // Spent is 500 - 150 = 350, not 2: 500 - 100 reserve - 350 = 50 credits, so 25 scans.
+        Assert.Equal(25, plan!.ScansRemainingToday);
+    }
+
+    /// <summary>The allowance resets with the month; last month's remainder says nothing about this one.</summary>
+    [Fact]
+    public async Task ARemainderReportedLastMonthIsNotCountedAgainstThisOne()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+
+        var now = DateTimeOffset.UtcNow;
+        var lastMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddDays(-2);
+
+        db.IngestionRuns.Add(new IngestionRun
+        {
+            SourceId = source.Id,
+            JobKey = "odds:lines:mlb",
+            StartedAt = lastMonth,
+            FinishedAt = lastMonth,
+            Status = RunStatus.Success,
+            CreditsSpent = 2,
+            ProviderCreditsRemaining = 10
+        });
+        await db.SaveChangesAsync();
+
+        var plan = await Create(db).PlanAsync([source.Key]);
+
+        Assert.Equal(200, plan!.ScansRemainingToday);
+    }
+
+    [Theory]
+    [InlineData(40, 500, 150, 350)]   // another machine spent more than this one recorded
+    [InlineData(40, 500, 480, 40)]    // this machine's own record is the larger
+    [InlineData(40, 500, null, 40)]   // the provider never said
+    [InlineData(40, null, 150, 40)]   // no monthly budget to subtract from
+    [InlineData(40, 500, 600, 40)]    // a bigger plan than configured: never below what was recorded
+    public void TheMonthIsTheLargerOfTheTwoAccounts(int recorded, int? budget, int? remaining, int expected)
+        => Assert.Equal(expected, MonthlyCredits.Reconcile(recorded, budget, remaining));
+
     [Fact]
     public async Task AnExhaustedMonthBacksOffRatherThanRetryingIntoARefusal()
     {

@@ -63,9 +63,10 @@ public record CanonicalPlayerStat(
 /// <summary>
 /// What a fetch cost us. Providers meter differently — odds-api.io counts requests,
 /// The Odds API bills credits as markets x regions — so adapters report both and the
-/// budget guard reconciles against the source's configured ceiling.
+/// budget guard reconciles against the source's configured ceiling. CreditsRemaining is the
+/// provider's own count of what is left on the key, when it reports one.
 /// </summary>
-public record FetchCost(int Requests, int Credits = 0);
+public record FetchCost(int Requests, int Credits = 0, int? CreditsRemaining = null);
 
 public record OddsFetchResult(
     IReadOnlyList<CanonicalGame> Games,

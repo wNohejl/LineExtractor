@@ -208,9 +208,9 @@ public class LinePollPlanner(
         {
             var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
 
-            var spent = await db.IngestionRuns
-                .Where(r => r.SourceId == source.Id && r.StartedAt >= monthStart)
-                .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0;
+            // What the key has spent, not only what this database recorded: the laptop and the
+            // desktop share the allowance, and only the provider sees both (MonthlyCredits).
+            var spent = await MonthlyCredits.SpentAsync(db, source, now, ct);
 
             var creditsPerScan = Math.Max(1, CreditsPerScan(source.Key));
 

@@ -104,7 +104,7 @@ public class TheOddsApiAdapter(
             "{Source}: {Sport} -> {Games} games, {Odds} prices, {Credits} credits ({Remaining} remaining)",
             SourceKey, sportKey, games.Count, odds.Count, credits, remaining?.ToString() ?? "?");
 
-        return new OddsFetchResult(games, odds, new FetchCost(Requests: 1, Credits: credits));
+        return new OddsFetchResult(games, odds, new FetchCost(Requests: 1, Credits: credits, CreditsRemaining: remaining));
     }
 
     private static void ParseEvent(

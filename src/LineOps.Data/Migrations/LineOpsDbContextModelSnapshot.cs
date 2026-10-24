@@ -321,6 +321,9 @@ namespace LineOps.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<int?>("ProviderCreditsRemaining")
+                        .HasColumnType("integer");
+
                     b.Property<int>("RequestsMade")
                         .HasColumnType("integer");
 
