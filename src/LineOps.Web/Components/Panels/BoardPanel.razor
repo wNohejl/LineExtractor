@@ -167,6 +167,14 @@ else if (Visible.Count == 0)
 }
 else
 {
+    @* In a column too narrow for all six market cells, spread and totals fold away (col--wider)
+       rather than pushing the board off the side of its window. Said, so nothing is missing
+       without a word. *@
+    <div class="board__table">
+    <div class="board__folded" role="note">
+        Spread and totals are folded away at this width — widen the board or maximise it to see them.
+    </div>
+
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
@@ -304,7 +312,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -312,7 +320,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -320,7 +328,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.First" Selection="O"
                            StartsAt="context.Item.Game.StartsAt"
@@ -328,7 +336,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
                            StartsAt="context.Item.Game.StartsAt"
@@ -337,6 +345,7 @@ else
         </TemplateColumn>
 
     </DeskGrid>
+    </div>
 
     @if (_closing > 0)
     {

@@ -71,7 +71,7 @@ else
         <MetricRow Style="margin-bottom:16px">
             <Metric Label="ROI"
                     Value='@_summary.Roi.ToString("P1")'
-                    Note='@($"{_summary.SettledCount} bets")'
+                    Note='@($"{_summary.SettledCount} {(_summary.SettledCount == 1 ? "bet" : "bets")}")'
                     State="@Sign(_summary.Roi)" />
             <Metric Label="Net"
                     Value='@_summary.NetProfit.ToString("C0")'

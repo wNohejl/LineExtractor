@@ -213,11 +213,26 @@ public class WindowManager
             var existing = _windows.FirstOrDefault(w => w.Definition.Key == definition.Key);
             if (existing is not null)
             {
+                // Asked for on a subject — runs for one source, one incident — the window already
+                // on the desk is re-aimed at it. Focusing it as it stood showed whatever it was
+                // last opened on, which read as the desk ignoring the click. Re-aiming replaces
+                // what it showed, so it is a step Back can undo.
+                if (Retargets(existing, parameters, titleOverride))
+                {
+                    Remember();
+                    Aim(existing.Parameters, parameters ?? new Dictionary<string, object>());
+
+                    if (titleOverride is not null)
+                        existing.TitleOverride = titleOverride;
+                }
+
                 existing.Minimised = false;
                 Focus(existing.Id);
                 return existing;
             }
         }
+
+        Remember();
 
         var title = titleOverride ?? definition.Title;
         EnforceCeiling(incoming: title, headroom: 1);
@@ -289,6 +304,7 @@ public class WindowManager
         if (window is null)
             return;
 
+        Remember();
         _windows.Remove(window);
         LastEviction = null;
 
@@ -301,6 +317,9 @@ public class WindowManager
 
     public void CloseAll()
     {
+        if (_windows.Count > 0)
+            Remember();
+
         _windows.Clear();
         FocusedId = null;
         LastEviction = null;
@@ -542,6 +561,9 @@ public class WindowManager
     /// <summary>Opens a named set of windows in order, replacing whatever is on the desk.</summary>
     public void ApplyWorkspace(Workspace workspace)
     {
+        if (_windows.Count > 0)
+            Remember();
+
         _windows.Clear();
         FocusedId = null;
         LastEviction = null;
@@ -649,6 +671,9 @@ public class WindowManager
         _windows.Clear();
         FocusedId = null;
         LastEviction = null;
+        _back.Clear();
+        _forward.Clear();
+        _forgotten = 0;
 
         _ceilingChosen = layout.CeilingChosen;
         Settings.MaxConcurrentWindows = Math.Clamp(layout.MaxConcurrentWindows, 1, 12);
@@ -716,6 +741,152 @@ public class WindowManager
         System.Text.Json.JsonValueKind.False => false,
         _ => null
     };
+
+    // ------------------------------------------------------------------ history ----
+
+    /// <summary>
+    /// How far back the desk remembers. Each step holds references to windows that already
+    /// exist plus a copy of their parameters, so this is a bound on surprise, not on memory.
+    /// </summary>
+    private const int HistoryLimit = 50;
+
+    private readonly List<DeskMoment> _back = [];
+    private readonly List<DeskMoment> _forward = [];
+
+    /// <summary>
+    /// The desk as it stood before one navigation: which windows were in the row, what each
+    /// was aimed at, and which had focus. The windows themselves are kept, not described, so
+    /// going back puts the same window — same id, same slot, same width — where it was.
+    /// </summary>
+    private sealed record DeskMoment(
+        IReadOnlyList<(WindowInstance Window, Dictionary<string, object> Parameters, string? Title)> Row,
+        string? FocusedId);
+
+    /// <summary>
+    /// How many steps Back can take. The host mirrors this into the browser's own history, so
+    /// the browser's Back button and the mouse's back key walk the desk rather than leaving it.
+    /// </summary>
+    public int HistoryDepth => _forgotten + _back.Count;
+
+    /// <summary>Counts steps taken, so the host can tell a new step from a walk back and forth.</summary>
+    public long HistoryVersion { get; private set; }
+
+    /// <summary>
+    /// Steps dropped off the far end. Counted so <see cref="HistoryDepth"/> keeps rising past the
+    /// limit — the browser's entries are numbered by it and would stop matching otherwise.
+    /// </summary>
+    private int _forgotten;
+
+    public bool CanGoBack => _back.Count > 0;
+
+    public bool CanGoForward => _forward.Count > 0;
+
+    /// <summary>
+    /// Puts the desk back the way it was before the last open, close or re-aim. A window closed
+    /// to make room comes back; the one that displaced it goes. Before this there was no way
+    /// back at all: the desk has one route, so the browser's Back left the application.
+    /// </summary>
+    public bool Back()
+    {
+        if (_back.Count == 0)
+            return false;
+
+        _forward.Add(Moment());
+        Become(Pop(_back));
+        return true;
+    }
+
+    public bool Forward()
+    {
+        if (_forward.Count == 0)
+            return false;
+
+        _back.Add(Moment());
+        Become(Pop(_forward));
+        return true;
+    }
+
+    /// <summary>Called before anything that changes what the desk shows. A new step forgets the road ahead.</summary>
+    private void Remember()
+    {
+        _back.Add(Moment());
+
+        if (_back.Count > HistoryLimit)
+        {
+            _back.RemoveAt(0);
+            _forgotten++;
+        }
+
+        _forward.Clear();
+        HistoryVersion++;
+    }
+
+    /// <summary>Walks to a depth the browser named — one step for Back, several for a long press on it.</summary>
+    public void TraverseTo(int depth)
+    {
+        while (HistoryDepth > depth && Back())
+        {
+        }
+
+        while (HistoryDepth < depth && Forward())
+        {
+        }
+    }
+
+    private DeskMoment Moment() => new(
+        _windows.Select(w => (w, new Dictionary<string, object>(w.Parameters), w.TitleOverride)).ToList(),
+        FocusedId);
+
+    private void Become(DeskMoment moment)
+    {
+        _windows.Clear();
+
+        foreach (var (window, parameters, title) in moment.Row)
+        {
+            Aim(window.Parameters, parameters);
+            window.TitleOverride = title;
+            _windows.Add(window);
+        }
+
+        FocusedId = moment.FocusedId is { } id && Find(id) is not null ? id : MostRecent()?.Id;
+        LastEviction = null;
+        Relayout();
+    }
+
+    private static DeskMoment Pop(List<DeskMoment> stack)
+    {
+        var last = stack[^1];
+        stack.RemoveAt(stack.Count - 1);
+        return last;
+    }
+
+    /// <summary>Whether opening <paramref name="window"/> with these arguments would change what it shows.</summary>
+    private static bool Retargets(WindowInstance window, Dictionary<string, object>? parameters, string? title)
+    {
+        if (title is not null && title != window.TitleOverride)
+            return true;
+
+        if (parameters is null)
+            return false;
+
+        var current = window.Parameters.Where(p => p.Value is not null).ToDictionary();
+        return current.Count != parameters.Count
+            || parameters.Any(p => !current.TryGetValue(p.Key, out var value) || !Equals(value, p.Value));
+    }
+
+    /// <summary>
+    /// Points a window's parameters at a new subject. A key the new subject does not name is set
+    /// to null rather than removed: a hosted component keeps the last value it was given for a
+    /// parameter that stops being passed, so removing it would leave the old subject showing.
+    /// </summary>
+    public static void Aim(Dictionary<string, object> target, IReadOnlyDictionary<string, object> with)
+    {
+        foreach (var key in target.Keys.Where(k => !with.ContainsKey(k)).ToList())
+            target[key] = null!;
+
+        foreach (var (key, value) in with)
+            target[key] = value;
+    }
 
     private WindowInstance? MostRecent()
         => _windows.Where(w => !w.Minimised).OrderByDescending(w => w.LastFocusedAt).FirstOrDefault();

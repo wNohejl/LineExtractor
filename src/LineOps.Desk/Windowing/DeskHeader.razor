@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject WindowManager Manager
 @inject DeskBrand Brand
+@inject IJSRuntime JS
 
 @*
     Fixed header: identity, the windows, and the desk's own controls.
@@ -88,6 +89,22 @@
 
     @* What is left of the desk's own controls: both are about the row as a whole. *@
     <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
+        @* Through the browser's own history rather than straight to the manager, so these, the
+           browser's buttons and Alt+Left all walk the same list. See windowing.js. *@
+        <button class="rail__btn" type="button" title="Back — undo the last open or close (Alt+Left)"
+                aria-label="Back" aria-keyshortcuts="Alt+ArrowLeft"
+                disabled="@(!Manager.CanGoBack)"
+                @onclick="GoBack">
+            <Glyph Icon="@Icons.Material.Filled.ArrowBack" />
+        </button>
+
+        <button class="rail__btn" type="button" title="Forward (Alt+Right)"
+                aria-label="Forward" aria-keyshortcuts="Alt+ArrowRight"
+                disabled="@(!Manager.CanGoForward)"
+                @onclick="GoForward">
+            <Glyph Icon="@Icons.Material.Filled.ArrowForward" />
+        </button>
+
         <button class="rail__btn" type="button" title="Go to anything (Ctrl+K)"
                 aria-label="Go to anything" aria-keyshortcuts="Control+K Meta+K"
                 @onclick="Manager.RequestPalette">
@@ -142,6 +159,10 @@
         Manager.ApplyWorkspace(workspace);
         _workspaces?.Close();
     }
+
+    private async Task GoBack() => await JS.InvokeVoidAsync("history.back");
+
+    private async Task GoForward() => await JS.InvokeVoidAsync("history.forward");
 
     private void CloseAll()
     {

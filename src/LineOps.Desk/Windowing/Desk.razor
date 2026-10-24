@@ -97,6 +97,7 @@
     private readonly Dictionary<string, ElementReference> _dividerHandles = [];
     private string _wiredDividers = string.Empty;
     private string _wiredTabs = string.Empty;
+    private long _historyVersion;
 
     private List<WindowInstance> Row =>
         Manager.Windows.OrderBy(w => w.X).ToList();
@@ -150,6 +151,9 @@
                 Manager.Restore(layout);
 
             await _module.InvokeVoidAsync("initialise", _self);
+
+            _historyVersion = Manager.HistoryVersion;
+            await _module.InvokeVoidAsync("trackHistory", Manager.HistoryDepth);
         }
 
         if (_module is null)
@@ -163,6 +167,14 @@
         {
             (_appliedUiScale, _appliedTextScale) = (ui, text);
             await _module.InvokeVoidAsync("applyScale", ui, text);
+        }
+
+        // A new step on the desk becomes a browser history entry, so Back has somewhere to go.
+        // A walk back or forward changes the depth but not the version, and is already an entry.
+        if (Manager.HistoryVersion != _historyVersion)
+        {
+            _historyVersion = Manager.HistoryVersion;
+            await _module.InvokeVoidAsync("pushHistory", Manager.HistoryDepth);
         }
 
         // Rebind dividers only when the set of adjacent pairs actually changes — a drag
@@ -202,6 +214,10 @@
     /// <summary>Ctrl+K or ⌘K, from anywhere on the page. See windowing.js.</summary>
     [JSInvokable]
     public void OnPaletteRequested() => Manager.RequestPalette();
+
+    /// <summary>The browser's Back or Forward landed on a desk entry. See windowing.js.</summary>
+    [JSInvokable]
+    public void OnHistoryTraversed(int depth) => Manager.TraverseTo(depth);
 
     [JSInvokable]
     public void OnViewportChanged(double width, double height)

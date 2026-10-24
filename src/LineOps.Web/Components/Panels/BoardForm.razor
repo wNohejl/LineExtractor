@@ -89,7 +89,7 @@ else
                         <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
                         <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
                     </PropertyColumn>
 

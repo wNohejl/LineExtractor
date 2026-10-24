@@ -265,7 +265,7 @@
                     Title="Games" Align="Align.Right" />
 
     <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.RowsIngested"
-                    Title="Rows" Align="Align.Right" />
+                    Title="Rows" Align="Align.Right" Format="N0" />
 
     @* Sorting by state is how you find the days that need a retry pass. *@
     <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State">

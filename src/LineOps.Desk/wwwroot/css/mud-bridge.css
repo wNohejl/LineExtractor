@@ -197,7 +197,51 @@
    header, numbers right-aligned and tabular. None of that is restated in the component; it
    lives here, so a Mud table dropped in by hand matches without anyone styling it. */
 
-.deskgrid .mud-table-container { overflow: visible; }
+/* A grid fits the window it sits in. It used to be allowed to overflow, and the window body
+   scrolled sideways instead — taking the metrics, the notes and every other table with it, so a
+   three-column desk read as three windows with their right edges cut off and the scrollbar a
+   screen below. What still cannot fit at the narrowest scrolls here, inside the table alone.
+   The grid is also the container its columns ask about: see .col--wide below. */
+.deskgrid { container: deskgrid / inline-size; }
+.deskgrid .mud-table-container { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+
+/* Columns worth having when there is room, and not worth a sideways scroll when there is not.
+   Set on a column as HeaderClass and CellClass both. */
+@container deskgrid (max-width: 640px) {
+    .deskgrid .col--wide { display: none; }
+
+    /* Doubled to outrank the cell rules below, which come later in this file. */
+    .deskgrid.deskgrid .mud-table-head .mud-table-cell,
+    .deskgrid.deskgrid .mud-table-body .mud-table-cell { padding-inline: 8px; }
+}
+
+@container deskgrid (max-width: 820px) {
+    .deskgrid .col--wider { display: none; }
+
+    /* A link's destination is reserved width even while invisible (see DeskLink). In a narrow
+       grid the word costs a column more than it says; the arrow alone still names the move,
+       and the button's title spells it out. */
+    .deskgrid .mud-table-body .desklink__shortcut { font-size: 0; gap: 0; }
+}
+
+/* A long name or message wraps to a second line and stops there, rather than holding its whole
+   length on one line — a nowrap cell's width is its text's width, so one long incident title set
+   the width of the whole table. Two lines keeps the row rhythm; a .trunc keeps its full text in
+   its title. */
+.deskgrid .mud-table-body .mud-table-cell .desklink__label,
+.deskgrid .mud-table-body .mud-table-cell .trunc:not(.mud-table-cell) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    width: auto;
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: break-word;
+    overflow: hidden;
+}
+
+.deskgrid .mud-table-body .mud-table-cell .desklink { max-width: 100%; }
 .deskgrid .mud-table-root { border-spacing: 0; font-size: var(--text-body); }
 .deskgrid .mud-paper { background: transparent; border: 0; }
 
@@ -237,21 +281,36 @@
    the table classes here looked right and did nothing, which is only visible if you actually
    click a header rather than assume the shared `.mud-table-*` prefix carries over. */
 .deskgrid .column-header {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 2px;
 }
 
+/* The arrow hangs in the cell's right padding instead of taking width beside the label. In
+   flow, the arrow and the sort index cost every column ~40px whether it was sorted or not — a
+   one-letter stat column was 57px wide, and a nine-column table could not fit its window. */
+.deskgrid .column-options {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+}
+
+.deskgrid .mud-sort-index.invisible { display: none; }
+
 .deskgrid .sortable-column-header { transition: color .1s ease; }
 .deskgrid .column-header:hover .sortable-column-header { color: var(--text-primary); }
 
-/* The direction arrow is reserved and faded rather than absent, so sorting a column does not
-   shift the header row sideways — the same reasoning as the linked cell's shortcut. */
+/* The direction arrow is faded rather than absent, and hangs in the padding, so sorting a column
+   does not shift the header row sideways — the same reasoning as the linked cell's shortcut. */
 .deskgrid .sort-direction-icon {
     padding: 0;
     min-width: 0;
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
     color: var(--accent);
     opacity: 0;
     transition: opacity .1s ease;
@@ -260,7 +319,7 @@
 .deskgrid .column-header:hover .sort-direction-icon { opacity: .6; }
 .deskgrid .sort-direction-icon.mud-direction-asc,
 .deskgrid .sort-direction-icon.mud-direction-desc { opacity: 1; }
-.deskgrid .sort-direction-icon .mud-icon-root { font-size: calc(14px * var(--text-scale)); }
+.deskgrid .sort-direction-icon .mud-icon-root { font-size: 12px; width: 12px; height: 12px; }
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
 

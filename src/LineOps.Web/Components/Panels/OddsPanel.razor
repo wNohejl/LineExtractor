@@ -76,7 +76,7 @@ else
            moved. A row with no usable price sorts last rather than as a certainty. *@
         <PropertyColumn T="OddsSnapshot" TProperty="double"
                         Property="@(s => Implied(s.PriceAmerican) ?? -1)"
-                        Title="Implied" Align="Align.Right">
+                        Title="Implied" HeaderClass="col--wide" CellClass="col--wide" Align="Align.Right">
             <CellTemplate>
                 <span class="dim">
                     @(Implied(context.Item.PriceAmerican) is { } p ? p.ToString("P1") : "—")
@@ -205,7 +205,7 @@ else
                         <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos">
+                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
                         <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
                     </PropertyColumn>
 

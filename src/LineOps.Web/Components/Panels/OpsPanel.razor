@@ -80,7 +80,9 @@
             @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
             {
                 @(index > 0 ? " · " : "")<span class="mono">@sport.Sport.ToUpperInvariant()</span>
-                <text> @string.Join(", ", sport.Markets.Select(MarketName))</text>
+                @* Spelled as one expression: a leading space inside <text> before code was dropped, and
+                   the sport ran into its markets ("MLBmoneyline"). *@
+                @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
                 @if (sport.Credits > 0)
                 {
                     <text> (<span class="mono">@sport.Credits</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
@@ -201,7 +203,7 @@ else if (_plan is { } plan)
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind">
+    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind" HeaderClass="col--wide" CellClass="col--wide">
         <CellTemplate><span class="dim">@context.Item.Source.Kind</span></CellTemplate>
     </PropertyColumn>
 
@@ -225,10 +227,10 @@ else if (_plan is { } plan)
     </PropertyColumn>
 
     <PropertyColumn T="SourceHealth" TProperty="int" Property="h => h.RowsToday"
-                    Title="Rows today" Align="Align.Right" />
+                    Title="Rows today" HeaderClass="col--wider" CellClass="col--wider" Align="Align.Right" Format="N0" />
 
     <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.VolumeRatio ?? -1"
-                    Title="Volume" Align="Align.Right">
+                    Title="Volume" HeaderClass="col--wide" CellClass="col--wide" Align="Align.Right">
         <CellTemplate>
             <span class="dim">@(context.Item.VolumeRatio is { } v ? v.ToString("P0") : "—")</span>
         </CellTemplate>

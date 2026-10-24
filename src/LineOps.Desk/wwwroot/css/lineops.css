@@ -1229,6 +1229,21 @@ html, body {
 .ftr__dismiss svg { width: 13px; height: 13px; }
 .ftr__dismiss:hover { color: var(--text-primary); }
 
+/* The way back from an eviction, said where the eviction is. */
+.ftr__undo {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 6px;
+    color: var(--state-warning);
+    font: inherit;
+    font-weight: var(--weight-semibold);
+    cursor: pointer;
+}
+
+.ftr__undo:hover { color: var(--text-primary); }
+
 /* ---------------------------------------------------------------- desk ---- */
 
 .desk {
@@ -1811,6 +1826,12 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .panel-h + .panel-h { margin-top: 18px; }
 
+/* A heading after content opens a new section, so it gets a section's air whether or not the
+   panel remembered Gap="Section". Without it the heading sat on the last table's hairline or
+   the last line of prose and read as part of it — "By sport" looked like a row of "By market".
+   Gap="Nested" and Tight set their own margin inline and still win. */
+.win__body :not(.panel-h) + .panel-h { margin-top: 18px; }
+
 /* Metric: the number leads, the label explains. Not the other way round.
    State lands on the number and nowhere else — the tile itself stays neutral. The
    old left-edge bar was a second place to read the same fact, and it had to be
@@ -2123,6 +2144,21 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    legible rather than revealed on hover — it is a property of the number, not a
    detail about it. */
 .price__edge--closing { opacity: 1; }
+
+/* The board's grid and the note that says when part of it is folded away (see .col--wider in
+   mud-bridge.css). Same width as the grid inside it, so both answer the same question. */
+.board__table { container: board / inline-size; }
+
+.board__folded {
+    display: none;
+    margin-bottom: var(--space-2);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+}
+
+@container board (max-width: 820px) {
+    .board__folded { display: block; }
+}
 
 /* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
    a fixture nobody quoted, and a game already under way — only one of which is
@@ -3523,6 +3559,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .deskgrid--board th:nth-child(6) { color: transparent; }
 
 .deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
+
+/* A narrow board has folded spread and totals away (.board__folded), and still needs the
+   start time and the value pick to give up a line each rather than hold the row wide: the
+   league tag drops under the time, and the pick's book under its selection. */
+@container board (max-width: 820px) {
+    .deskgrid--board td:nth-child(1) { white-space: normal; }
+    .deskgrid--board td .value__bet { white-space: normal; text-align: right; }
+
+    .deskgrid--board td:nth-child(1) .num { white-space: nowrap; }
+
+    .deskgrid.deskgrid--board .mud-table-head .mud-table-cell,
+    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell { padding-inline: 8px; }
+}
 
 /* -------------------------------------------------------------------- sheet ---
    A modal sheet. Rises from slightly below and settles — the motion says it came

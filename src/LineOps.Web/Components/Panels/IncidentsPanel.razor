@@ -38,7 +38,7 @@
         <DeskGrid T="Incident" Items="_incidents" Class="deskgrid--clickable"
                   OnRowClick="@(e => SelectAsync(e.Item.Id))"
                   EmptyText="No incidents match this filter.">
-            <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right">
+            <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
                 <CellTemplate><span class="mono dim">@context.Item.Id</span></CellTemplate>
             </PropertyColumn>
 
@@ -64,7 +64,7 @@
                 <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
             </PropertyColumn>
 
-            <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened"
+            <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
                             Align="Align.Right" InitialDirection="SortDirection.Descending">
                 <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
             </PropertyColumn>
@@ -224,13 +224,33 @@ else
             ? "This incident is already resolved."
             : "Both the cause and the corrective action are needed.";
 
+    private int? _aimedAt;
+
     protected override async Task OnInitializedAsync()
     {
+        _aimedAt = IncidentId;
         await LoadAsync();
 
         // Following an alert's incident number lands on that incident's RCA, not the list.
         if (IncidentId is { } id)
             await SelectAsync(id);
+    }
+
+    /// <summary>
+    /// The window is a singleton, so following another incident re-aims this one rather than
+    /// opening a second, and Back re-aims it at what it showed before. Both arrive here.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IncidentId == _aimedAt)
+            return;
+
+        _aimedAt = IncidentId;
+
+        if (IncidentId is { } id)
+            await SelectAsync(id);
+        else
+            _selected = null;
     }
 
     private async Task LoadAsync()

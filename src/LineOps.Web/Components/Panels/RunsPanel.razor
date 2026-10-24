@@ -56,7 +56,8 @@
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job">
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job"
+                    HeaderClass="col--wide" CellClass="col--wide">
         <CellTemplate><span class="mono quiet">@context.Item.JobKey</span></CellTemplate>
     </PropertyColumn>
 
@@ -70,19 +71,22 @@
     @* Sorts on the real duration so "slowest run" is one click, not a scan of formatted text. *@
     <PropertyColumn T="IngestionRun" TProperty="double?"
                     Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
-                    Title="Took" Align="Align.Right">
+                    Title="Took" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
         <CellTemplate>
             <span class="quiet">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" />
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" Format="N0"
+                    HeaderClass="col--wider" CellClass="col--wider" />
 
-    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right">
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right"
+                    HeaderClass="col--wider" CellClass="col--wider">
         <CellTemplate><span class="quiet">@context.Item.RequestsMade</span></CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right">
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right"
+                    HeaderClass="col--wider" CellClass="col--wider">
         <CellTemplate>
             <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
         </CellTemplate>
@@ -108,8 +112,12 @@
     private string _sourceFilter = string.Empty;
     private string _statusFilter = string.Empty;
 
+    private int? _aimedAt;
+
     protected override async Task OnInitializedAsync()
     {
+        _aimedAt = SourceId;
+
         await using var db = await DbFactory.CreateDbContextAsync();
         _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
 
@@ -118,6 +126,20 @@
         if (SourceId is { } id)
             _sourceFilter = id.ToString();
 
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// The window is a singleton, so following another source's name re-aims this one rather
+    /// than opening a second, and Back re-aims it at what it showed before. Both arrive here.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (SourceId == _aimedAt)
+            return;
+
+        _aimedAt = SourceId;
+        _sourceFilter = SourceId?.ToString() ?? string.Empty;
         await LoadAsync();
     }
 

@@ -69,7 +69,7 @@ else
             </CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport">
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Sport!.Name" Title="Sport" HeaderClass="col--wide" CellClass="col--wide">
             <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
         </PropertyColumn>
 

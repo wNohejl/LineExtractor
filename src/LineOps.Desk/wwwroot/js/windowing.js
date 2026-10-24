@@ -289,3 +289,27 @@ function capture(element, pointerId) {
         // Without capture the gesture still works while the cursor stays over the handle.
     }
 }
+
+// ------------------------------------------------------------------ history ----
+//
+// The desk is one route, so the browser's Back button used to leave the application, and
+// nothing inside it went back either: a window closed to make room was simply gone. The desk
+// keeps its own history (WindowManager.Back), and each step it takes is mirrored here as a
+// browser history entry carrying the depth it was taken at. Back, Forward, Alt+Left and the
+// mouse's back key then all arrive as popstate, and .NET walks the desk to that depth.
+
+export function trackHistory(depth) {
+    history.replaceState({ ...(history.state ?? {}), deskDepth: depth }, '');
+    window.addEventListener('popstate', onPopState);
+}
+
+export function pushHistory(depth) {
+    history.pushState({ ...(history.state ?? {}), deskDepth: depth }, '');
+}
+
+function onPopState(e) {
+    const depth = e.state?.deskDepth;
+
+    if (typeof depth === 'number')
+        dotNet?.invokeMethodAsync('OnHistoryTraversed', depth);
+}

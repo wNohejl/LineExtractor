@@ -102,16 +102,13 @@ public sealed class FollowUpLauncher
         var copy = new Dictionary<string, object>(parameters);
         var title = $"{definition.Title} · {subtitle}";
 
-        // A singleton already on the desk is focused rather than duplicated (WindowManager.Open),
-        // which kept the subject it was opened on: a Place wager on another game, or a door naming
-        // another side, landed on the wager the window was already showing. Re-aim it first, so
-        // opening it is a focus that shows what was asked for. Opening it adds no window, so the
-        // desk's capacity does not come into it.
+        // A singleton already on the desk is re-aimed rather than duplicated (WindowManager.Open),
+        // so a Place wager on another game lands on that game rather than on the wager the window
+        // was already showing. Opening it adds no window, so the desk's capacity does not come
+        // into it.
         if (definition.Singleton
-            && manager.Windows.FirstOrDefault(w => w.Definition.Key == windowKey) is { } onDesk)
+            && manager.Windows.Any(w => w.Definition.Key == windowKey))
         {
-            Aim(onDesk.Parameters, copy);
-            onDesk.TitleOverride = title;
             manager.Open(definition, copy, title);
             return;
         }
@@ -126,7 +123,7 @@ public sealed class FollowUpLauncher
         // than stacking a duplicate on top of it, with the parameters the new press named.
         if (_open.FirstOrDefault(f => f.Key == windowKey && f.SubjectId == subjectId) is { } existing)
         {
-            Aim(existing.Parameters, copy);
+            WindowManager.Aim(existing.Parameters, copy);
             Raise(existing);
             return;
         }
@@ -143,21 +140,6 @@ public sealed class FollowUpLauncher
         });
 
         Notify();
-    }
-
-    /// <summary>
-    /// Points an open view's parameters at a new press. A parameter the new press does not name
-    /// is set to null rather than dropped: Blazor leaves a parameter that is no longer supplied at
-    /// its old value, so a Place wager after a door that named a book would still show that book.
-    /// A null is skipped when a saved desk is restored, so nothing reopens on it.
-    /// </summary>
-    private static void Aim(Dictionary<string, object> target, IReadOnlyDictionary<string, object> with)
-    {
-        foreach (var key in target.Keys.Where(k => !with.ContainsKey(k)).ToList())
-            target[key] = null!;
-
-        foreach (var (key, value) in with)
-            target[key] = value;
     }
 
     public void Raise(FollowUp followUp)

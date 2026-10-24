@@ -3,6 +3,7 @@
 @inject WindowManager Manager
 @inject DeskSignals Signals
 @inject DeskClock Clock
+@inject IJSRuntime JS
 
 @*
     Fixed footer: the desk's operating conditions — column count, effective size, and
@@ -18,6 +19,14 @@
         <div class="ftr__refusal" role="status">
             <Glyph Icon="@Icons.Material.Filled.LayersClear" />
             <span>@eviction</span>
+            @if (Manager.CanGoBack)
+            {
+                @* Back undoes the open that caused this, so the closed window returns where it was. *@
+                <button class="ftr__undo" type="button" title="Bring it back (Alt+Left)"
+                        @onclick="Undo">
+                    Undo
+                </button>
+            }
             <button class="ftr__dismiss" type="button" aria-label="Dismiss"
                     @onclick="Manager.ClearEviction">
                 <Glyph Icon="@Icons.Material.Filled.Close" />
@@ -62,6 +71,8 @@
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task Undo() => await JS.InvokeVoidAsync("history.back");
 
     private void OnLiveChanged(bool _) => InvokeAsync(StateHasChanged);
 
