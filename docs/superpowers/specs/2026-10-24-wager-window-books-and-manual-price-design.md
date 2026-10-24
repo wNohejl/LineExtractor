@@ -20,9 +20,9 @@ Two complaints from logging real NFL bets:
   opens the same window with a game search at the top. The Journal's own New entry form goes;
   the Journal keeps an inline form for **editing** an existing entry only.
 - **Find the game in one control.** A search field that is its own dropdown: typing fills a list
-  directly beneath it, **latest date first**, each row matchup · kickoff · league. Picking one
-  shows its sides. A last row, *No game — future or other*, records a bet with a described
-  market and no game, as the old form could.
+  directly beneath it, **from today backward** (games still to come after, soonest first), each
+  row matchup · kickoff · league. Picking one shows its sides. A last row, *No game — future or
+  other*, records a bet with a described market and no game, as the old form could.
 - **Choose the book.** Under the price, every book quoting the chosen side, each with price, line
   and capture age. Book chips filter the list (several at once); the filter is remembered with
   the operator's settings. Best is marked, not forced. Picking a book re-reads the headline
@@ -44,7 +44,8 @@ Two complaints from logging real NFL bets:
 ## Decisions (builder's calls, stated)
 
 - The game search lives in `GamePicker`, reused by the wizard and by the Journal's edit form.
-  `SearchService.GamesAsync` gains a latest-first order; the desk search keeps nearest-first.
+  `SearchService.GamesAsync` gains a from-today order (amended the same day from newest-first,
+  which put next month's games above the one being logged); the desk search keeps nearest-first.
 - A game with no prices can still be picked; its sides are offered from the teams (moneyline,
   spread, total), and the Price section opens straight on a manual price.
 - The hidden-books filter is an `AppSettings` row (`wager.books.hidden`, comma-separated), so it

@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,10 +52,12 @@ public class SearchService(LineOpsDbContext db)
     /// <summary>
     /// Games whose teams match every word, across a season's reach — two hundred days back, a
     /// month ahead — nearest to now first: the game being looked for is usually today's, and the
-    /// one being logged late usually last week's. With <paramref name="latestFirst"/>, newest kickoff first instead: the
-    /// order the wager window's game search lists one team's season in.
+    /// one being logged late usually last week's. With <paramref name="fromToday"/>, today's games
+    /// first and then back through the season, newest first, with the games still to come after
+    /// them, soonest first: the wager window's game search, where a bet is logged on the day or
+    /// late, almost never early.
     /// </summary>
-    public async Task<IReadOnlyList<Game>> GamesAsync(string text, int take = 20, bool latestFirst = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Game>> GamesAsync(string text, int take = 20, bool fromToday = false, CancellationToken ct = default)
     {
         var patterns = Patterns(text).ToList();
         if (patterns.Count == 0)
@@ -80,9 +83,17 @@ public class SearchService(LineOpsDbContext db)
         // memory rather than asked of the database as an interval expression.
         var found = await query.OrderByDescending(g => g.StartsAt).Take(200).ToListAsync(ct);
 
-        return latestFirst
-            ? found.Take(take).ToList()
-            : found.OrderBy(g => (g.StartsAt - now).Duration()).Take(take).ToList();
+        if (fromToday)
+        {
+            var tomorrow = LeagueClock.StartOf(LeagueClock.Today().AddDays(1));
+
+            return found.Where(g => g.StartsAt < tomorrow)
+                .Concat(found.Where(g => g.StartsAt >= tomorrow).OrderBy(g => g.StartsAt))
+                .Take(take)
+                .ToList();
+        }
+
+        return found.OrderBy(g => (g.StartsAt - now).Duration()).Take(take).ToList();
     }
 
     /// <summary>

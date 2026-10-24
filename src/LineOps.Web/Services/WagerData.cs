@@ -28,7 +28,7 @@ public interface IWagerData
 
     Task<JobOutcome> RunJobAsync(string key, CancellationToken ct = default);
 
-    /// <summary>Games to log a bet against, by team, newest kickoff first.</summary>
+    /// <summary>Games to log a bet against, by team: today first, then back through the season, then the games to come.</summary>
     Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default);
 
     /// <summary>Every book the desk knows of — scanned, journalled, or common — for a typed price.</summary>
@@ -82,7 +82,7 @@ public sealed class WagerData(IServiceScopeFactory scopes, IDbContextFactory<Lin
     {
         await using var scope = scopes.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<JournalService>()
-            .SearchGamesAsync(text, take: 30, latestFirst: true, ct: ct);
+            .SearchGamesAsync(text, take: 30, fromToday: true, ct: ct);
     }
 
     public async Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)

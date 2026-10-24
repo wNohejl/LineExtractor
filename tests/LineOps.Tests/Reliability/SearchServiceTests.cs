@@ -111,7 +111,7 @@ public class SearchServiceTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task Latest_first_lists_the_season_newest_kickoff_first()
+    public async Task From_today_lists_the_season_backward_then_the_games_to_come()
     {
         await using var db = fixture.CreateContext();
         var w = await SeedAsync(db);
@@ -128,10 +128,10 @@ public class SearchServiceTests(PostgresFixture fixture)
         await db.SaveChangesAsync();
 
         var search = new SearchService(db);
-        var latest = await search.GamesAsync(w.Tag, latestFirst: true);
+        var fromToday = await search.GamesAsync(w.Tag, fromToday: true);
         var nearest = await search.GamesAsync(w.Tag);
 
-        Assert.Equal(new[] { next.Id, w.Game.Id, older.Id }, latest.Select(g => g.Id));
+        Assert.Equal(new[] { w.Game.Id, older.Id, next.Id }, fromToday.Select(g => g.Id));
         Assert.Equal(w.Game.Id, nearest[0].Id);
     }
 

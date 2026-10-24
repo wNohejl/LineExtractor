@@ -348,8 +348,8 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     }
 
     /// <summary>Games to log a bet against, found by team across the season (see <see cref="SearchService.GamesAsync"/>).</summary>
-    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, bool latestFirst = false, CancellationToken ct = default)
-        => new SearchService(db).GamesAsync(text, take, latestFirst, ct);
+    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, int take = 20, bool fromToday = false, CancellationToken ct = default)
+        => new SearchService(db).GamesAsync(text, take, fromToday, ct);
 
     /// <summary>
     /// Writes the draft onto the entry. Returns true when a field the grade depends on changed on
