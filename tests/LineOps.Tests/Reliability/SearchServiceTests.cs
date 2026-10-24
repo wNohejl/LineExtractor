@@ -111,7 +111,7 @@ public class SearchServiceTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task From_today_lists_the_season_backward_then_the_games_to_come()
+    public async Task From_today_lists_the_games_to_come_then_the_season_backward()
     {
         await using var db = fixture.CreateContext();
         var w = await SeedAsync(db);
@@ -131,7 +131,9 @@ public class SearchServiceTests(PostgresFixture fixture)
         var fromToday = await search.GamesAsync(w.Tag, fromToday: true);
         var nearest = await search.GamesAsync(w.Tag);
 
-        Assert.Equal(new[] { w.Game.Id, older.Id, next.Id }, fromToday.Select(g => g.Id));
+        // The next game is the one a bet is logged on; last week's comes after it, then the
+        // season backward. Yesterday's seed game is played, so it leads the second group.
+        Assert.Equal(new[] { next.Id, w.Game.Id, older.Id }, fromToday.Select(g => g.Id));
         Assert.Equal(w.Game.Id, nearest[0].Id);
     }
 

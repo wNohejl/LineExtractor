@@ -52,10 +52,10 @@ public class SearchService(LineOpsDbContext db)
     /// <summary>
     /// Games whose teams match every word, across a season's reach — two hundred days back, a
     /// month ahead — nearest to now first: the game being looked for is usually today's, and the
-    /// one being logged late usually last week's. With <paramref name="fromToday"/>, today's games
-    /// first and then back through the season, newest first, with the games still to come after
-    /// them, soonest first: the wager window's game search, where a bet is logged on the day or
-    /// late, almost never early.
+    /// one being logged late usually last week's. With <paramref name="fromToday"/>, today's and the games
+    /// still to come first, soonest first, then back through the season, newest first: the wager
+    /// window's game search. The game a bet is logged on is nearly always this week's, and it
+    /// used to sit beneath every game of the week before it.
     /// </summary>
     public async Task<IReadOnlyList<Game>> GamesAsync(string text, int take = 20, bool fromToday = false, CancellationToken ct = default)
     {
@@ -85,10 +85,10 @@ public class SearchService(LineOpsDbContext db)
 
         if (fromToday)
         {
-            var tomorrow = LeagueClock.StartOf(LeagueClock.Today().AddDays(1));
+            var today = LeagueClock.StartOf(LeagueClock.Today());
 
-            return found.Where(g => g.StartsAt < tomorrow)
-                .Concat(found.Where(g => g.StartsAt >= tomorrow).OrderBy(g => g.StartsAt))
+            return found.Where(g => g.StartsAt >= today).OrderBy(g => g.StartsAt)
+                .Concat(found.Where(g => g.StartsAt < today))
                 .Take(take)
                 .ToList();
         }
