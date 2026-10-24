@@ -84,7 +84,8 @@ public class TheOddsApiAdapterTests
 
         var result = await FetchAsync(adapter);
 
-        Assert.Equal(new FetchCost(Requests: 1, Credits: 2), result.Cost);
+        // And what is left on the key, which is the only count that sees another machine's spend.
+        Assert.Equal(new FetchCost(Requests: 1, Credits: 2, CreditsRemaining: 431), result.Cost);
     }
 
     [Fact]
