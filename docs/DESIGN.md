@@ -81,6 +81,8 @@ The public identity of this project is a **data-ingestion and analytics operatio
 │    │              WindowBar · CommandPalette (Ctrl+K)            │
 │    │              DeskSignals · DeskLayout (kept in localStorage)│
 │    ├─ Primitives/ DeskGrid · DeskChart · DeskDialog · Metric …   │
+│    │              PanelTitle · PanelToolbar · PanelSection ·     │
+│    │              PanelForm — the one anatomy (ADR 0020)        │
 │    └─ wwwroot/js/windowing.js — reorder/resize in-browser (§6)   │
 │                                                                  │
 │  LineOps.Worker       Worker-SDK host (OPTIONAL, own container)  │
