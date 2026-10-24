@@ -1,0 +1,76 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    The inset card for a task the operator completes in place.
+
+    Sixth slot of the panel anatomy (spec 2026-10-24). Not a sheet: the Journal's entry
+    form and an incident's root-cause analysis are written while looking at the rows
+    behind them, and comparison is never modal (ADR 0016). The Journal already drew this
+    card by hand — a surface-2 stack with a hairline — and every other form drew something
+    slightly different.
+
+    What the card pins is the footer. Journal put Save before Cancel; Incidents put Resolve
+    before Mark mitigated; History put the destructive re-walk after the primary. Here
+    anything destructive sits at the far left in its own slot, then the keys pinned right
+    in the order the caller writes them: Cancel, then the one Filled key at the edge. No
+    form on the desk submits on Enter, so DOM order is visual order and nothing else
+    changes. The footer is not drawn when there is nothing to put in it.
+*@
+
+<div class="@Classes" style="@Styles" id="@Id" @attributes="Rest">
+    @if (Title is { Length: > 0 })
+    {
+        <PanelHeader Tight Level="4">@Title</PanelHeader>
+    }
+
+    <div class="pform__body stack">@ChildContent</div>
+
+    @if (Footer is not null || Destructive is not null)
+    {
+        <div class="pform__foot">
+            @if (Destructive is not null)
+            {
+                <div class="pform__danger">@Destructive</div>
+            }
+            @if (Footer is not null)
+            {
+                <div class="pform__keys">@Footer</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The form's name — "New entry", "Root-cause analysis". Optional.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>The fields, stacked.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The keys, pinned right: Cancel first, the one Filled key last.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>A destructive key, at the far left of the footer and nowhere else.</summary>
+    [Parameter] public RenderFragment? Destructive { get; set; }
+
+    /// <summary>Forwarded to the root, for a caller that labels the region by id.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra declarations, appended after the component's own.</summary>
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string Classes => string.Join(' ', new[] { "pform", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private string? Styles => DeskLayout.MergeStyle(null, Extra) is { } splat
+        ? Style is { Length: > 0 } ? $"{Style}; {splat}" : splat
+        : Style;
+
+    private IReadOnlyDictionary<string, object>? Rest => DeskLayout.WithoutClassAndStyle(Extra);
+}

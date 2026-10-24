@@ -2898,6 +2898,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    one is wrapped in .field-set. Either takes the remaining width. */
 .ptoolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); }
 .ptoolbar > input.field, .ptoolbar > .field-set { flex: 1 1 160px; min-width: 150px; }
+/* A select is sized to its words, not to the row: .field is width:100% for the forms
+   it sits in, and a picker that took the whole toolbar would push everything after it
+   onto the next line. Callers that want a longer picker still say so with max-width. */
+.ptoolbar > select.field { width: auto; flex: 0 1 auto; }
 .ptoolbar__msg { font-size: var(--text-subheadline); color: var(--text-secondary); }
 .ptoolbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
@@ -2917,6 +2921,27 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     color: var(--text-secondary);
 }
 .psection--subject .panel-h { color: var(--text-primary); }
+
+/* 6 · Form. An inset card; the footer's order is the card's, not the caller's. */
+.pform {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+    margin: 0 0 var(--space-4);
+}
+.pform__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.pform__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+
+/* 3 · 4 · Note and metrics in a window body own the air beneath them too. The space
+   above comes from whatever precedes them. A Note rendered inline is a span and is
+   not a slot, which is why this is scoped to a block note straight in the body. */
+.win__body > .note, .psection__body > .note { margin: 0 0 var(--space-4); }
+.win__body > .metrics, .psection__body > .metrics { margin: 0 0 var(--space-4); }
+.psection__body > .note:last-child, .psection__body > .metrics:last-child { margin-bottom: 0; }
 
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
 

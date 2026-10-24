@@ -21,17 +21,88 @@
     never modal.
 *@
 
-<Note Style="margin:12px 0 14px">
+<Note>
     Everything here is live. Press what looks pressable, and tab through each row —
     the keyboard has to get the same signal the pointer does, or only half the desk
     is finished.
 </Note>
 
 @* ==========================================================================
+   Anatomy
+   ========================================================================== *@
+
+<PanelSection Title="Anatomy">
+    <p class="empty" style="padding:0 0 9px">
+        Every window body renders its parts in one order — title, toolbar, note, metrics,
+        sections, forms — and each part owns the air beneath it, so a panel never writes a
+        margin. Below, every slot once, in that order.
+    </p>
+
+    <PanelTitle>
+        <ChildContent>Mets at Braves</ChildContent>
+        <Tags>
+            <Tag State="DeskState.Positive">Final</Tag>
+            <Tag State="DeskState.Info">2026 season</Tag>
+        </Tags>
+        <Meta>Sat Oct 24 · 7:10 PM ET · <span class="ptitle__em">Senga</span> v <span class="ptitle__em">Sale</span></Meta>
+        <Keys>
+            <DeskSwitch Options="_anatomySeasons" Label="Season" Mono="true" @bind-Value="_anatomySeason" />
+        </Keys>
+    </PanelTitle>
+
+    <PanelToolbar Message="3 updated">
+        <ChildContent>
+            <DeskSelect TValue="string" Value="@("")" ValueChanged="@((string? _) => { })">
+                <option value="">All sports</option>
+                <option value="mlb">MLB</option>
+            </DeskSelect>
+            <DeskField TValue="string" placeholder="Search…" Value="@("")" ValueChanged="@((string? _) => { })" />
+        </ChildContent>
+        <Actions>
+            <DeskButton Icon="@Icons.Material.Filled.Refresh">Refresh</DeskButton>
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync">Sync stats</DeskButton>
+        </Actions>
+    </PanelToolbar>
+
+    <MetricRow>
+        <Metric Label="Sources in SLO" Value="2/2" State="DeskState.Positive" />
+        <Metric Label="Rows today" Value="16,835" />
+    </MetricRow>
+
+    <PanelSection Title="Recent games">
+        <Keys>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted">Home</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">Away</DeskButton>
+        </Keys>
+        <Meta>
+            <span class="mono">12-9</span>
+            <span>8-10 ATS</span>
+            <span style="margin-left:auto">14 of 21 with a closing line</span>
+        </Meta>
+        <ChildContent>
+            <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
+        </ChildContent>
+    </PanelSection>
+
+    <PanelForm Title="New entry">
+        <ChildContent>
+            <DeskField TValue="string" placeholder="Note (optional)" Value="@("")" ValueChanged="@((string? _) => { })" />
+        </ChildContent>
+        <Destructive>
+            <DeskButton Role="DeskRole.Destructive">Delete</DeskButton>
+        </Destructive>
+        <Footer>
+            <DeskButton>Cancel</DeskButton>
+            <DeskButton Emphasis="DeskEmphasis.Filled">Save changes</DeskButton>
+        </Footer>
+    </PanelForm>
+</PanelSection>
+
+@* ==========================================================================
    Buttons
    ========================================================================== *@
 
-<PanelHeader>Buttons — emphasis</PanelHeader>
+<PanelHeader Gap="PanelHeaderGap.Section">Buttons — emphasis</PanelHeader>
 <p class="empty" style="padding:0 0 9px">
     Weight says how loud, not what colour. Hue is no longer an affordance channel: an
     interface with five coloured button types has no primary action, only five competing
@@ -685,6 +756,11 @@
     ];
 
     private bool _busy;
+
+    private int _anatomySeason = 2026;
+
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> _anatomySeasons =
+        [new(2026, "2026"), new(2025, "2025")];
 
     // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
     // you otherwise have to catch mid-request to see.
