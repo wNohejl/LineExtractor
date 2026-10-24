@@ -2921,6 +2921,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     color: var(--text-secondary);
 }
 .psection--subject .panel-h { color: var(--text-primary); }
+/* Rows that follow one another inside a section body space themselves. */
+.psection__body > .row + .row { margin-top: var(--space-2); }
 
 /* 6 · Form. An inset card; the footer's order is the card's, not the caller's. */
 .pform {

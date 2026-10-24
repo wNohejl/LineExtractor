@@ -23,13 +23,13 @@ else if (_form.IsEmpty)
 }
 else
 {
-    <div class="row" style="margin-bottom:10px">
+    <PanelToolbar>
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
             @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
-    </div>
+    </PanelToolbar>
 
     @RenderSide(_form.Away, Row?.Game.AwayTeam?.Name ?? "Away")
     @RenderSide(_form.Home, Row?.Game.HomeTeam?.Name ?? "Home")
@@ -81,7 +81,7 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <PanelHeader Level="4" Gap="PanelHeaderGap.Nested" Muted>@teamName</PanelHeader>
+            <PanelSection Class="psection--subject" Title="@teamName">
             <div class="gridwrap">
                 <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
                     <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
@@ -118,6 +118,7 @@ else
                     }
                 </DeskGrid>
             </div>
+            </PanelSection>
         }
     </text>;
 }

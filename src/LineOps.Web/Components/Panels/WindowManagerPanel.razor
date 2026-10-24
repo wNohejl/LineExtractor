@@ -14,29 +14,39 @@
    sign-in is a page load, not a window: the cookie it sets needs an HTTP response. *@
 @if (AccessOptions.Value.Mode == LineOps.Web.Access.AccessMode.Gated)
 {
-    <div class="row" style="margin-bottom:12px; gap:8px">
-        @if (Manager.Access.CanOperate)
-        {
-            <Tag State="DeskState.Positive">Operator</Tag>
-            <span class="dim" style="flex:1">Everything on this desk is yours to change.</span>
-            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Logout"
-                        OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignOutPath, forceLoad: true))">
-                Sign out
-            </DeskButton>
-        }
-        else
-        {
-            <Tag State="DeskState.Info">Visitor</Tag>
-            <span class="dim" style="flex:1">This desk reads everything and changes nothing.</span>
-            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Login"
-                        OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignInPath, forceLoad: true))">
-                Operator sign-in
-            </DeskButton>
-        }
-    </div>
+    <PanelToolbar>
+        <ChildContent>
+            @if (Manager.Access.CanOperate)
+            {
+                <Tag State="DeskState.Positive">Operator</Tag>
+                <span class="dim">Everything on this desk is yours to change.</span>
+            }
+            else
+            {
+                <Tag State="DeskState.Info">Visitor</Tag>
+                <span class="dim">This desk reads everything and changes nothing.</span>
+            }
+        </ChildContent>
+        <Actions>
+            @if (Manager.Access.CanOperate)
+            {
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Logout"
+                            OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignOutPath, forceLoad: true))">
+                    Sign out
+                </DeskButton>
+            }
+            else
+            {
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Login"
+                            OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignInPath, forceLoad: true))">
+                    Operator sign-in
+                </DeskButton>
+            }
+        </Actions>
+    </PanelToolbar>
 }
 
-<MetricRow Style="margin-bottom:16px">
+<MetricRow>
     <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
         @Manager.OpenCount/@S.MaxConcurrentWindows
     </Metric>
@@ -51,13 +61,13 @@
 
 @if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
 {
-    <Note State="DeskState.Warning" Style="margin:12px 0 16px">
+    <Note State="DeskState.Warning">
         Your ceiling is above what this desk fits at a readable width. Columns hold at
         @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
     </Note>
 }
 
-<Note Style="margin:12px 0 16px">
+<Note>
     Windows always tile as one horizontal row — every window is its own tab. Drag a title
     bar past a neighbour to reorder them, or the divider between two to resize them.
 </Note>
@@ -67,7 +77,7 @@
     itself. The note above is truer here than anywhere: there is no preview, because the
     desk under this gate repaints as the cap slides.
 *@
-<PanelHeader>Appearance</PanelHeader>
+<PanelSection Title="Appearance">
 <div class="row">
     <DeskSwitch Options="_themes" Label="Appearance"
                 Value="Theme.Mode"
@@ -117,13 +127,15 @@
     this window grows with it. The values are the manager's settings, so they are kept with the
     layout — per browser, restored on reload — rather than beside the theme.
 *@
-<PanelHeader>Scale</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Scale">
 <div class="row">
     <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Interface</span>
     <DeskSwitch Options="_uiScales" Label="Interface scale" Mono="true"
                 Value="S.UiScale" ValueChanged="@((double scale) => SetUiScale(scale))" />
 </div>
-<div class="row" style="margin-top:10px">
+<div class="row">
     <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Text</span>
     <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
                 Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
@@ -138,7 +150,9 @@
     }
 </p>
 
-<PanelHeader>Concurrent windows</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Concurrent windows">
 <div class="row">
     <DeskButton Title="One fewer window" aria-label="One fewer window"
                 OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= 1)">
@@ -158,7 +172,9 @@
     happens, and in the launcher before it does.
 </p>
 
-<PanelHeader>Primary window</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Primary window">
 <div class="row">
     <DeskSelect TValue="string" style="min-width:200px"
                 Value="@(S.PrimaryWindowKey ?? "")"
@@ -175,7 +191,7 @@
 
 @if (S.PrimaryWindowKey is not null)
 {
-    <div class="row" style="margin-top:10px">
+    <div class="row">
         <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Share</span>
         <input type="range" min="20" max="80" step="5"
                value="@((int)(S.PrimaryShare * 100))"
@@ -193,7 +209,9 @@
     </p>
 }
 
-<PanelHeader>Resolution</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Resolution">
 <div class="row">
     <DeskSwitch Options="_modes" Label="Resolution mode"
                 Value="S.ResolutionMode" ValueChanged="@((ResolutionMode mode) => SetMode(mode))" />
@@ -201,7 +219,7 @@
 
 @if (S.ResolutionMode == ResolutionMode.Fixed)
 {
-    <div class="row" style="margin-top:10px">
+    <div class="row">
         @* A custom size typed below matches no preset, and then the gate's cap simply
            is not there — no position pretends to be the one you are on. *@
         <DeskSwitch Options="_presets" Label="Preset size" Mono="true"
@@ -209,7 +227,7 @@
                     ValueChanged="@(((int W, int H) size) => ApplyPreset(size.W, size.H))" />
     </div>
 
-    <div class="row" style="margin-top:10px">
+    <div class="row">
         <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Custom</span>
         @* int? rather than int so that clearing the box is "no number yet" rather than a
            zero the clamp would turn into 640. *@
@@ -222,7 +240,7 @@
                    Value="S.CustomHeight" ValueChanged="OnHeightChanged" />
     </div>
 
-    <Note Style="margin:10px 0 12px">
+    <Note Style="margin-top:var(--space-2)">
         The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your browser is
         @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange a desk for the screen
         you will run it on, not the one you are configuring it from — the view scrolls if the
@@ -230,7 +248,9 @@
     </Note>
 }
 
-<PanelHeader>Workspaces</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Workspaces">
 <div class="row">
     @* Saves what is open now, left to right, under a name; it then sits in the brand menu beside
        the built-in ones. Windows opened on something — a game, a player — are left out, since a
@@ -255,7 +275,7 @@ else
 {
     @foreach (var workspace in Manager.UserWorkspaces)
     {
-        <div class="row" style="margin-top:6px">
+        <div class="row">
             <span style="flex:1">@workspace.Name <span class="dim">· @string.Join(", ", workspace.WindowKeys.Select(k => Manager.Catalog.Find(k)?.Title ?? k))</span></span>
             <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Delete"
                         OnClick="@(_ => Manager.DeleteWorkspace(workspace.Name))">
@@ -264,6 +284,7 @@ else
         </div>
     }
 }
+</PanelSection>
 
 @code {
     private DeskSettings S => Manager.Settings;

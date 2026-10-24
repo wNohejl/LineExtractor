@@ -102,7 +102,7 @@
    Buttons
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Buttons — emphasis</PanelHeader>
+<PanelSection Title="Buttons — emphasis">
 <p class="empty" style="padding:0 0 9px">
     Weight says how loud, not what colour. Hue is no longer an affordance channel: an
     interface with five coloured button types has no primary action, only five competing
@@ -131,7 +131,9 @@
     them is not the primary action — demote it to Tinted and the panel says what it is for.
 </Note>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Buttons — size</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Buttons — size">
 <p class="empty" style="padding:0 0 9px">
     Size is about how much of the panel the action deserves, not about fitting. Chrome and
     row actions are Small; a panel's own intent is Medium; Large is for the one button a
@@ -145,7 +147,9 @@
     <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Reload" />
 </DeskRow>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Buttons — state</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Buttons — state">
 
 <DeskRow Gap="DeskSpace.Space2">
     <DeskButton Emphasis="DeskEmphasis.Filled" Busy="@_busy" OnClick="RunAsync">
@@ -166,7 +170,9 @@
    Fields
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Fields</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Fields">
 <p class="empty" style="padding:0 0 9px">
     The button's inverse: inset into the panel rather than standing off it. Same height, so
     a row of mixed controls still lines up. Bare — no <span class="mono">Label</span>, no
@@ -217,7 +223,9 @@
    Gate
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Gate</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Gate">
 <p class="empty" style="padding:0 0 9px">
     One visible choice among a few — a market, a lookback, a mode. The cap slides to the
     position you press, and arrows move it from the keyboard. Two to five fixed positions;
@@ -236,7 +244,9 @@
     "14d / 30d / 90d" in every window, not two spellings of the same question.
 </p>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Tabs</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Tabs">
 <p class="empty" style="padding:0 0 9px">
     The same marble, doing the other job. A gate changes what one reading is made of; tabs
     change which reading you are looking at, so they are flat — nothing here is pressed
@@ -261,7 +271,9 @@
    Tags
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Tags</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Tags">
 <p class="empty" style="padding:0 0 9px">
     The state word, at word scale. A tag always says its word — the wash is the second
     channel, never the only one, so the row still reads with the colour taken away. Neutral
@@ -285,7 +297,9 @@
    Display
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Display — metrics</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Display — metrics">
 <p class="empty" style="padding:0 0 9px">
     State lives on the value, not on a chrome around it. The label stays quiet in every
     case; only the number changes colour, because the number is the thing that went wrong.
@@ -298,7 +312,9 @@
     <Metric Label="Sources" Value="6" State="DeskState.Info" Numeric="true" />
 </MetricRow>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Display — price cell</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Display — price cell">
 <p class="empty" style="padding:0 0 9px">
     One market's best offer, and where the rest of the market stands. The rail is the point:
     each tick is a book placed by implied probability between best and worst, so the width of
@@ -318,7 +334,9 @@
     <PriceCell Offer="_spreadClosed" Selection="SF" StartsAt="_closedStart" />
 </DeskRow>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Display — progress</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Display — progress">
 <p class="empty" style="padding:0 0 9px">
     Prefer determinate whenever the denominator is knowable — if you are walking six books,
     you know it. The label names the action, never the wait: "Loading…" describes the
@@ -339,7 +357,9 @@
     </DeskButton>
 </DeskRow>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Display — skeletons</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Display — skeletons">
 <p class="empty" style="padding:0 0 9px">
     A placeholder holds the shape the real content will take, so the layout does not jump
     when it lands. Match the final shape — lines for prose, a block for a chart — and give it
@@ -362,7 +382,7 @@
     </div>
 </DeskStack>
 
-<PanelHeader Level="4" Gap="PanelHeaderGap.Nested">In a grid</PanelHeader>
+<PanelSection Title="In a grid">
 <p class="empty" style="padding:0 0 9px">
     <span class="mono">DeskGrid</span> takes <span class="mono">Loading</span>: with no rows
     yet it stands aside and placeholder rows hold its rhythm. A grid that already has rows
@@ -382,8 +402,11 @@
     <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Market" Title="Market" />
     <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Price" Title="Price" />
 </DeskGrid>
+</PanelSection>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Display — empty states</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Display — empty states">
 <p class="empty" style="padding:0 0 9px">
     Nothing to show is still something to say. <span class="mono">Kind</span> picks which
     sentence the panel is writing, and the reader's next move follows from it — the wrong
@@ -431,7 +454,9 @@
    Modality
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Modality</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Modality">
 <p class="empty" style="padding:0 0 9px">
     Three live examples. Open each one; the decision rule underneath is easier to believe
     once you have felt the difference between a surface that lets you keep working and one
@@ -527,7 +552,9 @@
    Notices
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Notices</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Notices">
 <p class="empty" style="padding:0 0 9px">
     <span class="mono">&lt;Note&gt;</span> is the ambient tier: it sits beside the thing it
     describes and stays as long as the thing is true. No dismiss control, no timer — if it
@@ -557,7 +584,9 @@
     </span>
 </DeskRow>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Toasts</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Toasts">
 <p class="empty" style="padding:0 0 9px">
     The transient tier. A toast reports that something finished while you were looking
     somewhere else: non-critical, auto-dismissing, recoverable from the panel that raised it.
@@ -593,7 +622,9 @@
    Pulse
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Pulse</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Pulse">
 <p class="empty" style="padding:0 0 9px">
     The window chrome's own state channel, and the one a busy button's sweep borrows from.
     Set it from a panel with <span class="mono">Report(PulseState.Active)</span> rather than
@@ -614,7 +645,9 @@
    Charts
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Charts</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Charts">
 <p class="empty" style="padding:0 0 9px">
     <span class="mono">DeskChart</span> is the seam over MudBlazor's chart. A caller states
     the data, what kind of number it is, and one sentence a screen reader can use — never a
@@ -645,7 +678,9 @@
    Foundation
    ========================================================================== *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Spacing</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Spacing">
 <p class="empty" style="padding:0 0 9px">
     One 4px ramp. Pass a step to <span class="mono">DeskRow</span> or
     <span class="mono">DeskStack</span> rather than writing a pixel gap inline.
@@ -663,7 +698,9 @@
     }
 </DeskStack>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Type styles</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Type styles">
 <p class="empty" style="padding:0 0 9px">
     Named for the job, not the size — <span class="mono">--text-body</span> keeps meaning the
     right thing when 13px stops being 13px.
@@ -680,7 +717,9 @@
     }
 </DeskStack>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Row and stack</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Row and stack">
 <p class="empty" style="padding:0 0 9px">
     <span class="mono">DeskRow</span> is the horizontal one with its gap, alignment and
     justification named; <span class="mono">DeskStack</span> is the vertical one. Both leave
@@ -711,36 +750,22 @@
     </DeskRow>
 </DeskStack>
 
-<PanelHeader Gap="PanelHeaderGap.Section">Panel headings</PanelHeader>
+</PanelSection>
+
+<PanelSection Title="Panel headings">
 <p class="empty" style="padding:0 0 9px">
-    Every rule on this page is a <code>PanelHeader</code>. It owns the spacing, so call sites
-    no longer spell that as an inline margin — the three intentions are <code>Tight</code>,
-    <code>Gap</code> and <code>Muted</code>.
+    Every rule on this page is a <code>PanelSection</code>: it renders the rule through
+    <code>PanelHeader</code>, owns the air to the next section, and steps its heading rank
+    down when nested, so no call site writes a margin or a level. <code>PanelHeader</code>
+    on its own is for a rule inside a row that is already spacing it:
 </p>
 
-<PanelHeader>Default — opens a section</PanelHeader>
-<p class="empty" style="padding:0 0 9px">The stylesheet's own rhythm, nothing added.</p>
-
-<PanelHeader Gap="PanelHeaderGap.Section">Section — after content that has ended</PanelHeader>
-<p class="empty" style="padding:0 0 9px">
-    The same air two stacked headings already give each other.
-</p>
-
-<PanelHeader Level="4" Gap="PanelHeaderGap.Nested">Nested — belongs to the block above</PanelHeader>
-<p class="empty" style="padding:0 0 9px">
-    Rank 4, so the outline stays honest. Every rank looks the same; only a screen reader can
-    tell them apart.
-</p>
-
-<PanelHeader Level="4" Gap="PanelHeaderGap.Nested" Muted>Muted — names a thing, not a section</PanelHeader>
-<p class="empty" style="padding:0 0 9px">
-    Brighter ink, for a heading carrying a team or an opponent rather than a label.
-</p>
-
-<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Baseline" Style="margin-top:10px">
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Baseline">
     <PanelHeader Tight>Tight — the row is already spacing it</PanelHeader>
     <Tag State="DeskState.Info">live</Tag>
 </DeskRow>
+</PanelSection>
+
 
 @code {
     // ---------------------------------------------------------------- buttons ---

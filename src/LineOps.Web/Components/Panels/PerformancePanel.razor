@@ -22,7 +22,7 @@
 }
 else
 {
-    <div class="row" style="margin:12px 0; flex-wrap:wrap">
+    <PanelToolbar>
         <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
                     Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
         <DeskSelect TValue="string" style="max-width:120px"
@@ -60,7 +60,7 @@ else
                 <option value="@market">@market</option>
             }
         </DeskSelect>
-    </div>
+    </PanelToolbar>
 
     @if (_summary.SettledCount == 0)
     {
@@ -68,7 +68,7 @@ else
     }
     else
     {
-        <MetricRow Style="margin-bottom:16px">
+        <MetricRow>
             <Metric Label="ROI"
                     Value='@_summary.Roi.ToString("P1")'
                     Note='@($"{_summary.SettledCount} {(_summary.SettledCount == 1 ? "bet" : "bets")}")'
@@ -103,41 +103,40 @@ else
             }
         </MetricRow>
 
-        <PanelHeader>Bankroll</PanelHeader>
-        <div class="row" style="margin-bottom:8px">
+        <PanelSection Title="Bankroll">
             @* The curve used to be cumulative profit from zero and called a bankroll. With a
                starting figure it is one; it is stored with the data, not the browser. *@
-            <span class="dim" style="font-size:calc(12px * var(--text-scale))">Starting bankroll</span>
-            <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50" style="max-width:110px"
-                       Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
-            <DeskButton style="height:24px" Disabled="@(_bankrollInput == _startingBankroll)" OnClick="SaveBankrollAsync">
-                Set
-            </DeskButton>
-        </div>
+            <Keys>
+                <span class="dim">Starting bankroll</span>
+                <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50" style="max-width:110px"
+                           Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
+                <DeskButton Size="DeskKeySize.Small" Disabled="@(_bankrollInput == _startingBankroll)" OnClick="SaveBankrollAsync">
+                    Set
+                </DeskButton>
+            </Keys>
+            <ChildContent>
+            @if (_bankroll.Length > 1)
+            {
+                <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
+                           Family="DeskChartFamily.Ledger"
+                           ShowLegend="false"
+                           Takeaway="@(_startingBankroll > 0 ? "The bankroll after each bet, in the order they settled." : "Cumulative profit after each bet, in the order they settled.")"
+                           Description="Line chart of the bankroll over settled bets." />
+            }
+            else
+            {
+                <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
+            }
+            </ChildContent>
+        </PanelSection>
 
-        @if (_bankroll.Length > 1)
-        {
-            <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="200px"
-                       Family="DeskChartFamily.Ledger"
-                       ShowLegend="false"
-                       Takeaway="@(_startingBankroll > 0 ? "The bankroll after each bet, in the order they settled." : "Cumulative profit after each bet, in the order they settled.")"
-                       Description="Line chart of the bankroll over settled bets." />
-        }
-        else
-        {
-            <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
-        }
+        <PanelSection Title="By market">@Breakdown(_byMarket)</PanelSection>
 
-        <PanelHeader>By market</PanelHeader>
-        @Breakdown(_byMarket)
+        <PanelSection Title="By sport">@Breakdown(_bySport)</PanelSection>
 
-        <PanelHeader>By sport</PanelHeader>
-        @Breakdown(_bySport)
+        <PanelSection Title="By book">@Breakdown(_byBook)</PanelSection>
 
-        <PanelHeader>By book</PanelHeader>
-        @Breakdown(_byBook)
-
-        <PanelHeader>What CLV was measured against</PanelHeader>
+        <PanelSection Title="What CLV was measured against">
         <DeskGrid T="BasisRow" Items="_byBasis" EmptyText="No selections with a close.">
             <PropertyColumn T="BasisRow" TProperty="string" Property="r => r.Basis" Title="Compared with" />
             <PropertyColumn T="BasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right">
@@ -150,11 +149,12 @@ else
                 <CellTemplate><span class="dim">@context.Item.Average</span></CellTemplate>
             </TemplateColumn>
         </DeskGrid>
+        </PanelSection>
 
         @* The value at close, by the reference that priced it. Pinnacle's close is the one to
            trust; a consensus of recreational books is softer; and the rest had no fair close —
            one book, or a market that closed hours early. *@
-        <PanelHeader>What value was measured against</PanelHeader>
+        <PanelSection Title="What value was measured against">
         <DeskGrid T="FairBasisRow" Items="_byFairBasis" EmptyText="No settled selections.">
             <PropertyColumn T="FairBasisRow" TProperty="string" Property="r => r.Basis" Title="Fair close from" />
             <PropertyColumn T="FairBasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right">
@@ -175,6 +175,7 @@ else
                 </CellTemplate>
             </TemplateColumn>
         </DeskGrid>
+        </PanelSection>
     }
 }
 

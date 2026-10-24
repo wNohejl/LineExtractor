@@ -30,7 +30,7 @@
     operator is working from.
 *@
 
-<div class="row" style="margin-bottom:12px">
+<PanelToolbar>
     <DeskSelect TValue="string" style="max-width:190px" Value="_sport" ValueChanged="OnSportChanged">
         @* Requested leagues, not merely the ones with games. A league the desk was told to poll
            and has nothing for is a different fact from a league nobody asked about, and the
@@ -78,7 +78,7 @@
     @* The panel's one Filled key, and the only control here that spends anything. Everything
        else on this toolbar reads. *@
     <PullMenu @ref="_pull" OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
-</div>
+</PanelToolbar>
 
 @*
     The strip the Slate brought with it, minus the figures that were only ever ops trivia.
@@ -88,7 +88,7 @@
     what changes a decision on this screen: how much of the board is priced, whether the market
     has moved at all today, and whether anything is currently saying the data may be lying.
 *@
-<MetricRow Style="margin-bottom:14px">
+<MetricRow>
     <Metric Label="Games" Value='@_rows.Count.ToString("N0")' Note="@HorizonNote"
             State="DeskState.Info" Numeric />
 
@@ -113,7 +113,7 @@
 
 @if (Visible.Count > 0 && _unpriced > 0)
 {
-    <Note State="DeskState.Warning" Style="margin:12px 0">
+    <Note State="DeskState.Warning">
         @_unpriced of @_rows.Count fixtures have no price at all.
         @* One reason for the whole gap is stated here, since it is the same fact thirteen
            times over; only a mix sends the reader row by row. *@
@@ -350,7 +350,7 @@ else
     @if (_closing > 0)
     {
         @* Said once, under the grid, rather than repeated in every muted cell. *@
-        <Note Style="margin-top:10px">
+        <Note Style="margin-top:var(--space-2)">
             @_closing of @Visible.Count rows show <strong>closing</strong> prices — the last
             number on the board before the game started. Hover one for when it was captured.
         </Note>

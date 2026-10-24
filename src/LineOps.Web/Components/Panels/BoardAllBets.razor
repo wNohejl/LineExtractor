@@ -20,19 +20,19 @@
 }
 else if (Row.Unpriced is { } reason)
 {
-    <Note State="DeskState.Warning" Style="margin:12px 0">@reason</Note>
+    <Note State="DeskState.Warning">@reason</Note>
 }
 else
 {
 
-<Note Style="margin:12px 0">
+<Note>
     Best price on each line is lit. Everything else is what you would be giving up by taking it
     somewhere else.
 </Note>
 
 @foreach (var market in Markets())
 {
-    <PanelHeader>@MarketName(market.Market)</PanelHeader>
+    <PanelSection Title="@MarketName(market.Market)">
 
     @if (!market.IsPriced)
     {
@@ -80,6 +80,7 @@ else
             </DeskGrid>
         </div>
     }
+    </PanelSection>
 }
 
 }

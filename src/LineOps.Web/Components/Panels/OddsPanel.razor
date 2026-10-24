@@ -6,7 +6,7 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 
-<div class="row" style="margin-bottom:12px">
+<PanelToolbar>
     @* The games with moves on record — the ones this chart can draw. Scans are kept until
        first pitch and then folded into one closing line (ADR 0010), so "the last 14 days" was
        mostly finished games with nothing left to plot. Any other game is a search away. *@
@@ -24,7 +24,7 @@
 
     <DeskSwitch Options="_marketOptions" Label="Market"
                 Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
-</div>
+</PanelToolbar>
 
 @if (_series.Count == 0)
 {
@@ -42,7 +42,7 @@ else
        twice yet. The table below says the same thing without the false shape. *@
     @if (_points < 2)
     {
-        <Note Style="margin:0 0 12px">
+        <Note>
             Only one observation stored so far, so there is nothing to plot yet — the current
             numbers are below. A second pull is what turns these into movement.
         </Note>
@@ -56,7 +56,7 @@ else
                    Description="@_description" />
     }
 
-    <PanelHeader Gap="PanelHeaderGap.Section">Current market</PanelHeader>
+    <PanelSection Title="Current market">
 
     <DeskGrid T="OddsSnapshot" Items="_current" EmptyText="No prices on this market.">
         <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Book" Title="Book"
@@ -90,10 +90,11 @@ else
         </PropertyColumn>
     </DeskGrid>
 
-    <Note Style="margin:14px 0 12px">
+    <Note Style="margin-top:var(--space-3)">
         @_moveCount price @(_moveCount == 1 ? "move" : "moves") recorded across
         @_current.Count book/selection @(_current.Count == 1 ? "pair" : "pairs").
     </Note>
+    </PanelSection>
 }
 
 @*
@@ -102,7 +103,7 @@ else
     because form changes daily and a stored copy would go stale without saying so.
 *@
 
-<PanelHeader Gap="PanelHeaderGap.Section">Recent form</PanelHeader>
+<PanelSection Title="Recent form">
 
 @if (_form is null)
 {
@@ -126,17 +127,18 @@ else if (_form.IsEmpty)
 }
 else
 {
-    <div class="row" style="margin-bottom:9px">
+    <DeskRow Style="margin-bottom:var(--space-2)">
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
             @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
-    </div>
+    </DeskRow>
 
     @RenderSide(_form.Away, _form.Game.AwayTeam?.Name ?? "Away")
     @RenderSide(_form.Home, _form.Game.HomeTeam?.Name ?? "Home")
 }
+</PanelSection>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Odds };
@@ -197,7 +199,7 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h4 class="panel-h" style="margin-top:12px; color:var(--text-secondary)">@teamName</h4>
+            <PanelSection Class="psection--subject" Title="@teamName">
             <div class="gridwrap">
                 <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
                     <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
@@ -240,6 +242,7 @@ else
                     </PropertyColumn>
                 </DeskGrid>
             </div>
+            </PanelSection>
         }
     </text>;
 

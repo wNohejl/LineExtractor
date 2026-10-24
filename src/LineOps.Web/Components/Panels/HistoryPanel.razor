@@ -18,7 +18,7 @@
     going; reopen it and this reattaches.
 *@
 
-<Note Style="margin:12px 0">
+<Note>
     The daily schedule can only learn one day per day. This reaches back over past days to
     build the record analytics need — one request per sport per day, against an unmetered
     provider only.
@@ -26,31 +26,32 @@
 
 @if (_eligibility.Count > 0)
 {
-    <PanelHeader>Sources</PanelHeader>
-    <div class="stack" style="gap:6px; margin-bottom:4px">
+    <PanelSection Title="Sources">
+    <DeskStack Gap="DeskSpace.Space2">
         @foreach (var source in _eligibility)
         {
-            <div class="row" style="gap:9px">
+            <DeskRow Gap="DeskSpace.Space2">
                 <Tag State="@(source.Eligible ? DeskState.Positive : DeskState.Warning)">
                     @(source.Eligible ? "Free" : "Refused")
                 </Tag>
                 <span class="mono" style="font-size:calc(12px * var(--text-scale))">@source.Key</span>
                 <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@source.Reason</span>
-            </div>
+            </DeskRow>
         }
-    </div>
+    </DeskStack>
 
     @if (!_eligibility.Any(s => s.Eligible))
     {
-        <Note State="DeskState.Warning" Style="margin:12px 0">
+        <Note State="DeskState.Warning">
             Nothing to walk. Backfill runs against unmetered providers only, so a metered one
             cannot be used here even when it is configured and working — its quota is what the
             live schedule spends.
         </Note>
     }
+    </PanelSection>
 }
 
-<PanelHeader>Coverage</PanelHeader>
+<PanelSection Title="Coverage">
 
 @if (_coverage is { } c)
 {
@@ -81,82 +82,90 @@
         }
     </p>
 }
+</PanelSection>
 
-<PanelHeader>Run</PanelHeader>
-
-<div class="row" style="margin-bottom:8px">
-    @if (Coordinator.IsRunning)
-    {
-        @* A state, drawn as a state. This was a DeskButton carrying Busy and no OnClick — a key
-           that could never be pressed, which is the one thing a key must not be. Busy means
-           "the work you started is still running on this control"; there is no work to start
-           here, only a walk to report, and Stop beside it is the control. *@
-        <Tag State="DeskState.Info">Walking</Tag>
-        @if (Manager.Access.CanOperate)
+<PanelSection Title="Run">
+<DeskRow Justify="DeskJustify.Between">
+    @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
+       confirm because it is slow — every day walked again, one request per finished game —
+       not because it is dangerous: rows are re-resolved onto themselves, never duplicated.
+       It leads the row, at the far left, where the anatomy keeps a key that undoes work;
+       the one Filled key is at the right edge. *@
+    <DeskRow>
+        @if (!Coordinator.IsRunning && Manager.Access.CanOperate)
         {
-            <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
-                        Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
-                Stop
-            </DeskButton>
+            @if (_confirmRewalk)
+            {
+                <span class="dim">
+                    Walk @(_coverage?.Completed ?? 0) held @((_coverage?.Completed ?? 0) == 1 ? "day" : "days") again?
+                </span>
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                            Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
+                    Yes, re-walk
+                </DeskButton>
+                <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmRewalk = false">
+                    Cancel
+                </DeskButton>
+            }
+            else
+            {
+                @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
+                   is a fact about the desk worth reading, and a key that vanishes teaches nothing. *@
+                <DeskButton Icon="@Icons.Material.Filled.Restore"
+                            Disabled="@(_coverage is null or { Completed: 0 })"
+                            Title="@(_coverage is null or { Completed: 0 }
+                                ? "No day is held yet, so there is nothing to walk again."
+                                : null)"
+                            OnClick="() => _confirmRewalk = true">
+                    Re-walk held days
+                </DeskButton>
+            }
         }
-    }
-    else if (!Manager.Access.CanOperate)
-    {
-        @* A visitor reads what the history holds; walking it spends requests (ADR 0018). *@
-        <Tag State="DeskState.Neutral">Idle</Tag>
-    }
-    else
-    {
-        <DeskButton Emphasis="DeskEmphasis.Filled"
-                    Icon="@Icons.Material.Filled.History"
-                    Disabled="@(!_eligibility.Any(s => s.Eligible))"
-                    Title="@(_eligibility.Any(s => s.Eligible)
-                        ? null
-                        : "No unmetered provider is available to walk — see Sources above.")"
-                    OnClick="Start">
-            Gather history
-        </DeskButton>
-        @* There is no Refresh key here on purpose. BackfillCoordinator is the only writer of
-           everything this panel shows, and it raises Changed on start, on every day walked and
-           on finish — which this panel is subscribed to. A key offering to reload data that
-           nothing else can have changed is a key that only ever repaints the same numbers. *@
+    </DeskRow>
 
-        @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
-           confirm because it is slow — every day walked again, one request per finished game —
-           not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
-        @if (_confirmRewalk)
+    <DeskRow>
+        @if (Coordinator.IsRunning)
         {
-            <span class="ftr__spacer"></span>
-            <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
-                Walk @(_coverage?.Completed ?? 0) held @((_coverage?.Completed ?? 0) == 1 ? "day" : "days") again?
-            </span>
-            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                        Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
-                Yes, re-walk
-            </DeskButton>
-            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmRewalk = false">
-                Cancel
-            </DeskButton>
+            @* A state, drawn as a state. This was a DeskButton carrying Busy and no OnClick — a key
+               that could never be pressed, which is the one thing a key must not be. Busy means
+               "the work you started is still running on this control"; there is no work to start
+               here, only a walk to report, and Stop beside it is the control. *@
+            <Tag State="DeskState.Info">Walking</Tag>
+            @if (Manager.Access.CanOperate)
+            {
+                <DeskButton Emphasis="DeskEmphasis.Tinted" Role="DeskRole.Destructive"
+                            Icon="@Icons.Material.Filled.Stop" OnClick="Stop">
+                    Stop
+                </DeskButton>
+            }
+        }
+        else if (!Manager.Access.CanOperate)
+        {
+            @* A visitor reads what the history holds; walking it spends requests (ADR 0018). *@
+            <Tag State="DeskState.Neutral">Idle</Tag>
         }
         else
         {
-            @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
-               is a fact about the desk worth reading, and a key that vanishes teaches nothing. *@
-            <DeskButton Icon="@Icons.Material.Filled.Restore"
-                        Disabled="@(_coverage is null or { Completed: 0 })"
-                        Title="@(_coverage is null or { Completed: 0 }
-                            ? "No day is held yet, so there is nothing to walk again."
-                            : null)"
-                        OnClick="() => _confirmRewalk = true">
-                Re-walk held days
+            @* There is no Refresh key here on purpose. BackfillCoordinator is the only writer of
+               everything this panel shows, and it raises Changed on start, on every day walked and
+               on finish — which this panel is subscribed to. A key offering to reload data that
+               nothing else can have changed is a key that only ever repaints the same numbers. *@
+            <DeskButton Emphasis="DeskEmphasis.Filled"
+                        Icon="@Icons.Material.Filled.History"
+                        Disabled="@(!_eligibility.Any(s => s.Eligible))"
+                        Title="@(_eligibility.Any(s => s.Eligible)
+                            ? null
+                            : "No unmetered provider is available to walk — see Sources above.")"
+                        OnClick="Start">
+                Gather history
             </DeskButton>
         }
-    }
-</div>
+    </DeskRow>
+</DeskRow>
 
 @if (Coordinator.Progress is { } p)
 {
-    <Note Style="margin-bottom:8px">
+    <Note>
         <span class="mono">@p.SourceKey · @p.SportKey · @p.Date.ToString("yyyy-MM-dd")</span><br />
         @p.Walked walked · @p.Skipped already held · @p.Failed failed ·
         @p.GamesFound games · @p.RowsIngested rows
@@ -165,7 +174,7 @@
 
 @if (!Coordinator.IsRunning && Coordinator.LastReport is { } r)
 {
-    <Note State="@(r.StoppedBecause is null ? DeskState.Neutral : DeskState.Warning)" Style="margin-bottom:8px">
+    <Note State="@(r.StoppedBecause is null ? DeskState.Neutral : DeskState.Warning)">
         Finished: @r.Walked days walked, @r.Skipped already held, @r.Failed failed,
         @r.GamesFound games, @r.RowsIngested rows.
         @if (r.StoppedBecause is not null)
@@ -176,10 +185,11 @@
         }
     </Note>
 }
+</PanelSection>
 
 @* The whole record, one row per season part: whether "we have the 2025 season" is true is a
    number here rather than a belief. Held against the league's schedule where it fixes one. *@
-<PanelHeader>Seasons</PanelHeader>
+<PanelSection Title="Seasons">
 
 <DeskGrid T="SeasonCoverage" Items="_seasons"
           EmptyText="No games on record for the leagues in play.">
@@ -247,8 +257,9 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</PanelSection>
 
-<PanelHeader>Recent days</PanelHeader>
+<PanelSection Title="Recent days">
 
 <DeskGrid T="BackfillCheckpoint" Items="_recent"
           EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">
@@ -281,6 +292,7 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</PanelSection>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
