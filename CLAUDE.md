@@ -34,7 +34,14 @@ games, stats and closing lines, the data travels with the code as a committed sn
 ```
 
 The snapshot lives at `data/snapshots/lineops.dump` (custom-format pg_dump, ~2–3 MB) with a
-manifest beside it saying what it holds. Refresh it whenever the data moves in a way the other
+manifest beside it saying what it holds. It leaves out the journal, parlays and operator
+settings (`-IncludePersonal` to keep them), and the script refuses a dump that holds them. The
+scripts run under Windows PowerShell 5.1 or PowerShell 7 on any OS: Postgres's tools run in a
+sidecar container, so nothing binary crosses a shell pipe.
+
+The project stays local (going-public plan §10b). Both machines may use the same Odds API key
+with polling on: credit pacing takes the provider's reported remainder, not just this
+database's own count, so the month is not spent twice. Refresh it whenever the data moves in a way the other
 machine should see — after a backfill, after a season closes. `restore-data.ps1` refuses to
 overwrite a database that already holds games unless told to with `-Force`.
 

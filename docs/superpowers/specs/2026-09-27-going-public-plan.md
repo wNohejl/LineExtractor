@@ -1,7 +1,7 @@
 # Going public — deployment, product, and the platform under both
 
 **Date:** 2026-09-27
-**Status:** Plan. Phase 0 built on `LineX_Development` (2026-09-27); reassessed 2026-10-24 (§10a).
+**Status:** Phase 0 built (2026-09-27). Decided 2026-10-24: the project stays local (§10b); Stages 2–3 shelved.
 **Audience:** the developer deciding how far LineOps leaves the laptop, and what it becomes
 when it does.
 
@@ -520,6 +520,42 @@ change MLB's stats port. Revised order:
    in season and so the one a fixture can be checked against live; MLB before Opening Day.
 
 Decision 1 (employment) still gates Phase 5 and nothing earlier.
+
+## 10b. Decided 2026-10-24: it stays local
+
+The developer's decision: LineOps remains a local project. The sources that make it free,
+ESPN and the MLB Stats API, are licensed for personal, non-commercial use, and a desk on the
+developer's own machines is exactly that use. Stages 2 and 3, and the paid data they need, are
+shelved rather than scheduled. The work that matters instead is **portability**: the same desk,
+the same data and the same allowance, on whichever of the developer's machines is at hand.
+
+What that changed, the same day:
+
+- **One allowance, two machines.** The budget guard and the planner counted credits from their
+  own database, so the desktop and the laptop each believed they had the key's whole month.
+  They now take the larger of their own count and the provider's reported remainder
+  (`MonthlyCredits`, `IngestionRuns.ProviderCreditsRemaining`). Polling can be on in both
+  places without spending the month twice.
+- **The data scripts run on any OS.** `publish-data.ps1` and `restore-data.ps1` moved the
+  archive through `cmd.exe` redirection and built paths with backslashes, so they worked only
+  on Windows. They now run `pg_dump` and `pg_restore` in a throwaway sidecar container that
+  reads and writes `data/snapshots` through a bind mount, and they behave the same on Windows
+  PowerShell 5.1 and PowerShell 7 on Windows, macOS or Linux. `setup.ps1` no longer depends on
+  `%USERPROFILE%`.
+- **The snapshot cannot carry the journal by accident.** Windows PowerShell 5.1 strips the
+  quotes `pg_dump` needs around a table name, which would have silently included the
+  personal rows. The commands now reach the sidecar over stdin, and the dump is listed before
+  it replaces the last one and is refused if a personal table holds rows.
+
+What the shelved stages leave behind still pays its way locally:
+- the access modes (ADR 0018), which stay Open on the laptop;
+- the security headers;
+- the `deploy/` kit, if a private VM for the developer alone is ever wanted, since that is
+  still personal use.
+
+Decision 2 still stands on its own: the repository is public and the committed snapshot is
+ESPN- and MLB-derived data. Making the repository private keeps the snapshot workflow, and
+with it the portability, inside the personal use the sources allow, at no cost.
 
 ---
 
