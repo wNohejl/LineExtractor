@@ -110,6 +110,7 @@
 
 @if (_entries.Count > 0)
 {
+    <PanelSection Title="Entries">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
         <PropertyColumn T="JournalEntry" TProperty="DateTimeOffset" Property="e => e.PlacedAt" Title="Placed"
                         Align="Align.Right" InitialDirection="SortDirection.Descending">
@@ -192,6 +193,7 @@
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
+    </PanelSection>
 }
 
 @if (_parlays.Count > 0)

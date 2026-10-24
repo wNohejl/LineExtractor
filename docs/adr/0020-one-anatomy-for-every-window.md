@@ -90,3 +90,14 @@ the next panel is copied from it rather than invented.
 - **Verify in the browser, again.** The first Parts bin render showed the toolbar's select
   spanning the row and the metrics inside a section hugging the next rule — two rules that
   were right in the stylesheet and wrong on the screen, exactly as ADR 0016 warned.
+- **The whole-branch review found three more of the same kind.** A section after a grid, a
+  chart or a stack had no air above it: the global "heading after content" rule could not
+  reach a rule inside a section's head, and `.psection + .psection` only covers a section
+  after a section. One frame rule now gives a section the same air after any non-slot
+  sibling; the slots keep owning their own. Razor strips the whitespace between a span and
+  the code block after it, so the Game's detail line read "7:10 PM ETStarters" until
+  `.ptitle__text` became a flex row of facts. And a `select.field` inside a rule's keys took
+  the whole shrink-to-fit container, the toolbar's bug one container over. Two more were
+  the review's judgment: `role="toolbar"` was dropped, because the ARIA pattern promises
+  one tab stop and arrow keys and these rows have neither; and `PanelForm`'s title now
+  takes the section cascade's rank, so a form straight in a body does not open at h4.

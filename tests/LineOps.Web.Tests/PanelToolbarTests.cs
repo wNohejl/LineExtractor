@@ -50,11 +50,13 @@ public class PanelToolbarTests : DeskTestContext
     }
 
     [Fact]
-    public void Has_the_toolbar_role()
+    public void Claims_no_aria_role()
     {
+        // The ARIA toolbar pattern promises one tab stop with arrow keys between the
+        // controls; these are ordinary controls, so the row must not announce otherwise.
         var cut = RenderComponent<PanelToolbar>(p => p.AddChildContent("<select></select>"));
 
-        Assert.Equal("toolbar", cut.Find(".ptoolbar").GetAttribute("role"));
+        Assert.Null(cut.Find(".ptoolbar").GetAttribute("role"));
     }
 
     [Fact]

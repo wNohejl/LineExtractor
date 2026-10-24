@@ -45,7 +45,7 @@ else
             <div class="dim" style="font-size:calc(11px * var(--text-scale));margin:2px 0 6px">@fair</div>
         }
 
-        <div class="gridwrap" style="margin-bottom:14px">
+        <div class="gridwrap">
             <DeskGrid T="string" Items="BooksIn(market)" EmptyText="Not priced by any book yet.">
                 <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book">
                     <CellTemplate><span class="mono dim">@context.Item</span></CellTemplate>

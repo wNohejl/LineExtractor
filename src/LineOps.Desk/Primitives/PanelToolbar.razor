@@ -18,7 +18,10 @@
     reads renders its pickers with no empty box after them and nothing moves.
 *@
 
-<div class="@Classes" style="@Styles" role="toolbar" @attributes="Rest">
+@* No role="toolbar": the ARIA pattern promises one tab stop with arrow keys between the
+   controls, and these are ordinary controls with ordinary tab stops. A role that
+   announces behaviour the row does not have is worse than none. *@
+<div class="@Classes" style="@Styles" @attributes="Rest">
     @ChildContent
 
     @if (Message is { Length: > 0 })

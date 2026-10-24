@@ -16,16 +16,24 @@ namespace LineOps.Web.Tests;
 public class PanelFormTests : DeskTestContext
 {
     [Fact]
-    public void Renders_the_title_as_a_tight_h4_rule()
+    public void Renders_the_title_as_a_tight_rule_at_the_sections_rank()
     {
-        var cut = RenderComponent<PanelForm>(p => p
+        var top = RenderComponent<PanelForm>(p => p
             .Add(x => x.Title, "New entry")
             .AddChildContent("<input />"));
 
-        var rule = cut.Find("h4.panel-h");
+        var rule = top.Find("h3.panel-h");
 
         Assert.Equal("New entry", rule.TextContent);
         Assert.Contains("margin:0", rule.GetAttribute("style"));
+
+        var nested = RenderComponent<PanelSection>(p => p
+            .Add(x => x.Title, "Outer")
+            .Add<PanelForm>(x => x.ChildContent, child => child
+                .Add(y => y.Title, "New entry")
+                .AddChildContent("<input />")));
+
+        Assert.Equal("New entry", nested.Find("section h4.panel-h").TextContent);
     }
 
     [Fact]

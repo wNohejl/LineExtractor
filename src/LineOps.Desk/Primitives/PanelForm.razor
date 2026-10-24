@@ -20,7 +20,7 @@
 <div class="@Classes" style="@Styles" id="@Id" @attributes="Rest">
     @if (Title is { Length: > 0 })
     {
-        <PanelHeader Tight Level="4">@Title</PanelHeader>
+        <PanelHeader Tight Level="@Level">@Title</PanelHeader>
     }
 
     <div class="pform__body stack">@ChildContent</div>
@@ -64,6 +64,16 @@
 
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    /// <summary>
+    /// How many sections this form sits inside, from <c>PanelSection</c>'s cascade. The
+    /// title ranks like a section rule would at the same depth, so a form straight in a
+    /// window body does not open the outline at h4.
+    /// </summary>
+    [CascadingParameter(Name = "PanelSectionDepth")]
+    public int Depth { get; set; }
+
+    private int Level => Depth == 0 ? 3 : 4;
 
     private string Classes => string.Join(' ', new[] { "pform", Class, DeskLayout.ExtraClass(Extra) }
         .Where(p => p is { Length: > 0 }));

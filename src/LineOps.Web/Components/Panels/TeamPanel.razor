@@ -51,58 +51,18 @@ else
         </Keys>
     </PanelTitle>
 
-    <PanelSection Title="Recent games">
+    <PanelSection Title="Recent games"
+                  Keys="@(_log.Count > 0 ? SplitKeys : null)"
+                  Detail="@(_log.Count > 0 ? RecordDetail : null)">
         @* The splits strip, on the rule's own line. Every option filters the same loaded log,
            so nothing here queries.
 
            Picking an opponent is a filter the strip cannot express, so it answers by
            standing every position up and showing no cap at all — which is true, and
            reads better than leaving one lit under a filter it is not doing. *@
-        <Keys>
-            @if (_log.Count > 0)
-            {
-                <div class="splits">
-                    <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
-                                Value="@(_opponent is null ? _split : null)"
-                                ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
-
-                    @if (_opponents.Count > 1)
-                    {
-                        <DeskSelect TValue="string" Class="splits__pick"
-                                    Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
-                            <option value="">vs anyone</option>
-                            @foreach (var name in _opponents)
-                            {
-                                <option value="@name">vs @name</option>
-                            }
-                        </DeskSelect>
-                    }
-                </div>
-            }
-        </Keys>
-
-        @* The record for whatever is on screen, so a split states its own result rather than
-           leaving the operator to count tags. ATS is only shown when there is market data
-           behind it — a 0-0-0 would read as "never covered" rather than "never priced". *@
-        <Detail>
-            @if (_log.Count > 0)
-            {
-                <span class="mono">@_wins-@_losses</span>
-
-                @if (_atsWins + _atsLosses + _atsPushes > 0)
-                {
-                    <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
-                }
-
-                @if (_overs + _unders > 0)
-                {
-                    <span>@_overs O / @_unders U</span>
-                }
-
-                <span style="margin-left:auto">@_covered of @_visible.Count with a closing line</span>
-            }
-        </Detail>
-
+        @* The keys and the detail line are handed over only when there is a log to split:
+           a fragment that is present but empty would still draw its row and its margins
+           over the "nothing recorded" line. *@
         <ChildContent>
         @if (_log.Count == 0)
         {
@@ -218,6 +178,51 @@ else
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
+    /// <summary>
+    /// The splits strip, on the Recent games rule. Every option filters the same loaded log,
+    /// so nothing here queries. Picking an opponent is a filter the strip cannot express, so
+    /// it answers by standing every position up and showing no cap at all — which is true,
+    /// and reads better than leaving one lit under a filter it is not doing.
+    /// </summary>
+    private RenderFragment SplitKeys => @<div class="splits">
+        <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                    Value="@(_opponent is null ? _split : null)"
+                    ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
+
+        @if (_opponents.Count > 1)
+        {
+            <DeskSelect TValue="string" Class="splits__pick"
+                        Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                <option value="">vs anyone</option>
+                @foreach (var name in _opponents)
+                {
+                    <option value="@name">vs @name</option>
+                }
+            </DeskSelect>
+        }
+    </div>;
+
+    /// <summary>
+    /// The record for whatever is on screen, so a split states its own result rather than
+    /// leaving the operator to count tags. ATS is only shown when there is market data
+    /// behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// </summary>
+    private RenderFragment RecordDetail => @<text>
+        <span class="mono">@_wins-@_losses</span>
+
+        @if (_atsWins + _atsLosses + _atsPushes > 0)
+        {
+            <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
+        }
+
+        @if (_overs + _unders > 0)
+        {
+            <span>@_overs O / @_unders U</span>
+        }
+
+        <span style="margin-left:auto">@_covered of @_visible.Count with a closing line</span>
+    </text>;
+
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();

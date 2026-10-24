@@ -46,16 +46,36 @@ public class PanelTitleTests : DeskTestContext
     }
 
     [Fact]
-    public void Merges_a_callers_class_and_style()
+    public void Keeps_each_detail_fact_its_own_child()
     {
+        // Two facts on the line are two flex items with the row's gap between them, not
+        // one run of text — Razor strips the whitespace before a code block, so a
+        // sentence-shaped line would read "7:10 PM ETStarters".
         var cut = RenderComponent<PanelTitle>(p => p
             .AddChildContent("Mets at Braves")
-            .AddUnmatched("class", "x")
-            .AddUnmatched("style", "margin:0"));
+            .Add(x => x.Detail, "<span>7:10 PM ET</span><span>Starters Senga v Sale</span>"));
+
+        var facts = cut.FindAll(".ptitle__text > span");
+
+        Assert.Equal(2, facts.Count);
+        Assert.Equal("7:10 PM ET", facts[0].TextContent);
+    }
+
+    [Fact]
+    public void Merges_a_callers_class_and_style()
+    {
+        // Blazor matches parameters case-insensitively, so a splatted style= *is* the Style
+        // parameter and the two can never both arrive; the named parameter is the path
+        // worth pinning beside the class splat.
+        var cut = RenderComponent<PanelTitle>(p => p
+            .AddChildContent("Mets at Braves")
+            .Add(x => x.Style, "margin:0")
+            .AddUnmatched("class", "x"));
 
         var root = cut.Find(".ptitle");
 
         Assert.Contains("x", root.ClassList);
+        Assert.Contains("ptitle", root.ClassList);
         Assert.Contains("margin:0", root.GetAttribute("style"));
     }
 }

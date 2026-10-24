@@ -2889,8 +2889,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-size: var(--text-subheadline);
     color: var(--text-secondary);
 }
+/* The detail line is a row of facts, not a sentence: Razor drops the whitespace between
+   a span and the code block that follows it, so two facts in one inline span ran together. */
+.ptitle__text { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
-.ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
 /* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives
@@ -2909,6 +2912,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    so the global "heading after content" rule stands down and this one decides. */
 .psection { margin: 0; min-width: 0; }
 .psection + .psection { margin-top: var(--space-6); }
+/* A section after content that is not a slot — a grid, a chart, a stack of rows — takes
+   the same air a section takes after a section. The slots (title, toolbar, note, metrics,
+   form) own the air beneath them already, so they are left out; everything else used to
+   lean on the global "heading after content" rule, which cannot reach a rule inside a
+   section's head. Found in the browser after the sweep, as ADR 0016 said it would be. */
+.win__body > :not(.psection):not(.ptitle):not(.ptoolbar):not(.metrics):not(.note):not(.pform) + .psection,
+.psection__body > :not(.psection):not(.metrics):not(.note):not(.pform) + .psection { margin-top: var(--space-6); }
+.psection + .tabs { margin-top: var(--space-4); }
+.psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note { margin-top: var(--space-2); }
+/* A picker on a rule's line is sized to its words, for the same reason a toolbar's is. */
+.psection__keys .field { width: auto; }
 .psection__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .psection__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
 .psection__meta {
