@@ -72,4 +72,50 @@ public class DeskCapacityTests
         Assert.True(Desk(1920, primaryShare: 0.7).RecommendedCapacity
                     < Desk(1920, primaryShare: 0.3).RecommendedCapacity);
     }
+
+    private static WindowManager JournalAndBoard(double width)
+    {
+        var manager = new WindowManager(new AppWindowCatalog());
+        manager.SetViewport(width, 900);
+        manager.UpdateSettings(s => s.MaxConcurrentWindows = 4);
+        manager.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        return manager;
+    }
+
+    [Theory]
+    [InlineData(1920)]
+    [InlineData(1280)]
+    [InlineData(1024)]
+    [InlineData(800)]
+    [InlineData(600)]
+    public void The_row_never_runs_past_the_desk(double width)
+    {
+        // At 800 the Board's 680 minimum used to clamp it back up, leaving it at left 476 and
+        // running to 1156 — the desk scrolled sideways and the Pull data key was off-screen.
+        var desk = JournalAndBoard(width);
+
+        Assert.All(desk.Windows, w => Assert.True(w.X + w.Width <= width + 0.5,
+            $"{w.Definition.Key} ends at {w.X + w.Width}, past a {width}px desk"));
+    }
+
+    [Fact]
+    public void Where_the_minimums_fit_every_column_keeps_its_minimum()
+    {
+        var desk = JournalAndBoard(1280);
+
+        Assert.All(desk.Windows, w => Assert.True(w.Width >= w.Definition.MinWidth - 0.5,
+            $"{w.Definition.Key} is {w.Width}, under its {w.Definition.MinWidth} minimum"));
+    }
+
+    [Fact]
+    public void Where_they_do_not_the_columns_share_the_desk_and_scroll_inside()
+    {
+        var desk = JournalAndBoard(800);
+        var widths = desk.Windows.Sum(w => w.Width);
+
+        // 800 less three 8px gaps: the row fills the desk exactly, nothing past it.
+        Assert.Equal(776, widths, 1);
+        Assert.All(desk.Windows, w => Assert.True(w.Width > 0));
+    }
 }

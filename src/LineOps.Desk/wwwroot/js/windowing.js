@@ -123,9 +123,11 @@ function beginSplit(event, handle, leftId, rightId) {
     const rightMin = parseFloat(right.dataset.minWidth) || 260;
 
     // Neither column may cross the other's minimum, so the travel is bounded up front
-    // rather than clamped per-frame — the divider simply stops where it must.
-    const lowerBound = leftMin - leftStart;
-    const upperBound = rightStart - rightMin;
+    // rather than clamped per-frame — the divider simply stops where it must. On a desk too
+    // narrow for both minimums the columns already sit under them; there a column may grow
+    // but not shrink further, rather than the bounds crossing and the divider jumping.
+    const lowerBound = Math.min(leftMin - leftStart, 0);
+    const upperBound = Math.max(rightStart - rightMin, 0);
 
     handle.classList.add('divider--active');
     document.body.classList.add('splitting');

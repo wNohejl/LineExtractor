@@ -501,28 +501,78 @@ public class WindowManager
         if (totalWeight <= 0)
             totalWeight = Math.Max(expanded.Count, 1);
 
+        var widths = ColumnWidths(expanded, Math.Max(usable, 0), totalWeight);
         var offset = Gap;
 
         foreach (var w in row)
         {
-            if (w.Minimised)
-            {
-                w.Width = DeskSettings.CollapsedWidth;
-            }
-            else
-            {
-                var width = expanded.Count == 0 ? 0 : usable * (w.Weight / totalWeight);
-
-                // A column below its minimum is unreadable; the row is allowed to overflow
-                // and the desk scrolls instead, which is honest about not fitting.
-                w.Width = Math.Max(w.Definition.MinWidth, width);
-            }
+            w.Width = w.Minimised ? DeskSettings.CollapsedWidth : widths[w];
 
             w.X = offset;
             offset += w.Width + Gap;
         }
 
         Notify();
+    }
+
+    /// <summary>
+    /// Splits the row's usable width between the expanded columns by weight, and the row
+    /// always sums to that width — it never runs past the desk.
+    ///
+    /// <para>
+    /// A column whose share falls under its minimum is lifted to the minimum and the rest
+    /// divide what is left, so a minimum costs its neighbours rather than the desk's edge.
+    /// When the minimums together do not fit — two columns at 800px, one of them the Board's
+    /// 680 — they cannot all be honoured, and every column takes its plain share instead and
+    /// scrolls inside itself. Overflowing the row instead put the last window's right half
+    /// off-screen behind a sideways scroll, which is the arrangement capacity exists to avoid.
+    /// </para>
+    /// </summary>
+    private static Dictionary<WindowInstance, double> ColumnWidths(
+        List<WindowInstance> expanded, double usable, double totalWeight)
+    {
+        var widths = new Dictionary<WindowInstance, double>();
+
+        if (expanded.Count == 0)
+            return widths;
+
+        double Share(WindowInstance w, double room, double weight)
+            => weight > 0 ? room * (w.Weight / weight) : room / expanded.Count;
+
+        if (expanded.Sum(w => w.Definition.MinWidth) > usable)
+        {
+            foreach (var w in expanded)
+                widths[w] = Share(w, usable, totalWeight);
+
+            return widths;
+        }
+
+        var free = new List<WindowInstance>(expanded);
+        var room = usable;
+
+        // Lift every column under its minimum, then re-divide among the rest; lifting one can
+        // push another under, so repeat until nothing more is lifted. Terminates: each pass
+        // removes at least one column or stops.
+        while (true)
+        {
+            var weight = free.Sum(w => w.Weight);
+            var under = free.Where(w => Share(w, room, weight) < w.Definition.MinWidth).ToList();
+
+            if (under.Count == 0)
+            {
+                foreach (var w in free)
+                    widths[w] = Share(w, room, weight);
+
+                return widths;
+            }
+
+            foreach (var w in under)
+            {
+                widths[w] = w.Definition.MinWidth;
+                room -= w.Definition.MinWidth;
+                free.Remove(w);
+            }
+        }
     }
 
     /// <summary>
