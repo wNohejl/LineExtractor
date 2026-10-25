@@ -44,7 +44,7 @@ else
     {
         @if (FairOf(market) is { Length: > 0 } fair)
         {
-            <div class="dim" style="font-size:calc(11px * var(--text-scale));margin:2px 0 6px">@fair</div>
+            <div class="meta" style="margin:2px 0 6px">@fair</div>
         }
 
         <div class="gridwrap">
@@ -178,8 +178,8 @@ else
         if (rung.Ev is { } ev && live)
         {
             builder.OpenElement(9, "span");
-            builder.AddAttribute(10, "class", ev > 0 ? "up" : "dim");
-            builder.AddAttribute(11, "style", "font-size:calc(10px * var(--text-scale));margin-left:6px");
+            builder.AddAttribute(10, "class", ev > 0 ? "rung__ev up" : "rung__ev dim");
+            builder.AddAttribute(11, "style", "margin-left:6px");
             builder.AddContent(12, PriceCell.EvLabel(ev));
             builder.CloseElement();
         }

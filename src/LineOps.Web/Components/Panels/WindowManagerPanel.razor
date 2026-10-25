@@ -131,12 +131,12 @@
 
 <PanelSection Title="Scale">
 <div class="row">
-    <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Interface</span>
+    <span class="meta" style="min-width:70px">Interface</span>
     <DeskSwitch Options="_uiScales" Label="Interface scale" Mono="true"
                 Value="S.UiScale" ValueChanged="@((double scale) => SetUiScale(scale))" />
 </div>
 <div class="row">
-    <span class="dim" style="min-width:70px; font-size:var(--text-subheadline)">Text</span>
+    <span class="meta" style="min-width:70px">Text</span>
     <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
                 Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
 </div>
@@ -158,7 +158,7 @@
                 OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= 1)">
         <Glyph Icon="@Icons.Material.Filled.Remove" />
     </DeskButton>
-    <span class="num" style="min-width:2.5ch; text-align:center; font-size:calc(19px * var(--text-scale))">@S.MaxConcurrentWindows</span>
+    <span class="num readout" style="min-width:2.5ch; text-align:center">@S.MaxConcurrentWindows</span>
     <DeskButton Title="One more window" aria-label="One more window"
                 OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= 12)">
         <Glyph Icon="@Icons.Material.Filled.Add" />
@@ -192,7 +192,7 @@
 @if (S.PrimaryWindowKey is not null)
 {
     <div class="row">
-        <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Share</span>
+        <span class="meta" style="min-width:70px">Share</span>
         <input type="range" min="20" max="80" step="5"
                value="@((int)(S.PrimaryShare * 100))"
                @oninput="OnShareChanged"
@@ -228,7 +228,7 @@
     </div>
 
     <div class="row">
-        <span class="dim" style="min-width:70px; font-size:calc(12px * var(--text-scale))">Custom</span>
+        <span class="meta" style="min-width:70px">Custom</span>
         @* int? rather than int so that clearing the box is "no number yet" rather than a
            zero the clamp would turn into 640. *@
         <DeskField TValue="int?" Mono="true" type="number" min="640" max="7680" step="10"

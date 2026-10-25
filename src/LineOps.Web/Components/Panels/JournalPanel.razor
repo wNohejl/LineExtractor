@@ -148,7 +148,7 @@ else
                 @Selection(context.Item)
                 @if (context.Item.Note is { } note)
                 {
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@note</div>
+                    <div class="meta">@note</div>
                 }
             </CellTemplate>
         </PropertyColumn>
@@ -254,11 +254,11 @@ else
                 }
                 @if (context.Item.Note is { } note)
                 {
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@note</div>
+                    <div class="meta">@note</div>
                 }
                 @if (context.Item.Result == EntryResult.Pending && Stuck(context.Item) is { } reason)
                 {
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale))">@reason</div>
+                    <div class="meta">@reason</div>
                 }
             </CellTemplate>
         </TemplateColumn>

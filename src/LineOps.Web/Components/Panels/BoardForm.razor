@@ -26,7 +26,7 @@ else
     <PanelToolbar>
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
-        <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+        <span class="meta">
             @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
     </PanelToolbar>

@@ -144,7 +144,7 @@ else if (_plan is { } plan)
         }
         else if (_confirmAutomatic)
         {
-            <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+            <span class="meta">
                 Scan at this price until switched back, from this host and the worker alike?
             </span>
             <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
@@ -161,7 +161,7 @@ else if (_plan is { } plan)
                 Scan automatically…
             </DeskButton>
         }
-        <span class="dim" style="font-size:calc(11px * var(--text-scale))">
+        <span class="meta">
             @(_pollingSetHere ? "Chosen here." : "From configuration until chosen here.")
         </span>
     </DeskRow>

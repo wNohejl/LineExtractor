@@ -115,7 +115,7 @@
     @foreach (var (emphasis, name, use) in _emphases)
     {
         <div>
-            <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:5px">
+            <div class="meta" style="margin-bottom:5px">
                 <span class="mono">@name</span> — @use
             </div>
             <DeskRow Gap="DeskSpace.Space2">
@@ -392,15 +392,15 @@
 
 <DeskStack Gap="DeskSpace.Space3">
     <div>
-        <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:5px">One line, 40% wide</div>
+        <div class="meta" style="margin-bottom:5px">One line, 40% wide</div>
         <DeskSkeleton Width="40%" />
     </div>
     <div>
-        <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:5px">Three lines — the last runs short, the way prose does</div>
+        <div class="meta" style="margin-bottom:5px">Three lines — the last runs short, the way prose does</div>
         <DeskSkeleton Lines="3" />
     </div>
     <div>
-        <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:5px">A block, standing in for a chart</div>
+        <div class="meta" style="margin-bottom:5px">A block, standing in for a chart</div>
         <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="64px" />
     </div>
 </DeskStack>
@@ -509,13 +509,13 @@
     <DeskStack Gap="DeskSpace.Space1" Style="margin-top:10px">
         @if (_sheetOutcome is not null)
         {
-            <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+            <div class="meta">
                 Sheet returned <span class="mono">@_sheetOutcome</span>
             </div>
         }
         @if (_alertOutcome is not null)
         {
-            <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+            <div class="meta">
                 Alert returned <span class="mono">@_alertOutcome</span>
             </div>
         }
@@ -601,8 +601,8 @@
 </p>
 
 <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center" Style="margin-top:9px">
-    <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">At word scale, inside a row or cell:</span>
-    <span class="mono" style="font-size:calc(12px * var(--text-scale))">
+    <span class="meta">At word scale, inside a row or cell:</span>
+    <span class="mono">
         <Note Inline State="DeskState.Warning">62%</Note>
     </span>
 </DeskRow>
@@ -659,7 +659,7 @@
     {
         <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Center">
             <div class="pulse @state" style="width:120px; border-radius:1px"></div>
-            <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@label</span>
+            <span class="meta">@label</span>
         </DeskRow>
     }
 </DeskStack>
@@ -713,10 +713,10 @@
     @foreach (var (step, name, px) in _spaces)
     {
         <DeskRow Gap="DeskSpace.Space3">
-            <span class="mono dim" style="width:64px; font-size:calc(11px * var(--text-scale))">@name</span>
+            <span class="mono meta" style="width:64px">@name</span>
             <div style="height:8px; border-radius:1px; background:var(--text-tertiary); width:@px"></div>
-            <span class="dim" style="font-size:calc(11px * var(--text-scale))">@px</span>
-            <span class="dim" style="font-size:calc(11px * var(--text-scale))">@_spaceUse[step]</span>
+            <span class="meta">@px</span>
+            <span class="meta">@_spaceUse[step]</span>
         </DeskRow>
     }
 </DeskStack>
@@ -733,9 +733,9 @@
     @foreach (var (token, size, leading, use) in _typeStyles)
     {
         <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Baseline">
-            <span class="mono dim" style="width:104px; font-size:calc(11px * var(--text-scale))">@token</span>
+            <span class="mono meta" style="width:104px">@token</span>
             <span style="font-size:var(@token); line-height:var(@leading)">Line movement held</span>
-            <span class="dim" style="font-size:calc(11px * var(--text-scale))">@size / @use</span>
+            <span class="meta">@size / @use</span>
         </DeskRow>
     }
 </DeskStack>
@@ -751,13 +751,13 @@
 
 <DeskStack Gap="DeskSpace.Space3">
     <DeskRow Gap="DeskSpace.Space2">
-        <span class="dim" style="font-size:calc(11px * var(--text-scale))">Row, Space2 — the default gap.</span>
+        <span class="meta">Row, Space2 — the default gap.</span>
         <Tag>One</Tag>
         <Tag>Two</Tag>
     </DeskRow>
 
     <DeskRow Gap="DeskSpace.Space4">
-        <span class="dim" style="font-size:calc(11px * var(--text-scale))">Row, Space4.</span>
+        <span class="meta">Row, Space4.</span>
         <Tag>One</Tag>
         <Tag>Two</Tag>
     </DeskRow>
@@ -768,7 +768,7 @@
     </DeskRow>
 
     <DeskRow Justify="DeskJustify.Between">
-        <span class="dim" style="font-size:calc(11px * var(--text-scale))">Justify=Between — label left, control right.</span>
+        <span class="meta">Justify=Between — label left, control right.</span>
         <Tag>Right</Tag>
     </DeskRow>
 </DeskStack>

@@ -362,21 +362,21 @@ else
         {
             <DeskRow Gap="DeskSpace.Space4" Style="margin-bottom:var(--space-4)">
                 <div>
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Moneyline</div>
+                    <div class="meta" style="margin-bottom:4px">Moneyline</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Spread</div>
+                    <div class="meta" style="margin-bottom:4px">Spread</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </div>
                 <div>
-                    <div class="dim" style="font-size:calc(11px * var(--text-scale)); margin-bottom:4px">Total</div>
+                    <div class="meta" style="margin-bottom:4px">Total</div>
                     <div class="row" style="gap:8px">
                         <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />
@@ -400,11 +400,11 @@ else
 
             @if (form is null || form.Recent.Count == 0)
             {
-                <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">No games recorded in the window.</div>
+                <div class="meta">No games recorded in the window.</div>
             }
             else
             {
-                <div class="dim" style="font-size:calc(11.5px * var(--text-scale))">
+                <div class="meta">
                     @form.Wins-@form.Losses over @form.Recent.Count games
                 </div>
                 <div class="row" style="margin-top:3px">
@@ -443,39 +443,40 @@ else
         {
             var columns = GameBoxScore.ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:calc(12px * var(--text-scale)); font-weight:600">@teamName</h5>
-            <div class="gridwrap">
-                <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
-                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
-                                    Title="Player" CellClass="trunc">
-                        <CellTemplate>
-                            <span title="@context.Item.Name">
-                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
-                            </span>
-                        </CellTemplate>
-                    </PropertyColumn>
-
-                    <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
-                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
-                    </PropertyColumn>
-
-                    @* Box score values arrive as strings straight off the line, so they sort as
-                       strings — coercing them to numbers here would invent a reading the source
-                       did not give. *@
-                    @foreach (var c in columns)
-                    {
-                        var key = c;
-
-                        <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@key" Align="Align.Right"
-                                        SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
+            <PanelSection Title="@teamName">
+                <div class="gridwrap">
+                    <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
+                        <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
+                                        Title="Player" CellClass="trunc">
                             <CellTemplate>
-                                <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                                <span title="@context.Item.Name">
+                                    <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                              OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
+                                </span>
                             </CellTemplate>
-                        </TemplateColumn>
-                    }
-                </DeskGrid>
-            </div>
+                        </PropertyColumn>
+
+                        <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
+                            <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                        </PropertyColumn>
+
+                        @* Box score values arrive as strings straight off the line, so they sort as
+                           strings — coercing them to numbers here would invent a reading the source
+                           did not give. *@
+                        @foreach (var c in columns)
+                        {
+                            var key = c;
+
+                            <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@key" Align="Align.Right"
+                                            SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
+                                <CellTemplate>
+                                    <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                                </CellTemplate>
+                            </TemplateColumn>
+                        }
+                    </DeskGrid>
+                </div>
+            </PanelSection>
         }
     </text>;
 
@@ -496,65 +497,66 @@ else
         {
             var columns = ColumnsFor(side);
 
-            <h5 style="margin:8px 0 4px; color:var(--text-secondary); font-size:calc(12px * var(--text-scale)); font-weight:600">@teamName</h5>
-            @*
-                The row opens the way every other row on the desk opens.
+            <PanelSection Title="@teamName">
+                @*
+                    The row opens the way every other row on the desk opens.
 
-                This table had its own disclosure — a bare "Last 5" key in a trailing column and
-                a second <tr> underneath — written before RowActions existed. Converting the
-                table is the moment to stop having two of those: the keys and the snippet now
-                come from the shared strip, in the widest cell, exactly as the Board does it.
-                That is the row-drilldown spec's "one interaction to learn, and it holds all the
-                way down" being cashed in rather than restated.
-            *@
-            <div class="gridwrap">
-                <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
-                          RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
-                          OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"
-                          EmptyText="No appearances on record.">
+                    This table had its own disclosure — a bare "Last 5" key in a trailing column and
+                    a second <tr> underneath — written before RowActions existed. Converting the
+                    table is the moment to stop having two of those: the keys and the snippet now
+                    come from the shared strip, in the widest cell, exactly as the Board does it.
+                    That is the row-drilldown spec's "one interaction to learn, and it holds all the
+                    way down" being cashed in rather than restated.
+                *@
+                <div class="gridwrap">
+                    <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
+                              RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
+                              OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"
+                              EmptyText="No appearances on record.">
 
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
-                                    Title="Player" CellClass="trunc">
-                        <CellTemplate>
-                            <span title="@context.Item.Name">
-                                <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
-                            </span>
-
-                            @if (_openPlayer == context.Item.PlayerId)
-                            {
-                                @* Keyed by the player so moving to another row is a fresh strip
-                                   rather than one still showing the previous player's snippet. *@
-                                <RowActions @key="context.Item.PlayerId" Actions="ActionsFor(context.Item)" />
-                            }
-                        </CellTemplate>
-                    </PropertyColumn>
-
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
-                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
-                    </PropertyColumn>
-
-                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
-                                    Title="GP" Align="Align.Right" />
-
-                    @* A player with no reading for a key sorts below every real one rather than
-                       beside the zeroes — the same distinction the dash makes in the cell. *@
-                    @foreach (var c in columns)
-                    {
-                        var key = c;
-
-                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
-                                        Align="Align.Right"
-                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
+                                        Title="Player" CellClass="trunc">
                             <CellTemplate>
-                                @(context.Item.Summary(key) is { } v
-                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
-                                    : "—")
+                                <span title="@context.Item.Name">
+                                    <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                              OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
+                                </span>
+
+                                @if (_openPlayer == context.Item.PlayerId)
+                                {
+                                    @* Keyed by the player so moving to another row is a fresh strip
+                                       rather than one still showing the previous player's snippet. *@
+                                    <RowActions @key="context.Item.PlayerId" Actions="ActionsFor(context.Item)" />
+                                }
                             </CellTemplate>
-                        </TemplateColumn>
-                    }
-                </DeskGrid>
-            </div>
+                        </PropertyColumn>
+
+                        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
+                            <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                        </PropertyColumn>
+
+                        <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
+                                        Title="GP" Align="Align.Right" />
+
+                        @* A player with no reading for a key sorts below every real one rather than
+                           beside the zeroes — the same distinction the dash makes in the cell. *@
+                        @foreach (var c in columns)
+                        {
+                            var key = c;
+
+                            <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                                            Align="Align.Right"
+                                            SortBy="@(p => p.Summary(key) ?? double.MinValue)">
+                                <CellTemplate>
+                                    @(context.Item.Summary(key) is { } v
+                                        ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                        : "—")
+                                </CellTemplate>
+                            </TemplateColumn>
+                        }
+                    </DeskGrid>
+                </div>
+            </PanelSection>
         }
     </text>;
 }

@@ -34,8 +34,8 @@
                 <Tag State="@(source.Eligible ? DeskState.Positive : DeskState.Warning)">
                     @(source.Eligible ? "Free" : "Refused")
                 </Tag>
-                <span class="mono" style="font-size:calc(12px * var(--text-scale))">@source.Key</span>
-                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">@source.Reason</span>
+                <span class="mono">@source.Key</span>
+                <span class="meta">@source.Reason</span>
             </DeskRow>
         }
     </DeskStack>

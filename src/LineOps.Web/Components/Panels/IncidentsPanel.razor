@@ -119,10 +119,10 @@ else
             @foreach (var note in _timeline)
             {
                 <div>
-                    <div class="mono dim" style="font-size:calc(10.5px * var(--text-scale))">
+                    <div class="mono meta">
                         @DisplayTime.Format(note.At, "MMM d HH:mm:ss") @DisplayTime.Label
                     </div>
-                    <div style="font-size:calc(12.5px * var(--text-scale))">@note.Note</div>
+                    <div>@note.Note</div>
                 </div>
             }
         </DeskStack>
@@ -152,8 +152,8 @@ else
         {
             <PanelSection Title="Root-cause analysis">
                 <DeskStack>
-                    <div style="font-size:calc(12.5px * var(--text-scale))">@_selected.RootCause</div>
-                    <div style="font-size:calc(12.5px * var(--text-scale))">@_selected.CorrectiveActions</div>
+                    <div>@_selected.RootCause</div>
+                    <div>@_selected.CorrectiveActions</div>
                 </DeskStack>
             </PanelSection>
         }
