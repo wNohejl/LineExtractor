@@ -74,7 +74,9 @@ else
         }
         else
         {
-            <DeskStack Gap="DeskSpace.Space1">
+            @* One group: the list carries the fill and the hairline edge, the rows only an
+               inset hairline between them. *@
+            <div class="loglist">
                 @foreach (var row in _visible)
                 {
                     <div class="logrow @(_openGame == row.GameId ? "logrow--open" : "")">
@@ -128,7 +130,7 @@ else
                         }
                     </div>
                 }
-            </DeskStack>
+            </div>
         }
         </ChildContent>
     </PanelSection>
@@ -140,7 +142,7 @@ else
     }
     else
     {
-        <DeskStack Gap="DeskSpace.Space1">
+        <div class="loglist">
             @foreach (var player in _roster)
             {
                 <div class="logrow @(_openPlayer == player.PlayerId ? "logrow--open" : "")">
@@ -170,7 +172,7 @@ else
                     }
                 </div>
             }
-        </DeskStack>
+        </div>
     }
     </PanelSection>
 }

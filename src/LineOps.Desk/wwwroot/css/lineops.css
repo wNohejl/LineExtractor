@@ -1200,13 +1200,13 @@ html, body {
    control, so it takes neither the accent nor capitals. */
 .ftr__flag { margin-left: var(--space-1); }
 
-/* A refusal appears next to the taskbar, where the click that failed was aimed. */
+/* A refusal appears next to the taskbar, where the click that failed was aimed. The warning
+   wash is its whole grouping; an edge as well would frame the Undo inside it. */
 .ftr__refusal {
     display: flex;
     align-items: center;
     gap: 7px;
     padding: 3px 4px 3px 9px;
-    border: 1px solid var(--state-warning);
     background: var(--state-warning-wash);
     border-radius: 4px;
     color: var(--state-warning);
@@ -1227,11 +1227,12 @@ html, body {
 .ftr__dismiss svg { width: 13px; height: 13px; }
 .ftr__dismiss:hover { color: var(--text-primary); }
 
-/* The way back from an eviction, said where the eviction is. */
+/* The way back from an eviction, said where the eviction is. A plain button: its semibold
+   words on the wash say it can be pressed, with no outline drawn inside the refusal's fill. */
 .ftr__undo {
     flex: 0 0 auto;
     background: none;
-    border: 1px solid currentColor;
+    border: 0;
     border-radius: 3px;
     padding: 0 6px;
     color: var(--state-warning);
@@ -3068,11 +3069,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .empty__action { display: block; margin-top: 8px; }
 
 /* ------------------------------------------------------- runbook ----------
-   The triage procedure, shown inside the incident that needs it. No accent edge: the
-   group is read, and only its disclosure summary is pressed. */
+   The triage procedure, shown inside the incident that needs it. A fill, not a frame,
+   and no accent edge: the group is read, and only its disclosure summary is pressed. */
 
 .runbook {
-    border: 1px solid var(--separator);
     border-radius: 4px;
     background: var(--surface-2);
     margin: 14px 0;
@@ -3113,12 +3113,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .runbook__line { margin: 8px 0 0; }
 
 /* Steps are indented so a numbered procedure still reads as one at a glance,
-   the marker having been stripped along with the rest of the markdown. */
-.runbook__step {
-    margin: 5px 0 0 12px;
-    padding-left: 9px;
-    border-left: 1px solid var(--separator-strong);
-}
+   the marker having been stripped along with the rest of the markdown. The indent alone
+   says so; a rule beside it would be a vertical line inside the group. */
+.runbook__step { margin: 5px 0 0 var(--space-5); }
 
 .runbook__body strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
 
@@ -3372,16 +3369,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* The inline answer. Inset from the row so it reads as belonging to it rather
    than as the next row along.
 
-   --surface-0 rather than --surface-1, which is where the retired ramp's recessed tier
-   would have landed: that tier sat *below* the panel body, and the panel body is now
-   --surface-1, so the literal mapping would put the snippet at exactly the colour it
-   opens on top of. The whole point of the
-   block is that it reads as cut into the row. Its own bar and its open body keep the two
-   steps above it, so the three tiers stay three tiers. */
+   A fill one step above the panel body (--surface-2, a grouped list's secondary
+   background) and no border: it opens inside a ruled table, and a framed block there is a
+   box inside the grid's rules. Its bar shares the fill and is parted from the body by
+   one hairline, as a grouped list's rows are. */
 .snippet {
     margin: 8px 0 4px;
-    background: var(--surface-0);
-    border: 1px solid var(--separator);
+    background: var(--surface-2);
     border-radius: var(--radius);
     overflow: hidden;
 }
@@ -3391,7 +3385,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     align-items: center;
     gap: 7px;
     padding: 6px 9px;
-    background: var(--surface-2);
     border-bottom: 1px solid var(--separator);
     font-size: calc(11px * var(--text-scale));
 }
@@ -3414,19 +3407,20 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     align-items: center;
     gap: 4px;
     background: transparent;
-    border: 1px solid transparent;
+    border: 0;
     border-radius: 4px;
     color: var(--text-secondary);
     font: inherit;
     font-size: calc(10.5px * var(--text-scale));
     padding: 2px 6px;
     cursor: pointer;
-    transition: color .12s ease, border-color .12s ease;
+    transition: color .12s ease, background-color .12s ease;
 }
 
-/* Neutral: the button brightens under the pointer, the way every plain control on the
-   desk does. Accent here would say "chosen", and nothing has been chosen yet. */
-.snippet__open:hover { color: var(--text-primary); border-color: var(--separator-strong); }
+/* Neutral: the button brightens and takes the --surface-3 hover fill every plain control
+   on the desk takes, never an outline. Accent here would say "chosen", and nothing has
+   been chosen yet. */
+.snippet__open:hover { color: var(--text-primary); background: var(--surface-3); }
 
 .snippet__body { padding: 9px; }
 
@@ -3522,23 +3516,35 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    otherwise breaks every column alignment above it.
    -------------------------------------------------------------------------- */
 
-/* Same three-tier reading as .snippet above: the closed row is cut into the panel
-   (--surface-0), and opening it reveals a body one step back up. */
-.logrow {
+/* A list of log rows is one group: the list carries the fill and the single hairline edge,
+   as .snippet and the grouped list do, and the rows inside it carry no edge of their own —
+   a bordered row in a bordered list is a box inside a box. */
+.loglist {
+    background: var(--surface-2);
     border: 1px solid var(--separator);
     border-radius: var(--radius);
-    background: var(--surface-0);
     overflow: hidden;
 }
 
-.logrow--open { border-color: var(--separator-strong); }
+/* A row is parted from the one above by a hairline inset to its text's leading edge, the
+   way a grouped list draws it (.wgroup__row). Open or closed, the chevron says which. */
+.logrow { position: relative; }
+
+.logrow + .logrow::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--space-3);
+    border-top: 1px solid var(--separator);
+}
 
 .logrow__head {
     display: flex;
     align-items: center;
     gap: 9px;
     width: 100%;
-    padding: 7px 10px;
+    padding: 7px var(--space-3);
     background: transparent;
     border: 0;
     color: var(--text-primary);
@@ -3550,7 +3556,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 /* Neutral, and the same --surface-3 every other hover fill on the desk uses. The row
-   is being pointed at, not opened — opening it is what .logrow--open reports. */
+   is being pointed at, not opened — opening it is what the turned chevron reports. */
 .logrow__head:hover { background: var(--surface-3); }
 
 .logrow__date { font-size: calc(11.5px * var(--text-scale)); min-width: 7ch; font-variant-numeric: tabular-nums; }
@@ -3576,7 +3582,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .logrow--open .logrow__chev { transform: rotate(180deg); }
 
 .logrow__body {
-    padding: 10px;
+    padding: 10px var(--space-3);
     border-top: 1px solid var(--separator);
     background: var(--surface-1);
 }
@@ -3618,17 +3624,14 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an
    ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
-   difference. Set in a 3px-radius chip rather than a capsule — a capsule is the tag's
-   shape and means "a state", which this is not: it names a side. */
+   difference. Plain secondary text beside the price, not a chip: a box in every cell of a
+   ruled table is a box inside a box, and the lighter colour already says it qualifies the
+   number rather than being one. */
 .price__sel {
     font-size: calc(10px * var(--text-scale));
     font-weight: var(--weight-semibold);
     color: var(--text-secondary);
-    background: var(--surface-2);
-    border: 1px solid var(--separator);
-    border-radius: 3px;
-    padding: 0 4px;
-    margin-right: 4px;
+    margin-right: var(--space-1);
 }
 
 /* A destination window — one that is about a game, a team or a player. Listed so
@@ -3672,15 +3675,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 /* Each market is two columns that belong together — home and away, over and
-   under. A hairline before the first of each pair groups them, so the eye reads
-   three markets rather than six unrelated numbers. */
-.deskgrid--board th:nth-child(3),
-.deskgrid--board td:nth-child(3),
-.deskgrid--board th:nth-child(5),
-.deskgrid--board td:nth-child(5),
-.deskgrid--board th:nth-child(7),
-.deskgrid--board td:nth-child(7) {
-    border-left: 1px solid var(--separator);
+   under. Extra space before the first of each pair groups them, so the eye reads
+   three markets rather than six unrelated numbers; a vertical rule would do it
+   louder, and a table on this desk has none. The cell names its element and the
+   Mud cell class so it out-ranks mud-bridge.css's cell padding, which loads later. */
+.deskgrid--board th.mud-table-cell:nth-child(3),
+.deskgrid--board td.mud-table-cell:nth-child(3),
+.deskgrid--board th.mud-table-cell:nth-child(5),
+.deskgrid--board td.mud-table-cell:nth-child(5),
+.deskgrid--board th.mud-table-cell:nth-child(7),
+.deskgrid--board td.mud-table-cell:nth-child(7) {
+    padding-left: var(--space-4);
 }
 
 /* A market's second column repeats its name in the header. Dim the repeat so the
