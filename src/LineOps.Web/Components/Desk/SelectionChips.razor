@@ -3,49 +3,59 @@
 @using LineOps.Web.Services
 
 @*
-    Every priced side of a game, grouped by market: Moneyline, Spread, Total, each a labelled row
-    of two options.
+    Every priced side of a game, as a board: a column per team, a row per market, the number
+    and the best price in each cell.
 
-    The strip used to be six identical text keys — "ML · Saints", "Spread · Steelers -3" — that
-    read as words rather than choices, and that asked the reader to know what ML meant. Grouped,
-    the market is said once in full on the left, with what it means on hover, and each option
-    carries only what differs: the side, its number, and the best price on it, so the choice is
-    made seeing what it pays. Hovering an option says in words what it wins on.
+    It was a row of six tiles that each repeated the team's name, and before that six text
+    keys. A board is how every sportsbook shows a game, so a reader who has placed a bet
+    anywhere already knows how to read it: the team is said once, at the head of its column,
+    and a cell carries only what differs — the line, and what it pays. Totals sit on the same
+    grid, Over on the left and Under on the right, each saying which it is. The market is named
+    on the left of its row, with what it means on hover; hovering a cell says in words what it
+    wins on.
 
-    One set of options across the three markets, so it is one radio group: a bet is one side.
-    The accessible name of each option is the desk's full label ("ML · Chiefs"), the same words
-    the slip card and the journal use, so a screen reader hears the market the eye gets from the
-    row. One definition, shared by every window that logs a wager (SelectionGuardTests).
+    One set of cells across the three markets, so it is one radio group: a bet is one side.
+    The accessible name of each cell is the desk's full label ("ML · Chiefs"), the same words
+    the slip card and the journal use, so a screen reader hears the team and the market the
+    eye gets from the row and the column. One definition, shared by every window that logs a
+    wager (SelectionGuardTests).
 *@
 
-<div class="selection-chips" role="radiogroup" aria-label="Your bet">
+<div class="selection-chips selection-board" role="radiogroup" aria-label="Your bet">
+    <div class="selection-board__head" role="presentation">
+        <span></span>
+        <span class="selection-board__team" title="@Row?.Game.AwayTeam?.Name">@SelectionText.Short(Row?.Game.AwayTeam?.Name ?? "Away")</span>
+        <span class="selection-board__team" title="@Row?.Game.HomeTeam?.Name">@SelectionText.Short(Row?.Game.HomeTeam?.Name ?? "Home")</span>
+    </div>
+
     @foreach (var group in SelectionChoice.All(Row).GroupBy(c => c.Market))
     {
-        <div class="selection-group">
+        <div class="selection-group" role="presentation">
             <span class="selection-group__label" title="@MarketHelp(group.Key)">@MarketTitle(group.Key)</span>
-            <div class="selection-group__keys">
-                @foreach (var choice in group)
-                {
-                    var chosen = IsChosen(choice);
-                    <button type="button"
-                            class="selection-chip @(chosen ? "selection-chip--on" : null)"
-                            role="radio"
-                            aria-checked="@(chosen ? "true" : "false")"
-                            aria-label="@choice.Label"
-                            title="@Explain(choice)"
-                            @onclick="() => OnChoose.InvokeAsync(choice)">
-                        <span class="selection-chip__side">@Side(choice)</span>
-                        @if (choice.Offer is { } offer)
-                        {
-                            <span class="selection-chip__price num">@Price(offer.PriceAmerican)</span>
-                        }
-                        else
-                        {
-                            <span class="selection-chip__price selection-chip__price--none">no price</span>
-                        }
-                    </button>
-                }
-            </div>
+            @foreach (var choice in InColumns(group))
+            {
+                var chosen = IsChosen(choice);
+                <button type="button"
+                        class="selection-chip @(chosen ? "selection-chip--on" : null)"
+                        role="radio"
+                        aria-checked="@(chosen ? "true" : "false")"
+                        aria-label="@choice.Label"
+                        title="@Explain(choice)"
+                        @onclick="() => OnChoose.InvokeAsync(choice)">
+                    @if (Side(choice) is { Length: > 0 } side)
+                    {
+                        <span class="selection-chip__side num">@side</span>
+                    }
+                    @if (choice.Offer is { } offer)
+                    {
+                        <span class="selection-chip__price num">@Price(offer.PriceAmerican)</span>
+                    }
+                    else
+                    {
+                        <span class="selection-chip__price selection-chip__price--none">no price</span>
+                    }
+                </button>
+            }
         </div>
     }
 </div>
@@ -63,6 +73,20 @@
     private bool IsChosen(SelectionChoice choice)
         => choice.Market == Market && string.Equals(choice.Outcome, Outcome, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The row's cells in column order: away then home, as the matchup reads ("Steelers at
+    /// Saints"); Over then Under. SelectionChoice.All lists home first.
+    /// </summary>
+    private IEnumerable<SelectionChoice> InColumns(IGrouping<string, SelectionChoice> group)
+    {
+        var cells = group.ToList();
+        if (group.Key == Markets.Total)
+            return cells.OrderBy(c => IsOver(c) ? 0 : 1);
+
+        var away = Row?.Game.AwayTeam?.Name;
+        return cells.OrderBy(c => string.Equals(c.Outcome, away, StringComparison.OrdinalIgnoreCase) ? 0 : 1);
+    }
+
     private static string MarketTitle(string market) => market switch
     {
         Markets.Moneyline => "Moneyline",
@@ -79,13 +103,18 @@
         _ => string.Empty
     };
 
-    /// <summary>"Steelers -3", "Over 47.5", "Chiefs": the side and its number, without the market.</summary>
-    private static string Side(SelectionChoice choice)
-        => SelectionText.Short(choice.Outcome)
-           + (choice.Offer?.Line is not { } line ? ""
-              // "Over 47.5", not "Over o47.5": the word already says which side of the number.
-              : choice.Market == Markets.Total ? " " + Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)
-              : " " + OddsMath.FormatLine(line, choice.Outcome));
+    /// <summary>
+    /// The number in the cell: "-3", "Over 47.5". A moneyline has none — the column head says
+    /// the team, the cell says the price.
+    /// </summary>
+    private static string Side(SelectionChoice choice) => choice.Market switch
+    {
+        Markets.Moneyline => string.Empty,
+        // "Over 47.5", not "Over o47.5": the word already says which side of the number.
+        Markets.Total => SelectionText.Short(choice.Outcome)
+                         + (choice.Offer?.Line is { } total ? " " + Math.Abs(total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : ""),
+        _ => choice.Offer?.Line is { } line ? OddsMath.FormatLine(line, choice.Outcome) : string.Empty
+    };
 
     /// <summary>What the option wins on, in a sentence, for whoever does not read a line by eye.</summary>
     private static string Explain(SelectionChoice choice)

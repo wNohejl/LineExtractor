@@ -66,9 +66,6 @@ public sealed class FakeWagerData : IWagerData
     public List<string> Searches { get; } = [];
 
     public List<string> Books { get; set; } = ["betmgm", "draftkings", "fanduel", "pinnacle"];
-    public HashSet<string> Hidden { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public int HiddenWrites { get; private set; }
-
     public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default)
     {
         Searches.Add(text);
@@ -77,16 +74,6 @@ public sealed class FakeWagerData : IWagerData
 
     public Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)
         => Task.FromResult<IReadOnlyList<string>>(Books);
-
-    public Task<IReadOnlySet<string>> HiddenBooksAsync(CancellationToken ct = default)
-        => Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(Hidden, StringComparer.OrdinalIgnoreCase));
-
-    public Task SetHiddenBooksAsync(IReadOnlySet<string> books, CancellationToken ct = default)
-    {
-        HiddenWrites++;
-        Hidden = new HashSet<string>(books, StringComparer.OrdinalIgnoreCase);
-        return Task.CompletedTask;
-    }
 
     public Task<JobOutcome> RunJobAsync(string key, CancellationToken ct = default)
     {

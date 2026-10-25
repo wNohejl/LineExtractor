@@ -2,20 +2,24 @@
 @using LineOps.Desk.Windowing
 
 @*
-    One step of a DeskSteps: a numbered marker on the rail, a title, and the step's content.
+    One step of a DeskSteps: a marker on the rail, a title line, and — while the step is open —
+    its guidance and its controls.
 
-    Three states, each saying something different. Done: the number becomes a check and the
-    rail below it takes the accent, so finished work reads as a filled line. Current: the marker
-    is solid accent with a halo, and the step shows its guidance — one or two sentences on what
-    to do here, written for someone who has never done it. Todo: the title dims and, in place
-    of the controls, the step says what it is waiting for ("Pick a game first."), so an
-    unreachable control never sits on screen looking broken.
+    Three states, each saying something different. Done: the marker becomes a check and the
+    rail below it takes the accent, so finished work reads as a filled line; closed, the step
+    folds to its title and a summary of what was chosen ("Spread · Steelers -3"), with Change
+    beside it to open it again. Current: the marker is solid accent, and the step shows its
+    guidance — one or two sentences on what to do here, written for someone who has never done
+    it — above its controls. Todo: the title dims and, on the same line, the step says what it
+    is waiting for ("Pick your bet first."), so an unreachable control never sits on screen
+    looking broken, and a waiting step costs one line.
 
-    A step with no Waiting text shows its content even while Todo — for content worth reading
-    early, like the checks before a wager is complete.
+    Open is the host's to decide; left unset, the current step is open and the others are
+    folded. A host that wants two steps open at once — a stake being typed beside the review
+    of it — says so.
 *@
 
-<li class="wstep wstep--@State.ToString().ToLowerInvariant()"
+<li class="wstep wstep--@State.ToString().ToLowerInvariant() @(IsOpen ? "wstep--open" : null)"
     aria-current="@(State == DeskStepState.Current ? "step" : null)"
     aria-labelledby="@_titleId">
     <span class="wstep__dot" aria-hidden="true">
@@ -32,24 +36,34 @@
     <div class="wstep__main">
         <div class="wstep__head">
             <h3 class="wstep__title" id="@_titleId">@Title</h3>
+
+            @if (State == DeskStepState.Done && !IsOpen && Summary is not null)
+            {
+                <span class="wstep__summary">@Summary</span>
+                @if (OnOpen.HasDelegate)
+                {
+                    <button type="button" class="wstep__change" @onclick="OnOpen">Change</button>
+                }
+            }
+
+            @if (State == DeskStepState.Todo && Waiting is { Length: > 0 })
+            {
+                <span class="wstep__wait">@Waiting</span>
+            }
+
             @if (Aside is not null)
             {
                 <div class="wstep__aside">@Aside</div>
             }
         </div>
 
-        @if (State == DeskStepState.Current && Hint is { Length: > 0 })
+        @if (IsOpen)
         {
-            <p class="wstep__hint">@Hint</p>
-        }
-
-        @if (State == DeskStepState.Todo && Waiting is { Length: > 0 })
-        {
-            <p class="wstep__wait">@Waiting</p>
-        }
-        else
-        {
-            @ChildContent
+            @if (State == DeskStepState.Current && Hint is { Length: > 0 })
+            {
+                <p class="wstep__hint">@Hint</p>
+            }
+            <div class="wstep__body">@ChildContent</div>
         }
     </div>
 </li>
@@ -66,8 +80,17 @@
     /// <summary>What to do here, shown while the step is current.</summary>
     [Parameter] public string? Hint { get; set; }
 
-    /// <summary>What the step needs first, shown instead of its content while it is Todo.</summary>
+    /// <summary>What the step needs first, said on the title line while it is Todo.</summary>
     [Parameter] public string? Waiting { get; set; }
+
+    /// <summary>What was chosen, said on the title line while the step is done and folded.</summary>
+    [Parameter] public RenderFragment? Summary { get; set; }
+
+    /// <summary>Opens a folded step again. Without it a done step has no Change key.</summary>
+    [Parameter] public EventCallback OnOpen { get; set; }
+
+    /// <summary>Whether the controls show. Unset: open while current, folded otherwise.</summary>
+    [Parameter] public bool? Open { get; set; }
 
     /// <summary>Something beside the title: a count, a small key.</summary>
     [Parameter] public RenderFragment? Aside { get; set; }
@@ -75,4 +98,6 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     private readonly string _titleId = $"step-{Guid.NewGuid():N}";
+
+    private bool IsOpen => Open ?? State == DeskStepState.Current;
 }

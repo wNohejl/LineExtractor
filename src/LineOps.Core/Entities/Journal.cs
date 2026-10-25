@@ -210,12 +210,6 @@ public class AppSetting
     public const string LinePollingScheduled = "Scheduled";
     public const string LinePollingManual = "Manual";
 
-    /// <summary>
-    /// The books the wager window leaves out of its price list, comma-separated. A personal choice,
-    /// so it lives with the operator settings and stays out of the data snapshot.
-    /// </summary>
-    public const string WagerHiddenBooks = "wager.books.hidden";
-
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
 }

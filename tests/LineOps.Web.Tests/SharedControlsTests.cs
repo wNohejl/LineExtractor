@@ -23,7 +23,7 @@ public class SharedControlsTests : DeskTestContext
 
         var chosen = Assert.Single(cut.FindAll(".selection-chip--on"));
         Assert.Equal("Spread · Bills +2.5", chosen.GetAttribute("aria-label"));
-        Assert.Equal("Bills +2.5", chosen.QuerySelector(".selection-chip__side")!.TextContent.Trim());
+        Assert.Equal("+2.5", chosen.QuerySelector(".selection-chip__side")!.TextContent.Trim());
         Assert.Equal("true", chosen.GetAttribute("aria-checked"));
     }
 

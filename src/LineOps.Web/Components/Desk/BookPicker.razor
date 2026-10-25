@@ -11,8 +11,9 @@
     quoting the side with its line, price and age, best first. Picking one closes the menu and
     re-reads the headline from that book.
 
-    The filter rides along at the foot of the menu: books the operator never uses can be taken
-    out of the list (remembered with their settings), and the count says how many are hidden.
+    There is no filter any more. A filter that hid books also hid the best price, so the window
+    opened on a worse number than the one it could see, and said so in small print. The best
+    price is the default; a book the operator does not use is one row to pass over.
 
     The menu floats, so it takes the floating material, like the pull menu. A press anywhere
     outside closes it, through an invisible scrim, so dismissing never also presses whatever was
@@ -42,57 +43,32 @@
         <div class="book-picker__panel">
             <div class="book-picker__head">
                 <span>Choose the book you bet with</span>
-                <span class="book-picker__aside">@Count</span>
+                <span class="book-picker__aside">@Books.Count quoting</span>
             </div>
 
-            @if (Shown.Count > 0)
-            {
-                <div class="book-picker__list" role="listbox" id="@_listId" aria-label="Books quoting this side">
-                    @foreach (var book in Shown)
-                    {
-                        var chosen = string.Equals(book.Book, Chosen, StringComparison.OrdinalIgnoreCase);
-                        <button type="button" role="option" aria-selected="@(chosen ? "true" : "false")"
-                                class="book-row @(chosen ? "book-row--chosen" : null)"
-                                @onclick="() => ChooseAsync(book.Book)">
-                            <span class="book-row__mark" aria-hidden="true">
-                                @if (chosen)
-                                {
-                                    <Glyph Icon="@Icons.Material.Filled.Check" />
-                                }
-                            </span>
-                            <span class="book-row__book">@book.Book</span>
-                            @if (book.IsBest)
+            <div class="book-picker__list" role="listbox" id="@_listId" aria-label="Books quoting this side">
+                @foreach (var book in Books)
+                {
+                    var chosen = string.Equals(book.Book, Chosen, StringComparison.OrdinalIgnoreCase);
+                    <button type="button" role="option" aria-selected="@(chosen ? "true" : "false")"
+                            class="book-row @(chosen ? "book-row--chosen" : null)"
+                            @onclick="() => ChooseAsync(book.Book)">
+                        <span class="book-row__mark" aria-hidden="true">
+                            @if (chosen)
                             {
-                                <Tag State="DeskState.Positive">Best</Tag>
+                                <Glyph Icon="@Icons.Material.Filled.Check" />
                             }
-                            <span class="book-row__age" title="When this price was captured">@Age(book)</span>
-                            <span class="book-row__line num">@(book.Line is { } l ? OddsMath.FormatLine(l, book.Outcome) : "")</span>
-                            <span class="book-row__price num">@Price(book.PriceAmerican)</span>
-                        </button>
-                    }
-                </div>
-            }
-            else
-            {
-                <p class="book-picker__empty" id="@_listId">Every book quoting this side is hidden below.</p>
-            }
-
-            <div class="book-picker__filter">
-                <span class="book-picker__filter-label">Books in this list</span>
-                <div class="book-chips" role="group" aria-label="Books to show">
-                    @foreach (var book in Books)
-                    {
-                        var shown = !Hidden.Contains(book.Book);
-                        <DeskButton Size="DeskKeySize.Small"
-                                    Emphasis="@(shown ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
-                                    Class="book-chip"
-                                    aria-pressed="@(shown ? "true" : "false")"
-                                    Title="@(shown ? $"Hide {book.Book} from this list" : $"Show {book.Book} in this list")"
-                                    OnClick="() => OnToggleHidden.InvokeAsync(book.Book)">
-                            @book.Book
-                        </DeskButton>
-                    }
-                </div>
+                        </span>
+                        <span class="book-row__book">@book.Book</span>
+                        @if (book.IsBest)
+                        {
+                            <Tag State="DeskState.Positive">Best</Tag>
+                        }
+                        <span class="book-row__age" title="When this price was captured">@Age(book)</span>
+                        <span class="book-row__line num">@(book.Line is { } l ? OddsMath.FormatLine(l, book.Outcome) : "")</span>
+                        <span class="book-row__price num">@Price(book.PriceAmerican)</span>
+                    </button>
+                }
             </div>
         </div>
     }
@@ -105,30 +81,14 @@
     /// <summary>The book the headline price is from.</summary>
     [Parameter] public string? Chosen { get; set; }
 
-    /// <summary>Books the operator has taken out of the list.</summary>
-    [Parameter] public IReadOnlySet<string> Hidden { get; set; } = new HashSet<string>();
-
     [Parameter] public EventCallback<string> OnChoose { get; set; }
-
-    [Parameter] public EventCallback<string> OnToggleHidden { get; set; }
 
     private readonly string _listId = "books-" + Guid.NewGuid().ToString("N")[..8];
 
     private bool _open;
 
-    private IReadOnlyList<WagerOffer> Shown => Books.Where(b => !Hidden.Contains(b.Book)).ToList();
-
     private bool ChosenIsBest
         => Books.FirstOrDefault(b => string.Equals(b.Book, Chosen, StringComparison.OrdinalIgnoreCase))?.IsBest == true;
-
-    private string Count
-    {
-        get
-        {
-            var hidden = Books.Count(b => Hidden.Contains(b.Book));
-            return $"{Books.Count} quoting" + (hidden > 0 ? $" · {hidden} filtered out" : "");
-        }
-    }
 
     private void Toggle() => _open = !_open;
 

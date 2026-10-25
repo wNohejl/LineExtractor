@@ -1,3 +1,5 @@
+using AngleSharp.Dom;
+using Bunit;
 using LineOps.Desk.Primitives;
 using LineOps.Web.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,4 +21,12 @@ public abstract class WagerTestContext : DeskTestContext
     }
 
     protected WagerSlip Slip => Services.GetRequiredService<WagerSlip>();
+
+    /// <summary>The step with this title, in the wager window's stepper.</summary>
+    protected static IElement Step(IRenderedFragment cut, string title)
+        => cut.FindAll(".wstep").First(s => s.QuerySelector(".wstep__title")!.TextContent.Trim() == title);
+
+    /// <summary>Opens a finished step again, as the operator does with Change beside its summary.</summary>
+    protected static void Change(IRenderedFragment cut, string title)
+        => Step(cut, title).QuerySelector(".wstep__change")!.Click();
 }

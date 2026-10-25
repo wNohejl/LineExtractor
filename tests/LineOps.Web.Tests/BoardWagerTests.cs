@@ -33,7 +33,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render();
 
         Assert.Equal("-128", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.Equal("ML · Chiefs", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
+        Assert.Equal("ML · Chiefs", Step(cut, "Your bet").QuerySelector(".wstep__summary")!.TextContent.Trim());
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render(Markets.Spread, BoardRows.Away);
 
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.Equal("Spread · Bills +2.5", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
+        Assert.Equal("Spread · Bills +2.5", Step(cut, "Your bet").QuerySelector(".wstep__summary")!.TextContent.Trim());
     }
 
     [Fact]
@@ -205,6 +205,7 @@ public class BoardWagerTests : WagerTestContext
     {
         Data.Row = BoardRows.Row(age: TimeSpan.FromMinutes(109.5));
         var cut = Render();
+        Change(cut, "Price and book");
 
         Assert.Contains("captured 1h 49m ago", cut.Find(".wager-offer__age").TextContent);
         Assert.Contains("Price captured 1h 49m ago", cut.Markup);
