@@ -4686,3 +4686,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
     .wcard .waction__keys .desk-btn { flex: 1 1 auto; }
 }
+/* In the narrowest groups (a window beside two others) a segment's numbers wrap onto their own
+   lines rather than running into the next segment: "-3 -109" beside "+3 -103" collided at ~65px. */
+@container (max-width: 300px) {
+    .selection-chip__nums { flex-wrap: wrap; justify-content: center; white-space: normal; column-gap: var(--space-1); }
+    .selection-gate .gate__opt { padding-left: var(--space-1); padding-right: var(--space-1); }
+}
