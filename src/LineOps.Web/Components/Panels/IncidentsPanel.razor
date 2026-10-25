@@ -89,6 +89,13 @@
 }
 else
 {
+    @* The incident is the window's subject, so its name is the window's title — not a section
+       rule, which names a part of the window rather than the thing the window is about. *@
+    <PanelTitle>
+        <ChildContent>@_selected.Title</ChildContent>
+        <Detail>#@_selected.Id · @_selected.Severity · opened @Starts(_selected.OpenedAt)</Detail>
+    </PanelTitle>
+
     <PanelToolbar>
         <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
             All incidents
@@ -100,13 +107,12 @@ else
     </PanelToolbar>
 
     @* The procedure before the workspace: an incident is opened to be worked, and the first thing
-       the person working it needs is the triage steps for the rule that raised it. *@
-    <PanelSection Title="@($"#{_selected.Id} — {_selected.Title}")">
-        @foreach (var rule in _rules)
-        {
-            <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
-        }
-    </PanelSection>
+       the person working it needs is the triage steps for the rule that raised it. Each runbook
+       carries its own summary line, so it needs no section rule above it. *@
+    @foreach (var rule in _rules)
+    {
+        <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
+    }
 
     <PanelSection Title="Timeline">
         <DeskStack>

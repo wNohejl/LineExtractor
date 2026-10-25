@@ -47,8 +47,10 @@ learned them all.
 - No change to the window chrome (`AppWindow`, `WindowBar`), the rail, the footer or the
   command palette.
 - Grids, charts, tags, metrics, buttons, fields and switches keep their current look.
-- The uppercase section rule stays. It is the system's established convention for a
-  *section*; this design reserves it for that job and takes it off titles.
+- ~~The uppercase section rule stays. It is the system's established convention for a
+  *section*; this design reserves it for that job and takes it off titles.~~ Amended by the
+  HIG audit (`2026-10-25-hig-desk-audit.md`, ruling "Section headers lose their capitals"):
+  section rules are sentence case at `--text-subheadline`.
 
 ## Anti-goals
 
@@ -204,7 +206,7 @@ sibling pair.
 |---|---|---|---|
 | Panel title | `--text-title2` | semibold | `--text-primary` |
 | Meta line (title or section) | `--text-subheadline` | regular | `--text-secondary` |
-| Section rule | `--text-footnote`, uppercase | semibold | `--text-secondary` (unchanged) |
+| Section rule | `--text-subheadline`, sentence case | semibold | `--text-secondary` |
 | Toolbar message | `--text-subheadline` | regular | `--text-secondary` |
 
 ## Where each panel lands

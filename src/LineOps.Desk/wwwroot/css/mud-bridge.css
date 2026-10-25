@@ -459,11 +459,10 @@
    own fill, so a table of them settles.
 
    Neutral is --surface-3 under --text-secondary, exactly as .tag's neutral is: the
-   shape says "label", and no state is claimed until something claims one. The
-   uppercase tracking is kept because .tag carries it — it is the deliberate
-   typographic treatment of a small state word at --text-caption, not Mud's ambient
-   button tracking leaking in, and dropping it here would put chips and tags back
-   out of step in the other direction.
+   shape says "label", and no state is claimed until something claims one. The word
+   is set as .tag's is — sentence case at --text-footnote, medium, untracked (the
+   all-caps eyebrow went from both together, audit 2026-10-25) — so chips and tags
+   stay in step.
 
    Only the base chip is restated. Mud's own colour variants resolve through the
    theme palette, which DeskTheme.cs already points at the desk's colours, so they
@@ -476,10 +475,8 @@
     border-radius: 999px;
     background-color: var(--surface-3);
     color: var(--text-secondary);
-    font-size: var(--text-caption);
+    font-size: var(--text-footnote);
     font-weight: var(--weight-medium);
-    letter-spacing: .07em;
-    text-transform: uppercase;
     transition: none;
 }
 

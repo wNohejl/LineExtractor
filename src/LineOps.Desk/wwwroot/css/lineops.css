@@ -666,15 +666,14 @@ html, body {
 }
 
 /* What the hairline used to say on its own. Set like the panel headings rather than the
-   keys, so it reads as a label for the run and never as another thing to press. */
+   keys, so it reads as a label for the run and never as another thing to press. The group's
+   own title-case noun ("Operations"), not capitals: the HIG has no all-caps eyebrow. */
 .bar__group-name {
     flex: 0 0 auto;
     padding: 0 var(--space-1) 0 var(--space-2);
-    color: var(--text-tertiary);
-    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-size: var(--text-subheadline);
     font-weight: var(--weight-semibold);
-    letter-spacing: .07em;
-    text-transform: uppercase;
     white-space: nowrap;
     user-select: none;
 }
@@ -1060,7 +1059,7 @@ html, body {
 }
 
 /* Title-style nouns, as the HIG labels a tab view: "Wager", "Slip · 2" — not an all-caps,
-   tracked eyebrow, which is a label style this system reserves for section rules. */
+   tracked eyebrow, a label style the desk no longer uses anywhere. */
 .tabs__tab {
     min-width: 0;
     height: 26px;
@@ -1191,20 +1190,15 @@ html, body {
 .ftr__divider { width: 1px; height: 16px; background: var(--separator); flex: 0 0 auto; }
 
 .ftr__stat {
-    font-size: calc(11px * var(--text-scale));
+    font-size: var(--text-footnote);
     color: var(--text-tertiary);
     white-space: nowrap;
-    letter-spacing: .04em;
     flex: 0 0 auto;
 }
 
-.ftr__flag {
-    color: var(--accent);
-    font-size: calc(9.5px * var(--text-scale));
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    margin-left: 4px;
-}
+/* A word inside a stat ("fixed"), set as the stat is: it qualifies the reading, it is not a
+   control, so it takes neither the accent nor capitals. */
+.ftr__flag { margin-left: var(--space-1); }
 
 /* A refusal appears next to the taskbar, where the click that failed was aimed. */
 .ftr__refusal {
@@ -1793,12 +1787,11 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     padding: 6px;
 }
 
+/* A group header in a menu: sentence case ("Saved here"), footnote, semibold, secondary. */
 .launcher__group {
-    font-size: calc(10px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .13em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
     padding: 10px 10px 5px;
 }
 
@@ -1844,20 +1837,19 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* --------------------------------------------------- panel typography ---- */
 
-/* A section header, Apple's grouped-list way: footnote size, semibold, capitals, lightly
-   tracked, in --text-secondary.
+/* A section header: sentence case ("Recent games"), subheadline, semibold, --text-secondary,
+   untracked — the same voice as a grouped form's header (.pform--grouped > .panel-h) and the
+   wager window's group head (.wgroup__head).
 
-   It used to be 10.5px at --text-tertiary with .13em of tracking. Tertiary is the tier for an
-   annotation nobody has to read — 30% white on the panel is under 3:1 — and a header is how
-   the eye finds a section, so it has to be read. The wide tracking made the capitals shimmer
-   at that size rather than hold together as a word. Distinction comes from case and weight
-   against body text, not from being faint. */
+   It was footnote capitals with .06em of tracking, and before that 10.5px tertiary at .13em.
+   The HIG has no all-caps eyebrow (audit 2026-10-25, "Section headers lose their capitals"):
+   distinction comes from weight and the secondary label colour against body text, not from
+   case or from being faint. Tertiary stays off it — a header is how the eye finds a section,
+   so it has to be read. */
 .panel-h {
-    font-size: var(--text-footnote);
+    font-size: var(--text-subheadline);
     font-weight: var(--weight-semibold);
-    letter-spacing: .06em;
     line-height: var(--leading-tight);
-    text-transform: uppercase;
     color: var(--text-secondary);
     margin: 0 0 var(--space-2);
 }
@@ -1887,7 +1879,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: calc(22px * var(--text-scale));
     font-weight: var(--weight-medium);
     line-height: 1.05;
-    letter-spacing: -.02em;
 }
 
 .metric--good .metric__value { color: var(--state-positive); }
@@ -1896,9 +1887,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .metric--info .metric__value { color: var(--accent); }
 
 .metric__label {
-    font-size: calc(10.5px * var(--text-scale));
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    font-size: var(--text-footnote);
     color: var(--text-secondary);
     margin-top: 5px;
 }
@@ -2046,7 +2035,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .price__book {
     font-size: calc(9px * var(--text-scale));
     font-weight: 500;
-    letter-spacing: .1em;
     color: var(--accent);
     border: 1px solid var(--accent-wash);
     border-radius: 2px;
@@ -2095,7 +2083,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .price__edge {
     font-variant-numeric: tabular-nums;
     font-size: calc(9.5px * var(--text-scale));
-    letter-spacing: .04em;
     color: var(--text-tertiary);
     opacity: 0;
     transition: opacity .1s ease;
@@ -2113,7 +2100,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .price__ev {
     font-variant-numeric: tabular-nums;
     font-size: calc(9.5px * var(--text-scale));
-    letter-spacing: .04em;
     color: var(--text-tertiary);
     opacity: 0;
     transition: opacity .1s ease;
@@ -2139,7 +2125,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .value__bet {
     font-variant-numeric: tabular-nums;
     font-size: calc(10px * var(--text-scale));
-    letter-spacing: .03em;
     color: var(--text-tertiary);
     white-space: nowrap;
 }
@@ -2306,11 +2291,12 @@ body.dialog-dragging { user-select: none; }
 .deskdialog__icon { display: grid; place-items: center; color: var(--text-tertiary); flex: 0 0 auto; }
 .deskdialog__icon svg { width: 15px; height: 15px; }
 
+/* Set as a window's title is (.win__title): a dialog is a window that floats, and its name is
+   a name, not an eyebrow. */
 .deskdialog__title {
     font-size: var(--text-headline);
     font-weight: var(--weight-semibold);
-    letter-spacing: .085em;
-    text-transform: uppercase;
+    color: var(--text-primary);
     white-space: nowrap;
     flex: 0 0 auto;
 }
@@ -2457,10 +2443,8 @@ body.dialog-dragging { user-select: none; }
 .pullmenu__cost {
     flex: 0 0 auto;
     font-variant-numeric: tabular-nums;
-    font-size: calc(10px * var(--text-scale));
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
 }
 
 .pullmenu__desc {
@@ -2518,10 +2502,8 @@ body.dialog-dragging { user-select: none; }
     flex: 0 0 auto;
     opacity: 0;
     color: var(--accent);
-    font-size: calc(9.5px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .1em;
-    text-transform: uppercase;
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
     transition: opacity .1s ease;
 }
 
@@ -2579,18 +2561,21 @@ body.dialog-dragging { user-select: none; }
    because an inline-block that exactly equals the strut still has to be positioned
    within it and cannot be. The 1px vertical-align is the rest of the measurement, not
    a guess: at baseline the capsule sat 6px from the cell's top and 4px from its bottom;
-   lifting it 1px reads 5/5, dead centre, and the row still measures 29px. */
+   lifting it 1px reads 5/5, dead centre, and the row still measures 29px.
+
+   The word is sentence case at --text-footnote (11px), untracked — it was caption (10px)
+   capitals at .07em, an all-caps eyebrow the HIG does not have (audit 2026-10-25). The
+   box is unchanged by that: line-height 14px + 2px + 2px padding = 18px, and 11px glyphs
+   sit inside a 14px line with room to spare, so the 29px row holds. */
 .tag {
     display: inline-block;
     padding: 2px var(--space-2);
     border: 0;
     border-radius: 999px;
-    font-size: var(--text-caption);
+    font-size: var(--text-footnote);
     line-height: 14px;
     vertical-align: 1px;
     font-weight: var(--weight-medium);
-    letter-spacing: .07em;
-    text-transform: uppercase;
     background: var(--surface-3);
     color: var(--text-secondary);
     white-space: nowrap;
@@ -3018,8 +3003,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     border: 0;
     font-size: var(--text-subheadline);
     font-weight: var(--weight-regular);
-    letter-spacing: 0;
-    text-transform: none;
     color: var(--text-secondary);
 }
 .pform--grouped > .panel-h::after { display: none; }
@@ -3418,9 +3401,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__icon { display: inline-flex; color: var(--text-secondary); }
 
 .snippet__title {
+    font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
-    letter-spacing: .06em;
-    text-transform: uppercase;
     color: var(--text-secondary);
 }
 
@@ -3454,10 +3436,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__markets { display: flex; gap: 18px; flex-wrap: wrap; }
 
 .snippet__market-name {
-    font-size: calc(10px * var(--text-scale));
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
     margin-bottom: 4px;
 }
 
@@ -3508,10 +3488,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 .fact__label {
-    font-size: calc(10px * var(--text-scale));
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
     margin-bottom: 3px;
 }
 
@@ -3642,12 +3620,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an
    ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
-   difference. Tracked, and set in a 3px-radius chip rather than a capsule — a capsule
-   is the tag's shape and means "a state", which this is not: it names a side. */
+   difference. Set in a 3px-radius chip rather than a capsule — a capsule is the tag's
+   shape and means "a state", which this is not: it names a side. */
 .price__sel {
     font-size: calc(10px * var(--text-scale));
     font-weight: var(--weight-semibold);
-    letter-spacing: .04em;
     color: var(--text-secondary);
     background: var(--surface-2);
     border: 1px solid var(--separator);
@@ -4163,8 +4140,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .stake-row__returns-label {
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
-    letter-spacing: .06em;
-    text-transform: uppercase;
     color: var(--text-secondary);
 }
 .stake-row__returns strong { font-size: var(--text-title3); font-weight: var(--weight-semibold); color: var(--text-primary); }
