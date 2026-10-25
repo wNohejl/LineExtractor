@@ -883,8 +883,19 @@ else
         await ReadPriorAsync();
     }
 
+    /// <summary>
+    /// A different book is a different bet: the stake and the note typed for the old one go, so
+    /// a $110 meant for DraftKings is never logged at FanDuel by a press that did not look down.
+    /// Choosing the book already chosen changes nothing.
+    /// </summary>
     private void ChooseBook(string book)
     {
+        if (!string.Equals(_offer?.Book, book, StringComparison.OrdinalIgnoreCase))
+        {
+            _stake = 0;
+            _note = null;
+        }
+
         _book = book;
         _moved = null;
         _opened = null;

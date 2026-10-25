@@ -86,6 +86,35 @@ public class WagerWindowBooksTests : WagerTestContext
     }
 
     [Fact]
+    public void Changing_the_book_clears_the_stake_and_the_note()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        Key(cut, 50m.ToString("C0")).Click();
+        cut.Find("input[aria-label='Note']").Input("fade the public");
+        Assert.False(Log(cut).HasAttribute("disabled"));
+
+        OpenBooks(cut);
+        cut.FindAll(".book-row").First(r => r.TextContent.Contains("fanduel")).Click();
+
+        // A bet at another book is another bet: the amount and the note were the old one's.
+        Assert.True(Log(cut).HasAttribute("disabled"));
+        Assert.Equal("Needs a stake above zero.", cut.Find(".wager-why").TextContent.Trim());
+        Assert.Empty(cut.Find("input[aria-label='Note']").GetAttribute("value") ?? string.Empty);
+    }
+
+    [Fact]
+    public void Choosing_the_book_already_chosen_keeps_the_stake()
+    {
+        var cut = Render(Markets.Moneyline, BoardRows.Home);
+        Key(cut, 50m.ToString("C0")).Click();
+
+        OpenBooks(cut);
+        cut.FindAll(".book-row").First(r => r.TextContent.Contains("draftkings")).Click();
+
+        Assert.False(Log(cut).HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void The_chosen_book_is_kept_when_the_side_changes()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
