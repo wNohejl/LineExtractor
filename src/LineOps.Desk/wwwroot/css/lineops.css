@@ -2942,14 +2942,40 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    message, then the actions slot at the right edge — where the one Filled key lives
    in every window. A bare search field is an <input> straight in the row; a labelled
    one is wrapped in .field-set. Either takes the remaining width. */
-.ptoolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3); }
-.ptoolbar > input.field, .ptoolbar > .field-set { flex: 1 1 160px; min-width: 150px; }
+/* The row is a container: a desk of two or three windows side by side gives a 1500px
+   viewport 400px windows, so the toolbar asks how wide it is, not how wide the screen is.
+   Nothing in it shrinks to fit (a picker or a key that does is clipped mid-word); the row
+   wraps instead. Adjacent views stack as space shrinks (HIG, Layout). */
+.ptoolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: 0 0 var(--space-3);
+    container-type: inline-size;
+    container-name: ptoolbar;
+}
+.ptoolbar > input.field, .ptoolbar > .field-set { flex: 1 1 160px; min-width: min(150px, 100%); }
 /* A select is sized to its words, not to the row: .field is width:100% for the forms
    it sits in, and a picker that took the whole toolbar would push everything after it
-   onto the next line. Callers that want a longer picker still say so with max-width. */
-.ptoolbar > select.field { width: auto; flex: 0 1 auto; }
-.ptoolbar__msg { font-size: var(--text-subheadline); color: var(--text-secondary); }
-.ptoolbar__actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+   onto the next line. Callers that want a longer picker still say so with max-width.
+   It does not shrink below its words either: flex-shrink can cut "All sports" to a
+   letter and a caret. A row too narrow for it wraps it onto the next line instead. */
+.ptoolbar > select.field { width: auto; flex: 0 0 auto; min-width: min(5rem, 100%); max-width: 100%; }
+.ptoolbar > .gate { max-width: 100%; }
+.ptoolbar__msg { flex: 0 1 auto; min-width: 0; font-size: var(--text-subheadline); color: var(--text-secondary); }
+/* The keys wrap inside their slot rather than run off the window's edge, each line flush
+   right, so the Filled key (last in source) stays last on screen. A key never shrinks:
+   .desk-btn clips its own label (overflow: hidden, for the shimmer). */
+.ptoolbar__actions {
+    margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end;
+    align-items: center; gap: var(--space-2); max-width: 100%;
+}
+.ptoolbar__actions > *, .ptoolbar > .desk-btn { flex: 0 0 auto; max-width: 100%; }
+
+/* A narrow toolbar gives the message and the keys a line each, after the pickers, rather
+   than wedging a key beside whichever picker happened to end short. After the rules above
+   on purpose: same specificity, so it has to come later to win. */
+@container ptoolbar (max-width: 520px) {
+    .ptoolbar__msg { flex-basis: 100%; }
+    .ptoolbar__actions { flex-basis: 100%; }
+}
 
 /* 5 · Section. The air between sections is the section's; its rule renders Tight,
    so the global "heading after content" rule stands down and this one decides. */
@@ -4257,78 +4283,93 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    same once a game is in hand. The stepper beneath is capped at a reading width: a form that
    stretches across a 1900px window spaces its controls out of reach of one another, and a
    window beside other windows is rarely that wide anyway. */
-/* The header is the subject, on the body like every other window's title: set apart from the
-   steps by air, not by a box — a box the width of its view stops meaning "group". */
-.whead { margin-bottom: var(--space-6); max-width: 760px; }
+/* ---- The wizard's two cards, after the package wizard (the reference the operator chose)
+   paired with the HIG: a header card with the subject, a 3px accent base and the tags on its
+   line; one main card holding the whole stepper, so the form is one object with one edge. A
+   card is a fill with a 1px hairline edge — the house rule is that a group is bordered — and
+   the groups inside it are a level lighter with their own edge; nothing is boxed a third time.
+   Both cards cap at a reading width and share it; wide windows get a second column (below). */
+.whead {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    max-width: var(--wizard-max, 760px);
+    padding: var(--space-4) var(--space-5, 20px);
+    background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
+    border-bottom: 3px solid var(--accent);
+    border-radius: var(--radius-panel) var(--radius-panel) var(--radius-sm) var(--radius-sm);
+}
+.whead > .ptitle, .whead > .game-search { flex: 1 1 320px; min-width: 0; }
 .whead .ptitle { margin-bottom: 0; }
-.whead .game-search__chosen .game-search__match { font-size: var(--text-title3); }
+.whead .ptitle__name { font-size: var(--text-title1); font-weight: var(--weight-bold, 700); letter-spacing: -.01em; }
+.whead .game-search__chosen .game-search__match { font-size: var(--text-title2); }
 /* Every name in the header is a link, as in the Game window's title: the teams open their
    windows, the kickoff opens the game, the chosen game in the search changes it. A link set
    in the title ramp keeps the ramp; the dotted rule and the shortcut are the only tell. */
 .whead .desklink { font: inherit; color: inherit; }
 .whead .ptitle__name .desklink__label { font-size: inherit; font-weight: inherit; }
 .whead .game-search__match .desklink__label { font-weight: var(--weight-semibold); }
-/* A heading is not a grid row, so the links show their rule on their own hover. */
 .whead .desklink:hover .desklink__label { border-bottom-color: var(--accent); }
-/* The slip as a tab of the wager window and the Journal: the bar sits at the top of the
-   window, under its own title bar, and the wager's header follows it without extra air. */
 .wtabs { margin-bottom: var(--space-4); }
-.whead__hint { margin: var(--space-2) 0 0; max-width: 68ch; font-size: var(--text-subheadline); line-height: var(--leading-body); color: var(--text-secondary); }
+.whead__hint { flex-basis: 100%; margin: 0; max-width: 68ch; font-size: var(--text-subheadline); line-height: var(--leading-body); color: var(--text-secondary); }
 .wfield--wide { width: 100%; max-width: 520px; }
-/* The big number is the open card's; the folded summary says the same price at text size. */
 .wstep__summary .wager-offer__price { font-size: inherit; font-weight: var(--weight-semibold); color: var(--text-primary); }
 .wstep__summary .wager-offer__book { font-size: inherit; }
 
-/* ---- The stepper (DeskSteps / DeskStep): a marker on a rail down the left, the step beside
-   it. Done turns the number into a check and the rail beneath it into accent, so the finished
-   part of the form reads as a filled line; the current marker is solid accent; a waiting step
-   dims its title and says what it waits for on the same line. Only an open step has a body, so
-   a folded step is one line: the title, then what was chosen, then Change. */
-.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-width: 760px; }
+.wcard {
+    max-width: var(--wizard-max, 760px);
+    padding: var(--space-5, 20px) var(--space-6) var(--space-6);
+    background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
+    border-radius: var(--radius-panel);
+}
+
+/* ---- The stepper inside the card: a 16px ring on a 2px rail. The current step's ring holds
+   a dot and its title takes the accent; a done ring fills with a check; a waiting step's ring
+   is grey and its title dims, with what it waits for on the same line. Only an open step has a
+   body, so a folded step is one line. */
+.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .wstep {
     position: relative;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
-    column-gap: var(--space-3);
-    padding-bottom: var(--space-4);
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: var(--space-4);
+    padding-bottom: var(--space-5, 20px);
 }
 .wstep:last-child { padding-bottom: 0; }
-/* The rail: from under this marker to the next one. */
 .wstep::before {
     content: "";
     position: absolute;
-    left: 10px;
-    top: 26px;
-    bottom: 2px;
+    left: 8px;
+    top: 24px;
+    bottom: 4px;
     width: 2px;
     border-radius: 1px;
-    background: var(--separator);
+    background: var(--separator-strong);
     transition: background var(--dur-fast) var(--ease-standard);
 }
 .wstep:last-child::before { display: none; }
 .wstep--done::before { background: color-mix(in oklab, var(--accent) 55%, transparent); }
 .wstep__dot {
-    width: 22px;
-    height: 22px;
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
     border-radius: 50%;
     display: grid;
     place-items: center;
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    font-variant-numeric: tabular-nums;
-    color: var(--text-secondary);
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1.5px var(--separator-strong, var(--separator));
-    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
-                box-shadow var(--dur-fast) var(--ease-standard);
-}
-.wstep__dot svg { width: 13px; height: 13px; }
-.wstep--current .wstep__dot {
+    font-size: 0;
     color: var(--on-accent);
-    background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-wash);
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--text-tertiary);
+    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
 }
-.wstep--done .wstep__dot { color: var(--on-accent); background: var(--accent); box-shadow: none; }
+.wstep__dot svg { width: 11px; height: 11px; }
+.wstep--current .wstep__dot { box-shadow: inset 0 0 0 2px var(--accent); }
+.wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
 .wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .wstep__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 22px; }
 .wstep__title {
@@ -4563,3 +4604,63 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .take { all: unset; cursor: pointer; user-select: none; }
 .take:hover span { color: var(--accent); }
 .take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- The house rule on groups, and the wizard at every width ------------------------------
+   A group is bordered: a 1px hairline on its fill, the way macOS draws a grouped form and the
+   package wizard draws its sections. Inside the wizard's card the group sits a half level
+   lighter than the card so the edge reads as an edge and not a seam. Placed last so it wins. */
+.wgroup { border: 1px solid var(--separator-strong); }
+.wcard .wgroup { background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-3)); }
+.wcard .wgroup__row + .wgroup__row::before { left: 0; }
+.wsteps .wgroup { max-width: none; }
+.wstep__title { font-size: var(--text-title2); line-height: 24px; }
+
+/* The segmented control as the package wizard draws it: a pill track with a hairline, and the
+   chosen segment a filled pill in the accent with white words. Scoped to the bet's gates. */
+.selection-gate {
+    max-width: none;
+    padding: 3px;
+    background: var(--surface-0);
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--separator-strong);
+}
+.selection-gate .gate__cap { top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n)); border-radius: 999px; background: var(--accent); box-shadow: none; }
+.selection-gate .gate__opt { min-height: 26px; border-radius: 999px; }
+.selection-gate .gate__opt--on, .selection-gate .gate__opt--on .selection-chip__price { color: var(--on-accent); }
+.selection-gate .gate__opt--on .selection-chip__price--none { color: color-mix(in srgb, var(--on-accent) 70%, transparent); }
+
+/* The price row reads as the chosen side's: the book menu is a pill like the segments, and the
+   row carries a hairline on its accent edge. */
+.wbet__price { box-shadow: inset 3px 0 0 var(--accent); }
+.wbet__price--empty { box-shadow: none; }
+.book-picker__trigger { border-radius: 999px; height: 28px; padding: 0 var(--space-2) 0 var(--space-3); background: transparent; box-shadow: inset 0 0 0 1px var(--separator-strong); }
+.book-picker__trigger:hover { background: var(--surface-3); }
+
+/* Widths. The window body is a container; the wizard reads it, not the viewport.
+   Under 1100px: one column, cards at 760px. From 1100px: two columns — the header and the
+   form on the left, the review step lifted out as its own card on the right, so a wide window
+   shows the whole bet and its checks at once instead of a form in a sea of body. */
+
+.wtabs + .tabs__panel { container-type: inline-size; }
+@container (min-width: 1000px) {
+    .wcard { --wizard-max: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); column-gap: var(--space-6); align-items: start; }
+    .whead { --wizard-max: 1180px; }
+    .wcard > .wsteps { display: contents; }
+    .wcard > .wsteps > .wstep:not(.wstep--review) { grid-column: 1; }
+    .wstep--review {
+        grid-column: 2;
+        grid-row: 1 / span 4;
+        grid-template-columns: minmax(0, 1fr);
+        padding: var(--space-4);
+        background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-3));
+        border: 1px solid var(--separator-strong);
+        border-radius: var(--radius-panel);
+    }
+    .wstep--review::before, .wstep--review > .wstep__dot { display: none; }
+    .wstep--review .wgroup { background: var(--surface-2); }
+    .wcard > .wsteps > .wstep:not(.wstep--review):nth-last-child(2) { padding-bottom: 0; }
+    .wcard > .wsteps > .wstep:not(.wstep--review):nth-last-child(2)::before { display: none; }
+}
+/* The price row names the side it prices, under its label, so the row reads as that side's. */
+.wbet__echo { display: block; margin-top: 2px; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); white-space: normal; }
+.wbet__echo:empty { display: none; }

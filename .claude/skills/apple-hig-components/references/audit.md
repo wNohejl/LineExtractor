@@ -12,7 +12,8 @@ Answer each with a yes, or fix it. Then take a screenshot at a narrow and a wide
 - [ ] Every on/off is a checkbox (form) or a switch (list row), never a button pair.
 
 ## Grouping
-- [ ] Groups are fills on the body, **no borders**; no box inside a box.
+- [ ] Groups and cards are fills with **one 1px hairline edge** (house rule); rows inside are
+      divided by hairlines and padding, never framed again; no box inside a box inside a box.
 - [ ] One inset hairline between rows; no vertical rules; no cell grid.
 - [ ] Labels lead in one aligned column; controls trail; footers explain under the group.
 - [ ] Groups are separated by space, not lines.

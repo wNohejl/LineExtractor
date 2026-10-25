@@ -50,6 +50,26 @@ public class PanelToolbarTests : DeskTestContext
     }
 
     [Fact]
+    public void Keeps_every_key_in_one_actions_item_after_the_pickers()
+    {
+        // A narrow window wraps the row: the keys must travel as one flex item, last in the
+        // row, with the Filled key last inside it, or a key is left on a line of its own
+        // beside a picker and the Filled one stops being the last thing on screen.
+        var cut = RenderComponent<PanelToolbar>(p => p
+            .AddChildContent("<select></select><select></select>")
+            .Add(x => x.Actions, "<button>Refresh</button><button class=\"filled\">Pull data</button>"));
+
+        var children = cut.Find(".ptoolbar").Children;
+        var actions = children[^1];
+
+        Assert.Contains("ptoolbar__actions", actions.ClassList);
+        Assert.Single(cut.FindAll(".ptoolbar__actions"));
+        Assert.Empty(cut.FindAll(".ptoolbar > button"));
+        Assert.Equal(new[] { "Refresh", "Pull data" }, actions.Children.Select(c => c.TextContent));
+        Assert.Contains("filled", actions.Children[^1].ClassList);
+    }
+
+    [Fact]
     public void Claims_no_aria_role()
     {
         // The ARIA toolbar pattern promises one tab stop with arrow keys between the

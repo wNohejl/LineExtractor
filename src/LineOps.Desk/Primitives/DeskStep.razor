@@ -19,7 +19,7 @@
     of it — says so.
 *@
 
-<li class="wstep wstep--@State.ToString().ToLowerInvariant() @(IsOpen ? "wstep--open" : null)"
+<li class="wstep wstep--@State.ToString().ToLowerInvariant() @(IsOpen ? "wstep--open" : null) @Class"
     aria-current="@(State == DeskStepState.Current ? "step" : null)"
     aria-labelledby="@_titleId">
     <span class="wstep__dot" aria-hidden="true">
@@ -105,6 +105,9 @@
     [Parameter] public RenderFragment? Aside { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Extra classes on the step, for a host that places one step apart (a review beside the form).</summary>
+    [Parameter] public string? Class { get; set; }
 
     private readonly string _titleId = $"step-{Guid.NewGuid():N}";
 

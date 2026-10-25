@@ -143,6 +143,10 @@ else
         </Note>
     }
 
+    @* One main card holds the stepper, as the package wizard draws it: a bordered surface with
+       the rail inside; the review step becomes its own card beside the form when the window is
+       wide enough for two columns (CSS, .wcard and .wstep--review). *@
+    <div class="wcard">
     <DeskSteps Label="@(BuildParlay ? "Add a parlay leg" : "Log a wager")">
         @* ---- 1 · Your bet: the side, and the price on it ---------------------------------
            One step and one outlined group, in two sections: the board of sides above a rule,
@@ -214,7 +218,7 @@ else
                         @* Typed: a row per field, label leading, fields one width (HIG: fields in
                            a group share widths and stack). *@
                         <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
-                            <span class="wgroup__label">Price</span>
+                            <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : Side?.Label)</span></span>
                             <div class="wager-typed__cell">
                                 <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
                                            aria-label="Price" placeholder="-110" Class="wfield--short"
@@ -257,7 +261,7 @@ else
                     else if (_offer is { } offer && Side?.Offer is { } quoted)
                     {
                         <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
-                            <span class="wgroup__label">Price</span>
+                            <span class="wgroup__label">Price<span class="wbet__echo">@Side?.Label</span></span>
                             <div class="wager-offer__top">
                                 <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
                                 @if (offer.Line is { } line)
@@ -348,7 +352,7 @@ else
 
         @* ---- 3 · Review and log -------------------------------------------------------- *@
         <DeskStep Number="@(BuildParlay ? 2 : 3)" Title="@(BuildParlay ? "Review and add" : "Review and log")"
-                  State="@StateOf(ReviewStep)" Open="@IsOpen(ReviewStep)"
+                  State="@StateOf(ReviewStep)" Open="@IsOpen(ReviewStep)" Class="wstep--review"
                   Waiting="@(_offer is null ? "Your bet and its price come first." : "A stake comes first.")"
                   Hint="@(BuildParlay
                       ? "Check anything flagged, then add it. The parlay's stake, price and book are set on the Slip tab, where it is logged."
@@ -464,6 +468,7 @@ else
             </p>
         </DeskStep>
     </DeskSteps>
+    </div>
 }
 </DeskTabs>
 

@@ -29,9 +29,13 @@ Footer: one or two sentences of explanation, footnote, secondary.
 
 Rules that make it read as a form and not a stack of boxes:
 
-1. **The group is a fill, not a frame.** Secondary grouped background on the primary one.
-   No border. Depth, when needed, is one more fill level inside (tertiary), used for the
-   well of a field, not for a nested box.
+1. **The group is a fill with one hairline edge.** Secondary grouped background on the
+   primary one, and a 1px stroke at the strong separator alpha (macOS System Settings draws
+   its grouped forms this way; the house rule, decided October 2026 after a borderless pass
+   was rejected, is that every group and card is bordered). What the HIG's Boxes page
+   forbids is the box *inside* a box: a card may hold groups, a group holds rows, and rows
+   are divided by hairlines and padding, never framed again. Depth inside a group is one
+   more fill level (the well of a field), not a nested border.
 2. **One hairline between rows, inset from the label's leading edge to the trailing edge.**
    Never a vertical rule; never a rule around the group; never a grid of cells.
 3. **Labels lead, controls trail, in one aligned column.** The label column has one width

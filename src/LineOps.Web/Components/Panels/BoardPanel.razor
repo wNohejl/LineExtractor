@@ -33,53 +33,57 @@
 *@
 
 <PanelToolbar>
-    <DeskSelect TValue="string" style="max-width:190px" Value="_sport" ValueChanged="OnSportChanged">
-        @* Requested leagues, not merely the ones with games. A league the desk was told to poll
-           and has nothing for is a different fact from a league nobody asked about, and the
-           option says which — see ADR 0003 on the two kinds of zero. *@
-        <option value="">All sports@(_rows.Count > 0 ? $" · {_rows.Count}" : "")</option>
-        @foreach (var option in _sportOptions)
+    <ChildContent>
+        <DeskSelect TValue="string" style="max-width:190px" Value="_sport" ValueChanged="OnSportChanged">
+            @* Requested leagues, not merely the ones with games. A league the desk was told to poll
+               and has nothing for is a different fact from a league nobody asked about, and the
+               option says which — see ADR 0003 on the two kinds of zero. *@
+            <option value="">All sports@(_rows.Count > 0 ? $" · {_rows.Count}" : "")</option>
+            @foreach (var option in _sportOptions)
+            {
+                <option value="@option.Key">@option.Label</option>
+            }
+        </DeskSelect>
+
+        <DeskSwitch Options="Horizons" Label="Slate horizon" Mono="true"
+                    Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
+
+        @* Only offered once there is something to narrow. A gate with every position pointing at
+           the same rows is chrome pretending to be a control. *@
+        @if (_phaseOptions.Count > 1)
         {
-            <option value="@option.Key">@option.Label</option>
+            <DeskSwitch Options="_phaseOptions" Label="Game state"
+                        Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
         }
-    </DeskSelect>
 
-    <DeskSwitch Options="Horizons" Label="Slate horizon" Mono="true"
-                Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
+        @* Narrows the slate to a team or a matchup — "mets", "reds braves" — by the same rule the
+           command palette finds games with. The slate is already loaded, so this asks nothing. *@
+        <DeskField TValue="string" Immediate="true" style="max-width:170px"
+                   placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
 
-    @* Only offered once there is something to narrow. A gate with every position pointing at
-       the same rows is chrome pretending to be a control. *@
-    @if (_phaseOptions.Count > 1)
-    {
-        <DeskSwitch Options="_phaseOptions" Label="Game state"
-                    Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
-    }
+        @* The games where some book is paying more than the fair price. Offered only while there
+           are any, for the same reason the state switch is: a filter with nothing to narrow is
+           chrome pretending to be a control. *@
+        @if (_valueRows > 0)
+        {
+            <DeskButton Size="DeskKeySize.Small"
+                        Emphasis="@(_valueOnly ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                        Title="Only games where some book's live price beats the fair price"
+                        OnClick="ToggleValue">
+                +EV · @_valueRows
+            </DeskButton>
+        }
+    </ChildContent>
+    @* The keys are the toolbar's actions slot, not more content after a spacer: the slot keeps
+       them together and flush right as the window narrows, where a spacer let Pull data wrap
+       to a line of its own and leave Refresh behind. *@
+    <Actions>
+        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
 
-    @* Narrows the slate to a team or a matchup — "mets", "reds braves" — by the same rule the
-       command palette finds games with. The slate is already loaded, so this asks nothing. *@
-    <DeskField TValue="string" Immediate="true" style="max-width:170px"
-               placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
-
-    @* The games where some book is paying more than the fair price. Offered only while there
-       are any, for the same reason the state switch is: a filter with nothing to narrow is
-       chrome pretending to be a control. *@
-    @if (_valueRows > 0)
-    {
-        <DeskButton Size="DeskKeySize.Small"
-                    Emphasis="@(_valueOnly ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
-                    Title="Only games where some book's live price beats the fair price"
-                    OnClick="ToggleValue">
-            +EV · @_valueRows
-        </DeskButton>
-    }
-
-    <span class="ftr__spacer"></span>
-
-    <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
-
-    @* The panel's one Filled key, and the only control here that spends anything. Everything
-       else on this toolbar reads. *@
-    <PullMenu @ref="_pull" OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
+        @* The panel's one Filled key, and the only control here that spends anything. Everything
+           else on this toolbar reads. *@
+        <PullMenu @ref="_pull" OnPulled="LoadAsync" OnBusyChanged="OnPullBusy" />
+    </Actions>
 </PanelToolbar>
 
 @*
