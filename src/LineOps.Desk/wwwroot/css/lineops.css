@@ -4001,6 +4001,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     background: var(--surface-2);
     border-radius: var(--radius-panel);
     overflow: hidden;
+    /* Its rows ask how wide the group is, not the window: a narrow group stacks each label
+       above its control (HIG: side-by-side views may need to stack as space shrinks). */
+    container-type: inline-size;
+}
+@container (max-width: 400px) {
+    .wgroup__row--form { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-1); padding-top: var(--space-2); padding-bottom: var(--space-2); }
+    .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
 }
 
 .wgroup__row {
@@ -4331,21 +4338,27 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     width: 100%;
     max-width: 420px;
 }
+/* A segment wraps its words onto a second line in a narrow group rather than clipping the
+   team to two letters or running "no price" into the next segment; the cap follows its height. */
 .selection-gate .gate__opt {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: center;
-    gap: var(--space-2);
+    gap: 0 var(--space-2);
     min-width: 0;
-    height: 28px;
-    padding: 0 var(--space-3);
+    height: auto;
+    min-height: 28px;
+    padding: 4px var(--space-2);
     font-size: var(--text-body);
+    line-height: 20px;
     color: var(--text-primary);
+    white-space: normal;
 }
 /* The chosen side is the window's one selection, so its cap takes the selection wash the
    tab bar's does and its words the accent — selection is one of the accent's three jobs. */
 .selection-gate .gate__cap { background: var(--accent-wash); box-shadow: none; }
-.selection-chip__team { font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selection-chip__team { font-weight: var(--weight-medium); white-space: nowrap; }
 .selection-chip__side { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .selection-gate .gate__opt--on { color: var(--accent); }
