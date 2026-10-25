@@ -1057,6 +1057,8 @@ html, body {
     border-radius: 4px;
 }
 
+/* Title-style nouns, as the HIG labels a tab view: "Wager", "Slip · 2" — not an all-caps,
+   tracked eyebrow, which is a label style this system reserves for section rules. */
 .tabs__tab {
     min-width: 0;
     height: 26px;
@@ -1066,10 +1068,10 @@ html, body {
     border-radius: 4px;
     color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: calc(10.5px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .09em;
-    text-transform: uppercase;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0;
+    text-transform: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3990,12 +3992,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
 
-/* Outlined, not only filled: a group is one decision's controls, and the rule around it is
-   where that decision starts and ends. Inside it, full-width rules divide the decision's parts.
-   The fill stays a step above the window, so the outline reads as an edge, not a frame. */
+/* A group is a fill one level above the body, never a frame: the HIG's grouped list (a
+   secondary grouped background on the primary), where a box with a border is the strongest
+   grouping device and the last resort, and a box inside a box "feels busy and constrained"
+   (apple-hig-components, forms.md). Rows inside it are divided by one hairline, inset to the
+   label's leading edge, as grouped lists draw it. */
 .wgroup {
     background: var(--surface-2);
-    border: 1px solid var(--separator);
     border-radius: var(--radius-panel);
     overflow: hidden;
 }
@@ -4011,30 +4014,60 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     line-height: var(--leading-body);
 }
 
-/* The rule between rows runs the group's full width, meeting its outline on both sides: a
-   division of the group, not a hairline floating in it. */
+/* The inset hairline: from the label's leading edge to the group's trailing edge. */
 .wgroup__row + .wgroup__row::before {
     content: "";
     position: absolute;
     top: 0;
     right: 0;
-    left: 0;
+    left: var(--space-4);
     border-top: 1px solid var(--separator);
 }
 
 .wgroup__row--pad { padding: var(--space-3); }
 
+/* A form row: the label leads in one column the whole group shares, so the controls line
+   up down the page; the control takes the rest. --form-label is the group's to set. */
+.wgroup__row--form {
+    display: grid;
+    grid-template-columns: var(--form-label, 88px) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+}
+.wgroup__label {
+    font-size: var(--text-body);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+/* Footers explain, under the group, in the secondary colour: the sentence about what a group
+   will do is not a box of its own. */
+.wgroup__foot {
+    margin: var(--space-2) 0 0;
+    padding: 0 var(--space-4);
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wgroup__foot strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+/* Fields inside a form row: one short width shared by a group's short fields, or the rest
+   of the row for a note. */
+.wfield--short { width: 100%; max-width: 160px; }
+.wfield--fill { width: 100%; }
+
 /* ---- The offer: the one number this window is about, set as the window's title. */
 .wager-offer { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); }
 .wager-offer__top { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
-/* The one number the window is about, in the accent: the only coloured thing in the group,
-   so the eye lands on the price and reads the side, the line and the book from it. */
+/* In a form the price is a value beside its label — title 2, the primary label colour,
+   tabular figures — not a hero figure, and not in the accent: the accent is for what can be
+   pressed, and the book menu beside it is that. */
 .wager-offer__price {
-    font-size: var(--text-largetitle);
+    font-size: var(--text-title2);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
     letter-spacing: -.01em;
-    color: var(--accent);
+    color: var(--text-primary);
     font-variant-numeric: tabular-nums;
 }
 .wager-offer__book { font-size: var(--text-headline); font-weight: var(--weight-semibold); }
@@ -4115,8 +4148,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wsection__head > .desk-btn { margin-left: auto; }
 .wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
-.wager-offer__line { font-size: var(--text-title3); font-weight: var(--weight-semibold); color: var(--text-secondary); }
-.wager-typed { flex-wrap: wrap; align-items: flex-end; }
 .wager-typed .field-set { margin: 0; }
 
 /* ---- The books: a filter of chips, each with its price, over a list to choose from. The chosen
@@ -4181,17 +4212,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    same once a game is in hand. The stepper beneath is capped at a reading width: a form that
    stretches across a 1900px window spaces its controls out of reach of one another, and a
    window beside other windows is rarely that wide anyway. */
-/* The header is the subject, set apart from the steps by its own outline and an accent rule
-   along its base — the one heavier line on the page, under the one thing that is not a choice. */
-.whead {
-    margin-bottom: var(--space-4);
-    max-width: 760px;
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface-2);
-    border: 1px solid var(--separator);
-    border-bottom: 2px solid var(--accent);
-    border-radius: var(--radius-panel) var(--radius-panel) var(--radius-sm) var(--radius-sm);
-}
+/* The header is the subject, on the body like every other window's title: set apart from the
+   steps by air, not by a box — a box the width of its view stops meaning "group". */
+.whead { margin-bottom: var(--space-6); max-width: 760px; }
 .whead .ptitle { margin-bottom: 0; }
 .whead .game-search__chosen .game-search__match { font-size: var(--text-title3); }
 /* Every name in the header is a link, as in the Game window's title: the teams open their
@@ -4297,108 +4320,57 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wstep__body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wstep__body > .note { margin: 0; }
 
-/* ---- Your bet, as a board: the two teams head the columns, the three markets name the rows,
-   and each cell is the number and the best price on it. One surface, hairlines between the
-   cells, the chosen one lit — not six tiles each repeating the team. */
-.selection-board {
+/* ---- Your bet, as a grouped form: a row per market, the market's name leading, and a
+   two-segment control trailing — the HIG's "one of a few, all visible, setting a state".
+   It was a 3×2 grid of outlined cells, which reads as a table to look things up in. One side
+   across the three rows, so a row with no choice shows no cap: a value matching no segment
+   shows nothing rather than a wrong answer. */
+.selection-form { display: contents; }
+.selection-gate {
     display: grid;
-    grid-template-columns: minmax(84px, max-content) minmax(0, 1fr) minmax(0, 1fr);
-    max-width: 560px;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-    background: var(--surface-2);
-    overflow: hidden;
+    width: 100%;
+    max-width: 420px;
 }
-/* Inside the bet group the board is the group's upper section: its outline is the group's. */
-.wbet .selection-board { max-width: none; border: 0; border-radius: 0; }
-.selection-board__head, .selection-group { display: contents; }
-.selection-board__team {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    border-bottom: 1px solid var(--separator);
-}
-.selection-board__head > span:first-child { border-bottom: 1px solid var(--separator); }
-.selection-group__label {
-    display: flex;
-    align-items: center;
-    padding: 0 var(--space-3);
-    min-height: 40px;
-    font-size: var(--text-subheadline);
-    color: var(--text-secondary);
-    cursor: help;
-    text-decoration: underline dotted var(--text-tertiary);
-    text-underline-offset: 3px;
-    box-shadow: inset 0 1px 0 var(--separator);
-}
-.selection-chip {
-    display: flex;
+.selection-gate .gate__opt {
+    display: inline-flex;
     align-items: baseline;
     justify-content: center;
     gap: var(--space-2);
-    min-height: 40px;
+    min-width: 0;
+    height: 28px;
     padding: 0 var(--space-3);
-    border: 0;
-    background: transparent;
-    box-shadow: inset 1px 1px 0 var(--separator);
-    color: var(--text-primary);
-    font: inherit;
     font-size: var(--text-body);
-    cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+    color: var(--text-primary);
 }
-.selection-board__head ~ .selection-group:first-of-type .selection-chip,
-.selection-board__head ~ .selection-group:first-of-type .selection-group__label { box-shadow: inset 1px 0 0 var(--separator); }
-.selection-chip:hover { background: var(--surface-3); }
-.selection-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); position: relative; z-index: 1; }
-.selection-chip--on, .selection-chip--on:hover {
-    background: var(--accent-wash);
-    box-shadow: inset 0 0 0 1.5px var(--accent);
-    position: relative;
-    z-index: 1;
-}
-.selection-chip__side { font-weight: var(--weight-semibold); white-space: nowrap; }
+/* The chosen side is the window's one selection, so its cap takes the selection wash the
+   tab bar's does and its words the accent — selection is one of the accent's three jobs. */
+.selection-gate .gate__cap { background: var(--accent-wash); box-shadow: none; }
+.selection-chip__team { font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selection-chip__side { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.selection-chip--on .selection-chip__price { color: var(--accent); font-weight: var(--weight-semibold); }
+.selection-gate .gate__opt--on { color: var(--accent); }
+.selection-chip--on .selection-chip__team, .selection-chip--on .selection-chip__side { font-weight: var(--weight-semibold); }
+.selection-chip--on .selection-chip__price { color: var(--accent); }
 .selection-chip__price--none { font-size: var(--text-footnote); color: var(--text-tertiary); }
+/* The market's name explains itself on hover: the dotted rule is the desk's "there is help here". */
+.selection-group__label {
+    cursor: help;
+    text-decoration: underline dotted var(--text-tertiary);
+    text-underline-offset: 3px;
+}
 
-/* ---- Price and book: the number, the pencil that replaces it, the line, and the book menu,
-   in one run on one row — nothing pinned to the far edge, so the card reads the same at any
-   width; what the number is worth beneath; where it came from at the foot. */
-.wager-offer { gap: var(--space-2); overflow: visible; max-width: 560px; }
-.wager-offer__top { align-items: center; }
-.wager-offer__top > .wager-manual-key { margin-left: calc(-1 * var(--space-1)); color: var(--text-secondary); }
+/* ---- The price row: the number, the line, the pencil that replaces the number, and the book
+   menu, in one run beside the label — nothing pinned to the far edge. What the number is
+   worth and where it came from is the group's footer. */
+.wager-offer { overflow: visible; }
+.wager-offer__top { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.wager-offer__top > .wager-manual-key { color: var(--text-secondary); }
 .wager-offer__top > .wager-manual-key:hover { color: var(--text-primary); }
-.wager-offer__meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-3);
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--separator);
-}
+.wager-offer__line { font-size: var(--text-title3); font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.wager-offer__meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
 .wager-offer__meta .wager-offer__age { margin-left: 0; }
-.wager-price { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); max-width: 560px; }
-
-/* ---- Your bet: one group in two sections. The board of sides above, and under a rule that
-   runs the group's width, the chosen side's price and book — the number a step below the
-   thing it prices, inside the same outline, so the two read as one decision. */
-.wbet { display: flex; flex-direction: column; }
-.wbet__sides { padding: 0; }
-.wbet__sides > .field-set { margin: var(--space-3) var(--space-4); }
-.wbet__price { border-top: 1px solid var(--separator); max-width: none; }
-.wbet__price--empty {
-    padding: var(--space-3) var(--space-4);
-    font-size: var(--text-subheadline);
-    color: var(--text-tertiary);
-}
-.wbet .wager-typed-why { line-height: var(--leading-body); }
-.wager-typed { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
+.wbet__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
+.wager-typed__cell { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 
 .book-picker { position: relative; margin-left: var(--space-2); }
 .book-picker__trigger {
@@ -4468,17 +4440,20 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wsteps .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
 .wsteps .wager-why { text-align: left; }
 .wsteps .check .desk-btn { margin-left: var(--space-2); }
+/* The review sentence is the checks' footer, not a box of its own. */
 .wreview {
     margin: 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-    background: var(--surface-2);
+    padding: 0 var(--space-4);
     font-size: var(--text-body);
     line-height: var(--leading-body);
     color: var(--text-secondary);
 }
 .wreview strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+/* Inside a form row the stake's field, quick values and returns run on one line. */
+.wsteps .wstake .stake-row { gap: var(--space-2); }
+.wsteps .wstake .stake-row .field-set { margin: 0; }
+/* The stake's chosen cap on a form row: the same control as the sides, one level down. */
+.wsteps .selection-gate .gate__opt:focus-visible { z-index: 2; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
 
 .slip-badge {

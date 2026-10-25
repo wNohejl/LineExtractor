@@ -194,7 +194,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render();
 
         Key(cut, 25m.ToString("C0")).Click();
-        cut.Find("input[placeholder='Note (optional)']").Input("fade the public");
+        cut.Find("input[aria-label='Note']").Input("fade the public");
         Key(cut, "Add to slip").Click();
 
         Assert.Equal("fade the public", Slip.Items.Single().Note);

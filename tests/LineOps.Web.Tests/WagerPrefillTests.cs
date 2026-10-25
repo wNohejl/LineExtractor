@@ -129,7 +129,7 @@ public class WagerPrefillTests : WagerTestContext
         Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Contains($"You are logging {40m:C0}", cut.Find(".wreview").TextContent);
         Assert.False(cut.Find("button.desk-btn--filled").HasAttribute("disabled"));
-        Assert.Equal("fade", cut.Find("input[placeholder='Note (optional)']").GetAttribute("value"));
+        Assert.Equal("fade", cut.Find("input[aria-label='Note']").GetAttribute("value"));
     }
 
     [Fact]

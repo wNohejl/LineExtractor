@@ -180,49 +180,45 @@ else
                 }
             </Summary>
             <ChildContent>
+                @* One grouped form (apple-hig-components, forms.md): a fill, no outline, one
+                   inset rule between rows, the label leading and the control trailing in one
+                   aligned column. The three markets are three rows of a segmented control; the
+                   price is the row beneath them, a value beside its label, not a hero; what the
+                   number is worth and where it came from is the group's footer. *@
                 <div class="wgroup wbet">
-                    <div class="wbet__sides">
-                        @if (_noGame)
-                        {
-                            <DeskField TValue="string" Immediate="true" Class="wfield--wide"
-                                       placeholder="Describe the bet, e.g. Steelers to win the AFC North"
+                    @if (_noGame)
+                    {
+                        <div class="wgroup__row wgroup__row--form">
+                            <span class="wgroup__label">Bet</span>
+                            <DeskField TValue="string" Immediate="true" Class="wfield--fill"
+                                       placeholder="e.g. Steelers to win the AFC North"
                                        aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
-                        }
-                        else if (Row is not null)
-                        {
-                            <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
-                        }
-                    </div>
+                        </div>
+                    }
+                    else if (Row is not null)
+                    {
+                        <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
+                    }
 
                     @if (!HasSide)
                     {
-                        @* The price section keeps its place before a side is picked, so the group
+                        @* The price row keeps its place before a side is picked, so the group
                            does not jump when one is. *@
-                        <div class="wbet__price wbet__price--empty">Pick a side to see its price and book.</div>
+                        <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty">
+                            <span class="wgroup__label">Price</span>
+                            <span class="wbet__wait">Pick a side to see its price and book.</span>
+                        </div>
                     }
                     else if (Typing)
                     {
-                        <div class="wbet__price wager-price">
-                            <div class="wager-typed">
+                        @* Typed: a row per field, label leading, fields one width (HIG: fields in
+                           a group share widths and stack). *@
+                        <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
+                            <span class="wgroup__label">Price</span>
+                            <div class="wager-typed__cell">
                                 <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
-                                           Label="Price" placeholder="-110" style="max-width:120px"
+                                           aria-label="Price" placeholder="-110" Class="wfield--short"
                                            Value="_typedPrice" ValueChanged="SetTypedPrice" />
-                                @if (HasLine)
-                                {
-                                    <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
-                                               Label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
-                                               style="max-width:100px"
-                                               Value="_typedLine" ValueChanged="SetTypedLine" />
-                                }
-                                <DeskField TValue="string" Immediate="true" Label="Book" placeholder="draftkings"
-                                           list="@_booksListId" style="width:180px"
-                                           Value="_typedBook" ValueChanged="SetTypedBook" />
-                                <datalist id="@_booksListId">
-                                    @foreach (var book in _knownBooks)
-                                    {
-                                        <option value="@book"></option>
-                                    }
-                                </datalist>
                                 @if (Side?.Offer is not null)
                                 {
                                     <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
@@ -234,53 +230,81 @@ else
                                     </DeskButton>
                                 }
                             </div>
-                            @if (_offer is { } typed)
-                            {
-                                <div class="wager-offer__value">@ValueLine(typed)</div>
-                            }
-                            else if (Side?.Offer is null)
-                            {
-                                <div class="wager-offer__of wager-typed-why">
-                                    @(_noGame
-                                        ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
-                                        : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
-                                </div>
-                            }
+                        </div>
+                        @if (HasLine)
+                        {
+                            <div class="wgroup__row wgroup__row--form wager-typed">
+                                <span class="wgroup__label">Line</span>
+                                <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
+                                           aria-label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
+                                           Class="wfield--short"
+                                           Value="_typedLine" ValueChanged="SetTypedLine" />
+                            </div>
+                        }
+                        <div class="wgroup__row wgroup__row--form wager-typed">
+                            <span class="wgroup__label">Book</span>
+                            <DeskField TValue="string" Immediate="true" aria-label="Book" placeholder="draftkings"
+                                       list="@_booksListId" Class="wfield--short"
+                                       Value="_typedBook" ValueChanged="SetTypedBook" />
+                            <datalist id="@_booksListId">
+                                @foreach (var book in _knownBooks)
+                                {
+                                    <option value="@book"></option>
+                                }
+                            </datalist>
                         </div>
                     }
                     else if (_offer is { } offer && Side?.Offer is { } quoted)
                     {
-                        <div class="wbet__price wager-offer">
+                        <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
+                            <span class="wgroup__label">Price</span>
                             <div class="wager-offer__top">
                                 <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                                @if (offer.Line is { } line)
+                                {
+                                    <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
+                                }
                                 <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
                                             Icon="@Icons.Material.Filled.Edit"
                                             aria-pressed="false"
                                             aria-label="Enter my own price"
                                             Title="Enter my own price"
                                             OnClick="ToggleManual" />
-                                @if (offer.Line is { } line)
-                                {
-                                    <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
-                                }
                                 <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
-                            </div>
-                            <div class="wager-offer__value">@ValueLine(offer)</div>
-                            <div class="wager-offer__meta">
-                                <span class="wager-offer__of">
-                                    @(offer.IsBest ? "Best" : "One") of @offer.BooksQuoting @(offer.BooksQuoting == 1 ? "book" : "books")
-                                    @if (!offer.IsBest && WagerOffer.Best(_market!, quoted) is { } best)
-                                    {
-                                        <text> · best is @best.Book @Price(best.PriceAmerican)</text>
-                                    }
-                                </span>
-                                <span class="wager-offer__age" title="When the desk last fetched this price">
-                                    <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(offer)
-                                </span>
                             </div>
                         </div>
                     }
                 </div>
+
+                @* The group's footer: what the number is worth, and where it came from. *@
+                @if (HasSide && Typing && _offer is { } typed)
+                {
+                    <p class="wgroup__foot wager-offer__value">@ValueLine(typed)</p>
+                }
+                else if (HasSide && Typing && Side?.Offer is null)
+                {
+                    <p class="wgroup__foot wager-offer__of wager-typed-why">
+                        @(_noGame
+                            ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
+                            : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
+                    </p>
+                }
+                else if (!Typing && _offer is { } priced && Side?.Offer is { } fetched)
+                {
+                    <p class="wgroup__foot wager-offer__meta">
+                        <span class="wager-offer__value">@ValueLine(priced)</span>
+                        <span class="wager-offer__of">
+                            @(priced.IsBest ? "Best" : "One") of @priced.BooksQuoting @(priced.BooksQuoting == 1 ? "book" : "books")
+                            @if (!priced.IsBest && WagerOffer.Best(_market!, fetched) is { } best)
+                            {
+                                <text> · best is @best.Book @Price(best.PriceAmerican)</text>
+                            }
+                        </span>
+                        <span class="wager-offer__age" title="When the desk last fetched this price">
+                            <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(priced)
+                        </span>
+                    </p>
+                }
 
                 @if (_moved is not null)
                 {
@@ -301,16 +325,21 @@ else
                   Hint="How much you put down. What it returns if it wins updates as you type.">
             <Summary>@_stake.ToString("C0")</Summary>
             <ChildContent>
-                <div class="wgroup">
-                    <div class="wgroup__row wgroup__row--pad">
+                @* Two rows of the same grouped form: the amount with its quick values beside
+                   the field (HIG: common values sit beside the field), and the note; what the
+                   stake returns is the group's footer, said by StakeRow. *@
+                <div class="wgroup wstake">
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Stake</span>
                         <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" />
                     </div>
-                    <div class="wgroup__row wgroup__row--pad">
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Note</span>
                         @* Immediate: a note bound on change is committed by the blur, and a press of
                            Add to slip or Log straight from the field could run before it — the wager
                            went on with no note. Bound as it is typed, the key reads what it shows. *@
-                        <DeskField TValue="string" Immediate="true" placeholder="Note (optional)"
-                                   aria-label="Note" Class="wfield--wide" @bind-Value="_note" />
+                        <DeskField TValue="string" Immediate="true" placeholder="Optional"
+                                   aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
                     </div>
                 </div>
             </ChildContent>

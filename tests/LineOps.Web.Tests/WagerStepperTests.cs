@@ -167,7 +167,7 @@ public class WagerStepperTests : WagerTestContext
     // ---- Your bet -------------------------------------------------------------------------
 
     [Fact]
-    public void The_bet_is_a_board_with_a_column_per_team_and_a_row_per_market()
+    public void The_bet_is_a_row_per_market_each_a_two_segment_control()
     {
         Data.Games = [BoardRows.Game()];
         var cut = Render(withGame: false);
@@ -176,12 +176,16 @@ public class WagerStepperTests : WagerTestContext
         cut.FindAll(".game-search__opt")[0].Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
 
-        Assert.Equal(["Bills", "Chiefs"], cut.FindAll(".selection-board__team").Select(t => t.TextContent.Trim()));
+        // Three rows of a grouped form, each a segmented control of the two sides; no cap on a
+        // row whose side is not the chosen one.
+        Assert.Equal(["Moneyline", "Spread", "Total"], cut.FindAll(".selection-gate").Select(g => g.GetAttribute("aria-label")));
+        Assert.Empty(cut.FindAll(".selection-gate .gate__cap"));
+        Assert.Equal(["Bills", "Chiefs"], cut.FindAll(".selection-gate")[0].QuerySelectorAll(".selection-chip__team").Select(t => t.TextContent.Trim()));
         var labels = cut.FindAll(".selection-group__label");
         Assert.Equal(["Moneyline", "Spread", "Total"], labels.Select(l => l.TextContent.Trim()));
         Assert.Contains("wins the game", labels[0].GetAttribute("title"));
 
-        // Cells read in column order — away, then home; Over, then Under — and carry only what
+        // Segments read in order — away, then home; Over, then Under — and carry only what
         // differs: the line, and the price.
         Assert.Equal(
             ["ML · Bills", "ML · Chiefs", "Spread · Bills +2.5", "Spread · Chiefs -2.5", "Total · Over o47.5", "Total · Under u47.5"],
