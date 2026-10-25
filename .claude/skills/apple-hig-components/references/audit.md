@@ -32,6 +32,15 @@ Answer each with a yes, or fix it. Then take a screenshot at a narrow and a wide
 - [ ] State is never colour alone; red/orange/green sit on values, tags and marks.
 - [ ] 4.5:1 or better on all text in both appearances.
 
+## Width
+- [ ] Screenshot at the window's widest and at ~300px (a window beside other windows).
+- [ ] Narrow: each label stacks above its control (HIG: adjacent views stack as space
+      shrinks). Drive it from the group's own width (a container query), not the viewport.
+- [ ] Narrow: every segment of a control breaks in the same place; nothing clips to two
+      letters and nothing runs into its neighbour.
+- [ ] An override that must win (a narrow-width rule) is placed after the rule it overrides
+      or is more specific: check the computed value in the browser, not the source.
+
 ## Disclosure and sequence
 - [ ] A numbered rail only where the content is a sequence.
 - [ ] One step open; done steps fold to one line that reopens them; waiting steps say why.
