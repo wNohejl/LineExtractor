@@ -41,6 +41,7 @@
     alerts are computed from.
 </Note>
 
+<PanelSection Title="Runs">
 <DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">
     <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
         <CellTemplate>
@@ -101,6 +102,7 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</PanelSection>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };

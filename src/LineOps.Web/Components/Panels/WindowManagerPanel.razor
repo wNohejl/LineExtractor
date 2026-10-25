@@ -46,19 +46,7 @@
     </PanelToolbar>
 }
 
-<MetricRow>
-    <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
-        @Manager.OpenCount/@S.MaxConcurrentWindows
-    </Metric>
-    <Metric Label="Desk" Note='@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")'>
-        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
-    </Metric>
-    <Metric Label="Fits readably"
-            Value="@Manager.RecommendedCapacity.ToString()"
-            Note="at this size and layout"
-            State="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskState.Warning : DeskState.Positive)" />
-</MetricRow>
-
+@* Anatomy order (spec 2026-10-24): toolbar, note, metrics, sections. *@
 @if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
 {
     <Note State="DeskState.Warning">
@@ -72,6 +60,19 @@
     bar past a neighbour to reorder them, or the divider between two to resize them.
 </Note>
 
+<MetricRow>
+    <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
+        @Manager.OpenCount/@S.MaxConcurrentWindows
+    </Metric>
+    <Metric Label="Desk" Note='@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")'>
+        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
+    </Metric>
+    <Metric Label="Fits readably"
+            Value="@Manager.RecommendedCapacity.ToString()"
+            Note="at this size and layout"
+            State="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskState.Warning : DeskState.Positive)" />
+</MetricRow>
+
 @*
     Appearance leads, because it is the only setting on this panel that changes the panel
     itself. The note above is truer here than anywhere: there is no preview, because the
@@ -83,7 +84,7 @@
                 Value="Theme.Mode"
                 ValueChanged="@((DeskThemeMode mode) => Theme.SetModeAsync(mode))" />
 </div>
-<p class="empty" style="padding-top:6px">
+<p class="empty">
     @* Naming the resolved theme is the point of the sentence. "System" alone does not tell
        an operator which desk they are about to get, and it is the one position where the
        answer is not written on the control. *@
@@ -95,7 +96,7 @@
    every family has a dark and a light desk, so the appearance above still decides which one
    of the pair is showing. Each swatch is painted by its own family's token block in the
    appearance showing now — flip Light above and every swatch turns with the desk. *@
-<div class="swatches" role="group" aria-label="Theme" style="margin-top:var(--space-3)">
+<div class="swatches" role="group" aria-label="Theme">
     @foreach (var family in DeskThemeFamilies.All)
     {
         var on = family == Theme.Family;
@@ -140,13 +141,13 @@
     <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
                 Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
 </div>
-<p class="empty" style="padding-top:6px">
+<p class="empty">
     Interface scales everything — type, spacing, controls — so fewer windows fit a row
     @(S.UiScale > 1 ? $"(this desk now fits {Manager.RecommendedCapacity})" : "at larger sizes").
     Text grows only the words and leaves the layout where it is.
     @if (S.UiScale != 1 || S.TextScale != 1)
     {
-        <DeskButton style="height:22px" OnClick="ResetScale">Reset to 100%</DeskButton>
+        <DeskButton Size="DeskKeySize.Small" OnClick="ResetScale">Reset to 100%</DeskButton>
     }
 </p>
 
@@ -167,7 +168,7 @@
         Match this desk (@Manager.RecommendedCapacity)
     </DeskButton>
 </div>
-<p class="empty" style="padding-top:6px">
+<p class="empty">
     Opening past this closes the least recently used window — named in the footer when it
     happens, and in the launcher before it does.
 </p>
@@ -199,11 +200,11 @@
                style="flex:1; max-width:240px; accent-color: var(--accent)" />
         <span class="num" style="min-width:4ch">@((int)(S.PrimaryShare * 100))%</span>
     </div>
-    <p class="empty" style="padding-top:6px">
+    <p class="empty">
         The primary window takes this share of the row wherever it sits — it does not force
         its position, so dragging it to reorder the row is never fought. It is also what
         opens on an empty desk. Dragging a divider overrides the share until you
-        <DeskButton style="height:22px" OnClick="@(_ => Manager.ResetWidths())">
+        <DeskButton Size="DeskKeySize.Small" OnClick="@(_ => Manager.ResetWidths())">
             reset widths
         </DeskButton>.
     </p>
@@ -240,7 +241,7 @@
                    Value="S.CustomHeight" ValueChanged="OnHeightChanged" />
     </div>
 
-    <Note Style="margin-top:var(--space-2)">
+    <Note>
         The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your browser is
         @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange a desk for the screen
         you will run it on, not the one you are configuring it from — the view scrolls if the
@@ -266,7 +267,7 @@
 
 @if (Manager.UserWorkspaces.Count == 0)
 {
-    <p class="empty" style="padding-top:6px">
+    <p class="empty">
         None saved yet. The layout itself is kept for you anyway — a reload puts the row back as
         it was.
     </p>
@@ -277,7 +278,7 @@ else
     {
         <div class="row">
             <span style="flex:1">@workspace.Name <span class="dim">· @string.Join(", ", workspace.WindowKeys.Select(k => Manager.Catalog.Find(k)?.Title ?? k))</span></span>
-            <DeskButton style="height:22px" Icon="@Icons.Material.Filled.Delete"
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
                         OnClick="@(_ => Manager.DeleteWorkspace(workspace.Name))">
                 Delete
             </DeskButton>

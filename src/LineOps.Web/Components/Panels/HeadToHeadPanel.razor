@@ -61,6 +61,7 @@ else
 
     @* Sorting is the reason this is a grid rather than a list. A twenty-meeting record is only
        a claim about the matchup once you can pull the covers together, or read it newest first. *@
+    <PanelSection Title="Meetings">
     <div class="gridwrap">
         <DeskGrid T="HeadToHeadRow" Items="_rows"
                   EmptyText="No previous meeting on record between these sides.">
@@ -147,6 +148,7 @@ else
             </TemplateColumn>
         </DeskGrid>
     </div>
+    </PanelSection>
 }
 
 @code {

@@ -90,7 +90,7 @@ else
         </PropertyColumn>
     </DeskGrid>
 
-    <Note Style="margin-top:var(--space-3)">
+    <Note>
         @_moveCount price @(_moveCount == 1 ? "move" : "moves") recorded across
         @_current.Count book/selection @(_current.Count == 1 ? "pair" : "pairs").
     </Note>
@@ -127,7 +127,7 @@ else if (_form.IsEmpty)
 }
 else
 {
-    <DeskRow Style="margin-bottom:var(--space-2)">
+    <DeskRow>
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="meta">

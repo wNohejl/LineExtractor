@@ -202,7 +202,7 @@ else
                        void is the common rule and a given book may have ruled otherwise. *@
                     @if (!context.Item.IsGraded)
                     {
-                        <DeskSelect TValue="string" style="height:24px"
+                        <DeskSelect TValue="string" Class="field--sm"
                                     ValueChanged="v => SetResultAsync(context.Item.Id, v)">
                             <option value="">Settle…</option>
                             <option value="@EntryResult.Win">Win</option>
@@ -211,13 +211,13 @@ else
                             <option value="@EntryResult.Void">Void</option>
                         </DeskSelect>
                     }
-                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Edit"
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Edit"
                                 Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
                     @* The same door the wager window's own Duplicate uses: a new wager window on
                        this bet, ready to log at today's price — or at the typed one, if it was. *@
-                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.ContentCopy"
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy"
                                 Title="Duplicate this entry in the wager window" OnClick="() => Duplicate(context.Item)" />
-                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this entry" OnClick="() => DeleteEntryAsync(context.Item)" />
                 </DeskRow>
             </CellTemplate>
@@ -242,7 +242,7 @@ else
                 {
                     @* One line per leg: wrapped, the tag, the team and the price each took a line
                        of their own and the legs could not be told apart. *@
-                    <div class="row" style="gap:6px; flex-wrap:nowrap; white-space:nowrap">
+                    <DeskRow NoWrap style="white-space:nowrap">
                         <Tag State="@ResultState(leg.Result)">@leg.Result</Tag>
                         @Selection(leg)
                         @if (leg.PriceTaken != 0)
@@ -250,7 +250,7 @@ else
                             <span class="dim num">@Price(leg.PriceTaken)</span>
                         }
                         @ClvCell(leg)
-                    </div>
+                    </DeskRow>
                 }
                 @if (context.Item.Note is { } note)
                 {
@@ -295,7 +295,7 @@ else
                        offered where there is a price to pay it at. *@
                     @if (!context.Item.IsGraded)
                     {
-                        <DeskSelect TValue="string" style="height:24px"
+                        <DeskSelect TValue="string" Class="field--sm"
                                     ValueChanged="v => SetParlayResultAsync(context.Item, v)">
                             <option value="">Settle…</option>
                             @if (context.Item.PriceQuoted is not null)
@@ -306,7 +306,7 @@ else
                             <option value="@EntryResult.Void">Void</option>
                         </DeskSelect>
                     }
-                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
                 </DeskRow>
             </CellTemplate>
@@ -317,7 +317,7 @@ else
 
 @if (_entries.Count >= _take || _parlays.Count >= _take)
 {
-    <DeskRow Style="margin-top:var(--space-2)">
+    <DeskRow>
         <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
     </DeskRow>
 }

@@ -41,16 +41,16 @@ else
             </DeskLink>
             @if (showScore)
             {
-                <span class="mono" style="margin:0 6px">@(game.AwayScore ?? 0)</span>
+                <span class="mono">@(game.AwayScore ?? 0)</span>
             }
-            <span class="dim" style="margin:0 4px">at</span>
+            <span class="dim">at</span>
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                       OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
                 @(game.HomeTeam?.Name ?? "Home")
             </DeskLink>
             @if (showScore)
             {
-                <span class="mono" style="margin:0 6px">@(game.HomeScore ?? 0)</span>
+                <span class="mono">@(game.HomeScore ?? 0)</span>
             }
         </ChildContent>
         <Tags>
@@ -356,45 +356,45 @@ else
     private RenderFragment RenderMarkets() => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <Note State="DeskState.Warning" Style="margin:12px 0">@reason</Note>
+            <Note State="DeskState.Warning">@reason</Note>
         }
         else
         {
-            <DeskRow Gap="DeskSpace.Space4" Style="margin-bottom:var(--space-4)">
-                <div>
-                    <div class="meta" style="margin-bottom:4px">Moneyline</div>
-                    <div class="row" style="gap:8px">
+            <DeskRow Gap="DeskSpace.Space4">
+                <DeskStack Gap="DeskSpace.Space1">
+                    <div class="meta">Moneyline</div>
+                    <div class="row">
                         <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
-                </div>
-                <div>
-                    <div class="meta" style="margin-bottom:4px">Spread</div>
-                    <div class="row" style="gap:8px">
+                </DeskStack>
+                <DeskStack Gap="DeskSpace.Space1">
+                    <div class="meta">Spread</div>
+                    <div class="row">
                         <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
-                </div>
-                <div>
-                    <div class="meta" style="margin-bottom:4px">Total</div>
-                    <div class="row" style="gap:8px">
+                </DeskStack>
+                <DeskStack Gap="DeskSpace.Space1">
+                    <div class="meta">Total</div>
+                    <div class="row">
                         <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />
                     </div>
-                </div>
+                </DeskStack>
             </DeskRow>
         }
     </text>;
 
     private RenderFragment RenderTeamData() => @<text>
-        <DeskRow Gap="DeskSpace.Space6" Style="margin-bottom:var(--space-4)">
+        <DeskRow Gap="DeskSpace.Space6">
             @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away")
             @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home")
         </DeskRow>
     </text>;
 
     private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name) => @<text>
-        <div>
+        <DeskStack Gap="DeskSpace.Space1" Align="DeskAlign.Start">
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                       OnClick="() => Manager.OpenTeam(teamId, name, WindowId)">@name</DeskLink>
 
@@ -407,11 +407,11 @@ else
                 <div class="meta">
                     @form.Wins-@form.Losses over @form.Recent.Count games
                 </div>
-                <div class="row" style="margin-top:3px">
+                <div class="row">
                     <FormRun Log="@FormResult.From(form.Recent)" />
                 </div>
             }
-        </div>
+        </DeskStack>
     </text>;
 
     /// <summary>

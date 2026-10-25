@@ -86,6 +86,24 @@
     </Actions>
 </PanelToolbar>
 
+@* Anatomy order (spec 2026-10-24): toolbar, note, metrics. *@
+@if (Visible.Count > 0 && _unpriced > 0)
+{
+    <Note State="DeskState.Warning">
+        @_unpriced of @_rows.Count fixtures have no price at all.
+        @* One reason for the whole gap is stated here, since it is the same fact thirteen
+           times over; only a mix sends the reader row by row. *@
+        @if (SharedGap is { } why)
+        {
+            @why
+        }
+        else
+        {
+            @:Open a row to see why — a gap is usually a fixture the scan did not cover, not a broken feed.
+        }
+    </Note>
+}
+
 @*
     The strip the Slate brought with it, minus the figures that were only ever ops trivia.
 
@@ -116,23 +134,6 @@
             OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
             ActionHint="Open the Ops window on source health and the open alerts" />
 </MetricRow>
-
-@if (Visible.Count > 0 && _unpriced > 0)
-{
-    <Note State="DeskState.Warning">
-        @_unpriced of @_rows.Count fixtures have no price at all.
-        @* One reason for the whole gap is stated here, since it is the same fact thirteen
-           times over; only a mix sends the reader row by row. *@
-        @if (SharedGap is { } why)
-        {
-            @why
-        }
-        else
-        {
-            @:Open a row to see why — a gap is usually a fixture the scan did not cover, not a broken feed.
-        }
-    </Note>
-}
 
 @if (_rows.Count == 0)
 {
@@ -362,7 +363,7 @@ else
     @if (_closing > 0)
     {
         @* Said once, under the grid, rather than repeated in every muted cell. *@
-        <Note Style="margin-top:var(--space-2)">
+        <Note>
             @_closing of @Visible.Count rows show <strong>closing</strong> prices — the last
             number on the board before the game started. Hover one for when it was captured.
         </Note>

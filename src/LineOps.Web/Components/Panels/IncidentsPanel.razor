@@ -125,12 +125,12 @@ else
                     <div>@note.Note</div>
                 </div>
             }
-        </DeskStack>
 
-        @* Writing a note is the operator's; a visitor reads the timeline (ADR 0018). *@
+        @* Writing a note is the operator's; a visitor reads the timeline (ADR 0018). It is the
+           stack's last row, so the stack's gap, not a margin, parts it from the last note. *@
         @if (Manager.Access.CanOperate)
         {
-            <DeskRow Style="margin-top:var(--space-2)">
+            <DeskRow>
                 @* Immediate: the Add key beside it is disabled until there is text, so the key has
                    to learn about the first keystroke rather than about the blur. *@
                 <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
@@ -142,6 +142,7 @@ else
                 </DeskButton>
             </DeskRow>
         }
+        </DeskStack>
     </PanelSection>
 
     @* The RCA writes: a visitor reads it once it is resolved — which is the point of keeping
@@ -168,11 +169,11 @@ else
 
             <PanelForm>
                 <ChildContent>
-                    <DeskTextArea rows="4"
+                    <DeskTextArea rows="4" Label="Root cause" Required
                                   placeholder="What actually broke, and why did it break now?"
                                   @bind-Value="_rootCause" />
 
-                    <DeskTextArea rows="4"
+                    <DeskTextArea rows="4" Label="Corrective action" Required
                                   placeholder="What change prevents a recurrence? Reference the commit."
                                   @bind-Value="_corrective" />
 

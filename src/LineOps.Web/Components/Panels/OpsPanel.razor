@@ -57,7 +57,7 @@
    what a press of Pull lines draws on. *@
 @if (!_unattended)
 {
-    <p class="empty" style="padding:0 0 9px">
+    <p class="empty">
         Lines are pulled on request only — nothing is fetched unasked.
         @if (_plan?.ScansRemainingToday is { } available)
         {
@@ -82,7 +82,7 @@
        cadence, which is the real cost of adding one. *@
     @if (_plan is { } projected && _marketsBySport.Count > 0)
     {
-        <p class="empty" style="padding:0 0 9px">
+        <p class="empty">
             @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
             {
                 @(index > 0 ? " · " : "")<span class="mono">@sport.Sport.ToUpperInvariant()</span>
@@ -108,7 +108,7 @@
 }
 else if (_plan is { } plan)
 {
-    <p class="empty" style="padding:0 0 9px">
+    <p class="empty">
         Scanning every <span class="mono">@Cadence(plan.Interval)</span> at
         <span class="mono">@plan.CostPerScan</span> requests a scan
         @if (plan.ScansRemainingToday is { } left)
@@ -132,9 +132,11 @@ else if (_plan is { } plan)
    the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
    turning it off stops spending and needs no second thought. Only offered with a live feed:
    scheduling scans of a provider that cannot be reached would spend nothing and say otherwise. *@
+@* The switch and the feeds it governs, one stack so the stack owns the air between them. *@
+<DeskStack>
 @if (Manager.Access.CanOperate && _feeds.Any(f => f.IsLive))
 {
-    <DeskRow Gap="DeskSpace.Space2" Style="margin-bottom:var(--space-2)">
+    <DeskRow Gap="DeskSpace.Space2">
         @if (_unattended)
         {
             <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.PanTool"
@@ -194,6 +196,7 @@ else if (_plan is { } plan)
         <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</DeskStack>
 </PanelSection>
 
 <PanelSection Title="Source health">

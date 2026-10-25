@@ -988,7 +988,7 @@ html, body {
     position: relative; /* above the cap */
     z-index: 1;
     padding: 0 var(--space-3);
-    height: 24px;
+    height: 28px; /* a control in a toolbar or form row is 28px (audit §5) */
     border: none;
     background: transparent;
     color: var(--text-secondary);
@@ -1012,7 +1012,7 @@ html, body {
 
 .gate--num .gate__opt { font-variant-numeric: tabular-nums; }
 
-.gate--sm .gate__opt { height: 20px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--sm .gate__opt { height: 24px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
 .gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1062,8 +1062,8 @@ html, body {
    tracked eyebrow, a label style the desk no longer uses anywhere. */
 .tabs__tab {
     min-width: 0;
-    height: 26px;
-    padding: 0 10px;
+    height: 28px;
+    padding: 0 var(--space-3);
     background: none;
     border: 0;
     border-radius: 4px;
@@ -1175,9 +1175,9 @@ html, body {
 .ftr {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     height: 38px;
-    padding: 0 10px;
+    padding: 0 var(--space-3);
     background: var(--material-thin);
     backdrop-filter: var(--material-blur);
     -webkit-backdrop-filter: var(--material-blur);
@@ -1205,8 +1205,8 @@ html, body {
 .ftr__refusal {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 3px 4px 3px 9px;
+    gap: var(--space-2);
+    padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
     background: var(--state-warning-wash);
     border-radius: 4px;
     color: var(--state-warning);
@@ -1219,7 +1219,8 @@ html, body {
 .ftr__refusal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ftr__dismiss {
-    background: none; border: 0; padding: 2px;
+    width: 24px; height: 24px;
+    background: none; border: 0; padding: 0;
     color: var(--state-warning); cursor: pointer;
     display: grid; place-items: center;
 }
@@ -1234,7 +1235,8 @@ html, body {
     background: none;
     border: 0;
     border-radius: 3px;
-    padding: 0 6px;
+    height: 24px;
+    padding: 0 var(--space-2);
     color: var(--state-warning);
     font: inherit;
     font-weight: var(--weight-semibold);
@@ -1389,12 +1391,13 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     display: flex;
     gap: 0;
     flex: 0 0 auto;
-    margin-left: -6px;
+    margin-left: calc(-1 * var(--space-2));
 }
 
+/* 28px, the toolbar control's height, in a 34px bar. */
 .win__nav-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
     padding: 0;
@@ -1798,13 +1801,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .launcher__item {
     display: flex;
-    gap: 11px;
+    gap: var(--space-3);
     align-items: flex-start;
     /* MudBlazor's button rule centres a flex button's content; a palette row is a list
        row, so its icon and text sit flush left like every other row's. */
     justify-content: flex-start;
     width: 100%;
-    padding: 8px 10px;
+    padding: var(--space-2) var(--space-3);
     background: none;
     border: 0;
     border-radius: 4px;
@@ -1869,7 +1872,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    scanned separately from the figure it qualified; a red number is read at the
    moment the number is. */
 .metric {
-    padding: 11px 13px;
+    padding: var(--space-3);
     background: var(--surface-2);
     border: 1px solid var(--separator);
     border-radius: var(--radius);
@@ -1940,7 +1943,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
     color: var(--text-secondary);
-    padding: var(--space-1) 10px;
+    padding: var(--space-1) var(--space-2);
     border-bottom: 1px solid var(--separator);
     white-space: nowrap;
     position: sticky;
@@ -1950,7 +1953,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 
 .grid td {
-    padding: var(--space-1) 10px;
+    padding: var(--space-1) var(--space-2);
     line-height: 20px; /* + the padding above = a 28px row */
     border-bottom: 1px solid var(--separator);
     color: var(--text-primary);
@@ -2224,9 +2227,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .board__actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
-    padding: 9px 10px 11px;
+    padding: var(--space-2) var(--space-2) var(--space-3);
     background: var(--surface-1);
     border-bottom: 1px solid var(--separator);
 }
@@ -2320,7 +2323,7 @@ body.dialog-dragging { user-select: none; }
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    padding: 14px;
+    padding: var(--space-4);
     scrollbar-width: thin;
     scrollbar-color: var(--surface-3) transparent;
 }
@@ -2713,8 +2716,11 @@ body.dialog-dragging { user-select: none; }
 }
 
 /* --- Sizes. The control changes height and padding; the recipe does not. --- */
-.desk-btn--sm { height: 22px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+/* Small is a key inside a 29px grid row, so 24px; in a toolbar it is a toolbar control and
+   takes the toolbar's 28px (audit §5: nothing on the desk is 22px or less). */
+.desk-btn--sm { height: 24px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
 .desk-btn--sm svg { width: 13px; height: 13px; }
+.ptoolbar .desk-btn--sm { height: 28px; }
 .desk-btn--lg { height: 34px; padding: 0 var(--space-4); font-size: var(--text-title3); }
 .desk-btn--lg svg { width: 17px; height: 17px; }
 
@@ -2817,6 +2823,11 @@ select.field {
 }
 
 select.field option { background: var(--surface-2); color: var(--text-primary); }
+
+/* The small field: a picker beside small keys inside a 29px grid row, at their 24px and their
+   footnote size. The caret moves up with the box. */
+.field--sm { height: 24px; font-size: var(--text-footnote); }
+select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px) 10px; }
 
 /* Row and stack read their gap from --desk-gap so a component can set one rung of
    the spacing ramp inline without a modifier class per step. The fallback is the
@@ -2973,7 +2984,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .win__body > :not(.psection):not(.ptitle):not(.ptoolbar):not(.metrics):not(.note):not(.pform) + .psection,
 .psection__body > :not(.psection):not(.metrics):not(.note):not(.pform) + .psection { margin-top: var(--space-6); }
 .psection + .tabs { margin-top: var(--space-4); }
-.psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note { margin-top: var(--space-2); }
+/* A row of keys after a section — Journal's Show more — sits under it as it would under a grid. */
+.psection + .row { margin-top: var(--space-2); }
+.psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note,
+.psection__body > .deskgrid + .note, .win__body > .board__table + .note { margin-top: var(--space-2); }
 /* A picker on a rule's line is sized to its words, for the same reason a toolbar's is. */
 .psection__keys .field { width: auto; }
 .psection__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
@@ -2987,6 +3001,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-size: var(--text-subheadline);
     color: var(--text-secondary);
 }
+/* The reading on a meta line that qualifies the rest of it — "14 of 21 with a closing line" —
+   pinned to the trailing edge. */
+.psection__aside { margin-left: auto; }
 .psection--subject .panel-h { color: var(--text-primary); }
 /* Rows that follow one another inside a section body space themselves. */
 .psection__body > .row + .row { margin-top: var(--space-2); }
@@ -3026,7 +3043,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .win__body > .metrics, .psection__body > .metrics { margin: 0 0 var(--space-4); }
 .psection__body > .note:last-child, .psection__body > .metrics:last-child { margin-bottom: 0; }
 
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--space-2); }
 
 /* A note is a filled shape, not a framed one. It used to carry a hairline outline and a 2px
    accent bar down its left edge — the Material callout this system replaced (ADR 0016:
@@ -3056,7 +3073,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    .empty is also the desk's plain quiet-note class — the Parts window sets whole
    paragraphs of prose in it — so the base stays in the flow it was written for and only
    the two genuine "there is nothing here" kinds below centre themselves. */
-.empty { color: var(--text-secondary); font-size: var(--text-body); padding: 14px 2px; line-height: 1.55; }
+.empty { color: var(--text-secondary); font-size: var(--text-body); padding: var(--space-3) 0; line-height: 1.55; }
 
 /* Nothing yet, or nothing matching. Centred in the space it is failing to fill, which is
    what makes it read as the absence rather than as the first line of something. */
@@ -3072,12 +3089,12 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    a rule down the left of centred text is an edge with nothing to align to. */
 .empty--error {
     border-left: 2px solid var(--state-warning);
-    padding-left: 10px;
+    padding-left: var(--space-3);
 }
 
 /* The one next step, on its own line so it reads as an offer rather than as the tail of
    the sentence above it. */
-.empty__action { display: block; margin-top: 8px; }
+.empty__action { display: block; margin-top: var(--space-2); }
 
 /* ------------------------------------------------------- runbook ----------
    The triage procedure, shown inside the incident that needs it. A fill, not a frame,
@@ -3086,11 +3103,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .runbook {
     border-radius: 4px;
     background: var(--surface-2);
-    margin: 14px 0;
+    margin: var(--space-3) 0;
 }
 
 .runbook__summary {
-    padding: 8px 11px;
+    padding: var(--space-2) var(--space-3);
     cursor: pointer;
     color: var(--text-primary);
     font-size: var(--text-subheadline);
@@ -3098,7 +3115,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     list-style: none;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 .runbook__summary::-webkit-details-marker { display: none; }
@@ -3114,19 +3131,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .runbook__summary:hover { color: var(--accent); }
 
 .runbook__body {
-    padding: 2px 11px 11px;
+    padding: 0 var(--space-3) var(--space-3);
     border-top: 1px solid var(--separator);
     color: var(--text-secondary);
     font-size: var(--text-subheadline);
     line-height: 1.55;
 }
 
-.runbook__line { margin: 8px 0 0; }
+.runbook__line { margin: var(--space-2) 0 0; }
 
 /* Steps are indented so a numbered procedure still reads as one at a glance,
    the marker having been stripped along with the rest of the markdown. The indent alone
    says so; a rule beside it would be a vertical line inside the group. */
-.runbook__step { margin: 5px 0 0 var(--space-5); }
+.runbook__step { margin: var(--space-1) 0 0 var(--space-5); }
 
 .runbook__body strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
 
@@ -3394,8 +3411,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__bar {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 6px 9px;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
     border-bottom: 1px solid var(--separator);
     font-size: var(--text-footnote);
 }
@@ -3416,14 +3433,15 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__open {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-1);
+    height: 24px;
     background: transparent;
     border: 0;
     border-radius: 4px;
     color: var(--text-secondary);
     font: inherit;
     font-size: var(--text-caption);
-    padding: 2px 6px;
+    padding: 0 var(--space-2);
     cursor: pointer;
     transition: color .12s ease, background-color .12s ease;
 }
@@ -3433,10 +3451,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    been chosen yet. */
 .snippet__open:hover { color: var(--text-primary); background: var(--surface-3); }
 
-.snippet__body { padding: 9px; }
+.snippet__body { padding: var(--space-2); }
 
 /* Odds snippet: three markets side by side, wrapping on a narrow window. */
-.snippet__markets { display: flex; gap: 18px; flex-wrap: wrap; }
+.snippet__markets { display: flex; gap: var(--space-5); flex-wrap: wrap; }
 
 .snippet__market-name {
     font-size: var(--text-footnote);
@@ -3460,7 +3478,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .snippet__book { font-size: var(--text-caption); }
 
 /* Form snippet: one run of results per side. */
-.snippet__form { display: flex; gap: 22px; flex-wrap: wrap; }
+.snippet__form { display: flex; gap: var(--space-5); flex-wrap: wrap; }
 .snippet__formside { display: flex; flex-direction: column; gap: 3px; }
 
 .snippet__formname {
@@ -3486,7 +3504,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* A row of labelled readings, for a single game expanded. */
 .snippet__facts {
     display: flex;
-    gap: 20px;
+    gap: var(--space-5);
     flex-wrap: wrap;
 }
 
@@ -3553,9 +3571,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .logrow__head {
     display: flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--space-2);
     width: 100%;
-    padding: 7px var(--space-3);
+    padding: var(--space-2) var(--space-3);
     background: transparent;
     border: 0;
     color: var(--text-primary);
@@ -3593,7 +3611,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .logrow--open .logrow__chev { transform: rotate(180deg); }
 
 .logrow__body {
-    padding: 10px var(--space-3);
+    padding: var(--space-3);
     border-top: 1px solid var(--separator);
     background: var(--surface-1);
 }
@@ -3606,8 +3624,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    between "no data held" and "nothing to report", and only one of those is worth
    acting on — so the snippet says which rather than leaving it to be inferred. */
 .snippet__coverage {
-    margin: 8px 0 0;
-    padding-top: 7px;
+    margin: var(--space-2) 0 0;
+    padding-top: var(--space-2);
     border-top: 1px solid var(--separator);
     color: var(--text-tertiary);
     font-size: var(--text-caption);
@@ -3783,8 +3801,8 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: none;
     border-radius: 50%;

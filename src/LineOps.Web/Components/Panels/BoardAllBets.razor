@@ -34,19 +34,14 @@ else
 
 @foreach (var market in Markets())
 {
-    <PanelSection Title="@MarketName(market.Market)">
+    <PanelSection Title="@MarketName(market.Market)" Detail="@FairDetail(market)">
 
     @if (!market.IsPriced)
     {
-        <EmptyState Kind="EmptyStateKind.New" Style="padding:6px 0 12px">Not priced by any book yet.</EmptyState>
+        <EmptyState Kind="EmptyStateKind.New">Not priced by any book yet.</EmptyState>
     }
     else
     {
-        @if (FairOf(market) is { Length: > 0 } fair)
-        {
-            <div class="meta" style="margin:2px 0 6px">@fair</div>
-        }
-
         <div class="gridwrap">
             <DeskGrid T="string" Items="BooksIn(market)" EmptyText="Not priced by any book yet.">
                 <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book">
@@ -226,6 +221,20 @@ else
     private static double? HoldOf(MarketPair market, string book)
         => market.First?.Rungs.FirstOrDefault(r => r.Book == book)?.Hold
            ?? market.Second?.Rungs.FirstOrDefault(r => r.Book == book)?.Hold;
+
+    /// <summary>
+    /// The fair line as the section's meta line, under its rule — the slot that owns the
+    /// air around it, so the line writes no margin of its own. Nothing when unpriced.
+    /// </summary>
+    private static RenderFragment? FairDetail(MarketPair market)
+    {
+        if (!market.IsPriced || FairOf(market) is not { Length: > 0 } fair)
+        {
+            return null;
+        }
+
+        return @<text>@fair</text>;
+    }
 
     /// <summary>
     /// What the market's value is measured against — both sides' fair prices on the best

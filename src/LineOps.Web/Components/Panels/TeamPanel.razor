@@ -110,10 +110,10 @@ else
 
                         @if (_openGame == row.GameId)
                         {
-                            <div class="logrow__body" id="@($"game-{row.GameId}")">
+                            <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"game-{row.GameId}")">
                                 <GameResultSnippet Row="row" />
 
-                                <div class="row" style="gap:8px; margin-top:10px">
+                                <div class="row">
                                     <DeskButton Size="DeskKeySize.Small"
                                                 Icon="@Icons.Material.Filled.SportsScore"
                                                 OnClick="() => OpenGameAsync(row.GameId)">
@@ -126,7 +126,7 @@ else
                                         Movement
                                     </DeskButton>
                                 </div>
-                            </div>
+                            </DeskStack>
                         }
                     </div>
                 }
@@ -158,17 +158,17 @@ else
 
                     @if (_openPlayer == player.PlayerId)
                     {
-                        <div class="logrow__body" id="@($"player-{player.PlayerId}")">
+                        <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"player-{player.PlayerId}")">
                             <PlayerRecentSnippet PlayerId="player.PlayerId" />
 
-                            <div class="row" style="gap:8px; margin-top:10px">
+                            <div class="row">
                                 <DeskButton Size="DeskKeySize.Small"
                                             Icon="@Icons.Material.Filled.Person"
                                             OnClick="() => LaunchPlayer(player)">
                                     Full game log
                                 </DeskButton>
                             </div>
-                        </div>
+                        </DeskStack>
                     }
                 </div>
             }
@@ -222,7 +222,7 @@ else
             <span>@_overs O / @_unders U</span>
         }
 
-        <span style="margin-left:auto">@_covered of @_visible.Count with a closing line</span>
+        <span class="psection__aside">@_covered of @_visible.Count with a closing line</span>
     </text>;
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };

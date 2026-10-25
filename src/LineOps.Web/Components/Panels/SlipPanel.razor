@@ -32,7 +32,7 @@
 
     @if (_report is { } report)
     {
-        <Note State="DeskState.Positive" Style="margin:0" Class="slip-report">
+        <Note State="DeskState.Positive" Class="slip-report">
             <strong>@report.Headline</strong>
             <DeskButton Size="DeskKeySize.Small" OnClick="() => _showSteps = !_showSteps">
                 @(_showSteps ? "Hide steps" : "Show steps")
@@ -51,7 +51,7 @@
 
     @if (_error is not null)
     {
-        <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
+        <Note State="DeskState.Warning">@_error</Note>
     }
 
     @if (Slip.Items.Count == 0)
