@@ -71,7 +71,7 @@ public class WagerParlayLegTests : WagerTestContext
 
         PickGame(cut);
 
-        Assert.Equal(["Your bet", "Price and book", "Review and add"],
+        Assert.Equal(["Your bet", "Review and add"],
             cut.FindAll(".wstep__title").Select(t => t.TextContent.Trim()));
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Log ", StringComparison.Ordinal));
         Assert.Empty(cut.FindAll("button.gate__opt").Where(b => b.TextContent.Contains("No game")));

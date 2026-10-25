@@ -8,7 +8,7 @@ using LineOps.Web.Tests.Support;
 namespace LineOps.Web.Tests;
 
 /// <summary>
-/// The Place wager window: the game as its header, then four steps in one order, each saying
+/// The Place wager window: the game as its header, then three steps in one order, each saying
 /// whether it is done, the one to do now, or waiting — and what it is waiting for. Only the step
 /// to do is open; a finished one folds to what was chosen, with Change to reopen it, so the
 /// window is as tall as the step being worked and an operator who has never logged a bet can
@@ -34,7 +34,7 @@ public class WagerStepperTests : WagerTestContext
         => cut.FindAll(".wstep").Select(s => s.ClassList.Contains("wstep--open")).ToList();
 
     private static string Summary(IRenderedFragment cut, string title)
-        => Step(cut, title).QuerySelector(".wstep__summary")!.TextContent.Trim();
+        => System.Text.RegularExpressions.Regex.Replace(Step(cut, title).QuerySelector(".wstep__summary")!.TextContent, @"\s+", " ").Trim();
 
     // ---- The header -----------------------------------------------------------------------
 
@@ -64,12 +64,12 @@ public class WagerStepperTests : WagerTestContext
     // ---- The steps ------------------------------------------------------------------------
 
     [Fact]
-    public void The_window_is_four_numbered_steps_in_order()
+    public void The_window_is_three_numbered_steps_in_order()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
 
         Assert.Equal(
-            ["Your bet", "Price and book", "Stake", "Review and log"],
+            ["Your bet", "Stake", "Review and log"],
             cut.FindAll(".wstep__title").Select(t => t.TextContent.Trim()));
         Assert.Equal("ol", cut.Find(".wsteps").TagName.ToLowerInvariant());
     }
@@ -79,8 +79,8 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(withGame: false);
 
-        Assert.Equal(["todo", "todo", "todo", "todo"], States(cut));
-        Assert.Equal([false, false, false, false], Open(cut));
+        Assert.Equal(["todo", "todo", "todo"], States(cut));
+        Assert.Equal([false, false, false], Open(cut));
         Assert.Contains("Pick a game first.", Step(cut, "Your bet").QuerySelector(".wstep__wait")!.TextContent);
         Assert.Contains("Your bet and its price come first.", Step(cut, "Review and log").QuerySelector(".wstep__wait")!.TextContent);
     }
@@ -90,10 +90,10 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
 
-        Assert.Equal(["done", "done", "current", "todo"], States(cut));
+        Assert.Equal(["done", "current", "todo"], States(cut));
         // The review is open as soon as there is a price: its checks are worth reading before
         // a stake is typed, and the Log key says what it still needs.
-        Assert.Equal([false, false, true, true], Open(cut));
+        Assert.Equal([false, true, true], Open(cut));
         Assert.Equal("step", Step(cut, "Stake").GetAttribute("aria-current"));
         Assert.Contains("Needs a stake above zero.", Step(cut, "Review and log").TextContent);
     }
@@ -109,7 +109,7 @@ public class WagerStepperTests : WagerTestContext
 
         cut.Find("input[aria-label='The bet']").Input("Steelers to win the AFC North");
 
-        Assert.Equal(["done", "current", "todo", "todo"], States(cut));
+        Assert.Equal(["current", "todo", "todo"], States(cut));
         Assert.NotNull(cut.Find("input[aria-label='The bet']"));
         Assert.NotNull(cut.Find("input[placeholder='-110']"));
     }
@@ -119,8 +119,7 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Spread, BoardRows.Away);
 
-        Assert.Equal("Spread · Bills +2.5", Summary(cut, "Your bet"));
-        Assert.Equal("-105 +2.5 at fanduel", Summary(cut, "Price and book"));
+        Assert.Equal("Spread · Bills +2.5 · -105 +2.5 at fanduel", Summary(cut, "Your bet"));
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
     }
 
@@ -132,13 +131,13 @@ public class WagerStepperTests : WagerTestContext
 
         Change(cut, "Your bet");
 
-        Assert.Equal([true, false, true, true], Open(cut));
+        Assert.Equal([true, true, true], Open(cut));
         Assert.Equal("ML · Chiefs", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
 
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
-        Assert.Equal([false, false, true, true], Open(cut));
-        Assert.Equal("ML · Bills", Summary(cut, "Your bet"));
+        Assert.Equal([false, true, true], Open(cut));
+        Assert.Equal("ML · Bills · +110 at fanduel", Summary(cut, "Your bet"));
     }
 
     [Fact]
@@ -148,10 +147,10 @@ public class WagerStepperTests : WagerTestContext
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == 50m.ToString("C0")).Click();
 
-        Assert.Equal(["done", "done", "done", "current"], States(cut));
+        Assert.Equal(["done", "done", "current"], States(cut));
         // The stake stays open: it is typed, and a step that folded on the first digit would
         // take the field away mid-number.
-        Assert.Equal([false, false, true, true], Open(cut));
+        Assert.Equal([false, true, true], Open(cut));
         Assert.Contains("ML · Chiefs at -128 with draftkings", cut.Find(".wreview").TextContent);
     }
 
@@ -162,7 +161,7 @@ public class WagerStepperTests : WagerTestContext
 
         Assert.Empty(Step(cut, "Your bet").QuerySelector(".wstep__dot")!.TextContent.Trim());
         Assert.NotNull(Step(cut, "Your bet").QuerySelector(".wstep__dot svg"));
-        Assert.Equal("3", Step(cut, "Stake").QuerySelector(".wstep__dot")!.TextContent.Trim());
+        Assert.Equal("2", Step(cut, "Stake").QuerySelector(".wstep__dot")!.TextContent.Trim());
     }
 
     // ---- Your bet -------------------------------------------------------------------------
@@ -203,21 +202,21 @@ public class WagerStepperTests : WagerTestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
         cut.FindAll(".game-search__opt")[0].Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
-        Assert.Equal(["current", "todo", "todo", "todo"], States(cut));
+        Assert.Equal(["current", "todo", "todo"], States(cut));
 
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Chiefs").Click();
 
-        Assert.Equal(["done", "done", "current", "todo"], States(cut));
-        Assert.Equal("-128 at draftkings", Summary(cut, "Price and book"));
+        Assert.Equal(["done", "current", "todo"], States(cut));
+        Assert.Equal("ML · Chiefs · -128 at draftkings", Summary(cut, "Your bet"));
     }
 
-    // ---- Price and book -------------------------------------------------------------------
+    // ---- The price, the lower half of Your bet -------------------------------------------------------------------
 
     [Fact]
     public void The_edit_key_sits_on_the_price()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Price and book");
+        Change(cut, "Your bet");
 
         var key = cut.Find(".wager-offer__top .wager-manual-key");
         Assert.Equal("Enter my own price", key.GetAttribute("title"));
@@ -228,7 +227,7 @@ public class WagerStepperTests : WagerTestContext
     public void The_book_is_a_menu_on_the_price_that_lists_every_book_with_its_number()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Price and book");
+        Change(cut, "Your bet");
 
         var trigger = cut.Find(".wager-offer .book-picker__trigger");
         Assert.Equal("false", trigger.GetAttribute("aria-expanded"));
@@ -246,14 +245,14 @@ public class WagerStepperTests : WagerTestContext
 
         // Chosen: the step folds on the new number.
         Assert.Empty(cut.FindAll(".book-row"));
-        Assert.Equal("-135 at fanduel", Summary(cut, "Price and book"));
+        Assert.Equal("ML · Chiefs · -135 at fanduel", Summary(cut, "Your bet"));
     }
 
     [Fact]
     public void Escape_closes_the_book_menu()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Price and book");
+        Change(cut, "Your bet");
         cut.Find(".book-picker__trigger").Click();
 
         cut.Find(".book-picker").KeyDown("Escape");

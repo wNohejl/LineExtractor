@@ -94,7 +94,7 @@ public class WagerPrefillTests : WagerTestContext
         var cut = RenderComponent<BoardWager>(parameters.Select(p => ComponentParameter.CreateParameter(p.Key, p.Value)).ToArray());
 
         Assert.Contains($"You are logging {110m:C0}", cut.Find(".wreview").TextContent);
-        Assert.Contains("-2.5", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
+        Assert.Contains("-2.5", Step(cut, "Your bet").QuerySelector(".wstep__summary")!.TextContent);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class WagerPrefillTests : WagerTestContext
             ComponentParameter.CreateParameter("Stake", 110d));
 
         Assert.Contains($"You are logging {110m:C0}", cut.Find(".wreview").TextContent);
-        Assert.Contains("-2.5", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
+        Assert.Contains("-2.5", Step(cut, "Your bet").QuerySelector(".wstep__summary")!.TextContent);
     }
 
     [Fact]
@@ -144,10 +144,10 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Stake, "40"));
 
         // Ready to log, so the price step is folded to what it carries; opened, the fields hold it.
-        Assert.Contains("-120 at caesars, your own price", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
+        Assert.Contains("-120 at caesars, your own price", Step(cut, "Your bet").QuerySelector(".wstep__summary")!.TextContent);
         Assert.Contains("your own price", cut.Find(".wreview").TextContent);
 
-        Change(cut, "Price and book");
+        Change(cut, "Your bet");
         Assert.Equal("-120", cut.Find("input[placeholder='-110']").GetAttribute("value"));
         Assert.Equal("caesars", cut.Find("input[placeholder='draftkings']").GetAttribute("value"));
     }

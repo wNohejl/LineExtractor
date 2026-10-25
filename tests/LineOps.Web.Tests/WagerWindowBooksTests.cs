@@ -37,14 +37,14 @@ public class WagerWindowBooksTests : WagerTestContext
     private static void OpenBooks(IRenderedFragment cut)
     {
         if (cut.FindAll(".book-picker__trigger").Count == 0)
-            Change(cut, "Price and book");
+            Change(cut, "Your bet");
         cut.Find(".book-picker__trigger").Click();
     }
 
     private static void OpenPrice(IRenderedFragment cut)
     {
         if (cut.FindAll(".wager-manual-key").Count == 0)
-            Change(cut, "Price and book");
+            Change(cut, "Your bet");
     }
 
     // ---- Books ----------------------------------------------------------------------------

@@ -3990,8 +3990,12 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
 
+/* Outlined, not only filled: a group is one decision's controls, and the rule around it is
+   where that decision starts and ends. Inside it, full-width rules divide the decision's parts.
+   The fill stays a step above the window, so the outline reads as an edge, not a frame. */
 .wgroup {
     background: var(--surface-2);
+    border: 1px solid var(--separator);
     border-radius: var(--radius-panel);
     overflow: hidden;
 }
@@ -4007,13 +4011,14 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     line-height: var(--leading-body);
 }
 
-/* The inset hairline: from the text's left edge to the group's right, as grouped lists draw it. */
+/* The rule between rows runs the group's full width, meeting its outline on both sides: a
+   division of the group, not a hairline floating in it. */
 .wgroup__row + .wgroup__row::before {
     content: "";
     position: absolute;
     top: 0;
     right: 0;
-    left: var(--space-3);
+    left: 0;
     border-top: 1px solid var(--separator);
 }
 
@@ -4022,12 +4027,14 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* ---- The offer: the one number this window is about, set as the window's title. */
 .wager-offer { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); }
 .wager-offer__top { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+/* The one number the window is about, in the accent: the only coloured thing in the group,
+   so the eye lands on the price and reads the side, the line and the book from it. */
 .wager-offer__price {
     font-size: var(--text-largetitle);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
     letter-spacing: -.01em;
-    color: var(--text-primary);
+    color: var(--accent);
     font-variant-numeric: tabular-nums;
 }
 .wager-offer__book { font-size: var(--text-headline); font-weight: var(--weight-semibold); }
@@ -4174,7 +4181,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    same once a game is in hand. The stepper beneath is capped at a reading width: a form that
    stretches across a 1900px window spaces its controls out of reach of one another, and a
    window beside other windows is rarely that wide anyway. */
-.whead { margin-bottom: var(--space-4); max-width: 760px; }
+/* The header is the subject, set apart from the steps by its own outline and an accent rule
+   along its base — the one heavier line on the page, under the one thing that is not a choice. */
+.whead {
+    margin-bottom: var(--space-4);
+    max-width: 760px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-bottom: 2px solid var(--accent);
+    border-radius: var(--radius-panel) var(--radius-panel) var(--radius-sm) var(--radius-sm);
+}
 .whead .ptitle { margin-bottom: 0; }
 .whead .game-search__chosen .game-search__match { font-size: var(--text-title3); }
 /* Every name in the header is a link, as in the Game window's title: the teams open their
@@ -4287,10 +4304,13 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     display: grid;
     grid-template-columns: minmax(84px, max-content) minmax(0, 1fr) minmax(0, 1fr);
     max-width: 560px;
+    border: 1px solid var(--separator);
     border-radius: var(--radius-panel);
     background: var(--surface-2);
     overflow: hidden;
 }
+/* Inside the bet group the board is the group's upper section: its outline is the group's. */
+.wbet .selection-board { max-width: none; border: 0; border-radius: 0; }
 .selection-board__head, .selection-group { display: contents; }
 .selection-board__team {
     padding: var(--space-2) var(--space-3);
@@ -4364,6 +4384,20 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 .wager-offer__meta .wager-offer__age { margin-left: 0; }
 .wager-price { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); max-width: 560px; }
+
+/* ---- Your bet: one group in two sections. The board of sides above, and under a rule that
+   runs the group's width, the chosen side's price and book — the number a step below the
+   thing it prices, inside the same outline, so the two read as one decision. */
+.wbet { display: flex; flex-direction: column; }
+.wbet__sides { padding: 0; }
+.wbet__sides > .field-set { margin: var(--space-3) var(--space-4); }
+.wbet__price { border-top: 1px solid var(--separator); max-width: none; }
+.wbet__price--empty {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-subheadline);
+    color: var(--text-tertiary);
+}
+.wbet .wager-typed-why { line-height: var(--leading-body); }
 .wager-typed { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3); }
 
 .book-picker { position: relative; margin-left: var(--space-2); }
@@ -4437,6 +4471,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wreview {
     margin: 0;
     padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--separator);
     border-radius: var(--radius-panel);
     background: var(--surface-2);
     font-size: var(--text-body);
@@ -4463,7 +4498,12 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 /* ---- The slip: each wager a group of its own. */
 .slip-card { display: grid; gap: var(--space-2); padding: var(--space-3); }
-.slip-card--blocked { background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2)); }
+/* A card that cannot be logged says so on its edge as well as its wash: the one outline on the
+   slip that takes a state. */
+.slip-card--blocked {
+    background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2));
+    border-color: color-mix(in oklab, var(--state-negative) 60%, transparent);
+}
 .slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
 .slip-card__top > div:first-child { flex: 1; min-width: 0; }
 .slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
