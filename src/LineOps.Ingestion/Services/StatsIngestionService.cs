@@ -115,6 +115,98 @@ public class StatsIngestionService(
         }
     }
 
+    /// <summary>
+    /// Finished games in one sport with no closing total from any source, asked of a provider
+    /// that can state a close per game — the backport for a season the box-score walk stored
+    /// without lines. What it finds is written exactly as the walk writes it, under the stats
+    /// provider's own source and only where that source holds nothing for the side yet.
+    ///
+    /// <para>
+    /// A game the provider has no line for stays owed and is asked again next time; there is no
+    /// marker for "asked and found nothing", because ESPN does fill a close in after the fact,
+    /// and the request is cheap. Where it has none, there is none: nothing is fabricated.
+    /// </para>
+    /// </summary>
+    public async Task<IngestionOutcome> RefillClosingLinesAsync(
+        IClosingLineSource source, string sportKey, string jobKey, int limit, CancellationToken ct)
+    {
+        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
+            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+
+        var run = new IngestionRun
+        {
+            SourceId = sourceRow.Id,
+            JobKey = jobKey,
+            StartedAt = DateTimeOffset.UtcNow,
+            Status = RunStatus.Running
+        };
+
+        db.IngestionRuns.Add(run);
+        await db.SaveChangesAsync(ct);
+
+        var owed = await ClosingLinesOwed(sportKey)
+            .Include(g => g.HomeTeam)
+            .Include(g => g.AwayTeam)
+            .OrderByDescending(g => g.StartsAt)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        var lines = new List<CanonicalOdds>();
+        var gameMap = new Dictionary<string, Game>();
+        var requests = 0;
+        var failures = 0;
+
+        foreach (var game in owed)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (!game.ExternalIds.TryGetValue(source.Key, out var eventId)
+                || game.HomeTeam is null || game.AwayTeam is null)
+                continue;
+
+            try
+            {
+                requests++;
+                var found = await source.FetchClosingLinesAsync(sportKey,
+                    new ClosingLineRequest(eventId, game.HomeTeam.Name, game.AwayTeam.Name, game.StartsAt), ct);
+
+                gameMap[eventId] = game;
+                lines.AddRange(found);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // One game ESPN cannot answer for must not cost the rest of the season.
+                failures++;
+                logger.LogWarning(ex, "{Source}: closing odds unavailable for {GameId}", source.Key, eventId);
+            }
+        }
+
+        var written = await PersistClosingLinesAsync(sourceRow, lines, gameMap, ct);
+
+        run.RequestsMade = requests;
+        run.RowsIngested = written;
+        run.FinishedAt = DateTimeOffset.UtcNow;
+        run.Status = failures == 0 || written > 0 ? RunStatus.Success : RunStatus.Failed;
+        run.Error = failures > 0 ? $"{failures} of {requests} games had no answer from the provider." : null;
+        await db.SaveChangesAsync(ct);
+
+        var filled = lines.Select(l => l.SourceGameId).Distinct().Count();
+        logger.LogInformation("{Source}/{Sport}: {Filled} of {Owed} games owed a close got one, {Rows} lines",
+            source.Key, sportKey, filled, owed.Count, written);
+
+        return new IngestionOutcome(run.Id, run.Status, written, run.Error);
+    }
+
+    /// <summary>
+    /// Finals in one sport that no source has given a closing total. The total, because it is
+    /// the market a stats provider's walk is likeliest to have missed and the one every game has
+    /// — a game with a closing total from somewhere has had its close read.
+    /// </summary>
+    public IQueryable<Game> ClosingLinesOwed(string sportKey)
+        => db.Games.Where(g => g.Sport!.Key == sportKey
+                               && g.Status == GameStatus.Final
+                               && !db.ClosingLines.Any(c => c.GameId == g.Id && c.Market == Markets.Total));
+
     private async Task<int> PersistAsync(
         Source sourceRow, StatsFetchResult result, string sportKey, long runId, CancellationToken ct)
     {
@@ -263,7 +355,7 @@ public class StatsIngestionService(
                 sourceRow.Key, sportKey, collisions);
         }
 
-        rows += await PersistClosingLinesAsync(sourceRow, result, gameMap, ct);
+        rows += await PersistClosingLinesAsync(sourceRow, result.Lines, gameMap, ct);
 
         await db.SaveChangesAsync(ct);
         return rows;
@@ -288,11 +380,11 @@ public class StatsIngestionService(
     /// </summary>
     private async Task<int> PersistClosingLinesAsync(
         Source sourceRow,
-        StatsFetchResult result,
+        IReadOnlyList<CanonicalOdds> lines,
         Dictionary<string, Game> gameMap,
         CancellationToken ct)
     {
-        if (result.Lines.Count == 0)
+        if (lines.Count == 0)
             return 0;
 
         var gameIds = gameMap.Values.Select(g => g.Id).ToHashSet();
@@ -306,7 +398,7 @@ public class StatsIngestionService(
 
         var written = 0;
 
-        foreach (var line in result.Lines)
+        foreach (var line in lines)
         {
             if (!gameMap.TryGetValue(line.SourceGameId, out var game))
                 continue;

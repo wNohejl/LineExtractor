@@ -157,3 +157,19 @@ public interface IStatsSource
 
     Task<StatsFetchResult> FetchBoxScoresAsync(string sportKey, DateOnly date, CancellationToken ct);
 }
+
+/// <summary>A finished game whose closing line is owed, as a stats provider identifies it.</summary>
+public record ClosingLineRequest(string SourceGameId, string HomeTeamName, string AwayTeamName, DateTimeOffset StartsAt);
+
+/// <summary>
+/// A stats provider that can state, for one finished game, what the line closed at — without a
+/// box-score walk. Implemented by ESPN, whose summary drops its odds block for older games while
+/// its odds endpoint still carries the close; that is how a season with no lines gets them back.
+/// </summary>
+public interface IClosingLineSource
+{
+    string Key { get; }
+
+    Task<IReadOnlyList<CanonicalOdds>> FetchClosingLinesAsync(
+        string sportKey, ClosingLineRequest game, CancellationToken ct);
+}

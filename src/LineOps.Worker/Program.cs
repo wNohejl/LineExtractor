@@ -17,8 +17,15 @@ builder.Services.AddLineOpsIngestion(builder.Configuration);
 builder.Services.AddLineOpsReliability(builder.Configuration);
 builder.Services.AddLineOpsObservability(builder.Configuration);
 
-builder.Services.AddLineOpsIngestionScheduler();
-builder.Services.AddLineOpsReliabilityEvaluator();
+// `--job espn:closing-lines` runs one named job and exits, without the schedule: the way to make
+// a single pull — a backport, a settle — from a terminal, beside a desk that is already running.
+var job = builder.Configuration["job"];
+
+if (job is null)
+{
+    builder.Services.AddLineOpsIngestionScheduler();
+    builder.Services.AddLineOpsReliabilityEvaluator();
+}
 
 var host = builder.Build();
 
@@ -28,4 +35,13 @@ await using (var scope = host.Services.CreateAsyncScope())
     await initialiser.InitialiseAsync();
 }
 
+if (job is not null)
+{
+    var outcome = await host.Services.GetRequiredService<LineOps.Ingestion.Services.IngestionJobs>().RunAsync(job);
+    Console.WriteLine($"{outcome.Key}: {(outcome.Succeeded ? "succeeded" : "failed")}, {outcome.Rows:N0} rows, "
+                      + $"{outcome.Failures} failures. {outcome.Detail}");
+    return outcome.Succeeded ? 0 : 1;
+}
+
 await host.RunAsync();
+return 0;

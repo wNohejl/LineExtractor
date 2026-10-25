@@ -41,6 +41,15 @@ public class IngestionJobs(
     public const string Settle = "settle";
 
     /// <summary>
+    /// The closing lines a finished game is still owed, asked of ESPN's odds endpoint one game at
+    /// a time. The backport for a season walked while the summary carried no odds block.
+    /// </summary>
+    public const string EspnClosingLines = "espn:closing-lines";
+
+    /// <summary>How many owed games one press asks about, per sport: a season, not a decade.</summary>
+    private const int ClosingLinesPerRun = 600;
+
+    /// <summary>
     /// Prefix for a lines pull narrowed to one sport, e.g. <c>odds:lines:mlb</c>.
     ///
     /// A credit-billed provider charges per sport per call, so "fetch lines" is not one price —
@@ -106,6 +115,7 @@ public class IngestionJobs(
         var sports = _options.EffectiveSports;
         var stats = registry.StatsSources.Count;
         var odds = registry.OddsSources.Count;
+        var closers = registry.StatsSources.OfType<Core.Contracts.IClosingLineSource>().Count();
 
         // What one sport's lines actually cost, in the unit the provider bills. Stated per sport
         // because that is how it is charged and how it is now spent.
@@ -144,6 +154,15 @@ public class IngestionJobs(
                 EstimatedRequests: stats * sports.Length,
                 Available: stats > 0,
                 Unavailable: stats > 0 ? null : "No stats source registered."),
+
+            new IngestionJob(
+                Key: EspnClosingLines,
+                Label: "Closing lines owed",
+                Description: "ESPN's closing moneyline, spread and total for finished games that have no closing total, "
+                             + "one request per game. Where ESPN has no line, none is written.",
+                EstimatedRequests: closers > 0 ? await OwedClosesAsync(scope.ServiceProvider, sports, ct) : 0,
+                Available: closers > 0,
+                Unavailable: closers > 0 ? null : "No stats source states closing lines."),
 
             new IngestionJob(
                 Key: Settle,
@@ -187,6 +206,7 @@ public class IngestionJobs(
             {
                 EspnSlate => await RunSlateAsync(ct),
                 EspnResults => await RunResultsAsync(ct),
+                EspnClosingLines => await RunClosingLinesAsync(ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
 
@@ -468,6 +488,61 @@ public class IngestionJobs(
 
     /// <summary>Dates swept without healing, and when each is worth trying again.</summary>
     private readonly System.Collections.Concurrent.ConcurrentDictionary<DateOnly, (int Attempts, DateTimeOffset NextTry)> _sweptDates = new();
+
+    /// <summary>
+    /// Every configured sport's finals with no closing total, asked of each stats source that can
+    /// state a close. Settles afterwards: an entry waiting on its close for CLV gets it now rather
+    /// than at the next settle.
+    /// </summary>
+    private async Task<JobOutcome> RunClosingLinesAsync(CancellationToken ct)
+    {
+        var rows = 0;
+        var failures = 0;
+        var owedBefore = 0;
+
+        foreach (var sportKey in _options.EffectiveSports)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+
+            owedBefore += await stats.ClosingLinesOwed(sportKey).CountAsync(ct);
+
+            foreach (var source in registry.StatsSources.OfType<Core.Contracts.IClosingLineSource>())
+            {
+                var outcome = await stats.RefillClosingLinesAsync(source, sportKey, EspnClosingLines, ClosingLinesPerRun, ct);
+                rows += outcome.RowsIngested;
+
+                if (outcome.Status == RunStatus.Failed)
+                    failures++;
+            }
+        }
+
+        if (rows > 0)
+            await RunSettleAsync(ct);
+
+        int owedAfter;
+        await using (var scope = scopeFactory.CreateAsyncScope())
+            owedAfter = await OwedClosesAsync(scope.ServiceProvider, _options.EffectiveSports, ct);
+
+        return new JobOutcome(EspnClosingLines, failures == 0, rows, failures,
+            $"{rows:N0} closing lines written; {owedBefore - owedAfter} of {owedBefore} games owed a close now have one"
+            + (owedAfter > 0 ? $", {owedAfter} still without (ESPN has no line for them)." : "."));
+    }
+
+    private static async Task<int> OwedClosesAsync(IServiceProvider provider, IReadOnlyList<string> sports, CancellationToken ct)
+    {
+        var stats = provider.GetRequiredService<StatsIngestionService>();
+        var owed = 0;
+
+        foreach (var sport in sports)
+            owed += await stats.ClosingLinesOwed(sport).CountAsync(ct);
+
+        return owed;
+    }
 
     private async Task<JobOutcome> RunSettleAsync(CancellationToken ct)
     {

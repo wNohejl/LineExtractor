@@ -14,7 +14,7 @@ namespace LineOps.Ingestion.Adapters;
 /// nothing critical depends solely on ESPN, and when it does break it produces a genuine
 /// incident to triage rather than a hypothetical one.
 /// </summary>
-public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource
+public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource, IClosingLineSource
 {
     public const string SourceKey = "espn";
 
@@ -114,9 +114,28 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
 
                 // The same response carries what the line closed at, so the historical
                 // reference is free — no second request, no second walk.
-                lines.AddRange(ParseClosingLines(
+                var closed = ParseClosingLines(
                     doc.RootElement, game.SourceGameId,
-                    game.HomeTeamName, game.AwayTeamName, game.StartsAt));
+                    game.HomeTeamName, game.AwayTeamName, game.StartsAt).ToList();
+
+                // Except where the summary has dropped its odds block, which it does for older
+                // games. The odds endpoint still has the close; one request buys it back.
+                if (closed.Count == 0)
+                {
+                    try
+                    {
+                        closed.AddRange(await FetchClosingLinesAsync(sportKey,
+                            new ClosingLineRequest(game.SourceGameId, game.HomeTeamName, game.AwayTeamName, game.StartsAt), ct));
+                        requests++;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        // A line is a reference; its absence must not cost the box score.
+                        logger.LogDebug(ex, "{Source}: no closing odds for {GameId}", SourceKey, game.SourceGameId);
+                    }
+                }
+
+                lines.AddRange(closed);
             }
             catch (Exception ex)
             {
@@ -190,6 +209,128 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
                 yield return new CanonicalOdds(sourceGameId, book, Markets.Total, outcome, line, price, capturedAt);
         }
     }
+
+    /// <summary>
+    /// What one finished game closed at, from ESPN's odds endpoint rather than the summary.
+    ///
+    /// <para>
+    /// The summary's <c>pickcenter</c> is empty for most of a season gone by — the 2025 NFL
+    /// season had none before late November — while
+    /// <c>sports.core.api.espn.com/…/competitions/{id}/odds</c> still states the open and the
+    /// close for every game. Same provider, same book, same rule: a reference for a game that
+    /// has finished, never the market (ADR 0011).
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<CanonicalOdds>> FetchClosingLinesAsync(
+        string sportKey, ClosingLineRequest game, CancellationToken ct)
+    {
+        if (MapPath(sportKey) is not { } path || path.Split('/') is not [var sport, var league])
+            return [];
+
+        var url = $"https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}"
+                  + $"/events/{game.SourceGameId}/competitions/{game.SourceGameId}/odds";
+
+        using var doc = await GetJsonAsync(url, ct);
+
+        return ParseCoreOdds(doc.RootElement, game.SourceGameId, game.HomeTeamName, game.AwayTeamName, game.StartsAt)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The close from the odds endpoint's shape: one item per provider, each with
+    /// <c>homeTeamOdds</c>/<c>awayTeamOdds</c> carrying the moneyline and spread closes and a
+    /// top-level <c>close</c> carrying the total and its two prices.
+    ///
+    /// <para>
+    /// The pre-game book is read and the live one skipped: "ESPN Bet - Live Odds" is the number
+    /// in play, which is the one thing a closing line must not be. Prices are the per-side
+    /// closes, never the flatter <c>spreadOdds</c>/<c>overOdds</c>, which on this endpoint are
+    /// the last live quote.
+    /// </para>
+    /// </summary>
+    internal static IEnumerable<CanonicalOdds> ParseCoreOdds(
+        JsonElement root, string sourceGameId, string homeTeam, string awayTeam, DateTimeOffset capturedAt)
+    {
+        if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            yield break;
+
+        JsonElement? chosen = null;
+        var book = "ESPN";
+
+        foreach (var item in items.EnumerateArray())
+        {
+            var name = item.TryGetProperty("provider", out var provider)
+                       && provider.TryGetProperty("name", out var providerName)
+                ? providerName.GetString()
+                : null;
+
+            if (name is not null && name.Contains("live", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (!item.TryGetProperty("close", out _)
+                && !(item.TryGetProperty("homeTeamOdds", out var h) && h.TryGetProperty("close", out _)))
+                continue;
+
+            chosen = item;
+            book = name ?? book;
+            break;
+        }
+
+        if (chosen is not { } entry)
+            yield break;
+
+        foreach (var (key, outcome) in new[] { ("homeTeamOdds", homeTeam), ("awayTeamOdds", awayTeam) })
+        {
+            if (!entry.TryGetProperty(key, out var side) || !side.TryGetProperty("close", out var close))
+                continue;
+
+            if (TryAmerican(close, "moneyLine", out var ml))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, ml, capturedAt);
+
+            if (TryLine(close, "pointSpread", out var spread) && TryAmerican(close, "spread", out var spreadPrice))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, spread, spreadPrice, capturedAt);
+        }
+
+        if (entry.TryGetProperty("close", out var game) && TryLine(game, "total", out var total))
+        {
+            if (TryAmerican(game, "over", out var over))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "over", total, over, capturedAt);
+
+            if (TryAmerican(game, "under", out var under))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "under", total, under, capturedAt);
+        }
+    }
+
+    /// <summary>A price block on the odds endpoint: <c>{ "american": "-110", … }</c>.</summary>
+    private static bool TryAmerican(JsonElement parent, string name, out int price)
+    {
+        price = 0;
+        return parent.TryGetProperty(name, out var block)
+               && TryParseAmerican(Text(block, "american") ?? Text(block, "alternateDisplayValue"), out price);
+    }
+
+    /// <summary>A line block on the odds endpoint: <c>{ "american": "-7.5" }</c>, or a total's "47.5".</summary>
+    private static bool TryLine(JsonElement parent, string name, out decimal line)
+    {
+        line = 0;
+
+        if (!parent.TryGetProperty(name, out var block)
+            || (Text(block, "american") ?? Text(block, "alternateDisplayValue")) is not { } raw)
+            return false;
+
+        // A pick'em is a spread of zero, written in words.
+        if (raw.Trim().Equals("PK", StringComparison.OrdinalIgnoreCase)
+            || raw.Trim().Equals("EVEN", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return decimal.TryParse(raw.TrimStart('o', 'O', 'u', 'U'), NumberStyles.Number | NumberStyles.AllowLeadingSign,
+                   CultureInfo.InvariantCulture, out line);
+    }
+
+    private static string? Text(JsonElement block, string name)
+        => block.ValueKind == JsonValueKind.Object && block.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+            ? el.GetString()
+            : null;
 
     /// <summary>
     /// The two sides of one market, named as the platform names them. ESPN keys them
