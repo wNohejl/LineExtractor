@@ -46,22 +46,26 @@
                             aria-label="@choice.Label"
                             title="@Explain(choice)"
                             @onclick="() => OnChoose.InvokeAsync(choice)">
+                        @* Two lines that never break inside themselves: who, then the numbers. Wide,
+                           they sit on one line; narrow, every segment breaks in the same place. *@
                         @if (Team(choice) is { Length: > 0 } team)
                         {
                             <span class="selection-chip__team">@team</span>
                         }
-                        @if (Side(choice) is { Length: > 0 } side)
-                        {
-                            <span class="selection-chip__side num">@side</span>
-                        }
-                        @if (choice.Offer is { } offer)
-                        {
-                            <span class="selection-chip__price num">@Price(offer.PriceAmerican)</span>
-                        }
-                        else
-                        {
-                            <span class="selection-chip__price selection-chip__price--none">no price</span>
-                        }
+                        <span class="selection-chip__nums">
+                            @if (Side(choice) is { Length: > 0 } side)
+                            {
+                                <span class="selection-chip__side num">@side</span>
+                            }
+                            @if (choice.Offer is { } offer)
+                            {
+                                <span class="selection-chip__price num">@Price(offer.PriceAmerican)</span>
+                            }
+                            else
+                            {
+                                <span class="selection-chip__price selection-chip__price--none">no price</span>
+                            }
+                        </span>
                     </button>
                 }
             </div>

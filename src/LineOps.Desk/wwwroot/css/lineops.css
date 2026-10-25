@@ -4001,13 +4001,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     background: var(--surface-2);
     border-radius: var(--radius-panel);
     overflow: hidden;
-    /* Its rows ask how wide the group is, not the window: a narrow group stacks each label
-       above its control (HIG: side-by-side views may need to stack as space shrinks). */
+    /* Its rows ask how wide the group is, not the window: see the @container block after the
+       form-row rules, which must follow them to win the cascade. */
     container-type: inline-size;
-}
-@container (max-width: 400px) {
-    .wgroup__row--form { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-1); padding-top: var(--space-2); padding-bottom: var(--space-2); }
-    .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
 }
 
 .wgroup__row {
@@ -4062,6 +4058,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    of the row for a note. */
 .wfield--short { width: 100%; max-width: 160px; }
 .wfield--fill { width: 100%; }
+
+/* A narrow group (a window beside other windows) stacks each label above its control — HIG:
+   "horizontally adjacent views may need to stack vertically". Placed after the form-row rules
+   on purpose: same specificity, so it has to come later to win. */
+@container (max-width: 400px) {
+    .wgroup__row--form {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--space-1);
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+    .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
+}
 
 /* ---- The offer: the one number this window is about, set as the window's title. */
 .wager-offer { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); }
@@ -4196,7 +4205,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .game-search__opt:hover, .game-search__opt--active { background: var(--accent-wash); }
 .game-search__opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .game-search__opt--none .game-search__match { color: var(--text-secondary); font-weight: normal; }
-.game-search__chosen { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.game-search__chosen { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
 .game-search__text { display: flex; flex-direction: column; min-width: 0; }
 .game-search__match { font-weight: var(--weight-semibold); }
 .game-search__when, .game-search__empty { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
@@ -4359,6 +4368,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    tab bar's does and its words the accent — selection is one of the accent's three jobs. */
 .selection-gate .gate__cap { background: var(--accent-wash); box-shadow: none; }
 .selection-chip__team { font-weight: var(--weight-medium); white-space: nowrap; }
+.selection-chip__nums { display: inline-flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
+/* Narrow: every segment is the same two lines, team over numbers, so the row reads evenly. */
+@container (max-width: 400px) {
+    .selection-gate .gate__opt { flex-direction: column; align-items: center; gap: 0; }
+}
 .selection-chip__side { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .selection-gate .gate__opt--on { color: var(--accent); }
