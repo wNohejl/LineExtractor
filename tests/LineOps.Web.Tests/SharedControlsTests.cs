@@ -59,6 +59,21 @@ public class SharedControlsTests : DeskTestContext
     }
 
     [Fact]
+    public void The_quick_amount_matching_the_stake_shows_as_chosen()
+    {
+        var cut = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 50m));
+
+        var keys = cut.FindAll("button").Where(b => b.TextContent.Trim().StartsWith('$')).ToList();
+        Assert.Equal(["false", "true", "false"], keys.Select(k => k.GetAttribute("aria-pressed")));
+        Assert.Contains("desk-btn--tinted", keys[1].ClassName);
+
+        // A typed amount that is none of them leaves all three unchosen.
+        var typed = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 40m));
+        Assert.All(typed.FindAll("button").Where(b => b.TextContent.Trim().StartsWith('$')),
+            k => Assert.Equal("false", k.GetAttribute("aria-pressed")));
+    }
+
+    [Fact]
     public void Returns_sit_beside_the_stake_once_there_is_one()
     {
         var none = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 0m).Add(x => x.PriceAmerican, -110));

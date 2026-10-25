@@ -16,7 +16,12 @@
 
     @foreach (var quick in Quick)
     {
-        <DeskButton Size="DeskKeySize.Small" OnClick="() => SetAsync(quick)">@quick.ToString("C0")</DeskButton>
+        @* The amount the stake already is reads as chosen, as a toggle-style button does (HIG:
+           state shown by fill, not by colour alone, and said to a screen reader). *@
+        var chosen = Stake == quick;
+        <DeskButton Size="DeskKeySize.Small" Emphasis="@(chosen ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+                    aria-pressed="@(chosen ? "true" : "false")"
+                    OnClick="() => SetAsync(quick)">@quick.ToString("C0")</DeskButton>
     }
 
     @if (PriceAmerican is { } price && price != 0 && Stake > 0)

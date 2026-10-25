@@ -4714,3 +4714,16 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     .selection-chip__nums { flex-wrap: wrap; justify-content: center; white-space: normal; column-gap: var(--space-1); }
     .selection-gate .gate__opt { padding-left: var(--space-1); padding-right: var(--space-1); }
 }
+
+/* ---- Two last tells from the design pass. The header card is the subject, edged like every
+   card: a 3px accent base under it competed with the current step's accent, the one coloured
+   mark the reader should follow, so it goes and the corners match. In the wide layout the
+   review card held its checks in a bordered group of their own, a third level of box inside
+   the main card; there the checks are rows divided by hairlines, the card the only frame. */
+.whead { border-bottom: 1px solid var(--separator-strong); border-radius: var(--radius-panel); }
+@container (min-width: 1000px) {
+    .wstep--review .wgroup { background: transparent; border: 0; border-radius: 0; }
+    .wstep--review .wgroup__row { padding-left: 0; padding-right: 0; }
+    .wstep--review .wgroup__row + .wgroup__row::before { left: 0; }
+    .wstep--review .wreview { padding: 0; }
+}
