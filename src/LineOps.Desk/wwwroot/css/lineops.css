@@ -4561,26 +4561,101 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wsteps .wgroup { max-width: none; }
 .wstep__title { font-size: var(--text-title2); line-height: 24px; }
 
-/* The segmented control as the package wizard draws it: a pill track with a hairline, and the
-   chosen segment a filled pill in the accent with white words. Scoped to the bet's gates. */
-.selection-gate {
+/* The segmented control as macOS draws it (wizards.md, the bet-and-price recipe, rule 2): a
+   recessed track and a raised neutral thumb, both rounded rectangles on the control radius, the
+   thumb 2px inside the track so the two curves are concentric. The pill track this replaces
+   never applied — .marble-row.gate out-ranks .selection-gate — so a 999px accent pill sat in a
+   7px track, and a solid accent slab was the loudest thing in the window, louder than Log. The
+   chosen side reads by its raised thumb and its semibold words; the accent stays for focus, the
+   current step and the one Filled key. Compound selectors, so they out-rank the base recipe. */
+.selection-gate.marble-row.gate {
     max-width: none;
-    padding: 3px;
+    padding: 2px;
     background: var(--surface-0);
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px var(--separator-strong);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--separator);
 }
-.selection-gate .gate__cap { top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n)); border-radius: 999px; background: var(--accent); box-shadow: none; }
-.selection-gate .gate__opt { min-height: 26px; border-radius: 999px; }
-.selection-gate .gate__opt--on, .selection-gate .gate__opt--on .selection-chip__price { color: var(--on-accent); }
+.selection-gate .marble.gate__cap {
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--n));
+    border-radius: calc(var(--radius) - 2px);
+    /* The chosen side fills in the accent, as the package wizard the operator chose draws its
+       chosen option: selection is one of the accent's three jobs, and this is the window's one. */
+    background: var(--accent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+}
+.selection-gate .gate__opt { min-height: 28px; border-radius: calc(var(--radius) - 2px); }
+.selection-gate .gate__opt--on,
+.selection-gate .gate__opt--on .selection-chip__price { color: var(--on-accent); }
 .selection-gate .gate__opt--on .selection-chip__price--none { color: color-mix(in srgb, var(--on-accent) 70%, transparent); }
 
-/* The price row reads as the chosen side's: the book menu is a pill like the segments, and the
-   row carries a hairline on its accent edge. */
-.wbet__price { box-shadow: inset 3px 0 0 var(--accent); }
-.wbet__price--empty { box-shadow: none; }
-.book-picker__trigger { border-radius: 999px; height: 28px; padding: 0 var(--space-2) 0 var(--space-3); background: transparent; box-shadow: inset 0 0 0 1px var(--separator-strong); }
-.book-picker__trigger:hover { background: var(--surface-3); }
+/* The price row closes the group and echoes the choice (recipe rule 3): the stronger
+   full-width hairline above it and a faint fill on the row alone, not a 3px accent bar down its
+   leading edge. The side leads in the label's place ("Spread · Broncos", semibold, one line);
+   the line, the price, the pencil and the book trail to the edge the segment tracks end at.
+   The rows above sit inside SelectionChips' display:contents wrapper, so the row-to-row
+   hairline (.wgroup__row + .wgroup__row) never reached this row: it draws its own. */
+.wbet > .wbet__price { min-height: 44px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+.wbet > .wbet__price:not(:first-child)::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--separator-strong);
+}
+.wbet > .wbet__price--empty { background: none; }
+/* The book menu opens from this row, the group's last: a group that clips (.wgroup's
+   overflow: hidden) cut the menu off at the group's bottom edge, so it opened invisible. The
+   bet group lets it out, and rounds its last row's fill to the group's corners itself. The menu
+   hangs from the row, right-aligned under the trigger at the row's trailing padding, and never
+   wider than the row, so it stays inside the window at every width. */
+.wbet { overflow: visible; }
+.wbet > .wbet__price:last-child { border-radius: 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px); }
+.wbet__price .book-picker { position: static; }
+.wbet__price .book-picker__panel {
+    top: calc(100% + 4px);
+    left: auto;
+    right: var(--space-4);
+    width: min(400px, calc(100% - 2 * var(--space-4)));
+    transform-origin: top right;
+}
+.wbet__side { font-weight: var(--weight-semibold); overflow: hidden; text-overflow: ellipsis; }
+@container (min-width: 401px) {
+    .wbet__price.wager-offer { grid-template-columns: minmax(0, 1fr) auto; }
+}
+.wbet__price .wager-offer__top { gap: var(--space-2); }
+.wbet__price .wager-offer__line { font-size: var(--text-body); }
+
+/* The book is a pop-up button, as macOS draws one (recipe rule 5): a quiet fill, no stroke at
+   rest, the control radius, the current book as its label and an up/down chevron at its end.
+   It was an outlined pill holding a filled capitals tag, which read as a chip to dismiss rather
+   than a menu to open. "Best" is a word in the positive colour, not a second badge. */
+.book-picker__trigger {
+    height: 26px;
+    gap: 6px;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    box-shadow: none;
+}
+.book-picker__trigger:hover { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
+.book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.book-picker__trigger:focus-visible { box-shadow: var(--focus-ring); }
+.book-picker__trigger .wager-offer__book { font-size: var(--text-body); }
+.book-picker__trigger svg { width: 14px; height: 14px; }
+.book-picker__trigger .tag {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--state-positive);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+}
 
 /* Widths. The window body is a container; the wizard reads it, not the viewport.
    Under 1100px: one column, cards at 760px. From 1100px: two columns — the header and the

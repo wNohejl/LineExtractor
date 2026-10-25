@@ -260,14 +260,18 @@ else
                     }
                     else if (_offer is { } offer && Side?.Offer is { } quoted)
                     {
+                        @* The row closes the group and echoes the choice (wizards.md, the bet-and-price
+                           recipe): the side leads where a label would ("Spread · Broncos"), and the
+                           line, the price and the book trail to the edge the segments end at, in the
+                           order the segment reads them (line, then price). The echo is the label. *@
                         <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
-                            <span class="wgroup__label">Price<span class="wbet__echo">@Side?.Label</span></span>
+                            <span class="wgroup__label wbet__side">@SelectionText.Of(_market!, offer.Outcome, null)</span>
                             <div class="wager-offer__top">
-                                <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
                                 @if (offer.Line is { } line)
                                 {
                                     <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
                                 }
+                                <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
                                 <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
                                             Icon="@Icons.Material.Filled.Edit"
                                             aria-pressed="false"
