@@ -2959,6 +2959,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    letter and a caret. A row too narrow for it wraps it onto the next line instead. */
 .ptoolbar > select.field { width: auto; flex: 0 0 auto; min-width: min(5rem, 100%); max-width: 100%; }
 .ptoolbar > .gate { max-width: 100%; }
+/* The game search names its pick in one unbroken line. Beside other pickers it wraps like
+   them (line breaking reads its full width); alone on a line narrower than the matchup it
+   ellipsizes inside the row instead of running past the window's edge. */
+.ptoolbar > .game-search { min-width: 0; max-width: 100%; }
 .ptoolbar__msg { flex: 0 1 auto; min-width: 0; font-size: var(--text-subheadline); color: var(--text-secondary); }
 /* The keys wrap inside their slot rather than run off the window's edge, each line flush
    right, so the Filled key (last in source) stays last on screen. A key never shrinks:
@@ -4664,3 +4668,21 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* The price row names the side it prices, under its label, so the row reads as that side's. */
 .wbet__echo { display: block; margin-top: 2px; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); white-space: normal; }
 .wbet__echo:empty { display: none; }
+
+/* ---- The wizard in a narrow window (beside two others, ~300-480px). The card's padding and
+   the rail's gutter took a third of the width, and the stake's quick values and its returns
+   broke wherever they ran out of room. Narrow, the card tightens, the rail's gutter halves, and
+   the returns take a line of their own under the amount, so every row breaks in one place. */
+@container (max-width: 480px) {
+    .wcard { padding: var(--space-3) var(--space-3) var(--space-4); }
+    .whead { padding: var(--space-3); }
+    .whead .ptitle__name { font-size: var(--text-title2); }
+    .wstep { column-gap: var(--space-2); padding-bottom: var(--space-4); }
+    .wstep__title { font-size: var(--text-title3); }
+    .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wstep__hint { font-size: var(--text-footnote); }
+    .wgroup__row--form .stake-row { row-gap: var(--space-1); }
+    .wgroup__row--form .stake-row__returns { flex-basis: 100%; margin-left: 0; }
+    .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
+    .wcard .waction__keys .desk-btn { flex: 1 1 auto; }
+}

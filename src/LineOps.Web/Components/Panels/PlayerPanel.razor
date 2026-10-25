@@ -40,7 +40,7 @@ else
             @if (_player.Team?.Name is { } team)
             {
                 <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                          OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team)">@team</DeskLink>
+                          OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team, WindowId)">@team</DeskLink>
             }
         </Tags>
         <Detail>
@@ -243,7 +243,7 @@ else
         var board = scope.ServiceProvider.GetRequiredService<BoardService>();
 
         if (await board.GetRowAsync(gameId) is { } row)
-            Manager.OpenGame(row.Game);
+            Manager.OpenGame(row.Game, WindowId);
     }
 
     /// <summary>

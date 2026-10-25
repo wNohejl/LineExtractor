@@ -805,12 +805,19 @@ public class WindowManager
 
     /// <summary>
     /// The desk as it stood before one navigation: which windows were in the row, what each
-    /// was aimed at, and which had focus. The windows themselves are kept, not described, so
-    /// going back puts the same window — same id, same slot, same width — where it was.
+    /// was showing and the pages it came through, and which had focus. The windows themselves
+    /// are kept, not described, so going back puts the same window — same id, same slot, same
+    /// width — where it was.
     /// </summary>
-    private sealed record DeskMoment(
-        IReadOnlyList<(WindowInstance Window, Dictionary<string, object> Parameters, string? Title)> Row,
-        string? FocusedId);
+    private sealed record DeskMoment(IReadOnlyList<WindowMoment> Row, string? FocusedId);
+
+    private sealed record WindowMoment(
+        WindowInstance Window,
+        WindowDefinition Definition,
+        Dictionary<string, object> Parameters,
+        string? Title,
+        List<WindowPage> BackPages,
+        List<WindowPage> ForwardPages);
 
     /// <summary>
     /// How many steps Back can take. The host mirrors this into the browser's own history, so
@@ -884,17 +891,45 @@ public class WindowManager
     }
 
     private DeskMoment Moment() => new(
-        _windows.Select(w => (w, new Dictionary<string, object>(w.Parameters), w.TitleOverride)).ToList(),
+        _windows.Select(w => new WindowMoment(
+            w,
+            w.Definition,
+            new Dictionary<string, object>(w.Parameters),
+            w.TitleOverride,
+            [.. w.BackPages],
+            [.. w.ForwardPages])).ToList(),
         FocusedId);
 
     private void Become(DeskMoment moment)
     {
         _windows.Clear();
 
-        foreach (var (window, parameters, title) in moment.Row)
+        foreach (var saved in moment.Row)
         {
-            Aim(window.Parameters, parameters);
-            window.TitleOverride = title;
+            var window = saved.Window;
+
+            // A window that followed a link since is showing another view, and the parameters of
+            // one view are not the parameters of another — a Team handed a GameId refuses it.
+            // So a different view is put back whole; the same view is re-aimed, as a singleton's
+            // subject always was.
+            if (window.Definition != saved.Definition)
+            {
+                window.Definition = saved.Definition;
+                window.Parameters.Clear();
+
+                foreach (var (key, value) in saved.Parameters)
+                    window.Parameters[key] = value;
+
+                window.PageVersion++;
+            }
+            else
+            {
+                Aim(window.Parameters, saved.Parameters);
+            }
+
+            window.TitleOverride = saved.Title;
+            window.BackPages = [.. saved.BackPages];
+            window.ForwardPages = [.. saved.ForwardPages];
             _windows.Add(window);
         }
 
@@ -903,11 +938,117 @@ public class WindowManager
         Relayout();
     }
 
-    private static DeskMoment Pop(List<DeskMoment> stack)
+    private static T Pop<T>(List<T> stack)
     {
         var last = stack[^1];
         stack.RemoveAt(stack.Count - 1);
         return last;
+    }
+
+    // ------------------------------------------------------------- window pages ----
+
+    /// <summary>How many pages one window remembers behind it.</summary>
+    private const int PageLimit = 30;
+
+    /// <summary>
+    /// Follows a link from inside a window: a team named in a game, a player on a roster.
+    ///
+    /// <para>
+    /// A subject window going to another subject turns to it in place, and keeps the page it
+    /// left so its own Back key returns there (<see cref="WindowInstance.FollowsInPlace"/>). Every
+    /// such link used to open a window of its own — three clicks into a matchup was three more
+    /// columns, each squeezing the rest, and on a full desk each closed something to make room.
+    /// The reader's context was the window they were reading; now it stays there.
+    /// </para>
+    ///
+    /// <para>
+    /// From anywhere else — a catalogue window, the search, no window at all — this is
+    /// <see cref="Open"/>.
+    /// </para>
+    /// </summary>
+    /// <param name="fromId">The window whose link was followed, or null.</param>
+    public WindowInstance Follow(
+        string? fromId,
+        WindowDefinition definition,
+        Dictionary<string, object> parameters,
+        string? titleOverride = null)
+    {
+        if (fromId is null
+            || Find(fromId) is not { FollowsInPlace: true } from
+            || !WindowInstance.Navigable(definition)
+            || (definition.OperatorOnly && !Access.CanOperate))
+        {
+            return Open(definition, parameters, titleOverride);
+        }
+
+        if (from.Definition == definition && !Retargets(from, parameters, titleOverride))
+        {
+            Focus(from.Id);
+            return from;
+        }
+
+        Remember();
+
+        from.BackPages.Add(PageOf(from));
+
+        if (from.BackPages.Count > PageLimit)
+            from.BackPages.RemoveAt(0);
+
+        from.ForwardPages.Clear();
+        Show(from, new WindowPage(definition, new Dictionary<string, object>(parameters), titleOverride));
+
+        return from;
+    }
+
+    /// <summary>Turns a window back to the page it followed a link from.</summary>
+    public bool PageBack(string id)
+    {
+        if (Find(id) is not { CanPageBack: true } window)
+            return false;
+
+        Remember();
+        window.ForwardPages.Add(PageOf(window));
+        Show(window, Pop(window.BackPages));
+        return true;
+    }
+
+    public bool PageForward(string id)
+    {
+        if (Find(id) is not { CanPageForward: true } window)
+            return false;
+
+        Remember();
+        window.BackPages.Add(PageOf(window));
+        Show(window, Pop(window.ForwardPages));
+        return true;
+    }
+
+    /// <summary>What a window is showing, as a page it can come back to. Cleared keys are left out.</summary>
+    private static WindowPage PageOf(WindowInstance window) => new(
+        window.Definition,
+        window.Parameters.Where(p => p.Value is not null).ToDictionary(),
+        window.TitleOverride);
+
+    /// <summary>
+    /// Puts a page in a window. The parameters are replaced rather than re-aimed, because the
+    /// view may have changed, and the page version moves so the host builds the view afresh.
+    /// </summary>
+    private void Show(WindowInstance window, WindowPage page)
+    {
+        window.Definition = page.Definition;
+        window.Parameters.Clear();
+
+        foreach (var (key, value) in page.Parameters)
+            window.Parameters[key] = value;
+
+        window.TitleOverride = page.TitleOverride;
+        window.PageVersion++;
+        window.Minimised = false;
+        window.LastFocusedAt = DateTimeOffset.UtcNow;
+        FocusedId = window.Id;
+
+        // A team's view is narrower than a game's: the column's minimum is the new view's.
+        Relayout();
     }
 
     /// <summary>Whether opening <paramref name="window"/> with these arguments would change what it shows.</summary>

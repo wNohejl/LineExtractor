@@ -69,7 +69,11 @@
                 <span class="mono">@(_plan.CreditsPerScan)</span> credits each.
             </text>
         }
-        Use <strong>Pull data → Pull lines</strong>.
+        @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
+        @if (Manager.Access.CanOperate)
+        {
+            <text>Use <strong>Pull data → Pull lines</strong>.</text>
+        }
     </p>
 
     @* The price, before anything is spent: what each sport's scan asks for and bills, and how

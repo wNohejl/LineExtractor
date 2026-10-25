@@ -15,6 +15,12 @@ namespace LineOps.Web.Windowing;
 ///
 /// Keeping the routes here means a destination's title, parameters and singleton behaviour are
 /// decided once, by the thing that owns them, rather than at each call site.
+///
+/// <para>
+/// The subject routes take <c>from</c>, the window the link sits in. A subject window passes its
+/// own id and the destination opens in it, with Back to return (<see cref="WindowManager.Follow"/>);
+/// anything else passes nothing and gets a window of its own.
+/// </para>
 /// </summary>
 public static class WindowShortcuts
 {
@@ -22,12 +28,13 @@ public static class WindowShortcuts
     /// The consolidated game view — lines, team data and players for one game. Not a singleton:
     /// comparing two games side by side is the point.
     /// </summary>
-    public static void OpenGame(this WindowManager manager, Game game)
+    public static void OpenGame(this WindowManager manager, Game game, string? from = null)
     {
         if (manager.Catalog.Find(WindowCatalog.Game) is not { } definition)
             return;
 
-        manager.Open(
+        manager.Follow(
+            from,
             definition,
             new Dictionary<string, object> { ["GameId"] = game.Id },
             Describe(game));
@@ -54,24 +61,26 @@ public static class WindowShortcuts
     /// going. Following a name should land on the thing the name refers to.
     /// </para>
     /// </summary>
-    public static void OpenPlayer(this WindowManager manager, int playerId, string? name = null)
+    public static void OpenPlayer(this WindowManager manager, int playerId, string? name = null, string? from = null)
     {
         if (manager.Catalog.Find(WindowCatalog.Player) is not { } definition)
             return;
 
-        manager.Open(
+        manager.Follow(
+            from,
             definition,
             new Dictionary<string, object> { ["PlayerId"] = playerId },
             name);
     }
 
     /// <summary>The Team window, focused on one team's recent record and roster.</summary>
-    public static void OpenTeam(this WindowManager manager, int teamId, string? name = null)
+    public static void OpenTeam(this WindowManager manager, int teamId, string? name = null, string? from = null)
     {
         if (manager.Catalog.Find(WindowCatalog.Team) is not { } definition)
             return;
 
-        manager.Open(
+        manager.Follow(
+            from,
             definition,
             new Dictionary<string, object> { ["TeamId"] = teamId },
             name);
@@ -81,12 +90,13 @@ public static class WindowShortcuts
     /// Every previous meeting between the two sides of a game. Takes the game rather than the
     /// teams, because the matchup is what a row on the desk names.
     /// </summary>
-    public static void OpenHeadToHead(this WindowManager manager, int gameId, string? name = null)
+    public static void OpenHeadToHead(this WindowManager manager, int gameId, string? name = null, string? from = null)
     {
         if (manager.Catalog.Find(WindowCatalog.HeadToHead) is not { } definition)
             return;
 
-        manager.Open(
+        manager.Follow(
+            from,
             definition,
             new Dictionary<string, object> { ["GameId"] = gameId },
             name is null ? null : $"H2H · {name}");

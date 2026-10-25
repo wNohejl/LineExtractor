@@ -36,7 +36,7 @@ else
     <PanelTitle>
         <ChildContent>
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
+                      OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name, WindowId)">
                 @(game.AwayTeam?.Name ?? "Away")
             </DeskLink>
             @if (showScore)
@@ -45,7 +45,7 @@ else
             }
             <span class="dim" style="margin:0 4px">at</span>
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name)">
+                      OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
                 @(game.HomeTeam?.Name ?? "Home")
             </DeskLink>
             @if (showScore)
@@ -96,7 +96,7 @@ else
                 @* How these two have gone against each other, which is a different question from
                    how either has been playing — and the one the team blocks cannot answer. *@
                 <DeskButton Icon="@Icons.Material.Filled.CompareArrows"
-                            OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game))">
+                            OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)">
                     Head to head
                 </DeskButton>
             </DeskRow>
@@ -270,7 +270,7 @@ else
                 OpenLabel = "Player window",
                 OpenWindow = () =>
                 {
-                    Manager.OpenPlayer(id, name);
+                    Manager.OpenPlayer(id, name, WindowId);
                     return Task.CompletedTask;
                 }
             }
@@ -404,7 +404,7 @@ else
     private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name) => @<text>
         <div>
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(teamId, name)">@name</DeskLink>
+                      OnClick="() => Manager.OpenTeam(teamId, name, WindowId)">@name</DeskLink>
 
             @if (form is null || form.Recent.Count == 0)
             {
@@ -459,7 +459,7 @@ else
                         <CellTemplate>
                             <span title="@context.Item.Name">
                                 <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
                             </span>
                         </CellTemplate>
                     </PropertyColumn>
@@ -526,7 +526,7 @@ else
                         <CellTemplate>
                             <span title="@context.Item.Name">
                                 <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name)">@context.Item.Name</DeskLink>
+                                          OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
                             </span>
 
                             @if (_openPlayer == context.Item.PlayerId)

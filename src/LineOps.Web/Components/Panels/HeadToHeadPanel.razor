@@ -214,6 +214,6 @@ else
         var board = scope.ServiceProvider.GetRequiredService<BoardService>();
 
         if (await board.GetRowAsync(gameId) is { } row)
-            Manager.OpenGame(row.Game);
+            Manager.OpenGame(row.Game, WindowId);
     }
 }

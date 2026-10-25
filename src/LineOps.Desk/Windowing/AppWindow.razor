@@ -22,6 +22,31 @@
      @onpointerdown="OnPointerDown">
 
     <div class="win__bar" data-tab-handle @ondblclick="OnBarDoubleClick" @onclick="OnBarClick">
+        @* A subject window follows its links in place (WindowManager.Follow), so it carries its
+           own Back and Forward — always drawn, dimmed when there is nowhere to go, so the
+           title does not jump sideways the first time a link is followed. *@
+        @if (!Window.Minimised && Window.FollowsInPlace)
+        {
+            <div class="win__nav">
+                <button class="win__nav-btn" type="button" data-window-control
+                        title="@(Window.BackTitle is { } back ? $"Back to {back}" : "Back")"
+                        aria-label="@(Window.BackTitle is { } backLabel ? $"Back to {backLabel}" : "Back")"
+                        disabled="@(!Window.CanPageBack)"
+                        @onclick="PageBack" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.ChevronLeft" />
+                </button>
+                <button class="win__nav-btn" type="button" data-window-control
+                        title="@(Window.ForwardTitle is { } forward ? $"Forward to {forward}" : "Forward")"
+                        aria-label="@(Window.ForwardTitle is { } forwardLabel ? $"Forward to {forwardLabel}" : "Forward")"
+                        disabled="@(!Window.CanPageForward)"
+                        @onclick="PageForward" @onclick:stopPropagation="true"
+                        @ondblclick:stopPropagation="true">
+                    <Glyph Icon="@Icons.Material.Filled.ChevronRight" />
+                </button>
+            </div>
+        }
+
         <span class="win__icon">
             <Glyph Icon="@Window.Definition.Icon" />
         </span>
@@ -73,7 +98,9 @@
 
     @if (!Window.Minimised)
     {
-        <div class="win__body">
+        @* Keyed on the page, so turning to another page builds the body afresh: scrolled to the
+           top, with none of the last page's tabs or filters carried into the next. *@
+        <div class="win__body" @key="Window.PageVersion">
             <CascadingValue Value="@Window.Id" Name="WindowId">
                 <DynamicComponent Type="Window.Definition.ComponentType"
                                   Parameters="Window.Parameters" />
@@ -118,6 +145,8 @@
             Maximise();
     }
 
+    private void PageBack() => Manager.PageBack(Window.Id);
+    private void PageForward() => Manager.PageForward(Window.Id);
     private void Minimise() => Manager.ToggleMinimise(Window.Id);
     private void Maximise() => Manager.ToggleMaximise(Window.Id);
     private void Close() => Manager.Close(Window.Id);

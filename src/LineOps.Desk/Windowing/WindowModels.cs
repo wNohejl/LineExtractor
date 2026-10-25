@@ -152,11 +152,65 @@ public record WindowDefinition
     public bool OperatorOnly { get; init; }
 }
 
+/// <summary>
+/// What a window showed at one point: which view, aimed at what, under what title. Kept by the
+/// window as it follows links, so its Back key can put the last page back.
+/// </summary>
+public sealed record WindowPage(
+    WindowDefinition Definition,
+    IReadOnlyDictionary<string, object> Parameters,
+    string? TitleOverride)
+{
+    public string Title => TitleOverride ?? Definition.Title;
+}
+
 /// <summary>One open window. Mutable — the manager owns it and raises change notifications.</summary>
 public class WindowInstance
 {
     public required string Id { get; init; }
-    public required WindowDefinition Definition { get; init; }
+
+    /// <summary>
+    /// The view the window is showing. Settable because a subject window follows its own links:
+    /// a team named in a game opens in the game's window, which then shows the team.
+    /// </summary>
+    public required WindowDefinition Definition { get; set; }
+
+    /// <summary>
+    /// Whether a link followed inside this window lands in it rather than in a window of its own.
+    ///
+    /// <para>
+    /// Only subject windows do — a game, a team, a player, a head to head. They are about one
+    /// thing, so going from that thing to the next is reading on. A catalogue window is a place
+    /// the operator works from: the Board turned into a game would lose the slate the game was
+    /// picked from, so its links still open beside it.
+    /// </para>
+    /// </summary>
+    public bool FollowsInPlace => Navigable(Definition);
+
+    /// <summary>Whether a view can be a page in a window that follows its links.</summary>
+    public static bool Navigable(WindowDefinition definition)
+        => definition.RequiresSubject && !definition.Singleton;
+
+    /// <summary>The pages this window came through, oldest first. The manager owns both lists.</summary>
+    internal List<WindowPage> BackPages { get; set; } = [];
+
+    internal List<WindowPage> ForwardPages { get; set; } = [];
+
+    public bool CanPageBack => BackPages.Count > 0;
+
+    public bool CanPageForward => ForwardPages.Count > 0;
+
+    /// <summary>What Back would show — said on the key, so the reader knows where it goes.</summary>
+    public string? BackTitle => BackPages.Count > 0 ? BackPages[^1].Title : null;
+
+    public string? ForwardTitle => ForwardPages.Count > 0 ? ForwardPages[^1].Title : null;
+
+    /// <summary>
+    /// Bumped whenever the window turns to another page. The host keys the hosted view on it, so
+    /// a new page is a new component — scrolled to the top, with none of the last page's tabs or
+    /// filters carried over.
+    /// </summary>
+    public int PageVersion { get; internal set; }
 
     /// <summary>Overrides the definition's title, e.g. a specific matchup.</summary>
     public string? TitleOverride { get; set; }
