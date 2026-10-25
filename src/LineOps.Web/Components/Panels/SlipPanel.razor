@@ -15,13 +15,19 @@
 *@
 
 <div class="wsections slip">
+    @* Grouped lists, after the HIG (apple-hig-components, forms.md): each group a fill with an
+       inset hairline between rows, named by a quiet sentence-case header and explained by a
+       footer. The wagers are rows of one list, not a box apiece. *@
     <section class="wsection" aria-labelledby="slip-mode-h">
-        <PanelHeader Tight id="slip-mode-h">Logged as</PanelHeader>
-        <DeskRow>
-            <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
-                        Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
-            <span class="wager-offer__of">Belongs to this desk session, not to a game.</span>
-        </DeskRow>
+        <h3 class="wgroup__head" id="slip-mode-h">Logged as</h3>
+        <div class="wgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Log</span>
+                <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
+                            Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
+            </div>
+        </div>
+        <p class="wgroup__foot">Belongs to this desk session, not to a game.</p>
     </section>
 
     @if (_report is { } report)
@@ -58,19 +64,20 @@
     else
     {
         <section class="wsection" aria-labelledby="slip-wagers-h">
-            <PanelHeader Tight id="slip-wagers-h">
+            <h3 class="wgroup__head" id="slip-wagers-h">
                 @(Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers")
-            </PanelHeader>
+            </h3>
 
-            <div class="slip-cards">
+            <div class="wgroup slip-cards" role="list" aria-labelledby="slip-wagers-h">
                 @foreach (var item in Slip.Items)
                 {
                     var state = StateOf(item);
 
-                    @* Each wager is a group of its own: one card, one fact to settle. A card that
-                       cannot be logged takes a negative wash — the one surface here that carries a
-                       state, because the card itself is the status. *@
-                    <div class="wgroup slip-card @(state.State == DeskState.Negative ? "slip-card--blocked" : null)" @key="item.Id">
+                    @* One row per wager in one list: what it is and where, its stake, the key that
+                       drops it, and beneath, whether it can be logged. A row that cannot be logged
+                       dims its words, as the HIG's tertiary label marks an unavailable item, and
+                       its tag says why; no wash, no outline. *@
+                    <div class="wgroup__row slip-card @(state.State == DeskState.Negative ? "slip-card--blocked" : null)" role="listitem" @key="item.Id">
                         <div class="slip-card__top">
                             <div>
                                 <div class="slip-card__sel">@item.Selection</div>
@@ -117,14 +124,42 @@
         @if (Slip.Mode == SlipMode.Parlay)
         {
             <section class="wsection" aria-labelledby="slip-parlay-h">
-                <PanelHeader Tight id="slip-parlay-h">Parlay</PanelHeader>
-                <div class="wgroup">
-                    <div class="slip-parlay">
-                        <div class="slip-parlay__head">
-                            <span class="wager-offer__book">Combined</span>
-                            <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
-                        </div>
-                        <div class="slip-parlay__note">
+                <h3 class="wgroup__head" id="slip-parlay-h">Parlay</h3>
+                @* The parlay as form rows: the combined price, the stake, the book's own price
+                   and the book, each label leading; how the price was reached is the footer. *@
+                <div class="wgroup slip-parlay">
+                    <div class="wgroup__row wgroup__row--form slip-parlay__head">
+                        <span class="wgroup__label">Combined</span>
+                        <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Stake</span>
+                        <StakeRow Stake="Slip.ParlayStake"
+                                  StakeChanged="@(s => Slip.SetParlay(s, Slip.ParlayPriceQuoted, Slip.ParlayBook))"
+                                  PriceAmerican="Slip.CombinedPrice" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Book's price</span>
+                        @* The book's own price for the parlay, when it gave one: it is what a clean
+                           win pays. Without it the legs are multiplied, which is also how a push reprices. *@
+                        <DeskField TValue="int?" Mono="true" type="number" Class="wfield--short"
+                                   placeholder="Optional" aria-label="Parlay price" Value="Slip.ParlayPriceQuoted"
+                                   ValueChanged="@((int? p) => Slip.SetParlay(Slip.ParlayStake, p, Slip.ParlayBook))" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Book</span>
+                        <DeskSelect TValue="string" Class="wfield--short" Value="Slip.ParlayBook"
+                                    aria-label="Book the parlay was placed at"
+                                    ValueChanged="@((string? b) => Slip.SetParlay(Slip.ParlayStake, Slip.ParlayPriceQuoted, b))">
+                            <option value="">Choose…</option>
+                            @foreach (var book in Books)
+                            {
+                                <option value="@book">@book</option>
+                            }
+                        </DeskSelect>
+                    </div>
+                </div>
+                        <p class="wgroup__foot slip-parlay__note">
                             @if (Slip.IsSameGame)
                             {
                                 @* Multiplied, the legs of one game overstate the payout: they win
@@ -139,46 +174,24 @@
                             {
                                 @(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs")<text>, prices multiplied; a book's own parlay price can replace it.</text>
                             }
-                        </div>
-                    </div>
-                    <div class="wgroup__row wgroup__row--pad">
-                        <StakeRow Stake="Slip.ParlayStake"
-                                  StakeChanged="@(s => Slip.SetParlay(s, Slip.ParlayPriceQuoted, Slip.ParlayBook))"
-                                  PriceAmerican="Slip.CombinedPrice" />
-                    </div>
-                    <div class="wgroup__row wgroup__row--pad">
-                        @* The book's own price for the parlay, when it gave one: it is what a clean
-                           win pays. Without it the legs are multiplied, which is also how a push reprices. *@
-                        <DeskField TValue="int?" Mono="true" type="number" style="max-width:120px"
-                                   placeholder="Parlay price" aria-label="Parlay price" Value="Slip.ParlayPriceQuoted"
-                                   ValueChanged="@((int? p) => Slip.SetParlay(Slip.ParlayStake, p, Slip.ParlayBook))" />
-                        <DeskSelect TValue="string" style="max-width:140px" Value="Slip.ParlayBook"
-                                    aria-label="Book the parlay was placed at"
-                                    ValueChanged="@((string? b) => Slip.SetParlay(Slip.ParlayStake, Slip.ParlayPriceQuoted, b))">
-                            <option value="">Book…</option>
-                            @foreach (var book in Books)
-                            {
-                                <option value="@book">@book</option>
-                            }
-                        </DeskSelect>
-                    </div>
-                </div>
+                        </p>
             </section>
         }
 
+        @* The one filled key leads, aligned with the groups; Start over is plain beside it,
+           and what Log waits for follows on the same line. *@
         <div class="waction">
             <div class="waction__keys slip-footer">
-                <DeskButton Class="waction__lead" OnClick="StartOverAsync">Start over</DeskButton>
                 <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Bolt"
                             Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync">
                     @LogLabel
                 </DeskButton>
+                <DeskButton OnClick="StartOverAsync">Start over</DeskButton>
+                @if (Waiting is { } why)
+                {
+                    <span class="warnc slip-why">@why</span>
+                }
             </div>
-
-            @if (Waiting is { } why)
-            {
-                <div class="warnc slip-why">@why</div>
-            }
         </div>
     }
 

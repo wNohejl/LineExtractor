@@ -2994,6 +2994,22 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 .pform__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
 .pform__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+/* A form whose fields are a grouped form (.wgroup rows) is not boxed again: the group is the
+   fill, and a frame around it would be a box inside a box. Its keys lead, under the group. */
+.pform--grouped { padding: 0; background: none; border: 0; max-width: 560px; }
+/* Its title is a group header: sentence case, quiet, inset to the rows' text. */
+.pform--grouped > .panel-h {
+    margin: 0 0 var(--space-1);
+    padding: 0 var(--space-4);
+    border: 0;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-regular);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-secondary);
+}
+.pform--grouped > .panel-h::after { display: none; }
+.pform--grouped .pform__keys { margin-left: 0; flex-direction: row-reverse; justify-content: flex-end; }
 
 /* 3 · 4 · Note and metrics in a window body own the air beneath them too. The space
    above comes from whatever precedes them. A Note rendered inline is a span and is
@@ -4058,6 +4074,19 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    of the row for a note. */
 .wfield--short { width: 100%; max-width: 160px; }
 .wfield--fill { width: 100%; }
+/* A group's header: a quiet sentence-case name above it, not a tracked all-caps rule. */
+.wgroup__head {
+    margin: 0 0 var(--space-1);
+    padding: 0 var(--space-4);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-regular);
+    color: var(--text-secondary);
+}
+.wsection > .wgroup__foot { margin-top: 0; }
+.slip .wgroup, .slip .waction { max-width: 560px; }
+/* Groups and the keys under them are separated by space, not a rule. */
+.slip .waction { border-top: 0; padding-top: 0; }
+.slip .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
 
 /* A narrow group (a window beside other windows) stacks each label above its control — HIG:
    "horizontally adjacent views may need to stack vertically". Placed after the form-row rules
@@ -4460,9 +4489,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    after the quick keys on one line; the keys lead the action row with what they wait for
    beside them; a check's remedy follows its sentence. */
 .wsteps .wgroup { max-width: 560px; }
-.wsteps .stake-row { flex-wrap: wrap; }
-.wsteps .stake-row__returns { margin-left: var(--space-2); flex-direction: row; align-items: baseline; gap: var(--space-2); }
-.wsteps .stake-row__returns-label { text-transform: none; letter-spacing: 0; font-size: var(--text-subheadline); font-weight: var(--weight-regular); }
+.wsteps .stake-row, .wgroup__row--form .stake-row { flex-wrap: wrap; }
+.wsteps .stake-row__returns, .wgroup__row--form .stake-row__returns { margin-left: var(--space-2); flex-direction: row; align-items: baseline; gap: var(--space-2); }
+.wsteps .stake-row__returns-label, .wgroup__row--form .stake-row__returns-label { text-transform: none; letter-spacing: 0; font-size: var(--text-subheadline); font-weight: var(--weight-regular); }
 .wsteps .waction { border-top: 0; padding-top: 0; }
 .wsteps .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
 .wsteps .wager-why { text-align: left; }
@@ -4498,14 +4527,11 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     font-variant-numeric: tabular-nums;
 }
 
-/* ---- The slip: each wager a group of its own. */
-.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3); }
-/* A card that cannot be logged says so on its edge as well as its wash: the one outline on the
-   slip that takes a state. */
-.slip-card--blocked {
-    background: color-mix(in oklab, var(--state-negative) 12%, var(--surface-2));
-    border-color: color-mix(in oklab, var(--state-negative) 60%, transparent);
-}
+/* ---- The slip: one grouped list, a row per wager. A row that cannot be logged dims its
+   words to the tertiary label (the HIG's "unavailable item"); its tag carries the state. */
+.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); align-items: stretch; }
+.slip-card--blocked .slip-card__sel { color: var(--text-secondary); }
+.slip-card--blocked .slip-card__meta { color: var(--text-tertiary); }
 .slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
 .slip-card__top > div:first-child { flex: 1; min-width: 0; }
 .slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
@@ -4517,13 +4543,10 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 /* The stake field holds a number the slip refused: the one line here in a state colour,
    because it is about the value typed, not the card. */
 .slip-card__zero { color: var(--state-warning); }
-.slip-cards { display: flex; flex-direction: column; gap: var(--space-2); }
+.slip-cards { display: block; }
 
-.slip-parlay { display: grid; gap: var(--space-2); padding: var(--space-3); }
-.slip-parlay__head { display: flex; align-items: baseline; gap: var(--space-2); }
 .slip-parlay__price {
-    margin-left: auto;
-    font-size: var(--text-title1);
+    font-size: var(--text-title2);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
     font-variant-numeric: tabular-nums;

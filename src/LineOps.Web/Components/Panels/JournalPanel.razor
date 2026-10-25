@@ -75,7 +75,7 @@ else
 
 @if (_mode == FormMode.Entry)
 {
-    <PanelForm Title="Edit entry">
+    <PanelForm Title="Edit entry" Class="pform--grouped">
     <ChildContent>
 
         @if (_editing is { IsGraded: true })
@@ -91,15 +91,25 @@ else
             <Note Class="journal-manual-note">A price you entered by hand, not one the desk fetched.</Note>
         }
 
-        @LegFields(_entry)
+        @* The wager window's grouped form, row for row (apple-hig-components, forms.md): the
+           label leads in one column, the control trails, one inset rule between rows. *@
+        <div class="wgroup jform">
+            @LegFields(_entry)
 
-        <StakeRow Stake="_entry.Stake" StakeChanged="@(s => _entry.Stake = s)"
-                  PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)" />
-
-        <div class="row">
-            @BookPicker(_entry.Book, SetEntryBookAsync)
-            <DeskField TValue="string" style="flex:1; min-width:160px"
-                       placeholder="Note (optional)" @bind-Value="_entry.Note" />
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Stake</span>
+                <StakeRow Stake="_entry.Stake" StakeChanged="@(s => _entry.Stake = s)"
+                          PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)" />
+            </div>
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Book</span>
+                @BookPicker(_entry.Book, SetEntryBookAsync)
+            </div>
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Note</span>
+                <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                           placeholder="Optional" @bind-Value="_entry.Note" />
+            </div>
         </div>
 
     </ChildContent>
@@ -625,44 +635,57 @@ else
             : null;
 
     private RenderFragment LegFields(Draft d) => @<text>
-        <GamePicker Value="d.GameId" Selected="d.Game"
-                    SelectedChanged="@((Game? g) => d.Game = g)" ValueChanged="@((int? id) => d.GameId = id)" />
+        <div class="wgroup__row wgroup__row--form">
+            <span class="wgroup__label">Game</span>
+            <GamePicker Value="d.GameId" Selected="d.Game"
+                        SelectedChanged="@((Game? g) => d.Game = g)" ValueChanged="@((int? id) => d.GameId = id)" />
+        </div>
 
-        <div class="row">
-            <DeskSelect TValue="string" Value="d.Market"
+        <div class="wgroup__row wgroup__row--form">
+            <span class="wgroup__label">Market</span>
+            <DeskSelect TValue="string" Value="d.Market" Class="wfield--short" aria-label="Market"
                         ValueChanged="@((string? m) => d.Market = m ?? Markets.Spread)">
                 <option value="@Markets.Moneyline">Moneyline</option>
                 <option value="@Markets.Spread">Spread</option>
                 <option value="@Markets.Total">Total</option>
                 <option value="@FreeText">Other (describe)</option>
             </DeskSelect>
+        </div>
 
+        <div class="wgroup__row wgroup__row--form">
+            <span class="wgroup__label">@(d.Market == FreeText ? "Bet" : "Selection")</span>
             @if (d.Market == FreeText)
             {
-                <DeskField TValue="string" style="flex:1; min-width:200px"
+                <DeskField TValue="string" Class="wfield--fill" aria-label="The bet"
                            placeholder="e.g. Player X over 1.5 receiving TDs" @bind-Value="d.FreeTextMarket" />
             }
             else
             {
-                <DeskField TValue="string" style="max-width:190px"
+                <DeskField TValue="string" Class="wfield--short" aria-label="Selection"
                            placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")"
                            Value="d.Outcome"
                            ValueChanged="@((string? o) => d.Outcome = o ?? string.Empty)" />
             }
+        </div>
 
-            @if (d.Market is Markets.Spread or Markets.Total)
-            {
-                <DeskField TValue="decimal?" Mono="true" style="max-width:90px" type="number" step="0.5"
-                           placeholder="Line" @bind-Value="d.LineTaken" />
-            }
+        @if (d.Market is Markets.Spread or Markets.Total)
+        {
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Line</span>
+                <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="0.5"
+                           aria-label="Line" placeholder="-3" @bind-Value="d.LineTaken" />
+            </div>
+        }
 
-            <DeskField TValue="int" Mono="true" style="max-width:90px" type="number"
-                       placeholder="Price" @bind-Value="d.PriceTaken" />
+        <div class="wgroup__row wgroup__row--form">
+            <span class="wgroup__label">Price</span>
+            <DeskField TValue="int" Mono="true" Class="wfield--short" type="number"
+                       aria-label="Price" placeholder="-110" @bind-Value="d.PriceTaken" />
         </div>
     </text>;
 
     private RenderFragment BookPicker(string current, Func<string, Task> set) => @<text>
-        <DeskSelect TValue="string" style="max-width:140px" Value="current"
+        <DeskSelect TValue="string" Class="wfield--short" aria-label="Book" Value="current"
                     ValueChanged="@(async (string? b) => await set(b ?? string.Empty))">
             <option value="">Book…</option>
             @foreach (var book in _books)
