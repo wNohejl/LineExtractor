@@ -11,9 +11,10 @@ namespace LineOps.Web.Tests;
 public class WagerSlipTests
 {
     private static SlipItem Item(int price = -110, bool closing = false, decimal stake = 50m,
-        string outcome = "Kansas City Chiefs", string book = "draftkings", int gameId = 7)
+        string outcome = "Kansas City Chiefs", string book = "draftkings", int gameId = 7,
+        string market = Markets.Moneyline, decimal? line = null)
         => new(Guid.Empty, gameId, "Buffalo Bills at Kansas City Chiefs", DateTimeOffset.UtcNow.AddHours(3), "nfl",
-            Markets.Moneyline, outcome, null, book, price, DateTimeOffset.UtcNow, closing, stake, null, null, null);
+            market, outcome, line, book, price, DateTimeOffset.UtcNow, closing, stake, null, null, null);
 
     [Fact]
     public void Add_remove_and_clear_each_raise_Changed_once()
@@ -119,7 +120,7 @@ public class WagerSlipTests
     }
 
     [Fact]
-    public void A_parlay_takes_one_leg_per_game()
+    public void A_parlay_takes_one_leg_per_market_on_a_game()
     {
         var slip = new WagerSlip();
         var first = slip.Add(Item(-332, book: "pinnacle"));
@@ -130,11 +131,111 @@ public class WagerSlipTests
 
         Assert.Equal(new[] { first.Id, other.Id }, slip.Legs.Select(l => l.Id));
         Assert.False(slip.CanLog(twin));
-        Assert.True(slip.SharesGameWithLeg(twin));
+        Assert.True(slip.SharesMarketWithLeg(twin));
 
-        // Dropping the first promotes the twin: the rule is one per game, not "never this one".
+        // Dropping the first promotes the twin: the rule is one per market, not "never this one".
         slip.Remove(first.Id);
         Assert.True(slip.IsLeg(twin));
+    }
+
+    /// <summary>
+    /// A side and a total on one game is a same-game parlay. Both are legs; the over beside the
+    /// under is not, since only one can win.
+    /// </summary>
+    [Fact]
+    public void A_side_and_a_total_on_one_game_are_both_legs()
+    {
+        var slip = new WagerSlip();
+        var side = slip.Add(Item(-110, market: Markets.Spread, line: -3m));
+        var over = slip.Add(Item(-110, market: Markets.Total, outcome: "over", line: 47.5m));
+        var under = slip.Add(Item(-110, market: Markets.Total, outcome: "under", line: 47.5m));
+
+        slip.SetMode(SlipMode.Parlay);
+
+        Assert.Equal(new[] { side.Id, over.Id }, slip.Legs.Select(l => l.Id));
+        Assert.True(slip.SharesMarketWithLeg(under));
+        Assert.True(slip.IsSameGame);
+    }
+
+    /// <summary>
+    /// Legs on one game win and lose together, so their prices multiplied overstate the payout:
+    /// a same-game parlay has no combined price until the book's own is given.
+    /// </summary>
+    [Fact]
+    public void A_same_game_parlay_is_priced_only_by_the_book()
+    {
+        var slip = new WagerSlip();
+        slip.Add(Item(-110, market: Markets.Spread, line: -3m));
+        slip.Add(Item(-110, market: Markets.Total, outcome: "over", line: 47.5m));
+        slip.SetMode(SlipMode.Parlay);
+
+        Assert.Null(slip.CombinedPrice);
+        Assert.Equal(264, slip.MultipliedPrice);
+
+        slip.SetParlay(20m, 240, "draftkings");
+        Assert.Equal(240, slip.CombinedPrice);
+    }
+
+    [Fact]
+    public void Legs_on_separate_games_are_not_a_same_game_parlay()
+    {
+        var slip = new WagerSlip();
+        slip.Add(Item(-128));
+        slip.Add(Item(-110, market: Markets.Total, outcome: "over", line: 8.5m, gameId: 8));
+
+        Assert.False(slip.IsSameGame);
+        Assert.Equal(slip.MultipliedPrice, slip.CombinedPrice);
+    }
+
+    /// <summary>A leg banked from the Board carries no stake; it is the one card the slip takes at zero.</summary>
+    [Fact]
+    public void A_leg_is_banked_without_a_stake_and_turns_an_empty_slip_into_a_parlay()
+    {
+        var slip = new WagerSlip();
+        var changes = 0;
+        slip.Changed += () => changes++;
+
+        var leg = slip.AddLeg(Item(stake: 25m));
+
+        Assert.True(leg.AsLeg);
+        Assert.Equal(0m, leg.Stake);
+        Assert.Equal(SlipMode.Parlay, slip.Mode);
+        Assert.Equal("draftkings", slip.ParlayBook);
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void A_leg_beside_straight_bets_keeps_the_mode_and_is_not_logged_straight()
+    {
+        var slip = new WagerSlip();
+        var straight = slip.Add(Item(stake: 50m));
+        var leg = slip.AddLeg(Item(outcome: "Buffalo Bills", gameId: 8));
+
+        Assert.Equal(SlipMode.Straight, slip.Mode);
+        Assert.False(slip.CanLog(leg));
+        Assert.Equal(new[] { straight.Id }, slip.Ready.Select(i => i.Id));
+
+        slip.SetMode(SlipMode.Parlay);
+        Assert.True(slip.CanLog(leg));
+    }
+
+    [Fact]
+    public void A_stake_typed_on_a_leg_makes_it_a_wager_and_an_edit_at_zero_keeps_it_a_leg()
+    {
+        var slip = new WagerSlip();
+        var leg = slip.AddLeg(Item());
+
+        slip.Touch(leg.Id, i => i with { Note = "same-game" });
+        Assert.True(slip.Items.Single().AsLeg);
+        Assert.Equal("same-game", slip.Items.Single().Note);
+
+        slip.Touch(leg.Id, i => i with { Stake = 20m });
+        Assert.False(slip.Items.Single().AsLeg);
+        Assert.Equal(20m, slip.Items.Single().Stake);
+
+        // Once a wager, the $0 rule is its rule.
+        slip.Touch(leg.Id, i => i with { Stake = 0m });
+        Assert.Equal(20m, slip.Items.Single().Stake);
     }
 
     [Fact]

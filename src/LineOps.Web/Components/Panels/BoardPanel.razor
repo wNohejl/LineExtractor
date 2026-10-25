@@ -12,6 +12,8 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<IngestionOptions> IngestionOptions
+@inject LineOps.Web.Services.WagerSlip Slip
+@inject DeskToasts Toasts
 
 @*
     The board — the one games surface.
@@ -300,7 +302,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)" />
+                           OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)"
+                           OnBank="() => Bank(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -308,7 +311,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)" />
+                           OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)"
+                           OnBank="() => Bank(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -316,7 +320,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.First)" />
+                           OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.First)"
+                           OnBank="() => Bank(context.Item, context.Item.Spread, context.Item.Spread.First)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -324,7 +329,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.Second)" />
+                           OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.Second)"
+                           OnBank="() => Bank(context.Item, context.Item.Spread, context.Item.Spread.Second)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -332,7 +338,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.First" Selection="O"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.First)" />
+                           OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.First)"
+                           OnBank="() => Bank(context.Item, context.Item.Total, context.Item.Total.First)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -340,7 +347,8 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
                            StartsAt="context.Item.Game.StartsAt"
-                           OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.Second)" />
+                           OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.Second)"
+                           OnBank="() => Bank(context.Item, context.Item.Total, context.Item.Total.Second)" />
             </CellTemplate>
         </TemplateColumn>
 
@@ -901,6 +909,26 @@ else
             ["Outcome"] = offer.Outcome,
             ["Book"] = offer.Book
         }, row.Game.Id, Matchup(row.Game), "480px");
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Door 2, shifted: a live price goes onto the slip as a parlay leg, at the book the cell
+    /// shows, with no window opened. The toast is the acknowledgment and names what the slip now
+    /// holds, as the wager window's badge does.
+    /// </summary>
+    private Task Bank(BoardRow row, MarketPair pair, BestOffer? offer)
+    {
+        if (offer is null || offer.IsClosing)
+            return Task.CompletedTask;
+
+        var price = LineOps.Web.Services.WagerOffer.Best(pair.Market, offer);
+        Slip.AddLeg(price.ToSlipItem(row.Game, Matchup(row.Game), 0m, null));
+
+        var legs = Slip.Items.Count(i => i.AsLeg);
+        Toasts.Success($"Leg added: {price.Label} {Price(price.PriceAmerican)} ({price.Book}) · "
+                       + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.");
 
         return Task.CompletedTask;
     }

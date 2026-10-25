@@ -16,9 +16,10 @@ namespace LineOps.Web.Tests;
 public class SlipPanelTests : WagerTestContext
 {
     private static SlipItem Item(int price = -110, decimal stake = 50m, bool closing = false,
-        string outcome = BoardRows.Home, int gameId = BoardRows.GameId)
+        string outcome = BoardRows.Home, int gameId = BoardRows.GameId,
+        string market = Markets.Moneyline, decimal? line = null)
         => new(Guid.Empty, gameId, "Buffalo Bills at Kansas City Chiefs", DateTimeOffset.UtcNow.AddHours(3), "nfl",
-            Markets.Moneyline, outcome, null, "draftkings", price, DateTimeOffset.UtcNow, closing, stake, null, null, null);
+            market, outcome, line, "draftkings", price, DateTimeOffset.UtcNow, closing, stake, null, null, null);
 
     private static IElement Key(IRenderedFragment cut, string startsWith)
         => cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith(startsWith, StringComparison.Ordinal));
@@ -40,7 +41,9 @@ public class SlipPanelTests : WagerTestContext
     {
         var cut = RenderComponent<SlipPanel>();
 
-        Assert.Contains("Nothing on the slip. Add to slip from any Place wager window banks the wager here.", cut.Find(".empty").TextContent);
+        var empty = cut.Find(".empty").TextContent;
+        Assert.Contains("Add to slip in a Place wager window banks the wager here", empty);
+        Assert.Contains("Shift-click a price on the Board", empty);
         Assert.Empty(cut.FindAll(".slip-card"));
     }
 
@@ -149,9 +152,45 @@ public class SlipPanelTests : WagerTestContext
 
         var blocked = Assert.Single(cut.FindAll(".slip-card--blocked"));
         Assert.Contains("Not a leg", blocked.TextContent);
-        Assert.Contains("separate games", blocked.TextContent);
+        Assert.Contains("one leg per market on a game", blocked.TextContent);
         Assert.True(cut.Find("button.desk-btn--filled").HasAttribute("disabled"));
-        Assert.Contains("two legs on separate games", cut.Find(".slip-why").TextContent);
+        Assert.Contains("needs two legs", cut.Find(".slip-why").TextContent);
+    }
+
+    [Fact]
+    public void A_same_game_parlay_waits_for_the_books_price_and_logs_at_it()
+    {
+        Slip.AddLeg(Item(-110, market: Markets.Spread, line: -3m));
+        Slip.AddLeg(Item(-110, market: Markets.Total, outcome: "over", line: 47.5m));
+        Slip.SetParlay(20m, null, "draftkings");
+        var cut = RenderComponent<SlipPanel>();
+
+        Assert.Empty(cut.FindAll(".slip-card--blocked"));
+        Assert.Contains("do not multiply", cut.Find(".slip-parlay__note").TextContent);
+        Assert.Equal("—", cut.Find(".slip-parlay__price").TextContent.Trim());
+        Assert.Contains("book's own parlay price", cut.Find(".slip-why").TextContent);
+
+        Slip.SetParlay(20m, 240, "draftkings");
+        cut.Render();
+        cut.Find("button.desk-btn--filled").Click();
+
+        var parlay = Assert.Single(Data.Parlays);
+        Assert.Equal(240, parlay.PriceQuoted);
+        Assert.Equal(2, parlay.Legs.Count);
+        Assert.Equal(new[] { Markets.Spread, Markets.Total }, parlay.Legs.Select(l => l.Market));
+    }
+
+    [Fact]
+    public void A_leg_on_a_straight_slip_says_it_has_no_stake()
+    {
+        Slip.Add(Item(stake: 50m));
+        Slip.AddLeg(Item(outcome: BoardRows.Away, gameId: 8));
+        var cut = RenderComponent<SlipPanel>();
+
+        var leg = cut.FindAll(".slip-card")[1];
+        Assert.Contains("Parlay leg", leg.TextContent);
+        Assert.Contains("Type a stake", leg.TextContent);
+        Assert.Contains("Log 1 ready", cut.Find("button.desk-btn--filled").TextContent);
     }
 
     [Fact]

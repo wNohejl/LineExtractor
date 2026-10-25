@@ -26,6 +26,13 @@ public sealed record SlipItem(
     /// </summary>
     public string? InJournal { get; init; }
 
+    /// <summary>
+    /// Banked as a parlay leg — from a Board price, or a wager window building a parlay — and so
+    /// carrying no stake: a leg's money is the parlay's. It is logged only inside a parlay; typing
+    /// a stake on the card makes it an ordinary wager that can also be logged straight.
+    /// </summary>
+    public bool AsLeg { get; init; }
+
     public EntryDraft ToDraft(decimal stake)
         => new(GameId, Market, null, Outcome, Line, PriceAmerican, stake, Book, Note, ManualPrice);
 }
@@ -60,15 +67,36 @@ public sealed class WagerSlip
     /// <summary>
     /// Banks a wager. Returns it as stored, with the id the slip assigned. A stake at or below
     /// zero is refused outright: a $0 bet is not a bet, and a card that could be banked unstaked
-    /// was a card the slip then had to explain.
+    /// was a card the slip then had to explain. A leg is the exception, and has its own door
+    /// (<see cref="AddLeg"/>): it is not a bet on its own.
     /// </summary>
     public SlipItem Add(SlipItem item)
     {
+        if (item.AsLeg)
+            return AddLeg(item);
+
         if (item.Stake <= 0)
             throw new ArgumentOutOfRangeException(nameof(item), "A wager on the slip needs a stake above zero.");
 
         var stored = item with { Id = Guid.NewGuid() };
         _items.Add(stored);
+        Raise();
+        return stored;
+    }
+
+    /// <summary>
+    /// Banks a parlay leg: no stake, logged only inside a parlay. A slip holding nothing but legs
+    /// is a parlay being built, so it switches to parlay mode; one with straight bets on it keeps
+    /// the mode the operator chose.
+    /// </summary>
+    public SlipItem AddLeg(SlipItem item)
+    {
+        var stored = item with { Id = Guid.NewGuid(), Stake = 0m, AsLeg = true };
+        _items.Add(stored);
+
+        if (_items.All(i => i.AsLeg))
+            SetModeQuietly(SlipMode.Parlay);
+
         Raise();
         return stored;
     }
@@ -95,15 +123,21 @@ public sealed class WagerSlip
     /// </summary>
     public void SetMode(SlipMode mode)
     {
+        if (SetModeQuietly(mode))
+            Raise();
+    }
+
+    private bool SetModeQuietly(SlipMode mode)
+    {
         if (Mode == mode)
-            return;
+            return false;
 
         Mode = mode;
 
         if (mode == SlipMode.Parlay && ParlayBook is null)
             ParlayBook = Legs.GroupBy(l => l.Book).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
 
-        Raise();
+        return true;
     }
 
     /// <summary>The parlay's money: stake, the book's own price if it gave one, and the book.</summary>
@@ -118,7 +152,8 @@ public sealed class WagerSlip
     /// <summary>
     /// Edits one item in place — its stake or note. The id is the slip's and survives the edit.
     /// An edit that would leave the stake at or below zero is refused and the card keeps its
-    /// stake: the same rule as <see cref="Add"/>, so the slip never holds a $0 bet.
+    /// stake: the same rule as <see cref="Add"/>, so the slip never holds a $0 bet. A leg stays
+    /// a leg at no stake; given one, it is a wager like any other.
     /// </summary>
     public void Touch(Guid id, Func<SlipItem, SlipItem> edit)
     {
@@ -127,7 +162,10 @@ public sealed class WagerSlip
             return;
 
         var edited = edit(_items[index]) with { Id = id };
-        if (edited.Stake <= 0)
+
+        if (edited.Stake > 0)
+            edited = edited with { AsLeg = false };
+        else if (!edited.AsLeg)
             return;
 
         _items[index] = edited;
@@ -138,43 +176,56 @@ public sealed class WagerSlip
     /// Whether this item can be logged as the slip stands. Never a closing price: it is a number
     /// that could not have been taken from here. In straight mode, also a stake above zero — the
     /// slip never admits one at zero, so this is the invariant restated, not a state a card can
-    /// be in; a parlay leg carries no stake of its own.
+    /// be in; a parlay leg carries no stake of its own, and a card banked as one is logged only
+    /// inside a parlay.
     /// </summary>
     public bool CanLog(SlipItem item)
-        => Mode == SlipMode.Parlay ? IsLeg(item) : !item.IsClosing && item.Stake > 0;
+        => Mode == SlipMode.Parlay ? IsLeg(item) : !item.IsClosing && !item.AsLeg && item.Stake > 0;
 
     /// <summary>What Log would write in straight mode.</summary>
     public IReadOnlyList<SlipItem> Ready => _items.Where(CanLog).ToList();
 
     /// <summary>
-    /// The items a parlay is built from: what the market still offers, one per game — the first
-    /// on the slip for each. Two legs on one game are correlated, and the Bills to win beside the
-    /// Bills to win is the same bet twice; a book will not price either as a parlay, and
-    /// settlement grades legs as independent. The rest stay on the slip and say why.
+    /// The items a parlay is built from: what the market still offers, one per market on a game —
+    /// the first on the slip for each. A side and a total on one game is a same-game parlay, which
+    /// books write; the Bills to win beside the Bills to win is the same bet twice, and the over
+    /// beside the under cannot both win, so a second item on a market a leg already holds is not
+    /// a leg. The rest stay on the slip and say why.
     /// </summary>
     public IReadOnlyList<SlipItem> Legs
-        => _items.Where(i => !i.IsClosing).GroupBy(i => i.GameId).Select(g => g.First()).ToList();
+        => _items.Where(i => !i.IsClosing).GroupBy(i => (i.GameId, i.Market)).Select(g => g.First()).ToList();
 
     public bool IsLeg(SlipItem item) => Legs.Any(l => l.Id == item.Id);
 
-    /// <summary>A live item that is not a leg because an earlier item is on the same game.</summary>
-    public bool SharesGameWithLeg(SlipItem item) => !item.IsClosing && !IsLeg(item);
+    /// <summary>A live item that is not a leg because an earlier item is on the same market of the same game.</summary>
+    public bool SharesMarketWithLeg(SlipItem item) => !item.IsClosing && !IsLeg(item);
 
     /// <summary>
-    /// The parlay's price: the book's quote where it gave one, otherwise the legs' prices
-    /// multiplied (<see cref="OddsMath.CombinedAmerican"/>). Null with fewer than two legs.
+    /// Two or more legs on one game. Their results move together — a favourite covering and the
+    /// game going over are not independent — so the legs' prices multiplied overstate what the
+    /// parlay pays, and only the book's own price for it is a price at all.
     /// </summary>
-    public int? CombinedPrice
+    public bool IsSameGame => Legs.GroupBy(l => l.GameId).Any(g => g.Count() > 1);
+
+    /// <summary>The legs' prices multiplied, whatever the book quoted. Null with fewer than two legs.</summary>
+    public int? MultipliedPrice
     {
         get
         {
-            if (ParlayPriceQuoted is { } quoted)
-                return quoted;
-
             var legs = Legs;
             return legs.Count >= 2 ? OddsMath.CombinedAmerican(legs.Select(l => l.PriceAmerican)) : null;
         }
     }
+
+    /// <summary>
+    /// The parlay's price: the book's quote where it gave one, otherwise the legs' prices
+    /// multiplied (<see cref="OddsMath.CombinedAmerican"/>). Null with fewer than two legs, and
+    /// null for a same-game parlay the book's price has not been given for (<see cref="IsSameGame"/>).
+    /// </summary>
+    public int? CombinedPrice
+        => ParlayPriceQuoted is { } quoted ? quoted
+            : IsSameGame ? null
+            : MultipliedPrice;
 
     /// <summary>Whether another item on the slip is on the same side of the same game.</summary>
     public bool HasTwin(SlipItem item)

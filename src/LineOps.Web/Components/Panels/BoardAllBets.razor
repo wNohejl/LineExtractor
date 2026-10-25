@@ -5,6 +5,8 @@
 @inject IWagerData Data
 @inject WindowManager Manager
 @inject DeskFollowUps FollowUps
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
 
 @*
     Every book's number on every market for one game.
@@ -156,8 +158,9 @@ else
             builder.OpenElement(1, "button");
             builder.AddAttribute(2, "type", "button");
             builder.AddAttribute(3, "class", "take");
-            builder.AddAttribute(4, "title", "Click to log this price.");
-            builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, () => Take(market, offer, book)));
+            builder.AddAttribute(4, "title", "Click to log this price. Shift-click adds it to the slip as a parlay leg.");
+            builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this,
+                (MouseEventArgs e) => { if (e.ShiftKey) Bank(market, offer, book); else Take(market, offer, book); }));
         }
 
         var isBest = book == offer.Book;
@@ -203,6 +206,20 @@ else
             ["Outcome"] = offer.Outcome,
             ["Book"] = book
         }, Row.Game.Id, matchup, "480px");
+    }
+
+    /// <summary>Door 3, shifted: this book's live price goes onto the slip as a parlay leg.</summary>
+    private void Bank(MarketPair market, BestOffer offer, string book)
+    {
+        if (Row is null || WagerOffer.AtBook(market.Market, offer, book) is not { } price)
+            return;
+
+        var matchup = $"{Row.Game.AwayTeam?.Name ?? "Away"} at {Row.Game.HomeTeam?.Name ?? "Home"}";
+        Slip.AddLeg(price.ToSlipItem(Row.Game, matchup, 0m, null));
+
+        var legs = Slip.Items.Count(i => i.AsLeg);
+        Toasts.Success($"Leg added: {price.Label} {OddsMath.FormatPrice(price.PriceAmerican)} ({price.Book}) · "
+                       + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.");
     }
 
     /// <summary>A book's margin on a market, read from whichever side it quotes a pair on.</summary>

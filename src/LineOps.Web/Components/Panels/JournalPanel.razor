@@ -47,9 +47,15 @@ else
         </DeskSelect>
     </ChildContent>
     <Actions>
-        @* Parlays are built on the slip (spec §5.4), which is the tab beside this one. *@
+        @* Parlays are logged from the slip (spec §5.4), the tab beside this one. Build parlay
+           fills it leg by leg, from the same wager window Log entry opens. *@
         <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
             Settle finished games
+        </DeskButton>
+        <DeskButton Icon="@Icons.Material.Filled.Link"
+                    Title="Find each leg's game and add it to the slip as a parlay leg"
+                    OnClick="BuildParlay">
+            Build parlay
         </DeskButton>
         @* The same window the Board's Place wager opens, here on a game search: one form records
            a bet, whichever door it is reached by. Tinted, not Filled: it opens a window rather
@@ -114,7 +120,7 @@ else
     <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
         @(Filtered
             ? "No entries match these filters."
-            : "No entries logged yet. Log entry finds the game and records the bet; parlays are built on the slip.")
+            : "No entries logged yet. Log entry finds the game and records the bet; Build parlay adds legs to the slip, where the parlay is logged.")
     </EmptyState>
 }
 
@@ -462,6 +468,19 @@ else
     {
         _message = null;
         Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!);
+    }
+
+    /// <summary>
+    /// The same wager window, building a parlay: each bet picked there is a leg on the slip, and
+    /// the slip turns to parlay mode so the legs read as one bet. Logged from the Slip tab, here
+    /// or in that window, once it is whole.
+    /// </summary>
+    private void BuildParlay()
+    {
+        _message = null;
+        Slip.SetMode(SlipMode.Parlay);
+        Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!,
+            new Dictionary<string, object> { ["BuildParlay"] = true }, "Build parlay");
     }
 
     /// <summary>A new wager window on this bet: the shared door, so it means what the wager window's own Duplicate means.</summary>

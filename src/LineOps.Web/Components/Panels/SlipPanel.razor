@@ -51,7 +51,8 @@
     @if (Slip.Items.Count == 0)
     {
         <EmptyState Kind="EmptyStateKind.New">
-            Nothing on the slip. Add to slip from any Place wager window banks the wager here.
+            Nothing on the slip. Add to slip in a Place wager window banks the wager here; Add as leg,
+            or Shift-click a price on the Board, banks a parlay leg.
         </EmptyState>
     }
     else
@@ -124,7 +125,20 @@
                             <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
                         </div>
                         <div class="slip-parlay__note">
-                            @(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs"), prices multiplied; a book's own parlay price can replace it.
+                            @if (Slip.IsSameGame)
+                            {
+                                @* Multiplied, the legs of one game overstate the payout: they win
+                                   and lose together. The book's number is the only price. *@
+                                <text>
+                                    @Slip.Legs.Count legs, some on the same game. Same-game legs win and lose together, so
+                                    their prices do not multiply@(Slip.MultipliedPrice is { } multiplied ? $" (that would read {Price(multiplied)})" : "");
+                                    enter the book's own parlay price.
+                                </text>
+                            }
+                            else
+                            {
+                                @(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs")<text>, prices multiplied; a book's own parlay price can replace it.</text>
+                            }
                         </div>
                     </div>
                     <div class="wgroup__row wgroup__row--pad">
@@ -232,10 +246,14 @@
                 : new CardState(DeskState.Negative, "Cannot log", "Closing line: this price cannot have been taken.",
                     "Drop it, or log it from the Journal with the price you got.");
 
-        if (Slip.Mode == SlipMode.Parlay && Slip.SharesGameWithLeg(item))
+        if (Slip.Mode == SlipMode.Parlay && Slip.SharesMarketWithLeg(item))
             return new CardState(DeskState.Negative, "Not a leg",
-                "Another leg is already on this game; a parlay's legs are separate games.",
+                $"Another leg is already on this game's {MarketWord(item.Market)}; a parlay takes one leg per market on a game.",
                 "Drop one, or log them as straight bets.");
+
+        if (Slip.Mode == SlipMode.Straight && item.AsLeg)
+            return new CardState(DeskState.Warning, "Parlay leg", "Banked as a parlay leg, with no stake of its own.",
+                "Type a stake to log it as a straight bet, or log the slip as One parlay.");
 
         // The journal first: a bet already made outranks one only banked beside this one.
         if (item.InJournal is { } prior)
@@ -250,6 +268,14 @@
         return new CardState(item.Ev is > 0 ? DeskState.Positive : DeskState.Neutral, "Ready", ValueReading(item));
     }
 
+    private static string MarketWord(string market) => market switch
+    {
+        LineOps.Core.Entities.Markets.Moneyline => "moneyline",
+        LineOps.Core.Entities.Markets.Spread => "spread",
+        LineOps.Core.Entities.Markets.Total => "total",
+        _ => market
+    };
+
     private static string ValueReading(SlipItem item)
         => item.Ev is { } ev
             ? PriceCell.EvLabel(ev) + (item.Fair is { } fair ? " · " + PriceCell.FairLabel(fair) : "")
@@ -259,7 +285,8 @@
     private string? Waiting
         => Slip.Mode == SlipMode.Straight
             ? Slip.Ready.Count == 0 ? "Nothing on the slip can be logged as it stands." : null
-            : Slip.Legs.Count < 2 ? "A parlay needs two legs on separate games the market still offers."
+            : Slip.Legs.Count < 2 ? "A parlay needs two legs the market still offers."
+            : Slip.IsSameGame && Slip.ParlayPriceQuoted is null ? "A same-game parlay needs the book's own parlay price."
             : Slip.ParlayStake <= 0 ? "Needs a stake above zero."
             : string.IsNullOrWhiteSpace(Slip.ParlayBook) ? "Needs the book the parlay was placed at."
             : null;
@@ -292,7 +319,7 @@
 
             // One line per item, in the order the slip holds them.
             var steps = Slip.Items.Select(i => !ids.Contains(i.Id)
-                    ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : "another leg is on this game")}."
+                    ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : parlay ? $"another leg is on this game's {MarketWord(i.Market)}" : "a parlay leg with no stake")}."
                     : parlay
                         ? $"Leg: {i.Selection} ({i.Book})."
                         : $"Logged {i.Stake:C0} on {i.Selection} ({i.Book}).")

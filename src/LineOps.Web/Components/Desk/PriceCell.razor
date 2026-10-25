@@ -71,13 +71,27 @@ else
     /// </summary>
     [Parameter] public EventCallback OnTake { get; set; }
 
+    /// <summary>
+    /// Banks this price on the slip as a parlay leg, without a window: Shift-click, or Shift+Enter.
+    /// A parlay is several prices, and opening a wager window for each to press Add as leg was a
+    /// window per leg. The same door rule as <see cref="OnTake"/>: only a live price.
+    /// </summary>
+    [Parameter] public EventCallback OnBank { get; set; }
+
     // A visitor's price is a reading too: there is no wager window on their desk to open (ADR 0018).
     private bool Takeable => Access.CanOperate && OnTake.HasDelegate && Offer is { IsClosing: false };
 
-    private Task TakeAsync() => Takeable ? OnTake.InvokeAsync() : Task.CompletedTask;
+    private bool Bankable => Takeable && OnBank.HasDelegate;
+
+    private Task TakeAsync(bool shift)
+        => shift && Bankable ? OnBank.InvokeAsync()
+            : Takeable ? OnTake.InvokeAsync()
+            : Task.CompletedTask;
+
+    private Task ClickAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs e) => TakeAsync(e.ShiftKey);
 
     private Task KeyAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
-        => e.Key is "Enter" or " " ? TakeAsync() : Task.CompletedTask;
+        => e.Key is "Enter" or " " ? TakeAsync(e.ShiftKey) : Task.CompletedTask;
 
     /// <summary>
     /// The cell itself, held apart from its wrapper so the live and closing paths render the
@@ -88,7 +102,7 @@ else
              title="@(closing ? null : Tooltip)"
              role="@(Takeable ? "button" : null)"
              tabindex="@(Takeable ? "0" : null)"
-             @onclick="TakeAsync"
+             @onclick="ClickAsync"
              @onclick:stopPropagation="Takeable"
              @onkeydown="KeyAsync">
             <div class="price__top">
@@ -247,7 +261,9 @@ else
                 + (r.Ev is { } ev ? $" ({EvLabel(ev)})" : "")));
 
             var text = FairLine.Length == 0 ? books : $"{FairLine}\n{books}";
-            return Takeable ? $"{text}\nClick to log this price." : text;
+            return Bankable ? $"{text}\nClick to log this price. Shift-click adds it to the slip as a parlay leg."
+                : Takeable ? $"{text}\nClick to log this price."
+                : text;
         }
     }
 

@@ -36,6 +36,20 @@ public class JournalPanelTests
         Assert.Contains("<SlipPanel", source);
     }
 
+    /// <summary>
+    /// A parlay is built in the same wager window Log entry opens, in its parlay mode, and logged
+    /// from the slip: not a second parlay form here.
+    /// </summary>
+    [Fact]
+    public void Build_parlay_opens_the_wager_window_building_legs_onto_a_parlay_slip()
+    {
+        var source = Source();
+
+        Assert.Contains("Build parlay", source);
+        Assert.Contains("[\"BuildParlay\"] = true", source);
+        Assert.Contains("Slip.SetMode(SlipMode.Parlay)", source);
+    }
+
     [Fact]
     public void An_entry_can_be_duplicated_into_the_wager_window_through_the_shared_door()
     {

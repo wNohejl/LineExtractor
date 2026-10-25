@@ -492,6 +492,41 @@ public class PriceCellTests : DeskTestContext
         Assert.Equal(0, taken);
     }
 
+    // ---- Door 2, shifted: a live price banks itself on the slip as a parlay leg ----------
+
+    [Fact]
+    public void Shift_click_banks_the_price_and_a_plain_click_still_takes_it()
+    {
+        var (taken, banked) = (0, 0);
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++)
+            .Add(x => x.OnBank, () => banked++));
+
+        var cell = cut.Find(".price");
+        Assert.EndsWith("Shift-click adds it to the slip as a parlay leg.", cell.GetAttribute("title"));
+
+        cell.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
+        cell.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", ShiftKey = true });
+        Assert.Equal((0, 2), (taken, banked));
+
+        cell.Click();
+        Assert.Equal((1, 2), (taken, banked));
+    }
+
+    [Fact]
+    public void A_closing_cell_banks_nothing()
+    {
+        var banked = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => { })
+            .Add(x => x.OnBank, () => banked++));
+
+        cut.Find(".price").Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
+        Assert.Equal(0, banked);
+    }
+
     [Fact]
     public void Without_a_take_handler_the_cell_is_not_a_button()
     {
