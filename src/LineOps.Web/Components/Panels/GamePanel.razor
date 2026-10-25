@@ -35,23 +35,25 @@ else
 
     <PanelTitle>
         <ChildContent>
-            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name, WindowId)">
-                @(game.AwayTeam?.Name ?? "Away")
-            </DeskLink>
-            @if (showScore)
-            {
-                <span class="mono">@(game.AwayScore ?? 0)</span>
-            }
-            <span class="dim">at</span>
-            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
-                @(game.HomeTeam?.Name ?? "Home")
-            </DeskLink>
-            @if (showScore)
-            {
-                <span class="mono">@(game.HomeScore ?? 0)</span>
-            }
+            <span class="ptitle__match">
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                          OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name, WindowId)">
+                    @(game.AwayTeam?.Name ?? "Away")
+                </DeskLink>
+                @if (showScore)
+                {
+                    <span class="mono">@(game.AwayScore ?? 0)</span>
+                }
+                <span class="dim">at</span>
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                          OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
+                    @(game.HomeTeam?.Name ?? "Home")
+                </DeskLink>
+                @if (showScore)
+                {
+                    <span class="mono">@(game.HomeScore ?? 0)</span>
+                }
+                </span>
         </ChildContent>
         <Tags>
             <Tag State="@StatusState(game.Status)">@Phase(game)</Tag>
