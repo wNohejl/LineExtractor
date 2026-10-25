@@ -1,4 +1,6 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
+using LineOps.Data.CrossReference;
 using LineOps.Desk.Windowing;
 using Microsoft.AspNetCore.Components;
 
@@ -206,6 +208,35 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// <summary>A game named in full, with its start date — for pickers listing many games.</summary>
     protected static string MatchupWithDate(Game? game)
         => game is null ? "—" : $"{Matchup(game)} — {Day(game.StartsAt)}";
+
+    /// <summary>
+    /// What a game's window says after its title: where the game stands. The title is already
+    /// the matchup, so repeating it here read as the same name twice. "Final · NYM 4–2 ATL"
+    /// once there is a result, the start for a game not yet played.
+    /// </summary>
+    protected static string StateStatus(Game game)
+        => Scoreline.Has(game) ? $"{Phase(game)} · {Scoreline.Format(game)}" : Phase(game);
+
+    /// <summary>Where a game stands in a word, or when it starts if it has not.</summary>
+    protected static string Phase(Game game) => game.Status switch
+    {
+        GameStatus.Live => "Live",
+        GameStatus.Final => "Final",
+        GameStatus.Postponed => "Postponed",
+        _ => Starts(game.StartsAt)
+    };
+
+    /// <summary>
+    /// What a team's window says after its title: the season's record, "5-0 · 2026". Counted
+    /// over the whole season rather than the split on screen, so the bar holds still while a
+    /// filter changes.
+    /// </summary>
+    protected static string StateStatus(IReadOnlyList<TeamGameLogRow> season, string? seasonLabel)
+    {
+        var (wins, losses) = GameLogSplits.Record(season);
+
+        return seasonLabel is null ? $"{wins}-{losses}" : $"{wins}-{losses} · {seasonLabel}";
+    }
 
     protected static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
 

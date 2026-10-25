@@ -114,6 +114,7 @@
     --weight-regular: 400;
     --weight-medium: 500;
     --weight-semibold: 600;
+    --weight-bold: 700;
 
     /* --- Spacing ------------------------------------------------------------
        One 4px ramp for the whole desk. Steps skip where the eye cannot tell the
@@ -123,6 +124,7 @@
     --space-2: 8px;
     --space-3: 12px;
     --space-4: 16px;
+    --space-5: 20px;
     --space-6: 24px;
     --space-8: 32px;
     --space-12: 48px;
@@ -1804,6 +1806,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     display: flex;
     gap: 11px;
     align-items: flex-start;
+    /* MudBlazor's button rule centres a flex button's content; a palette row is a list
+       row, so its icon and text sit flush left like every other row's. */
+    justify-content: flex-start;
     width: 100%;
     padding: 8px 10px;
     background: none;
@@ -1831,16 +1836,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     color: var(--state-warning);
     font-size: calc(11.5px * var(--text-scale));
     line-height: 1.45;
-}
-
-/* Already open: clicking still focuses it, so this informs rather than disables. */
-.launcher__open {
-    font-size: calc(9px * var(--text-scale));
-    letter-spacing: .11em;
-    text-transform: uppercase;
-    color: var(--state-positive);
-    margin-left: 7px;
-    vertical-align: 1px;
 }
 
 /* Refused by the ceiling — dimmed and inert, with the reason stated below the list. */
@@ -1910,11 +1905,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .metric__note { font-size: calc(11px * var(--text-scale)); color: var(--text-tertiary); margin-top: 2px; }
 
-/* A tile that is also the way to the thing it counts.
-   Gloss is the desk's affordance channel (ADR 0008), so the tile that leads somewhere is
-   the one that lifts under the pointer; a tile that only reports stays matte. The chevron
-   carries the same message without motion or hover, for a touch pointer and for anyone
-   running reduced motion. */
+/* A tile that is also the way to the thing it counts. It lifts under the pointer; a tile
+   that only reports stays still. The chevron carries the same message without motion or
+   hover, for a touch pointer and for anyone running reduced motion. */
 .metric--action {
     display: block;
     width: 100%;
@@ -2249,15 +2242,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     padding: 9px 10px 11px;
     background: var(--surface-1);
     border-bottom: 1px solid var(--separator);
-}
-
-.board__actions-label {
-    font-size: calc(10px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
-    margin-right: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3554,20 +3538,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
     margin-bottom: 0;
 }
 
-.splits__key {
-    background: transparent;
-    border: 1px solid var(--separator);
-    border-radius: 4px;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: calc(11px * var(--text-scale));
-    padding: 3px 9px;
-    cursor: pointer;
-    transition: color .12s ease, border-color .12s ease, background .12s ease;
-}
-
-.splits__key:hover { color: var(--text-primary); border-color: var(--separator-strong); }
-
 .splits__pick { max-width: 190px; margin-left: auto; font-size: calc(11px * var(--text-scale)); }
 
 /* ---- Log rows --------------------------------------------------------------
@@ -3636,7 +3606,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .logrow__chev, .logrow__head, .splits__key, .snippet__open { transition: none; }
+    .logrow__chev, .logrow__head, .snippet__open { transition: none; }
 }
 
 /* Coverage, stated under the thing it qualifies. A column of dashes is ambiguous
@@ -3663,7 +3633,6 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
    travel, which a keyboard user never sees — so focus gets its own ring rather
    than relying on the hover treatment. */
 .logrow__head:focus-visible,
-.splits__key:focus-visible,
 .snippet__open:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;

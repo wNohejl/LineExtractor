@@ -34,10 +34,8 @@ public class RowActionsTests : DeskTestContext
             OpenWindow = open
         };
 
-    private IRenderedComponent<RowActions> Strip(IReadOnlyList<RowAction> actions, string? label = null)
-        => RenderComponent<RowActions>(p => p
-            .Add(x => x.Actions, actions)
-            .Add(x => x.Label, label));
+    private IRenderedComponent<RowActions> Strip(IReadOnlyList<RowAction> actions)
+        => RenderComponent<RowActions>(p => p.Add(x => x.Actions, actions));
 
     [Fact]
     public void Renders_a_key_per_action()
@@ -46,15 +44,6 @@ public class RowActionsTests : DeskTestContext
 
         Assert.Equal(["Head to head", "Last five"],
             cut.FindAll(".rowacts__keys button").Select(b => b.TextContent.Trim()));
-    }
-
-    [Fact]
-    public void The_caption_is_optional()
-    {
-        Assert.Empty(Strip([Snippet("h2h", "Head to head")]).FindAll(".board__actions-label"));
-
-        Assert.Equal("ACTIONS",
-            Strip([Snippet("h2h", "Head to head")], "ACTIONS").Find(".board__actions-label").TextContent);
     }
 
     [Fact]

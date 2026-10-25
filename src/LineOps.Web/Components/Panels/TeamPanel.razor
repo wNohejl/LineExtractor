@@ -279,8 +279,12 @@ else
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private string SeasonPhrase => _seasonYear is { } year && _team?.Sport?.Key is { } sport
-        ? $"in the {SeasonCalendar.Label(sport, year)} season"
+    private string? SeasonLabel => _seasonYear is { } year && _team?.Sport?.Key is { } sport
+        ? SeasonCalendar.Label(sport, year)
+        : null;
+
+    private string SeasonPhrase => SeasonLabel is { } season
+        ? $"in the {season} season"
         : "over the last year";
 
     private async Task SetSeasonAsync(int year)
@@ -323,7 +327,7 @@ else
             ApplySplit();
         },
         settle: () => _team is null ? PulseState.Idle : PulseState.Healthy,
-        status: () => _teamName);
+        status: () => _team is null ? "not found" : StateStatus(_log, SeasonLabel));
     }
 
     private void SelectSplit(GameLogSplits.Split split)

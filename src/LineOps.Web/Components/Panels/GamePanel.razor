@@ -54,7 +54,7 @@ else
             }
         </ChildContent>
         <Tags>
-            <Tag State="@StatusState(game.Status)">@StatusLabel(game)</Tag>
+            <Tag State="@StatusState(game.Status)">@Phase(game)</Tag>
             @if (game.DoubleHeaderGame is { } number)
             {
                 <Tag State="DeskState.Info">Game @number of a doubleheader</Tag>
@@ -334,7 +334,7 @@ else
             _awayTeam = await lookup.GetTeamAsync(_row.Game.AwayTeamId, FallbackWindow, maxPlayers: 0, seasonYear: _seasonYear);
         },
         settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
-        status: () => _row is null ? "not found" : Matchup(_row.Game));
+        status: () => _row is null ? "not found" : StateStatus(_row.Game));
     }
 
     /// <summary>Which side a price is for, as the team short form. See BoardPanel.Side.</summary>
@@ -344,14 +344,6 @@ else
 
         return string.IsNullOrWhiteSpace(team?.Abbrev) ? home ? "H" : "A" : team!.Abbrev;
     }
-
-    private static string StatusLabel(Game game) => game.Status switch
-    {
-        GameStatus.Live => "Live",
-        GameStatus.Final => "Final",
-        GameStatus.Postponed => "Postponed",
-        _ => Starts(game.StartsAt)
-    };
 
     private static DeskState StatusState(GameStatus status) => status switch
     {

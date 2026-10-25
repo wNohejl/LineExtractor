@@ -25,11 +25,6 @@
    you can open on this desk closes the same way. *@
 <div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true">
     <div class="rowacts__keys">
-        @if (Label is not null)
-        {
-            <span class="board__actions-label">@Label</span>
-        }
-
         @foreach (var action in Actions)
         {
             var isOpen = action.Key == _open;
@@ -65,9 +60,6 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<RowAction> Actions { get; set; } = [];
-
-    /// <summary>Optional caption for the strip, e.g. "ACTIONS".</summary>
-    [Parameter] public string? Label { get; set; }
 
     /// <summary>The action showing its snippet, or null when only the keys are up.</summary>
     private string? _open;
