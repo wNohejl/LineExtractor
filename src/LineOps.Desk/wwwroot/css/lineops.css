@@ -4177,6 +4177,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .whead { margin-bottom: var(--space-4); max-width: 760px; }
 .whead .ptitle { margin-bottom: 0; }
 .whead .game-search__chosen .game-search__match { font-size: var(--text-title3); }
+/* Every name in the header is a link, as in the Game window's title: the teams open their
+   windows, the kickoff opens the game, the chosen game in the search changes it. A link set
+   in the title ramp keeps the ramp; the dotted rule and the shortcut are the only tell. */
+.whead .desklink { font: inherit; color: inherit; }
+.whead .ptitle__name .desklink__label { font-size: inherit; font-weight: inherit; }
+.whead .game-search__match .desklink__label { font-weight: var(--weight-semibold); }
+/* A heading is not a grid row, so the links show their rule on their own hover. */
+.whead .desklink:hover .desklink__label { border-bottom-color: var(--accent); }
+/* The slip as a tab of the wager window and the Journal: the bar sits at the top of the
+   window, under its own title bar, and the wager's header follows it without extra air. */
+.wtabs { margin-bottom: var(--space-4); }
 .whead__hint { margin: var(--space-2) 0 0; max-width: 68ch; font-size: var(--text-subheadline); line-height: var(--leading-body); color: var(--text-secondary); }
 .wfield--wide { width: 100%; max-width: 520px; }
 /* The big number is the open card's; the folded summary says the same price at text size. */
@@ -4246,18 +4257,17 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .wstep--todo .wstep__title { color: var(--text-secondary); }
 .wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .wstep__summary:empty { display: none; }
-.wstep__change {
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: var(--text-footnote);
-    color: var(--accent);
-    cursor: pointer;
-    border-radius: var(--radius);
-}
-.wstep__change:hover { text-decoration: underline; }
-.wstep__change:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The folded choice is a DeskLink: the same dotted rule and "change" shortcut every linked
+   name on the desk shows under the pointer, so changing a step is the one link idiom and not
+   a second key. Its label takes the summary's size; the rule sits under the words, as it does
+   in a grid cell. Sits on the title's baseline, where the summary already did. */
+.wstep__change { font-size: var(--text-subheadline); align-self: baseline; }
+.wstep__change .desklink__label { font-size: inherit; }
+.wstep__change:hover .wstep__summary,
+.wstep__change:focus-visible .wstep__summary { color: var(--accent); }
+/* A folded step's choice is the one link on its line, so the dotted rule shows on hover
+   without a row to carry it. */
+.wstep__change:hover .desklink__label { border-bottom-color: var(--accent); }
 .wstep__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
 .wstep__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
 .wstep__hint {
@@ -4462,6 +4472,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .slip-card__state { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-subheadline); color: var(--text-primary); }
 .slip-card__state .tag { flex: none; }
 .slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
+/* The stake field holds a number the slip refused: the one line here in a state colour,
+   because it is about the value typed, not the card. */
+.slip-card__zero { color: var(--state-warning); }
 .slip-cards { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .slip-parlay { display: grid; gap: var(--space-2); padding: var(--space-3); }

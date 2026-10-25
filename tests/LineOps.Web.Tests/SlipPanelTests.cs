@@ -48,13 +48,12 @@ public class SlipPanelTests : WagerTestContext
     public void Each_card_says_whether_it_can_be_logged()
     {
         Slip.Add(Item(stake: 50m));
-        Slip.Add(Item(stake: 0m, outcome: BoardRows.Away));
         Slip.Add(Item(closing: true, gameId: 9));
 
         var cut = RenderComponent<SlipPanel>();
 
         var tags = cut.FindAll(".slip-card .tag").Select(t => t.TextContent.Trim()).ToList();
-        Assert.Equal(new[] { "Ready", "Needs a stake", "Cannot log" }, tags);
+        Assert.Equal(new[] { "Ready", "Cannot log" }, tags);
 
         var blocked = Assert.Single(cut.FindAll(".slip-card--blocked"));
         Assert.Contains("Drop it, or log it from the Journal with the price you got.", blocked.TextContent);
@@ -70,6 +69,24 @@ public class SlipPanelTests : WagerTestContext
 
         Assert.Empty(Slip.Items);
         Assert.Empty(cut.FindAll(".slip-card"));
+    }
+
+    [Fact]
+    public void Typing_a_zero_stake_on_a_card_is_refused_and_said()
+    {
+        var stored = Slip.Add(Item(stake: 50m));
+        var cut = RenderComponent<SlipPanel>();
+
+        cut.Find("input[aria-label='Stake on this wager']").Input("0");
+
+        Assert.Equal(50m, Slip.Items.Single().Stake);
+        Assert.Contains($"Needs a stake above zero. The slip keeps {50m:C0} until you type one.", cut.Find(".slip-card__zero").TextContent);
+
+        cut.Find("input[aria-label='Stake on this wager']").Input("75");
+
+        Assert.Equal(75m, Slip.Items.Single().Stake);
+        Assert.Empty(cut.FindAll(".slip-card__zero"));
+        Assert.Equal(stored.Id, Slip.Items.Single().Id);
     }
 
     [Fact]
@@ -107,8 +124,8 @@ public class SlipPanelTests : WagerTestContext
     [Fact]
     public void A_parlay_logs_one_parlay_with_zero_stake_legs()
     {
-        Slip.Add(Item(-128, stake: 0m));
-        Slip.Add(Item(-105, stake: 0m, outcome: BoardRows.Away, gameId: 8));
+        Slip.Add(Item(-128, stake: 10m));
+        Slip.Add(Item(-105, stake: 10m, outcome: BoardRows.Away, gameId: 8));
         Slip.SetMode(SlipMode.Parlay);
         Slip.SetParlay(25m, null, "draftkings");
         var cut = RenderComponent<SlipPanel>();

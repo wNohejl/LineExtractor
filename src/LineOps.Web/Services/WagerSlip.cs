@@ -57,9 +57,16 @@ public sealed class WagerSlip
 
     public event Action? Changed;
 
-    /// <summary>Banks a wager. Returns it as stored, with the id the slip assigned.</summary>
+    /// <summary>
+    /// Banks a wager. Returns it as stored, with the id the slip assigned. A stake at or below
+    /// zero is refused outright: a $0 bet is not a bet, and a card that could be banked unstaked
+    /// was a card the slip then had to explain.
+    /// </summary>
     public SlipItem Add(SlipItem item)
     {
+        if (item.Stake <= 0)
+            throw new ArgumentOutOfRangeException(nameof(item), "A wager on the slip needs a stake above zero.");
+
         var stored = item with { Id = Guid.NewGuid() };
         _items.Add(stored);
         Raise();
@@ -108,21 +115,30 @@ public sealed class WagerSlip
         Raise();
     }
 
-    /// <summary>Edits one item in place — its stake or note. The id is the slip's and survives the edit.</summary>
+    /// <summary>
+    /// Edits one item in place — its stake or note. The id is the slip's and survives the edit.
+    /// An edit that would leave the stake at or below zero is refused and the card keeps its
+    /// stake: the same rule as <see cref="Add"/>, so the slip never holds a $0 bet.
+    /// </summary>
     public void Touch(Guid id, Func<SlipItem, SlipItem> edit)
     {
         var index = _items.FindIndex(i => i.Id == id);
         if (index < 0)
             return;
 
-        _items[index] = edit(_items[index]) with { Id = id };
+        var edited = edit(_items[index]) with { Id = id };
+        if (edited.Stake <= 0)
+            return;
+
+        _items[index] = edited;
         Raise();
     }
 
     /// <summary>
     /// Whether this item can be logged as the slip stands. Never a closing price: it is a number
-    /// that could not have been taken from here. In straight mode, also a stake above zero; a
-    /// parlay leg carries no stake of its own.
+    /// that could not have been taken from here. In straight mode, also a stake above zero — the
+    /// slip never admits one at zero, so this is the invariant restated, not a state a card can
+    /// be in; a parlay leg carries no stake of its own.
     /// </summary>
     public bool CanLog(SlipItem item)
         => Mode == SlipMode.Parlay ? IsLeg(item) : !item.IsClosing && item.Stake > 0;

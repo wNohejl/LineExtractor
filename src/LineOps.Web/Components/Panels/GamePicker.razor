@@ -9,9 +9,9 @@
     under Played. The game a bet is on is nearly always this week's. Arrow keys move through the list, Enter picks,
     Escape closes it.
 
-    Once a game is chosen the field gives way to the game itself, with Change beside it: the
-    choice is what the rest of the form is about, so it reads as a fact rather than as a field
-    still being typed in.
+    Once a game is chosen the field gives way to the game itself, which is the link that changes
+    it: the choice is what the rest of the form is about, so it reads as a fact rather than as a
+    field still being typed in.
 *@
 <div class="game-search">
     @if (_selected is { } chosen && !_searching)
@@ -19,12 +19,13 @@
         <div class="wgroup">
             <div class="wgroup__row game-search__chosen">
                 <div class="game-search__text">
-                    <span class="game-search__match">@Matchup(chosen)</span>
+                    @* The game is the link that changes it, as a folded step's choice is. *@
+                    <DeskLink Class="game-search__match" Destination="change" Icon="@Icons.Material.Filled.Search"
+                              Tooltip="Find a different game" OnClick="StartSearch">
+                        @Matchup(chosen)
+                    </DeskLink>
                     <span class="game-search__when">@When(chosen)</span>
                 </div>
-                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Search" OnClick="StartSearch">
-                    Change
-                </DeskButton>
             </div>
         </div>
     }
@@ -33,12 +34,12 @@
         <div class="wgroup">
             <div class="wgroup__row game-search__chosen">
                 <div class="game-search__text">
-                    <span class="game-search__match">No game</span>
+                    <DeskLink Class="game-search__match" Destination="search" Icon="@Icons.Material.Filled.Search"
+                              Tooltip="Find a game instead" OnClick="StartSearch">
+                        No game
+                    </DeskLink>
                     <span class="game-search__when">A future, or another bet the desk does not track</span>
                 </div>
-                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Search" OnClick="StartSearch">
-                    Find a game
-                </DeskButton>
             </div>
         </div>
     }

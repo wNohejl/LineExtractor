@@ -78,11 +78,12 @@
 
                             @if (Slip.Mode == SlipMode.Straight)
                             {
-                                @* A leg carries no stake, so the field goes in parlay mode. *@
+                                @* A leg carries no stake, so the field goes in parlay mode. The slip
+                                   refuses an edit to zero, so the field cannot take a card there. *@
                                 <DeskField TValue="decimal" Mono="true" Immediate="true" Class="slip-card__stake"
-                                           type="number" step="5" min="0" aria-label="Stake on this wager"
+                                           type="number" step="5" min="1" aria-label="Stake on this wager"
                                            Value="item.Stake"
-                                           ValueChanged="@((decimal s) => Slip.Touch(item.Id, i => i with { Stake = s }))" />
+                                           ValueChanged="@((decimal s) => SetStake(item, s))" />
                             }
 
                             <DeskButton Icon="@Icons.Material.Filled.Close" Role="DeskRole.Destructive"
@@ -98,6 +99,14 @@
                         @if (state.Remedy is { } remedy)
                         {
                             <div class="slip-card__remedy">@remedy</div>
+                        }
+                        else if (_zeroed.Contains(item.Id))
+                        {
+                            @* The field holds a number the slip refused; the card keeps its stake
+                               and says so, rather than letting a $0 sit there looking banked. *@
+                            <div class="slip-card__remedy slip-card__zero">
+                                Needs a stake above zero. The slip keeps @item.Stake.ToString("C0") until you type one.
+                            </div>
                         }
                     </div>
                 }
@@ -182,6 +191,26 @@
     private string? _error;
     private bool _saving;
 
+    // Cards whose stake field holds a number the slip refused (zero or less).
+    private readonly HashSet<Guid> _zeroed = [];
+
+    /// <summary>
+    /// A stake above zero goes to the slip; anything else is refused there, so the card says
+    /// what the field needs instead of showing a $0 the slip never took.
+    /// </summary>
+    private void SetStake(SlipItem item, decimal stake)
+    {
+        if (stake > 0)
+        {
+            _zeroed.Remove(item.Id);
+            Slip.Touch(item.Id, i => i with { Stake = stake });
+        }
+        else
+        {
+            _zeroed.Add(item.Id);
+        }
+    }
+
     protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
 
     protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
@@ -207,9 +236,6 @@
             return new CardState(DeskState.Negative, "Not a leg",
                 "Another leg is already on this game; a parlay's legs are separate games.",
                 "Drop one, or log them as straight bets.");
-
-        if (Slip.Mode == SlipMode.Straight && item.Stake <= 0)
-            return new CardState(DeskState.Warning, "Needs a stake", "A straight bet is logged with a stake above zero.");
 
         // The journal first: a bet already made outranks one only banked beside this one.
         if (item.InJournal is { } prior)
@@ -266,7 +292,7 @@
 
             // One line per item, in the order the slip holds them.
             var steps = Slip.Items.Select(i => !ids.Contains(i.Id)
-                    ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : parlay ? "another leg is on this game" : "no stake")}."
+                    ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : "another leg is on this game")}."
                     : parlay
                         ? $"Leg: {i.Selection} ({i.Book})."
                         : $"Logged {i.Stake:C0} on {i.Selection} ({i.Book}).")

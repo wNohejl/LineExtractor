@@ -68,10 +68,38 @@ public class WagerSlipTests
     }
 
     [Fact]
+    public void A_zero_stake_never_reaches_the_slip()
+    {
+        var slip = new WagerSlip();
+        var changes = 0;
+        slip.Changed += () => changes++;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => slip.Add(Item(stake: 0m)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => slip.Add(Item(stake: -5m)));
+        Assert.Empty(slip.Items);
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public void An_edit_to_a_zero_stake_is_refused_and_the_card_keeps_its_stake()
+    {
+        var slip = new WagerSlip();
+        var stored = slip.Add(Item(stake: 50m));
+        var changes = 0;
+        slip.Changed += () => changes++;
+
+        slip.Touch(stored.Id, i => i with { Stake = 0m });
+
+        Assert.Equal(50m, slip.Items.Single().Stake);
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
     public void A_straight_bet_needs_a_stake_and_a_leg_does_not()
     {
         var slip = new WagerSlip();
-        var unstaked = slip.Add(Item(stake: 0m));
+        // A leg carries no stake once it is on a parlay; the slip never accepts one at zero.
+        var unstaked = slip.Add(Item(stake: 1m)) with { Stake = 0m };
 
         Assert.False(slip.CanLog(unstaked));
 
@@ -170,7 +198,7 @@ public class WagerSlipTests
     public void Touch_edits_in_place_and_keeps_the_id()
     {
         var slip = new WagerSlip();
-        var stored = slip.Add(Item(stake: 0m));
+        var stored = slip.Add(Item(stake: 10m));
         var changes = 0;
         slip.Changed += () => changes++;
 
@@ -215,11 +243,10 @@ public class WagerSlipTests
     {
         var slip = new WagerSlip();
         slip.Add(Item(-128, stake: 50m));
-        slip.Add(Item(-105, stake: 0m, outcome: "Buffalo Bills", gameId: 8));
+        slip.Add(Item(-105, stake: 10m, outcome: "Buffalo Bills", gameId: 8));
 
         var straights = slip.StraightDrafts();
-        Assert.Single(straights);
-        Assert.Equal(50m, straights[0].Stake);
+        Assert.Equal([50m, 10m], straights.Select(s => s.Stake));
 
         slip.SetMode(SlipMode.Parlay);
         slip.SetParlay(25m, null, "draftkings");

@@ -151,6 +151,19 @@ public static class WindowShortcuts
         manager.Open(definition);
     }
 
+    /// <summary>
+    /// A new wager window on a bet already made — the Journal's Duplicate, and the wager
+    /// window's own. Never re-aims an open window: the copy is a second bet, and the window it
+    /// was copied from keeps what it was showing. The title is the matchup where there is one.
+    /// </summary>
+    public static void OpenWagerCopy(this WindowManager manager, Services.WagerPrefill prefill, string? title = null)
+    {
+        if (manager.Catalog.Find(WindowCatalog.Wager) is not { } definition)
+            return;
+
+        manager.Open(definition, prefill.ToParameters(), title);
+    }
+
     /// <summary>Incidents, opened on one incident.</summary>
     public static void OpenIncident(this WindowManager manager, int incidentId, string? title = null)
     {

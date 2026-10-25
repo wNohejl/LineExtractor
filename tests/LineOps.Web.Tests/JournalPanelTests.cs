@@ -27,15 +27,22 @@ public class JournalPanelTests
     }
 
     [Fact]
-    public void Open_slip_opens_the_slip_window()
+    public void The_slip_is_a_tab_of_the_journal_not_a_key_that_opens_a_window()
     {
         var source = Source();
 
-        Assert.Contains("Open slip", source);
-        Assert.Contains("Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!)", source);
+        Assert.DoesNotContain("Open slip", source);
+        Assert.Contains("<DeskTabs", source);
+        Assert.Contains("<SlipPanel", source);
+    }
 
-        var window = new WindowManager(new AppWindowCatalog()).Open(WindowCatalog.Find(WindowCatalog.Slip)!);
-        Assert.Equal(typeof(SlipPanel), window.Definition.ComponentType);
+    [Fact]
+    public void An_entry_can_be_duplicated_into_the_wager_window_through_the_shared_door()
+    {
+        var source = Source();
+
+        Assert.Contains("Duplicate this entry", source);
+        Assert.Contains("Manager.OpenWagerCopy(WagerPrefill.From(", source);
     }
 
     [Fact]

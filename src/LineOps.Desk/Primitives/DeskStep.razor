@@ -7,8 +7,8 @@
 
     Three states, each saying something different. Done: the marker becomes a check and the
     rail below it takes the accent, so finished work reads as a filled line; closed, the step
-    folds to its title and a summary of what was chosen ("Spread · Steelers -3"), with Change
-    beside it to open it again. Current: the marker is solid accent, and the step shows its
+    folds to its title and a summary of what was chosen ("Spread · Steelers -3"), which is the
+    link that opens it again. Current: the marker is solid accent, and the step shows its
     guidance — one or two sentences on what to do here, written for someone who has never done
     it — above its controls. Todo: the title dims and, on the same line, the step says what it
     is waiting for ("Pick your bet first."), so an unreachable control never sits on screen
@@ -39,10 +39,19 @@
 
             @if (State == DeskStepState.Done && !IsOpen && Summary is not null)
             {
-                <span class="wstep__summary">@Summary</span>
+                @* What was chosen is the link that changes it — the desk's one link idiom
+                   (DeskLink): highlight it and "change" appears, naming what the click does.
+                   A separate Change key beside it was a second control for one thing. *@
                 @if (OnOpen.HasDelegate)
                 {
-                    <button type="button" class="wstep__change" @onclick="OnOpen">Change</button>
+                    <DeskLink Class="wstep__change" Destination="change" Icon="@Icons.Material.Filled.Edit"
+                              Tooltip="@($"Change: {Title}")" OnClick="OnOpen">
+                        <span class="wstep__summary">@Summary</span>
+                    </DeskLink>
+                }
+                else
+                {
+                    <span class="wstep__summary">@Summary</span>
                 }
             }
 
@@ -86,7 +95,7 @@
     /// <summary>What was chosen, said on the title line while the step is done and folded.</summary>
     [Parameter] public RenderFragment? Summary { get; set; }
 
-    /// <summary>Opens a folded step again. Without it a done step has no Change key.</summary>
+    /// <summary>Opens a folded step again. Without it a done step's summary is text, not a link.</summary>
     [Parameter] public EventCallback OnOpen { get; set; }
 
     /// <summary>Whether the controls show. Unset: open while current, folded otherwise.</summary>

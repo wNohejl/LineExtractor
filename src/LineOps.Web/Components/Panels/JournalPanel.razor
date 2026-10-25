@@ -7,8 +7,22 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject IDeskAlerts Alerts
 @using LineOps.Web.Services
+@using LineOps.Web.Windowing
 @inject IWagerData Wagers
+@inject WagerSlip Slip
 
+@*
+    The slip is a tab of the Journal, as it is of the wager window: the bets banked this session
+    sit one click from the bets already logged, with the count on the tab, and no third window.
+*@
+<DeskTabs TValue="JournalTab" Tabs="Tabs" Label="Journal sections" Class="wtabs" Context="tab"
+          Value="_tab" ValueChanged="@((JournalTab t) => _tab = t)">
+@if (tab == JournalTab.Slip)
+{
+    <SlipPanel />
+}
+else
+{
 <PanelToolbar Message="@_message">
     <ChildContent>
         <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
@@ -33,11 +47,7 @@
         </DeskSelect>
     </ChildContent>
     <Actions>
-        @* Parlays are built on the slip now (spec §5.4): the form that duplicated the leg fields,
-           the stake row and the book picker retired into it. *@
-        <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="OpenSlip">
-            Open slip
-        </DeskButton>
+        @* Parlays are built on the slip (spec §5.4), which is the tab beside this one. *@
         <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
             Settle finished games
         </DeskButton>
@@ -187,6 +197,10 @@
                     }
                     <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Edit"
                                 Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
+                    @* The same door the wager window's own Duplicate uses: a new wager window on
+                       this bet, ready to log at today's price — or at the typed one, if it was. *@
+                    <DeskButton style="height:24px" Icon="@Icons.Material.Filled.ContentCopy"
+                                Title="Duplicate this entry in the wager window" OnClick="() => Duplicate(context.Item)" />
                     <DeskButton style="height:24px" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this entry" OnClick="() => DeleteEntryAsync(context.Item)" />
                 </DeskRow>
@@ -291,8 +305,20 @@
         <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
     </DeskRow>
 }
+}
+</DeskTabs>
 
 @code {
+    private enum JournalTab { Journal, Slip }
+
+    private JournalTab _tab;
+
+    private IReadOnlyList<DeskTab<JournalTab>> Tabs =>
+    [
+        new(JournalTab.Journal, "Journal"),
+        new(JournalTab.Slip, $"Slip · {Slip.Items.Count}")
+    ];
+
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();
@@ -378,7 +404,16 @@
            && !string.IsNullOrWhiteSpace(d.Book)
            && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // The tab's count follows the slip.
+        Slip.Changed += OnSlipChanged;
+        await LoadAsync();
+    }
+
+    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
 
     private async Task LoadAsync()
     {
@@ -429,7 +464,12 @@
         Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!);
     }
 
-    private void OpenSlip() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!);
+    /// <summary>A new wager window on this bet: the shared door, so it means what the wager window's own Duplicate means.</summary>
+    private void Duplicate(JournalEntry entry)
+    {
+        _message = null;
+        Manager.OpenWagerCopy(WagerPrefill.From(entry), entry.Game is { } game ? Matchup(game) : null);
+    }
 
     private void EditEntry(JournalEntry entry)
     {

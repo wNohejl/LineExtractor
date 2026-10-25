@@ -38,7 +38,18 @@
     is one line saying what it waits for. So the window is as tall as the step being worked,
     not as tall as every control it owns, and reads the same in a narrow window as a wide one.
 *@
-@if (_loading)
+@*
+    The slip is a tab of this window, not a third window: what was banked is one click from
+    where it was banked, and the count on the tab says the slip is not empty without opening
+    it. The Journal offers the same tab, so the slip reads the same from either door.
+*@
+<DeskTabs TValue="WagerTab" Tabs="Tabs" Label="Wager window sections" Class="wtabs"
+          Value="_tab" ValueChanged="@((WagerTab t) => _tab = t)">
+@if (context == WagerTab.Slip)
+{
+    <SlipPanel />
+}
+else if (_loading)
 {
     @* Unread is not empty (ADR 0003): the shape of what is coming, not "pick a side". *@
     <DeskStack Gap="DeskSpace.Space2" Class="wager-loading" aria-busy="true">
@@ -68,20 +79,40 @@ else
         }
         else if (Row is not null)
         {
+            var game = Row.Game;
+
+            @* The same links the Game window's title carries: each team opens its window, and
+               the kickoff opens the game. A name on the desk is a link to its window wherever
+               it is set, and the title of this window is no exception. *@
             <PanelTitle>
-                <ChildContent>@Matchup(Row.Game)</ChildContent>
+                <ChildContent>
+                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                              OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
+                        @(game.AwayTeam?.Name ?? "Away")
+                    </DeskLink>
+                    <span class="dim" style="margin:0 4px">at</span>
+                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                              OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name)">
+                        @(game.HomeTeam?.Name ?? "Home")
+                    </DeskLink>
+                </ChildContent>
                 <Tags>
-                    <Tag>@Row.Game.Sport?.Key.ToUpperInvariant()</Tag>
-                    @if (Row.Game.Status == GameStatus.Live)
+                    <Tag>@game.Sport?.Key.ToUpperInvariant()</Tag>
+                    @if (game.Status == GameStatus.Live)
                     {
                         <Tag State="DeskState.Positive">Live</Tag>
                     }
-                    else if (Row.Game.Status == GameStatus.Final)
+                    else if (game.Status == GameStatus.Final)
                     {
                         <Tag>Final</Tag>
                     }
                 </Tags>
-                <Detail>@DisplayTime.Stamp(Row.Game.StartsAt)</Detail>
+                <Detail>
+                    <DeskLink Destination="game" Icon="@Icons.Material.Filled.Scoreboard"
+                              OnClick="() => Manager.OpenGame(game)">
+                        @DisplayTime.Stamp(game.StartsAt)
+                    </DeskLink>
+                </Detail>
             </PanelTitle>
         }
     </div>
@@ -275,13 +306,22 @@ else
 
                 @if (_logged is not null)
                 {
-                    <Note State="DeskState.Positive" Class="wager-logged">@_logged</Note>
+                    <Note State="DeskState.Positive" Class="wager-logged">
+                        @_logged
+                        @if (_banked)
+                        {
+                            @(" ")
+                            <DeskLink Destination="slip" Icon="@Icons.Material.Filled.Receipt"
+                                      Tooltip="Show the slip" OnClick="() => _tab = WagerTab.Slip">View slip</DeskLink>
+                        }
+                    </Note>
                 }
 
                 <div class="waction__keys">
                     @* The window's one Filled key is Log; the slip is Plain. The badge is the
-                       acknowledgment; the slip does not open (spec §11.3). A bet on no game has no
-                       slip card. *@
+                       acknowledgment; the slip does not open (spec §11.3) — it is a tab here, a
+                       link away. A bet on no game has no slip card. The slip never takes a $0
+                       bet, so the key waits for a stake the same way Log does. *@
                     <DeskButton Emphasis="DeskEmphasis.Filled"
                                 Icon="@Icons.Material.Filled.Bolt"
                                 Busy="@_saving"
@@ -294,12 +334,22 @@ else
                     @if (Row is not null)
                     {
                         <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
-                                    Disabled="@(_offer is null)"
-                                    Title="Bank this wager on the desk's slip, to log later or build a parlay">
+                                    Disabled="@(!CanBank)"
+                                    Title="@(_offer is null ? "Your bet and its price come first."
+                                           : _stake <= 0 ? "Needs a stake above zero."
+                                           : "Bank this wager on the desk's slip, to log later or build a parlay")">
                             Add to slip
                             <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
                         </DeskButton>
                     }
+
+                    @* The same door the Journal's Duplicate uses: a second window on this bet,
+                       stake and note carried, so the same bet at another book is one click. *@
+                    <DeskButton Icon="@Icons.Material.Filled.ContentCopy" OnClick="Duplicate"
+                                Disabled="@(_offer is null)"
+                                Title="Open this bet again in a new window, to log it at another book or a second time">
+                        Duplicate
+                    </DeskButton>
 
                     @if (Waiting is { } why)
                     {
@@ -315,8 +365,19 @@ else
         </DeskStep>
     </DeskSteps>
 }
+</DeskTabs>
 
 @code {
+    private enum WagerTab { Wager, Slip }
+
+    private WagerTab _tab;
+
+    private IReadOnlyList<DeskTab<WagerTab>> Tabs =>
+    [
+        new(WagerTab.Wager, "Wager"),
+        new(WagerTab.Slip, $"Slip · {Slip.Items.Count}")
+    ];
+
     /// <summary>
     /// The game this view is about. Taken as an id rather than a row so the view can be hosted
     /// as a desk window, which is rebuilt from its parameters and cannot carry an object. Absent:
@@ -331,6 +392,22 @@ else
 
     /// <summary>The book a door names. Where it quotes the side, the window shows its price, not the best.</summary>
     [Parameter] public string? Book { get; set; }
+
+    /// <summary>
+    /// A bet being made again (<see cref="WagerPrefill"/>): the stake and note it was made with,
+    /// so the copy is ready to log; the price only where the original was typed, which makes the
+    /// copy a typed price too; the description of a bet on no game, which opens the no-game form
+    /// filled in.
+    /// </summary>
+    [Parameter] public decimal? Stake { get; set; }
+
+    [Parameter] public string? Note { get; set; }
+
+    [Parameter] public int? PriceAmerican { get; set; }
+
+    [Parameter] public decimal? Line { get; set; }
+
+    [Parameter] public string? Described { get; set; }
 
     [Parameter] public EventCallback OnPlaced { get; set; }
 
@@ -375,6 +452,8 @@ else
     private string? _note;
     private string? _error;
     private string? _logged;
+    // The last note was a banking, so it offers the slip tab.
+    private bool _banked;
     private string? _moved;
     private bool _saving;
 
@@ -480,6 +559,24 @@ else
             _loading = false;
         }
 
+        // What a copy carries, applied before the price is decided so a typed price is typed
+        // from the first render. A door that names none leaves the window as it was.
+        if (Stake is { } stake)
+            _stake = stake;
+        if (Note is not null)
+            _note = Note;
+
+        if (Described is not null && GameId is null)
+        {
+            // The no-game form, filled in: the description, the price and the book it was at.
+            _noGame = true;
+            _described = Described;
+            _typedPrice = PriceAmerican;
+            _typedBook = Book;
+            Reprice();
+            return;
+        }
+
         if (GameId is null)
             return;
 
@@ -487,10 +584,29 @@ else
         var landed = SelectionChoice.Land(Row, Market, Outcome, null);
         _market = landed?.Market;
         _outcome = landed?.Outcome;
-        _manual = false;
+        _manual = PriceAmerican is not null;
+
+        if (_manual)
+        {
+            _typedPrice = PriceAmerican;
+            _typedLine = Line;
+            _typedBook = Book;
+        }
 
         Reprice();
         await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// A second window on this bet through the door the Journal's Duplicate uses: the side, the
+    /// book, the stake and the note as they stand here, and the price only if it was typed.
+    /// </summary>
+    private void Duplicate()
+    {
+        if (_offer is not { } offer)
+            return;
+
+        Manager.OpenWagerCopy(WagerPrefill.From(offer, Row?.Game.Id, _stake, _note), Row is null ? null : Matchup(Row.Game));
     }
 
     private async Task ReadRowAsync()
@@ -695,6 +811,12 @@ else
 
     private bool CanLog => _offer is { IsClosing: false } && _stake > 0 && (Row is not null || _noGame);
 
+    /// <summary>
+    /// A closing price can be banked — the card carries the same block Log does — but never a
+    /// $0 stake: the slip refuses one, so the key does not offer it.
+    /// </summary>
+    private bool CanBank => _offer is not null && _stake > 0 && Row is not null;
+
     /// <summary>What the Log key is waiting for, said beside it.</summary>
     private string? Waiting
         => _offer is null && Typing
@@ -798,12 +920,12 @@ else
         => (offer.Line is { } line ? OddsMath.FormatLine(line, offer.Outcome) + " " : "") + Price(offer.PriceAmerican);
 
     /// <summary>
-    /// Banks the wager on the slip. Zero stake is allowed — it can be set on the card — and a
-    /// closing price is allowed too: the card carries the same block the Log key does here.
+    /// Banks the wager on the slip, with its stake: the slip never takes a $0 bet. A closing
+    /// price is allowed: the card carries the same block the Log key does here.
     /// </summary>
     private void AddToSlip()
     {
-        if (_offer is not { } offer || Row is null)
+        if (!CanBank || _offer is not { } offer || Row is null)
             return;
 
         // The duplicate check's reading travels with the card, so the slip can say it too.
@@ -814,6 +936,7 @@ else
 
         _error = null;
         _logged = $"Added {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
+        _banked = true;
         Toasts.Success(_logged);
         _stake = 0;
         _note = null;
@@ -836,6 +959,7 @@ else
             // wager twice on the next press. The side stays, so the journal check can name it.
             _logged = $"Logged {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book})"
                       + (offer.Manual ? ", your own price." : ".");
+            _banked = false;
             Toasts.Success(_logged);
             _stake = 0;
             _note = null;

@@ -44,7 +44,9 @@ public class WagerStepperTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
 
         var head = cut.Find(".whead .ptitle");
-        Assert.Equal("Buffalo Bills at Kansas City Chiefs", head.QuerySelector(".ptitle__name")!.TextContent.Trim());
+        // Each team is a link to its window, as in the Game window's title.
+        Assert.Equal(["Buffalo Bills", "Kansas City Chiefs"],
+            head.QuerySelectorAll(".ptitle__name .desklink__label").Select(l => l.TextContent.Trim()));
         Assert.Contains("NFL", head.QuerySelector(".tag")!.TextContent);
         Assert.NotNull(head.QuerySelector(".ptitle__meta"));
         Assert.DoesNotContain("Game", cut.FindAll(".wstep__title").Select(t => t.TextContent.Trim()));
