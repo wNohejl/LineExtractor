@@ -2834,6 +2834,12 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .field--sm { height: 24px; font-size: var(--text-footnote); }
 select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px) 10px; }
 
+/* The count field: a small number with the stepper keys beside it, so it is as wide as two
+   digits need and carries no spinner of its own — the keys next to it are the stepper. */
+.field--count { width: 7ch; text-align: center; appearance: textfield; }
+.field--count::-webkit-inner-spin-button,
+.field--count::-webkit-outer-spin-button { appearance: none; margin: 0; }
+
 /* Row and stack read their gap from --desk-gap so a component can set one rung of
    the spacing ramp inline without a modifier class per step. The fallback is the
    gap they have always had, so a bare .row / .stack is unchanged.
@@ -2881,6 +2887,73 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     border-color: var(--state-negative);
     box-shadow: 0 0 0 3px var(--state-negative-wash), 0 0 0 1px var(--state-negative);
 }
+
+/* ---- Checkbox ---------------------------------------------------------------
+   One setting, on or off, said by shape: an empty box or a ticked one. The row is
+   the toolbar's 28px so it lines up with the fields and keys beside it. The native
+   input sits invisibly over the drawn box, so it keeps the browser's focus, Space
+   and screen-reader behaviour, and the box only paints its state.
+   --------------------------------------------------------------------------- */
+
+.checkbox {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 28px;
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox__input {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    opacity: 0;
+    transform: translateY(-50%);
+    cursor: pointer;
+}
+
+.checkbox__box {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    background: var(--surface-0);
+    border: 1px solid var(--separator-strong);
+    border-radius: var(--radius-sm);
+    transition: background var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
+}
+
+.checkbox__input:checked + .checkbox__box {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* The tick, drawn rather than imported so it takes the ink for a saturated fill. */
+.checkbox__input:checked + .checkbox__box::after {
+    content: "";
+    width: 4px;
+    height: 8px;
+    border: solid var(--on-accent);
+    border-width: 0 2px 2px 0;
+    transform: translateY(-1px) rotate(45deg);
+}
+
+.checkbox__input:focus-visible + .checkbox__box { box-shadow: var(--focus-ring); }
+
+.checkbox__input:disabled,
+.checkbox__input:disabled + .checkbox__box { cursor: not-allowed; opacity: .40; }
+
+.checkbox__label { white-space: nowrap; }
 .row--end { justify-content: flex-end; }
 .row--start { justify-content: flex-start; }
 .row--center { justify-content: center; }
@@ -2905,9 +2978,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* Meta. A count, date or aside beside the text it qualifies: one rung under the body, in
    secondary ink. It replaces the inline calc(11.5px …) spans the panels used to write. */
 .meta { font-size: var(--text-subheadline); color: var(--text-secondary); }
-/* Readout. A single figure that is the whole answer (the concurrent-windows count), read at a
-   glance in the title ramp. */
-.readout { font-size: var(--text-title1); }
 
 /* 1 · Title. The name of the thing the window is about, in the title ramp. */
 .ptitle { margin: 0 0 var(--space-4); }
@@ -3393,6 +3463,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     flex-wrap: wrap;
     padding: 9px 0 2px;
 }
+
+/* The air between the views (one segmented control: which answer shows on the row) and the
+   commands after it (keys that open a window), so the two read as different kinds of thing. */
+.rowacts__gap { flex: none; width: var(--space-2); }
 
 /* The button whose snippet is showing. Held down rather than merely highlighted,
    because it is a state the operator is in, not a hover. It reads as selected

@@ -1,0 +1,89 @@
+using Bunit;
+using LineOps.Desk.Theming;
+using LineOps.Desk.Windowing;
+using LineOps.Web.Components.Panels;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LineOps.Web.Tests;
+
+/// <summary>
+/// The Window manager's controls, each the one its job calls for: a family of themes is one
+/// choice among several, so it is a radiogroup; a count is a value, so it is a field with a
+/// stepper beside it rather than a bare number between two keys.
+/// </summary>
+public class WindowManagerControlsTests : DeskTestContext
+{
+    private WindowManager Manager => Services.GetRequiredService<WindowManager>();
+
+    [Fact]
+    public void Swatches_are_a_radiogroup()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var group = cut.Find(".swatches");
+        Assert.Equal("radiogroup", group.GetAttribute("role"));
+        Assert.Equal("Theme", group.GetAttribute("aria-label"));
+
+        var swatches = cut.FindAll(".swatch");
+        Assert.Equal(DeskThemeFamilies.All.Count, swatches.Count);
+        Assert.All(swatches, s =>
+        {
+            Assert.Equal("radio", s.GetAttribute("role"));
+            Assert.Null(s.GetAttribute("aria-pressed"));
+        });
+
+        // One checked, and it is the group's one Tab stop.
+        var on = Assert.Single(swatches, s => s.GetAttribute("aria-checked") == "true");
+        Assert.Equal("0", on.GetAttribute("tabindex"));
+        Assert.All(swatches.Where(s => s != on), s =>
+        {
+            Assert.Equal("false", s.GetAttribute("aria-checked"));
+            Assert.Equal("-1", s.GetAttribute("tabindex"));
+        });
+
+        // Arrows move the choice, as in every other radiogroup on the desk.
+        var theme = Services.GetRequiredService<ThemeService>();
+        var first = theme.Family;
+
+        cut.Find(".swatches").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        Assert.Equal(DeskThemeFamilies.All[DeskThemeFamilies.All.ToList().IndexOf(first) + 1], theme.Family);
+        Assert.Equal("true", cut.FindAll(".swatch")[1].GetAttribute("aria-checked"));
+    }
+
+    [Fact]
+    public void Concurrent_windows_is_a_field_with_a_stepper()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var field = cut.Find("input[aria-label='Concurrent windows']");
+        Assert.Equal("number", field.GetAttribute("type"));
+        Assert.Equal("1", field.GetAttribute("min"));
+        Assert.Equal("12", field.GetAttribute("max"));
+        Assert.Equal(Manager.Settings.MaxConcurrentWindows.ToString(), field.GetAttribute("value"));
+
+        // The count no longer sits as a bare figure between the keys.
+        Assert.Empty(cut.FindAll(".readout"));
+
+        // Typed, and clamped to the same bounds the stepper keeps.
+        cut.Find("input[aria-label='Concurrent windows']").Change("6");
+        Assert.Equal(6, Manager.Settings.MaxConcurrentWindows);
+
+        cut.Find("input[aria-label='Concurrent windows']").Change("40");
+        Assert.Equal(12, Manager.Settings.MaxConcurrentWindows);
+
+        // The stepper beside it nudges by one.
+        cut.Find("button[aria-label='One fewer window']").Click();
+        Assert.Equal(11, Manager.Settings.MaxConcurrentWindows);
+        Assert.Equal("11", cut.Find("input[aria-label='Concurrent windows']").GetAttribute("value"));
+
+        // Matching the desk is a Plain key after the field.
+        var match = cut.FindAll("button").Single(b => b.TextContent.Contains("Match this desk"));
+        Assert.Contains("desk-btn--plain", match.GetAttribute("class"));
+        Assert.Contains($"({Manager.RecommendedCapacity})", match.TextContent);
+
+        match.Click();
+        Assert.Equal(Manager.RecommendedCapacity, Manager.Settings.MaxConcurrentWindows);
+    }
+}

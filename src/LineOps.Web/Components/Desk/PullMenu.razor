@@ -20,11 +20,16 @@
 @if (Access.CanOperate)
 {
 <div class="pullmenu">
-    <DeskButton Emphasis="DeskEmphasis.Filled"
+    @* Tinted with a chevron, not Filled: pressing it opens a menu, it does not act — the action
+       is the entry chosen from the menu (HIG: a pull-down's key says it opens something). *@
+    <DeskButton Emphasis="DeskEmphasis.Tinted"
                 Icon="@Icons.Material.Filled.CloudDownload"
                 Busy="@(_running is not null)"
-                OnClick="Toggle">
+                OnClick="Toggle"
+                aria-haspopup="true"
+                aria-expanded="@(_open ? "true" : "false")">
         @(_running is null ? "Pull data" : _runningLabel)
+        <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
     </DeskButton>
 
     @if (_open)

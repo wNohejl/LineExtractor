@@ -1,0 +1,28 @@
+@*
+    The Board's value filter: only the games where some book is paying more than the fair price.
+
+    An on/off, so a checkbox — it used to be a key that turned Tinted while on, which is colour
+    alone carrying a state. The count rides in the label so the box says how many games it
+    would leave before it is ticked.
+
+    Offered only while there are any. A filter with nothing to narrow is chrome pretending to be
+    a control, and nothing at all is drawn — not an empty wrapper, which would still open a gap
+    in the toolbar. A visitor has it too: it reads, and ADR 0018 hides only what writes.
+*@
+
+@if (Count > 0)
+{
+    <DeskCheckbox Label="@($"Only +EV ({Count})")"
+                  Title="Only games where some book's live price beats the fair price"
+                  Checked="Checked"
+                  CheckedChanged="CheckedChanged" />
+}
+
+@code {
+    /// <summary>How many games on the whole slate have value. Zero hides the filter.</summary>
+    [Parameter] public int Count { get; set; }
+
+    [Parameter] public bool Checked { get; set; }
+
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+}

@@ -113,7 +113,10 @@ public class RowActionsTests : DeskTestContext
         Assert.Empty(cut.FindAll("[role=region]"));
     }
 
-    /// <summary>Pressing the open action again returns the row to its keys.</summary>
+    /// <summary>
+    /// A lone view is a disclosure, not a choice — a one-segment control has nothing to choose
+    /// between — so it stays a toggle key, and pressing it again returns the row to its keys.
+    /// </summary>
     [Fact]
     public void Pressing_the_open_key_again_closes_it()
     {
@@ -135,17 +138,106 @@ public class RowActionsTests : DeskTestContext
     {
         var cut = Strip([Snippet("h2h", "Head to head"), Snippet("last5", "Last five")]);
 
-        cut.FindAll(".rowacts__keys button")[0].Click();
-        cut.FindAll(".rowacts__keys button")[1].Click();
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
+        cut.FindAll(".rowacts__keys [role=radio]")[1].Click();
 
         var regions = cut.FindAll("[role=region]");
 
         Assert.Single(regions);
         Assert.Contains("last5 snippet", regions[0].TextContent);
 
-        var keys = cut.FindAll(".rowacts__keys button");
-        Assert.Equal("false", keys[0].GetAttribute("aria-pressed"));
-        Assert.Equal("true", keys[1].GetAttribute("aria-pressed"));
+        var views = cut.FindAll(".rowacts__keys [role=radio]");
+        Assert.Equal("false", views[0].GetAttribute("aria-checked"));
+        Assert.Equal("true", views[1].GetAttribute("aria-checked"));
+    }
+
+    /// <summary>
+    /// Several views are one choice — which answer is showing — so they are one segmented
+    /// control, and choosing a segment opens that snippet. The keys that open a window are
+    /// commands, not choices, and sit after it rather than inside it (HIG: a segmented control
+    /// never mixes selection and action).
+    /// </summary>
+    [Fact]
+    public void Selecting_a_view_opens_that_snippet()
+    {
+        var opened = 0;
+
+        var cut = Strip([
+            Snippet("h2h", "Head to head"),
+            Snippet("last5", "Last five"),
+            Destination("team", "Team", () => { opened++; return Task.CompletedTask; })
+        ]);
+
+        var group = cut.Find(".rowacts__keys [role=radiogroup]");
+        Assert.Equal(["Head to head", "Last five"],
+            group.QuerySelectorAll("[role=radio]").Select(b => b.TextContent.Trim()));
+        Assert.All(group.QuerySelectorAll("[role=radio]"),
+            v => Assert.Equal("false", v.GetAttribute("aria-checked")));
+
+        cut.FindAll(".rowacts__keys [role=radio]")[1].Click();
+
+        Assert.Contains("last5 snippet", cut.Find("[role=region]").TextContent);
+        Assert.Equal("true", cut.FindAll(".rowacts__keys [role=radio]")[1].GetAttribute("aria-checked"));
+        Assert.Equal(cut.Find("[role=region]").GetAttribute("id"),
+            cut.Find(".rowacts__keys [role=radiogroup]").GetAttribute("aria-controls"));
+
+        // Choosing a view spends no window.
+        Assert.Equal(0, opened);
+    }
+
+    /// <summary>
+    /// The split must not strand a key. The views are one Tab stop with arrows inside it (a
+    /// radiogroup's roving tabindex), and every action key after them is its own Tab stop.
+    /// </summary>
+    [Fact]
+    public void Row_actions_keep_every_key_focusable()
+    {
+        var cut = Strip([
+            Snippet("odds", "Odds"),
+            Snippet("h2h", "Head to head"),
+            Destination("bets", "More bets", () => Task.CompletedTask),
+            Destination("wager", "Place wager", () => Task.CompletedTask)
+        ]);
+
+        var views = cut.FindAll(".rowacts__keys [role=radio]");
+        Assert.Equal(2, views.Count);
+        Assert.Single(views, v => v.GetAttribute("tabindex") == "0");
+        Assert.All(views, v => Assert.Equal("BUTTON", v.TagName));
+
+        var commands = cut.FindAll(".rowacts__keys button:not([role=radio])");
+        Assert.Equal(["More bets", "Place wager"], commands.Select(b => b.TextContent.Trim()));
+        Assert.All(commands, b =>
+        {
+            Assert.NotEqual("-1", b.GetAttribute("tabindex"));
+            Assert.False(b.HasAttribute("disabled"));
+            Assert.Null(b.GetAttribute("aria-pressed"));
+        });
+
+        // Arrows move through the views from the group's one stop.
+        cut.Find(".rowacts__keys [role=radiogroup]").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        Assert.Contains("h2h snippet", cut.Find("[role=region]").TextContent);
+    }
+
+    /// <summary>
+    /// A chosen segment stays chosen when pressed again — it is a radio, not a toggle. The way
+    /// back to the bare keys is Escape, as for everything else that opens on this desk.
+    /// </summary>
+    [Fact]
+    public void Pressing_the_chosen_view_again_keeps_it_open()
+    {
+        var cut = Strip([Snippet("h2h", "Head to head"), Snippet("last5", "Last five")]);
+
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
+
+        Assert.Contains("h2h snippet", cut.Find("[role=region]").TextContent);
+
+        cut.Find(".rowacts").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(cut.FindAll("[role=region]"));
+        Assert.All(cut.FindAll(".rowacts__keys [role=radio]"),
+            v => Assert.Equal("false", v.GetAttribute("aria-checked")));
     }
 
     /// <summary>Every other thing you can open on this desk closes with Escape.</summary>
@@ -218,7 +310,7 @@ public class RowActionsTests : DeskTestContext
     [Fact]
     public void A_keys_weight_and_role_come_from_its_action()
     {
-        var plain = Snippet("h2h", "Head to head");
+        var plain = Destination("h2h", "Head to head", () => Task.CompletedTask);
 
         var cut = Strip([
             plain,

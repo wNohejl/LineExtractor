@@ -24,24 +24,61 @@
 @* Escape returns the row to its keys. A snippet is a thing you opened, and every other thing
    you can open on this desk closes the same way. *@
 <div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true">
+    @* Selection first, then commands, never mixed in one control (HIG: a segmented control does
+       not mix selection and action segments). Which snippet is showing is one choice among a
+       few, so the views are one segmented control; a key that opens a window is a command and
+       follows as an ordinary key. *@
     <div class="rowacts__keys">
-        @foreach (var action in Actions)
+        @if (_views.Count > 1)
         {
-            var isOpen = action.Key == _open;
+            @* No position is chosen until one is pressed: DeskSwitch shows no cap for a value that
+               matches none, so "nothing open" needs no segment of its own. A chosen segment stays
+               chosen when pressed again, as a radio does; Escape is the way back. *@
+            <DeskSwitch TValue="string"
+                        Options="_viewOptions"
+                        Label="Inline view"
+                        Size="DeskKeySize.Small"
+                        Value="_open"
+                        ValueChanged="@((string key) => _open = key)"
+                        aria-controls="@(_open is null ? null : SnippetId)" />
+        }
+        else if (_views.Count == 1)
+        {
+            var view = _views[0];
+            var isOpen = view.Key == _open;
 
-            @* A snippet key is a toggle and reports pressed state; a key that opens a window is
-               an ordinary command and must not claim to be one, or a screen reader announces a
-               pressed/unpressed state that never changes. *@
+            @* A lone view is a disclosure, not a choice — a one-segment control has nothing to
+               choose between, and DeskSwitch draws nothing for one — so it is a toggle key that
+               reports pressed and expanded state, and pressing it again closes it. *@
             <DeskButton Size="DeskKeySize.Small"
-                        Emphasis="@action.Emphasis"
-                        Role="@action.Role"
-                        Icon="@action.Icon"
+                        Emphasis="@view.Emphasis"
+                        Role="@view.Role"
+                        Icon="@view.Icon"
                         Class="@(isOpen ? "desk-btn--on" : null)"
-                        OnClick="@(() => SelectAsync(action))"
-                        aria-pressed="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
-                        aria-expanded="@(action.Snippet is null ? null : isOpen ? "true" : "false")"
-                        aria-controls="@(action.Snippet is null ? null : SnippetId)">
-                @action.Label
+                        OnClick="@(() => _open = isOpen ? null : view.Key)"
+                        aria-pressed="@(isOpen ? "true" : "false")"
+                        aria-expanded="@(isOpen ? "true" : "false")"
+                        aria-controls="@SnippetId">
+                @view.Label
+            </DeskButton>
+        }
+
+        @if (_views.Count > 0 && _commands.Count > 0)
+        {
+            <span class="rowacts__gap" aria-hidden="true"></span>
+        }
+
+        @* A key that opens a window is an ordinary command and must not claim to be a toggle, or
+           a screen reader announces a pressed state that never changes. Its weight and role are
+           the action's own: the Board's wager key is Tinted on purpose. *@
+        @foreach (var command in _commands)
+        {
+            <DeskButton Size="DeskKeySize.Small"
+                        Emphasis="@command.Emphasis"
+                        Role="@command.Role"
+                        Icon="@command.Icon"
+                        OnClick="@(() => OpenAsync(command))">
+                @command.Label
             </DeskButton>
         }
     </div>
@@ -71,7 +108,22 @@
     /// </summary>
     private readonly string SnippetId = $"snip-{Guid.NewGuid():N}";
 
-    private RowAction? Selected => Actions.FirstOrDefault(a => a.Key == _open);
+    /// <summary>The actions that answer on the row: the views.</summary>
+    private List<RowAction> _views = [];
+
+    /// <summary>The actions that only open a window: the commands.</summary>
+    private List<RowAction> _commands = [];
+
+    private List<DeskSwitchOption<string>> _viewOptions = [];
+
+    private RowAction? Selected => _views.FirstOrDefault(a => a.Key == _open);
+
+    protected override void OnParametersSet()
+    {
+        _views = Actions.Where(a => a.Snippet is not null).ToList();
+        _commands = Actions.Where(a => a.Snippet is null).ToList();
+        _viewOptions = _views.Select(a => new DeskSwitchOption<string>(a.Key, a.Label)).ToList();
+    }
 
     private void OnKeyDown(KeyboardEventArgs e)
     {
@@ -79,22 +131,10 @@
             _open = null;
     }
 
-    /// <summary>
-    /// A snippet action toggles its snippet; a window-only action just goes.
-    ///
-    /// Pressing the open action again closes it, so a row can be returned to its keys without
-    /// having to pick a different one to escape through.
-    /// </summary>
-    private async Task SelectAsync(RowAction action)
+    /// <summary>A window-only action just goes.</summary>
+    private static async Task OpenAsync(RowAction action)
     {
-        if (action.Snippet is null)
-        {
-            if (action.OpenWindow is not null)
-                await action.OpenWindow();
-
-            return;
-        }
-
-        _open = action.Key == _open ? null : action.Key;
+        if (action.OpenWindow is not null)
+            await action.OpenWindow();
     }
 }

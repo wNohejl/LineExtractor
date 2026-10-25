@@ -1,0 +1,56 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A checkbox: one setting that is either on or off.
+
+    The desk drew its on/off filters as keys that swapped between Plain and Tinted to say which
+    state they were in, which is colour alone carrying a state and a key claiming to be a
+    command. A box with a tick says "on" by shape, is announced as a checkbox, and toggles with
+    Space like every other one the operator has used.
+
+    The native input stays in the tree, visually hidden but focusable, so keyboard, form and
+    screen-reader behaviour are the browser's own; the drawn box beside it only paints.
+
+    The row is 28px, the toolbar height, so it lines up with the fields and keys beside it.
+*@
+
+<label class="checkbox @DeskLayout.ExtraClass(Extra) @Class"
+       style="@DeskLayout.MergeStyle(null, Extra)"
+       title="@Title">
+    <input type="checkbox"
+           class="checkbox__input"
+           checked="@Checked"
+           disabled="@Disabled"
+           @attributes="DeskLayout.WithoutClassAndStyle(Extra)"
+           @onchange="OnChangeAsync" />
+    <span class="checkbox__box" aria-hidden="true"></span>
+    <span class="checkbox__label">@if (ChildContent is not null) { @ChildContent } else { @Label }</span>
+</label>
+
+@code {
+    [Parameter] public bool Checked { get; set; }
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+
+    /// <summary>What turning it on means, in sentence case — "Only +EV (3)".</summary>
+    [Parameter] public string Label { get; set; } = string.Empty;
+
+    /// <summary>A label with markup in it, in place of <see cref="Label"/>.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>The tooltip, for the longer wording a short label leaves out.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private async Task OnChangeAsync(ChangeEventArgs e)
+    {
+        var on = e.Value is bool b ? b : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+        await CheckedChanged.InvokeAsync(on);
+    }
+}
