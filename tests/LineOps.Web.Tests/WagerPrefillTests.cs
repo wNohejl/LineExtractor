@@ -34,7 +34,7 @@ public class WagerPrefillTests : WagerTestContext
         Assert.Equal(Markets.Spread, parameters["Market"]);
         Assert.Equal(BoardRows.Home, parameters["Outcome"]);
         Assert.Equal("fanduel", parameters["Book"]);
-        Assert.Equal(40m, parameters["Stake"]);
+        Assert.Equal("40", parameters["Stake"]);
         Assert.Equal("fade", parameters["Note"]);
         // Today's price at that book, not the one taken last week.
         Assert.False(parameters.ContainsKey("PriceAmerican"));
@@ -55,7 +55,7 @@ public class WagerPrefillTests : WagerTestContext
         Assert.Equal(250, parameters["PriceAmerican"]);
         Assert.Equal("Steelers to win the AFC North", parameters["Described"]);
         Assert.Equal("caesars", parameters["Book"]);
-        Assert.Equal(25m, parameters["Stake"]);
+        Assert.Equal("25", parameters["Stake"]);
     }
 
     [Fact]
@@ -72,7 +72,47 @@ public class WagerPrefillTests : WagerTestContext
         var window = Assert.Single(Manager.Windows);
         Assert.Equal(WindowCatalog.Wager, window.Definition.Key);
         Assert.Equal("Buffalo Bills at Kansas City Chiefs", window.Title);
-        Assert.Equal(40m, window.Parameters["Stake"]);
+        Assert.Equal("40", window.Parameters["Stake"]);
+    }
+
+    [Fact]
+    public void A_copy_survives_the_desk_being_saved_and_restored()
+    {
+        var entry = new JournalEntry
+        {
+            GameId = BoardRows.GameId, Market = Markets.Spread, Outcome = BoardRows.Home, LineTaken = -2.50m,
+            Book = "draftkings", PriceTaken = -110, Stake = 110.00m, ManualPrice = true
+        };
+        Manager.OpenWagerCopy(WagerPrefill.From(entry), "Buffalo Bills at Kansas City Chiefs");
+
+        // A reload: the desk is written down as JSON and read back, which brings numbers back
+        // as int or double. A decimal parameter could not be set from either, and the circuit died.
+        var restored = new WindowManager(new AppWindowCatalog());
+        restored.Restore(DeskLayout.Parse(Manager.Capture().Serialise())!);
+        var parameters = restored.Windows.Single().Parameters;
+
+        var cut = RenderComponent<BoardWager>(parameters.Select(p => ComponentParameter.CreateParameter(p.Key, p.Value)).ToArray());
+
+        Assert.Contains($"You are logging {110m:C0}", cut.Find(".wreview").TextContent);
+        Assert.Contains("-2.5", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
+    }
+
+    [Fact]
+    public void A_copy_saved_by_the_first_build_with_numbers_still_restores()
+    {
+        // fb1130e handed the stake and line as decimals under "Stake" and "Line"; a desk saved
+        // then reads them back as doubles. That desk must open, not take the circuit down.
+        var cut = RenderComponent<BoardWager>(
+            ComponentParameter.CreateParameter("GameId", BoardRows.GameId),
+            ComponentParameter.CreateParameter("Market", Markets.Spread),
+            ComponentParameter.CreateParameter("Outcome", BoardRows.Home),
+            ComponentParameter.CreateParameter("Book", "draftkings"),
+            ComponentParameter.CreateParameter("PriceAmerican", -110),
+            ComponentParameter.CreateParameter("Line", -2.5d),
+            ComponentParameter.CreateParameter("Stake", 110d));
+
+        Assert.Contains($"You are logging {110m:C0}", cut.Find(".wreview").TextContent);
+        Assert.Contains("-2.5", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
     }
 
     [Fact]
@@ -83,7 +123,7 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Market, Markets.Moneyline)
             .Add(x => x.Outcome, BoardRows.Home)
             .Add(x => x.Book, "fanduel")
-            .Add(x => x.Stake, 40m)
+            .Add(x => x.Stake, "40")
             .Add(x => x.Note, "fade"));
 
         Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
@@ -101,7 +141,7 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Outcome, BoardRows.Home)
             .Add(x => x.Book, "caesars")
             .Add(x => x.PriceAmerican, -120)
-            .Add(x => x.Stake, 40m));
+            .Add(x => x.Stake, "40"));
 
         // Ready to log, so the price step is folded to what it carries; opened, the fields hold it.
         Assert.Contains("-120 at caesars, your own price", Step(cut, "Price and book").QuerySelector(".wstep__summary")!.TextContent);
@@ -119,7 +159,7 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Described, "Steelers to win the AFC North")
             .Add(x => x.Book, "caesars")
             .Add(x => x.PriceAmerican, 250)
-            .Add(x => x.Stake, 25m));
+            .Add(x => x.Stake, "25"));
 
         Assert.Equal("Steelers to win the AFC North", cut.Find("input[aria-label='The bet']").GetAttribute("value"));
         Assert.Equal("250", cut.Find("input[placeholder='-110']").GetAttribute("value"));
@@ -142,6 +182,6 @@ public class WagerPrefillTests : WagerTestContext
         Assert.Equal(BoardRows.GameId, window.Parameters["GameId"]);
         Assert.Equal(BoardRows.Home, window.Parameters["Outcome"]);
         Assert.Equal("draftkings", window.Parameters["Book"]);
-        Assert.Equal(50m, window.Parameters["Stake"]);
+        Assert.Equal("50", window.Parameters["Stake"]);
     }
 }

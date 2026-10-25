@@ -397,15 +397,30 @@ else
     /// A bet being made again (<see cref="WagerPrefill"/>): the stake and note it was made with,
     /// so the copy is ready to log; the price only where the original was typed, which makes the
     /// copy a typed price too; the description of a bet on no game, which opens the no-game form
-    /// filled in.
+    /// filled in. The stake and the line are invariant text ("110", "-2.5"), because a window's
+    /// parameters are saved as JSON and come back as an int or a double, neither of which sets a
+    /// decimal (<see cref="WagerPrefill.ToParameters"/>).
     /// </summary>
-    [Parameter] public decimal? Stake { get; set; }
+    /// <remarks>
+    /// Typed object, not string: a desk saved by the first build that carried a copy holds the
+    /// stake as a number, which restores as an int or a double, and a window that cannot take
+    /// what a saved desk hands it takes the whole circuit down. <see cref="WagerPrefill.Read"/>
+    /// reads any of them.
+    /// </remarks>
+    [Parameter] public object? Stake { get; set; }
 
     [Parameter] public string? Note { get; set; }
 
     [Parameter] public int? PriceAmerican { get; set; }
 
-    [Parameter] public decimal? Line { get; set; }
+    [Parameter] public object? TakenLine { get; set; }
+
+    /// <summary>
+    /// Whatever else a saved desk hands this window — "Line" from the first build that carried a
+    /// copy — captured rather than refused. Blazor throws on a parameter a component does not
+    /// declare, and that throw ended the circuit, not just this window.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? Saved { get; set; }
 
     [Parameter] public string? Described { get; set; }
 
@@ -561,7 +576,7 @@ else
 
         // What a copy carries, applied before the price is decided so a typed price is typed
         // from the first render. A door that names none leaves the window as it was.
-        if (Stake is { } stake)
+        if (WagerPrefill.Read(Stake) is { } stake && stake > 0)
             _stake = stake;
         if (Note is not null)
             _note = Note;
@@ -589,7 +604,7 @@ else
         if (_manual)
         {
             _typedPrice = PriceAmerican;
-            _typedLine = Line;
+            _typedLine = WagerPrefill.Read(TakenLine ?? Saved?.GetValueOrDefault("Line"));
             _typedBook = Book;
         }
 

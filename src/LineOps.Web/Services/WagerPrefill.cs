@@ -1,3 +1,4 @@
+using System.Globalization;
 using LineOps.Core.Entities;
 
 namespace LineOps.Web.Services;
@@ -55,7 +56,12 @@ public sealed record WagerPrefill(
             offer.Manual ? offer.PriceAmerican : null, stake,
             string.IsNullOrWhiteSpace(note) ? null : note, offer.Described);
 
-    /// <summary>The wager window's parameters, by name. Nothing null goes in: an absent key is the window's default.</summary>
+    /// <summary>
+    /// The wager window's parameters, by name. Nothing null goes in: an absent key is the
+    /// window's default. The stake and the line go as invariant text ("110", "-2.5"): the desk
+    /// writes its windows down as JSON and reads a number back as an int or a double, and a
+    /// decimal parameter can be set from neither — a restored copy took the circuit down.
+    /// </summary>
     public Dictionary<string, object> ToParameters()
     {
         var parameters = new Dictionary<string, object>();
@@ -66,13 +72,31 @@ public sealed record WagerPrefill(
             parameters["Market"] = Market;
             parameters["Outcome"] = Outcome;
         }
-        if (Line is { } line) parameters["Line"] = line;
+        if (Line is { } line) parameters["TakenLine"] = Text(line);
         if (!string.IsNullOrWhiteSpace(Book)) parameters["Book"] = Book;
         if (PriceAmerican is { } price) parameters["PriceAmerican"] = price;
-        if (Stake > 0) parameters["Stake"] = Stake;
+        if (Stake > 0) parameters["Stake"] = Text(Stake);
         if (Note is not null) parameters["Note"] = Note;
         if (Described is not null) parameters["Described"] = Described;
 
         return parameters;
     }
+
+    /// <summary>"110", not "110.00": G29 drops the stored scale's trailing zeros.</summary>
+    private static string Text(decimal value) => value.ToString("G29", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The wager window's reading of a stake or line: the text this record hands it, or a number
+    /// from a desk saved before it did (an int or a double once restored). Null when it is
+    /// neither, so a value the window cannot read is skipped rather than fatal.
+    /// </summary>
+    public static decimal? Read(object? value) => value switch
+    {
+        decimal d => d,
+        int i => i,
+        long l => l,
+        double x when double.IsFinite(x) => (decimal)x,
+        string text when decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) => parsed,
+        _ => null
+    };
 }
