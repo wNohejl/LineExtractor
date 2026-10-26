@@ -4335,6 +4335,127 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .swatch--on .swatch__name { color: var(--text-primary); }
 
+/* ---- The Window manager: grouped settings -------------------------------------
+   The Window manager is a settings screen, so it is the wager window's grouped form
+   (.wsections, .wgroup, .wgroup__row--form, .wgroup__foot) and nothing new: a column of
+   groups, each a fill with its labels leading in one column and its controls trailing, the
+   explanation as the group's footer. What is here is only what a settings column needs that
+   a wager does not.
+
+   The column stops at a form's width (forms.md, rule 8). At 1600px the picker ran 1584px and
+   each sentence of explanation ran the whole window; a label and its control were a screen
+   apart. The label column is in ems so it grows with Text size rather than letting "Fits
+   readably" run into its value at 140%. */
+.wm { --form-label: 8em; max-width: 680px; }
+
+/* A pop-up is as wide as its longest choice, and a key as wide as its words: a grid item
+   stretches by default, so both ran the whole control column. .field is width:100% for the
+   forms it fills, which is why the select has to say so here. */
+.wm .wgroup__row--form > select.field { width: auto; max-width: 100%; justify-self: start; }
+.wm .wgroup__row--form > .desk-btn { justify-self: start; }
+
+/* A row whose control is taller than one line (the theme tiles) keeps its label beside the
+   first line, as macOS settings do, rather than centred on the whole block. Doubled with the
+   form row's class because .wgroup__row--form is declared later in this file and would
+   otherwise win at the same weight. Stacked in a narrow group, the label sits on the tiles. */
+.wgroup__row--form.wm-row--top { align-items: start; }
+.wm-row--top > .wgroup__label { padding-top: var(--space-3); }
+@container (max-width: 400px) {
+    .wm-row--top > .wgroup__label { padding-top: 0; }
+}
+
+/* The theme tiles inside the control column: five families fit one line at a form's width,
+   and wrap two to three a line in a narrow window. */
+.wm .swatches { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); padding: var(--space-2) 0; }
+
+/* A reading in a settings row: the value in the primary label colour, tabular, with its
+   qualifier in secondary beside it. The warning ink lands on the number only, and the note
+   under the group says why in words. */
+.wm-value {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.wm-value--warn { color: var(--state-warning-ink); }
+
+/* The share slider: the accent on the control you drag, sized to be dragged, not to the row. */
+.wm-share { flex: 1 1 160px; max-width: 240px; accent-color: var(--accent); }
+
+/* A pixel dimension is four digits and a spinner; two of them and the × between read as one
+   value. */
+.wm-px { width: 11ch; }
+
+/* The name field takes what the Save key leaves. */
+.wm-save__name { flex: 1 1 160px; min-width: 0; width: auto; }
+
+/* A saved workspace: its name, the windows it opens under it in secondary, its Delete key at
+   the trailing edge of the row it belongs to. */
+.wm-workspace__text { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.wm-workspace__name { color: var(--text-primary); }
+.wm-workspace__text > .meta { overflow-wrap: anywhere; }
+
+/* ---- The Performance window ------------------------------------------------------
+   One column at a reading width for the figures, the bankroll chart and the tables under it,
+   so they share a left and a right edge. At 1600px the chart sat small in the middle of the
+   window and each breakdown put Bets, Net and ROI at a different x along a 1584px row.
+
+   The tiles get a smaller floor here so six of them still make one line inside the column
+   rather than five and an orphan. The tiles sit in the column rather than straight in
+   .win__body, so the air beneath them is restated. */
+.perf { max-width: 720px; }
+.perf > .metrics { margin: 0 0 var(--space-4); grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
+
+/* The chart spans the column and keeps its own proportions. MudChart draws into a fixed
+   700×350 view box and was given a 200px box to fit it in, so it scaled itself down to 400px
+   wide, centred itself (Mud's margin:auto) and shrank its axis labels to about 7px. Given the
+   column's width and its own height it is drawn at roughly the scale it was written for, its
+   left edge on the section header's. The labels are footnote size in the secondary colour;
+   in a narrow window the view box scales down with the column, so the label size steps up to
+   keep what is rendered near the footnote size rather than under the 10px floor. */
+.perf-chart { container: perfchart / inline-size; }
+.perf-chart .mud-chart { width: 100%; }
+.perf-chart .mud-chart svg.mud-chart-line { display: block; width: 100%; height: auto; margin: 0; }
+.perf-chart .mud-chart text { font-size: var(--text-footnote); fill: var(--text-secondary); }
+@container perfchart (max-width: 620px) {
+    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.2); }
+}
+@container perfchart (max-width: 520px) {
+    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.45); }
+}
+@container perfchart (max-width: 420px) {
+    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.8); }
+}
+/* The placeholder holds the chart's shape, not a fixed height, so nothing jumps when it lands. */
+.perf-chart__skeleton .skel__block { height: auto; aspect-ratio: 2 / 1; }
+
+/* The bankroll field on the section's rule: a small field beside a small key, both 24px, as
+   wide as a bankroll's digits. Scoped to the rule's keys to outrank .psection__keys .field,
+   which sizes a picker to its words. */
+.psection__keys .perf-bankroll { width: 11ch; }
+
+/* The tables share their column widths: the name takes what the figures leave, and every
+   figure column is one width, so a figure in one table sits under the same figure in the
+   next. Fixed layout reads the widths from the header row. */
+.perf-table .mud-table-root { width: 100%; table-layout: fixed; }
+.perf-table th.perf-col--num { width: 96px; }
+.perf-table th.perf-col--wide { width: 152px; }
+.perf-table td.perf-col--key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- The Parts window -----------------------------------------------------------
+   The developer catalogue. Its parts keep the window's width, because "does this fit?" is
+   answered at the width a panel has; its prose does not, because a paragraph run across a
+   1584px window is a line the eye cannot find its way back from (HIG, Typography: 45-75
+   characters). The opening note sits in the wrapper rather than straight in .win__body, so the
+   air beneath it is restated. */
+.parts > .note { margin: 0 0 var(--space-4); }
+.parts p.empty { max-width: 72ch; }
+/* The token beside each sample on the Spacing and Type styles rows: one column wide enough for
+   the longest name, so every sample starts at the same x. */
+.parts-key { flex: none; width: 9rem; }
+
 /* ---- Material fallbacks -----------------------------------------------------
    Opaque fallbacks for every material surface. This block must stay AFTER every
    material rule it overrides: @supports and @media add no specificity, so these

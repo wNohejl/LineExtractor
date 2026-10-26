@@ -21,6 +21,11 @@
     never modal.
 *@
 
+@* One wrapper, for one reason: the prose below runs at a reading width (HIG, Typography: 45-75
+   characters a line) while the parts it describes keep the window's width, since "does this
+   fit?" is answered at the width a panel has. See "The Parts window" in lineops.css. *@
+<div class="parts">
+
 <Note>
     Everything here is live. Press what looks pressable, and tab through each row —
     the keyboard has to get the same signal the pointer does, or only half the desk
@@ -52,11 +57,10 @@
 
     <PanelToolbar Message="3 updated">
         <ChildContent>
-            <DeskSelect TValue="string" Value="@("")" ValueChanged="@((string? _) => { })">
-                <option value="">All sports</option>
-                <option value="mlb">MLB</option>
-            </DeskSelect>
-            <DeskField TValue="string" placeholder="Search…" Value="@("")" ValueChanged="@((string? _) => { })" />
+            @* The toolbar every list window draws: a fixed set of leagues is a segment, and a filter
+               that searches is a search field that names its scope. *@
+            <DeskSwitch Options="_anatomySports" Label="Sport" Size="DeskKeySize.Small" @bind-Value="_anatomySport" />
+            <DeskSearch Placeholder="Search players" @bind-Value="_anatomySearch" />
         </ChildContent>
         <Actions>
             <DeskButton Icon="@Icons.Material.Filled.Refresh">Refresh</DeskButton>
@@ -84,9 +88,33 @@
         </ChildContent>
     </PanelSection>
 
-    <PanelForm Title="New entry">
+    @* A form in a window is the grouped form (apple-hig-components, forms.md): pform--grouped
+       draws no card of its own, because the group is the fill and a frame around it would be a
+       box inside a box. Each row's label leads in one column and its control trails; a field's
+       width matches what goes in it. The Journal's edit form is this, row for row. *@
+    <PanelForm Title="Edit entry" Class="pform--grouped">
+        <Detail>Steelers -3 · placed Oct 26</Detail>
         <ChildContent>
-            <DeskField TValue="string" placeholder="Note (optional)" Value="@("")" ValueChanged="@((string? _) => { })" />
+            <div class="wgroup">
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Book</span>
+                    <DeskSelect TValue="string" Class="wfield--short" aria-label="Book" @bind-Value="_anatomyBook">
+                        <option value="pinnacle">Pinnacle</option>
+                        <option value="draftkings">DraftKings</option>
+                        <option value="fanduel">FanDuel</option>
+                    </DeskSelect>
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Price</span>
+                    <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                               aria-label="Price taken" placeholder="-110" @bind-Value="_anatomyPrice" />
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Note</span>
+                    <DeskField TValue="string" Class="wfield--fill" aria-label="Note" placeholder="Optional"
+                               @bind-Value="_anatomyNote" />
+                </div>
+            </div>
         </ChildContent>
         <Destructive>
             <DeskButton Role="DeskRole.Destructive">Delete</DeskButton>
@@ -118,9 +146,15 @@
             <div class="meta">
                 <span class="mono">@name</span> — @use
             </div>
+            @* Destructive is red at Plain or Tinted weight and never Filled: the one prominent key
+               in a view is never the one that destroys (HIG, Buttons), so the catalogue does not
+               draw the pairing it would be wrong to copy. *@
             <DeskRow Gap="DeskSpace.Space2">
                 <DeskButton Emphasis="@emphasis">Apply</DeskButton>
-                <DeskButton Emphasis="@emphasis" Role="DeskRole.Destructive">Delete run</DeskButton>
+                @if (emphasis != DeskEmphasis.Filled)
+                {
+                    <DeskButton Emphasis="@emphasis" Role="DeskRole.Destructive">Delete run</DeskButton>
+                }
             </DeskRow>
         </DeskStack>
     }
@@ -129,6 +163,7 @@
 <Note>
     <strong>Exactly one Filled per context.</strong> If a panel seems to need two, one of
     them is not the primary action — demote it to Tinted and the panel says what it is for.
+    And it is never the destructive key: a delete is red at Plain or Tinted weight.
 </Note>
 
 </PanelSection>
@@ -177,19 +212,21 @@
     The button's inverse: inset into the panel rather than standing off it. Same height, so
     a row of mixed controls still lines up. Bare — no <span class="mono">Label</span>, no
     <span class="mono">Error</span> — each renders as a plain element with no wrapper and
-    sits straight in a row.
+    sits straight in a row. Bare is not nameless: a placeholder disappears on the first
+    keystroke, so a bare field carries an <span class="mono">aria-label</span>, and in a form it
+    sits beside a label in the grouped row (Anatomy, above).
 </p>
 
 <DeskRow Gap="DeskSpace.Space2">
-    <DeskField TValue="string" placeholder="Book" style="max-width:150px" @bind-Value="_text" />
-    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Price"
+    <DeskField TValue="string" placeholder="Book" aria-label="Book" style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Price" aria-label="Price"
                style="max-width:100px" @bind-Value="_number" />
-    <DeskSelect TValue="string" @bind-Value="_choice">
+    <DeskSelect TValue="string" aria-label="Market" @bind-Value="_choice">
         <option value="spread">Spread</option>
         <option value="total">Total</option>
         <option value="moneyline">Moneyline</option>
     </DeskSelect>
-    <DeskField TValue="string" placeholder="Disabled" disabled style="max-width:120px" />
+    <DeskField TValue="string" placeholder="Disabled" aria-label="Disabled field" disabled style="max-width:120px" />
 </DeskRow>
 
 <p class="empty">
@@ -261,8 +298,8 @@
     <DeskStep Number="2" Title="Price and book" State="DeskStepState.Current"
               Hint="The best price on your bet, and the book quoting it.">
         <DeskRow Gap="DeskSpace.Space2">
-            <DeskButton Size="DeskKeySize.Small">-109 at pinnacle</DeskButton>
-            <DeskButton Size="DeskKeySize.Small">-112 at betmgm</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">-109 at Pinnacle</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">-112 at BetMGM</DeskButton>
         </DeskRow>
     </DeskStep>
     <DeskStep Number="3" Title="Stake" State="DeskStepState.Todo" Waiting="Finish the price first." />
@@ -719,7 +756,7 @@
     @foreach (var (step, name, px) in _spaces)
     {
         <DeskRow Gap="DeskSpace.Space3">
-            <span class="mono meta" style="width:64px">@name</span>
+            <span class="mono meta parts-key">@name</span>
             <div style="height:8px; border-radius:1px; background:var(--text-tertiary); width:@px"></div>
             <span class="meta">@px</span>
             <span class="meta">@_spaceUse[step]</span>
@@ -731,16 +768,18 @@
 
 <PanelSection Title="Type styles">
 <p class="empty">
-    Named for the job, not the size — <span class="mono">--text-body</span> keeps meaning the
-    right thing when 13px stops being 13px.
+    The HIG's text styles at macOS's density, named for the job, not the size —
+    <span class="mono">--text-body</span> keeps meaning the right thing when Text size makes 13px
+    something else. Hierarchy comes from these and the four label colours; a screen that needs a
+    size not on this list needs a different style instead.
 </p>
 
 <DeskStack Gap="DeskSpace.Space2">
-    @foreach (var (token, size, leading, use) in _typeStyles)
+    @foreach (var (token, size, leading, weight, use) in _typeStyles)
     {
         <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Baseline">
-            <span class="mono meta" style="width:104px">@token</span>
-            <span style="font-size:var(@token); line-height:var(@leading)">Line movement held</span>
+            <span class="mono meta parts-key">@token</span>
+            <span style="font-size:var(@token); line-height:var(@leading); font-weight:var(@weight)">Line movement held</span>
             <span class="meta">@size / @use</span>
         </DeskRow>
     }
@@ -795,6 +834,7 @@
 </DeskRow>
 </PanelSection>
 
+</div>
 
 @code {
     // ---------------------------------------------------------------- buttons ---
@@ -815,6 +855,16 @@
 
     private static readonly IReadOnlyList<DeskSwitchOption<int>> _anatomySeasons =
         [new(2026, "2026"), new(2025, "2025")];
+
+    private string _anatomySport = "";
+    private string _anatomySearch = "";
+
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _anatomySports =
+        [new("", "All", "Every sport"), new("mlb", "MLB"), new("nfl", "NFL")];
+
+    private string _anatomyBook = "pinnacle";
+    private int? _anatomyPrice = -110;
+    private string? _anatomyNote;
 
     // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
     // you otherwise have to catch mid-request to see.
@@ -1117,12 +1167,20 @@
         ["16"] = "any more wants a divider"
     };
 
-    private static readonly (string Token, string Size, string Leading, string Use)[] _typeStyles =
+    // The ramp the desk actually ships (lineops.css, "The HIG text-style ramp"), at macOS's
+    // density. This list named four tokens, three of which no longer exist — --text-title,
+    // --text-callout and their leadings — so its samples fell back to the body size and taught a
+    // ladder nobody could use. Headline is Body's size and differs by weight, so the sample says so.
+    private static readonly (string Token, string Size, string Leading, string Weight, string Use)[] _typeStyles =
     [
-        ("--text-title", "10.5px", "--leading-title", "panel headings"),
-        ("--text-caption", "11px", "--leading-caption", "labels and units"),
-        ("--text-body", "13px", "--leading-body", "default reading size"),
-        ("--text-callout", "14px", "--leading-callout", "read this first")
+        ("--text-title1", "22px", "--leading-title", "--weight-medium", "a figure that leads: a metric, a score"),
+        ("--text-title2", "17px", "--leading-title", "--weight-semibold", "a window's title"),
+        ("--text-title3", "15px", "--leading-title", "--weight-semibold", "a form's title, a team's name"),
+        ("--text-headline", "13px semibold", "--leading-body", "--weight-semibold", "the part of a row that leads it"),
+        ("--text-body", "13px", "--leading-body", "--weight-regular", "the reading size"),
+        ("--text-subheadline", "12px", "--leading-body", "--weight-regular", "section headers, group footers, meta"),
+        ("--text-footnote", "11px", "--leading-body", "--weight-regular", "table headers, figure labels, chart axes"),
+        ("--text-caption", "10px", "--leading-body", "--weight-regular", "legends, and the 10px floor")
     ];
 
     protected override void OnInitialized() => Report(PulseState.Idle, "reference");

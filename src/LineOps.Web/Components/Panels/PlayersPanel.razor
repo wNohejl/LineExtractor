@@ -22,8 +22,13 @@
                     Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
 
         @* Filters as you type, after a pause: two queries per keystroke was a query storm for
-           anyone typing a whole name. A player's team works too — "judge nyy". *@
-        <DeskSearch Placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
+           anyone typing a whole name. A player's team works too — "judge nyy" — which the field's
+           accessible name says, since a placeholder is too short to.
+
+           Value takes the field as @_search: DeskSearch's Value is a plain string parameter, so
+           Value="_search" handed it the literal text "_search", and the empty field showed it. *@
+        <DeskSearch Placeholder="Search players" Label="Search players by name or team"
+                    Value="@_search" ValueChanged="OnSearchChanged" />
     </ChildContent>
 
 </PanelToolbar>
@@ -78,8 +83,11 @@ else
             <CellTemplate><Tag>@context.Item.Player.Sport?.Name</Tag></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos">
-            <CellTemplate><span class="dim">@(context.Item.Player.Position ?? "—")</span></CellTemplate>
+        @* ESPN's NFL box scores name no position, so the column read "—" on every NFL row and told
+           the reader nothing. It shows only while a row on screen has a position — an NFL list has
+           no Pos column — and a row without one leaves its cell empty rather than drawing a dash. *@
+        <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Position!" Title="Pos" Hidden="@(!_anyPosition)">
+            <CellTemplate><span class="dim">@context.Item.Player.Position</span></CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="Row" TProperty="string" Property="r => r.Player.Team!.Name" Title="Team">
@@ -127,6 +135,9 @@ else
     private string _sport = string.Empty;
     private string _search = string.Empty;
     private bool _capped;
+
+    /// <summary>Whether any row on screen names a position; the Pos column shows only then.</summary>
+    private bool _anyPosition;
     private bool _busy;
     private CancellationTokenSource? _pending;
 
@@ -215,6 +226,7 @@ else
             .ToDictionaryAsync(x => x.Key, x => x.Count);
 
         _rows = players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList();
+        _anyPosition = _rows.Any(r => !string.IsNullOrWhiteSpace(r.Player.Position));
     }
 
     private async Task SyncAsync()

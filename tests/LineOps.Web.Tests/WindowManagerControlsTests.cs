@@ -101,7 +101,7 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.DoesNotContain(options, o => o.TextContent.Trim() == "80%");
     }
 
-    /// <summary>A key inside a sentence reads as a link drawn the wrong shape; each sits on a row of its own.</summary>
+    /// <summary>A key inside a sentence reads as a link drawn the wrong shape; each is a row of the group it resets.</summary>
     [Fact]
     public void Reset_keys_sit_on_rows_not_inside_sentences()
     {
@@ -115,13 +115,14 @@ public class WindowManagerControlsTests : DeskTestContext
 
         Assert.Empty(cut.FindAll("p button"));
 
+        // Each is a row of the group it resets, in the control column.
         var reset = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reset to 100%");
         Assert.Contains("desk-btn--plain", reset.GetAttribute("class"));
-        Assert.Equal("row", reset.ParentElement!.ClassName);
+        Assert.Contains("wgroup__row--form", reset.ParentElement!.ClassName);
 
         var widths = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reset widths");
         Assert.Contains("desk-btn--plain", widths.GetAttribute("class"));
-        Assert.Equal("row", widths.ParentElement!.ClassName);
+        Assert.Contains("wgroup__row--form", widths.ParentElement!.ClassName);
         Assert.Contains("until you reset the widths.", cut.Markup);
     }
 
@@ -149,5 +150,66 @@ public class WindowManagerControlsTests : DeskTestContext
 
         cut.Find("button[aria-label='Concurrent windows: one more']").Click();
         Assert.Equal(12, Manager.Settings.MaxConcurrentWindows);
+    }
+    /// <summary>
+    /// A settings screen, drawn as one (HIG Settings, forms.md): every setting sits in a grouped
+    /// list under a quiet header with its explanation as the footer, labels leading and controls
+    /// trailing. No metric tiles and no note above everything; the readings are value rows.
+    /// </summary>
+    [Fact]
+    public void Settings_are_grouped_lists_with_a_header_and_a_footer()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var sections = cut.FindAll(".wm > .wsection");
+        Assert.Equal(
+            ["Appearance", "Scale", "Windows", "Primary window", "Resolution", "Workspaces"],
+            sections.Select(s => s.QuerySelector("h3.wgroup__head")!.TextContent.Trim()));
+
+        Assert.All(sections, s =>
+        {
+            Assert.Single(s.QuerySelectorAll(":scope > .wgroup"));
+            Assert.NotNull(s.QuerySelector(":scope > p.wgroup__foot"));
+        });
+
+        // Every form row leads with its label.
+        Assert.All(cut.FindAll(".wgroup__row--form"), row =>
+            Assert.Contains("wgroup__label", row.FirstElementChild!.ClassName));
+
+        Assert.Empty(cut.FindAll(".metrics"));
+        Assert.Empty(cut.FindAll(".psection"));
+
+        // The tiles' readings are rows of the Windows group.
+        var windows = sections[2];
+        Assert.Contains("Open now", windows.TextContent);
+        Assert.Contains($"{Manager.OpenCount} of {Manager.Settings.MaxConcurrentWindows}", windows.TextContent);
+        Assert.Contains("Fits readably", windows.TextContent);
+    }
+
+    /// <summary>A limit above what the desk fits is a cost, so it is said in words under its group.</summary>
+    [Fact]
+    public void A_limit_above_the_desk_is_a_warning_under_the_windows_group()
+    {
+        Manager.UpdateSettings(s => s.MaxConcurrentWindows = 12);
+
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        if (Manager.RecommendedCapacity >= 12)
+            return;
+
+        var windows = cut.FindAll(".wm > .wsection")[2];
+        Assert.NotNull(windows.QuerySelector(".note--warn"));
+        Assert.NotNull(windows.QuerySelector(".wm-value--warn"));
+    }
+
+    /// <summary>A Save that cannot be pressed says what it waits for.</summary>
+    [Fact]
+    public void Save_says_what_it_waits_for()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var save = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save");
+        Assert.True(save.HasAttribute("disabled"));
+        Assert.Equal("Name the desk first.", save.GetAttribute("title"));
     }
 }

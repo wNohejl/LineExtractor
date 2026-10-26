@@ -8,6 +8,14 @@
 @*
     Desk configuration. Every control here changes the desk immediately — there is no Save,
     because the desk behind this window *is* the preview.
+
+    It is a settings screen, so it is drawn as one (apple-hig-components, forms.md, and the
+    HIG's Settings pattern): a column of grouped lists, each a fill with its labels leading in
+    one column and the controls trailing, a quiet header naming the group and a footer
+    explaining it. It was a note, a row of metric tiles and a stack of rules with body-size
+    prose running to the window's edge and a picker as wide as the desk. The figures the tiles
+    held are value rows in the group they describe, the prose is each group's footer, and the
+    column stops at a form's width so a label and its control stay within one glance.
 *@
 
 @* Who is at this desk, on a desk that can be reached by more than one person (ADR 0018). A
@@ -46,262 +54,333 @@
     </PanelToolbar>
 }
 
-@* Anatomy order (spec 2026-10-24): toolbar, note, metrics, sections. *@
-@if (S.MaxConcurrentWindows > Manager.RecommendedCapacity)
-{
-    <Note State="DeskState.Warning">
-        Your ceiling is above what this desk fits at a readable width. Columns hold at
-        @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
-    </Note>
-}
+<div class="wsections wm">
 
-<Note>
-    Windows always tile as one horizontal row — every window is its own tab. Drag a title
-    bar past a neighbour to reorder them, or the divider between two to resize them.
-</Note>
+    @*
+        Appearance leads, because it is the only setting on this panel that changes the panel
+        itself. There is no preview: the desk under this gate repaints as the cap slides.
+    *@
+    <section class="wsection" aria-labelledby="wm-appearance-h">
+        <h3 class="wgroup__head" id="wm-appearance-h">Appearance</h3>
+        <div class="wgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Mode</span>
+                <DeskSwitch Options="_themes" Label="Appearance"
+                            Value="Theme.Mode"
+                            ValueChanged="@((DeskThemeMode mode) => Theme.SetModeAsync(mode))" />
+            </div>
 
-<MetricRow>
-    <Metric Label="Windows open" Note="ceiling you set" State="DeskState.Info">
-        @Manager.OpenCount/@S.MaxConcurrentWindows
-    </Metric>
-    <Metric Label="Desk" Note='@(S.ResolutionMode == ResolutionMode.Fixed ? "declared" : "measured")'>
-        @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight)
-    </Metric>
-    <Metric Label="Fits readably"
-            Value="@Manager.RecommendedCapacity.ToString()"
-            Note="at this size and layout"
-            State="@(S.MaxConcurrentWindows > Manager.RecommendedCapacity ? DeskState.Warning : DeskState.Positive)" />
-</MetricRow>
+            @* The family, beneath the mode rather than beside it, because it is the finer choice:
+               every family has a dark and a light desk, so the mode above still decides which one
+               of the pair is showing. Each swatch is painted by its own family's token block in
+               the appearance showing now — flip Light above and every swatch turns with the desk.
 
-@*
-    Appearance leads, because it is the only setting on this panel that changes the panel
-    itself. The note above is truer here than anywhere: there is no preview, because the
-    desk under this gate repaints as the cap slides.
-*@
-<PanelSection Title="Appearance">
-<div class="row">
-    <DeskSwitch Options="_themes" Label="Appearance"
-                Value="Theme.Mode"
-                ValueChanged="@((DeskThemeMode mode) => Theme.SetModeAsync(mode))" />
-</div>
-<p class="empty">
-    @* Naming the resolved theme is the point of the sentence. "System" alone does not tell
-       an operator which desk they are about to get, and it is the one position where the
-       answer is not written on the control. *@
-    Kept in this browser. System follows your machine and keeps following it — right now
-    that is @(Theme.IsDark ? "dark" : "light").
-</p>
+               One family among several is a single choice, so the tiles are a radiogroup, not a
+               row of toggles: one Tab stop on the chosen tile, and arrows move the choice, as on
+               every gate. Its label sits at the top of the row, beside the first line of tiles,
+               because a label centred on two lines of tiles belongs to neither. *@
+            <div class="wgroup__row wgroup__row--form wm-row--top">
+                <span class="wgroup__label">Theme</span>
+                <div class="swatches" role="radiogroup" aria-label="Theme" @onkeydown="OnSwatchKeyAsync">
+                    @for (var i = 0; i < DeskThemeFamilies.All.Count; i++)
+                    {
+                        var index = i;
+                        var family = DeskThemeFamilies.All[index];
+                        var on = family == Theme.Family;
 
-@* The family, beneath the appearance rather than beside it, because it is the finer choice:
-   every family has a dark and a light desk, so the appearance above still decides which one
-   of the pair is showing. Each swatch is painted by its own family's token block in the
-   appearance showing now — flip Light above and every swatch turns with the desk.
-
-   One family among several is a single choice, so the tiles are a radiogroup, not a row of
-   toggles: one Tab stop on the chosen tile, and arrows move the choice, as on every gate. *@
-<div class="swatches" role="radiogroup" aria-label="Theme" @onkeydown="OnSwatchKeyAsync">
-    @for (var i = 0; i < DeskThemeFamilies.All.Count; i++)
-    {
-        var index = i;
-        var family = DeskThemeFamilies.All[index];
-        var on = family == Theme.Family;
-
-        <button type="button"
-                class="swatch @(on ? "swatch--on" : null)"
-                data-theme="@DeskThemeFamilies.Attribute(family, Theme.IsDark)"
-                role="radio"
-                aria-checked="@(on ? "true" : "false")"
-                tabindex="@(on ? "0" : "-1")"
-                title="@DeskThemeFamilies.Name(family)"
-                @ref="_swatches[index]"
-                @onclick="@(() => Theme.SetFamilyAsync(family))">
-            <span class="swatch__panel" aria-hidden="true">
-                <span class="swatch__ink"></span>
-                <span class="swatch__ink swatch__ink--secondary"></span>
-                <span class="swatch__marks">
-                    <span class="swatch__pill"></span>
-                    <span class="swatch__dot swatch__dot--positive"></span>
-                    <span class="swatch__dot swatch__dot--warning"></span>
-                    <span class="swatch__dot swatch__dot--negative"></span>
-                </span>
-            </span>
-            <span class="swatch__name">@DeskThemeFamilies.Name(family)</span>
-        </button>
-    }
-</div>
-
-@*
-    Scale sits with appearance because it is the other half of "how the desk looks", and like
-    everything on this panel it has no preview: the desk behind the window is the preview, and
-    this window grows with it. The values are the manager's settings, so they are kept with the
-    layout — per browser, restored on reload — rather than beside the theme.
-*@
-</PanelSection>
-
-<PanelSection Title="Scale">
-<div class="row">
-    <span class="meta" style="min-width:70px">Interface</span>
-    <DeskSwitch Options="_uiScales" Label="Interface scale" Mono="true"
-                Value="S.UiScale" ValueChanged="@((double scale) => SetUiScale(scale))" />
-</div>
-<div class="row">
-    <span class="meta" style="min-width:70px">Text</span>
-    <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
-                Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
-</div>
-@* A key inside a sentence reads as a link drawn the wrong shape; it sits on a row of its own
-   after the switches it resets. *@
-@if (S.UiScale != 1 || S.TextScale != 1)
-{
-    <div class="row">
-        <DeskButton OnClick="ResetScale">Reset to 100%</DeskButton>
-    </div>
-}
-<p class="empty">
-    Interface scales everything — type, spacing, controls — so fewer windows fit a row
-    @(S.UiScale > 1 ? $"(this desk now fits {Manager.RecommendedCapacity})" : "at larger sizes").
-    Text grows only the words and leaves the layout where it is.
-</p>
-
-</PanelSection>
-
-<PanelSection Title="Concurrent windows">
-@* A count is a value, so it is a field — typed when the jump is large — with the stepper beside
-   it for the nudge of one (HIG: a stepper always sits beside a field showing the value). *@
-<div class="row">
-    <DeskField TValue="int?" Mono="true" Class="field--count" type="number"
-               min="@MinWindows" max="@MaxWindows" aria-label="Concurrent windows"
-               Value="S.MaxConcurrentWindows" ValueChanged="@((int? n) => SetMax(n))" />
-    @* One capsule of two halves, not two loose keys; it disables the half that would cross a bound. *@
-    <DeskStepper Label="Concurrent windows" Min="MinWindows" Max="MaxWindows"
-                 Value="S.MaxConcurrentWindows" ValueChanged="@((int n) => SetMax(n))" />
-    <DeskButton OnClick="MatchRecommended">
-        Match this desk (@Manager.RecommendedCapacity)
-    </DeskButton>
-</div>
-<p class="empty">
-    Opening past this closes the least recently used window — named in the footer when it
-    happens, and in the launcher before it does.
-</p>
-
-</PanelSection>
-
-<PanelSection Title="Primary window">
-<div class="row">
-    <DeskSelect TValue="string" style="min-width:200px"
-                Value="@(S.PrimaryWindowKey ?? "")"
-                ValueChanged="OnPrimaryChanged">
-        <option value="">None — every window equal</option>
-        @* A destination cannot be opened on its own, so it cannot be the window that opens
-           on an empty desk either. *@
-        @foreach (var definition in Manager.Catalog.All.Where(d => !d.RequiresSubject))
-        {
-            <option value="@definition.Key">@definition.Title</option>
-        }
-    </DeskSelect>
-</div>
-
-@if (S.PrimaryWindowKey is not null)
-{
-    <div class="row">
-        <span class="meta" style="min-width:70px">Share</span>
-        <input type="range" min="20" max="80" step="5"
-               value="@((int)(S.PrimaryShare * 100))"
-               @oninput="OnShareChanged"
-               style="flex:1; max-width:240px; accent-color: var(--accent)" />
-        <span class="num" style="min-width:4ch">@((int)(S.PrimaryShare * 100))%</span>
-    </div>
-    <p class="empty">
-        The primary window takes this share of the row wherever it sits — it does not force
-        its position, so dragging it to reorder the row is never fought. It is also what
-        opens on an empty desk. Dragging a divider overrides the share until you reset the widths.
-    </p>
-    <div class="row">
-        <DeskButton OnClick="@(_ => Manager.ResetWidths())">Reset widths</DeskButton>
-    </div>
-}
-
-</PanelSection>
-
-<PanelSection Title="Resolution">
-<div class="row">
-    <DeskSwitch Options="_modes" Label="Resolution mode"
-                Value="S.ResolutionMode" ValueChanged="@((ResolutionMode mode) => SetMode(mode))" />
-</div>
-
-@if (S.ResolutionMode == ResolutionMode.Fixed)
-{
-    <div class="row">
-        @* A custom size typed below matches no preset, and then the gate's cap simply
-           is not there — no position pretends to be the one you are on. *@
-        <DeskSwitch Options="_presets" Label="Preset size" Mono="true"
-                    Value="(S.CustomWidth, S.CustomHeight)"
-                    ValueChanged="@(((int W, int H) size) => ApplyPreset(size.W, size.H))" />
-    </div>
-
-    <div class="row">
-        <span class="meta" style="min-width:70px">Custom</span>
-        @* int? rather than int so that clearing the box is "no number yet" rather than a
-           zero the clamp would turn into 640. *@
-        <DeskField TValue="int?" Mono="true" type="number" min="640" max="7680" step="10"
-                   style="max-width:100px"
-                   Value="S.CustomWidth" ValueChanged="OnWidthChanged" />
-        <span class="dim">×</span>
-        <DeskField TValue="int?" Mono="true" type="number" min="480" max="4320" step="10"
-                   style="max-width:100px"
-                   Value="S.CustomHeight" ValueChanged="OnHeightChanged" />
-    </div>
-
-    <Note>
-        The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your browser is
-        @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange a desk for the screen
-        you will run it on, not the one you are configuring it from — the view scrolls if the
-        declared size is larger.
-    </Note>
-}
-
-</PanelSection>
-
-<PanelSection Title="Workspaces">
-<div class="row">
-    @* Saves what is open now, left to right, under a name; it then sits in the brand menu beside
-       the built-in ones. Windows opened on something — a game, a player — are left out, since a
-       workspace is a desk to start from, not a particular game's. *@
-    <DeskField TValue="string" Immediate="true" placeholder="Name this desk" style="flex:1; min-width:160px"
-               @bind-Value="_workspaceName" />
-    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.BookmarkAdd"
-                Disabled="@(string.IsNullOrWhiteSpace(_workspaceName) || !Manager.Windows.Any(w => w.Parameters.Count == 0))"
-                OnClick="SaveWorkspace">
-        Save
-    </DeskButton>
-</div>
-
-@if (Manager.UserWorkspaces.Count == 0)
-{
-    <p class="empty">
-        None saved yet. The layout itself is kept for you anyway — a reload puts the row back as
-        it was.
-    </p>
-}
-else
-{
-    @foreach (var workspace in Manager.UserWorkspaces)
-    {
-        <div class="row">
-            <span style="flex:1">@workspace.Name <span class="dim">· @string.Join(", ", workspace.WindowKeys.Select(k => Manager.Catalog.Find(k)?.Title ?? k))</span></span>
-            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
-                        OnClick="@(_ => Manager.DeleteWorkspace(workspace.Name))">
-                Delete
-            </DeskButton>
+                        <button type="button"
+                                class="swatch @(on ? "swatch--on" : null)"
+                                data-theme="@DeskThemeFamilies.Attribute(family, Theme.IsDark)"
+                                role="radio"
+                                aria-checked="@(on ? "true" : "false")"
+                                tabindex="@(on ? "0" : "-1")"
+                                title="@DeskThemeFamilies.Name(family)"
+                                @ref="_swatches[index]"
+                                @onclick="@(() => Theme.SetFamilyAsync(family))">
+                            <span class="swatch__panel" aria-hidden="true">
+                                <span class="swatch__ink"></span>
+                                <span class="swatch__ink swatch__ink--secondary"></span>
+                                <span class="swatch__marks">
+                                    <span class="swatch__pill"></span>
+                                    <span class="swatch__dot swatch__dot--positive"></span>
+                                    <span class="swatch__dot swatch__dot--warning"></span>
+                                    <span class="swatch__dot swatch__dot--negative"></span>
+                                </span>
+                            </span>
+                            <span class="swatch__name">@DeskThemeFamilies.Name(family)</span>
+                        </button>
+                    }
+                </div>
+            </div>
         </div>
-    }
-}
-</PanelSection>
+        @* Naming the resolved theme is the point of the first sentence. "System" alone does not
+           tell an operator which desk they are about to get, and it is the one position where the
+           answer is not written on the control. *@
+        <p class="wgroup__foot">
+            Kept in this browser. System follows your machine and keeps following it — right now
+            that is @(Theme.IsDark ? "dark" : "light"). Every theme has a dark and a light desk, and
+            the mode decides which one shows.
+        </p>
+    </section>
+
+    @*
+        Scale sits with appearance because it is the other half of "how the desk looks", and like
+        everything on this panel it has no preview: the desk behind the window is the preview, and
+        this window grows with it. The values are the manager's settings, so they are kept with the
+        layout — per browser, restored on reload — rather than beside the theme.
+    *@
+    <section class="wsection" aria-labelledby="wm-scale-h">
+        <h3 class="wgroup__head" id="wm-scale-h">Scale</h3>
+        <div class="wgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Interface</span>
+                <DeskSwitch Options="_uiScales" Label="Interface scale" Mono="true"
+                            Value="S.UiScale" ValueChanged="@((double scale) => SetUiScale(scale))" />
+            </div>
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Text</span>
+                <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
+                            Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
+            </div>
+            @* A key inside a sentence reads as a link drawn the wrong shape. It is a row of the group
+               it resets, in the control column, under the switches it puts back. *@
+            @if (S.UiScale != 1 || S.TextScale != 1)
+            {
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label" aria-hidden="true"></span>
+                    <DeskButton Class="wm-key" OnClick="ResetScale">Reset to 100%</DeskButton>
+                </div>
+            }
+        </div>
+        <p class="wgroup__foot">
+            Interface scales everything — type, spacing, controls — so fewer windows fit a row
+            @(S.UiScale > 1 ? $"(this desk now fits {Manager.RecommendedCapacity})" : "at larger sizes").
+            Text grows only the words and leaves the layout where it is.
+        </p>
+    </section>
+
+    @* The limit, and the two readings that say whether it suits this desk: how many are open
+       against it, and how many fit at a readable width. They were tiles above everything; they
+       are value rows beside the setting they qualify. *@
+    <section class="wsection" aria-labelledby="wm-windows-h">
+        <h3 class="wgroup__head" id="wm-windows-h">Windows</h3>
+        <div class="wgroup">
+            @* A count is a value, so it is a field — typed when the jump is large — with the
+               stepper beside it for the nudge of one (HIG: a stepper always sits beside a field
+               showing the value). *@
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Open at once</span>
+                <div class="row">
+                    <DeskField TValue="int?" Mono="true" Class="field--count" type="number"
+                               min="@MinWindows" max="@MaxWindows" aria-label="Concurrent windows"
+                               Value="S.MaxConcurrentWindows" ValueChanged="@((int? n) => SetMax(n))" />
+                    @* One capsule of two halves, not two loose keys; it disables the half that
+                       would cross a bound. *@
+                    <DeskStepper Label="Concurrent windows" Min="MinWindows" Max="MaxWindows"
+                                 Value="S.MaxConcurrentWindows" ValueChanged="@((int n) => SetMax(n))" />
+                    <DeskButton OnClick="MatchRecommended">
+                        Match this desk (@Manager.RecommendedCapacity)
+                    </DeskButton>
+                </div>
+            </div>
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Open now</span>
+                <span class="wm-value">@Manager.OpenCount of @S.MaxConcurrentWindows</span>
+            </div>
+            @* The one reading that can be wrong for the operator, so it carries the warning ink —
+               and the note under the group says why in words, so the colour is never alone. *@
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Fits readably</span>
+                <span class="wm-value">
+                    <span class="@(Crowded ? "wm-value--warn" : null)">@Manager.RecommendedCapacity</span>
+                    <span class="meta">at this size and layout</span>
+                </span>
+            </div>
+        </div>
+        @if (Crowded)
+        {
+            <Note State="DeskState.Warning">
+                Your limit is above what this desk fits at a readable width. Columns hold at
+                @DeskSettings.MinColumnWidth px and the row scrolls rather than squeezing further.
+            </Note>
+        }
+        <p class="wgroup__foot">
+            Opening past the limit closes the least recently used window — named in the footer when
+            it happens, and in the launcher before it does. Windows tile as one row, each its own
+            tab: drag a title bar past a neighbour to reorder them, or the divider between two to
+            resize them.
+        </p>
+    </section>
+
+    <section class="wsection" aria-labelledby="wm-primary-h">
+        <h3 class="wgroup__head" id="wm-primary-h">Primary window</h3>
+        <div class="wgroup">
+            @* A pop-up sized to its longest title, not to the row: a picker as wide as the desk put
+               its caret a screen away from the words it opens. *@
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Window</span>
+                <DeskSelect TValue="string" aria-label="Primary window"
+                            Value="@(S.PrimaryWindowKey ?? "")"
+                            ValueChanged="OnPrimaryChanged">
+                    <option value="">None — every window equal</option>
+                    @* A destination cannot be opened on its own, so it cannot be the window that
+                       opens on an empty desk either. *@
+                    @foreach (var definition in Manager.Catalog.All.Where(d => !d.RequiresSubject))
+                    {
+                        <option value="@definition.Key">@definition.Title</option>
+                    }
+                </DeskSelect>
+            </div>
+
+            @if (S.PrimaryWindowKey is not null)
+            {
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Share</span>
+                    <div class="row">
+                        <input type="range" class="wm-share" min="20" max="80" step="5"
+                               aria-label="The primary window's share of the row"
+                               value="@((int)(S.PrimaryShare * 100))"
+                               @oninput="OnShareChanged" />
+                        <span class="wm-value">@((int)(S.PrimaryShare * 100))%</span>
+                    </div>
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label" aria-hidden="true"></span>
+                    <DeskButton Class="wm-key" OnClick="@(_ => Manager.ResetWidths())">Reset widths</DeskButton>
+                </div>
+            }
+        </div>
+        <p class="wgroup__foot">
+            @if (S.PrimaryWindowKey is not null)
+            {
+                @:The primary window takes this share of the row wherever it sits — it does not force
+                @:its position, so dragging it to reorder the row is never fought. It is also what
+                @:opens on an empty desk. Dragging a divider overrides the share until you reset the widths.
+            }
+            else
+            {
+                @:A primary window takes a larger share of the row wherever it sits, and it is what
+                @:opens on an empty desk.
+            }
+        </p>
+    </section>
+
+    @* The desk's size was a tile ("Desk, measured"); it is the footer of the setting that decides
+       whether it is measured or declared. *@
+    <section class="wsection" aria-labelledby="wm-resolution-h">
+        <h3 class="wgroup__head" id="wm-resolution-h">Resolution</h3>
+        <div class="wgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Size</span>
+                <DeskSwitch Options="_modes" Label="Resolution mode"
+                            Value="S.ResolutionMode" ValueChanged="@((ResolutionMode mode) => SetMode(mode))" />
+            </div>
+
+            @if (S.ResolutionMode == ResolutionMode.Fixed)
+            {
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Preset</span>
+                    @* A custom size typed below matches no preset, and then the gate's cap simply
+                       is not there — no position pretends to be the one you are on. *@
+                    <DeskSwitch Options="_presets" Label="Preset size" Mono="true"
+                                Value="(S.CustomWidth, S.CustomHeight)"
+                                ValueChanged="@(((int W, int H) size) => ApplyPreset(size.W, size.H))" />
+                </div>
+
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Custom</span>
+                    <div class="row">
+                        @* int? rather than int so that clearing the box is "no number yet" rather
+                           than a zero the clamp would turn into 640. *@
+                        <DeskField TValue="int?" Mono="true" Class="wm-px" type="number" min="640" max="7680" step="10"
+                                   aria-label="Width in pixels"
+                                   Value="S.CustomWidth" ValueChanged="OnWidthChanged" />
+                        <span class="dim" aria-hidden="true">×</span>
+                        <DeskField TValue="int?" Mono="true" Class="wm-px" type="number" min="480" max="4320" step="10"
+                                   aria-label="Height in pixels"
+                                   Value="S.CustomHeight" ValueChanged="OnHeightChanged" />
+                    </div>
+                </div>
+            }
+        </div>
+        <p class="wgroup__foot">
+            @if (S.ResolutionMode == ResolutionMode.Fixed)
+            {
+                @:The desk lays out against @((int)Manager.DeskWidth)×@((int)Manager.DeskHeight) while your
+                @:browser is @((int)Manager.ViewportWidth)×@((int)Manager.ViewportHeight). Use this to arrange
+                @:a desk for the screen you will run it on, not the one you are configuring it from — the
+                @:view scrolls if the declared size is larger.
+            }
+            else
+            {
+                @:The desk lays out against this browser's window, measured at
+                @:@((int)Manager.DeskWidth)×@((int)Manager.DeskHeight).
+            }
+        </p>
+    </section>
+
+    @* The saved desks are rows of one list, each with its way out at the trailing edge, and the
+       row that adds one comes last, as a grouped list ends with its "Add" row. *@
+    <section class="wsection" aria-labelledby="wm-workspaces-h">
+        <h3 class="wgroup__head" id="wm-workspaces-h">Workspaces</h3>
+        <div class="wgroup">
+            @foreach (var workspace in Manager.UserWorkspaces)
+            {
+                <div class="wgroup__row wm-workspace" @key="workspace.Name">
+                    <span class="wm-workspace__text">
+                        <span class="wm-workspace__name">@workspace.Name</span>
+                        <span class="meta">@string.Join(", ", workspace.WindowKeys.Select(k => Manager.Catalog.Find(k)?.Title ?? k))</span>
+                    </span>
+                    <DeskButton Size="DeskKeySize.Small" Role="DeskRole.Destructive" Icon="@Icons.Material.Filled.Delete"
+                                OnClick="@(_ => Manager.DeleteWorkspace(workspace.Name))">
+                        Delete
+                    </DeskButton>
+                </div>
+            }
+
+            @* Saves what is open now, left to right, under a name; it then sits in the brand menu
+               beside the built-in ones. Windows opened on something — a game, a player — are left
+               out, since a workspace is a desk to start from, not a particular game's. A Save that
+               cannot be pressed says what it waits for. *@
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Save as</span>
+                <div class="row wm-save">
+                    <DeskField TValue="string" Immediate="true" Class="wm-save__name" placeholder="Name this desk"
+                               aria-label="Workspace name" @bind-Value="_workspaceName" />
+                    <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.BookmarkAdd"
+                                Disabled="@(SaveWaitsFor is not null)" Title="@SaveWaitsFor"
+                                OnClick="SaveWorkspace">
+                        Save
+                    </DeskButton>
+                </div>
+            </div>
+        </div>
+        <p class="wgroup__foot">
+            @if (Manager.UserWorkspaces.Count == 0)
+            {
+                @:None saved yet. The layout itself is kept for you anyway — a reload puts the row back
+                @:as it was.
+            }
+            A workspace keeps the windows open now, left to right, and sits in the brand menu beside
+            the built-in ones. Windows opened on a game or a player are left out.
+        </p>
+    </section>
+
+</div>
 
 @code {
     private DeskSettings S => Manager.Settings;
 
+    /// <summary>The limit is set above what this desk fits at a readable width.</summary>
+    private bool Crowded => S.MaxConcurrentWindows > Manager.RecommendedCapacity;
+
     private string? _workspaceName;
+
+    /// <summary>Why Save cannot be pressed yet, or null when it can.</summary>
+    private string? SaveWaitsFor =>
+        string.IsNullOrWhiteSpace(_workspaceName) ? "Name the desk first."
+        : !Manager.Windows.Any(w => w.Parameters.Count == 0) ? "Open a window that is not about a game or a player first."
+        : null;
 
     private void SaveWorkspace()
     {
