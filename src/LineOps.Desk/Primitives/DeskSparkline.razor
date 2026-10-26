@@ -1,0 +1,163 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A line chart the size of a word: the shape of one series, inside a table row.
+
+    The desk's charts were all the full kind, and the full kind is the wrong tool for a row
+    per thing. Line movement drew every book and both sides of a market on one plot, eight
+    lines in a palette with a legend under them, and the reader still had to find the book
+    they cared about by colour. Apple's charting guidance runs the other way: keep a chart
+    simple, let a small chart give glanceable information about an individual item, and use
+    a table where the job is to read numbers rather than to analyse them. So the row is the
+    representation, and the picture shrinks to what a row can carry — which way the number
+    went and when — beside the numbers themselves.
+
+    What it draws, and what it does not. One polyline, scaled to the series' own lowest and
+    highest value, and a dot on the last point, which is the value the row is reporting now.
+    No axes, no gridlines and no labels: the open and the current number are in the cells
+    beside it, and a second copy of them inside the plot is the noise this replaces. Each
+    sparkline is its own scale, so two rows are compared by shape and by their numbers,
+    never by height. The line is the secondary ink and the dot the primary one, so the eye
+    lands on where the series ended up. There is no colour for a rise or a fall: a price
+    moving is not good or bad, and hue on this desk names a state.
+
+    Step draws a value as holding until the next one arrives, which is what a series written
+    only when it changes means. A diagonal between two readings would say the number moved
+    gradually through prices nobody quoted.
+
+    Fewer than two values is a reading, not a trend, and a line through one point draws a
+    flat market that nobody has watched twice. The component draws a dash instead and keeps
+    the label, so the honest case and the drawn case are announced alike.
+
+    The label is required, as DeskChart's description is. The plot is aria-hidden and the
+    wrapper is one role="img" with the sentence a screen reader hears instead of the shape —
+    open, now, and how many moves — and the same sentence is the pointer's tooltip.
+
+        <DeskSparkline Values="_trend" Step="true"
+                       Label="Price from +136 to -218, 6 moves" />
+*@
+
+@if (_plot is not { } plot)
+{
+    <span class="@Classes sparkline--none" role="img" aria-label="@Label" title="@Label" @attributes="Rest">—</span>
+}
+else
+{
+    <span class="@Classes" role="img" aria-label="@Label" title="@Label" @attributes="Rest">
+        <svg width="@Width" height="@Height" viewBox="0 0 @Width @Height" aria-hidden="true" focusable="false">
+            <polyline class="sparkline__line" points="@plot.Points" />
+            <circle class="sparkline__dot" cx="@plot.LastX" cy="@plot.LastY" r="@DotRadius" />
+        </svg>
+    </span>
+}
+
+@code {
+    /// <summary>The series, oldest first.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<double> Values { get; set; } = [];
+
+    /// <summary>
+    /// Where each value sits along the width, from 0 to 1 — a time axis shared by the rows
+    /// of one table, so a move at two books at the same hour lines up down the column. Left
+    /// out, or not one per value, the values are spaced evenly.
+    /// </summary>
+    [Parameter] public IReadOnlyList<double>? Positions { get; set; }
+
+    /// <summary>Each value holds until the next: a series written on change.</summary>
+    [Parameter] public bool Step { get; set; }
+
+    /// <summary>
+    /// The accessible name and the tooltip: what the series is, where it started and ended,
+    /// and how many times it moved. Required, because the shape alone tells nobody the numbers.
+    /// </summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>In CSS pixels. Wide enough for a shape, narrow enough to share a row with five numbers.</summary>
+    [Parameter] public int Width { get; set; } = 96;
+
+    /// <summary>In CSS pixels. Under the 28px row it sits in, so the row keeps its rhythm.</summary>
+    [Parameter] public int Height { get; set; } = 20;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Everything else the caller put on the tag. <c>class</c> is held out for the reason
+    /// DeskChart gives: a splatted class replaces the element's own rather than adding to it.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    /// <summary>
+    /// Room left at every edge so the dot and the stroke are drawn whole at the extremes:
+    /// a line scaled to fill the box exactly would be cut in half along its top and bottom.
+    /// </summary>
+    public const double Inset = 3;
+
+    private const double DotRadius = 2;
+
+    private IReadOnlyDictionary<string, object>? Rest =>
+        Extra?.Where(a => !a.Key.Equals("class", StringComparison.OrdinalIgnoreCase))
+              .ToDictionary(a => a.Key, a => a.Value);
+
+    private string Classes => string.Join(' ', new[] { "sparkline", Class }.Where(p => p is { Length: > 0 }));
+
+    private Plotted? _plot;
+
+    protected override void OnParametersSet() => _plot = Plot(Values, Positions, Step, Width, Height);
+
+    /// <summary>The drawn line as SVG points, and where its last point landed.</summary>
+    public sealed record Plotted(string Points, string LastX, string LastY);
+
+    /// <summary>
+    /// The series as points inside a <paramref name="width"/> × <paramref name="height"/>
+    /// box, or null when there are fewer than two values to draw.
+    ///
+    /// <para>
+    /// The highest value sits on the top inset and the lowest on the bottom one; a series
+    /// that never changed is drawn level through the middle, since there is no range to
+    /// scale it to and the top edge would read as a high. Numbers are written in the
+    /// invariant culture: SVG reads "48.5", and a desk running under a comma-decimal
+    /// culture would otherwise hand it "48,5" and draw nothing.
+    /// </para>
+    /// </summary>
+    public static Plotted? Plot(IReadOnlyList<double> values, IReadOnlyList<double>? positions, bool step, double width, double height)
+    {
+        if (values.Count < 2)
+            return null;
+
+        var min = values.Min();
+        var max = values.Max();
+        var spread = max - min;
+
+        var left = Inset;
+        var span = Math.Max(0, width - 2 * Inset);
+        var top = Inset;
+        var rise = Math.Max(0, height - 2 * Inset);
+
+        var placed = positions is { } p && p.Count == values.Count;
+
+        double X(int i) => left + span * (placed ? Math.Clamp(positions![i], 0, 1) : (double)i / (values.Count - 1));
+
+        double Y(int i) => spread == 0 ? height / 2 : top + rise * (max - values[i]) / spread;
+
+        var points = new List<string>(values.Count * 2);
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            // The step: carry the previous value across to this one's time, then move.
+            if (step && i > 0)
+                points.Add(Pair(X(i), Y(i - 1)));
+
+            points.Add(Pair(X(i), Y(i)));
+        }
+
+        var last = values.Count - 1;
+
+        return new Plotted(string.Join(' ', points), Number(X(last)), Number(Y(last)));
+    }
+
+    private static string Pair(double x, double y) => $"{Number(x)},{Number(y)}";
+
+    private static string Number(double value)
+        => Math.Round(value, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}

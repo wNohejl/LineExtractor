@@ -1,102 +1,140 @@
 @using LineOps.Data
 @using LineOps.Data.CrossReference
 @using LineOps.Desk.Windowing
+@using LineOps.Web.Services
 @using Microsoft.EntityFrameworkCore
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 
+@*
+    Line movement: how one side of a market moved at each book, a row per book.
+
+    It used to be a chart of every book and both sides at once — eight lines for two books
+    and a moneyline, each side the mirror of the other in probability, told apart by a palette
+    and a legend that drew itself over the table beneath — and then that table again, with
+    the latest prices the chart had just drawn. Apple's charting guidance is to keep a chart
+    simple and let people choose the detail, to use a small chart for glanceable information
+    about one item, and to put data in a table where nobody is being asked to analyse it. So
+    the window shows one side at a time, because the other side is its mirror, and the rows
+    are the representation: each book's open, where it is now, the move between them, when it
+    last moved, and a sparkline of the path, on one time axis shared down the column so a move
+    that hit every book in the same hour lines up.
+*@
+
 <PanelToolbar>
-    @* The games with moves on record — the ones this chart can draw. Scans are kept until
-       first pitch and then folded into one closing line (ADR 0010), so "the last 14 days" was
-       mostly finished games with nothing left to plot. Any other game is a search away. *@
-    <DeskSelect TValue="int?" style="max-width:min(280px, 100%)"
-                disabled="@(_games.Count == 0)"
-                Value="@(_games.Any(g => g.Id == _gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
+    @* The games with moves on record — the ones this window can show. Scans are kept until
+       first pitch and then folded into one closing line (ADR 0010), so every game ahead of
+       us with a price on file is in this list. It is the only game control: the search that
+       sat beside it named the same game a second time, cut off at the window's edge. A game
+       opened from elsewhere and not in the list is added to it, so the select always names
+       the game the rows are about. *@
+    <DeskSelect TValue="int?" aria-label="Game" style="max-width:min(280px, 100%)"
+                disabled="@(_games.Count == 0 && _picked is null)"
+                Value="@(Listed(_gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
         <option value="">@(_games.Count == 0 ? "No game has moves on record" : "Games with moves…")</option>
+        @if (_picked is { } picked && !_games.Any(g => g.Id == picked.Id))
+        {
+            <option value="@picked.Id">@MatchupWithDate(picked)</option>
+        }
         @foreach (var g in _games)
         {
             <option value="@g.Id">@MatchupWithDate(g)</option>
         }
     </DeskSelect>
 
-    <GamePicker Value="_gameId" Selected="_picked" ValueChanged="OnGameChanged" />
-
-    <DeskSwitch Options="_marketOptions" Label="Market"
-                Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
 </PanelToolbar>
 
-@if (_series.Count == 0)
+@* The view's own switches sit on a row of their own, over the rows they choose, the way a
+   segmented control heads the view it switches (HIG, Segmented controls). In the toolbar,
+   beside the game, a window beside the Board ran out of row: the game was cut off, Total fell
+   past the edge and the side switch was out of sight altogether. Here they wrap as a pair. *@
+<div class="movement__switches">
+    <DeskSwitch Options="_marketOptions" Label="Market" Size="DeskKeySize.Small"
+                Value="_market" ValueChanged="@((string market) => SetMarketAsync(market))" />
+
+    @* The market's two outcomes, away first as the matchup reads, Over before Under. One at a
+       time: a price that shortens on one side drifts on the other, so showing both doubles
+       the rows and says nothing the first half did not. Built from the stored outcomes, so a
+       market priced on one side only offers no switch at all. *@
+    <DeskSwitch TValue="string" Options="_sideOptions" Label="Side" Size="DeskKeySize.Small"
+                Value="_side" ValueChanged="@((string side) => SetSide(side))" />
+</div>
+
+@if (_rows.Count == 0)
 {
     <EmptyState Kind="EmptyStateKind.Filtered">
-        No stored moves for this game and market. Prices are only written when they change,
-        so a market that has not moved has nothing to plot — and once a game starts its moves
-        are folded into one closing line, which the Game window shows.
+        No stored prices for this game and market. A book that does not price the market has
+        nothing to show, and once a game starts its moves are folded into one closing line,
+        which the Game window shows.
     </EmptyState>
 }
 else
 {
-    @* One observation per book is a reading, not a trend. Apple's charting guidance is to use
-       a table where no analysis is being asked for, and a line chart of a single point draws a
-       flat line that looks like a market holding steady rather than one nobody has watched
-       twice yet. The table below says the same thing without the false shape. *@
-    @if (_points < 2)
-    {
-        <Note>
-            Only one observation stored so far, so there is nothing to plot yet — the current
-            numbers are below. A second pull is what turns these into movement.
-        </Note>
-    }
-    else
-    {
-        @* Alternate, so every second line is dashed and its legend entry underlined
-           dashed: one book's line is told from another's by more than the palette. *@
-        <DeskChart Series="_series" Labels="@_labels" Height="240px" Class="deskchart--alternate"
-                   Family="DeskChartFamily.Movement"
-                   Headline="@_headline"
-                   Takeaway="@_takeaway"
-                   Description="@_description" />
-    }
+    @* The finding first, then the span it was found over (HIG charts: summarise the main
+       message before the detail). The headline is about the side in focus, the same rows
+       the table shows, so the sentence and the rows never disagree about who moved. *@
+    <div class="movement">
+        <div class="movement__cap">
+            <p class="movement__headline">@_headline</p>
+            <p class="movement__span">@_span</p>
+        </div>
 
-    <PanelSection Title="Current market">
+        <DeskGrid T="MovementRow" Items="_rows" Resizable="false" EmptyText="No prices on this side.">
+            <PropertyColumn T="MovementRow" TProperty="string" Property="r => r.Book" Title="Book"
+                            InitialDirection="SortDirection.Ascending" />
 
-    <DeskGrid T="OddsSnapshot" Items="_current" EmptyText="No prices on this market.">
-        <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Book" Title="Book"
-                        InitialDirection="SortDirection.Ascending" />
-        <PropertyColumn T="OddsSnapshot" TProperty="string" Property="s => s.Outcome" Title="Selection" />
+            @* No colour and no axis: the numbers are in the next cells, and the shape only has
+               to say which way and when. A book seen once draws a dash, not a flat line. *@
+            <TemplateColumn T="MovementRow" Title="Trend" Sortable="false">
+                <CellTemplate>
+                    <DeskSparkline Values="context.Item.Trend" Positions="context.Item.Positions" Step="true"
+                                   Label="@TrendLabel(context.Item)" />
+                </CellTemplate>
+            </TemplateColumn>
 
-        <PropertyColumn T="OddsSnapshot" TProperty="decimal" Property="s => s.Line ?? 0" Title="Line" Align="Align.Right">
-            <CellTemplate>@(context.Item.Line is { } l ? Line(l) : "—")</CellTemplate>
-        </PropertyColumn>
+            <TemplateColumn T="MovementRow" Title="Open" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => Rank(r.Open))" HeaderClass="col--wide" CellClass="col--wide">
+                <CellTemplate>
+                    <span class="dim movement__quote" title="@DisplayTime.Stamp(context.Item.Open.CapturedAt)">@Quote(context.Item.Open)</span>
+                </CellTemplate>
+            </TemplateColumn>
 
-        @* Sorting on price is how you find the best number across books. *@
-        <PropertyColumn T="OddsSnapshot" TProperty="int" Property="s => s.PriceAmerican" Title="Price" Align="Align.Right">
-            <CellTemplate>@Price(context.Item.PriceAmerican)</CellTemplate>
-        </PropertyColumn>
+            @* Sorting on the current number is how you find the best one across books. *@
+            <TemplateColumn T="MovementRow" Title="Now" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => Rank(r.Now))">
+                <CellTemplate>
+                    <span class="movement__quote">@Quote(context.Item.Now)</span>
+                </CellTemplate>
+            </TemplateColumn>
 
-        @* The quantity the chart above plots, so the picture and the table agree on what
-           moved. A row with no usable price sorts last rather than as a certainty. *@
-        <PropertyColumn T="OddsSnapshot" TProperty="double"
-                        Property="@(s => Implied(s.PriceAmerican) ?? -1)"
-                        Title="Implied" HeaderClass="col--wide" CellClass="col--wide" Align="Align.Right">
-            <CellTemplate>
-                <span class="dim">
-                    @(Implied(context.Item.PriceAmerican) is { } p ? p.ToString("P1") : "—")
-                </span>
-            </CellTemplate>
-        </PropertyColumn>
+            @* The arrow is the direction the number moved as it is written, the same way the
+               sparkline draws it, and nothing more: the ink is neutral because a price moving
+               is not good or bad. The tooltip says it in words — shortened or drifted. *@
+            <TemplateColumn T="MovementRow" Title="Move" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => MoveSize(r))">
+                <CellTemplate>
+                    <span class="movement__move @(context.Item.Moved ? null : "dim")"
+                          title="@MoveTitle(context.Item, _market)">@MoveText(context.Item)</span>
+                </CellTemplate>
+            </TemplateColumn>
 
-        <PropertyColumn T="OddsSnapshot" TProperty="DateTimeOffset" Property="s => s.CapturedAt"
-                        Title="Observed" Align="Align.Right">
-            <CellTemplate><span class="dim">@Starts(context.Item.CapturedAt)</span></CellTemplate>
-        </PropertyColumn>
-    </DeskGrid>
-
-    <Note>
-        @_moveCount price @(_moveCount == 1 ? "move" : "moves") recorded across
-        @_current.Count book/selection @(_current.Count == 1 ? "pair" : "pairs").
-    </Note>
-    </PanelSection>
+            <TemplateColumn T="MovementRow" Title="Last moved" Align="Align.Right" Sortable="true"
+                            SortBy="@(r => r.LastMoved ?? DateTimeOffset.MinValue)"
+                            HeaderClass="col--wide" CellClass="col--wide">
+                <CellTemplate>
+                    @if (context.Item.LastMoved is { } at)
+                    {
+                        <span class="dim" title="@DisplayTime.Stamp(at)">@Ago(at, DateTimeOffset.UtcNow)</span>
+                    }
+                    else
+                    {
+                        <span class="dim" title="Seen once, @DisplayTime.Stamp(context.Item.Open.CapturedAt)">—</span>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </DeskGrid>
+    </div>
 }
 
 @*
@@ -152,22 +190,24 @@ else
 
     private List<Game> _games = [];
     private Game? _picked;
-    private List<OddsSnapshot> _current = [];
-    private List<ChartSeries<double>> _series = [];
-    private string[] _labels = [];
     private int? _gameId;
     private string _market = Markets.Moneyline;
-    private int _moveCount;
 
-    /// <summary>Distinct observation times. Below two there is a reading but no trend.</summary>
-    private int _points;
+    /// <summary>Every stored price on the chosen market, both sides. The side switch reads from it without a query.</summary>
+    private List<OddsSnapshot> _snapshots = [];
 
-    /// <summary>Whether the y-axis is the handicap rather than implied probability. See <see cref="Plot"/>.</summary>
-    private bool _plotsHandicap;
+    /// <summary>
+    /// The outcome in focus, as stored. Kept across a market change when the new market has
+    /// the same outcome — a team's moneyline and its spread — and reset to the first side
+    /// when it does not.
+    /// </summary>
+    private string? _side;
+
+    private IReadOnlyList<DeskSwitchOption<string>> _sideOptions = [];
+    private IReadOnlyList<MovementRow> _rows = [];
 
     private string _headline = string.Empty;
-    private string _takeaway = string.Empty;
-    private string _description = string.Empty;
+    private string _span = string.Empty;
 
     private static readonly IReadOnlyList<DeskSwitchOption<string>> _marketOptions =
     [
@@ -179,14 +219,14 @@ else
     private MatchupForm? _form;
     private int _windowDays = 30;
 
-    /// <summary>
-    /// Columns are derived from the data rather than declared, because stat keys differ per
-    /// sport and per source. The busiest keys across the roster are the ones worth the width.
-    /// </summary>
     /// <summary>A stat is a rate if anyone on this side recorded a fractional value for it.</summary>
     private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
         => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
 
+    /// <summary>
+    /// Columns are derived from the data rather than declared, because stat keys differ per
+    /// sport and per source. The busiest keys across the roster are the ones worth the width.
+    /// </summary>
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
         => side.SelectMany(p => p.Totals.Keys)
             .GroupBy(k => k)
@@ -264,6 +304,10 @@ else
         await LoadAsync();
     }
 
+    /// <summary>Whether the select has an option for this game, so it names it rather than its placeholder.</summary>
+    private bool Listed(int? id)
+        => id is not null && (_games.Any(g => g.Id == id) || _picked?.Id == id);
+
     private async Task OnGameChanged(int? id)
     {
         _gameId = id;
@@ -274,7 +318,7 @@ else
         await LoadAsync();
     }
 
-    /// <summary>The chosen game with its teams and sport, so the picker can name it before any search.</summary>
+    /// <summary>The chosen game with its teams and sport, so the sides can be put in matchup order.</summary>
     private async Task<Game?> PickedAsync(LineOpsDbContext db)
         => _gameId is { } id
             ? await db.Games.AsNoTracking()
@@ -286,6 +330,13 @@ else
     {
         _market = market;
         await LoadAsync();
+    }
+
+    /// <summary>The other side of what is already loaded: nothing is read again.</summary>
+    private void SetSide(string side)
+    {
+        _side = side;
+        Focus();
     }
 
     private async Task SetWindowAsync(int days)
@@ -313,11 +364,11 @@ else
 
     private async Task LoadAsync()
     {
-        _series = [];
-        _labels = [];
-        _current = [];
-        _moveCount = 0;
-        _points = 0;
+        _snapshots = [];
+        _sideOptions = [];
+        _rows = [];
+        _headline = string.Empty;
+        _span = string.Empty;
 
         await LoadFormAsync();
 
@@ -329,90 +380,369 @@ else
 
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        var snapshots = await db.OddsSnapshots
+        _snapshots = await db.OddsSnapshots
             .Where(s => s.GameId == gameId && s.Market == _market)
             .OrderBy(s => s.CapturedAt)
             .ToListAsync();
 
-        _moveCount = snapshots.Count;
-
-        if (snapshots.Count == 0)
+        if (_snapshots.Count == 0)
         {
             Report(PulseState.Idle, "no moves");
             return;
         }
 
-        var times = snapshots.Select(s => s.CapturedAt).Distinct().OrderBy(t => t).ToList();
-        _points = times.Count;
+        var sides = Sides(_snapshots.Select(s => s.Outcome), _market,
+            _picked?.AwayTeam?.Name, _picked?.HomeTeam?.Name);
 
-        var stride = Math.Max(1, times.Count / 6);
+        // Short names unless two clubs share one: the White Sox and the Red Sox are both "Sox".
+        var shortNames = sides.Select(SideLabel).Distinct(StringComparer.OrdinalIgnoreCase).Count() == sides.Count;
 
-        _labels = times
-            .Select((t, i) => i % stride == 0 ? DisplayTime.Format(t, "dd HH:mm") : string.Empty)
-            .ToArray();
-
-        // What the y-axis is made of. Handicap markets move the number; the moneyline has no
-        // number to move, so it moves the price. See Plot for why the price itself is never
-        // what gets plotted.
-        _plotsHandicap = _market != Markets.Moneyline && snapshots.All(s => s.Line is not null);
-
-        foreach (var group in snapshots.GroupBy(s => new { s.Book, s.Outcome }))
-        {
-            var ordered = group.OrderBy(s => s.CapturedAt).ToList();
-            var data = new double[times.Count];
-            var cursor = 0;
-            var last = Plot(ordered[0]);
-
-            for (var i = 0; i < times.Count; i++)
-            {
-                // A gap means "unchanged", not "unknown", so the last reading carries forward.
-                while (cursor < ordered.Count && ordered[cursor].CapturedAt <= times[i])
-                    last = Plot(ordered[cursor++]);
-
-                data[i] = last;
-            }
-
-            _series.Add(new ChartSeries<double>
-            {
-                Name = $"{group.Key.Outcome} · {group.Key.Book}",
-                Data = data
-            });
-        }
-
-        _current = snapshots
-            .GroupBy(s => new { s.Book, s.Outcome })
-            .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
-            .OrderBy(s => s.Book).ThenBy(s => s.Outcome)
+        _sideOptions = sides
+            .Select(o => new DeskSwitchOption<string>(o, shortNames ? SideLabel(o) : o, o.Contains(' ') ? o : null))
             .ToList();
 
-        // After _current, which the caption counts.
-        BuildCaption(snapshots, times);
+        if (_side is null || !sides.Contains(_side))
+            _side = sides[0];
 
-        Report(PulseState.Healthy, $"{_moveCount} moves");
+        Focus();
+    }
+
+    /// <summary>Builds the rows, the headline and the window's status for the side in focus.</summary>
+    private void Focus()
+    {
+        _rows = _side is null ? [] : MovementRows(_snapshots, _side);
+
+        if (_rows.Count == 0)
+        {
+            _headline = string.Empty;
+            _span = string.Empty;
+            Report(PulseState.Idle, "no moves");
+            return;
+        }
+
+        _headline = Headline(_rows, _market, _side!);
+        _span = SpanText(_rows);
+
+        Report(PulseState.Healthy, MovesText(_rows.Sum(r => r.Moves)));
+    }
+
+    // ---- The movement, as data -------------------------------------------------------------
+    // Static and free of the database, so the arithmetic a reader trusts — what counts as a
+    // move, which way it went, how far — is tested on its own (OddsMovementTests).
+
+    /// <summary>
+    /// One book's prices for the side in focus, open to now.
+    ///
+    /// <para>
+    /// <see cref="Moves"/> is every observation after the first: prices are written only when
+    /// they change, so each later row is a move and the first is where the book opened.
+    /// <see cref="Trend"/> is what the sparkline draws, with <see cref="Positions"/> placing
+    /// each value on the time axis the whole table shares; it ends with the last value held to
+    /// the right edge, because a price written on change still stands until the next one.
+    /// </para>
+    /// </summary>
+    public sealed record MovementRow(
+        string Book,
+        OddsSnapshot Open,
+        OddsSnapshot Now,
+        int Moves,
+        bool TrendsLine,
+        IReadOnlyList<double> Trend,
+        IReadOnlyList<double>? Positions)
+    {
+        /// <summary>The price's change in cents, now less open. Null where either reading is broken.</summary>
+        public int? PriceCents => Cents(Now.PriceAmerican) - Cents(Open.PriceAmerican);
+
+        /// <summary>The line's change, now less open. Null on a moneyline.</summary>
+        public decimal? LineChange => Now.Line - Open.Line;
+
+        /// <summary>When the price last changed; null for a book seen once, which has not moved.</summary>
+        public DateTimeOffset? LastMoved => Moves > 0 ? Now.CapturedAt : null;
+
+        /// <summary>Whether open and now differ. A book can move and come back, which is not a move.</summary>
+        public bool Moved => (PriceCents ?? 0) != 0 || (LineChange ?? 0) != 0;
     }
 
     /// <summary>
-    /// One snapshot as a plottable number.
+    /// An American price on a scale with no hole in it, in cents: +105 is 5, -105 is -5, and
+    /// the ten cents between them are ten here rather than the 210 their numbers differ by.
     ///
     /// <para>
-    /// A handicap market plots its handicap: -1.5 to -2.0 is the move, and the price beside it
-    /// is the juice charged for it.
-    /// </para>
-    ///
-    /// <para>
-    /// Everything else plots implied probability, and never the American price. American odds
-    /// are discontinuous across zero — +110 and -110 are neighbours in probability, 3.6 points
-    /// apart, but 220 units apart as numbers, and nothing at all exists between -100 and +100.
-    /// Plotting them raw draws a canyon down the middle of the chart between the favourite and
-    /// the underdog, then flattens the movement inside each against an axis stretched to span
-    /// that gap. Probability is continuous, is what actually moved, and puts both sides of a
-    /// market on one scale that can be read against the other.
+    /// American odds have nothing between -100 and +100, so subtracting them raw makes a move
+    /// through even money look twenty times its size, and a sparkline of them draws a cliff.
+    /// This keeps the order the numbers are written in — -120 below -110 below +105 — so the
+    /// arrow and the sparkline go the way the printed number did, and closes the gap, so the
+    /// distance is the one a bettor means by "ten cents". Zero is not a price (see
+    /// <see cref="Implied"/>), so it has no place on the scale.
     /// </para>
     /// </summary>
-    private double Plot(OddsSnapshot s)
-        => _plotsHandicap
-            ? (double)(s.Line ?? 0m)
-            : (Implied(s.PriceAmerican) ?? 0) * 100;
+    public static int? Cents(int american) => american switch
+    {
+        0 => null,
+        > 0 => american - 100,
+        _ => american + 100
+    };
+
+    /// <summary>
+    /// A market's outcomes in the order the desk reads them: away before home, as the
+    /// matchup reads ("Cowboys at Eagles"), and Over before Under. Anything else follows,
+    /// alphabetically, so an outcome the provider named differently is offered, not lost.
+    /// </summary>
+    public static IReadOnlyList<string> Sides(IEnumerable<string> outcomes, string market, string? away, string? home)
+    {
+        static bool Is(string outcome, string? name)
+            => name is not null && string.Equals(outcome, name, StringComparison.OrdinalIgnoreCase);
+
+        int Order(string outcome) => market == Markets.Total
+            ? Is(outcome, "over") ? 0 : Is(outcome, "under") ? 1 : 2
+            : Is(outcome, away) ? 0 : Is(outcome, home) ? 1 : 2;
+
+        return outcomes
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(Order)
+            .ThenBy(o => o, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Every book's row for one outcome. Snapshots for other outcomes are ignored, so the
+    /// whole market can be handed over and the side chosen here.
+    /// </summary>
+    public static IReadOnlyList<MovementRow> MovementRows(IEnumerable<OddsSnapshot> snapshots, string outcome)
+    {
+        var side = snapshots
+            .Where(s => string.Equals(s.Outcome, outcome, StringComparison.Ordinal))
+            .OrderBy(s => s.CapturedAt)
+            .ToList();
+
+        if (side.Count == 0)
+            return [];
+
+        // One time axis for the table: the first reading at any book to the last. A side seen
+        // at a single instant has no axis, and its sparklines are spaced evenly instead.
+        var start = side[0].CapturedAt;
+        var length = (side[^1].CapturedAt - start).TotalSeconds;
+
+        double At(DateTimeOffset t) => (t - start).TotalSeconds / length;
+
+        return side
+            .GroupBy(s => s.Book, StringComparer.Ordinal)
+            .Select(book =>
+            {
+                var seen = book.ToList();
+
+                // A handicap market draws its number when the number moved, and its price when
+                // only the juice did: a flat line beside "6¢" would say nothing happened.
+                var trendsLine = seen.All(s => s.Line is not null)
+                                 && seen.Select(s => s.Line).Distinct().Count() > 1;
+
+                var plotted = seen
+                    .Select(s => (s.CapturedAt, Value: trendsLine ? (double?)(double)s.Line!.Value : Cents(s.PriceAmerican)))
+                    .Where(p => p.Value is not null)
+                    .ToList();
+
+                var values = plotted.Select(p => p.Value!.Value).ToList();
+                List<double>? positions = length > 0 ? plotted.Select(p => At(p.CapturedAt)).ToList() : null;
+
+                // The last price stands until the latest reading anywhere on the side.
+                if (positions is not null && values.Count > 1 && positions[^1] < 1)
+                {
+                    values.Add(values[^1]);
+                    positions.Add(1);
+                }
+
+                return new MovementRow(book.Key, seen[0], seen[^1], seen.Count - 1, trendsLine, values, positions);
+            })
+            .OrderBy(r => r.Book, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The finding, in the voice a person would use saying it out loud — "Dallas Cowboys
+    /// shortened +136 to -218 at draftkings" — about the side in focus.
+    ///
+    /// <para>
+    /// The biggest move is the thing worth saying, so it is found and stated, including when
+    /// there isn't one, because "nothing moved" is also a finding. A line move outranks any
+    /// price move, since it changes what the bet is; between price moves the measure is
+    /// implied probability, which is what actually moved.
+    /// </para>
+    /// </summary>
+    public static string Headline(IReadOnlyList<MovementRow> rows, string market, string outcome)
+    {
+        var biggest = rows
+            .Where(r => r.Moved)
+            .OrderByDescending(r => Math.Abs(r.LineChange ?? 0))
+            .ThenByDescending(r => Math.Abs(ImpliedChange(r)))
+            .FirstOrDefault();
+
+        if (biggest is null)
+            return "Every book is holding its opening number";
+
+        var (open, now) = (biggest.Open, biggest.Now);
+
+        if ((biggest.LineChange ?? 0) != 0)
+        {
+            // Over and Under share one number, so a total's move belongs to the total.
+            return market == Markets.Total
+                ? $"The total moved {Bare(open.Line!.Value)} to {Bare(now.Line!.Value)} at {biggest.Book}"
+                : $"{outcome} moved {OddsMath.FormatLine(open.Line!.Value, outcome)} to "
+                  + $"{OddsMath.FormatLine(now.Line!.Value, outcome)} at {biggest.Book}";
+        }
+
+        // Shortened or drifted, said the way the desk would say it: a price whose implied
+        // probability rose is one the market got more confident about.
+        var who = market switch
+        {
+            Markets.Total when now.Line is { } total => $"{SideLabel(outcome)} {Bare(total)}",
+            Markets.Spread when now.Line is { } line => $"{outcome} {OddsMath.FormatLine(line, outcome)}",
+            _ => outcome
+        };
+
+        return $"{who} {(ImpliedChange(biggest) > 0 ? "shortened" : "drifted")} "
+               + $"{Price(open.PriceAmerican)} to {Price(now.PriceAmerican)} at {biggest.Book}";
+    }
+
+    /// <summary>
+    /// The secondary line: the span the rows cover and how many moves are in it — "Aug 24 to
+    /// Oct 24 · 14 moves". A single day gives its hours instead, and a single instant says it
+    /// was one reading.
+    /// </summary>
+    public static string SpanText(IReadOnlyList<MovementRow> rows)
+    {
+        if (rows.Count == 0)
+            return string.Empty;
+
+        var first = rows.Min(r => r.Open.CapturedAt);
+        var last = rows.Max(r => r.Now.CapturedAt);
+
+        var when = first == last
+            ? $"Seen once, {DisplayTime.Stamp(first)}"
+            : DisplayTime.Day(first) == DisplayTime.Day(last)
+                ? $"{DisplayTime.Format(first, "MMM d HH:mm")} to {DisplayTime.Format(last, "HH:mm")} {DisplayTime.Label}"
+                : $"{DisplayTime.Day(first)} to {DisplayTime.Day(last)}";
+
+        return $"{when} · {MovesText(rows.Sum(r => r.Moves))}";
+    }
+
+    /// <summary>A count of moves, as the window's status and the span line both say it.</summary>
+    public static string MovesText(int moves) => moves switch
+    {
+        0 => "no moves yet",
+        1 => "1 move",
+        _ => $"{moves} moves"
+    };
+
+    /// <summary>
+    /// The Move cell: the line's change in points, then the price's in cents with the
+    /// direction the number went — "-1.5 pts · ↓ 6¢". "unmoved" for a book seen once, and
+    /// "no net move" for one that moved and came back, which are different facts.
+    /// </summary>
+    public static string MoveText(MovementRow row)
+    {
+        if (row.Moves == 0)
+            return "unmoved";
+
+        var parts = new List<string>(2);
+
+        if (row.LineChange is { } line && line != 0)
+            parts.Add($"{Signed(line)} {(Math.Abs(line) == 1 ? "pt" : "pts")}");
+
+        if (row.PriceCents is { } cents && cents != 0)
+            parts.Add($"{(cents > 0 ? "↑" : "↓")} {Math.Abs(cents)}¢");
+
+        return parts.Count == 0 ? "no net move" : string.Join(" · ", parts);
+    }
+
+    /// <summary>The Move cell's tooltip: the same change in words, with what it means for the side.</summary>
+    public static string MoveTitle(MovementRow row, string market)
+    {
+        if (row.Moves == 0)
+            return $"Seen once, {DisplayTime.Stamp(row.Open.CapturedAt)}: nothing to compare it with yet";
+
+        var parts = new List<string>(2);
+
+        if (row.LineChange is { } line && line != 0)
+        {
+            parts.Add(market == Markets.Total
+                ? $"Total {Bare(row.Open.Line!.Value)} to {Bare(row.Now.Line!.Value)}"
+                : $"Line {OddsMath.FormatLine(row.Open.Line!.Value, row.Open.Outcome)} to "
+                  + $"{OddsMath.FormatLine(row.Now.Line!.Value, row.Now.Outcome)}");
+        }
+
+        if (row.PriceCents is { } cents && cents != 0)
+        {
+            parts.Add($"price {Price(row.Open.PriceAmerican)} to {Price(row.Now.PriceAmerican)}, "
+                      + $"{(ImpliedChange(row) > 0 ? "shortened" : "drifted")} {Math.Abs(cents)}¢");
+        }
+
+        if (parts.Count == 0)
+            return $"Moved {row.Moves} {(row.Moves == 1 ? "time" : "times")} and is back at its opening number";
+
+        var sentence = string.Join("; ", parts);
+        return char.ToUpperInvariant(sentence[0]) + sentence[1..];
+    }
+
+    /// <summary>
+    /// The sparkline's accessible name: what it draws, from the open to now, and how many moves
+    /// — the numbers somebody who cannot see the shape needs instead of it.
+    /// </summary>
+    public static string TrendLabel(MovementRow row)
+    {
+        var moves = row.Moves == 0 ? "seen once, no moves" : MovesText(row.Moves);
+
+        if (row.TrendsLine)
+            return $"Line {OddsMath.FormatLine(row.Open.Line!.Value, row.Open.Outcome)} to "
+                   + $"{OddsMath.FormatLine(row.Now.Line!.Value, row.Now.Outcome)}, {moves}";
+
+        return row.Moves == 0
+            ? $"Price {Price(row.Now.PriceAmerican)}, {moves}"
+            : $"Price {Price(row.Open.PriceAmerican)} to {Price(row.Now.PriceAmerican)}, {moves}";
+    }
+
+    /// <summary>
+    /// A reading as the market writes it: the price alone on a moneyline, the line and its price
+    /// on a spread or total — "+4.5 -104". A stored zero is a broken reading and says so.
+    /// </summary>
+    public static string Quote(OddsSnapshot s)
+    {
+        var price = s.PriceAmerican == 0 ? "—" : Price(s.PriceAmerican);
+
+        return s.Line is { } line ? $"{OddsMath.FormatLine(line, s.Outcome)} {price}" : price;
+    }
+
+    /// <summary>"2.0d ago", in the desk's own age wording.</summary>
+    public static string Ago(DateTimeOffset at, DateTimeOffset now)
+    {
+        var minutes = (now - at).TotalMinutes;
+
+        return minutes < 1 ? "just now" : $"{Age(minutes)} ago";
+    }
+
+    /// <summary>A side's name on the switch: the club's last word, or Over and Under capitalised.</summary>
+    private static string SideLabel(string outcome)
+    {
+        var label = SelectionText.Short(outcome);
+
+        return label.Length == 0 ? label : char.ToUpperInvariant(label[0]) + label[1..];
+    }
+
+    /// <summary>
+    /// What a column sorts on: the line first where there is one, then the price on the cents
+    /// scale, so books on the same number sort by what they pay. A broken price sorts last.
+    /// </summary>
+    private static double Rank(OddsSnapshot s)
+        => (double)(s.Line ?? 0m) * 10_000 + (Cents(s.PriceAmerican) ?? -9_999);
+
+    /// <summary>How big a move was, for sorting the Move column: points first, then cents.</summary>
+    private static double MoveSize(MovementRow row)
+        => (double)Math.Abs(row.LineChange ?? 0m) * 10_000 + Math.Abs(row.PriceCents ?? 0);
+
+    /// <summary>The change in implied probability, open to now. Zero where either price is broken.</summary>
+    private static double ImpliedChange(MovementRow row)
+        => Implied(row.Now.PriceAmerican) is { } now && Implied(row.Open.PriceAmerican) is { } open
+            ? now - open
+            : 0;
 
     /// <summary>
     /// Implied probability, or null where the price cannot carry one.
@@ -429,69 +759,10 @@ else
     private static double? Implied(int american)
         => american == 0 ? null : OddsMath.ImpliedProbability(american);
 
-    /// <summary>
-    /// Says what the chart shows, in the voice a person would use saying it out loud.
-    ///
-    /// <para>
-    /// Apple's charting guidance is to headline the takeaway rather than name the mechanism: a
-    /// chart captioned "Line movement" makes the reader do the reading it was drawn to save.
-    /// The biggest single move is the thing worth saying, so it is found and stated — including
-    /// when there isn't one, because "nothing moved" is also a finding.
-    /// </para>
-    /// </summary>
-    private void BuildCaption(List<OddsSnapshot> snapshots, List<DateTimeOffset> times)
-    {
-        // The books are in the series names, which are also the legend, so the sentence a
-        // screen reader hears and the key a sighted reader matches lines against name the same
-        // things — colour is not the only thing telling one book's line from another's.
-        _description = DeskChart.Describe(
-            _plotsHandicap
-                ? "Line chart of the handicap over time, one line per selection and book"
-                : "Line chart of implied probability in percent over time, one line per selection and book. "
-                  + "Probability rather than American price, so both sides share one continuous scale",
-            _labels, _series);
+    private static string Signed(decimal value)
+        => (value > 0 ? "+" : "") + value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
-        // The axis carries bare numbers — MudBlazor keeps its Y-axis formatter behind the
-        // seam — so the unit is stated here, immediately above the plot.
-        var unit = _plotsHandicap ? "Handicap" : "Implied probability (%)";
-
-        var span = times.Count > 1
-            ? $"{DisplayTime.Format(times[0], "MMM d HH:mm")} to {DisplayTime.Format(times[^1], "HH:mm")} {DisplayTime.Label}"
-            : DisplayTime.Stamp(times[0]);
-
-        _takeaway = $"{unit}, {span} · {_current.Count} book/selection "
-                    + $"{(_current.Count == 1 ? "pair" : "pairs")}";
-
-        // The largest first-to-last change across every book and selection.
-        var biggest = snapshots
-            .GroupBy(s => new { s.Book, s.Outcome })
-            .Select(g =>
-            {
-                var ordered = g.OrderBy(s => s.CapturedAt).ToList();
-                return (g.Key.Outcome, g.Key.Book, First: ordered[0], Last: ordered[^1]);
-            })
-            .OrderByDescending(x => Math.Abs(Plot(x.Last) - Plot(x.First)))
-            .FirstOrDefault();
-
-        if (biggest.First is null || Math.Abs(Plot(biggest.Last) - Plot(biggest.First)) < 0.01)
-        {
-            _headline = "Every book is holding its opening number";
-            return;
-        }
-
-        if (_plotsHandicap)
-        {
-            _headline = $"{biggest.Outcome} moved {Line(biggest.First.Line ?? 0m)} to "
-                        + $"{Line(biggest.Last.Line ?? 0m)} at {biggest.Book}";
-            return;
-        }
-
-        // Shortened or drifted, said the way the desk would say it: a price whose implied
-        // probability rose is one the market got more confident about.
-        var shortened = Plot(biggest.Last) > Plot(biggest.First);
-
-        _headline = $"{biggest.Outcome} {(shortened ? "shortened" : "drifted")} "
-                    + $"{Price(biggest.First.PriceAmerican)} to {Price(biggest.Last.PriceAmerican)} "
-                    + $"at {biggest.Book}";
-    }
+    /// <summary>A total's number, unsigned: "47.5", since Over and Under both read it.</summary>
+    private static string Bare(decimal value)
+        => Math.Abs(value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 }

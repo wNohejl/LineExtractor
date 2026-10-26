@@ -3941,6 +3941,61 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .launcher__item--destination .launcher__desc { font-style: italic; }
 
+/* ---- Line movement ----------------------------------------------------------
+   One side of a market, a row per book (OddsPanel). It replaced a chart of every book and
+   both sides with a legend that drew itself over the table beneath it, so everything here
+   is the opposite of a chart's furniture: a sentence, a footnote, and the table's own cells.
+
+   The headline is the finding and the footnote the span it was found over, the pair the
+   HIG asks a chart to open with. Headline weight on body size, the footnote on the
+   secondary ink — never tertiary, since the span is read — and tabular figures, because the
+   dates and the count change while the eye is on them. */
+/* The market and side switches, on their own row under the toolbar and over the rows they
+   choose; they wrap as a pair in a narrow window rather than running past its edge. */
+.movement__switches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+}
+
+.movement__cap { margin: 0 0 var(--space-2); }
+.movement__headline {
+    margin: 0;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-title);
+    color: var(--text-primary);
+}
+.movement__span {
+    margin: 2px 0 0;
+    font-size: var(--text-footnote);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+/* A quote is a line and its price, and a move is points and cents: each is one reading, so
+   neither breaks across lines in a narrow column. */
+.movement__quote, .movement__move { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* The sparkline (DeskSparkline). Word-sized and inline, centred on the row's text so a
+   20px plot sits in a 28px row without moving it. The path is the secondary ink and the
+   last point the primary one, so the eye lands where the series ended; there is no state
+   colour, because a price moving is not good or bad and hue on this desk names a state. */
+.sparkline { display: inline-flex; align-items: center; vertical-align: middle; line-height: 0; }
+.sparkline svg { display: block; overflow: visible; }
+.sparkline__line {
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.sparkline__dot { fill: var(--text-primary); }
+/* Seen once: a dash in the cell's own type, not a drawing of a market nobody watched twice. */
+.sparkline--none { line-height: inherit; color: var(--text-secondary); }
+
 /* ---- The board's column rhythm ---------------------------------------------
    Eight columns spread evenly across a wide desk pushed every price to the far
    right of its own column, leaving a void between the matchup and the numbers
