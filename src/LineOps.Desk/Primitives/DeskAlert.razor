@@ -15,7 +15,9 @@
     renders red and is never the default, because making the dangerous button answer
     Enter is how people delete things they meant to keep. And labels name the actual
     consequence — "Delete run", not "OK" — because a button that says OK is asking the
-    operator to remember what they clicked.
+    operator to remember what they clicked. That second rule is enforced rather than
+    hoped for: ConfirmLabel is required and has no fallback, so a caller that forgets to
+    name the consequence gets a build warning instead of a button that says nothing.
 
     "Default" used to mean a painted ring and nothing else: the confirm carried a
     box-shadow byte-identical to :focus-visible while focus sat somewhere else entirely
@@ -23,8 +25,18 @@
     one, which makes it worse than no marking at all. It is now literal — the default
     button is given actual focus on open, so Enter activates it because it is focused, and
     the ring that appears is the browser's own :focus-visible rather than a drawing of one.
-    The painted class is gone with the lie. A destructive alert focuses Cancel instead, so
-    the rule above holds in the keyboard channel too, not only in the paint.
+    The painted class is gone with the lie.
+
+    A destructive alert has no default button at all — not the confirm, and not Cancel
+    either. Apple's Alerts page (February 2024) says a destructive action is never the
+    default, and the desk used to meet that by making Cancel the default instead. That is
+    the letter of the rule and not its point: Return still answered the alert without the
+    operator reading it, only the other way, and a habit of pressing Return to clear alerts
+    becomes a habit of pressing it on the one alert that mattered. So focus lands on the
+    alert's own panel — tabindex="-1", focusable by script and never in the tab ring —
+    Return does nothing, and the operator chooses with Tab and Space or the pointer. Escape
+    still backs out, through Mud's own cancel. A non-destructive alert keeps the confirm as
+    its default, because there the likely answer is also the safe one.
 
     The dialog semantics are declared here because there is nowhere else for them: this
     renders bare content, so it inherits neither DeskDialog's explicit role nor MudDialog's.
@@ -37,6 +49,8 @@
 *@
 
 <div class="desk-alert"
+     @ref="_panel"
+     tabindex="-1"
      role="alertdialog"
      aria-modal="true"
      aria-labelledby="@_headingId"
@@ -52,9 +66,7 @@
     <div class="desk-alert__actions">
         @if (CancelLabel is not null)
         {
-            <DeskButton @ref="_cancel"
-                        Emphasis="DeskEmphasis.Plain"
-                        autofocus="@(CancelIsDefault ? "autofocus" : null)"
+            <DeskButton Emphasis="DeskEmphasis.Plain"
                         OnClick="Cancel">
                 @CancelLabel
             </DeskButton>
@@ -63,7 +75,7 @@
         <DeskButton @ref="_confirm"
                     Emphasis="DeskEmphasis.Filled"
                     Role="@(Destructive ? DeskRole.Destructive : DeskRole.Normal)"
-                    autofocus="@(CancelIsDefault ? null : "autofocus")"
+                    autofocus="@(ConfirmIsDefault ? "autofocus" : null)"
                     OnClick="Confirm">
             @ConfirmLabel
         </DeskButton>
@@ -78,17 +90,20 @@
     /// <summary>The consequence, in a sentence. Omit it when the heading already says everything.</summary>
     [Parameter] public string? Message { get; set; }
 
-    /// <summary>Name the consequence, not the acknowledgement. "Delete run" beats "OK".</summary>
-    [Parameter] public string ConfirmLabel { get; set; } = "OK";
+    /// <summary>
+    /// Name the consequence, not the acknowledgement. "Delete run" beats "OK". Required and
+    /// without a default, so every caller has to say what the button does.
+    /// </summary>
+    [Parameter, EditorRequired] public string ConfirmLabel { get; set; } = string.Empty;
 
     /// <summary>Null for a one-button alert that only needs acknowledging.</summary>
     [Parameter] public string? CancelLabel { get; set; } = "Cancel";
 
-    /// <summary>Renders the confirm red and refuses to make it the default.</summary>
+    /// <summary>Renders the confirm red, and leaves the alert with no default button at all.</summary>
     [Parameter] public bool Destructive { get; set; }
 
+    private ElementReference _panel;
     private DeskButton? _confirm;
-    private DeskButton? _cancel;
 
     // Ids rather than a literal, because two alerts can be stacked and aria-labelledby is
     // resolved document-wide.
@@ -96,27 +111,30 @@
     private readonly string _messageId = $"desk-alert-m-{Guid.NewGuid():N}";
 
     /// <summary>
-    /// A destructive alert defaults to the way out. With no cancel to default to, the
-    /// confirm takes it back — a one-button acknowledgement has nothing else to focus.
+    /// Only a non-destructive alert has a default. A destructive one has none, with or
+    /// without a cancel: a one-button destructive alert that answered Return would be the
+    /// very default the rule exists to prevent. Its focus goes to the panel instead, which
+    /// still keeps Return inside the alert and away from the page behind it.
     /// </summary>
-    private bool CancelIsDefault => Destructive && CancelLabel is not null;
+    private bool ConfirmIsDefault => !Destructive;
 
     /// <summary>
     /// The alert arrives without focus of its own: Mud's dialog traps the tab ring but does
     /// not choose a starting point, and <c>autofocus</c> is not honoured for content the
-    /// renderer inserts after load. So the default button is focused here, once, on the
-    /// first render — which is what makes Enter answer the alert rather than the page
-    /// behind it.
+    /// renderer inserts after load. So focus is placed here, once, on the first render — on
+    /// the default button when there is one, which is what makes Enter answer the alert,
+    /// and on the panel when there is not, which is what makes Enter answer nothing. Either
+    /// way the keyboard is inside the alert rather than on the page behind it.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
             return;
 
-        var target = CancelIsDefault ? _cancel : _confirm;
-
-        if (target is not null)
-            await target.FocusAsync();
+        if (ConfirmIsDefault && _confirm is not null)
+            await _confirm.FocusAsync();
+        else
+            await _panel.FocusAsync();
     }
 
     private void Confirm() => Instance?.Close(DialogResult.Ok(true));

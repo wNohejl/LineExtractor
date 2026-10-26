@@ -18,7 +18,9 @@
 
 @if (Row is null)
 {
-    <EmptyState>Loading the market…</EmptyState>
+    @* The note's line and the first market's rows of books, where they will land. *@
+    <DeskSkeleton Width="60%" />
+    <DeskGrid T="string" Items="@(Array.Empty<string>())" Loading="true" SkeletonRows="3" LoadingLabel="Fetching every book's prices" />
 }
 else if (Row.Unpriced is { } reason)
 {

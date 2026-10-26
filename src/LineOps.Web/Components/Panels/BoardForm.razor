@@ -12,7 +12,11 @@
 
 @if (_form is null)
 {
-    <EmptyState>Reading the last @_windowDays days…</EmptyState>
+    @* The lookback row and the first roster's rows, where they will land. Only on the first
+       read: changing the window keeps the rosters on screen until the new ones arrive. *@
+    <DeskSkeleton Width="40%" />
+    <DeskGrid T="PlayerForm" Items="@(Array.Empty<PlayerForm>())" Loading="true" SkeletonRows="3"
+              LoadingLabel="@($"Reading the last {_windowDays} days")" />
 }
 else if (_form.IsEmpty)
 {

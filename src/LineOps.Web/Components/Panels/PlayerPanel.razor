@@ -26,7 +26,10 @@
 }
 else if (_player is null)
 {
-    <EmptyState>Loading the player…</EmptyState>
+    @* The title row and the first rows of the game log, in the places they will land — a
+       sentence saying the player is loading is a placeholder shaped like nothing. *@
+    <DeskSkeleton Width="40%" />
+    <DeskGrid T="PlayerGameRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the player" />
 }
 else
 {

@@ -43,39 +43,53 @@ public class DeskAlertTests : DeskTestContext
         Assert.Single(cut.FindAll("button"));
     }
 
-    /// <summary>
-    /// A destructive confirm is red and is never the default. Making the dangerous
-    /// button the one that answers Enter is how people delete things they meant to keep.
-    ///
-    /// <para>
-    /// "Default" is now literal rather than painted: the default button is the one the
-    /// alert focuses on open, so Enter answers it because it is focused. The old marker
-    /// class drew a ring on a button that had no focus, which is why nothing here looks
-    /// for it any more — the assertion is which button carries <c>autofocus</c>, the
-    /// component's own declaration of where the keyboard starts.
-    /// </para>
-    /// </summary>
     [Fact]
-    public void A_destructive_confirm_is_red_and_not_the_default()
+    public void A_destructive_confirm_is_red()
     {
         var cut = RenderComponent<DeskAlert>(p => p
             .Add(x => x.Heading, "Delete this run?")
+            .Add(x => x.ConfirmLabel, "Delete run")
             .Add(x => x.Destructive, true));
 
-        Assert.Contains("desk-btn--destructive", cut.Markup);
-
-        var confirm = cut.Find("button.desk-btn--destructive");
-        var cancel = cut.Find("button.desk-btn--plain");
-
-        Assert.False(confirm.HasAttribute("autofocus"));
-        Assert.True(cancel.HasAttribute("autofocus"));
+        Assert.NotNull(cut.Find("button.desk-btn--destructive"));
     }
 
+    /// <summary>
+    /// A destructive alert has no default button — neither the confirm nor the way out.
+    ///
+    /// <para>
+    /// Apple's Alerts page (February 2024): a destructive action is never the default. The
+    /// desk used to meet that by making Cancel the default, which still let Return answer an
+    /// alert the operator had not read, and a reflex of Return-to-dismiss is exactly what
+    /// fires on the one alert that mattered. So focus lands on the alert's own panel, which
+    /// carries <c>tabindex="-1"</c> to be focusable by script without joining the tab ring,
+    /// and no button declares <c>autofocus</c>. Return then does nothing until the operator
+    /// tabs to a choice.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void A_normal_confirm_is_the_default()
+    public void Destructive_alert_has_no_default_button()
     {
         var cut = RenderComponent<DeskAlert>(p => p
-            .Add(x => x.Heading, "Apply these changes?"));
+            .Add(x => x.Heading, "Delete this run?")
+            .Add(x => x.ConfirmLabel, "Delete run")
+            .Add(x => x.Destructive, true));
+
+        Assert.Equal("-1", cut.Find(".desk-alert").GetAttribute("tabindex"));
+        Assert.Equal(2, cut.FindAll("button").Count);
+        Assert.All(cut.FindAll("button"), b => Assert.False(b.HasAttribute("autofocus")));
+    }
+
+    /// <summary>
+    /// A non-destructive alert keeps the confirm as its default, because there the likely
+    /// answer is also the safe one — "Apply these changes?" is asked to be answered yes.
+    /// </summary>
+    [Fact]
+    public void Plain_alert_defaults_to_confirm()
+    {
+        var cut = RenderComponent<DeskAlert>(p => p
+            .Add(x => x.Heading, "Apply these changes?")
+            .Add(x => x.ConfirmLabel, "Apply"));
 
         var confirm = cut.Find("button.desk-btn--filled");
         var cancel = cut.Find("button.desk-btn--plain");
@@ -85,30 +99,40 @@ public class DeskAlertTests : DeskTestContext
     }
 
     /// <summary>
-    /// With nothing to back out to, the confirm takes the default back — a one-button
-    /// acknowledgement that focused nothing would leave Enter answering the page behind
-    /// the alert.
-    ///
-    /// <para>
-    /// This is also the one arrangement where the focus <em>target</em> is provable here
-    /// rather than only the focus call: the alert renders exactly one button, so a focus
-    /// invocation could not have gone anywhere else. See
-    /// <see cref="The_alert_focuses_its_default_button_once_when_it_opens"/> for why the
-    /// two-button case cannot say the same.
-    /// </para>
+    /// With nothing to back out to, a destructive alert still has no default: a one-button
+    /// destructive alert that answered Return would be the dangerous default the rule above
+    /// forbids. It still focuses <em>something</em> — the panel — so Return stays inside the
+    /// alert rather than answering the page behind it.
     /// </summary>
     [Fact]
-    public void A_destructive_alert_with_no_cancel_still_focuses_something()
+    public void A_destructive_alert_with_no_cancel_still_has_no_default()
     {
         var cut = RenderComponent<DeskAlert>(p => p
-            .Add(x => x.Heading, "The run was deleted")
+            .Add(x => x.Heading, "Discard the slip?")
+            .Add(x => x.ConfirmLabel, "Discard")
             .Add(x => x.Destructive, true)
             .Add(x => x.CancelLabel, (string?)null));
 
-        Assert.True(cut.Find("button.desk-btn--destructive").HasAttribute("autofocus"));
-
         Assert.Single(cut.FindAll("button"));
+        Assert.False(cut.Find("button.desk-btn--destructive").HasAttribute("autofocus"));
         Assert.Single(FocusCalls);
+    }
+
+    /// <summary>
+    /// Every caller names the consequence. <c>ConfirmLabel</c> used to default to "OK",
+    /// which is what let a call site skip saying what the button does; it is now
+    /// <c>[EditorRequired]</c> with no fallback, so omitting it is a build warning in the
+    /// markup that forgot rather than an "OK" on screen. Pinned by reflection because the
+    /// analyzer is the enforcement and a test cannot run it.
+    /// </summary>
+    [Fact]
+    public void Every_caller_must_name_the_confirm()
+    {
+        var property = typeof(DeskAlert).GetProperty(nameof(DeskAlert.ConfirmLabel))!;
+
+        Assert.NotNull(property.GetCustomAttributes(
+            typeof(Microsoft.AspNetCore.Components.EditorRequiredAttribute), inherit: false).SingleOrDefault());
+        Assert.Equal(string.Empty, new DeskAlert().ConfirmLabel);
     }
 
     /// <summary>
@@ -127,7 +151,7 @@ public class DeskAlertTests : DeskTestContext
     ///
     /// <para>
     /// Once, and only on the first render: re-focusing on every re-render would drag the
-    /// keyboard back to the default button while the operator was reading the other one.
+    /// keyboard back to where the alert started while the operator was reading a button.
     /// </para>
     ///
     /// <para>
@@ -135,20 +159,19 @@ public class DeskAlertTests : DeskTestContext
     /// <see cref="Microsoft.AspNetCore.Components.ElementReference"/> whose <c>Id</c> is a
     /// renderer GUID, and bUnit emits <c>blazor:elementreference</c> into the markup with
     /// an empty value — so there is no route from that id back to a DOM node, and no way to
-    /// say here <em>which</em> of two buttons was focused. The only route to the element is
-    /// reflection into MudBlazor's private <c>_elementReference</c> field, which would break
-    /// silently on an upgrade and is a worse test than an honest gap. Which button gets the
-    /// focus is pinned by the <c>autofocus</c> assertions above, by the single-button case,
-    /// and by the live browser check recorded in the task report — where
-    /// <c>document.activeElement</c> was the cancel button and one Tab moved a real
-    /// <c>:focus-visible</c> ring onto the destructive confirm.
+    /// say here <em>which</em> element was focused. For a destructive alert the target is
+    /// the panel; that is pinned by <see cref="Destructive_alert_has_no_default_button"/>
+    /// (the panel is the only focusable thing left without <c>autofocus</c>) and by a live
+    /// browser check, where <c>document.activeElement</c> should be the
+    /// <c>.desk-alert</c> itself and Return should leave the alert open.
     /// </para>
     /// </summary>
     [Fact]
-    public void The_alert_focuses_its_default_button_once_when_it_opens()
+    public void The_alert_places_focus_once_when_it_opens()
     {
         var cut = RenderComponent<DeskAlert>(p => p
             .Add(x => x.Heading, "Delete this run?")
+            .Add(x => x.ConfirmLabel, "Delete run")
             .Add(x => x.Destructive, true));
 
         Assert.Single(FocusCalls);
@@ -159,16 +182,16 @@ public class DeskAlertTests : DeskTestContext
     }
 
     /// <summary>
-    /// The other branch of the same decision. A normal alert has no reason to send the
-    /// keyboard to the way out, so the confirm is what gets focused — and it is a separate
-    /// test because a mistake that focused nothing when <c>Destructive</c> is false would
-    /// otherwise hide behind the destructive case above.
+    /// The other branch of the same decision. A normal alert sends the keyboard to its
+    /// confirm — a separate test because a mistake that focused nothing when
+    /// <c>Destructive</c> is false would otherwise hide behind the destructive case above.
     /// </summary>
     [Fact]
     public void A_normal_alert_focuses_on_open_too()
     {
         RenderComponent<DeskAlert>(p => p
-            .Add(x => x.Heading, "Apply these changes?"));
+            .Add(x => x.Heading, "Apply these changes?")
+            .Add(x => x.ConfirmLabel, "Apply"));
 
         Assert.Single(FocusCalls);
     }

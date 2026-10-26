@@ -394,6 +394,12 @@
 
 .mud-dialog-title { font-size: var(--text-headline); font-weight: var(--weight-semibold); letter-spacing: .05em; }
 
+/* DeskAlert puts focus on its own panel when it has no default button (a destructive
+   alert), so Return answers nothing until the operator tabs to a choice. The panel is
+   not a control — nothing activates it — so it draws no ring; the ring belongs on the
+   button the operator tabs to, and a screen reader already announces the alertdialog. */
+.desk-alert:focus { outline: none; }
+
 /* No scrim rule here, on purpose. The scrim is not styleable from this file: MudBlazor
    paints .mud-overlay-scrim.mud-overlay-dark straight from --mud-palette-overlay-dark,
    and that child covers the overlay root edge to edge, so a rule aimed at the root's
@@ -545,7 +551,7 @@
 /* Charts are the one thing MudBlazor was already trusted with. Their labels get the same
    face as everything else, named explicitly because MudChart draws its own SVG text rather
    than inheriting the typography block above. */
-.mud-chart text { font-family: var(--face-ui); font-size: calc(10px * var(--text-scale)); fill: var(--text-secondary); }
+.mud-chart text { font-family: var(--face-ui); font-size: var(--text-caption); fill: var(--text-secondary); }
 .mud-charts-grid-line { stroke: var(--separator); }
 
 /* ----------------------------------------------------------------- charts ---- */
@@ -571,17 +577,20 @@
 }
 
 /* Headline the takeaway, at the weight of a panel sub-heading rather than a title:
-   the window already said what this panel is. */
+   the window already said what this panel is. On the ladder rather than a raw 12.5px,
+   and untracked, because the ladder is what keeps it level with every other sub-heading. */
 .deskchart__headline {
     color: var(--text-primary);
-    font-size: calc(12.5px * var(--text-scale));
-    font-weight: 600;
-    letter-spacing: .01em;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
 }
 
+/* The summary is the sentence Apple's Charts page calls essential, so it reads in
+   secondary ink: tertiary is for what is unavailable or merely annotated, and at 2.70:1
+   it made the most important line under the chart the faintest one on it. */
 .deskchart__takeaway {
-    color: var(--text-tertiary);
-    font-size: calc(11px * var(--text-scale));
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
     line-height: 1.35;
 }
 
@@ -589,14 +598,29 @@
    still has to reserve its own height so the panel does not jump as data arrives. */
 .deskchart__plot { min-width: 0; }
 
-/* Mud's legend is a list of series names, which on the desk is chrome: small, tracked,
-   dim, and not competing with the lines it labels. */
+/* Mud's legend is a list of series names, which on the desk is chrome: caption size,
+   secondary ink, and not competing with the lines it labels. No tracking — the ladder
+   sets the size, and widened letters are a display habit, not a label's. */
 .deskchart .mud-chart-legend-item,
 .deskchart .mud-chart-legend {
     color: var(--text-secondary);
     font-family: var(--face-ui);
-    font-size: calc(10.5px * var(--text-scale));
-    letter-spacing: .04em;
+    font-size: var(--text-caption);
+}
+
+/* A second channel besides colour, for a chart whose lines are told apart by series and
+   not by meaning — the odds chart, one line per book. MudBlazor 9.7 has no per-series
+   dash: ChartSeries carries a name and data, and its line options override only
+   interpolation, fill and opacity per series. But it draws every series as a sibling
+   path in one group, in series order, so every second line can be dashed by position.
+   The legend item at the same position is underlined dashed, so the key still says which
+   name a dashed line is. Opt-in, because on a chart whose series mean different things
+   (healthy, warn, breached) a dash would read as a meaning nobody gave it. */
+.deskchart--alternate .mud-chart-line:nth-of-type(even) { stroke-dasharray: 6 4; }
+
+.deskchart--alternate .mud-chart-legend-item:nth-of-type(even) {
+    text-decoration: underline dashed;
+    text-underline-offset: 3px;
 }
 
 /* Ripple is Material's press feedback, and it contradicts the desk's: a button answers a

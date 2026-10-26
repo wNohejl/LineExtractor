@@ -27,12 +27,14 @@
     The label. Descriptive text is not an accessibility label — a screen reader following
     the figure lands on an SVG full of unlabelled paths. Description is required, sits on
     the plot as role="img"/aria-label, and is the one sentence somebody who cannot see the
-    lines gets instead.
+    lines gets instead. DeskChart.Describe writes it from the data — what is plotted, the
+    span of the axis, and each series with its range — so the sentence carries the bounds
+    and the names a sighted reader takes from the plot and its legend.
 
         <DeskChart Series="_series" Labels="_labels" Height="240px"
                    Family="DeskChartFamily.Movement"
                    Headline="Steelers pulled two points"
-                   Description="Price over time for each book and outcome." />
+                   Description="@DeskChart.Describe("Handicap over time", _labels, _series)" />
 *@
 
 <figure class="deskchart @Class" @attributes="Rest">
@@ -142,6 +144,67 @@
         DeskChartKind.Donut => ChartType.Donut,
         _ => ChartType.Line
     };
+
+    /// <summary>
+    /// Writes a <see cref="Description"/> in the convention above, from the data itself:
+    /// <c>"{what}. {n} series over {points} points from {first} to {last}; {name}: {min}–{max}; …"</c>.
+    ///
+    /// <para>
+    /// The range is read from the first and last labels that say something, not from
+    /// <c>labels[0]</c> and <c>labels[^1]</c> blindly: a dense time series labels every nth
+    /// tick and leaves the rest blank, so the last label is often empty, and "to" followed by
+    /// nothing is not a bound. A series with no values says so rather than reporting a range
+    /// of zero, which would be a reading nobody took.
+    /// </para>
+    /// </summary>
+    /// <param name="what">What is plotted, as a phrase: "Implied probability over time".</param>
+    /// <param name="labels">The X-axis labels, blanks and all, as passed to <see cref="Labels"/>.</param>
+    /// <param name="series">The series, as passed to <see cref="Series"/>.</param>
+    public static string Describe(string what, string[] labels, IReadOnlyList<ChartSeries<double>> series)
+    {
+        var text = new System.Text.StringBuilder(what.TrimEnd('.', ' ')).Append(". ");
+
+        text.Append(series.Count).Append(" series");
+
+        if (labels.Length > 0)
+        {
+            text.Append(" over ").Append(labels.Length).Append(labels.Length == 1 ? " point" : " points");
+
+            var first = labels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+            var last = labels.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
+            if (first is not null && last is not null && first != last)
+                text.Append(" from ").Append(first).Append(" to ").Append(last);
+            else if (first is not null)
+                text.Append(" at ").Append(first);
+        }
+
+        foreach (var s in series)
+        {
+            text.Append("; ").Append(s.Name).Append(": ");
+
+            var values = s.Data?.Values.ToList() ?? [];
+
+            if (values.Count == 0)
+            {
+                text.Append("no values");
+                continue;
+            }
+
+            var min = values.Min();
+            var max = values.Max();
+
+            text.Append(Number(min));
+
+            if (max != min)
+                text.Append('–').Append(Number(max));
+        }
+
+        return text.Append('.').ToString();
+    }
+
+    private static string Number(double value)
+        => value.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture);
 
     // Both of these are rebuilt in OnParametersSet rather than computed in the markup.
     // MudChart diffs its ChartSeries and ChartOptions by reference and redraws when either

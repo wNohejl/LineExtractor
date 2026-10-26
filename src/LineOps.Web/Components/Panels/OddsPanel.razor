@@ -49,7 +49,9 @@ else
     }
     else
     {
-        <DeskChart Series="_series" Labels="@_labels" Height="240px"
+        @* Alternate, so every second line is dashed and its legend entry underlined
+           dashed: one book's line is told from another's by more than the palette. *@
+        <DeskChart Series="_series" Labels="@_labels" Height="240px" Class="deskchart--alternate"
                    Family="DeskChartFamily.Movement"
                    Headline="@_headline"
                    Takeaway="@_takeaway"
@@ -439,10 +441,15 @@ else
     /// </summary>
     private void BuildCaption(List<OddsSnapshot> snapshots, List<DateTimeOffset> times)
     {
-        _description = _plotsHandicap
-            ? "Line chart of the handicap over time, one line per book and selection."
-            : "Line chart of implied probability over time, one line per book and selection. "
-              + "Probability rather than American price, so both sides share one continuous scale.";
+        // The books are in the series names, which are also the legend, so the sentence a
+        // screen reader hears and the key a sighted reader matches lines against name the same
+        // things — colour is not the only thing telling one book's line from another's.
+        _description = DeskChart.Describe(
+            _plotsHandicap
+                ? "Line chart of the handicap over time, one line per selection and book"
+                : "Line chart of implied probability in percent over time, one line per selection and book. "
+                  + "Probability rather than American price, so both sides share one continuous scale",
+            _labels, _series);
 
         // The axis carries bare numbers — MudBlazor keeps its Y-axis formatter behind the
         // seam — so the unit is stated here, immediately above the plot.
