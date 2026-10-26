@@ -1,5 +1,6 @@
 @using LineOps.Desk.Windowing
 @inject WindowManager Manager
+@inject IDeskAlerts Alerts
 
 @*
     One tab in the row: chrome, pulse strip, and the hosted panel.
@@ -149,5 +150,37 @@
     private void PageForward() => Manager.PageForward(Window.Id);
     private void Minimise() => Manager.ToggleMinimise(Window.Id);
     private void Maximise() => Manager.ToggleMaximise(Window.Id);
-    private void Close() => Manager.Close(Window.Id);
+
+    private bool _asking;
+
+    // A window holding unsaved input asks before it goes: the HIG's confirm-before-closing rule,
+    // and the only route by which a half-typed entry used to vanish with one click. Discard is
+    // destructive, so Return lands on Keep editing. One question at a time — a second click on
+    // the key while the alert is up does not stack another.
+    private async Task Close()
+    {
+        var id = Window.Id;
+
+        if (_asking || Manager.TryClose(id))
+            return;
+
+        _asking = true;
+
+        try
+        {
+            var discard = await Alerts.ConfirmAsync(
+                $"Discard {Window.UnsavedInputLabel ?? "unsaved changes"}?",
+                "The window has input that has not been saved.",
+                confirmLabel: "Discard",
+                cancelLabel: "Keep editing",
+                destructive: true);
+
+            if (discard)
+                Manager.Close(id);
+        }
+        finally
+        {
+            _asking = false;
+        }
+    }
 }

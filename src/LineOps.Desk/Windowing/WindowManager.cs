@@ -32,6 +32,13 @@ public class WindowManager
     /// <summary>Raised whenever anything the UI renders has changed.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Raised when a close was asked for and a window holds unsaved input, with that window. The
+    /// close did not happen; whoever asked puts the question, and calls <see cref="Close"/> or
+    /// <see cref="CloseAll"/> if the answer is Discard.
+    /// </summary>
+    public event Action<WindowInstance>? CloseNeedsConfirmation;
+
     /// <summary>Raised when something asks for the command palette — the hotkey or the header key.</summary>
     public event Action? PaletteRequested;
 
@@ -142,12 +149,19 @@ public class WindowManager
     /// </summary>
     public string? LastEviction { get; private set; }
 
+    /// <summary>
+    /// The titles behind <see cref="LastEviction"/>, so a key that offers to bring them back can
+    /// name them without reading the sentence apart. Empty when the notice is a refusal.
+    /// </summary>
+    public IReadOnlyList<string> LastEvictedTitles { get; private set; } = [];
+
     public void ClearEviction()
     {
         if (LastEviction is null)
             return;
 
         LastEviction = null;
+        LastEvictedTitles = [];
         Notify();
     }
 
@@ -196,6 +210,13 @@ public class WindowManager
     /// Eviction rather than refusal: the operator asked for this window, so they get it.
     /// The cost is that something goes away, which is why the victim is always the one they
     /// have ignored longest and why the footer names it.
+    ///
+    /// <para>
+    /// Never a window holding unsaved input: a half-typed entry is lost for good, and a form the
+    /// operator stepped away from is precisely the one least recently used. When nothing else can
+    /// go, the open is refused instead — <see cref="LastEviction"/> says why, and what comes back
+    /// is the window holding the input, focused, since that is what has to be dealt with first.
+    /// </para>
     /// </summary>
     public WindowInstance Open(
         WindowDefinition definition,
@@ -232,9 +253,19 @@ public class WindowManager
             }
         }
 
-        Remember();
-
         var title = titleOverride ?? definition.Title;
+
+        // Decided before anything closes: evicting the clean windows and then finding the rest
+        // dirty would lose them for an open that does not happen.
+        if (Blocker(headroom: 1) is { } blocker)
+        {
+            LastEviction = $"Every window holds unsaved input; save or discard one to open {title}.";
+            LastEvictedTitles = [];
+            Focus(blocker.Id);
+            return blocker;
+        }
+
+        Remember();
         EnforceCeiling(incoming: title, headroom: 1);
 
         var instance = new WindowInstance
@@ -264,7 +295,27 @@ public class WindowManager
     }
 
     /// <summary>
+    /// The window that stops <paramref name="headroom"/> slots being freed, or null when there
+    /// are enough windows without unsaved input to close. The one ignored longest, so the
+    /// operator is shown the input they have most likely forgotten.
+    /// </summary>
+    private WindowInstance? Blocker(int headroom)
+    {
+        var needed = _windows.Count + headroom - Settings.MaxConcurrentWindows;
+
+        if (needed <= 0 || _windows.Count(w => !w.HasUnsavedInput) >= needed)
+            return null;
+
+        return _windows
+            .Where(w => w.HasUnsavedInput)
+            .OrderBy(w => w.LastFocusedAt)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
     /// Closes least-recently-focused windows until <paramref name="headroom"/> slots are free.
+    /// A window holding unsaved input is passed by; when only those are left the desk stays over
+    /// its ceiling rather than lose what was typed.
     /// </summary>
     private void EnforceCeiling(string? incoming, int headroom = 0)
     {
@@ -277,9 +328,13 @@ public class WindowManager
             // left-most tab would punish whatever happened to open first, not whatever is
             // actually stale.
             var victim = _windows
+                .Where(w => !w.HasUnsavedInput)
                 .OrderByDescending(w => w.Minimised)
                 .ThenBy(w => w.LastFocusedAt)
-                .First();
+                .FirstOrDefault();
+
+            if (victim is null)
+                break;
 
             _windows.Remove(victim);
             evicted.Add(victim.Title);
@@ -292,12 +347,47 @@ public class WindowManager
             return;
 
         var closed = string.Join(", ", evicted);
+        LastEvictedTitles = evicted;
 
         LastEviction = incoming is null
             ? $"Closed {closed} — over the {Settings.MaxConcurrentWindows}-window limit."
             : $"Closed {closed} to make room for {incoming}.";
     }
 
+    /// <summary>
+    /// Closes a window unless it holds unsaved input, in which case nothing closes and
+    /// <see cref="CloseNeedsConfirmation"/> is raised with it. True when the window is gone.
+    /// The close key goes through here; <see cref="Close"/> is what the answer Discard calls.
+    /// </summary>
+    public bool TryClose(string id)
+    {
+        if (Find(id) is { HasUnsavedInput: true } window)
+        {
+            CloseNeedsConfirmation?.Invoke(window);
+            return false;
+        }
+
+        Close(id);
+        return true;
+    }
+
+    /// <summary>
+    /// Closes every window unless one holds unsaved input. One question for the lot, about the
+    /// first such window in the row, rather than one per window. True when the desk is empty.
+    /// </summary>
+    public bool TryCloseAll()
+    {
+        if (Row().FirstOrDefault(w => w.HasUnsavedInput) is { } window)
+        {
+            CloseNeedsConfirmation?.Invoke(window);
+            return false;
+        }
+
+        CloseAll();
+        return true;
+    }
+
+    /// <summary>Closes a window whatever it holds. See <see cref="TryClose"/>.</summary>
     public void Close(string id)
     {
         var window = Find(id);
@@ -315,6 +405,7 @@ public class WindowManager
         Relayout();
     }
 
+    /// <summary>Closes every window whatever they hold. See <see cref="TryCloseAll"/>.</summary>
     public void CloseAll()
     {
         if (_windows.Count > 0)
@@ -441,6 +532,26 @@ public class WindowManager
             w.Weight = w.Definition.DefaultWeight;
 
         Relayout();
+    }
+
+    /// <summary>
+    /// Lets a hosted panel say it holds input that has not been saved, and what to call it in
+    /// the question — "this journal entry". Cleared when the input is saved or emptied.
+    /// </summary>
+    public void SetUnsaved(string id, bool dirty, string? label = null)
+    {
+        var window = Find(id);
+        if (window is null)
+            return;
+
+        label = dirty ? label : null;
+
+        if (window.HasUnsavedInput == dirty && window.UnsavedInputLabel == label)
+            return;
+
+        window.HasUnsavedInput = dirty;
+        window.UnsavedInputLabel = label;
+        Notify();
     }
 
     /// <summary>Lets a hosted panel report its own state up to its window chrome.</summary>
@@ -1043,6 +1154,11 @@ public class WindowManager
 
         window.TitleOverride = page.TitleOverride;
         window.PageVersion++;
+
+        // The next page is a new component; whatever the last one held went with it, and a flag
+        // left behind would guard nothing while keeping the window from ever being evicted.
+        window.HasUnsavedInput = false;
+        window.UnsavedInputLabel = null;
         window.Minimised = false;
         window.LastFocusedAt = DateTimeOffset.UtcNow;
         FocusedId = window.Id;

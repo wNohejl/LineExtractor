@@ -22,7 +22,9 @@ public class DeskSettings
 {
     /// <summary>
     /// How many windows may be open at once. Reaching it does not refuse the next window —
-    /// the least recently used one is closed to make room, and the footer says which.
+    /// the least recently used one is closed to make room, and the footer says which. A window
+    /// holding unsaved input is never the one closed; only when every window holds some is the
+    /// next one refused.
     /// </summary>
     public int MaxConcurrentWindows { get; set; } = 4;
 
@@ -50,7 +52,9 @@ public class DeskSettings
     /// <summary>Type only, as a multiplier. The layout keeps its geometry and the words grow inside it.</summary>
     public double TextScale { get; set; } = 1;
 
-    public const double MinUiScale = 0.8;
+    // 90%, not 80%: under 90% the caption rung falls below 10px, the macOS floor, so the Window
+    // manager no longer offers 80% and a stored 80% is lifted to the floor on restore.
+    public const double MinUiScale = 0.9;
     public const double MaxUiScale = 1.5;
     public const double MinTextScale = 0.9;
     public const double MaxTextScale = 1.4;
@@ -238,6 +242,20 @@ public class WindowInstance
 
     /// <summary>Short status text on the title bar, e.g. "9m fresh" or "2 open".</summary>
     public string? StatusText { get; set; }
+
+    /// <summary>
+    /// The panel holds input that has not been saved — a half-typed entry. Its close key asks
+    /// before discarding it, and eviction passes it by: a form the operator stepped away from to
+    /// look something up is exactly the window least recently used. Set by the panel through
+    /// <see cref="WindowManager.SetUnsaved"/>, nothing else.
+    /// </summary>
+    public bool HasUnsavedInput { get; internal set; }
+
+    /// <summary>
+    /// What would be lost, as the object of "Discard …?" — "this journal entry". Null asks about
+    /// "unsaved changes".
+    /// </summary>
+    public string? UnsavedInputLabel { get; internal set; }
 
     /// <summary>
     /// Drives least-recently-used eviction. Set on open and on every focus, so the window

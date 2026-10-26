@@ -173,6 +173,18 @@ public abstract class PanelBase : ComponentBase, IDisposable
     }
 
     /// <summary>
+    /// Says whether the panel holds input that has not been saved, and what to call it —
+    /// "this journal entry". While it does, its window's close key asks before discarding it and
+    /// eviction passes the window by. Call it as the input changes, and with false once it is
+    /// saved or cleared. No-op when hosted outside a window.
+    /// </summary>
+    protected void MarkUnsaved(bool dirty, string? label = null)
+    {
+        if (WindowId is not null)
+            Manager.SetUnsaved(WindowId, dirty, label);
+    }
+
+    /// <summary>
     /// Runs a load with the pulse showing activity, then settles it on the outcome.
     /// Wrapping it here means every panel reports progress the same way rather than each
     /// remembering to.
