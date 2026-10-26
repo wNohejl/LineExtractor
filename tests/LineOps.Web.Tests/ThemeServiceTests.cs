@@ -25,11 +25,19 @@ public class ThemeServiceTests : TestContext
     /// </summary>
     private BunitJSModuleInterop _module = default!;
 
-    private ThemeService Arrange(string? stored, bool prefersDark, string? storedFamily = null)
+    private ThemeService Arrange(
+        string? stored,
+        bool prefersDark,
+        string? storedFamily = null,
+        bool moreContrast = false,
+        bool reducedTransparency = false)
     {
         _module = JSInterop.SetupModule("./_content/LineOps.Desk/js/theme.js");
 
         _module.Setup<bool>("prefersDark").SetResult(prefersDark);
+        _module.Setup<bool>("prefersMoreContrast").SetResult(moreContrast);
+        _module.Setup<bool>("prefersReducedTransparency").SetResult(reducedTransparency);
+        _module.SetupVoid("applyTransparency", _ => true).SetVoidResult();
         _module.Setup<string?>("read").SetResult(stored);
         _module.Setup<string?>("readFamily").SetResult(storedFamily);
         _module.SetupVoid("store", _ => true).SetVoidResult();
@@ -328,6 +336,107 @@ public class ThemeServiceTests : TestContext
         Assert.Equal(
             new MudBlazor.Utilities.MudColor(DeskPalettes.NordDark.Accent).Value,
             service.MudTheme.PaletteDark.Primary.Value);
+    }
+
+    // ---- The machine's accessibility settings -------------------------------------
+
+    /// <summary>
+    /// Increase Contrast is the operator saying, once, for every app, that they need more than
+    /// AA. A desk that has never been told which family to wear takes the contrast one while the
+    /// setting is on, the same way System takes dark or light, and gives it back when it goes off.
+    /// </summary>
+    [Fact]
+    public async Task More_contrast_switches_an_unpinned_family_to_contrast()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, moreContrast: true);
+
+        await service.InitializeAsync();
+
+        Assert.Equal("contrast-dark", LastPaint());
+        Assert.Equal(DeskThemeFamily.HighContrast, service.ShowingFamily);
+        Assert.Same(DeskPalettes.ContrastDark, service.Palette);
+
+        // The choice is still unmade: the setting is the operator's, the outcome is the machine's.
+        Assert.Equal(DeskThemeFamily.Standard, service.Family);
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: false, reducedTransparency: false);
+
+        Assert.Equal(DarkAttribute, LastPaint());
+    }
+
+    [Fact]
+    public async Task More_contrast_turning_on_later_repaints_and_announces()
+    {
+        var service = Arrange(stored: null, prefersDark: false);
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.OnSystemPreferenceChanged(prefersDark: false, moreContrast: true, reducedTransparency: false);
+
+        Assert.Equal("contrast-light", LastPaint());
+        Assert.Equal(1, announced);
+    }
+
+    /// <summary>Someone who chose Nord chose it, and the machine does not get to take it back.</summary>
+    [Fact]
+    public async Task An_explicit_family_is_kept_under_more_contrast()
+    {
+        var service = Arrange(stored: "Light", prefersDark: false, storedFamily: "Nord", moreContrast: true);
+
+        await service.InitializeAsync();
+
+        Assert.Equal("nord-light", LastPaint());
+        Assert.Equal(DeskThemeFamily.Nord, service.ShowingFamily);
+    }
+
+    /// <summary>
+    /// Including Standard, chosen on purpose while the setting is on. The family it was merely
+    /// defaulting from has to be choosable, so picking it is a choice and not a no-op.
+    /// </summary>
+    [Fact]
+    public async Task Choosing_Standard_under_more_contrast_pins_it()
+    {
+        var service = Arrange(stored: "Light", prefersDark: false, moreContrast: true);
+        await service.InitializeAsync();
+        Assert.Equal("contrast-light", LastPaint());
+
+        await service.SetFamilyAsync(DeskThemeFamily.Standard);
+
+        Assert.Contains("Standard", Calls("storeFamily"));
+        Assert.Equal(LightAttribute, LastPaint());
+    }
+
+    /// <summary>
+    /// Reduce Transparency is stamped as an attribute rather than resolved into a family: it
+    /// changes what the materials are made of, not which palette they are in, and the stylesheet
+    /// answers it. The browser is told on start and again whenever the setting moves.
+    /// </summary>
+    [Fact]
+    public async Task Reduced_transparency_is_stamped_on_start_and_when_it_moves()
+    {
+        var service = Arrange(stored: null, prefersDark: true, reducedTransparency: true);
+        await service.InitializeAsync();
+
+        Assert.True((bool)_module.Invocations["applyTransparency"].Last().Arguments[0]!);
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: false, reducedTransparency: false);
+
+        Assert.False((bool)_module.Invocations["applyTransparency"].Last().Arguments[0]!);
+        Assert.Equal(DarkAttribute, LastPaint());
+    }
+
+    /// <summary>The one-bool overload means "only the appearance moved"; it does not switch the other two off.</summary>
+    [Fact]
+    public async Task The_appearance_only_overload_keeps_the_contrast_setting()
+    {
+        var service = Arrange(stored: null, prefersDark: false, moreContrast: true);
+        await service.InitializeAsync();
+
+        await service.OnSystemPreferenceChanged(prefersDark: true);
+
+        Assert.Equal("contrast-dark", LastPaint());
     }
 
     [Fact]

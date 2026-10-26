@@ -42,6 +42,24 @@ public sealed class ThemeService : IAsyncDisposable
     /// </summary>
     private bool _systemPrefersDark = true;
 
+    /// <summary>
+    /// The machine's Increase Contrast setting (<c>prefers-contrast: more</c>). Kept current by
+    /// the same listener; it decides the family only while the operator has not chosen one.
+    /// </summary>
+    private bool _systemPrefersMoreContrast;
+
+    /// <summary>
+    /// The machine's Reduce Transparency setting. It does not pick a palette; it is stamped as
+    /// <c>data-reduced-transparency</c> and the stylesheet makes every material opaque under it.
+    /// </summary>
+    private bool _systemReducedTransparency;
+
+    /// <summary>
+    /// Whether <see cref="Family"/> is a choice or only the default. A readable stored family
+    /// is a choice, and so is any pick from the picker — Standard included.
+    /// </summary>
+    private bool _familyChosen;
+
     public ThemeService(IJSRuntime js) => _js = js;
 
     /// <summary>The operator's choice — the setting, not the outcome.</summary>
@@ -61,14 +79,23 @@ public sealed class ThemeService : IAsyncDisposable
     /// <summary>The operator's palette. Standard until they choose, and after anything unreadable.</summary>
     public DeskThemeFamily Family { get; private set; } = DeskThemeFamily.Standard;
 
+    /// <summary>
+    /// The palette showing — the family resolved against the machine, as <see cref="IsDark"/> is
+    /// the mode resolved against it. Under Increase Contrast a desk that was never told which
+    /// family to wear wears the contrast one, the way System wears dark at night; a family the
+    /// operator chose is theirs, and the machine does not overrule it.
+    /// </summary>
+    public DeskThemeFamily ShowingFamily
+        => !_familyChosen && _systemPrefersMoreContrast ? DeskThemeFamily.HighContrast : Family;
+
     /// <summary>The value on <c>&lt;html&gt;</c>, and the selector of the token block that is showing.</summary>
-    public string Attribute => DeskThemeFamilies.Attribute(Family, IsDark);
+    public string Attribute => DeskThemeFamilies.Attribute(ShowingFamily, IsDark);
 
     /// <summary>The showing desk's colours, for the charts, which cannot read a token block.</summary>
-    public DeskPalette Palette => DeskThemeFamilies.Palette(Family, IsDark);
+    public DeskPalette Palette => DeskThemeFamilies.Palette(ShowingFamily, IsDark);
 
     /// <summary>The family's theme for <c>MudThemeProvider</c>; <see cref="IsDark"/> picks the palette inside it.</summary>
-    public MudBlazor.MudTheme MudTheme => DeskTheme.For(Family);
+    public MudBlazor.MudTheme MudTheme => DeskTheme.For(ShowingFamily);
 
     /// <summary>
     /// Raised whenever the showing desk may have moved — its family or its appearance. The
@@ -95,6 +122,8 @@ public sealed class ThemeService : IAsyncDisposable
         var module = await ModuleAsync();
 
         _systemPrefersDark = await module.InvokeAsync<bool>("prefersDark");
+        _systemPrefersMoreContrast = await module.InvokeAsync<bool>("prefersMoreContrast");
+        _systemReducedTransparency = await module.InvokeAsync<bool>("prefersReducedTransparency");
 
         var stored = await module.InvokeAsync<string?>("read");
 
@@ -109,12 +138,16 @@ public sealed class ThemeService : IAsyncDisposable
         if (Enum.TryParse<DeskThemeFamily>(storedFamily, ignoreCase: true, out var family)
             && Enum.IsDefined(family)
             && !int.TryParse(storedFamily, out _))
+        {
             Family = family;
+            _familyChosen = true;
+        }
 
         _self ??= DotNetObjectReference.Create(this);
         await module.InvokeVoidAsync("watch", _self);
 
         await PaintAsync();
+        await module.InvokeVoidAsync("applyTransparency", _systemReducedTransparency);
         await NotifyAsync();
     }
 
@@ -133,13 +166,17 @@ public sealed class ThemeService : IAsyncDisposable
         await NotifyAsync();
     }
 
-    /// <summary>Records a new family, persists it, and repaints. A no-op if nothing moved.</summary>
+    /// <summary>
+    /// Records a new family, persists it, and repaints. A no-op if nothing moved — but picking
+    /// Standard while it is only the default is a move: it pins Standard against Increase Contrast.
+    /// </summary>
     public async Task SetFamilyAsync(DeskThemeFamily family)
     {
-        if (family == Family)
+        if (family == Family && _familyChosen)
             return;
 
         Family = family;
+        _familyChosen = true;
 
         var module = await ModuleAsync();
         await module.InvokeVoidAsync("storeFamily", family.ToString());
@@ -156,21 +193,38 @@ public sealed class ThemeService : IAsyncDisposable
     /// <see cref="DeskThemeMode.System"/>: an operator sitting on <see cref="DeskThemeMode.Light"/>
     /// whose machine goes dark and who then switches back to System must land on dark, and
     /// they will not if this method took an early exit and left the flag stale.
+    /// <para>
+    /// The same rule holds for Increase Contrast and Reduce Transparency: theme.js reports all
+    /// three whenever any one moves, every one is recorded, and the desk is repainted only if
+    /// what is showing actually changed.
+    /// </para>
     /// </remarks>
     [JSInvokable]
-    public async Task OnSystemPreferenceChanged(bool prefersDark)
+    public async Task OnSystemPreferenceChanged(bool prefersDark, bool moreContrast, bool reducedTransparency)
     {
-        if (prefersDark == _systemPrefersDark)
-            return;
+        var showing = Attribute;
+        var transparencyMoved = reducedTransparency != _systemReducedTransparency;
 
         _systemPrefersDark = prefersDark;
+        _systemPrefersMoreContrast = moreContrast;
+        _systemReducedTransparency = reducedTransparency;
 
-        if (Mode != DeskThemeMode.System)
+        if (transparencyMoved)
+        {
+            var module = await ModuleAsync();
+            await module.InvokeVoidAsync("applyTransparency", reducedTransparency);
+        }
+
+        if (Attribute == showing)
             return;
 
         await PaintAsync();
         await NotifyAsync();
     }
+
+    /// <summary>Only the appearance moved; the contrast and transparency settings stand as they were.</summary>
+    public Task OnSystemPreferenceChanged(bool prefersDark)
+        => OnSystemPreferenceChanged(prefersDark, _systemPrefersMoreContrast, _systemReducedTransparency);
 
     private async Task PaintAsync()
     {

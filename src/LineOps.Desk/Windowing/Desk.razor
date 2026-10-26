@@ -215,6 +215,88 @@
     [JSInvokable]
     public void OnPaletteRequested() => Manager.RequestPalette();
 
+    /// <summary>Ctrl+, or ⌘, — the platform's settings chord, from anywhere. See windowing.js.</summary>
+    [JSInvokable]
+    public void OnSettingsRequested() => OpenSettings(Manager);
+
+    /// <summary>
+    /// Ctrl+Z or ⌘Z outside a field. Through the browser's history rather than straight to
+    /// <see cref="WindowManager.Back"/>, so the chord, the header's Back, the browser's own and
+    /// Alt+Left all walk one list: a step taken behind the browser's back would leave its entry
+    /// standing, and the next Back pressed anywhere would land on it and do nothing.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnUndoRequested()
+    {
+        if (Manager.CanGoBack)
+            await JS.InvokeVoidAsync("history.back");
+    }
+
+    /// <summary>⇧⌘Z, Ctrl+Shift+Z or Ctrl+Y outside a field; the same road as undo, the other way.</summary>
+    [JSInvokable]
+    public async Task OnRedoRequested()
+    {
+        if (Manager.CanGoForward)
+            await JS.InvokeVoidAsync("history.forward");
+    }
+
+    /// <summary>
+    /// Ctrl+Alt+← or → outside a field: the keyboard's tab drag. Without it the row's order was
+    /// pointer-only. See <see cref="MoveFocused"/>.
+    /// </summary>
+    [JSInvokable]
+    public void OnMoveWindowRequested(int delta) => MoveFocused(Manager, delta);
+
+    /// <summary>
+    /// The catalogue key of the desk's settings window — the Window manager. The desk names it
+    /// rather than the application because Ctrl+, is the desk's chord; a catalogue without an
+    /// entry under it simply has no settings to open, and the chord does nothing.
+    /// </summary>
+    public const string SettingsKey = "desk";
+
+    /// <summary>Opens the Window manager, or focuses it if it is already on the desk.</summary>
+    public static void OpenSettings(WindowManager manager)
+    {
+        if (manager.Catalog.Find(SettingsKey) is { } settings)
+            manager.Open(settings);
+    }
+
+    /// <summary>
+    /// Shifts the focused window one place along the row. Nothing focused, or already at that
+    /// end, is a key that does nothing — and leaves the row untouched rather than reordering it
+    /// into the order it already had.
+    /// </summary>
+    public static void MoveFocused(WindowManager manager, int delta)
+    {
+        if (manager.FocusedId is not { } id)
+            return;
+
+        var order = manager.Windows.OrderBy(w => w.Sequence).Select(w => w.Id).ToList();
+        var shifted = Shifted(order, id, delta);
+
+        if (!shifted.SequenceEqual(order))
+            manager.Reorder(shifted);
+    }
+
+    /// <summary>
+    /// <paramref name="order"/> with <paramref name="id"/> moved <paramref name="delta"/> places,
+    /// clamped to the row: at either end, or for an id not in it, the same order comes back. The
+    /// row does not wrap, because the end of a list on the platform is a stop, not a door.
+    /// </summary>
+    public static IReadOnlyList<string> Shifted(IReadOnlyList<string> order, string id, int delta)
+    {
+        var from = order.ToList().IndexOf(id);
+        var to = from + delta;
+
+        if (from < 0 || delta == 0 || to < 0 || to >= order.Count)
+            return order;
+
+        var moved = order.ToList();
+        moved.RemoveAt(from);
+        moved.Insert(to, id);
+        return moved;
+    }
+
     /// <summary>The browser's Back or Forward landed on a desk entry. See windowing.js.</summary>
     [JSInvokable]
     public void OnHistoryTraversed(int depth) => Manager.TraverseTo(depth);

@@ -15,18 +15,65 @@ let dotNet = null;
 export function initialise(dotNetRef) {
     dotNet = dotNetRef;
     window.addEventListener('resize', reportViewport, { passive: true });
-    window.addEventListener('keydown', paletteHotkey);
+    window.removeEventListener('keydown', deskHotkeys);
+    window.addEventListener('keydown', deskHotkeys);
     reportViewport();
 }
 
-// Ctrl+K, or Cmd+K on a Mac, opens the command palette from anywhere — including from inside a
-// field, which is where a hand already on the keyboard usually is. The browser's own use of the
-// chord (focus the address bar's search) is the one given up for it.
-function paletteHotkey(e) {
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        dotNet?.invokeMethodAsync('OnPaletteRequested');
+// The desk's chords, in one handler. This file only recognises them; what each one does — which
+// window moves, what opens, whether there is anything to undo — is decided in Desk.razor, where
+// a test can reach it.
+//
+//   Ctrl/Cmd+K             command palette   (anywhere, fields included)
+//   Ctrl/Cmd+,             settings          (anywhere, fields included)
+//   Ctrl/Cmd+Z             undo              (not in a field)
+//   Ctrl/Cmd+Shift+Z, Ctrl+Y  redo           (not in a field)
+//   Ctrl+Alt+Left/Right    move the focused window one place (not in a field)
+//
+// The palette and settings work from inside a field because that is where a hand already on the
+// keyboard usually is, and neither chord means anything to a field. Undo and the arrows do — a
+// field's own undo, a word-jump — so in a field they are left to it, unprevented. The browser's
+// own uses of Ctrl+K (address-bar search) and Ctrl+, (nothing, in most) are the ones given up.
+function deskHotkeys(e) {
+    if (e.defaultPrevented || !dotNet) return;
+
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+    if (!e.altKey && !e.shiftKey && key === 'k') {
+        return send(e, 'OnPaletteRequested');
     }
+
+    if (!e.altKey && !e.shiftKey && key === ',') {
+        return send(e, 'OnSettingsRequested');
+    }
+
+    if (inField(e.target)) return;
+
+    if (!e.altKey && !e.shiftKey && key === 'z') {
+        return send(e, 'OnUndoRequested');
+    }
+
+    if (!e.altKey && ((e.shiftKey && key === 'z') || (e.ctrlKey && !e.shiftKey && key === 'y'))) {
+        return send(e, 'OnRedoRequested');
+    }
+
+    if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey
+        && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+        return send(e, 'OnMoveWindowRequested', key === 'ArrowLeft' ? -1 : 1);
+    }
+}
+
+function send(e, method, ...args) {
+    e.preventDefault();
+    dotNet.invokeMethodAsync(method, ...args);
+}
+
+function inField(target) {
+    return target instanceof Element
+        && (target.isContentEditable || target.closest('input, textarea, select') !== null);
 }
 
 // The desk is laid out in layout pixels, and under the UI scale (CSS zoom on <html>) that is not

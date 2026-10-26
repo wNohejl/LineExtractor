@@ -21,10 +21,11 @@
             <span>@eviction</span>
             @if (Manager.CanGoBack)
             {
-                @* Back undoes the open that caused this, so the closed window returns where it was. *@
-                <button class="ftr__undo" type="button" title="Bring it back (Alt+Left)"
+                @* Back undoes the open that caused this, so the closed window returns where it was.
+                   The key says which window that is: "Undo" alone left the operator to guess. *@
+                <button class="ftr__undo" type="button" title="Ctrl+Z" aria-keyshortcuts="Control+Z Meta+Z"
                         @onclick="Undo">
-                    Undo
+                    @UndoLabel(Manager.LastEvictedTitles)
                 </button>
             }
             <button class="ftr__dismiss" type="button" aria-label="Dismiss"
@@ -72,7 +73,28 @@
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    private async Task Undo() => await JS.InvokeVoidAsync("history.back");
+    /// <summary>
+    /// Through the browser's history, like Ctrl+Z and the header's Back, so all of them walk one
+    /// list (see Desk.OnUndoRequested). The step back puts the evicted window in place and clears
+    /// the notice itself; there is nothing to clear here if there was no step to take.
+    /// </summary>
+    private async Task Undo()
+    {
+        if (Manager.CanGoBack)
+            await JS.InvokeVoidAsync("history.back");
+    }
+
+    /// <summary>
+    /// The key's label: "Reopen Journal" for one window, "Reopen 2 windows" for several. The
+    /// manager keeps the titles beside its sentence (<see cref="WindowManager.LastEvictedTitles"/>),
+    /// so the key names what it brings back rather than offering a bare "Undo" to decode.
+    /// </summary>
+    public static string UndoLabel(IReadOnlyList<string> titles) => titles.Count switch
+    {
+        0 => "Undo",
+        1 => $"Reopen {titles[0]}",
+        _ => $"Reopen {titles.Count} windows"
+    };
 
     private void OnLiveChanged(bool _) => InvokeAsync(StateHasChanged);
 

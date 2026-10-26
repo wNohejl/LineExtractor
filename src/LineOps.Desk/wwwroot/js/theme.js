@@ -1,10 +1,11 @@
 // The desk's theme, on the browser side.
 //
 // Three jobs, and only three: read and write the operator's choices in localStorage,
-// stamp the resolved theme onto <html> so the token block switches, and report what
-// prefers-color-scheme currently says. Everything about *which* theme should be
-// showing is decided in ThemeService; this file holds no policy, because a policy
-// living in two languages is a policy that disagrees with itself.
+// stamp the resolved theme (and Reduce Transparency) onto <html> so the stylesheet switches,
+// and report what the machine's appearance, contrast and transparency settings currently say.
+// Everything about *which* theme should be showing is decided in ThemeService; this file
+// holds no policy, because a policy living in two languages is a policy that disagrees with
+// itself.
 
 const KEY = 'lineops.theme';
 
@@ -54,6 +55,20 @@ export function prefersDark() {
         : true;
 }
 
+// Increase Contrast and Reduce Transparency, read the same way. What either one *means* for the
+// desk — the contrast family, opaque materials — is ThemeService's to decide, not this file's.
+export function prefersMoreContrast() {
+    return window.matchMedia
+        ? window.matchMedia('(prefers-contrast: more)').matches
+        : false;
+}
+
+export function prefersReducedTransparency() {
+    return window.matchMedia
+        ? window.matchMedia('(prefers-reduced-transparency: reduce)').matches
+        : false;
+}
+
 // The whole switch, in one attribute: "<family>-<dark|light>", which names exactly one
 // token block in lineops.css or themes.css. Every block weighs (0,1,0) and each is written
 // after :root, so stamping any of them hands the entire desk over; "apple-dark" is set
@@ -63,10 +78,28 @@ export function apply(theme) {
     document.documentElement.setAttribute('data-theme', theme);
 }
 
-// Watch the machine's own preference so System mode keeps meaning "system" rather
-// than "whatever system said when the circuit opened". The listener is kept on the
-// module so a reconnect can replace it instead of stacking a second one.
-let query = null;
+// Reduce Transparency, as an attribute the stylesheet answers. Removed rather than set to
+// "false" when it is off, so a selector on the attribute alone is enough.
+export function applyTransparency(reduced) {
+    if (reduced) {
+        document.documentElement.setAttribute('data-reduced-transparency', 'true');
+    } else {
+        document.documentElement.removeAttribute('data-reduced-transparency');
+    }
+}
+
+// Watch the machine's own preferences so System mode keeps meaning "system" rather
+// than "whatever system said when the circuit opened". Three queries, one report: whichever
+// moved, .NET hears all three as they stand now, so it never has to remember which half of a
+// pair it was last told. The listener is kept on the module so a reconnect can replace it
+// instead of stacking a second one.
+const QUERIES = [
+    '(prefers-color-scheme: dark)',
+    '(prefers-contrast: more)',
+    '(prefers-reduced-transparency: reduce)'
+];
+
+let queries = [];
 let listener = null;
 
 export function watch(dotNetRef) {
@@ -76,29 +109,37 @@ export function watch(dotNetRef) {
         return;
     }
 
-    query = window.matchMedia('(prefers-color-scheme: dark)');
-    listener = e => dotNetRef.invokeMethodAsync('OnSystemPreferenceChanged', e.matches);
+    queries = QUERIES.map(q => window.matchMedia(q));
+    listener = () => dotNetRef.invokeMethodAsync(
+        'OnSystemPreferenceChanged',
+        queries[0].matches,
+        queries[1].matches,
+        queries[2].matches);
 
     // addEventListener over the deprecated addListener, with a fallback because
     // older WebKit only has the latter and would otherwise silently never fire.
-    if (query.addEventListener) {
-        query.addEventListener('change', listener);
-    } else {
-        query.addListener(listener);
+    for (const query of queries) {
+        if (query.addEventListener) {
+            query.addEventListener('change', listener);
+        } else {
+            query.addListener(listener);
+        }
     }
 }
 
 export function unwatch() {
-    if (!query || !listener) {
+    if (!listener) {
         return;
     }
 
-    if (query.removeEventListener) {
-        query.removeEventListener('change', listener);
-    } else {
-        query.removeListener(listener);
+    for (const query of queries) {
+        if (query.removeEventListener) {
+            query.removeEventListener('change', listener);
+        } else {
+            query.removeListener(listener);
+        }
     }
 
-    query = null;
+    queries = [];
     listener = null;
 }

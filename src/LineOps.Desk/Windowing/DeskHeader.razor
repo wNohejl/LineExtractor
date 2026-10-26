@@ -3,6 +3,7 @@
 @inject WindowManager Manager
 @inject DeskBrand Brand
 @inject IJSRuntime JS
+@inject IDeskAlerts Alerts
 
 @*
     Fixed header: identity, the windows, and the desk's own controls.
@@ -67,6 +68,14 @@
                     </button>
                 }
             }
+
+            @* Where a Mac app keeps Settings… — under its name — with the chord beside it. *@
+            <div class="launcher__group">Desk</div>
+            <button class="launcher__item" type="button" role="menuitem"
+                    aria-keyshortcuts="Control+Comma Meta+Comma" @onclick="OpenSettings">
+                <Glyph Icon="@Icons.Material.Filled.Tune" />
+                <span>Settings…<span class="launcher__desc">Ctrl+,</span></span>
+            </button>
 
             <div class="launcher__group">Clear</div>
             <button class="launcher__item" type="button" role="menuitem" @onclick="CloseAll">
@@ -164,9 +173,31 @@
 
     private async Task GoForward() => await JS.InvokeVoidAsync("history.forward");
 
-    private void CloseAll()
+    private void OpenSettings()
     {
-        Manager.CloseAll();
+        Desk.OpenSettings(Manager);
         _workspaces?.Close();
+    }
+
+    /// <summary>
+    /// Close all goes through the same question the close key asks: a window holding unsaved
+    /// input stops the lot, once, and only Discard empties the desk.
+    /// </summary>
+    private async Task CloseAll()
+    {
+        _workspaces?.Close();
+
+        if (Manager.TryCloseAll())
+            return;
+
+        var discard = await Alerts.ConfirmAsync(
+            "Discard unsaved changes and close every window?",
+            "A window has input that has not been saved.",
+            confirmLabel: "Discard",
+            cancelLabel: "Keep editing",
+            destructive: true);
+
+        if (discard)
+            Manager.CloseAll();
     }
 }
