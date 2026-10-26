@@ -1,0 +1,52 @@
+/* One fighter (ADR 0021): grouped lists — label leading, value trailing, inset hairlines. */
+
+.fighter { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+.fighter__group { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+
+.fighter__title {
+    margin: 0 0 0 var(--space-3);
+    font-size: var(--text-footnote);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.fighter__list { background: var(--surface-2); border-radius: var(--radius); overflow: hidden; }
+
+.fighter__row {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 28px;
+    align-items: center;
+    padding: 4px var(--space-3);
+    font-size: var(--text-body);
+}
+
+.fighter__row + .fighter__row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--space-3);
+    right: 0;
+    height: 1px;
+    background: var(--separator);
+}
+
+.fighter__label { color: var(--text-secondary); }
+.fighter__value { color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }
+
+.fighter__footer { margin: 0 var(--space-3); font-size: var(--text-footnote); color: var(--text-secondary); }
+
+.fighter__sheet {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr) 56px);
+    column-gap: var(--space-3);
+    row-gap: 2px;
+    margin-top: var(--space-2);
+    font-size: var(--text-footnote);
+}
+
+.fighter__sheet-label { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fighter__sheet-value { color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }

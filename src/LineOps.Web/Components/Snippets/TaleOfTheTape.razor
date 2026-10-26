@@ -1,0 +1,182 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Core.Contracts
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    Two fighters side by side (ADR 0021): the red corner on the left, the blue on the right, what
+    each row measures between them.
+
+    A grouped list, not a table of boxes: each group is one fill with inset hairlines between its
+    rows, its name leading above it in secondary ink. The reading that leans — more reach, a
+    higher landing rate — is the one at full weight; the other drops to secondary. That is a
+    reading of the number, not a pick: nothing here is coloured as a recommendation.
+
+    Compact is the Board's Form snippet: the record, the frame and the last five, the rest one
+    window away.
+*@
+
+@if (_tape is null)
+{
+    @if (_missing)
+    {
+        <Note State="DeskState.Warning" Style="margin:0">This game is not a fight on the desk.</Note>
+    }
+    else
+    {
+        <DeskSkeleton Lines="4" />
+    }
+}
+else
+{
+    var tape = _tape;
+
+    <div class="tape@(Compact ? " tape--compact" : "")">
+        <div class="tape__corners">
+            @Corner(tape.Home, "red")
+            <span class="tape__vs" aria-hidden="true">vs</span>
+            @Corner(tape.Away, "blue")
+        </div>
+
+        @if (tape.Home.Profile is null || tape.Away.Profile is null)
+        {
+            <p class="tape__footer">
+                @(tape.Home.Profile is null && tape.Away.Profile is null ? "Neither fighter has" : $"{(tape.Home.Profile is null ? tape.Home.Team.Name : tape.Away.Team.Name)} has")
+                no profile yet — Pull data → Fighter profiles owed reads it from ESPN.
+            </p>
+        }
+
+        @Group("The frame", Compact ? tape.Physical.Where(r => r.Label is "Record" or "Age" or "Reach" or "Stance").ToList() : tape.Physical)
+
+        @if (Compact)
+        {
+            @Group("Form", tape.PerFight.Where(r => r.Label is "Last five" or "Finish rate").ToList())
+        }
+        else
+        {
+            @Group("Career, as ESPN rates it", tape.Career, "Rates over the whole career to date, not only the fights before this one.")
+            @Group("A fight, on average", tape.PerFight, "Averaged over the fights ESPN kept a stat sheet for — the UFC ones, in practice.")
+
+            @if (tape.Common.Count > 0)
+            {
+                <section class="tape__group" aria-label="Common opponents">
+                    <h4 class="tape__title">Common opponents</h4>
+                    <div class="tape__list">
+                        @foreach (var common in tape.Common)
+                        {
+                            <div class="tape__row">
+                                <span class="tape__value">@Results(common.Home)</span>
+                                <span class="tape__label">@common.Opponent</span>
+                                <span class="tape__value tape__value--blue">@Results(common.Away)</span>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
+            <div class="tape__recent">
+                @Recent(tape.Home)
+                @Recent(tape.Away)
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>The Board's snippet: the frame and the form only.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    /// <summary>A fighter's name was pressed; carries their team id.</summary>
+    [Parameter] public EventCallback<(int TeamId, string Name)> OnFighter { get; set; }
+
+    private FightTape? _tape;
+    private bool _missing;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        _tape = await scope.ServiceProvider.GetRequiredService<FightService>().TapeAsync(GameId);
+        _missing = _tape is null;
+    }
+
+    private RenderFragment Corner(FighterCard card, string corner) => @<div class="tape__corner tape__corner--@corner">
+        <span class="tape__corner-name">
+            @if (OnFighter.HasDelegate)
+            {
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Person"
+                          OnClick="() => OnFighter.InvokeAsync((card.Team.Id, card.Team.Name))">@card.Team.Name</DeskLink>
+            }
+            else
+            {
+                @card.Team.Name
+            }
+        </span>
+        <span class="tape__corner-detail">
+            @(card.Profile?.Nickname is { } nick ? $"“{nick}” · " : "")@(corner == "red" ? "Red corner" : "Blue corner")
+        </span>
+    </div>;
+
+    private RenderFragment Group(string title, IReadOnlyList<TapeRow> rows, string? footer = null) => __builder =>
+    {
+        if (rows.Count == 0)
+            return;
+
+        <section class="tape__group" aria-label="@title">
+            <h4 class="tape__title">@title</h4>
+            <div class="tape__list">
+                @foreach (var row in rows)
+                {
+                    <div class="tape__row">
+                        <span class="@ValueClass(row.Lean, blue: false)">@(row.Home ?? "—")</span>
+                        <span class="tape__label">@row.Label</span>
+                        <span class="@ValueClass(row.Lean, blue: true)">@(row.Away ?? "—")</span>
+                    </div>
+                }
+            </div>
+            @if (footer is not null)
+            {
+                <p class="tape__footer">@footer</p>
+            }
+        </section>
+    };
+
+    /// <summary>The reading that leans is full weight; the other, secondary.</summary>
+    private static string ValueClass(int lean, bool blue)
+    {
+        var mine = blue ? -lean : lean;
+        return "tape__value" + (blue ? " tape__value--blue" : "") + (mine > 0 ? " tape__value--ahead" : mine < 0 ? " tape__value--behind" : "");
+    }
+
+    private static string Results(IReadOnlyList<FighterFight> fights)
+        => string.Join(", ", fights.Select(f => $"{f.Result ?? "?"}{(f.Method is { } m ? $" {Short(m)}" : "")}"));
+
+    private static string Short(string method)
+        => method.Contains("KO", StringComparison.OrdinalIgnoreCase) ? "KO/TKO"
+            : method.Contains("Sub", StringComparison.OrdinalIgnoreCase) ? "Sub"
+            : method.Contains("Decision", StringComparison.OrdinalIgnoreCase) ? "Dec"
+            : method;
+
+    private RenderFragment Recent(FighterCard card) => @<section class="tape__group" aria-label="@($"{card.Team.Name}'s recent fights")">
+        <h4 class="tape__title">@card.Team.Name — last @Math.Min(FightService.RecentFights, card.History.Count)</h4>
+        @if (card.History.Count == 0)
+        {
+            <p class="tape__footer">No fights on record.</p>
+        }
+        else
+        {
+            <div class="tape__list">
+                @foreach (var fight in card.History.Take(FightService.RecentFights))
+                {
+                    <div class="tape__fight">
+                        <ResultTag Result="@(fight.Result switch { "W" => ResultKind.Win, "L" => ResultKind.Loss, "D" => ResultKind.Tie, _ => ResultKind.Push })">@(fight.Result ?? "—")</ResultTag>
+                        <span class="tape__fight-opp trunc" title="@fight.Event">@fight.Opponent</span>
+                        <span class="tape__fight-how">@(fight.Method is { } m ? Short(m) : "")@(fight.Round is { } r ? $" R{r} {fight.Clock}" : "")</span>
+                        <span class="tape__fight-date">@fight.Date?.ToString("MMM yyyy")</span>
+                    </div>
+                }
+            </div>
+        }
+    </section>;
+}

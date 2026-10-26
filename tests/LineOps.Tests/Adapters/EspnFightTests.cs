@@ -219,6 +219,14 @@ public class EspnFightTests
     }
 
     [Theory]
+    [InlineData("UFC 300: Pereira vs. Hill", true)]
+    [InlineData("UFC Fight Night: Allen vs. Curtis 2", true)]
+    [InlineData("Noche UFC", true)]
+    [InlineData("Dana White's Contender Series 2026: Week 1", false)]
+    [InlineData("Road to UFC Season 3: Finals", false)]
+    public void OnlyUfcCardsAreRead(string name, bool expected) => Assert.Equal(expected, EspnStatsAdapter.IsUfcCard(name));
+
+    [Theory]
     [InlineData("6' 4\"", 76)]
     [InlineData("79\"", 79)]
     [InlineData("72.5\"", 72.5)]

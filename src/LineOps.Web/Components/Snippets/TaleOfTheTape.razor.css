@@ -1,0 +1,105 @@
+/* The tale of the tape (ADR 0021): a grouped list — a fill and inset hairlines, no outlines —
+   with the red corner's reading leading, the measure centred, the blue corner's trailing. */
+
+.tape {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.tape--compact { gap: var(--space-2); }
+
+.tape__corners {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: var(--space-3);
+}
+
+.tape__corner { display: flex; flex-direction: column; min-width: 0; }
+.tape__corner--blue { text-align: right; align-items: flex-end; }
+
+.tape__corner-name {
+    font-size: var(--text-title3);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.tape--compact .tape__corner-name { font-size: var(--text-headline); }
+
+.tape__corner-detail { font-size: var(--text-footnote); color: var(--text-secondary); }
+
+.tape__vs { font-size: var(--text-footnote); color: var(--text-tertiary); padding-bottom: 2px; }
+
+.tape__group { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+
+.tape__title {
+    margin: 0 0 0 var(--space-3);
+    font-size: var(--text-footnote);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+.tape__list {
+    background: var(--surface-2);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.tape__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 28px;
+    padding: 4px var(--space-3);
+    font-size: var(--text-body);
+}
+
+/* Inset separator: the hairline starts at the content edge, as a grouped list's does. */
+.tape__row,
+.tape__fight { position: relative; }
+
+.tape__row + .tape__row::before,
+.tape__fight + .tape__fight::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--space-3);
+    right: 0;
+    height: 1px;
+    background: var(--separator);
+}
+
+.tape__label { text-align: center; font-size: var(--text-subheadline); color: var(--text-secondary); }
+
+.tape__value { font-variant-numeric: tabular-nums; color: var(--text-primary); overflow-wrap: anywhere; }
+.tape__value--blue { text-align: right; }
+.tape__value--ahead { font-weight: 600; }
+.tape__value--behind { color: var(--text-secondary); }
+
+.tape__footer {
+    margin: 0 var(--space-3);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+}
+
+.tape__recent {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-4);
+}
+
+.tape__fight {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 29px;
+    padding: 2px var(--space-3);
+    font-size: var(--text-body);
+}
+
+.tape__fight-how,
+.tape__fight-date { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }

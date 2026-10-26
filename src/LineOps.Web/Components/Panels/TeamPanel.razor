@@ -70,7 +70,7 @@ else
         </Keys>
     </PanelTitle>
 
-    <PanelSection Title="Recent games"
+    <PanelSection Title="@(FightSports.IsFight(_team.Sport?.Key) ? "Bouts on the desk" : "Recent games")"
                   Keys="@(_log.Count > 0 ? SplitKeys : null)"
                   Detail="@(_log.Count > 0 ? RecordDetail : null)">
         @* The splits strip, on the rule's own line. Every option filters the same loaded log,
@@ -160,6 +160,15 @@ else
         </ChildContent>
     </PanelSection>
 
+    @* A fighter is a side of one (ADR 0021): no roster, and the profile and career in its place. *@
+    @if (FightSports.IsFight(_team.Sport?.Key))
+    {
+        <PanelSection Title="Fighter">
+            <FighterView TeamId="TeamId" />
+        </PanelSection>
+    }
+    else
+    {
     <PanelSection Title="Roster form">
     @if (_roster.Count == 0)
     {
@@ -201,6 +210,7 @@ else
         </div>
     }
     </PanelSection>
+    }
 }
 
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />

@@ -10,7 +10,12 @@
     consulted *while* deciding: it wants to sit next to the board, not replace it.
 *@
 
-@if (_form is null)
+@if (_fight)
+{
+    @* A fight has no rosters: the form worth reading beside its price is the two fighters (ADR 0021). *@
+    <LineOps.Web.Components.Snippets.TaleOfTheTape GameId="GameId" />
+}
+else if (_form is null)
 {
     @* The lookback row and the first roster's rows, where they will land. Only on the first
        read: changing the window keeps the rosters on screen until the new ones arrive. *@
@@ -49,6 +54,7 @@ else
     private BoardRow? Row;
     private MatchupForm? _form;
     private int _windowDays = 30;
+    private bool _fight;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -63,6 +69,10 @@ else
         await using var scope = ScopeFactory.CreateAsyncScope();
 
         Row ??= await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+
+        _fight = FightSports.IsFight(Row?.Game.Sport?.Key);
+        if (_fight)
+            return;
 
         var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
         _form = await lookup.GetAsync(GameId, TimeSpan.FromDays(_windowDays), maxPlayersPerTeam: 8);

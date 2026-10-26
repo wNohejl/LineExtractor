@@ -28,6 +28,12 @@ else if (_absent)
     @* Not a failure: the game is not on the board, and loading again will not put it there. *@
     <Note State="DeskState.Warning" Style="margin:0">This game is not on the board.</Note>
 }
+else if (FightSports.IsFight(_sport))
+{
+    @* A fighter fights a few times a year: thirty days of form is nothing. The fight's form is
+       the two fighters' records and last five, from their careers (ADR 0021). *@
+    <TaleOfTheTape GameId="GameId" Compact="true" />
+}
 else
 {
     <div class="snippet__form">
@@ -80,6 +86,9 @@ else
             _sport = game.Sport?.Key;
             _homeAbbrev = game.HomeTeam?.Abbrev;
             _awayAbbrev = game.AwayTeam?.Abbrev;
+
+            if (FightSports.IsFight(_sport))
+                return;
 
             var window = TimeSpan.FromDays(WindowDays);
 

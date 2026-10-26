@@ -1,0 +1,143 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Core.Contracts
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+
+@*
+    One fighter on their own (ADR 0021) — what the Team window shows when the side is a fighter.
+
+    The few typed facts first, as a grouped list; then ESPN's career rates and record splits as
+    ESPN states them; then every recorded fight, newest first, each one a disclosure onto ESPN's
+    full stat sheet for it. Nothing is dropped and nothing is computed that ESPN did not measure.
+*@
+
+@if (_card is null)
+{
+    <DeskSkeleton Lines="4" />
+}
+else
+{
+    var card = _card;
+
+    <div class="fighter">
+        @if (card.Profile is null)
+        {
+            <Note State="DeskState.Info" Style="margin:0">
+                No profile yet. Pull data → Fighter profiles owed reads this fighter's bio, career rates and
+                every recorded fight from ESPN.
+            </Note>
+        }
+        else
+        {
+            <section class="fighter__group" aria-label="Profile">
+                <div class="fighter__list">
+                    @Fact("Record", card.Record)
+                    @Fact("Nickname", card.Profile.Nickname is { } n ? $"“{n}”" : null)
+                    @Fact("Weight class", card.Profile.WeightClass)
+                    @Fact("Age", card.Age is { } age ? $"{age:0}" : null)
+                    @Fact("Height", card.Profile.HeightInches is { } h ? $"{(int)h / 12}' {h % 12:0.#}\"" : null)
+                    @Fact("Reach", card.Profile.ReachInches is { } r ? $"{r:0.#}\"" : null)
+                    @Fact("Stance", card.Profile.Stance)
+                    @Fact("Gym", card.Profile.Association)
+                    @Fact("Country", card.Profile.Country)
+                </div>
+                <p class="fighter__footer">From ESPN, @card.Profile.RefreshedAt.ToLocalTime().ToString("d MMM yyyy").</p>
+            </section>
+
+            @if (card.Career.Rates.Count > 0)
+            {
+                <section class="fighter__group" aria-label="Career rates">
+                    <h4 class="fighter__title">Career, as ESPN rates it</h4>
+                    <div class="fighter__list">
+                        @foreach (var rate in card.Career.Rates)
+                        {
+                            @Fact(rate.Label, rate.Value)
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (card.Career.Record.Count > 0)
+            {
+                <section class="fighter__group" aria-label="Record">
+                    <h4 class="fighter__title">How the record was made</h4>
+                    <div class="fighter__list">
+                        @foreach (var split in card.Career.Record)
+                        {
+                            @Fact(split.Label, split.Value)
+                        }
+                    </div>
+                </section>
+            }
+        }
+
+        @if (card.History.Count > 0)
+        {
+            <section class="fighter__group" aria-label="Fights">
+                <h4 class="fighter__title">Every recorded fight · @card.History.Count</h4>
+                <div class="loglist">
+                    @foreach (var fight in card.History)
+                    {
+                        <DeskDisclosure Class="logrow" SummaryClass="logrow__head"
+                                        Open="@(_open == fight.Id)"
+                                        OpenChanged="@((bool open) => _open = open ? fight.Id : _open == fight.Id ? null : _open)">
+                            <Summary>
+                                <span class="logrow__date dim">@fight.Date?.ToString("d MMM yy")</span>
+                                <ResultTag Result="@(fight.Result switch { "W" => ResultKind.Win, "L" => ResultKind.Loss, "D" => ResultKind.Tie, _ => ResultKind.Push })">@(fight.Result ?? "—")</ResultTag>
+                                <span class="logrow__opp trunc" title="@fight.Event">vs @fight.Opponent</span>
+                                <span class="dim">@fight.Method@(fight.Round is { } round ? $" · R{round} {fight.Clock}" : "")</span>
+                                @if (fight.Title)
+                                {
+                                    <Tag State="DeskState.Info">Title</Tag>
+                                }
+                            </Summary>
+                            <ChildContent>
+                                <div class="logrow__body">
+                                    <p class="fighter__footer">@fight.Event@(fight.Ufc ? "" : " · outside the UFC")</p>
+                                    @if (fight.Stats.Count == 0)
+                                    {
+                                        <p class="fighter__footer">ESPN kept no stat sheet for this fight.</p>
+                                    }
+                                    else
+                                    {
+                                        <div class="fighter__sheet">
+                                            @foreach (var stat in fight.Stats)
+                                            {
+                                                <span class="fighter__sheet-label" title="@stat.Label">@stat.Label</span>
+                                                <span class="fighter__sheet-value">@stat.Value</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </ChildContent>
+                        </DeskDisclosure>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int TeamId { get; set; }
+
+    private FighterCard? _card;
+    private string? _open;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        _card = await scope.ServiceProvider.GetRequiredService<FightService>().FighterAsync(TeamId);
+    }
+
+    private static RenderFragment Fact(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        <div class="fighter__row">
+            <span class="fighter__label">@label</span>
+            <span class="fighter__value">@value</span>
+        </div>
+    };
+}

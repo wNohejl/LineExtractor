@@ -41,6 +41,16 @@ public static class FightSports
     public static bool WentTheDistance(Bout bout)
         => bout.EndRound == bout.ScheduledRounds && bout.EndSeconds >= RoundSeconds;
 
+    /// <summary>
+    /// A card as a reader tells it from the rest: "UFC 300", "Noche UFC" — but a Fight Night by its
+    /// billing, "UFC Fight Night: Allen vs. Curtis 2", since every one shares the short name.
+    /// </summary>
+    public static string CardName(Bout bout)
+        => bout.EventShortName is { Length: > 0 } shortName
+           && !shortName.Equals("UFC Fight Night", StringComparison.OrdinalIgnoreCase)
+            ? shortName
+            : bout.EventName;
+
     /// <summary>A clock as it is written in a fight: 194 seconds is 3:14.</summary>
     public static string Clock(int seconds) => $"{seconds / 60}:{seconds % 60:00}";
 

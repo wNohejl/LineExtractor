@@ -111,6 +111,17 @@ public partial class EspnStatsAdapter
         return new StatsFetchResult(games, players, stats, new FetchCost(requests), lines);
     }
 
+    /// <summary>
+    /// Whether a card on ESPN's UFC scoreboard is a UFC event. ESPN files the promotion's
+    /// development shows under the same league — Dana White's Contender Series, a tryout whose
+    /// winners are offered contracts, and Road to UFC — and their fighters are not yet UFC
+    /// fighters. The desk holds the UFC only.
+    /// </summary>
+    internal static bool IsUfcCard(string? name)
+        => name is not null
+           && !name.Contains("Contender Series", StringComparison.OrdinalIgnoreCase)
+           && !name.StartsWith("Road to UFC", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>A card on the scoreboard, and the scheduled rounds of each of its bouts, which only the scoreboard states.</summary>
     internal sealed record ScoreboardCard(string EventId, IReadOnlyDictionary<string, int> Rounds);
 
@@ -121,7 +132,7 @@ public partial class EspnStatsAdapter
 
         foreach (var e in events.EnumerateArray())
         {
-            if (Text(e, "id") is not { } id)
+            if (Text(e, "id") is not { } id || !IsUfcCard(Text(e, "name")))
                 continue;
 
             var rounds = new Dictionary<string, int>();

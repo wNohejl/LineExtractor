@@ -57,9 +57,14 @@ dotnet run --project src/LineOps.Web --launch-profile http
 
 ## Scope
 
-- Two leagues: **MLB and NFL**. `Ingestion:Sports` and `Ingestion:Backfill:Sports` name them;
-  `Sports.Enabled` hides the rest from the desk's pickers. Do not add a league without a
+- Three leagues: **MLB, NFL and UFC**. `Ingestion:Sports` and `Ingestion:Backfill:Sports` name
+  them; `Sports.Enabled` hides the rest from the desk's pickers. Do not add a league without a
   season start in `Ingestion:Backfill:Seasons`.
+- UFC is fought, not played (ADR 0021): a bout is a `Game` between two fighters (each a `Team`
+  and a `Player`), its card and result live in `Bouts`, and a fighter's ESPN profile in
+  `FighterProfiles`. Ask `FightSports.IsFight`, never compare the key. Books only attach to bouts
+  ESPN holds; Contender Series and Road to UFC cards are not UFC and are not read. History reaches
+  back to UFC 300 (2024-04-13).
 - Odds come from a book market (ADR 0011); ESPN's closing line fills games no market covered.
   Where ESPN has no line — early-season history — there is no line, and nothing fabricates one.
 - Every game carries `SeasonYear` and `SeasonType`, stamped by the provider. Filter by season,

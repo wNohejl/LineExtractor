@@ -270,6 +270,11 @@ else
                 {
                     <Tag State="DeskState.Info">Game @number</Tag>
                 }
+                @if (context.Item.Bout is { } card && (card.MatchNumber == 1 || card.TitleFight))
+                {
+                    @* The bouts a card is sold on say so; the rest of the card is its order. *@
+                    <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
+                }
 
                 @if (context.Item.Unpriced is { } reason)
                 {
@@ -311,7 +316,20 @@ else
                             @TagStates.StatusWord(context.Item.Game.Status)
                         </Tag>
 
-                        @if (context.Item.HasScore)
+                        @if (context.Item.Bout is { Outcome: not null } fought)
+                        {
+                            @* A fight's result is who won and how, not a score (ADR 0021): the
+                               winner's line reads W, the loser's L, beside the method and where it ended. *@
+                            var leader = FinalLeader(context.Item.Game);
+                            var result = FightSports.ResultLine(context.Item.Game, fought) ?? "";
+                            <span class="board__scores" title="@result">
+                                <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: false)</span>
+                                <span class="board__score@(leader == ScoreLeader.Away ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: true)</span>
+                                <span class="sr-only">@result</span>
+                            </span>
+                            <span class="dim">@FightSports.MethodShort(fought) @FightSports.Ended(fought)</span>
+                        }
+                        else                         @if (context.Item.HasScore)
                         {
                             @* Two lines beside the matchup's two, away over home, so each score
                                sits level with its team. A final's winner reads heavier than its
@@ -879,6 +897,13 @@ else
     {
         var game = row.Game;
 
+        // A fighter's record going into the bout stands where a starter would (ADR 0021).
+        if (row.Bout is { } bout)
+        {
+            var record = home ? bout.HomeRecord : bout.AwayRecord;
+            return record is null ? null : ("", record, "Record going into this fight");
+        }
+
         if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
         {
             var pitcher = home ? game.HomeProbablePitcher : game.AwayProbablePitcher;
@@ -904,6 +929,14 @@ else
     /// </summary>
     private static ScoreLeader FinalLeader(Game game)
         => game.Status == GameStatus.Final ? Scoreline.Leader(game) : ScoreLeader.None;
+
+    /// <summary>W, L or D for one side of a finished fight; NC for a no contest.</summary>
+    private static string FightMark(Bout bout, ScoreLeader leader, bool home) => bout.Outcome switch
+    {
+        BoutOutcome.NoContest => "NC",
+        BoutOutcome.Draw => "D",
+        _ => leader == (home ? ScoreLeader.Home : ScoreLeader.Away) ? "W" : "L"
+    };
 
     /// <summary>The score spelled out with full names: the cell's tooltip, and what it reads aloud.</summary>
     private static string ScoreTitle(Game game)

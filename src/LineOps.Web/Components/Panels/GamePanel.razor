@@ -61,14 +61,34 @@ else
             {
                 <Tag State="DeskState.Info">Game @number of a doubleheader</Tag>
             }
+            @if (_bout is { } card)
+            {
+                @* A fight belongs to a card, not a season (ADR 0021). *@
+                <Tag State="DeskState.Info">@(FightSports.CardName(card))</Tag>
+                @if (card.TitleFight)
+                {
+                    <Tag State="DeskState.Info">Title fight</Tag>
+                }
+            }
+            else
+            {
             @* Which season this game belongs to, and which part of it — a February game that is
                the prior year's postseason says so rather than leaving the date to imply it. *@
             <Tag State="DeskState.Info">
                 @SeasonCalendar.Label(game.Sport?.Key ?? string.Empty, game.SeasonYear)@(game.SeasonType == SeasonType.Postseason ? " postseason" : " season")
             </Tag>
+            }
         </Tags>
         <Detail>
             <span>@Starts(game.StartsAt)</span>
+            @if (_bout is { } bout)
+            {
+                <span>@BoutFrame(bout)</span>
+                @if (FightSports.ResultLine(game, bout) is { } result)
+                {
+                    <span class="ptitle__em">@result</span>
+                }
+            }
             @if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
             {
                 @* In full here, where there is room: the Board shortens them to surnames. *@
@@ -83,8 +103,11 @@ else
             @* Which season the team data and rosters below are drawn from. Defaults to the
                game's own season; for a game that season has not yet produced games for, the
                one before. Hides itself when there is only one season to draw on. *@
+            @if (_bout is null)
+            {
             <DeskSwitch Options="_seasonOptions" Label="Season for team and player data" Mono="true"
                         Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            }
 
             @* The two views this game opens onto, kept together as one cluster: they are the
                same kind of thing — a related window, one click away — and the glide plate
@@ -160,6 +183,10 @@ else
         {
             @RenderMarkets()
         }
+        else if (context == Section.Tape)
+        {
+            <TaleOfTheTape GameId="GameId" OnFighter="@(((int TeamId, string Name) f) => Manager.OpenTeam(f.TeamId, f.Name, WindowId))" />
+        }
         else if (context == Section.TeamData)
         {
             @RenderTeamData()
@@ -201,7 +228,7 @@ else
     private TeamForm? _awayTeam;
 
     /// <summary>Which of the three readings is on screen. See <see cref="SectionsFor"/>.</summary>
-    private enum Section { Markets, TeamData, Players }
+    private enum Section { Markets, TeamData, Players, Tape }
 
     private Section _section = Section.Markets;
 
@@ -227,12 +254,33 @@ else
     /// section, different question, and the tab is where that gets said.
     /// </para>
     /// </summary>
-    private IReadOnlyList<DeskTab<Section>> SectionsFor(bool isLive) =>
+    private IReadOnlyList<DeskTab<Section>> SectionsFor(bool isLive) => _bout is not null
+        ?
+        [
+            // A fight (ADR 0021): no team data or rosters — the two fighters side by side, and
+            // once it is over, each one's fight stats.
+            new(Section.Markets, isLive ? "Top bets" : "Lines"),
+            new(Section.Tape, "Tale of the tape"),
+            new(Section.Players, "Fight stats", HasBox)
+        ]
+        :
     [
         new(Section.Markets, isLive ? "Top bets" : "Lines"),
         new(Section.TeamData, "Team data", HasTeamData),
         new(Section.Players, HasBox ? "Box score" : "Players", HasBox || HasRoster)
     ];
+
+    /// <summary>The card and result when this game is a fight; null for a team sport.</summary>
+    private Bout? _bout;
+
+    /// <summary>Where a bout sits and how far it goes: "Main Card · Lightweight · 5 rounds".</summary>
+    private static string BoutFrame(Bout bout)
+        => string.Join(" · ", new[]
+        {
+            bout.MatchNumber == 1 ? "Main event" : bout.CardSegment,
+            bout.WeightClass,
+            $"{bout.ScheduledRounds} rounds"
+        }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     /// <summary>This game's box score. Null until the game has produced one.</summary>
     private GameBoxScore? _box;
@@ -307,6 +355,11 @@ else
             if (_row is null)
                 return;
 
+            var fights = scope.ServiceProvider.GetRequiredService<FightService>();
+            _bout = FightSports.IsFight(_row.Game.Sport?.Key)
+                ? (await fights.BoutsAsync([GameId])).GetValueOrDefault(GameId)
+                : null;
+
             // The operator's own bets. A visitor's desk never reads the journal, so there is nothing
             // personal to leak into a window it may see (ADR 0018).
             _bets = Manager.Access.CanOperate
@@ -379,6 +432,9 @@ else
                         <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </DeskStack>
+                @* A fight has no spread (ADR 0021). *@
+                @if (_bout is null)
+                {
                 <DeskStack Gap="DeskSpace.Space1">
                     <div class="meta">Spread</div>
                     <div class="row">
@@ -386,8 +442,9 @@ else
                         <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
                     </div>
                 </DeskStack>
+                }
                 <DeskStack Gap="DeskSpace.Space1">
-                    <div class="meta">Total</div>
+                    <div class="meta">@(_bout is null ? "Total" : "Total rounds")</div>
                     <div class="row">
                         <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
                         <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />

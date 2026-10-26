@@ -2,6 +2,7 @@ using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
+using LineOps.Data.CrossReference;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
@@ -176,6 +177,60 @@ public class FightIngestionTests(PostgresFixture fixture)
         // The accent-free name lands under the bout's own spelling.
         Assert.True(await db.OddsSnapshots.AnyAsync(s => s.Outcome == $"{tag}Jiří Procházka" && s.PriceAmerican == -250));
         Assert.False(await db.OddsSnapshots.AnyAsync(s => s.Outcome.StartsWith("Patricio Freire")));
+    }
+
+    /// <summary>Describes every fighter as Alex Pereira's recorded pages — enough to fill a tape.</summary>
+    private sealed class StubFighters(string key) : IFighterSource
+    {
+        public string Key => key;
+        public int Asked { get; private set; }
+
+        public Task<FighterFetchResult> FetchFighterAsync(string sportKey, string id, CancellationToken ct)
+        {
+            Asked++;
+            var fighter = EspnStatsAdapter.ParseFighter(Load("espn.ufc.athlete.json"),
+                EspnStatsAdapter.ParseFightSheets(Load("espn.ufc.athlete-stats.json")),
+                EspnStatsAdapter.ParseCareerRates(Load("espn.ufc.athlete-statistics.json")),
+                Load("espn.ufc.athlete-records.json"));
+
+            return Task.FromResult(new FighterFetchResult(fighter! with { SourceFighterId = id }, new FetchCost(4)));
+        }
+    }
+
+    [Fact]
+    public async Task FightersAreDescribedOnceAndTheTapeReadsThem()
+    {
+        await using var db = fixture.CreateContext();
+        var tag = Tag();
+        var (_, source, _) = await SeedAsync(db, tag);
+        await IngestCard(db, source, Ufc300(tag));
+
+        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"{tag}Alex Pereira");
+        var fighterIds = new[] { main.HomeTeamId, main.AwayTeamId };
+
+        var stub = new StubFighters(source);
+        var profiles = new FighterProfileService(db, [stub], NullLogger<FighterProfileService>.Instance);
+
+        // Owed: every fighter on the card has no profile. Taken once; a second pass owes nothing
+        // for these two, since neither has fought since.
+        Assert.Contains((await profiles.OwedAsync("ufc", source, CancellationToken.None)), o => o.TeamId == main.HomeTeamId);
+        await profiles.RefreshAsync("ufc", "test", 500, CancellationToken.None);
+        Assert.DoesNotContain(await profiles.OwedAsync("ufc", source, CancellationToken.None), o => fighterIds.Contains(o.TeamId));
+
+        var held = await db.FighterProfiles.SingleAsync(p => p.TeamId == main.HomeTeamId);
+        Assert.Equal((76m, 79m, "Orthodox"), (held.HeightInches!.Value, held.ReachInches!.Value, held.Stance));
+        Assert.Equal(17, FighterPayload.ReadHistory(held.History).Count);
+
+        var tape = (await new FightService(db).TapeAsync(main.Id))!;
+
+        Assert.Equal("13-4-0", tape.Physical.Single(r => r.Label == "Record").Home);
+        Assert.Equal("12-4-0", tape.Physical.Single(r => r.Label == "Record").Away);
+
+        // The tape compares the fighters as they came into the bout: no fight after it is counted.
+        Assert.All(tape.Home.History, f => Assert.True(f.Date < main.StartsAt));
+        Assert.Contains(tape.Career, r => r.Label == "Sig Strk LPM" && r.Home == "5.01");
+        Assert.Contains(tape.PerFight, r => r.Label == "Sig. strikes landed" && r.Home is not null);
+        Assert.Contains(tape.PerFight, r => r.Label == "Last five" && r.Home is not null);
     }
 
     [Fact]

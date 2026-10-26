@@ -20,19 +20,22 @@
 *@
 
 @{
-    var hasScore = Scoreline.Has(Game);
+    // A fight has a winner, not a score (ADR 0021): the loser still drops to secondary ink, and
+    // the 1–0 that records the result is left unprinted — the title's detail line says how it ended.
+    var hasScore = Scoreline.Has(Game) && !FightSports.IsFight(Game.Sport?.Key);
     var loser = Loser;
+    var joiner = FightSports.IsFight(Game.Sport?.Key) ? "vs" : "at";
 }
 
 <span class="scoreboard@(Compact ? " scoreboard--compact" : "")">
     @Row(Game.AwayTeamId, Game.AwayTeam, "Away", Game.AwayScore, hasScore, loser == Side.Away)
     @if (Compact)
     {
-        <span class="scoreboard__at" aria-hidden="true">·</span>@(" ")<span class="scoreboard__at">at</span>@(" ")<span class="scoreboard__at" aria-hidden="true">·</span>
+        <span class="scoreboard__at" aria-hidden="true">·</span>@(" ")<span class="scoreboard__at">@joiner</span>@(" ")<span class="scoreboard__at" aria-hidden="true">·</span>
     }
     else
     {
-        <span class="sr-only">@(hasScore ? ", " : " at ")</span>
+        <span class="sr-only">@(hasScore ? ", " : $" {joiner} ")</span>
     }
     @Row(Game.HomeTeamId, Game.HomeTeam, "Home", Game.HomeScore, hasScore, loser == Side.Home)
 </span>

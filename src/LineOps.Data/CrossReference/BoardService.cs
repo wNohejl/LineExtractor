@@ -101,14 +101,22 @@ public class BoardService(LineOpsDbContext db)
 
         var passing = await PassingLinesAsync(games, ct);
 
-        return games.Select(game => Compose(
+        // A fight's card and result (ADR 0021), and its place on the card: bouts that share a
+        // start are listed main event first, as a card is billed.
+        var bouts = await db.Bouts.AsNoTracking().Where(b => gameIds.Contains(b.GameId)).ToDictionaryAsync(b => b.GameId, ct);
+
+        return games
+            .OrderBy(g => g.StartsAt)
+            .ThenBy(g => bouts.GetValueOrDefault(g.Id)?.MatchNumber ?? 0)
+            .Select(game => Compose(
             game,
             byGame.GetValueOrDefault(game.Id),
             closesByGame.GetValueOrDefault(game.Id),
             lastPull.TryGetValue(game.SportId, out var at) ? at : null) with
         {
             AwayQuarterback = Starters.LastQuarterback(passing, game.AwayTeamId, game.StartsAt),
-            HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt)
+            HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt),
+            Bout = bouts.GetValueOrDefault(game.Id)
         }).ToList();
     }
 
@@ -343,7 +351,10 @@ public class BoardService(LineOpsDbContext db)
             ? null
             : (await LastPullBySportAsync([game.Sport!], ct)).TryGetValue(game.SportId, out var at) ? at : null;
 
-        return Compose(game, live, closing, scanned);
+        return Compose(game, live, closing, scanned) with
+        {
+            Bout = await db.Bouts.AsNoTracking().FirstOrDefaultAsync(b => b.GameId == gameId, ct)
+        };
     }
 
     /// <summary>
@@ -507,6 +518,9 @@ public record BoardRow(
     public string? AwayQuarterback { get; init; }
 
     public string? HomeQuarterback { get; init; }
+
+    /// <summary>The card and result when the game is a fight (ADR 0021); null for a team sport.</summary>
+    public Bout? Bout { get; init; }
 
     /// <summary>
     /// How old the newest price on this row is.

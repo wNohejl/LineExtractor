@@ -138,6 +138,24 @@ header reports coverage as a fraction. Prices are stored on change, so an old ti
 the line has not moved rather than that the data is stale — the header says `unmoved` for
 exactly that reason.
 
+### UFC
+
+Fights sit on the same board as games (ADR 0021). A bout is a row between two fighters — the red
+corner first in its markets, each fighter's record going in beneath their name — listed in card
+order, main event first. A finished bout reads **W** and **L** with the method and where it ended
+(`KO/TKO R1 3:14`). Moneyline and the rounds total are its markets; there is no spread.
+
+**Form** on a fight row, and the Game window's **Tale of the tape**, put the two fighters side by
+side: record, age, height, reach, stance and gym; ESPN's career rates; averages per fight from
+ESPN's per-fight stat sheets (significant strikes, accuracy, knockdowns, takedowns, submission
+attempts, finish rate, fight length); each fighter's last five; and opponents they share. A
+fighter's name opens their profile with every recorded fight and its full stat sheet.
+
+Cards come from ESPN's fight center, one request a card, and history reaches back to UFC 300.
+**Pull data → Fighter profiles owed** reads the profiles of fighters on a card ahead or who have
+just fought. Bets grade as books settle them: a draw pushes the moneyline, a no contest voids, and
+a rounds total is graded on how long the fight lasted.
+
 ### Pulling data by hand
 
 **Pull data** on the Slate window offers each fetch by name, with what it will cost:
