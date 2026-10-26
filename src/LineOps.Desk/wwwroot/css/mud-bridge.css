@@ -539,6 +539,33 @@
 .desk-toast--action { --toast-accent: var(--accent); }
 .desk-toast--neutral { --toast-accent: var(--surface-3); }
 
+/* An addition and a removal say which they are by colour as well as by word: the green of an
+   added wager and the red of a dropped one are the whole notice's tint, not a 2px edge the eye
+   has to look for, so "added" and "removed" are told apart before they are read. The text stays
+   primary, so the tint never carries the meaning alone. */
+.mud-snackbar.desk-toast.desk-toast--go,
+.mud-snackbar.desk-toast.desk-toast--stop {
+    background: color-mix(in srgb, var(--toast-accent) 16%, var(--surface-2));
+    border-color: color-mix(in srgb, var(--toast-accent) 45%, var(--surface-3));
+    border-left-width: 3px;
+    border-left-color: var(--toast-accent);
+}
+
+/* The toast's one key — View slip, Undo — reads in its tone's ink and semibold, a plain key. */
+.mud-snackbar.desk-toast .mud-snackbar-content-action .mud-button-root {
+    min-width: 0;
+    height: 24px;
+    padding: 0 var(--space-2);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.mud-snackbar.desk-toast.desk-toast--go .mud-snackbar-content-action .mud-button-root { color: var(--state-positive-ink); }
+.mud-snackbar.desk-toast.desk-toast--stop .mud-snackbar-content-action .mud-button-root { color: var(--state-negative-ink); }
+
 /* Material's icon is 22px and sits at 90% opacity, which makes it the loudest thing in a
    notice whose job is to be read once and forgotten. Bring it down to the chrome's size. */
 .mud-snackbar.desk-toast .mud-snackbar-icon {

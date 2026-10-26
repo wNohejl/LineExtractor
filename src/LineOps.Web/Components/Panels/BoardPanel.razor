@@ -1073,8 +1073,9 @@ else
         Slip.AddLeg(price.ToSlipItem(row.Game, Matchup(row.Game), 0m, null));
 
         var legs = Slip.Items.Count(i => i.AsLeg);
-        Toasts.Success($"Leg added: {price.Label} {Price(price.PriceAmerican)} ({price.Book}) · "
-                       + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.");
+        Toasts.Added($"Added a leg: {price.Label} {Price(price.PriceAmerican)} ({price.Book}) · "
+                     + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.",
+            "View slip", () => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!)));
 
         return Task.CompletedTask;
     }

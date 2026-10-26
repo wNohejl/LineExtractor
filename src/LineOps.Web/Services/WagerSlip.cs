@@ -108,6 +108,19 @@ public sealed class WagerSlip
             Raise();
     }
 
+    /// <summary>
+    /// Puts back an item <see cref="Remove"/> took off, at the place it had: the Undo on the
+    /// removal's toast. Its id is kept, so a second Undo, or an item already back, is a no-op.
+    /// </summary>
+    public void Restore(SlipItem item, int index)
+    {
+        if (_items.Any(i => i.Id == item.Id))
+            return;
+
+        _items.Insert(Math.Clamp(index, 0, _items.Count), item);
+        Raise();
+    }
+
     public void Clear()
     {
         _items.Clear();

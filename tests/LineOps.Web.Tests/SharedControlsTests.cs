@@ -141,7 +141,10 @@ public class SharedControlsTests : DeskTestContext
     {
         var row = BoardRows.Row();
 
-        Assert.Equal(-128, SelectionChoice.Land(row, null, null, null)!.PriceAmerican);
+        // A door that names no side lands on none: the operator chooses the bet.
+        Assert.Null(SelectionChoice.Land(row, null, null, null));
+        Assert.Equal(-128, SelectionChoice.MostValue(row)!.PriceAmerican);
+
         Assert.Equal(-105, SelectionChoice.Land(row, Markets.Spread, BoardRows.Away, null)!.PriceAmerican);
         Assert.Equal(-135, SelectionChoice.Land(row, Markets.Moneyline, BoardRows.Home, "fanduel")!.PriceAmerican);
         // A book that does not quote the side falls back to the best, not to nothing.

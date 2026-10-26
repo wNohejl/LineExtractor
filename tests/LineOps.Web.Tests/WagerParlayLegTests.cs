@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using LineOps.Desk.Primitives;
 using LineOps.Core.Entities;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Services;
@@ -101,14 +102,17 @@ public class WagerParlayLegTests : WagerTestContext
         Key(cut, "Add leg").Click();
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".selection-chip")));
-        Assert.Contains("1 leg on the slip", cut.Find(".wager-legs").TextContent);
+        // The addition is a green toast that names the count, not a grey note above the steps.
+        Assert.Contains("1 leg on the slip", LastToast.Message);
+        Assert.Equal(DeskState.Positive, LastToast.State);
+        Assert.Empty(cut.FindAll(".wager-legs"));
 
         // A same-game second leg: the total on the game just used.
         PickGame(cut);
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "Total · Over o47.5").Click();
         Key(cut, "Add leg").Click();
 
-        cut.WaitForAssertion(() => Assert.Contains("2 legs on the slip", cut.Find(".wager-legs").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("2 legs on the slip", LastToast.Message));
         Assert.Equal([Markets.Spread, Markets.Total], Slip.Legs.Select(l => l.Market));
         Assert.True(Slip.IsSameGame);
         Assert.All(Slip.Items, i => Assert.Equal(0m, i.Stake));

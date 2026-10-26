@@ -133,16 +133,10 @@ else
         }
     </div>
 
-    @if (BuildParlay && (LegCount > 0 || _logged is not null))
-    {
-        @* Building, the game clears after each leg and the review step folds with it, so what
-           the slip holds is said above the steps, where it stays in view. *@
-        <Note State="@(_logged is null ? DeskState.Neutral : DeskState.Positive)" Class="wager-legs">
-            @(_logged is null ? "" : _logged + " ")@LegCount @(LegCount == 1 ? "leg" : "legs") on the slip.
-            <DeskLink Destination="slip" Icon="@Icons.Material.Filled.Receipt"
-                      Tooltip="Show the slip" OnClick="() => _tab = WagerTab.Slip">View slip</DeskLink>
-        </Note>
-    }
+    @* An addition to the slip is said by a green toast with a View slip key (Banked), not a
+       grey note above the steps: the note was the same grey as every other note and stayed
+       until the next one, so nothing about it said a thing had been added. The Slip tab's
+       count is what the slip holds. *@
 
     @* Logged: the wizard ends on what it did, as an assistant ends on its last page, and offers
        the next thing to do rather than leaving the form filled in with its key gone dim. It
@@ -446,19 +440,6 @@ else
                 @if (_error is not null)
                 {
                     <Note State="DeskState.Warning">@_error</Note>
-                }
-
-                @if (_logged is not null)
-                {
-                    <Note State="DeskState.Positive" Class="wager-logged">
-                        @_logged
-                        @if (_banked)
-                        {
-                            @(" ")
-                            <DeskLink Destination="slip" Icon="@Icons.Material.Filled.Receipt"
-                                      Tooltip="Show the slip" OnClick="() => _tab = WagerTab.Slip">View slip</DeskLink>
-                        }
-                    </Note>
                 }
 
                 <p class="wfoot">
@@ -810,7 +791,8 @@ else
         if (GameId is null)
             return;
 
-        // A door lands on its side, or on the most value; the book is the door's, else the best.
+        // A door lands on the side it names, and only then; one that names none opens on step 1
+        // with every side offered and none chosen. The book is the door's, else the best.
         var landed = SelectionChoice.Land(Row, Market, Outcome, null);
         _market = landed?.Market;
         _outcome = landed?.Outcome;
@@ -1378,12 +1360,23 @@ else
         _error = null;
         _logged = $"Added {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
         _banked = true;
-        Toasts.Success(_logged);
+        Banked(_logged);
         _stake = 0;
         _note = null;
         _sideChosen = false;
         SyncUnsaved();
     }
+
+    /// <summary>
+    /// An addition to the slip, said as one: a green toast, with a key that turns this window
+    /// to its Slip tab. The key runs outside a render, so it asks for one.
+    /// </summary>
+    private void Banked(string message)
+        => Toasts.Added(message, "View slip", () => _ = InvokeAsync(() =>
+        {
+            _tab = WagerTab.Slip;
+            StateHasChanged();
+        }));
 
     /// <summary>
     /// Banks the bet as a parlay leg. On the game search the game is cleared afterwards, so the
@@ -1399,8 +1392,9 @@ else
             InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
         });
 
-        var logged = $"Added {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}) to the slip as a leg.";
-        Toasts.Success(logged);
+        var logged = $"Added {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}) as a leg · "
+                     + $"{LegCount} {(LegCount == 1 ? "leg" : "legs")} on the slip.";
+        Banked(logged);
         _note = null;
         _sideChosen = false;
         SyncUnsaved();

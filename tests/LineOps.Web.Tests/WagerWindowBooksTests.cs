@@ -118,7 +118,6 @@ public class WagerWindowBooksTests : WagerTestContext
 
         Assert.False(window.HasUnsavedInput);
 
-        Change(cut, "Bet");
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
         Assert.True(window.HasUnsavedInput);
@@ -307,7 +306,6 @@ public class WagerWindowBooksTests : WagerTestContext
         var row = BoardRows.Row();
         Data.Row = row with { Spread = new MarketPair(Markets.Spread, null, null) };
         var cut = Render();
-        Change(cut, "Bet");
 
         var chip = cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Spread · Chiefs");
         chip.Click();

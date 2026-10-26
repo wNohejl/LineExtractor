@@ -40,11 +40,53 @@ public sealed class DeskToasts(ISnackbar snackbar)
     public void Fail(string message) => Show(message, DeskState.Negative);
 
     /// <summary>
-    /// The general form, for a caller that already holds a state. The four named methods
-    /// above are the usual way in — they read as the outcome rather than as a parameter.
+    /// Something was added — a wager to the slip, a leg to a parlay. Green, so an addition reads
+    /// as one at a glance, with a key to go and see it where there is somewhere to go. An
+    /// addition used to be a grey note above the form that stayed until the next one, the same
+    /// grey as every other note, so nothing said a thing had been added.
     /// </summary>
-    public void Show(string message, DeskState state = DeskState.Neutral)
-        => snackbar.Add(message, SeverityFor(state), options => options.SnackbarTypeClass = ClassFor(state));
+    public void Added(string message, string? actionLabel = null, Action? action = null)
+        => Show(message, DeskState.Positive, actionLabel, action);
+
+    /// <summary>
+    /// Something was taken away — a wager dropped from the slip. Red, the removal's colour, with
+    /// Undo when the caller can put it back: a removal the operator did not mean is one press
+    /// from undone, and needs no confirmation first (HIG, Undo and redo).
+    /// </summary>
+    public void Removed(string message, Action? undo = null)
+        => Show(message, DeskState.Negative, undo is null ? null : "Undo", undo);
+
+    /// <summary>
+    /// The general form, for a caller that already holds a state. The named methods above are
+    /// the usual way in — they read as the outcome rather than as a parameter. An action is one
+    /// key on the toast; pressing it runs the action and dismisses the toast.
+    /// </summary>
+    public void Show(string message, DeskState state = DeskState.Neutral, string? actionLabel = null, Action? action = null)
+    {
+        Last = new DeskToast(message, state, action is null ? null : actionLabel, action);
+
+        snackbar.Add(message, SeverityFor(state), options =>
+        {
+            options.SnackbarTypeClass = ClassFor(state);
+
+            if (actionLabel is not null && action is not null)
+            {
+                options.Action = actionLabel;
+                options.OnClick = _ =>
+                {
+                    action();
+                    return Task.CompletedTask;
+                };
+            }
+        });
+    }
+
+    /// <summary>
+    /// The last notice raised, as the desk said it: words, tone and key. The snackbar keeps its
+    /// options to itself, so this is how a test, or anything else on the circuit, reads what was
+    /// said without reaching into MudBlazor.
+    /// </summary>
+    public DeskToast? Last { get; private set; }
 
     /// <summary>
     /// MudBlazor's severity is used for its icon only — every colour a notice wears comes
@@ -68,3 +110,6 @@ public sealed class DeskToasts(ISnackbar snackbar)
         _ => "desk-toast desk-toast--neutral"
     };
 }
+
+/// <summary>A notice as the desk raised it: its words, its tone, and its one key if it has one.</summary>
+public sealed record DeskToast(string Message, DeskState State, string? ActionLabel, Action? Action);

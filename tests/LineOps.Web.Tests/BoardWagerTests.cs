@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using LineOps.Desk.Primitives;
 using LineOps.Core.Entities;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
@@ -13,7 +14,11 @@ namespace LineOps.Web.Tests;
 /// </summary>
 public class BoardWagerTests : WagerTestContext
 {
-    private IRenderedComponent<BoardWager> Render(string? market = null, string? outcome = null, string? book = null)
+    /// <summary>
+    /// A door that names the Chiefs moneyline, as a price pressed on the Board does. Place wager on
+    /// a row names no side and opens on step 1 (<see cref="PlaceWagerOnARow"/>).
+    /// </summary>
+    private IRenderedComponent<BoardWager> Render(string? market = Markets.Moneyline, string? outcome = BoardRows.Home, string? book = null)
         => RenderComponent<BoardWager>(p =>
         {
             p.Add(x => x.GameId, BoardRows.GameId);
@@ -29,13 +34,24 @@ public class BoardWagerTests : WagerTestContext
 
     private static string SlipTab(IRenderedFragment cut) => cut.FindAll("[role=tab]")[1].TextContent.Trim();
 
-    [Fact]
-    public void With_only_a_game_it_lands_on_the_side_with_the_most_value()
-    {
-        var cut = Render();
+    private IRenderedComponent<BoardWager> PlaceWagerOnARow()
+        => RenderComponent<BoardWager>(p => p.Add(x => x.GameId, BoardRows.GameId));
 
-        Assert.Equal("-128", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.StartsWith("ML · Chiefs · -128 at draftkings", System.Text.RegularExpressions.Regex.Replace(Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent, @"\s+", " ").Trim());
+    /// <summary>
+    /// Place wager on a row names only the game, and the window asks: step 1 open, every side
+    /// offered, none chosen. It used to land on the side with the most value, a bet the operator
+    /// had not made, already folded away.
+    /// </summary>
+    [Fact]
+    public void With_only_a_game_it_opens_on_step_one_with_no_side_chosen()
+    {
+        var cut = PlaceWagerOnARow();
+
+        Assert.Contains("wstep--current", Step(cut, "Bet").ClassList);
+        Assert.NotEmpty(cut.FindAll(".selection-chip"));
+        Assert.Empty(cut.FindAll(".wbet [role=radio][aria-checked=true]"));
+        Assert.NotNull(cut.Find(".wbet__wait"));
+        Assert.Empty(cut.FindAll("button.desk-btn--filled"));
     }
 
     [Fact]
@@ -228,7 +244,10 @@ public class BoardWagerTests : WagerTestContext
         // The count is the Slip tab's: with the stake cleared, Add to slip (and its badge) waits out of sight.
         Assert.Equal("Slip · 1", SlipTab(cut));
         Assert.Equal(50m, Slip.Items.Single().Stake);
-        Assert.Contains($"Added {50m:C0} on ML · Chiefs at -128 to the slip.", cut.Find(".wager-logged").TextContent);
+        // Said as an addition: a green toast with a key to the slip.
+        Assert.Equal($"Added {50m:C0} on ML · Chiefs at -128 to the slip.", LastToast.Message);
+        Assert.Equal(DeskState.Positive, LastToast.State);
+        Assert.Equal("View slip", LastToast.ActionLabel);
         Assert.True(Log(cut).HasAttribute("disabled"));   // the stake is cleared
     }
 

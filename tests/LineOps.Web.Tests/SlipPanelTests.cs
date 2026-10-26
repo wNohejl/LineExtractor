@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using LineOps.Desk.Primitives;
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Desk.Windowing;
@@ -301,5 +302,54 @@ public class SlipPanelTests : WagerTestContext
 
         Assert.Single(Alerts.Asked);
         Assert.Empty(Slip.Items);
+    }
+}
+
+/// <summary>
+/// Additions and removals on the slip are told apart by colour as well as by word: a dropped
+/// card is a red toast with Undo, and every ready card wears the same Ready, the value carrying
+/// its own colour.
+/// </summary>
+public class SlipRemovalTests : WagerTestContext
+{
+    private static SlipItem Item(int price = -110, double? ev = null, int gameId = BoardRows.GameId)
+        => new(Guid.Empty, gameId, "Buffalo Bills at Kansas City Chiefs", DateTimeOffset.UtcNow.AddHours(3), "nfl",
+            Markets.Moneyline, BoardRows.Home, null, "draftkings", price, DateTimeOffset.UtcNow, false, 50m, null, null, ev);
+
+    [Fact]
+    public void Dropping_a_card_is_a_red_toast_whose_Undo_puts_it_back_where_it_was()
+    {
+        Slip.Add(Item(-110, gameId: 1));
+        var middle = Slip.Add(Item(-120, gameId: 2));
+        Slip.Add(Item(-130, gameId: 3));
+        var cut = RenderComponent<SlipPanel>();
+
+        cut.FindAll(".slip-card button.desk-btn--destructive")[1].Click();
+
+        Assert.Equal(2, Slip.Items.Count);
+        Assert.Equal($"Removed from the slip: {middle.Selection}.", LastToast.Message);
+        Assert.Equal(DeskState.Negative, LastToast.State);
+        Assert.Equal("Undo", LastToast.ActionLabel);
+
+        PressToastKey();
+
+        cut.WaitForAssertion(() => Assert.Equal(3, Slip.Items.Count));
+        Assert.Equal(middle.Id, Slip.Items[1].Id);
+    }
+
+    [Fact]
+    public void Ready_is_one_colour_and_the_value_carries_the_green()
+    {
+        Slip.Add(Item(-110, ev: 0.003, gameId: 1));
+        Slip.Add(Item(-120, ev: -0.022, gameId: 2));
+        var cut = RenderComponent<SlipPanel>();
+
+        var tags = cut.FindAll(".slip-card .tag");
+        Assert.All(tags, t => Assert.Equal("Ready", t.TextContent.Trim()));
+        Assert.Single(tags.Select(t => t.ClassName).Distinct());
+
+        var states = cut.FindAll(".slip-card__state");
+        Assert.NotNull(states[0].QuerySelector(".up"));
+        Assert.Null(states[1].QuerySelector(".up"));
     }
 }

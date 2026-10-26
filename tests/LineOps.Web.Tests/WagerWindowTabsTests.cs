@@ -56,9 +56,11 @@ public class WagerWindowTabsTests : WagerTestContext
         var cut = Render();
         Bank(cut);
 
-        cut.Find(".wager-logged .desklink").Click();
+        // The green toast's key turns the window to its Slip tab.
+        Assert.Equal("View slip", LastToast.ActionLabel);
+        PressToastKey();
 
-        Assert.Equal("true", cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected"));
+        cut.WaitForAssertion(() => Assert.Equal("true", cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected")));
     }
 
     [Fact]

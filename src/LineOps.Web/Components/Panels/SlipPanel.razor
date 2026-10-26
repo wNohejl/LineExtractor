@@ -96,12 +96,12 @@
 
                             <DeskButton Icon="@Icons.Material.Filled.Close" Role="DeskRole.Destructive"
                                         Title="Drop from the slip" aria-label="Drop from the slip"
-                                        OnClick="() => Slip.Remove(item.Id)" />
+                                        OnClick="() => Drop(item)" />
                         </div>
 
                         <div class="slip-card__state">
                             <Tag State="state.State">@state.Word</Tag>
-                            <span>@state.Sentence</span>
+                            <span>@if (state.Ready) { @ValueLine(item) } else { @state.Sentence }</span>
                         </div>
 
                         @if (item.IsClosing)
@@ -258,7 +258,7 @@
         new(SlipMode.Parlay, "One parlay", "Every wager the market still offers is a leg")
     ];
 
-    private sealed record CardState(DeskState State, string Word, string Sentence, string? Remedy = null);
+    private sealed record CardState(DeskState State, string Word, string Sentence, string? Remedy = null, bool Ready = false);
 
     private sealed record SlipReport(string Headline, IReadOnlyList<string> Steps);
 
@@ -352,10 +352,29 @@
         if (Slip.HasTwin(item))
             return new CardState(DeskState.Warning, "Worth knowing", "Another wager on the slip is on this side; logging both records two bets.");
 
-        // Ready says the card can be logged, not that it should be: green only where the price
-        // beats the fair one, so a green tag never sits beside a negative value.
-        return new CardState(item.Ev is > 0 ? DeskState.Positive : DeskState.Neutral, "Ready", ValueReading(item));
+        // Ready says the card can be logged, and is the same on every card that can: it was
+        // green only where the price beat the fair one, so one Ready among four read as the only
+        // card ready to go. Value is said by the value itself — the EV figure in positive ink
+        // where the price beats fair (ValueLine) — not by the colour of a status word.
+        return new CardState(DeskState.Neutral, "Ready", ValueReading(item), Ready: true);
     }
+
+    /// <summary>A ready card's value: the EV figure, in positive ink where it beats the fair price.</summary>
+    private static RenderFragment ValueLine(SlipItem item) => __builder =>
+    {
+        if (item.Ev is { } ev)
+        {
+            <span class="@(ev > 0 ? "up" : null)">@PriceCell.EvLabel(ev)</span>
+            @if (item.Fair is { } fair)
+            {
+                <text> · @PriceCell.FairLabel(fair)</text>
+            }
+        }
+        else
+        {
+            <text>No fair price on this number, so value is unread.</text>
+        }
+    };
 
     private static string MarketWord(string market) => market switch
     {
@@ -454,8 +473,22 @@
                 confirmLabel: "Start over", destructive: true))
             return;
 
+        var count = Slip.Items.Count;
         Slip.Clear();
         _report = null;
         _error = null;
+        Toasts.Removed($"Cleared the slip: {count} {(count == 1 ? "wager" : "wagers")}.");
+    }
+
+    /// <summary>
+    /// The cross on a card. A removal is said in red, with Undo putting the wager back where it
+    /// was: dropping the wrong card costs a press, not a confirmation on every drop.
+    /// </summary>
+    private void Drop(SlipItem item)
+    {
+        var index = Slip.Items.ToList().FindIndex(i => i.Id == item.Id);
+        Slip.Remove(item.Id);
+        Toasts.Removed($"Removed from the slip: {item.Selection}.",
+            () => _ = InvokeAsync(() => Slip.Restore(item, index)));
     }
 }

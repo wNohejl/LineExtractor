@@ -49,28 +49,37 @@ public sealed record SelectionChoice(string Market, string Outcome, BestOffer? O
     }
 
     /// <summary>
-    /// Where a wager window opens. A door that names a side lands on it, and on the named book's
-    /// price where that book quotes the side. Otherwise the side with the most value against the
-    /// fair price; where nothing can be scored, the widest spread between books — they disagree,
-    /// which is the next best reason the game is worth a look. A door that lands on the wrong side
-    /// costs a click: every side is still on the strip.
+    /// Where a wager window opens. A door that names a side — a price pressed on the Board, a
+    /// copy of a logged bet — lands on it, and on the named book's price where that book quotes
+    /// the side. A door that names none lands on nothing: Place wager on a row opens on the
+    /// question, every side offered and none chosen. It used to land on the side with the most
+    /// value, so the window opened with a bet already made that the operator had not made, its
+    /// step folded and the stake asked for next; a bet is the operator's to choose.
+    /// <see cref="MostValue"/> is the ranking that used, kept for a hint.
     /// </summary>
     public static WagerOffer? Land(BoardRow? row, string? market, string? outcome, string? book)
     {
-        var choices = All(row).Where(c => c.Offer is not null).ToList();
+        if (market is null || outcome is null)
+            return null;
 
-        if (market is not null && outcome is not null
-            && choices.FirstOrDefault(c => c.Market == market
-                                           && string.Equals(c.Outcome, outcome, StringComparison.OrdinalIgnoreCase)) is { } asked)
-        {
-            return (book is not null ? WagerOffer.AtBook(asked.Market, asked.Offer!, book) : null)
-                   ?? WagerOffer.Best(asked.Market, asked.Offer!);
-        }
+        var asked = All(row).FirstOrDefault(c => c.Offer is not null && c.Market == market
+                                                 && string.Equals(c.Outcome, outcome, StringComparison.OrdinalIgnoreCase));
 
-        return choices
+        return asked is null
+            ? null
+            : (book is not null ? WagerOffer.AtBook(asked.Market, asked.Offer!, book) : null)
+              ?? WagerOffer.Best(asked.Market, asked.Offer!);
+    }
+
+    /// <summary>
+    /// The side with the most value against the fair price; where nothing can be scored, the
+    /// widest spread between books — they disagree, which is the next best reason to look.
+    /// A suggestion to name, never a choice to make for the operator.
+    /// </summary>
+    public static WagerOffer? MostValue(BoardRow? row)
+        => All(row).Where(c => c.Offer is not null)
             .OrderByDescending(c => c.Offer!.Ev ?? double.MinValue)
             .ThenByDescending(c => c.Offer!.EdgePoints ?? 0)
             .Select(c => WagerOffer.Best(c.Market, c.Offer!))
             .FirstOrDefault();
-    }
 }

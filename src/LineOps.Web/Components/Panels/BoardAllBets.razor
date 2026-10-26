@@ -215,8 +215,9 @@ else
         Slip.AddLeg(price.ToSlipItem(Row.Game, matchup, 0m, null));
 
         var legs = Slip.Items.Count(i => i.AsLeg);
-        Toasts.Success($"Leg added: {price.Label} {OddsMath.FormatPrice(price.PriceAmerican)} ({price.Book}) · "
-                       + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.");
+        Toasts.Added($"Added a leg: {price.Label} {OddsMath.FormatPrice(price.PriceAmerican)} ({price.Book}) · "
+                     + $"{legs} {(legs == 1 ? "leg" : "legs")} on the slip.",
+            "View slip", () => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!)));
     }
 
     /// <summary>A book's margin on a market, read from whichever side it quotes a pair on.</summary>
