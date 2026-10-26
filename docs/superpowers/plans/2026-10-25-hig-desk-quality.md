@@ -151,3 +151,74 @@
 
 - [ ] **Step 1: Tests; FAIL. Step 2: Implement. Step 3: PASS.**
 - [ ] **Step 4: Commit, push.** Subject: `fix(player): stat columns carry names, not keys`.
+
+---
+
+## Addendum, 25 October 2026 evening — expression
+
+The operator's verdict after Tasks 1–8: the row actions Odds, H2H and Form did nothing (fixed
+in 72722ca: the strip's clicks reached the grid row and closed it), the wager wizard showed no
+change (it was ruled out of scope; it is in scope now, since both sessions that owned it are
+idle), and "everything still lacks expression". Tasks 1–8 were subtractive: capitals, boxes and
+stray accent came off, and nothing was put in their place. These tasks put expression back
+without breaking the rulebook. The rulebook keeps the accent for interaction and forbids the
+price as a hero figure, so expression comes from **identity** (team colour), **contrast of
+weight** (the winner reads heavier than the loser), **scale where the content earns it** (a
+score, a record), **shape** (a scoreboard, not a sentence), and **small, purposeful motion**.
+
+Global constraints above still bind, with two amendments:
+- **Team colour is content, not chrome.** It appears only as a team's own mark (a disc beside
+  that team's name or score). It never colours text, controls, fills or selection. Hex values
+  live in one C# data map, never in CSS. Each mark carries a 1px `--separator-strong` ring so a
+  dark team colour still reads on a dark surface.
+- **The wager window is in scope** (`BoardWager.razor` and the wager block of `lineops.css`),
+  following `~/.claude/skills/apple-hig-components/references/wizards.md` ("Reconciling the
+  card look" and "The bet-and-price group recipe") exactly.
+
+### Task 10: Team marks
+
+**Files:** Create `src/LineOps.Web/Components/Desk/TeamMark.razor`, `src/LineOps.Web/Components/Desk/TeamColors.cs`; modify `lineops.css` (a `.teammark` rule in the anatomy block); use it in `GamePanel.razor` (title), `TeamPanel.razor` (title), `BoardPanel.razor` (matchup cell), `BoardWager.razor` (header), `Snippets/FormSnippet.razor`, `Snippets/HeadToHeadSnippet.razor`; test `tests/LineOps.Web.Tests/TeamMarkTests.cs`.
+
+**Interfaces:** `TeamColors.For(string sportKey, string abbrev) -> string?` (hex like `#E31837`, null when unknown); `<TeamMark Sport="..." Abbrev="..." Size="TeamMarkSize.Small|Large" />` renders `<span class="teammark teammark--sm|lg" style="--team:#hex" aria-hidden="true">`, or nothing when the colour is unknown.
+
+- [ ] Tests: `Known_team_has_its_primary_colour` (NFL `KC` -> `#E31837`, MLB `NYY` -> `#0C2340`; for every club use its most recognisable colour and say which in a comment per row), `Unknown_team_renders_nothing`, `Mark_is_hidden_from_assistive_tech`, `Every_abbrev_the_desk_uses_has_a_colour` (all 32 NFL and 30 MLB abbreviations as ESPN spells them; list them in the test).
+- [ ] `.teammark`: inline-block; `--sm` 8px disc, `--lg` 12px disc; `background: var(--team)`; `box-shadow: 0 0 0 1px var(--separator-strong)`; centred on the cap height; `margin-right: var(--space-1)`.
+- [ ] Commit: `feat(desk): every team carries its colour as a mark beside its name`.
+
+### Task 11: The Game window's title is a scoreboard
+
+**Files:** `GamePanel.razor` title; `lineops.css` anatomy block (`.scoreboard*`); create `src/LineOps.Web/Components/Desk/Scoreboard.razor` (GamePanel cannot render in bUnit without a database); test `tests/LineOps.Web.Tests/ScoreboardTests.cs`.
+
+**Interfaces:** `<Scoreboard Game="..." OnTeam="EventCallback<int>" Compact="bool" />` — two rows, away then home. Each row: `TeamMark Large`, the team name as a `DeskLink` at `--text-title3` semibold, the score trailing at `--text-title1` semibold tabular. Final: the loser's row is `--text-secondary` at `--weight-regular`. Live or tied: both rows primary. Scheduled: no scores; the start time trails the home row in `--text-subheadline` secondary. `Compact`: one line, `away mark name score · at · home mark name score`, `--text-title3`, for the wager header. The status tag, season tag and probable pitchers stay in `PanelTitle`'s `Tags` and `Detail`.
+
+- [ ] Tests: `Final_game_dims_the_loser`, `Live_game_keeps_both_rows_primary`, `Scheduled_game_shows_no_scores`, `Team_names_link_to_their_windows`, `Compact_reads_on_one_line`.
+- [ ] Commit: `feat(game): the title is a scoreboard, and the winner reads heavier than the loser`.
+
+### Task 12: The Board row reads as two teams, and its snippet spans the row
+
+**Files:** `BoardPanel.razor` (matchup and score columns; where `RowActions` renders); `DeskGrid.razor` (a child-row slot if MudDataGrid 9.7 supports `ChildRowContent`; read the MudBlazor package's API before deciding; if it does not, render the snippet in a cell spanned by CSS and record which in the report); `lineops.css`.
+
+- [ ] Matchup cell: two lines, away over home, each `TeamMark Small` plus the team's short name (`Steelers`, not `Pittsburgh Steelers a...`). The score cell has two lines aligned to them: the winner semibold primary, the loser secondary. No truncation at the Board's default width.
+- [ ] The open row's strip stays in the matchup cell. The snippet it opens renders full-width under the row, indented to the matchup column's leading edge, max-width 720px.
+- [ ] Tests on `RowActions`/`DeskGrid` for the child slot if added; otherwise a bUnit assertion that the snippet's container carries the spanning class.
+- [ ] Commit: `feat(board): a row reads as two teams, and its snippet opens across the row`.
+
+### Task 13: The wager wizard, by the recipe
+
+**Files:** `BoardWager.razor`, the wager block of `lineops.css`, `Desk/StakeRow.razor`; tests in the existing wager test files (`grep -l BoardWager tests/LineOps.Web.Tests/*.cs`).
+
+- [ ] Header card: the matchup through `Scoreboard Compact` (Task 11), so "at" no longer floats between wrapped names; the inline `style="margin:0 4px"` goes.
+- [ ] Price row per recipe rule 3: the chosen side at 13px semibold over an 11px secondary line; the price trailing at `--text-title2` semibold tabular primary; the book pop-up after it.
+- [ ] Stake: no native number spinner (`appearance: textfield`, hide the WebKit spin buttons); quick values beside the field as Plain keys; "To win $X" as the group's footer, live as the stake is typed.
+- [ ] Keys: one Filled primary (Log wager) leading the step's foot; Add to slip and Add as leg Plain; a key that cannot be used yet is hidden until it can be, or carries a one-line reason beside it; Duplicate moves out from under the keys to the header's trailing edge as a Plain key.
+- [ ] Status note per recipe rule 7: the closing-line warning becomes a symbol plus one sentence under the steps card, not an orange paragraph.
+- [ ] Commit: `feat(wager): the wizard follows the recipe: a scoreboard header, the price row, one key`.
+
+### Task 14: Live and result states, and the snippet's arrival
+
+**Files:** `src/LineOps.Desk/Primitives/Tag.razor`, `lineops.css`, `src/LineOps.Desk/Primitives/SnippetShell.razor`, and the result-tag call sites.
+
+- [ ] A Live tag carries a 6px `--state-warning` dot that pulses (opacity 1 to .35, 1.2s ease-in-out, infinite); under `prefers-reduced-motion` the dot holds still.
+- [ ] Result capsules W, L and P: W is `--state-positive-wash` with `--state-positive` text, L the negative pair, P neutral; the same size as `.tag`; used by the Form snippet, Team recent games and H2H.
+- [ ] The snippet arrives: 180ms, opacity 0 to 1 and translateY(-4px) to 0, ease-out; reduced motion: opacity only.
+- [ ] Commit: `feat(desk): live games pulse, results read as capsules, and a snippet arrives rather than appears`.
