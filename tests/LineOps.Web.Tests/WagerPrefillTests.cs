@@ -24,8 +24,15 @@ public class WagerPrefillTests : WagerTestContext
     {
         var entry = new JournalEntry
         {
-            GameId = BoardRows.GameId, Market = Markets.Spread, Outcome = BoardRows.Home, LineTaken = -2.5m,
-            Book = "fanduel", PriceTaken = -112, Stake = 40m, Note = "fade", ManualPrice = false
+            GameId = BoardRows.GameId,
+            Market = Markets.Spread,
+            Outcome = BoardRows.Home,
+            LineTaken = -2.5m,
+            Book = "fanduel",
+            PriceTaken = -112,
+            Stake = 40m,
+            Note = "fade",
+            ManualPrice = false
         };
 
         var parameters = WagerPrefill.From(entry).ToParameters();
@@ -45,8 +52,13 @@ public class WagerPrefillTests : WagerTestContext
     {
         var entry = new JournalEntry
         {
-            GameId = null, Market = "other", FreeTextMarket = "Steelers to win the AFC North",
-            Book = "caesars", PriceTaken = 250, Stake = 25m, ManualPrice = true
+            GameId = null,
+            Market = "other",
+            FreeTextMarket = "Steelers to win the AFC North",
+            Book = "caesars",
+            PriceTaken = 250,
+            Stake = 25m,
+            ManualPrice = true
         };
 
         var parameters = WagerPrefill.From(entry).ToParameters();
@@ -63,8 +75,13 @@ public class WagerPrefillTests : WagerTestContext
     {
         var entry = new JournalEntry
         {
-            GameId = BoardRows.GameId, Market = Markets.Moneyline, Outcome = BoardRows.Home,
-            Book = "fanduel", PriceTaken = -135, Stake = 40m, Game = BoardRows.Game()
+            GameId = BoardRows.GameId,
+            Market = Markets.Moneyline,
+            Outcome = BoardRows.Home,
+            Book = "fanduel",
+            PriceTaken = -135,
+            Stake = 40m,
+            Game = BoardRows.Game()
         };
 
         Manager.OpenWagerCopy(WagerPrefill.From(entry), "Buffalo Bills at Kansas City Chiefs");
@@ -80,8 +97,14 @@ public class WagerPrefillTests : WagerTestContext
     {
         var entry = new JournalEntry
         {
-            GameId = BoardRows.GameId, Market = Markets.Spread, Outcome = BoardRows.Home, LineTaken = -2.50m,
-            Book = "draftkings", PriceTaken = -110, Stake = 110.00m, ManualPrice = true
+            GameId = BoardRows.GameId,
+            Market = Markets.Spread,
+            Outcome = BoardRows.Home,
+            LineTaken = -2.50m,
+            Book = "draftkings",
+            PriceTaken = -110,
+            Stake = 110.00m,
+            ManualPrice = true
         };
         Manager.OpenWagerCopy(WagerPrefill.From(entry), "Buffalo Bills at Kansas City Chiefs");
 

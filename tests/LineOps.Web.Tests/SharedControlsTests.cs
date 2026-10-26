@@ -62,6 +62,7 @@ public class SharedControlsTests : DeskTestContext
     [Fact]
     public void The_quick_amount_matching_the_stake_shows_as_chosen()
     {
+        using var dollars = new UsDollars();
         var cut = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 50m));
 
         var keys = cut.FindAll("button").Where(b => b.TextContent.Trim().StartsWith('$')).ToList();

@@ -77,15 +77,26 @@ public class ClosingLineRefillTests(PostgresFixture fixture)
         // A game that already has a closing total from somewhere has had its close read.
         db.ClosingLines.Add(new ClosingLine
         {
-            GameId = closed.Id, SourceId = source.Id, Book = "draftkings", Market = Markets.Total,
-            Outcome = "over", Line = 44.5m, PriceAmerican = -110, CapturedAt = closed.StartsAt
+            GameId = closed.Id,
+            SourceId = source.Id,
+            Book = "draftkings",
+            Market = Markets.Total,
+            Outcome = "over",
+            Line = 44.5m,
+            PriceAmerican = -110,
+            CapturedAt = closed.StartsAt
         });
 
         // And a side the provider already gave for the owed game is not written twice.
         db.ClosingLines.Add(new ClosingLine
         {
-            GameId = owed.Id, SourceId = source.Id, Book = "DraftKings", Market = Markets.Moneyline,
-            Outcome = "Philadelphia Eagles", PriceAmerican = -390, CapturedAt = owed.StartsAt
+            GameId = owed.Id,
+            SourceId = source.Id,
+            Book = "DraftKings",
+            Market = Markets.Moneyline,
+            Outcome = "Philadelphia Eagles",
+            PriceAmerican = -390,
+            CapturedAt = owed.StartsAt
         });
 
         await db.SaveChangesAsync();

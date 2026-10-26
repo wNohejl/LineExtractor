@@ -1,7 +1,6 @@
 using Bunit;
 using LineOps.Desk.Primitives;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace LineOps.Web.Tests;
@@ -172,8 +171,8 @@ public class DeskMenuTests : DeskTestContext
     {
         var cut = Render(b =>
         {
-            PullDown(b, 0, "Pull data");
-            PullDown(b, 10, "Settle");
+            b.AddContent(0, PullDown("Pull data"));
+            b.AddContent(1, PullDown("Settle"));
         });
 
         var keys = cut.FindAll("button.desk-btn");
@@ -217,16 +216,16 @@ public class DeskMenuTests : DeskTestContext
         Assert.Single(cut.FindAll("[role=menu]"));
     }
 
-    private static void PullDown(RenderTreeBuilder b, int seq, string label)
+    private static RenderFragment PullDown(string label) => b =>
     {
-        b.OpenComponent<DeskPullDown>(seq);
-        b.AddAttribute(seq + 1, nameof(DeskPullDown.Label), label);
-        b.AddAttribute(seq + 2, nameof(DeskPullDown.ChildContent), (RenderFragment)(c =>
+        b.OpenComponent<DeskPullDown>(0);
+        b.AddAttribute(1, nameof(DeskPullDown.Label), label);
+        b.AddAttribute(2, nameof(DeskPullDown.ChildContent), (RenderFragment)(c =>
         {
             c.OpenComponent<DeskMenuItem>(0);
             c.AddAttribute(1, nameof(DeskMenuItem.Label), label + " now");
             c.CloseComponent();
         }));
         b.CloseComponent();
-    }
+    };
 }

@@ -118,8 +118,12 @@ public class SearchServiceTests(PostgresFixture fixture)
 
         Game At(int days) => new()
         {
-            SportId = w.Sport.Id, HomeTeamId = w.Home.Id, AwayTeamId = w.Away.Id,
-            StartsAt = DateTimeOffset.UtcNow.AddDays(days), Status = GameStatus.Scheduled, SeasonYear = 2026
+            SportId = w.Sport.Id,
+            HomeTeamId = w.Home.Id,
+            AwayTeamId = w.Away.Id,
+            StartsAt = DateTimeOffset.UtcNow.AddDays(days),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
         };
 
         var next = At(5);

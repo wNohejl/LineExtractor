@@ -173,6 +173,7 @@ public class JournalParlayTests : WagerTestContext
     [Fact]
     public void Edit_opens_the_grouped_form_on_the_parlays_money_and_its_legs()
     {
+        using var dollars = new UsDollars();
         var (cut, _) = Render();
 
         cut.Find("button[title='Edit this parlay']").Click();
@@ -435,8 +436,14 @@ public class JournalParlayTests : WagerTestContext
         var parlay = FourLegs();
         parlay.Legs.Add(new JournalEntry
         {
-            Id = 105, Market = "other", FreeTextMarket = "Player X 2+ hits", Outcome = "—",
-            PriceTaken = 180, Book = "draftkings", ParlayGroupId = parlay.Id, PlacedAt = parlay.PlacedAt
+            Id = 105,
+            Market = "other",
+            FreeTextMarket = "Player X 2+ hits",
+            Outcome = "—",
+            PriceTaken = 180,
+            Book = "draftkings",
+            ParlayGroupId = parlay.Id,
+            PlacedAt = parlay.PlacedAt
         });
         var (cut, _) = Render(parlay);
 
