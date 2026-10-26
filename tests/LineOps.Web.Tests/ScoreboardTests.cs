@@ -75,22 +75,24 @@ public class ScoreboardTests : DeskTestContext
         Assert.Equal(2, cut.FindAll(".scoreboard__score").Count);
     }
 
-    [Fact]
-    public void Scheduled_game_shows_no_scores()
+    [Theory]
+    [InlineData(GameStatus.Scheduled)]
+    [InlineData(GameStatus.Postponed)]
+    public void Scheduled_game_shows_no_scores(GameStatus status)
     {
-        // ESPN writes zeros for a fixture that has not started; they are not a result.
-        var cut = RenderComponent<Scoreboard>(p => p.Add(s => s.Game, Steelers_at_Saints(GameStatus.Scheduled, 0, 0)));
+        // ESPN writes zeros for a fixture that has not started (or never will); they are not a result.
+        var game = Steelers_at_Saints(status, 0, 0);
+        var cut = RenderComponent<Scoreboard>(p => p.Add(s => s.Game, game));
 
+        Assert.Equal(2, cut.FindAll(".scoreboard__row").Count);
         Assert.Empty(cut.FindAll(".scoreboard__score"));
         Assert.Empty(cut.FindAll(".scoreboard__row--loser"));
 
-        // The start time trails the home row, where the score will be.
-        var rows = cut.FindAll(".scoreboard__row");
-        Assert.Null(rows[0].QuerySelector(".scoreboard__time"));
-        Assert.Equal(LineOps.Web.Components.DisplayTime.Stamp(Steelers_at_Saints(GameStatus.Scheduled, 0, 0).StartsAt),
-            rows[1].QuerySelector(".scoreboard__time")!.TextContent.Trim());
+        // The start time is the title's Detail line, once; nothing trails the rows.
+        Assert.Empty(cut.FindAll(".scoreboard__time"));
+        Assert.DoesNotContain(LineOps.Web.Components.DisplayTime.Stamp(game.StartsAt), cut.Markup);
 
-        Assert.StartsWith("Pittsburgh Steelers at New Orleans Saints", Spoken(cut.Find(".scoreboard")));
+        Assert.Equal("Pittsburgh Steelers at New Orleans Saints", Spoken(cut.Find(".scoreboard")));
     }
 
     [Fact]
@@ -122,9 +124,14 @@ public class ScoreboardTests : DeskTestContext
         var board = cut.Find(".scoreboard");
         Assert.Contains("scoreboard--compact", board.ClassList);
 
-        // Away, "at", home, in that order, with the scores beside the names.
+        // Away · at · home, in that order, with the scores beside the names; the middots are
+        // for the eye, so a screen reader hears "16 at New Orleans".
+        var parts = board.Children.Where(c => c.ClassList.Contains("scoreboard__at")).ToList();
+        Assert.Equal(["·", "at", "·"], parts.Select(c => c.TextContent.Trim()));
+        Assert.Equal("true", parts[0].GetAttribute("aria-hidden"));
+        Assert.Null(parts[1].GetAttribute("aria-hidden"));
+        Assert.Equal("true", parts[2].GetAttribute("aria-hidden"));
         Assert.Equal("Pittsburgh Steelers 16 at New Orleans Saints 10", Spoken(board));
-        Assert.NotNull(cut.Find(".scoreboard__at"));
 
         // The loser is still quieter on one line.
         Assert.Contains("scoreboard__row--loser", cut.FindAll(".scoreboard__row")[1].ClassList);

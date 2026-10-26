@@ -3068,13 +3068,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     font-size: var(--scoreboard-score);
     font-variant-numeric: tabular-nums;
 }
-.scoreboard__time {
-    justify-self: end;
-    font-size: var(--text-subheadline);
-    font-weight: var(--weight-regular);
-    color: var(--text-secondary);
-}
 .scoreboard__at { color: var(--text-secondary); font-weight: var(--weight-regular); }
+/* Without subgrid a row is its own two-column grid: the score keeps its row and its right
+   edge, though the two scores no longer share one. */
+@supports not (grid-template-columns: subgrid) {
+    .scoreboard__row { grid-template-columns: minmax(0, 1fr) auto; }
+}
 
 /* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives

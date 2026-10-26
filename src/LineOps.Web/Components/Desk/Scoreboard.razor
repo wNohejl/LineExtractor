@@ -14,8 +14,9 @@
     expressions because Razor drops whitespace-only text around markup; a grid or flex
     container ignores them, a screen reader does not.
 
-    Compact is the same parts on one line, for the wager header: away, "at", home, at
-    --text-title3 throughout.
+    Before a game starts there is no score and nothing trails the rows: the start time is the
+    title's Detail line, once. Compact is the same parts on one line, for the wager header:
+    "away · at · home" at --text-title3 throughout, the middots hidden from assistive tech.
 *@
 
 @{
@@ -24,17 +25,16 @@
 }
 
 <span class="scoreboard@(Compact ? " scoreboard--compact" : "")">
-    @Row(Game.AwayTeamId, Game.AwayTeam, "Away", Game.AwayScore, hasScore, loser == Side.Away, trailing: null)
+    @Row(Game.AwayTeamId, Game.AwayTeam, "Away", Game.AwayScore, hasScore, loser == Side.Away)
     @if (Compact)
     {
-        @(" ")<span class="scoreboard__at">at</span>@(" ")
+        <span class="scoreboard__at" aria-hidden="true">·</span>@(" ")<span class="scoreboard__at">at</span>@(" ")<span class="scoreboard__at" aria-hidden="true">·</span>
     }
     else
     {
         <span class="sr-only">@(hasScore ? ", " : " at ")</span>
     }
-    @Row(Game.HomeTeamId, Game.HomeTeam, "Home", Game.HomeScore, hasScore, loser == Side.Home,
-         trailing: Compact || hasScore || Game.Status != GameStatus.Scheduled ? null : DisplayTime.Stamp(Game.StartsAt))
+    @Row(Game.HomeTeamId, Game.HomeTeam, "Home", Game.HomeScore, hasScore, loser == Side.Home)
 </span>
 
 @code {
@@ -59,7 +59,7 @@
         }
         : Side.None;
 
-    private RenderFragment Row(int teamId, Team? team, string fallback, int? score, bool hasScore, bool isLoser, string? trailing) => __builder =>
+    private RenderFragment Row(int teamId, Team? team, string fallback, int? score, bool hasScore, bool isLoser) => __builder =>
     {
         <span class="scoreboard__row@(isLoser ? " scoreboard__row--loser" : "")">
             <span class="scoreboard__name">
@@ -72,10 +72,6 @@
             @if (hasScore)
             {
                 @(" ")<span class="scoreboard__score">@(score ?? 0)</span>
-            }
-            else if (trailing is not null)
-            {
-                @(" ")<span class="scoreboard__time">@trailing</span>
             }
         </span>
     };
