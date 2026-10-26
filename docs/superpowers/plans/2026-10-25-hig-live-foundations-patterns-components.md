@@ -173,7 +173,12 @@ Tasks within a wave run in parallel, one subagent each; no two tasks in a wave s
 ### Task 11: Remaining skeletons, the eviction notice, window controls
 
 **Files:** `GamePanel.razor:30`, `TeamPanel.razor:32`, `HeadToHeadPanel.razor:25` (skeleton shaped like the first section instead of "Loading the …"); `DeskFooter.razor:16–35` + `DeskHeader.razor` (the eviction notice and its "Reopen {name}" key move beside `.hdr__count` in the header; the footer keeps stats only), `lineops.css` `.ftr__refusal` → `.hdr__notice`; `AppWindow.razor:70–91` + `lineops.css:1500–1517` (window controls: keep the trailing Windows order but draw them as the desk's own 24px plain icon keys — glyphs always visible at `--text-secondary`, hover `--surface-3`, close hover **not** red — rather than grey dots that imitate macOS traffic lights); tests `WindowBarTests.cs`/`DeskLayoutTests.cs` (`Eviction_notice_renders_in_the_header`, `Window_controls_are_labelled_keys`).
+- Also: a follow-up window opened from inside a snippet (Board row → Odds → Movement opens Line movement as a floating dialog) reports its pulse and status to the **host** window, because the cascaded `WindowId` reaching the dialog-hosted panel is the Board's; the Board's title bar then reads "no moves". Give `FollowUpLayer` its own cascaded id (or a null id that `SetPulse` ignores) and pin it with a test in `FollowUpLauncherTests.cs` (`A_follow_up_dialog_does_not_write_its_hosts_status`). Reported by the sibling session on 25 October.
 - Commit: `fix(desk): every window loads as a shape, the eviction notice sits in the header, and window controls are keys, not dots`.
+
+## Wave 1 status (25 October, late)
+
+Tasks 1–5 landed as commits `93949a6`, `87c3ee3`, `b8cfaa6`, `903bcdd`, `67d4142` and were checked in the browser: menus take focus, arrow, typeahead and close on Escape with focus back on the opener; a dirty Journal asks "Discard this journal entry?" and Return on that alert does nothing; the Price field explains itself and the Save key's reason is visible text; the footer key reads "Reopen Parts bin". Left for Wave 2 from the reports: `IDeskAlerts.ConfirmAsync` still defaults `confirmLabel` to "OK" (make it required, reordering parameters); `StakeRow` needs an `Error` parameter and no native spinner; `Back()`/`Forward()`/`ApplyWorkspace` can still drop a dirty window without asking; nothing styles `data-reduced-transparency` yet (Task 7).
 
 ---
 
