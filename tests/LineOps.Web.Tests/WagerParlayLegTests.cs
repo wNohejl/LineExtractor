@@ -52,15 +52,26 @@ public class WagerParlayLegTests : WagerTestContext
         Assert.Equal(SlipMode.Parlay, Slip.Mode);
     }
 
+    /// <summary>
+    /// A parlay of Sunday's bets, built on Monday: a started game's side opens on a typed price
+    /// from its close, so it can be a leg at the price the operator got rather than being refused.
+    /// </summary>
     [Fact]
-    public void A_closing_line_cannot_be_added_as_a_leg()
+    public void A_started_game_can_be_a_leg_at_the_price_you_got()
     {
         Data.Row = BoardRows.Row(closing: true);
         var cut = FromBoard(Markets.Moneyline, BoardRows.Home);
 
-        // The key is not offered, and the status note under the card says why.
-        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add as leg", StringComparison.Ordinal));
-        Assert.Contains("This is the closing line", cut.Find(".wstatus__text").TextContent);
+        Assert.Contains("The game has started", cut.Find(".wstatus__text").TextContent);
+
+        cut.Find("input[placeholder='-110']").Input("-125");
+        Key(cut, "Add as leg").Click();
+
+        var leg = Assert.Single(Slip.Items);
+        Assert.True(leg.AsLeg);
+        Assert.False(leg.IsClosing);
+        Assert.True(leg.ManualPrice);
+        Assert.Equal(-125, leg.PriceAmerican);
     }
 
     [Fact]

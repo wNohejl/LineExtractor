@@ -282,18 +282,23 @@ public class WagerWindowBooksTests : WagerTestContext
     }
 
     [Fact]
-    public void A_typed_price_lifts_the_closing_line_block()
+    public void A_started_game_opens_on_a_typed_price_from_its_close_and_logs_it()
     {
         Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));
         var cut = Render(Markets.Moneyline, BoardRows.Home);
+
+        // Typed already, from the close, so the block never stands in the way.
+        Assert.Equal("-128", cut.Find("input[placeholder='-110']").GetAttribute("value"));
+
         Key(cut, 50m.ToString("C0")).Click();
-        Assert.True(Log(cut).HasAttribute("disabled"));
-
-        OpenPrice(cut);
-        cut.Find(".wager-manual-key").Click();
-
         Assert.False(Log(cut).HasAttribute("disabled"));
         Assert.Contains("the game started 42 min ago, so this records the price you took", cut.Markup);
+
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Equal(-128, bet.PriceTaken);
+        Assert.True(bet.ManualPrice);
     }
 
     [Fact]

@@ -540,6 +540,16 @@ else
             <span class="wstatus__text">This is the closing line, so it cannot be @(BuildParlay ? "a leg" : "logged"): the pencil on the price records the one you got.</span>
         </p>
     }
+    else if (_receipt is null && _fromClose && Typing)
+    {
+        @* The price was typed for the operator from a started game's close (TypeOverClose). Said
+           once, where the closing note would be: the number is a starting point, and the one to
+           record is the one they got. *@
+        <p class="wstatus wstatus--warning" role="status">
+            <span class="wstatus__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.Edit" /></span>
+            <span class="wstatus__text">The game has started, so the price starts from its closing line. Change it to the one you got before you @(BuildParlay ? "add the leg" : "log it").</span>
+        </p>
+    }
 }
 </DeskTabs>
 
@@ -814,6 +824,9 @@ else
         }
 
         Reprice();
+        _fromClose = false;
+        _keptClose = false;
+        TypeOverClose();
         await ReadPriorAsync();
     }
 
@@ -994,10 +1007,20 @@ else
         _sideChosen = true;
         SyncUnsaved();
 
+        // A price typed over the last side's close was that side's; this side starts afresh.
+        if (_fromClose)
+        {
+            _manual = false;
+            _fromClose = false;
+        }
+
+        _keptClose = false;
+
         if (choice.Offer is null)
             Prefill(null);
 
         Reprice();
+        TypeOverClose();
         await ReadPriorAsync();
     }
 
@@ -1025,9 +1048,39 @@ else
     /// Into a typed price starting from the number on screen, so changing -166 to -160 is one edit
     /// rather than three fields; back out to the fetched price, untouched.
     /// </summary>
+    /// <summary>
+    /// A game that has started has only its close to show, and a close could not have been
+    /// taken: the window refused it and pointed at the pencil, so a parlay of Sunday's bets,
+    /// logged on Monday, could not be built here at all. A bet on a started game was placed
+    /// earlier at a price the operator knows, so the price now opens typed, starting from the
+    /// close, and a sentence under the card says to make it the one they got — the pencil,
+    /// pressed for them. Once per side: going back to the fetched price leaves it there, closing
+    /// note and all.
+    /// </summary>
+    private void TypeOverClose()
+    {
+        if (_offer is not { IsClosing: true, Manual: false } closing || _keptClose)
+            return;
+
+        _manual = true;
+        _fromClose = true;
+        // The step stays open on the price, so the number to change is in view, not folded.
+        _opened = BetStep;
+        Prefill(closing);
+        Reprice();
+    }
+
+    // The price was typed for the operator from a started game's close (TypeOverClose).
+    private bool _fromClose;
+
+    // The operator went back to the fetched close on this side, so it is not typed over again.
+    private bool _keptClose;
+
     private void ToggleManual()
     {
         _manual = !_manual;
+        _keptClose = !_manual && _fromClose;
+        _fromClose = false;
         _moved = null;
         // The price is being worked on: keep its step open whichever way the toggle went.
         _opened = BetStep;
@@ -1258,6 +1311,8 @@ else
         _moved = null;
         _opened = null;
         _sideChosen = false;
+        _fromClose = false;
+        _keptClose = false;
 
         Reprice();
         SyncUnsaved();

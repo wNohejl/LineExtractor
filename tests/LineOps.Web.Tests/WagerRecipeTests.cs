@@ -142,8 +142,12 @@ public class WagerRecipeTests : WagerTestContext
 
     // ---- The status note ------------------------------------------------------------------
 
+    /// <summary>
+    /// A started game opens on a typed price that starts from its close, the bet step open on
+    /// it, and one sentence under the card saying to make it the price that was got.
+    /// </summary>
     [Fact]
-    public void A_closing_line_is_a_symbol_and_one_sentence_under_the_steps_card()
+    public void A_started_game_opens_on_its_close_typed_and_says_to_change_it()
     {
         Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));
         var cut = Render();
@@ -151,12 +155,10 @@ public class WagerRecipeTests : WagerTestContext
         var note = cut.Find(".wcard + .wstatus");
         Assert.Contains("wstatus--warning", note.ClassList);
         Assert.NotNull(note.QuerySelector(".wstatus__mark svg"));
-        Assert.Equal("This is the closing line, so it cannot be logged: the pencil on the price records the one you got.",
+        Assert.Equal("The game has started, so the price starts from its closing line. Change it to the one you got before you log it.",
             Text(note.QuerySelector(".wstatus__text")!));
-        Assert.Empty(note.QuerySelectorAll(".note"));
-        Assert.DoesNotContain("note", note.ClassList);
-        // Said once: not again beside the keys.
-        Assert.DoesNotContain(cut.FindAll(".wager-why"), w => w.TextContent.Contains("closing line"));
+        Assert.Equal("-128", cut.Find("input[placeholder='-110']").GetAttribute("value"));
+        Assert.Empty(cut.FindAll(".check--negative"));
     }
 
     [Fact]
@@ -177,17 +179,22 @@ public class WagerRecipeTests : WagerTestContext
         Assert.Empty(cut.FindAll(".wager-why"));
     }
 
+    /// <summary>
+    /// Maximised, the window split the review out as a card of its own beside the form and
+    /// dropped its marker and its piece of the rail, so the sequence fell apart. The stepper is
+    /// one column at every width now, and each step's name is a bordered capsule on the rail
+    /// rather than a word beside it, the step being worked on the accent edge.
+    /// </summary>
     [Fact]
-    public void The_current_steps_title_is_primary_and_the_wide_grid_puts_its_slack_last()
+    public void The_stepper_is_one_column_at_every_width_and_each_step_name_is_a_capsule()
     {
         var css = Source("src", "LineOps.Desk", "wwwroot", "css", "lineops.css");
 
-        // Rule 4: the ring and dot carry the accent, not the title.
-        Assert.DoesNotMatch(@"\.wstep--current \.wstep__title \{[^}]*accent", css);
-        // Wide: explicit rows, the review and the form's frame spanning all of them, so a tall
-        // review's extra height lands in the last row instead of between the form's steps.
-        Assert.Contains("grid-template-rows: auto auto minmax(var(--space-1), 1fr);", css);
-        Assert.DoesNotContain("grid-row: 1 / span 4", css);
+        Assert.DoesNotContain("@container (min-width: 1000px)", css);
+        Assert.DoesNotContain(".wstep--review > .wstep__dot { display: none", css);
+
+        Assert.Matches(@"\.wstep__title\s*\{[^}]*border:\s*1px solid var\(--separator-strong\);[^}]*border-radius:\s*999px;", css);
+        Assert.Matches(@"\.wstep--current \.wstep__title\s*\{[^}]*border-color:\s*var\(--accent\);", css);
     }
 
     [Fact]

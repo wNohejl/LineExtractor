@@ -189,16 +189,23 @@ public class BoardWagerTests : WagerTestContext
         Assert.False(Log(cut).HasAttribute("disabled"));
     }
 
+    /// <summary>
+    /// Going back to the fetched price on a started game is the operator's choice, and brings the
+    /// old block back with it: the close cannot be logged, says so once under the card, and can
+    /// still be banked on the slip, where it asks for the price that was taken.
+    /// </summary>
     [Fact]
-    public void A_closing_offer_disables_Log_and_keeps_Add_to_slip()
+    public void Going_back_to_a_started_games_close_restores_the_block()
     {
         Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));
         var cut = Render();
 
         Key(cut, 50m.ToString("C0")).Click();
+        Assert.False(Log(cut).HasAttribute("disabled"));
+
+        cut.Find(".wager-manual-key").Click();
 
         Assert.True(Log(cut).HasAttribute("disabled"));
-        // Why is the status note under the steps card, said once — not a line beside the keys.
         Assert.Contains("This is the closing line, so it cannot be logged", cut.Find(".wstatus__text").TextContent);
         Assert.Empty(cut.FindAll(".wager-why"));
         Assert.Contains("Closing line: the game started 42 min ago", cut.Find(".check--negative").TextContent);
