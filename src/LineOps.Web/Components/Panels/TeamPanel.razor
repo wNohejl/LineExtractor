@@ -151,7 +151,12 @@ else
                             aria-controls="@($"player-{player.PlayerId}")"
                             @onclick="() => TogglePlayer(player.PlayerId)">
                         <span class="logrow__opp trunc" title="@player.Name">@player.Name</span>
-                        <span class="dim">@(player.Position ?? "—")</span>
+                        @* No position is left out rather than drawn as a dash: "— 5 GP" read as a
+                           stat that failed to load, when the games count is the whole answer. *@
+                        @if (player.Position is { Length: > 0 } position)
+                        {
+                            <span class="dim">@position</span>
+                        }
                         <span class="dim mono">@player.Appearances GP</span>
                         <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
                     </button>

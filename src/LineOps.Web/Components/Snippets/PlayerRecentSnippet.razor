@@ -36,7 +36,7 @@ else
                 <th class="r">Result</th>
                 @foreach (var c in _columns)
                 {
-                    <th class="r">@c</th>
+                    <th class="r">@StatLabels.StatLabel(c)</th>
                 }
             </tr>
         </thead>
