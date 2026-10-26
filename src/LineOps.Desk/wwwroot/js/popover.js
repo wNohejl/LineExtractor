@@ -48,6 +48,7 @@ function teardown(state) {
 /// the window body clips it.
 function flip(panel, root) {
     panel.removeAttribute('data-flip');
+    panel.style.removeProperty('--popover-dx');
 
     const rect = panel.getBoundingClientRect();
     const anchor = root.getBoundingClientRect();
@@ -64,6 +65,18 @@ function flip(panel, root) {
     else if (rect.left < bounds.left + MARGIN) edges.push('start');
 
     if (edges.length) panel.setAttribute('data-flip', edges.join(' '));
+
+    // A panel wider than the room on either side of its opener crosses an edge whichever way it
+    // hangs — a More key mid-row in a narrow window. It slides back inside instead, as far as it
+    // has to and no further. The shift is set in layout pixels, so it is divided by the zoom the
+    // rectangles were measured under.
+    const placed = panel.getBoundingClientRect();
+    let dx = 0;
+
+    if (placed.right > bounds.right - MARGIN) dx = bounds.right - MARGIN - placed.right;
+    if (placed.left + dx < bounds.left + MARGIN) dx = bounds.left + MARGIN - placed.left;
+
+    if (dx) panel.style.setProperty('--popover-dx', `${dx / (panel.currentCSSZoom || 1)}px`);
 }
 
 function boundsOf(root) {

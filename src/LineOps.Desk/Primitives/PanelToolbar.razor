@@ -26,16 +26,18 @@
     can leave the row, and toolbar.js watches whether the row still fits. When it does not,
     they fold into a More key just before the actions, and come back once the row has room
     for them again with some to spare, so a window resized across the line does not flicker.
-    A row with a Search folds twice: the pickers first, the search only when even that is
-    not enough, because the search is the control most often reached for.
+    It folds in steps, each only when the last was not enough: the pickers first, then the
+    search, because it is the control most often reached for, then the keys before the
+    primary (SecondaryActions). The primary key never leaves the row.
 
     In More the controls stay the controls they were — a segmented control, a select, a
     checkbox — set as form rows with their label leading, not rewritten as menu items. Each
     Overflow control is wrapped by its owner in a .ptoolbar__item with a .ptoolbar__label;
     the label is hidden in the row, where the control names itself, and shown in the panel.
 
-    No More key is drawn for a toolbar with no Overflow, so an owner whose only folding
-    control writes, and is gone for a visitor, passes no Overflow and gets no empty key.
+    No More key is drawn while nothing is folded, and nothing can fold for a toolbar with no
+    Overflow or SecondaryActions: an owner whose only folding control writes, and is gone
+    for a visitor, passes neither and gets no empty key.
 *@
 
 @* No role="toolbar": the ARIA pattern promises one tab stop with arrow keys between the
@@ -44,12 +46,12 @@
 <div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" @attributes="Rest">
     @ChildContent
 
-    @if (!Narrow)
+    @if (!Folded(Stage.Overflow))
     {
         @Overflow
     }
 
-    @if (!Compact)
+    @if (!Folded(Stage.Search))
     {
         @Search
     }
@@ -59,38 +61,60 @@
         <span class="ptoolbar__msg">@Message</span>
     }
 
-    @if (Narrow && Overflow is not null)
+    @if (Narrow)
     {
         <DeskPopover Open="_moreOpen" OpenChanged="SetMoreOpen" Align="DeskPopoverAlign.End" Class="ptoolbar__more-key">
             <Anchor>
+                @* At the last fold the key gives up its own word too: the row that has folded
+                   everything it can is the row with the least room, and the ellipsis with a
+                   title and an accessible name says the same thing in a third of the width. *@
                 <DeskButton Emphasis="DeskEmphasis.Plain"
                             Size="DeskKeySize.Small"
                             Icon="@Icons.Material.Filled.MoreHoriz"
                             OnClick="ToggleMore"
+                            Title="@(FullyFolded ? "More" : null)"
+                            aria-label="@(FullyFolded ? "More" : null)"
                             aria-expanded="@(_moreOpen ? "true" : "false")"
                             data-popover-return="true">
-                    More
-                    <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+                    @if (!FullyFolded)
+                    {
+                        <text>More</text>
+                        <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+                    }
                 </DeskButton>
             </Anchor>
             <ChildContent>
                 @* A group of form rows, not a menu: Tab walks the controls, and Escape — which
                    a menu would have handled — is handled here, so the popover still closes and
-                   gives focus back to More. *@
+                   gives focus back to More. Folded keys lead it, as the commands; then the
+                   search; then the pickers. *@
                 <div @ref="_more" class="ptoolbar__more" role="group" aria-label="More" @onkeydown="OnMoreKey">
-                    @if (Compact)
+                    @if (Folded(Stage.Actions))
+                    {
+                        <div class="ptoolbar__more-actions">@SecondaryActions</div>
+                    }
+                    @if (Folded(Stage.Search))
                     {
                         @Search
                     }
-                    @Overflow
+                    @if (Folded(Stage.Overflow))
+                    {
+                        @Overflow
+                    }
                 </div>
             </ChildContent>
         </DeskPopover>
     }
 
-    @if (Actions is not null)
+    @if (Actions is not null || SecondaryActions is not null)
     {
-        <div class="ptoolbar__actions">@Actions</div>
+        <div class="ptoolbar__actions">
+            @if (!Folded(Stage.Actions))
+            {
+                @SecondaryActions
+            }
+            @Actions
+        </div>
     }
 </div>
 
@@ -114,6 +138,14 @@
     /// <summary>The keys, pinned right. Plain or Tinted first, the one Filled key last.</summary>
     [Parameter] public RenderFragment? Actions { get; set; }
 
+    /// <summary>
+    /// Keys that sit in the actions slot before <see cref="Actions"/> and are the last thing
+    /// to fold: when the row is still too wide with the pickers and search in More, they lead
+    /// the More panel as full-width keys, and the primary in Actions stays on the row. Each
+    /// needs a text label — an icon alone says nothing in a list.
+    /// </summary>
+    [Parameter] public RenderFragment? SecondaryActions { get; set; }
+
     /// <summary>Draws the row folded whatever its width. For tests, which have no layout to measure.</summary>
     [Parameter] public bool ForceNarrow { get; set; }
 
@@ -131,18 +163,45 @@
     private IJSObjectReference? _module;
     private DotNetObjectReference<PanelToolbar>? _self;
 
-    // How far the row is folded, as toolbar.js measured it: 0 everything inline, 1 the
-    // Overflow in More, 2 the Search too. Steps is how far this row can fold at all.
+    // What can fold, in the order it folds: the pickers, then the search, then the keys
+    // before the primary. A search folds only behind pickers, so a row whose only folding
+    // control is its search keeps it; the keys can fold on their own.
+    private enum Stage { Overflow, Search, Actions }
+
+    // How far the row is folded, as toolbar.js measured it: how many of the stages present
+    // are in More. Steps is how many there are, which is how far it can fold at all.
     private int _fold;
     private int _observedSteps;
     private bool _moreOpen;
     private bool _moreFocused;
 
-    private int Steps => Overflow is null ? 0 : Search is null ? 1 : 2;
+    private IEnumerable<Stage> Stages()
+    {
+        if (Overflow is not null)
+        {
+            yield return Stage.Overflow;
 
-    private bool Narrow => ForceNarrow || Math.Min(_fold, Steps) >= 1;
+            if (Search is not null)
+                yield return Stage.Search;
+        }
 
-    private bool Compact => Math.Min(_fold, Steps) >= 2;
+        if (SecondaryActions is not null)
+            yield return Stage.Actions;
+    }
+
+    private int Steps => Stages().Count();
+
+    private bool Folded(Stage stage)
+    {
+        var at = Stages().ToList().IndexOf(stage);
+
+        return at >= 0 && (at < _fold || (ForceNarrow && at == 0));
+    }
+
+    private bool Narrow => Stages().Any(Folded);
+
+    /// <summary>Every stage this row has is in More; the key itself is the next thing to shrink.</summary>
+    private bool FullyFolded => Steps > 0 && _fold >= Steps && !ForceNarrow;
 
     private string Classes => string.Join(' ', new[] { "ptoolbar", Class, DeskLayout.ExtraClass(Extra) }
         .Where(p => p is { Length: > 0 }));

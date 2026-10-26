@@ -102,7 +102,7 @@ public class PanelToolbarTests : DeskTestContext
         "<div class=\"ptoolbar__item\"><span class=\"ptoolbar__label\">Book</span><select class=\"folded\"></select></div>";
 
     private static AngleSharp.Dom.IElement? MoreKey(IRenderedComponent<PanelToolbar> cut)
-        => cut.FindAll("button").FirstOrDefault(b => b.TextContent.Trim() == "More");
+        => cut.FindAll("button").FirstOrDefault(b => b.TextContent.Trim() == "More" || b.GetAttribute("aria-label") == "More");
 
     [Fact]
     public void Overflow_items_move_into_the_more_menu()
@@ -223,5 +223,86 @@ public class PanelToolbarTests : DeskTestContext
 
         // Folded too, it leads the panel: the control most often reached for.
         Assert.Contains("search", cut.Find(".ptoolbar__more").Children[0].ClassList);
+    }
+
+    [Fact]
+    public void Secondary_keys_fold_last_and_lead_the_more_panel()
+    {
+        var cut = RenderComponent<PanelToolbar>(p => p
+            .AddChildContent(Kept)
+            .Add(x => x.Overflow, Folded)
+            .Add(x => x.SecondaryActions, "<button class=\"side\">Settle finished games</button><button class=\"side\">Build parlay</button>")
+            .Add(x => x.Actions, "<button class=\"primary\">Log entry</button>"));
+
+        // Wide: the side keys sit in the actions slot, before the primary.
+        Assert.Equal(new[] { "Settle finished games", "Build parlay", "Log entry" },
+            cut.FindAll(".ptoolbar__actions > button").Select(b => b.TextContent));
+
+        // First fold: only the pickers go, and the More key still says its word.
+        cut.InvokeAsync(() => cut.Instance.Fold(1));
+        Assert.Equal(3, cut.FindAll(".ptoolbar__actions > button").Count);
+        Assert.Equal("More", MoreKey(cut)!.TextContent.Trim());
+        Assert.Null(MoreKey(cut)!.GetAttribute("aria-label"));
+
+        // Second: the side keys follow, and the primary stays on the row, last.
+        cut.InvokeAsync(() => cut.Instance.Fold(2));
+        Assert.Equal(new[] { "Log entry" }, cut.FindAll(".ptoolbar__actions > button").Select(b => b.TextContent));
+        Assert.Contains("ptoolbar__actions", cut.Find(".ptoolbar").Children[^1].ClassList);
+
+        // Fully folded, the key itself is the last thing to give: the ellipsis alone, still named.
+        var key = MoreKey(cut)!;
+        Assert.Equal(string.Empty, key.TextContent.Trim());
+        Assert.Equal("More", key.GetAttribute("aria-label"));
+        Assert.Equal("More", key.GetAttribute("title"));
+
+        MoreKey(cut)!.Click();
+
+        var panel = cut.Find(".ptoolbar__more");
+        Assert.Contains("ptoolbar__more-actions", panel.Children[0].ClassList);
+        Assert.Equal(new[] { "Settle finished games", "Build parlay" },
+            panel.Children[0].Children.Select(b => b.TextContent));
+        Assert.Single(cut.FindAll(".ptoolbar__more select.folded"));
+    }
+
+    [Fact]
+    public void Secondary_keys_fold_on_their_own_without_overflow()
+    {
+        var cut = RenderComponent<PanelToolbar>(p => p
+            .AddChildContent(Kept)
+            .Add(x => x.SecondaryActions, "<button class=\"side\">Build parlay</button>")
+            .Add(x => x.Actions, "<button class=\"primary\">Log entry</button>"));
+
+        Assert.Null(MoreKey(cut));
+
+        cut.InvokeAsync(() => cut.Instance.Fold(1));
+        MoreKey(cut)!.Click();
+
+        Assert.Single(cut.FindAll(".ptoolbar__more-actions > .side"));
+        Assert.Empty(cut.FindAll(".ptoolbar__actions > .side"));
+    }
+
+    /// <summary>
+    /// The DOM half of the fold cannot run here, so its two load-bearing choices are read from
+    /// the source. A measure parked on requestAnimationFrame never ran in a hidden or throttled
+    /// page, and blocked every later one: a Journal restored narrow on page load never folded
+    /// until the viewport was resized.
+    /// </summary>
+    [Fact]
+    public void Toolbar_script_measures_on_observe_without_waiting_for_a_frame()
+    {
+        var js = File.ReadAllText(Path.Combine(LineOps.Web.Tests.Support.Repo.Root(),
+            "src", "LineOps.Desk", "wwwroot", "js", "toolbar.js"));
+
+        Assert.DoesNotContain("requestAnimationFrame(", js);
+        Assert.Contains("queueMicrotask(() => measure(state))", js);
+
+        // observe measures straight away, after the children are watched.
+        Assert.Matches(@"rows\.set\(row, state\);\s*watchChildren\(state\);[\s\S]*?schedule\(state\);\s*return;", js);
+
+        // A row with no width yet returns without folding, and is measured again on the
+        // observer's next report — the row itself is observed.
+        Assert.Matches(@"width === 0\) return;", js);
+        Assert.Contains("state.resize.observe(state.row);", js);
+        Assert.Contains("new ResizeObserver(() => schedule(state))", js);
     }
 }

@@ -24,18 +24,29 @@ const FOCUSABLE = 'input:not([disabled]), select:not([disabled]), textarea:not([
 
 const rows = new WeakMap();
 
+/// Batched to one measure per burst of notifications, on a microtask rather than a frame.
+/// requestAnimationFrame does not run while the page is hidden or throttled — a background tab,
+/// a pane the desk was restored into before it was shown — and a measure parked on a frame
+/// that never comes blocked every later one behind it: a row that was narrow when it first
+/// appeared never folded until a resize. (desk-glide.js learned the same thing.) Observer
+/// callbacks already run after layout, and reading scrollWidth flushes it, so there is nothing
+/// to wait a frame for.
 function schedule(state) {
-    if (state.frame || state.waiting) return;
-    state.frame = requestAnimationFrame(() => measure(state));
+    if (state.queued || state.waiting) return;
+    state.queued = true;
+    queueMicrotask(() => measure(state));
 }
 
 function measure(state) {
-    state.frame = 0;
+    state.queued = false;
+    if (!rows.has(state.row)) return;
 
     const row = state.row;
     const width = row.clientWidth;
 
-    // A minimised or hidden window has no width to decide anything from.
+    // A row not yet laid out — a window restored before the desk has placed it, a minimised
+    // one — has no width to decide anything from. The resize observer fires again when it gets
+    // one, and that notification measures it.
     if (!row.isConnected || width === 0) return;
 
     // An open popover hangs off the row and can reach past its edge, which scrollWidth counts
@@ -102,12 +113,15 @@ export function observe(row, dotNet, steps) {
     }
 
     if (!state) {
-        state = { row, dotNet, steps, fold: 0, need: [], frame: 0, waiting: false, timer: 0 };
+        state = { row, dotNet, steps, fold: 0, need: [], queued: false, waiting: false, timer: 0 };
         state.resize = new ResizeObserver(() => schedule(state));
         state.mutation = new MutationObserver(() => state.waiting ? settle(state) : (watchChildren(state), schedule(state)));
         state.mutation.observe(row, { childList: true });
         rows.set(row, state);
         watchChildren(state);
+        // Measured now, not only when the observer first reports: a row that is narrow when it
+        // appears folds before anyone sees it wrap.
+        schedule(state);
         return;
     }
 
@@ -124,7 +138,6 @@ export function unobserve(row) {
 
     state.resize.disconnect();
     state.mutation.disconnect();
-    cancelAnimationFrame(state.frame);
     clearTimeout(state.timer);
     clearTimeout(state.retry);
     rows.delete(row);

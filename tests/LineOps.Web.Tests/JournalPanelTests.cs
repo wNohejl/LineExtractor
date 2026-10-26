@@ -180,4 +180,18 @@ public class JournalPanelTests
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Sport<", overflow);
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Book<", overflow);
     }
+
+    /// <summary>Settle and Build parlay fold last; Log entry, the window's own key, never leaves the row.</summary>
+    [Fact]
+    public void Journal_side_keys_fold_and_log_entry_stays()
+    {
+        var source = Source();
+        var secondary = BoardToolbarTests.Slot(source, "SecondaryActions");
+        var actions = BoardToolbarTests.Slot(source, "Actions");
+
+        Assert.Contains("Settle finished games", secondary);
+        Assert.Contains("Build parlay", secondary);
+        Assert.DoesNotContain("OnClick=\"OpenWager\"", secondary);
+        Assert.Contains("OnClick=\"OpenWager\"", actions);
+    }
 }

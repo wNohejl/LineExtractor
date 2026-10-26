@@ -68,6 +68,13 @@
     right: auto;
 }
 
+/* When neither side has room, popover.js slides the panel back inside the window by the
+   amount it measured. `translate` rather than `transform`, so the entrance animation's
+   transform runs alongside it instead of replacing it. */
+.popover__panel {
+    translate: var(--popover-dx, 0px) 0;
+}
+
 /* It drops a few pixels out of its opener as it fades in: enough to say where it
    came from, short enough not to be waited for. */
 @keyframes popover-in {
@@ -543,4 +550,24 @@
 .ptoolbar__more > .search {
     flex: 0 0 auto;
     min-height: 28px;
+}
+
+/* Folded keys lead the panel as a list of commands: each the full width of the
+   panel, its label reading from the leading edge as a menu row's would. A hairline
+   parts them from the form rows below, inside the popover's one edge. */
+.ptoolbar__more-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.ptoolbar__more-actions:not(:last-child) {
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-1);
+    border-bottom: 1px solid var(--separator);
+}
+
+.ptoolbar__more-actions > .desk-btn {
+    width: 100%;
+    justify-content: flex-start;
 }

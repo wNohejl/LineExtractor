@@ -27,12 +27,15 @@ else
     <ChildContent>
         <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
                     Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
-        <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
-                    Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
     </ChildContent>
-    @* Sport and book are the narrower cuts; a narrow Journal folds them into More and keeps
-       status, period and the keys on one line. *@
+    @* Period, sport and book are the narrower cuts; a narrow Journal folds them into More and
+       keeps status and the keys on the row, then folds the keys before Log entry as well. *@
     <Overflow>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Placed within</span>
+            <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
+                        Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+        </div>
         @* Two leagues and "all" is a fixed set of three, so it is a segment beside the other two
            rather than a pop-up that hides the alternatives (HIG: segmented controls). *@
         <div class="ptoolbar__item">
@@ -52,7 +55,9 @@ else
             </DeskSelect>
         </div>
     </Overflow>
-    <Actions>
+    @* Secondary: the last thing to fold, into the top of More, when even the pickers there
+       leave the row too wide. Log entry, the key this window is for, never leaves it. *@
+    <SecondaryActions>
         @* Parlays are logged from the slip (spec §5.4), the tab beside this one. Build parlay
            fills it leg by leg, from the same wager window Log entry opens. *@
         <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
@@ -63,6 +68,8 @@ else
                     OnClick="BuildParlay">
             Build parlay
         </DeskButton>
+    </SecondaryActions>
+    <Actions>
         @* The same window the Board's Place wager opens, here on a game search: one form records
            a bet, whichever door it is reached by. Tinted, not Filled: it opens a window rather
            than committing anything here. *@
