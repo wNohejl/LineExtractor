@@ -113,11 +113,11 @@ public class BoardService(LineOpsDbContext db)
             byGame.GetValueOrDefault(game.Id),
             closesByGame.GetValueOrDefault(game.Id),
             lastPull.TryGetValue(game.SportId, out var at) ? at : null) with
-        {
-            AwayQuarterback = Starters.LastQuarterback(passing, game.AwayTeamId, game.StartsAt),
-            HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt),
-            Bout = bouts.GetValueOrDefault(game.Id)
-        }).ToList();
+            {
+                AwayQuarterback = Starters.LastQuarterback(passing, game.AwayTeamId, game.StartsAt),
+                HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt),
+                Bout = bouts.GetValueOrDefault(game.Id)
+            }).ToList();
     }
 
     /// <summary>

@@ -152,7 +152,14 @@ public static class FighterNames
     /// <summary>Letters that do not decompose into a base letter and a mark.</summary>
     private static readonly Dictionary<char, string> Unfolded = new()
     {
-        ['ł'] = "l", ['ø'] = "o", ['đ'] = "d", ['ß'] = "ss", ['æ'] = "ae", ['œ'] = "oe", ['ı'] = "i", ['þ'] = "th"
+        ['ł'] = "l",
+        ['ø'] = "o",
+        ['đ'] = "d",
+        ['ß'] = "ss",
+        ['æ'] = "ae",
+        ['œ'] = "oe",
+        ['ı'] = "i",
+        ['þ'] = "th"
     };
 
     /// <summary>

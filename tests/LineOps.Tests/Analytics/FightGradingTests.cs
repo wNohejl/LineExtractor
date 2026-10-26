@@ -14,7 +14,11 @@ public class FightGradingTests
     private static Bout Finished(BoutOutcome outcome, int round, int seconds, int scheduled = 5, string method = "KO/TKO")
         => new()
         {
-            Outcome = outcome, EndRound = round, EndSeconds = seconds, ScheduledRounds = scheduled, Method = method
+            Outcome = outcome,
+            EndRound = round,
+            EndSeconds = seconds,
+            ScheduledRounds = scheduled,
+            Method = method
         };
 
     // UFC 300: Pereira (red) stopped Hill at 3:14 of the first.

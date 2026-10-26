@@ -60,13 +60,17 @@ public class FightIngestionTests(PostgresFixture fixture)
             }).ToList(),
             players.Select(p => p with
             {
-                SourcePlayerId = Id(p.SourcePlayerId), FullName = Name(p.FullName),
-                SourceTeamId = Id(p.SourceTeamId!), TeamName = Name(p.TeamName!)
+                SourcePlayerId = Id(p.SourcePlayerId),
+                FullName = Name(p.FullName),
+                SourceTeamId = Id(p.SourceTeamId!),
+                TeamName = Name(p.TeamName!)
             }).ToList(),
             stats.Select(s => s with
             {
-                SourcePlayerId = Id(s.SourcePlayerId), SourceGameId = Id(s.SourceGameId),
-                SourceTeamId = Id(s.SourceTeamId!), TeamName = Name(s.TeamName!)
+                SourcePlayerId = Id(s.SourcePlayerId),
+                SourceGameId = Id(s.SourceGameId),
+                SourceTeamId = Id(s.SourceTeamId!),
+                TeamName = Name(s.TeamName!)
             }).ToList(),
             new FetchCost(2));
     }
@@ -266,8 +270,14 @@ public class FightIngestionTests(PostgresFixture fixture)
 
         JournalEntry Bet(Game game, string market, string outcome, decimal? line = null) => new()
         {
-            GameId = game.Id, Market = market, Outcome = outcome, LineTaken = line, Book = "draftkings",
-            PriceTaken = -110, Stake = 10m, PlacedAt = game.StartsAt.AddHours(-1)
+            GameId = game.Id,
+            Market = market,
+            Outcome = outcome,
+            LineTaken = line,
+            Book = "draftkings",
+            PriceTaken = -110,
+            Stake = 10m,
+            PlacedAt = game.StartsAt.AddHours(-1)
         };
 
         var pereira = Bet(main, Markets.Moneyline, $"{tag}Alex Pereira");
