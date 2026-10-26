@@ -36,9 +36,10 @@ namespace LineOps.Desk.Primitives;
 /// </typeparam>
 public abstract class DeskFieldBase<TValue> : ComponentBase
 {
-    private static int _seed;
-
-    private readonly string _instance = $"fld{Interlocked.Increment(ref _seed)}";
+    // One counter for every field type. A static on this generic class is one counter per
+    // TValue, so a string field and an int field could both be "fld1" on the same page and a
+    // label's for= pointed at whichever came first (found in the Window manager).
+    private readonly string _instance = $"fld{DeskFieldIds.Next()}";
 
     /// <summary>The bound value. Use <c>@bind-Value</c>; a one-way <c>Value</c> alone also renders.</summary>
     [Parameter] public TValue? Value { get; set; }
@@ -212,4 +213,12 @@ public abstract class DeskFieldBase<TValue> : ComponentBase
 
     /// <summary>The label's id, so the control can point back at it.</summary>
     protected string LabelId => $"{_instance}-label";
+}
+
+/// <summary>The id counter every <see cref="DeskFieldBase{TValue}"/> shares, whatever it holds.</summary>
+internal static class DeskFieldIds
+{
+    private static int _seed;
+
+    public static int Next() => Interlocked.Increment(ref _seed);
 }

@@ -36,6 +36,26 @@ public class PanelFormTests : DeskTestContext
         Assert.Equal("New entry", nested.Find("section h4.panel-h").TextContent);
     }
 
+    /// <summary>
+    /// The title and the line naming what the form changes are one unit: a form name alone
+    /// floated above the fields and named nothing.
+    /// </summary>
+    [Fact]
+    public void A_detail_line_travels_with_the_title()
+    {
+        var cut = RenderComponent<PanelForm>(p => p
+            .Add(x => x.Title, "Edit entry")
+            .Add(x => x.Detail, "Placed Oct 26 16:04 ET")
+            .AddChildContent("<input />"));
+
+        var head = cut.Find(".pform__head");
+        Assert.Equal("Edit entry", head.QuerySelector(".panel-h")!.TextContent);
+        Assert.Equal("Placed Oct 26 16:04 ET", head.QuerySelector(".pform__detail")!.TextContent);
+
+        var bare = RenderComponent<PanelForm>(p => p.Add(x => x.Title, "Edit entry").AddChildContent("<input />"));
+        Assert.Empty(bare.FindAll(".pform__detail"));
+    }
+
     [Fact]
     public void Footer_pins_right_without_a_destructive_slot()
     {

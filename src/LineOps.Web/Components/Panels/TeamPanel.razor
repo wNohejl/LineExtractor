@@ -70,8 +70,15 @@ else
         </Keys>
     </PanelTitle>
 
-    <PanelSection Title="@(FightSports.IsFight(_team.Sport?.Key) ? "Bouts on the desk" : "Recent games")"
-                  Keys="@(_log.Count > 0 ? SplitKeys : null)"
+    @if (IsFight)
+    {
+        <PanelSection Title="Fighter">
+            <FighterView TeamId="TeamId" />
+        </PanelSection>
+    }
+
+    <PanelSection Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
+                  Keys="@(_log.Count > 0 && !IsFight ? SplitKeys : null)"
                   Detail="@(_log.Count > 0 ? RecordDetail : null)">
         @* The splits strip, on the rule's own line. Every option filters the same loaded log,
            so nothing here queries.
@@ -105,11 +112,14 @@ else
                                     OpenChanged="@((bool open) => SetGame(row.GameId, open))">
                         <Summary>
                             <span class="logrow__date dim">@Day(row.StartsAt)</span>
-                            <span class="logrow__opp trunc">@(row.Home ? "vs" : "at") @row.Opponent</span>
+                            <span class="logrow__opp trunc">@(row.Home || IsFight ? "vs" : "at") @row.Opponent</span>
 
+                            @if (!IsFight)
+                            {
                             <span class="logrow__score mono">
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
+                            }
 
                             @if (ResultTag.Of(row.Won, row.ScoreFor, row.ScoreAgainst) is { } result)
                             {
@@ -126,7 +136,7 @@ else
 
                             @* The ATS tag rides on the closed row: it is the column an operator
                                scans for, and hiding it behind an expand would defeat the log. *@
-                            @if (row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
+                            @if (!IsFight && row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
                             {
                                 <ResultTag Result="@cover"
                                            Title="@($"Against a closing spread of {row.ClosingSpread}")">
@@ -160,14 +170,8 @@ else
         </ChildContent>
     </PanelSection>
 
-    @* A fighter is a side of one (ADR 0021): no roster, and the profile and career in its place. *@
-    @if (FightSports.IsFight(_team.Sport?.Key))
-    {
-        <PanelSection Title="Fighter">
-            <FighterView TeamId="TeamId" />
-        </PanelSection>
-    }
-    else
+    @* A fighter is a side of one (ADR 0021): no roster — the profile leads, above. *@
+    @if (!IsFight)
     {
     <PanelSection Title="Roster form">
     @if (_roster.Count == 0)
@@ -218,6 +222,8 @@ else
 @code {
     protected override string LoadSubject => "The team";
 
+    private bool IsFight => FightSports.IsFight(_team?.Sport?.Key);
+
     /// <summary>
     /// The splits strip, on the Recent games rule. Every option filters the same loaded log,
     /// so nothing here queries. Picking an opponent is a filter the strip cannot express, so
@@ -250,6 +256,10 @@ else
     private RenderFragment RecordDetail => @<text>
         <span class="mono">@GameLogSplits.FormatRecord(_visible)</span>
 
+        @* Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021). *@
+        @if (!IsFight)
+        {
+
         @if (_atsWins + _atsLosses + _atsPushes > 0)
         {
             <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
@@ -260,6 +270,7 @@ else
             <span>@_overs O / @_unders U</span>
         }
 
+        }
         <span class="psection__aside">@_covered of @_visible.Count with a closing line</span>
     </text>;
 

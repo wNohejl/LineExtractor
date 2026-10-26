@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 
 using LineOps.Desk.Windowing;
@@ -191,5 +192,8 @@ public static class WindowShortcuts
     /// puzzle rather than a label — the chip truncates gracefully, a decoded name does not.
     /// </summary>
     public static string Describe(Game game)
-        => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
+        => FightSports.IsFight(game.Sport?.Key)
+            // A fight is billed red corner first, and nobody is at home (ADR 0021).
+            ? $"{game.HomeTeam?.Name ?? "Red"} vs {game.AwayTeam?.Name ?? "Blue"}"
+            : $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
 }

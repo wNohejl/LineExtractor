@@ -22,6 +22,10 @@
             <PropertyColumn Property="x => x.Name" Title="Player" />
             <TemplateColumn Title="Team">...</TemplateColumn>
         </DeskGrid>
+
+    A column of figures says Align="Align.Right", and the grid sets its heading and its cells on
+    the trailing edge together. See AlignColumns below for why the grid does that and not
+    MudBlazor.
 *@
 
 <div class="deskgrid @(Dense ? "deskgrid--dense" : null) @Class">
@@ -33,7 +37,7 @@
     Only for the empty first load. A grid that already has rows keeps them and reports the
     refresh through the window's pulse — replacing read numbers with grey bars loses
     information the operator was using.  *@
-    @if (Loading && Items?.Any() != true)
+    @if (Loading && !HasRows)
     {
         <div class="deskgrid__skeleton" aria-busy="true" aria-live="polite" aria-label="@LoadingLabel">
             @for (var i = 0; i < SkeletonRows; i++)
@@ -48,16 +52,29 @@
     }
     else
     {
+@*      Nothing to list: the sentence alone, starting where a row's text would. MudDataGrid draws
+        its heading row whatever it holds and puts its no-records content in a centred <th>, so an
+        empty grid read as a row of column names over a bold line in the middle of the table —
+        headings for nothing, and the sentence set as one more heading.
+
+        The grid stays in the tree, hidden, rather than being torn down: a filter that matches
+        nothing and is then cleared brings the rows back in the order the operator sorted them,
+        not the initial one. *@
+        @if (!HasRows)
+        {
+            <p class="deskgrid__empty">@EmptyText</p>
+        }
     <MudDataGrid @ref="_grid"
                  T="T"
                  Items="@Items"
+                 hidden="@(!HasRows)"
                  ColumnResizeMode="@(Resizes ? ResizeMode.Column : ResizeMode.None)"
                  Dense="true"
                  Hover="true"
                  Bordered="false"
                  Striped="false"
                  Elevation="0"
-                 SortMode="@(Sortable ? SortMode.Multiple : SortMode.None)"
+                 SortMode="@SortModeFor"
                  Filterable="false"
                  ShowColumnOptions="false"
                  FixedHeader="@FixedHeader"
@@ -71,9 +88,6 @@
         <Columns>
             @ChildContent
         </Columns>
-        <NoRecordsContent>
-            <div class="empty">@EmptyText</div>
-        </NoRecordsContent>
     </MudDataGrid>
     }
 </div>
@@ -85,10 +99,22 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>
-    /// Multi-column sort by default. A desk operator comparing sources or books wants "worst
-    /// success rate, then oldest" without giving up one to get the other.
+    /// A heading sorts its column, and pressing it again reverses the order (HIG lists and
+    /// tables, macOS). One column at a time unless <see cref="MultiSort"/> says otherwise.
     /// </summary>
     [Parameter] public bool Sortable { get; set; } = true;
+
+    /// <summary>
+    /// Command- or Ctrl-pressing a second heading adds it as a tie-breaker ("worst success rate,
+    /// then oldest") instead of replacing the first.
+    ///
+    /// Off by default. MudBlazor's multiple mode numbers every heading for it: the sorted one
+    /// carries a "1" beside its arrow and every other one a hidden "0", which a screen reader was
+    /// spared but a heading's text was not ("Starts0", "Matchup0"), and which put a stray figure
+    /// beside the one arrow a table shows. A grid whose readers do compare on two keys turns it
+    /// on, and gets the numbering where it means something.
+    /// </summary>
+    [Parameter] public bool MultiSort { get; set; }
 
     [Parameter] public bool Dense { get; set; } = true;
 
@@ -138,6 +164,10 @@
     /// </summary>
     [Parameter] public bool Virtualize { get; set; }
 
+    /// <summary>
+    /// The one line an empty grid draws in place of the table: no heading row over it, body
+    /// text in secondary ink, starting where a row's first cell text would.
+    /// </summary>
     [Parameter] public string EmptyText { get; set; } = "Nothing to show.";
 
     [Parameter] public EventCallback<DataGridRowClickEventArgs<T>> OnRowClick { get; set; }
@@ -177,6 +207,12 @@
     /// </summary>
     [Parameter] public int ChildRowIndent { get; set; }
 
+    /// <summary>The class a right-aligned column's heading and cells take; see mud-bridge.css.</summary>
+    internal const string EndClass = "deskgrid__end";
+
+    /// <summary>The class a centred column's heading and cells take.</summary>
+    internal const string CenterClass = "deskgrid__center";
+
     /// <summary>More columns than this and an unset <see cref="Resizable"/> resizes.</summary>
     private const int NarrowColumns = 5;
 
@@ -188,20 +224,94 @@
     // so the second render moves nothing.
     private bool _wide;
 
+    // The columns already given their alignment, so a later render does not give it again.
+    private readonly HashSet<Column<T>> _aligned = [];
+
+    private bool HasRows => Items?.Any() == true;
+
     private bool Resizes => Resizable ?? _wide;
+
+    private SortMode SortModeFor => !Sortable ? SortMode.None : MultiSort ? SortMode.Multiple : SortMode.Single;
 
     protected override void OnAfterRender(bool firstRender)
     {
-        if (Resizable is not null || _grid is null)
+        if (_grid is null)
             return;
 
-        var wide = _grid.RenderedColumns.Count > NarrowColumns;
+        var columns = _grid.RenderedColumns;
+        var changed = AlignColumns(columns);
 
-        if (wide == _wide)
-            return;
+        if (Resizable is null)
+        {
+            var wide = columns.Count > NarrowColumns;
 
-        _wide = wide;
-        StateHasChanged();
+            if (wide != _wide)
+            {
+                _wide = wide;
+                changed = true;
+            }
+        }
+
+        if (changed)
+            StateHasChanged();
+    }
+
+    // A column of figures reads down its trailing edge, and its heading has to sit on the same
+    // edge, or the label names the gap beside the numbers rather than the numbers.
+    //
+    // MudBlazor 9's columns take no Align. The attribute a panel writes lands in the column's
+    // UserAttributes and is drawn nowhere (MudBlazor's own analyzer reports it, MUD0002), so the
+    // sixty-odd columns that asked for the trailing edge sat on the leading one, and where a
+    // panel lined its numbers up by other means the heading stayed behind on the left. The grid
+    // reads the request and answers it through the two hooks MudBlazor does draw, the heading's
+    // and the cell's class functions, so heading and cells can never disagree.
+    //
+    // They are set from outside the column, which Blazor warns about (BL0005) because a parameter
+    // set that way is overwritten when its owner next renders. No caller on the desk supplies
+    // either, so nothing overwrites them; a column that brings its own keeps it, unaligned.
+    private bool AlignColumns(IReadOnlyCollection<Column<T>> columns)
+    {
+        _aligned.IntersectWith(columns);
+
+        var changed = false;
+
+        foreach (var column in columns)
+        {
+            if (_aligned.Contains(column) || AlignClass(column) is not { } css)
+                continue;
+
+#pragma warning disable BL0005
+            column.HeaderClassFunc ??= _ => css;
+            column.CellClassFunc ??= _ => css;
+#pragma warning restore BL0005
+
+            _aligned.Add(column);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    // Razor hands an unmatched attribute over as it was written, so Align="Align.Right" arrives
+    // as the string "Align.Right"; a render builder that passes the enum itself reads the same.
+    internal static string? AlignClass(Column<T> column)
+    {
+        if (column.UserAttributes is not { } attributes || !attributes.TryGetValue("Align", out var value))
+            return null;
+
+        var name = value switch
+        {
+            Align align => align.ToString(),
+            string text => text[(text.LastIndexOf('.') + 1)..],
+            _ => null
+        };
+
+        return name switch
+        {
+            nameof(Align.Right) or nameof(Align.End) => EndClass,
+            nameof(Align.Center) => CenterClass,
+            _ => null
+        };
     }
 
     // Not a MudBlazor row: it takes no row click and no row hover, and holds whatever the

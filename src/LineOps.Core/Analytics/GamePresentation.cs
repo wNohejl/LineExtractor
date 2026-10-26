@@ -45,9 +45,15 @@ public static class Scoreline
     /// already doing work in a handicap and the two columns sit next to each other.
     /// </summary>
     public static string Format(Game game)
-        => Has(game)
-            ? $"{Abbrev(game.AwayTeam, "AWY")} {game.AwayScore ?? 0}–{game.HomeScore ?? 0} {Abbrev(game.HomeTeam, "HOM")}"
-            : "—";
+        => !Has(game) ? "—"
+            : FightSports.IsFight(game.Sport?.Key) ? FormatFight(game)
+            : $"{Abbrev(game.AwayTeam, "AWY")} {game.AwayScore ?? 0}–{game.HomeScore ?? 0} {Abbrev(game.HomeTeam, "HOM")}";
+
+    /// <summary>A fight has a winner, not a score (ADR 0021): "VOLKANOVSKI def. EVLOEV", or a draw.</summary>
+    private static string FormatFight(Game game)
+        => FightSports.Winner(game) is { } winner
+            ? $"{Abbrev(winner, "WIN")} def. {Abbrev(winner == game.HomeTeam ? game.AwayTeam : game.HomeTeam, "LOSS")}"
+            : $"{Abbrev(game.HomeTeam, "RED")} drew {Abbrev(game.AwayTeam, "BLUE")}";
 
     /// <summary>
     /// Which side is ahead, for a value that carries its own state rather than needing a legend.

@@ -29,7 +29,7 @@ public sealed class AppDeskSearch(IServiceScopeFactory scopes, WindowManager man
                 Icons.Material.Filled.Shield, () => manager.OpenTeam(t.Id, t.Name))),
 
             .. games.Select(g => new DeskSearchResult(
-                "Games", $"{g.AwayTeam?.Name} at {g.HomeTeam?.Name}",
+                "Games", LineOps.Web.Windowing.WindowShortcuts.Describe(g),
                 $"{LineOps.Web.Components.DisplayTime.Format(g.StartsAt, "ddd MMM d, HH:mm")} {LineOps.Web.Components.DisplayTime.Label} · {g.Sport?.Key.ToUpperInvariant()} · {g.Status}",
                 Icons.Material.Filled.Event, () => manager.OpenGame(g))),
 

@@ -2667,12 +2667,20 @@ body.dialog-dragging { user-select: none; }
     --btn-fill: transparent;
     --btn-ink: var(--text-secondary);
 
+    /* And the one none of them touches: the space between a key's glyph, its label and a
+       pull-down's chevron. One value for every emphasis and size, so a toolbar of keys keeps
+       one rhythm. Six points, a step and a half of the ramp: --space-1 crowded a 15px glyph
+       against a capital, --space-2 parted them into two things. MudButton wraps a key's
+       contents in a span of its own, so this reaches them through mud-bridge.css's button
+       seam, not through the flex gap below alone. */
+    --btn-gap: calc(var(--space-1) * 1.5);
+
     position: relative;
     overflow: hidden; /* clips the in-flight shimmer */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: var(--space-1);
+    gap: var(--btn-gap);
     height: 28px;
     min-width: 0;
     padding: 0 var(--space-3);
@@ -3443,12 +3451,16 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .deskgrid__skeleton { display: flex; flex-direction: column; }
 
+/* 29px with its hairline and the cell's 10px inset, which is what a real row measures
+   (mud-bridge.css: --space-1 either side of a 20px line box, plus the hairline). It was 30px
+   at an 8px inset, so a page of six rows landed 6px shorter than its placeholders and every
+   first bar started 2px left of the text that replaced it. */
 .deskgrid__skeleton-row {
     display: flex;
     align-items: center;
-    gap: 16px;
-    height: 30px;
-    padding: 0 8px;
+    gap: var(--space-4);
+    height: 29px;
+    padding: 0 10px;
     box-sizing: border-box;
     border-bottom: 1px solid var(--separator);
 }
@@ -4966,10 +4978,11 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wsteps .selection-gate .gate__opt:focus-visible { z-index: 2; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
 
+/* The badge rides inside a key, whose --btn-gap already spaces it from the label; a margin of
+   its own doubled that to 10px. */
 .slip-badge {
     display: inline-block;
     min-width: 18px;
-    margin-left: var(--space-1);
     padding: 0 5px;
     border-radius: 9px;
     background: var(--accent-wash);

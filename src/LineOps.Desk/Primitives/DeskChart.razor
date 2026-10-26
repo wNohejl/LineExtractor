@@ -52,12 +52,14 @@
         </figcaption>
     }
 
-    @* role="img" collapses the SVG's unlabelled internals to one described object. *@
+    @* role="img" collapses the SVG's unlabelled internals to one described object.
+       ChartLabels is MudBlazor 9's name for the x-axis labels. The old XAxisLabels fell through
+       to the wrapper div as a stray attribute, and every chart on the desk drew a blank x-axis. *@
     <div class="deskchart__plot" role="img" aria-label="@Description">
         <MudChart T="double"
                   ChartType="@Type"
                   ChartSeries="@_series"
-                  XAxisLabels="@Labels"
+                  ChartLabels="@Labels"
                   ChartOptions="@_options"
                   Width="@Width"
                   Height="@Height" />

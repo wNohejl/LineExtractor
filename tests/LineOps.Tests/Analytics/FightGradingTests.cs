@@ -153,6 +153,17 @@ public class FightPresentationTests
     }
 
     [Fact]
+    public void AFightIsWrittenByWhoBeatWhomNotByAScore()
+    {
+        var game = Game(1, 0);
+        game.Sport = new Sport { Key = "ufc" };
+        game.HomeTeam!.Abbrev = "Pereira";
+        game.AwayTeam!.Abbrev = "Rountree Jr.";
+
+        Assert.Equal("PEREIRA def. ROUNTREE JR.", Scoreline.Format(game));
+    }
+
+    [Fact]
     public void ResultLine_ADrawSaysWhichKind()
     {
         var bout = new Bout { Outcome = BoutOutcome.Draw, Method = "Decision - Majority", EndRound = 3, EndSeconds = 300 };

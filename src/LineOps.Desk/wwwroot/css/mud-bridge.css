@@ -210,9 +210,11 @@
 @container deskgrid (max-width: 640px) {
     .deskgrid .col--wide { display: none; }
 
-    /* Doubled to outrank the cell rules below, which come later in this file. */
+    /* Doubled to outrank the cell rules below, which come later in this file. The empty line
+       keeps the cells' inset, so it still starts where their text would. */
     .deskgrid.deskgrid .mud-table-head .mud-table-cell,
-    .deskgrid.deskgrid .mud-table-body .mud-table-cell { padding-inline: 8px; }
+    .deskgrid.deskgrid .mud-table-body .mud-table-cell,
+    .deskgrid.deskgrid .deskgrid__empty { padding-inline: 8px; }
 }
 
 @container deskgrid (max-width: 820px) {
@@ -244,6 +246,22 @@
 .deskgrid .mud-table-body .mud-table-cell .desklink { max-width: 100%; }
 .deskgrid .mud-table-root { border-spacing: 0; font-size: var(--text-body); }
 .deskgrid .mud-paper { background: transparent; border: 0; }
+
+/* An empty grid is one line, drawn by DeskGrid in place of the table and its heading row: an
+   absence, read once, not a heading. Mud's version was a <th> spanning the table — bold and
+   centred under a row of column names for nothing. This one takes a row's place exactly: the
+   cell's inset, so the sentence starts where a row's text would, and the cell's 20px line box
+   inside --space-1, so the window is a row's height whether it holds rows or the sentence.
+   Body text, regular, in secondary ink, as .empty sets an absence everywhere else. */
+.deskgrid__empty {
+    margin: 0;
+    padding: var(--space-1) 10px;
+    color: var(--text-secondary);
+    font-size: var(--text-body);
+    font-weight: var(--weight-regular);
+    line-height: 20px;
+    text-align: start;
+}
 
 .deskgrid .mud-table-head .mud-table-cell {
     padding: var(--space-1) 10px;
@@ -279,46 +297,85 @@
    Note the class names. MudDataGrid does not use MudTable's `.mud-table-sort-label` — it emits
    `.column-header` wrapping a `.sortable-column-header` and a `.column-options` button. Styling
    the table classes here looked right and did nothing, which is only visible if you actually
-   click a header rather than assume the shared `.mud-table-*` prefix carries over. */
-.deskgrid .column-header {
+   click a header rather than assume the shared `.mud-table-*` prefix carries over.
+
+   And note how deep every selector in this block is. MudBlazor states its heading rules three
+   and four classes deep (`.mud-data-grid .mud-table-cell .column-header …`), and the two-class
+   rules that stood here lost to them without a sound: the heading stayed a full-width flex row
+   with its label stretched across the cell, so an arrow hung "after the label" was hung after
+   the cell — at the column's far edge, just before the next heading's label, where it read as
+   that column's (the Journal's Placed arrow sat beside Selection). Each rule below is written
+   one class deeper than the Mud rule it answers, so it wins on specificity, not on load order. */
+.deskgrid .mud-table-head .mud-table-cell .column-header {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    justify-content: flex-start;
+    max-width: 100%;
+    vertical-align: middle;
 }
 
-/* The arrow hangs in the cell's right padding instead of taking width beside the label. In
+/* The label is its own width, not the cell's, so the arrow can follow the word. */
+.deskgrid .mud-table-head .mud-table-cell .column-header .sortable-column-header {
+    width: auto;
+    transition: color .1s ease;
+}
+
+.deskgrid .mud-table-head .mud-table-cell .column-header:hover .sortable-column-header { color: var(--text-primary); }
+
+/* The arrow hangs just past the label's trailing edge instead of taking width beside it. In
    flow, the arrow and the sort index cost every column ~40px whether it was sorted or not — a
    one-letter stat column was 57px wide, and a nine-column table could not fit its window. */
-.deskgrid .column-options {
+.deskgrid .mud-table-head .mud-table-cell .column-header .column-options {
     position: absolute;
-    left: 100%;
     top: 50%;
+    left: 100%;
+    margin-left: 2px;
     transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
 }
 
-.deskgrid .mud-sort-index.invisible { display: none; }
+/* A heading on the trailing edge — a column of figures, .deskgrid__end below — has its trailing
+   side against the next column, so there its arrow leads: it hangs in the column's own free
+   space, just before the word it belongs to, not in the gap that belongs to the neighbour. */
+.deskgrid .mud-table-head .mud-table-cell.deskgrid__end .column-header .column-options {
+    left: auto;
+    right: 100%;
+    margin-left: 0;
+    margin-right: 2px;
+}
 
-.deskgrid .sortable-column-header { transition: color .1s ease; }
-.deskgrid .column-header:hover .sortable-column-header { color: var(--text-primary); }
+/* Only a grid that asks for MultiSort draws Mud's sort numbering (DeskGrid's SortMode), and
+   there an unsorted heading still carries its index as a hidden "0"; it stays out of the
+   layout as well as out of sight. */
+.deskgrid .mud-table-head .column-header .mud-sort-index.invisible { display: none; }
 
-/* The direction arrow is faded rather than absent, and hangs in the padding, so sorting a column
-   does not shift the header row sideways — the same reasoning as the linked cell's shortcut. */
-.deskgrid .sort-direction-icon {
+/* One arrow on the row, and it means "sorted by this": only the sorted column shows its arrow,
+   and the others reveal theirs while pointed at or focused, faded, as the offer of a sort. It
+   hangs in the padding, so sorting does not shift the header row sideways. Mud fades the arrow
+   over 300ms, pushes it 4px off the label and greys it on hover; the desk answers in a tenth of
+   a second, flush to the word, in the accent a pressable thing takes. */
+.deskgrid .mud-table-head .mud-table-cell .column-header .sort-direction-icon {
+    margin: 0;
     padding: 0;
     min-width: 0;
     width: 12px;
     height: 12px;
     color: var(--accent);
     opacity: 0;
-    transition: opacity .1s ease;
+    transition: opacity .1s ease, transform .1s ease;
 }
 
-.deskgrid .column-header:hover .sort-direction-icon { opacity: .6; }
-.deskgrid .sort-direction-icon.mud-direction-asc,
-.deskgrid .sort-direction-icon.mud-direction-desc { opacity: 1; }
+.deskgrid .mud-table-head .mud-table-cell .column-header:hover .column-options .sort-direction-icon,
+.deskgrid .mud-table-head .mud-table-cell .column-header:focus-within .column-options .sort-direction-icon {
+    color: var(--accent);
+    opacity: .6;
+}
+
+.deskgrid .mud-table-head .mud-table-cell .column-header .column-options .sort-direction-icon.mud-direction-asc,
+.deskgrid .mud-table-head .mud-table-cell .column-header .column-options .sort-direction-icon.mud-direction-desc { opacity: 1; }
+
 .deskgrid .sort-direction-icon .mud-icon-root { font-size: 12px; width: 12px; height: 12px; }
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
@@ -337,14 +394,24 @@
     white-space: nowrap;
 }
 
-/* Numbers are read down a column, so they align right and carry tabular figures. Mud marks
-   these with its own alignment class; the desk's own tables use .r for the same thing. There
-   is only one family on the desk now, so nothing restates it here. */
+/* Numbers are read down a column, so they align right and carry tabular figures, and the
+   heading goes with them to the same edge, so the label stands over the figures it names.
+
+   DeskGrid puts .deskgrid__end on a column's heading and on its cells together when the column
+   says Align="Align.Right" — MudDataGrid's columns take no Align of their own and never emitted
+   .mud-align-right, so before this every such column sat on the leading edge (see AlignColumns
+   in DeskGrid.razor). Mud's classes stay in the selector for a Mud table written by hand. Every
+   cell already carries tabular figures; the end column says so again because it is the one
+   whose figures have to line up digit under digit. There is only one family on the desk now,
+   so nothing restates it here. */
+.deskgrid .mud-table-cell.deskgrid__end,
 .deskgrid .mud-table-cell.mud-align-right,
 .deskgrid .mud-table-cell.mud-align-end {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+.deskgrid .mud-table-cell.deskgrid__center { text-align: center; }
 
 /* The two cell classes a hand-written .grid carried inside its own cells. Both were written as
    .grid .dim and .grid .trunc and nowhere else, so a panel lost them at the moment it was
@@ -366,14 +433,17 @@
 .deskgrid .mud-table-foot .mud-table-cell { border-top: 1px solid var(--separator); color: var(--text-secondary); }
 .deskgrid .mud-table-pagination { border-top: 1px solid var(--separator); color: var(--text-secondary); }
 
-/* The column resize handle. Mud draws nothing at rest and a 2px Material-primary bar under the
-   pointer; the desk draws the handle as a column edge in the header, the way a macOS table
-   header does — one 1px --separator-strong line, centred in Mud's 8px grab strip — and lights
-   it in the accent while it is hovered or dragged, because then it is a control in use. The
-   strip keeps its width, so the target stays easy to hit while the line stays a hairline. */
+/* The column resize handle. A table on this desk has no vertical rules (HIG lists and tables:
+   one inset hairline between rows, nothing between columns), and a handle drawn at rest was
+   one — a --separator-strong line at every heading's trailing edge, ruling the Journal's, the
+   Runs' and every wide grid's header row into cells. So the handle draws nothing until the
+   pointer is on it. Under the pointer, and while it is dragged, it is a control in use and
+   lights as one: a 1px accent line centred in Mud's 8px grab strip, in place of Mud's 2px
+   Material-primary bar. The strip keeps its width and Mud's col-resize cursor, so the edge is
+   as easy to find and hit as it was. */
 .deskgrid .mud-table-cell .mud-resizer {
     border-right: 0;
-    background: linear-gradient(var(--separator-strong), var(--separator-strong)) center / 1px 100% no-repeat;
+    background: none;
 }
 
 .deskgrid .mud-table-cell .mud-resizer:hover,
@@ -709,6 +779,14 @@
 
 /* .mud-button sets min-width:64px, which makes an icon-only button oblong. */
 .desk-btn.mud-button { min-width: 0; }
+
+/* MudButton puts everything a key holds — DeskButton's Glyph, the label, a pull-down's chevron
+   — inside one .mud-button-label span, so the gap .desk-btn sets between its flex children fell
+   between the button and that single span and nowhere else. The glyph sat touching the first
+   letter of "Settle finished games" and "Build parlay". The span is a flex row already (Mud gives
+   it the button's own display), so it takes the button's gap too, and every emphasis and size
+   spaces glyph, label and chevron the same --btn-gap apart. */
+.desk-btn > .mud-button-label { gap: inherit; }
 
 /* .mud-button-root:disabled forces its colour with !important — the only place
    MudBlazor cannot be out-specified — so DeskTheme.cs sets ActionDisabled to the

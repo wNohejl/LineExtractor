@@ -258,12 +258,22 @@ else
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 @{ var leader = FinalLeader(context.Item.Game); }
-                <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@Matchup(context.Item.Game)"
+                <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@WindowShortcuts.Describe(context.Item.Game)"
                           OnClick="() => Manager.OpenGame(context.Item.Game)">
                     <span class="board__sides">
-                        @Side(context.Item, home: false, loser: leader == ScoreLeader.Home)
-                        <span class="sr-only">@(" at ")</span>
-                        @Side(context.Item, home: true, loser: leader == ScoreLeader.Away)
+                        @if (context.Item.Bout is not null)
+                        {
+                            @* A fight is billed red corner first, as its moneyline reads (ADR 0021). *@
+                            @Side(context.Item, home: true, loser: leader == ScoreLeader.Away)
+                            <span class="sr-only">@(" vs ")</span>
+                            @Side(context.Item, home: false, loser: leader == ScoreLeader.Home)
+                        }
+                        else
+                        {
+                            @Side(context.Item, home: false, loser: leader == ScoreLeader.Home)
+                            <span class="sr-only">@(" at ")</span>
+                            @Side(context.Item, home: true, loser: leader == ScoreLeader.Away)
+                        }
                     </span>
                 </DeskLink>
                 @if (context.Item.Game.DoubleHeaderGame is { } number)
@@ -323,8 +333,8 @@ else
                             var leader = FinalLeader(context.Item.Game);
                             var result = FightSports.ResultLine(context.Item.Game, fought) ?? "";
                             <span class="board__scores" title="@result">
-                                <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: false)</span>
                                 <span class="board__score@(leader == ScoreLeader.Away ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: true)</span>
+                                <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: false)</span>
                                 <span class="sr-only">@result</span>
                             </span>
                             <span class="dim">@FightSports.MethodShort(fought) @FightSports.Ended(fought)</span>
@@ -482,7 +492,10 @@ else
     [
         new(12, "12h", "Next 12 hours"),
         new(24, "24h", "Next 24 hours"),
-        new(48, "48h", "Next 48 hours")
+        new(48, "48h", "Next 48 hours"),
+        // A fight card is billed and bet all week, and is the next thing on the board for days
+        // at a time (ADR 0021).
+        new(168, "7d", "Next 7 days")
     ];
 
     private List<BoardRow> _rows = [];
@@ -549,7 +562,7 @@ else
     /// </summary>
     private List<BoardRow> Visible => _visible;
 
-    private string HorizonNote => $"next {_windowHours}h · since midnight";
+    private string HorizonNote => $"next {(_windowHours % 24 == 0 && _windowHours > 48 ? $"{_windowHours / 24}d" : $"{_windowHours}h")} · since midnight";
 
     /// <summary>
     /// Coverage in words, because "12 of 19" alone does not say whether the missing seven are a
@@ -1008,7 +1021,7 @@ else
                 Label = "Form",
                 Icon = Icons.Material.Filled.QueryStats,
                 Snippet = @<FormSnippet GameId="id" />,
-                OpenLabel = "Both rosters",
+                OpenLabel = row.Bout is null ? "Both rosters" : "Tale of the tape",
                 OpenWindow = () => Launch(WindowCatalog.Form, "GameId", id, name)
             }
         };

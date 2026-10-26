@@ -20,7 +20,16 @@
 <div class="@Classes" style="@Styles" id="@Id" @attributes="Rest">
     @if (Title is { Length: > 0 })
     {
-        <PanelHeader Tight Level="@Level">@Title</PanelHeader>
+        @* The title and the line saying which thing is being changed travel together. A form's
+           name alone ("Edit entry") floated over whatever sat beneath it and named nothing
+           (HIG, Sheets: a title, and a detail that orients). *@
+        <div class="pform__head">
+            <PanelHeader Tight Level="@Level">@Title</PanelHeader>
+            @if (Detail is not null)
+            {
+                <p class="pform__detail">@Detail</p>
+            }
+        </div>
     }
 
     <div class="pform__body stack">@ChildContent</div>
@@ -43,6 +52,12 @@
 @code {
     /// <summary>The form's name — "New entry", "Root-cause analysis". Optional.</summary>
     [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// One quiet line under the title naming what the form changes: "Buffalo Bills -3 ·
+    /// placed Oct 26 16:04 ET". Optional, and drawn only with a title.
+    /// </summary>
+    [Parameter] public RenderFragment? Detail { get; set; }
 
     /// <summary>The fields, stacked.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }

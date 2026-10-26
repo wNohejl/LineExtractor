@@ -41,8 +41,7 @@ else
         @if (tape.Home.Profile is null || tape.Away.Profile is null)
         {
             <p class="tape__footer">
-                @(tape.Home.Profile is null && tape.Away.Profile is null ? "Neither fighter has" : $"{(tape.Home.Profile is null ? tape.Home.Team.Name : tape.Away.Team.Name)} has")
-                no profile yet — Pull data → Fighter profiles owed reads it from ESPN.
+                @(tape.Home.Profile is null && tape.Away.Profile is null ? "Neither fighter has a profile yet" : $"{(tape.Home.Profile is null ? tape.Home.Team.Name : tape.Away.Team.Name)} has no profile yet") — Pull data → Fighter profiles owed reads it from ESPN.
             </p>
         }
 
@@ -74,10 +73,13 @@ else
                 </section>
             }
 
+            @if (tape.Home.History.Count + tape.Away.History.Count > 0)
+            {
             <div class="tape__recent">
                 @Recent(tape.Home)
                 @Recent(tape.Away)
             </div>
+            }
         }
     </div>
 }

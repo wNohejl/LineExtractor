@@ -92,3 +92,126 @@ public class DeskGridTests : DeskTestContext
         Assert.Contains("under three", cells[0].TextContent);
     }
 }
+
+/// <summary>
+/// What a grid draws around its rows: the heading row, its sort arrow, a column's alignment,
+/// and the line an empty grid shows instead of a table.
+/// </summary>
+public class DeskGridHeadingTests : DeskTestContext
+{
+    public record Row(int Id, string Name);
+
+    private static readonly Row[] Rows = [new(1, "One"), new(2, "Two")];
+
+    // An Id column on the trailing edge, as a panel asks for one, ahead of a plain Name column.
+    // Razor hands Align over as the text it was written as; a builder may pass the enum itself.
+    private static RenderFragment Columns(object? align = null, bool sortedByName = false) => b =>
+    {
+        b.OpenComponent<PropertyColumn<Row, int>>(0);
+        b.AddAttribute(1, "Property", (Expression<Func<Row, int>>)(r => r.Id));
+        b.AddAttribute(2, "Title", "Starts");
+        if (align is not null)
+            b.AddAttribute(3, "Align", align);
+        b.CloseComponent();
+
+        b.OpenComponent<PropertyColumn<Row, string>>(4);
+        b.AddAttribute(5, "Property", (Expression<Func<Row, string>>)(r => r.Name));
+        b.AddAttribute(6, "Title", "Matchup");
+        if (sortedByName)
+            b.AddAttribute(7, "InitialDirection", SortDirection.Descending);
+        b.CloseComponent();
+    };
+
+    private IRenderedComponent<DeskGrid<Row>> Grid(IEnumerable<Row> rows, RenderFragment columns, bool multiSort = false, bool loading = false)
+        => RenderComponent<DeskGrid<Row>>(p => p
+            .Add(x => x.Items, rows)
+            .Add(x => x.ChildContent, columns)
+            .Add(x => x.MultiSort, multiSort)
+            .Add(x => x.Loading, loading)
+            .Add(x => x.EmptyText, "No open alerts."));
+
+    [Theory]
+    [InlineData("Align.Right")]
+    [InlineData(Align.Right)]
+    [InlineData(Align.End)]
+    public void A_right_aligned_column_sets_its_heading_and_its_cells_on_the_same_edge(object align)
+    {
+        var cut = Grid(Rows, Columns(align));
+
+        // MudDataGrid's columns take no Align and draw nothing for it; the grid answers it, on the
+        // heading and every cell alike, so a label can never sit apart from its figures.
+        cut.WaitForAssertion(() => Assert.Contains("deskgrid__end", cut.FindAll("thead th")[0].ClassList));
+        Assert.All(cut.FindAll("tbody tr"), row => Assert.Contains("deskgrid__end", row.Children[0].ClassList));
+    }
+
+    [Fact]
+    public void A_column_that_asks_for_no_alignment_takes_none()
+    {
+        var cut = Grid(Rows, Columns(align: "Align.Right"));
+
+        cut.WaitForAssertion(() => Assert.Contains("deskgrid__end", cut.FindAll("thead th")[0].ClassList));
+        Assert.DoesNotContain("deskgrid__end", cut.FindAll("thead th")[1].ClassList);
+        Assert.All(cut.FindAll("tbody tr"), row => Assert.DoesNotContain("deskgrid__end", row.Children[1].ClassList));
+    }
+
+    [Fact]
+    public void A_heading_reads_as_its_label_and_nothing_else()
+    {
+        var cut = Grid(Rows, Columns(sortedByName: true));
+
+        // MudBlazor's multiple mode numbered every heading, a hidden "0" on each unsorted one and a
+        // "1" beside the sorted one's arrow, and the heading's text came out as "Starts0".
+        var headings = cut.FindAll("thead th").Select(th => th.TextContent.Trim()).ToList();
+
+        Assert.Equal(new[] { "Starts", "Matchup" }, headings);
+        Assert.Empty(cut.FindAll(".mud-sort-index"));
+    }
+
+    [Fact]
+    public void Only_the_sorted_column_carries_a_direction()
+    {
+        var cut = Grid(Rows, Columns(sortedByName: true));
+
+        var arrows = cut.FindAll("thead th .sort-direction-icon");
+
+        Assert.Equal(2, arrows.Count);
+        Assert.DoesNotContain(arrows[0].ClassList, c => c.StartsWith("mud-direction-"));
+        Assert.Contains("mud-direction-desc", arrows[1].ClassList);
+    }
+
+    [Fact]
+    public void A_grid_that_asks_for_multi_sort_numbers_its_sort_keys()
+        => Assert.NotEmpty(Grid(Rows, Columns(sortedByName: true), multiSort: true).FindAll(".mud-sort-index"));
+
+    [Fact]
+    public void An_empty_grid_draws_its_sentence_and_no_heading_row()
+    {
+        var cut = Grid([], Columns());
+
+        Assert.Equal("No open alerts.", cut.Find(".deskgrid__empty").TextContent.Trim());
+
+        // The table stays in the tree so a sort survives a filter that empties it, but it is not
+        // drawn, and Mud's own bold, centred no-records cell is not drawn at all.
+        Assert.True(cut.Find(".mud-data-grid").HasAttribute("hidden"));
+        Assert.Empty(cut.FindAll(".mud-table-empty-row"));
+    }
+
+    [Fact]
+    public void A_grid_with_rows_draws_no_empty_line()
+    {
+        var cut = Grid(Rows, Columns());
+
+        Assert.Empty(cut.FindAll(".deskgrid__empty"));
+        Assert.False(cut.Find(".mud-data-grid").HasAttribute("hidden"));
+        Assert.Equal(2, cut.FindAll("tbody tr").Count);
+    }
+
+    [Fact]
+    public void An_empty_first_load_shows_placeholders_rather_than_the_empty_line()
+    {
+        var cut = Grid([], Columns(), loading: true);
+
+        Assert.NotNull(cut.Find(".deskgrid__skeleton"));
+        Assert.Empty(cut.FindAll(".deskgrid__empty"));
+    }
+}

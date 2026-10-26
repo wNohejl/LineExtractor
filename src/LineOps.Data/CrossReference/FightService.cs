@@ -120,7 +120,8 @@ public class FightService(LineOpsDbContext db)
 
         foreach (var key in red.Career.Record.Select(r => r.Key).Union(blue.Career.Record.Select(r => r.Key)))
         {
-            if (key == "wins-losses-draws")
+            // The record row already says these.
+            if (key is "wins-losses-draws" or "wins" or "losses" or "draws")
                 continue;
 
             var a = red.Career.Record.FirstOrDefault(r => r.Key == key);
@@ -147,6 +148,10 @@ public class FightService(LineOpsDbContext db)
     {
         var a = red.Sheets;
         var b = blue.Sheets;
+
+        // Nothing recorded on either side is nothing to compare, not a row of noughts.
+        if (red.History.Count == 0 && blue.History.Count == 0)
+            return [];
 
         var rows = new List<TapeRow>
         {

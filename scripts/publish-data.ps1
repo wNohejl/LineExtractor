@@ -88,6 +88,8 @@ select json_build_object(
   'players', (select count(*) from "Players"),
   'statLines', (select count(*) from "PlayerGameStats"),
   'closingLines', (select count(*) from "ClosingLines"),
+  'bouts', (select count(*) from "Bouts"),
+  'fighterProfiles', (select count(*) from "FighterProfiles"),
   'personal', '$(if ($IncludePersonal) { 'included' } else { 'excluded' })',
   'seasons', (select json_object_agg(k, ys) from (select s."Key" k, json_agg(distinct g."SeasonYear") ys from "Games" g join "Sports" s on s."Id"=g."SportId" group by 1) t)
 )::text;
