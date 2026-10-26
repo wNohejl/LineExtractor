@@ -165,4 +165,19 @@ public class JournalPanelTests
         Assert.Contains("<DeskSwitch Options=\"SportOptions\" Label=\"Sport\"", source);
         Assert.DoesNotContain("All sports", source);
     }
+
+    /// <summary>A narrow window keeps the toolbar on one line: the sport and book pickers fold into More.</summary>
+    [Theory]
+    [InlineData("JournalPanel.razor")]
+    [InlineData("PerformancePanel.razor")]
+    public void Sport_and_book_fold_into_more(string panel)
+    {
+        var source = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", panel));
+        var overflow = BoardToolbarTests.Slot(source, "Overflow");
+
+        Assert.Contains("<DeskSwitch Options=\"SportOptions\" Label=\"Sport\"", overflow);
+        Assert.Contains("All books", overflow);
+        Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Sport<", overflow);
+        Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Book<", overflow);
+    }
 }

@@ -32,44 +32,67 @@
     operator is working from.
 *@
 
+@* Every scope picker can leave the row: a narrow Board keeps one line by folding them into
+   More, each with the label it shows there, while the search and the keys stay put (HIG
+   toolbars: say in advance what overflows). *@
 <PanelToolbar>
-    <ChildContent>
-        <DeskSelect TValue="string" style="max-width:190px" Value="_sport" ValueChanged="OnSportChanged">
-            @* Requested leagues, not merely the ones with games. A league the desk was told to poll
-               and has nothing for is a different fact from a league nobody asked about, and the
-               option says which — see ADR 0003 on the two kinds of zero. *@
-            <option value="">All sports@(_rows.Count > 0 ? $" · {_rows.Count}" : "")</option>
-            @foreach (var option in _sportOptions)
-            {
-                <option value="@option.Key">@option.Label</option>
-            }
-        </DeskSelect>
+    <Overflow>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+            <DeskSelect TValue="string" aria-label="Sport" Value="_sport" ValueChanged="OnSportChanged">
+                @* Requested leagues, not merely the ones with games. A league the desk was told to poll
+                   and has nothing for is a different fact from a league nobody asked about, and the
+                   option says which — see ADR 0003 on the two kinds of zero. *@
+                <option value="">All sports@(_rows.Count > 0 ? $" · {_rows.Count}" : "")</option>
+                @foreach (var option in _sportOptions)
+                {
+                    <option value="@option.Key">@option.Label</option>
+                }
+            </DeskSelect>
+        </div>
 
-        <DeskSwitch Options="Horizons" Label="Slate horizon" Mono="true"
-                    Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Horizon</span>
+            <DeskSwitch Options="Horizons" Label="Slate horizon" Mono="true"
+                        Value="_windowHours" ValueChanged="@((int hours) => SetWindowAsync(hours))" />
+        </div>
 
         @* Only offered once there is something to narrow. A gate with every position pointing at
            the same rows is chrome pretending to be a control. *@
         @if (_phaseOptions.Count > 1)
         {
-            <DeskSwitch Options="_phaseOptions" Label="Game state"
-                        Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">State</span>
+                <DeskSwitch Options="_phaseOptions" Label="Game state"
+                            Value="_phase" ValueChanged="@((BoardPhase p) => SetPhase(p))" />
+            </div>
         }
 
-        @* Narrows the slate to a team or a matchup — "mets", "reds braves" — by the same rule the
-           command palette finds games with. The slate is already loaded, so this asks nothing. *@
-        <DeskField TValue="string" Immediate="true" style="max-width:170px"
-                   placeholder="Team" Value="_team" ValueChanged="@((string? t) => SetTeam(t))" />
-
         @* The games where some book is paying more than the fair price — a checkbox, and drawn
-           only while there are any, for the same reason the state switch is. *@
-        <BoardValueFilter Count="_valueRows" Checked="_valueOnly" CheckedChanged="@((bool _) => ToggleValue())" />
-    </ChildContent>
+           only while there are any, for the same reason the state switch is. The row is drawn
+           with it, so More never shows a label with nothing beside it. *@
+        @if (_valueRows > 0)
+        {
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">Value</span>
+                <BoardValueFilter Count="_valueRows" Checked="_valueOnly" CheckedChanged="@((bool _) => ToggleValue())" />
+            </div>
+        }
+    </Overflow>
+    @* Narrows the slate to a team or a matchup — "mets", "reds braves" — by the same rule the
+       command palette finds games with. The slate is already loaded, so this asks nothing. Last
+       in the content group, nearest the keys (HIG: search trails), and the last thing to fold. *@
+    <Search>
+        <DeskSearch Placeholder="Search teams" Label="Search teams or matchups"
+                    Value="@_team" ValueChanged="@((string t) => SetTeam(t))" />
+    </Search>
     @* The keys are the toolbar's actions slot, not more content after a spacer: the slot keeps
        them together and flush right as the window narrows, where a spacer let Pull data wrap
        to a line of its own and leave Refresh behind. *@
     <Actions>
-        <DeskButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">Refresh</DeskButton>
+        @* A symbol, not a word, beside the one key that needs its words (HIG toolbars: prefer
+           symbols); it also leaves a 300px window room for More and Pull data on one line. *@
+        <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="LoadAsync" />
 
         @* The only control here that spends anything, and a menu, so Tinted with a chevron rather
            than Filled: the spend is the entry chosen from it. Everything else on this toolbar reads. *@

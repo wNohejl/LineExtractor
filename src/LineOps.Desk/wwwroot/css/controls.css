@@ -437,3 +437,110 @@
     width: 14px;
     height: 14px;
 }
+
+/* ---- Toolbar ----------------------------------------------------------------
+   The panel toolbar is one line. lineops.css still says `flex-wrap: wrap` and,
+   under 520px, gives the message and the keys a line each; these rules come
+   later at the same specificity and replace both. A control either sits on the
+   row or is in More (toolbar.js decides which), so nothing wraps and nothing is
+   clipped: no `overflow: hidden` here, which would also cut off every popover
+   that opens from the row.
+   --------------------------------------------------------------------------- */
+
+.ptoolbar {
+    flex-wrap: nowrap;
+}
+
+/* The keys travel as one item, pinned trailing, on one line of their own slot. */
+.ptoolbar__actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+}
+
+/* The message keeps its words on one line and does not shrink under them: a row
+   that cannot fit it folds instead of squeezing it to nothing. */
+.ptoolbar__msg {
+    min-width: auto;
+    white-space: nowrap;
+}
+
+@container ptoolbar (max-width: 520px) {
+    .ptoolbar__msg { flex-basis: auto; }
+    .ptoolbar__actions { flex-basis: auto; }
+}
+
+/* An Overflow control on the row: the control alone, sized to its words, its
+   label hidden — the control names itself there. */
+.ptoolbar__item {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+}
+
+.ptoolbar__item > select.field {
+    width: auto;
+}
+
+.ptoolbar__label {
+    display: none;
+}
+
+/* More: the plain key with the ellipsis, just before the actions, so the one
+   Filled key stays last. With no search to take the slack it is pushed to the
+   trailing edge itself, and the keys sit beside it. */
+.ptoolbar__more-key {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.ptoolbar__more-key + .ptoolbar__actions {
+    margin-left: 0;
+}
+
+/* The panel is a short grouped form, not a menu: one row per control at
+   toolbar density, the label leading in the primary ink, the control trailing.
+   No edges between rows; the popover's own edge is the group's one. */
+/* The panel hangs from More's trailing edge (Align End) and is never wider than
+   the toolbar, so it cannot leave the window it opened in. popover.js only knows
+   the viewport: a panel wider than the room left of the key would be flipped to
+   open rightward, past the window's edge. Capped to the row (the toolbar is the
+   ptoolbar container, so 100cqw is its width), there is always room on the left. */
+.ptoolbar__more-key > .popover__panel {
+    min-width: min(200px, 100cqw);
+    max-width: min(360px, 100cqw);
+}
+
+.ptoolbar__more {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-1) var(--space-2);
+}
+
+/* A row narrower than its control lets a select give way rather than run past
+   the panel; a segmented control keeps its segments. */
+.ptoolbar__more > .ptoolbar__item > select.field {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ptoolbar__more > .ptoolbar__item {
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-width: 0;
+    min-height: 28px;
+}
+
+.ptoolbar__more .ptoolbar__label {
+    display: block;
+    font-size: var(--text-body);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* The search, once folded too, leads the panel across its full width. */
+.ptoolbar__more > .search {
+    flex: 0 0 auto;
+    min-height: 28px;
+}

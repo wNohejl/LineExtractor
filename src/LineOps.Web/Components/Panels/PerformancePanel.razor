@@ -39,39 +39,57 @@ else if (!_anySettled)
 }
 else
 {
+    @* The period stays on the row; the narrower cuts — sport, season, book, market — fold into
+       More when a narrow window would otherwise wrap them. *@
     <PanelToolbar>
-        <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
-                    Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
-        @* All and the two leagues: a fixed set of three, so a segment, as in the Journal. *@
-        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
-                    Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
-        @if (_seasons.Count > 1)
-        {
-            <DeskSelect TValue="int?" style="max-width:120px"
-                        Value="_season" ValueChanged="@((int? y) => FilterAsync(() => _season = y))">
-                <option value="">All seasons</option>
-                @foreach (var year in _seasons)
-                {
-                    <option value="@year">@year</option>
-                }
-            </DeskSelect>
-        }
-        <DeskSelect TValue="string" style="max-width:140px"
-                    Value="_book" ValueChanged="@((string? b) => FilterAsync(() => _book = b))">
-            <option value="">All books</option>
-            @foreach (var book in _books)
+        <ChildContent>
+            <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
+                        Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+        </ChildContent>
+        <Overflow>
+            @* All and the two leagues: a fixed set of three, so a segment, as in the Journal. *@
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+                <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                            Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
+            </div>
+            @if (_seasons.Count > 1)
             {
-                <option value="@book">@book</option>
+                <div class="ptoolbar__item">
+                    <span class="ptoolbar__label" aria-hidden="true">Season</span>
+                    <DeskSelect TValue="int?" aria-label="Season"
+                                Value="_season" ValueChanged="@((int? y) => FilterAsync(() => _season = y))">
+                        <option value="">All seasons</option>
+                        @foreach (var year in _seasons)
+                        {
+                            <option value="@year">@year</option>
+                        }
+                    </DeskSelect>
+                </div>
             }
-        </DeskSelect>
-        <DeskSelect TValue="string" style="max-width:140px"
-                    Value="_market" ValueChanged="@((string? m) => FilterAsync(() => _market = m))">
-            <option value="">All markets</option>
-            @foreach (var market in _markets)
-            {
-                <option value="@market">@market</option>
-            }
-        </DeskSelect>
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">Book</span>
+                <DeskSelect TValue="string" aria-label="Book"
+                            Value="_book" ValueChanged="@((string? b) => FilterAsync(() => _book = b))">
+                    <option value="">All books</option>
+                    @foreach (var book in _books)
+                    {
+                        <option value="@book">@book</option>
+                    }
+                </DeskSelect>
+            </div>
+            <div class="ptoolbar__item">
+                <span class="ptoolbar__label" aria-hidden="true">Market</span>
+                <DeskSelect TValue="string" aria-label="Market"
+                            Value="_market" ValueChanged="@((string? m) => FilterAsync(() => _market = m))">
+                    <option value="">All markets</option>
+                    @foreach (var market in _markets)
+                    {
+                        <option value="@market">@market</option>
+                    }
+                </DeskSelect>
+            </div>
+        </Overflow>
     </PanelToolbar>
 
     @if (_summary.SettledCount == 0)

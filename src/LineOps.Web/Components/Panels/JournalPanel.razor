@@ -29,19 +29,29 @@ else
                     Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
         <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
                     Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
+    </ChildContent>
+    @* Sport and book are the narrower cuts; a narrow Journal folds them into More and keeps
+       status, period and the keys on one line. *@
+    <Overflow>
         @* Two leagues and "all" is a fixed set of three, so it is a segment beside the other two
            rather than a pop-up that hides the alternatives (HIG: segmented controls). *@
-        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
-                    Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
-        <DeskSelect TValue="string" style="max-width:140px"
-                    Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
-            <option value="">All books</option>
-            @foreach (var book in _books)
-            {
-                <option value="@book">@book</option>
-            }
-        </DeskSelect>
-    </ChildContent>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+            <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                        Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
+        </div>
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Book</span>
+            <DeskSelect TValue="string" aria-label="Book"
+                        Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
+                <option value="">All books</option>
+                @foreach (var book in _books)
+                {
+                    <option value="@book">@book</option>
+                }
+            </DeskSelect>
+        </div>
+    </Overflow>
     <Actions>
         @* Parlays are logged from the slip (spec §5.4), the tab beside this one. Build parlay
            fills it leg by leg, from the same wager window Log entry opens. *@

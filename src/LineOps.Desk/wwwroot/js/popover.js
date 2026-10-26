@@ -41,23 +41,37 @@ function teardown(state) {
 ///
 /// Rectangles and innerHeight are both visual pixels, so the comparison holds under the Window
 /// manager's UI zoom without converting anything.
+///
+/// The edges measured against are the desk window's when the opener sits in one, and the
+/// viewport's otherwise (the header's menus). A popover opened from a narrow window's toolbar
+/// would otherwise flip towards the viewport's far side and run out of its own window, where
+/// the window body clips it.
 function flip(panel, root) {
     panel.removeAttribute('data-flip');
 
     const rect = panel.getBoundingClientRect();
     const anchor = root.getBoundingClientRect();
+    const bounds = boundsOf(root);
     const edges = [];
 
     // Up only when there is more room above than below; a panel taller than both stays down,
     // where it scrolls inside its own max-height.
-    if (rect.bottom > window.innerHeight - MARGIN && anchor.top > window.innerHeight - anchor.bottom) {
+    if (rect.bottom > bounds.bottom - MARGIN && anchor.top - bounds.top > bounds.bottom - anchor.bottom) {
         edges.push('up');
     }
 
-    if (rect.right > window.innerWidth - MARGIN) edges.push('end');
-    else if (rect.left < MARGIN) edges.push('start');
+    if (rect.right > bounds.right - MARGIN) edges.push('end');
+    else if (rect.left < bounds.left + MARGIN) edges.push('start');
 
     if (edges.length) panel.setAttribute('data-flip', edges.join(' '));
+}
+
+function boundsOf(root) {
+    const host = root.closest('.win__body');
+
+    if (host) return host.getBoundingClientRect();
+
+    return { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
 }
 
 export function open(panel, root, dotNetRef) {
