@@ -34,9 +34,11 @@ else
     somewhere else.
 </Note>
 
+@* Each market at a reading width (.allbets__market). Maximised, a four-column table ran the
+   whole window and put a book's prices a screen's width from its name. *@
 @foreach (var market in Markets())
 {
-    <PanelSection Title="@MarketName(market.Market)" Detail="@FairDetail(market)">
+    <PanelSection Class="allbets__market" Title="@MarketName(market.Market)" Detail="@FairDetail(market)">
 
     @if (!market.IsPriced)
     {
@@ -46,8 +48,11 @@ else
     {
         <div class="gridwrap">
             <DeskGrid T="string" Items="BooksIn(market)" EmptyText="Not priced by any book yet.">
+                @* The row's label, so primary ink and the book's own name — "DraftKings", not the
+                   feed's key in a dimmed monospace that read as an identifier. Sorted by the key,
+                   which orders the same. *@
                 <PropertyColumn T="string" TProperty="string" Property="b => b" Title="Book">
-                    <CellTemplate><span class="mono dim">@context.Item</span></CellTemplate>
+                    <CellTemplate>@BookNames.Display(context.Item)</CellTemplate>
                 </PropertyColumn>
 
                 @* The prices are rendered rather than projected — the best-price lighting lives
@@ -119,8 +124,10 @@ else
     {
         var offer = first ? market.First : market.Second;
 
-        if (offer is not null)
-            return offer.Outcome;
+        // A total's outcome is a word a feed may write in lower case ("over"); a header names
+        // it as the column of a team's name would, capitalised.
+        if (offer is { Outcome.Length: > 0 })
+            return char.ToUpperInvariant(offer.Outcome[0]) + offer.Outcome[1..];
 
         return market.Market == LineOps.Core.Entities.Markets.Total
             ? (first ? "Over" : "Under")
@@ -174,9 +181,10 @@ else
         // the same tone as the best price: both are reasons to bet here.
         if (rung.Ev is { } ev && live)
         {
+            // The gap before it is .rung__ev's, not an inline style: the panels stopped writing
+            // their own spacing (spec 2026-10-24).
             builder.OpenElement(9, "span");
             builder.AddAttribute(10, "class", ev > 0 ? "rung__ev up" : "rung__ev dim");
-            builder.AddAttribute(11, "style", "margin-left:6px");
             builder.AddContent(12, PriceCell.EvLabel(ev));
             builder.CloseElement();
         }

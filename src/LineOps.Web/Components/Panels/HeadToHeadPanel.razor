@@ -52,16 +52,19 @@ else if (_rows.Count == 0)
 }
 else
 {
+    @* The count of meetings is a fact about the record, so it leads the detail line with it.
+       As an Info tag on the name's row it was a count dressed as a state, floating beside a
+       title it did not qualify. Coverage is stated rather than implied: a column of dashes
+       beside a record says nothing about whether the market data is missing or the games were
+       never priced. *@
     <PanelTitle>
         <ChildContent>@_awayName v @_homeName</ChildContent>
-        <Tags>
-            <Tag State="DeskState.Info">@_rows.Count @(_rows.Count == 1 ? "meeting" : "meetings")</Tag>
-        </Tags>
-        @* Coverage is stated rather than implied: a column of dashes beside a record says
-           nothing about whether the market data is missing or the games were never priced. *@
         <Detail>
-            @_record for @_homeName ·
-            @_covered of @_rows.Count with a closing line
+            <span>
+                @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "meeting" : "meetings") ·
+                @_record for @_homeName ·
+                @_covered.ToString("N0") of @_rows.Count.ToString("N0") with a closing line
+            </span>
         </Detail>
     </PanelTitle>
 
@@ -121,7 +124,9 @@ else
                 </CellTemplate>
             </TemplateColumn>
 
-            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Line" Align="Align.Right"
+            @* Named for its market, as the Board and Every book name it: "Line" said nothing
+               about which line, beside a Total column that is also one. *@
+            <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Spread" Align="Align.Right"
                             SortBy="@(r => r.ClosingSpread ?? decimal.MinValue)">
                 <CellTemplate>
                     <span class="mono">@(context.Item.ClosingSpread is { } s ? Line(s) : "—")</span>
@@ -150,9 +155,10 @@ else
                     @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line
                          && ResultTag.Of(total) is { } over)
                     {
-                        @* Graded from the over's point of view, so a win is an over. *@
+                        @* Graded from the over's point of view, so a win is an over. The number
+                           as a book prints it ("O 47.5"), not the column's scale ("47.50"). *@
                         <ResultTag Result="@over">
-                            @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
+                            @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @Bare(line)
                         </ResultTag>
                     }
                     else
@@ -228,7 +234,7 @@ else
             _covered = _rows.Count(r => r.HasClosingLine);
         },
         settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
-        status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count} meetings");
+        status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "meeting" : "meetings")}");
     }
 
     private async Task OpenGameAsync(int gameId)
@@ -239,4 +245,8 @@ else
         if (await board.GetRowAsync(gameId) is { } row)
             Manager.OpenGame(row.Game, WindowId);
     }
+
+    /// <summary>A total as a book prints it: "47.5", "8". The stored column's scale printed "47.50".</summary>
+    public static string Bare(decimal total)
+        => Math.Abs(total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 }

@@ -42,14 +42,13 @@ else
 {
     <PanelTitle>
         <ChildContent>@_player.FullName</ChildContent>
+        @* The season is said once, on the detail line ("31 appearances in the 2026 season"). A
+           season tag on the name's row repeated it, and beside a long name it floated away from
+           the title it qualified. *@
         <Tags>
             @if (_player.Position is { } position)
             {
                 <Tag>@position</Tag>
-            }
-            @if (_seasonYear is { } seasonYear && _player.Sport?.Key is { } sportKey)
-            {
-                <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
             }
             @if (_player.Team?.Name is { } team)
             {
@@ -58,7 +57,7 @@ else
             }
         </Tags>
         <Detail>
-            @_rows.Count @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
+            @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "appearance" : "appearances") @SeasonPhrase
             @* The team beside the name above is where the player is now. When the season on
                screen was played somewhere else, it says so, rather than letting last year's
                numbers read as this club's. *@
@@ -252,7 +251,7 @@ else
             _columns = Snippets.PlayerRecentSnippet.DeriveColumns(_rows, 8);
         },
         settle: () => _player is null ? PulseState.Idle : PulseState.Healthy,
-        status: () => _player is null ? "not found" : $"{_rows.Count} games");
+        status: () => _player is null ? "not found" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "game" : "games")}");
     }
 
     private async Task OpenGameAsync(int gameId)
@@ -329,6 +328,8 @@ else
         var mean = values.Average();
         var counting = values.All(v => Math.Abs(v % 1) < 1e-9);
 
-        return mean.ToString(counting ? "0.##" : "0.000");
+        // A per-game mean seldom reaches four figures, but the format is the desk's one rule for
+        // a count (thousands separated), so this strip and the Form tables never disagree.
+        return mean.ToString(counting ? "#,0.##" : "0.000");
     }
 }

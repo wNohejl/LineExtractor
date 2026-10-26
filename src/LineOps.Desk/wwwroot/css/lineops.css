@@ -2169,9 +2169,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     opacity: 1;
 }
 
-/* The value label after a book's price in All bets: a footnote to the number, on the caption rung.
-   Colour comes from .up or .dim beside it. */
-.rung__ev { font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+/* The value label after a book's price in Every book: a footnote to the number, on the caption
+   rung, set off by the 6px the panel used to write inline. Colour comes from .up or .dim beside it. */
+.rung__ev { margin-left: calc(var(--space-1) * 1.5); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
+
+/* Every book's markets at a reading width: a book's name, its two prices and its hold read as
+   one line, not as a name at the left edge of a maximised window and three numbers at the right. */
+.allbets__market { max-width: 720px; }
 
 /* A closing line is not a price you can take — the game has started and the book
    is gone. It stays on the board because it is what the market concluded and what
@@ -3959,6 +3963,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     gap: var(--space-2);
     margin: 0 0 var(--space-3);
 }
+
+/* The finding and its rows, at a reading width. Maximised, the table ran the whole window: the
+   sparkline column took the slack and Open, Now and Move sat a screen's width from the book
+   they belong to. Capped, the row reads as one line of facts about one book; the headline
+   above it keeps the same measure, so the sentence and the table share a right edge. */
+.movement { max-width: 720px; }
 
 .movement__cap { margin: 0 0 var(--space-2); }
 .movement__headline {

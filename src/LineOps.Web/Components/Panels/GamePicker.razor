@@ -151,9 +151,23 @@
     private static string Matchup(Game game)
         => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
 
-    private static string When(Game game)
-        => $"{DisplayTime.Stamp(game.StartsAt)} · {game.Sport?.Key.ToUpperInvariant()}"
-           + (game.Status == GameStatus.Final ? " · final" : game.Status == GameStatus.Live ? " · live" : "");
+    /// <summary>
+    /// The chosen game's detail line: "Oct 26 20:20 ET · NFL · final". Each part is written only
+    /// when it is there — a game read without its league left "Oct 26 20:20 ET · " with a
+    /// separator pointing at nothing.
+    /// </summary>
+    public static string When(Game game)
+    {
+        var parts = new List<string> { DisplayTime.Stamp(game.StartsAt) };
+
+        if (game.Sport?.Key is { Length: > 0 } league)
+            parts.Add(league.ToUpperInvariant());
+
+        if (game.Status is GameStatus.Final or GameStatus.Live)
+            parts.Add(game.Status == GameStatus.Final ? "final" : "live");
+
+        return string.Join(" · ", parts);
+    }
 
     private void StartSearch()
     {

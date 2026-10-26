@@ -209,7 +209,7 @@ public class OddsMovementTests
             Snap("fanduel", Away, 130, 1)
         ], Away);
 
-        Assert.Equal("Dallas Cowboys shortened +136 to -218 at draftkings",
+        Assert.Equal("Dallas Cowboys shortened +136 to -218 at DraftKings",
             OddsPanel.Headline(rows, Markets.Moneyline, Away));
     }
 
@@ -233,7 +233,7 @@ public class OddsMovementTests
             Snap("fanduel", Away, -110, 1, 3m, Markets.Spread)
         ], Away);
 
-        Assert.Equal("Dallas Cowboys moved +4.5 to +3 at fanduel", OddsPanel.Headline(rows, Markets.Spread, Away));
+        Assert.Equal("Dallas Cowboys moved +4.5 to +3 at FanDuel", OddsPanel.Headline(rows, Markets.Spread, Away));
     }
 
     /// <summary>Over and Under share one number, so a total's move is the total's, unsigned.</summary>
@@ -246,7 +246,7 @@ public class OddsMovementTests
             Snap("fanduel", "Over", -110, 1, 46m, Markets.Total)
         ], "Over");
 
-        Assert.Equal("The total moved 47.5 to 46 at fanduel", OddsPanel.Headline(rows, Markets.Total, "Over"));
+        Assert.Equal("The total moved 47.5 to 46 at FanDuel", OddsPanel.Headline(rows, Markets.Total, "Over"));
     }
 
     [Fact]
@@ -292,4 +292,31 @@ public class OddsMovementTests
         Assert.Equal("2.0d ago", OddsPanel.Ago(T0, T0.AddDays(2)));
         Assert.Equal("just now", OddsPanel.Ago(T0, T0.AddSeconds(20)));
     }
+
+    /// <summary>
+    /// The picker's label leads with the day. Matchup first, a 280px select cut it after the
+    /// separator and read "Dallas Cowboys at Philadelphia Eagles –" with no date at all.
+    /// </summary>
+    [Fact]
+    public void A_picker_option_leads_with_its_day()
+    {
+        var game = new Game
+        {
+            StartsAt = T0,
+            AwayTeam = new Team { Name = Away },
+            HomeTeam = new Team { Name = Home }
+        };
+
+        Assert.Equal("Oct 24 · Dallas Cowboys at Philadelphia Eagles", OddsPanel.GameOption(game));
+    }
+
+    /// <summary>A book is read by its name; the feed's key is only for joining rows.</summary>
+    [Theory]
+    [InlineData("draftkings", "DraftKings")]
+    [InlineData("williamhill_us", "Caesars")]
+    [InlineData("betmgm", "BetMGM")]
+    [InlineData("DraftKings", "DraftKings")]
+    [InlineData("some_new_book", "Some New Book")]
+    public void A_book_goes_by_its_name(string key, string name)
+        => Assert.Equal(name, BookNames.Display(key));
 }

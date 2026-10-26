@@ -24,6 +24,22 @@ public class BoardAllBetsTests : WagerTestContext
         Assert.Equal("h2h", window.Parameters["Market"]);
     }
 
+    /// <summary>
+    /// A book is a row's label, so it goes by its name. The feed's key ("draftkings") sat in a
+    /// dimmed monospace that read as an identifier rather than a book.
+    /// </summary>
+    [Fact]
+    public void Each_book_is_named_not_keyed()
+    {
+        var cut = RenderComponent<BoardAllBets>(p => p.Add(x => x.GameId, BoardRows.GameId));
+
+        var text = cut.Markup;
+        Assert.Contains("DraftKings", text);
+        Assert.Contains("FanDuel", text);
+        Assert.DoesNotContain(">draftkings<", text);
+        Assert.DoesNotContain("margin-left:6px", text);
+    }
+
     [Fact]
     public void A_closing_rung_is_not_a_door()
     {

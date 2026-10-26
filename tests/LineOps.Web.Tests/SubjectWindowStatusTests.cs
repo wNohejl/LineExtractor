@@ -111,4 +111,11 @@ public class SubjectWindowStatusTests
     [Fact]
     public void A_meeting_record_without_ties_keeps_two_numbers()
         => Assert.Equal("2-1", HeadToHeadPanel.Record([Meeting(1, 3, 1), Meeting(2, 5, 4), Meeting(3, 2, 6)]));
+
+    /// <summary>A meeting's closing total reads as a book prints it, not at the column's scale.</summary>
+    [Theory]
+    [InlineData("47.50", "47.5")]
+    [InlineData("8.00", "8")]
+    public void A_meetings_total_drops_the_columns_scale(string stored, string shown)
+        => Assert.Equal(shown, HeadToHeadPanel.Bare(decimal.Parse(stored, System.Globalization.CultureInfo.InvariantCulture)));
 }

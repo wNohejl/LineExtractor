@@ -28,18 +28,24 @@
        us with a price on file is in this list. It is the only game control: the search that
        sat beside it named the same game a second time, cut off at the window's edge. A game
        opened from elsewhere and not in the list is added to it, so the select always names
-       the game the rows are about. *@
-    <DeskSelect TValue="int?" aria-label="Game" style="max-width:min(280px, 100%)"
+       the game the rows are about.
+
+       Each option leads with its day (GameOption). Capped at 280px, the select cut
+       "Dallas Cowboys at Philadelphia Eagles — Oct 26" after the dash, so the picker read as a
+       matchup trailing a stray dash and never showed the date that tells a series apart. It
+       now takes the width its longest option asks, up to the toolbar's; a window narrower than
+       that still clips, but at the end of the home club's name rather than mid-separator. *@
+    <DeskSelect TValue="int?" aria-label="Game" style="max-width:min(440px, 100%)"
                 disabled="@(_games.Count == 0 && _picked is null)"
                 Value="@(Listed(_gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
         <option value="">@(_games.Count == 0 ? "No game has moves on record" : "Games with moves…")</option>
         @if (_picked is { } picked && !_games.Any(g => g.Id == picked.Id))
         {
-            <option value="@picked.Id">@MatchupWithDate(picked)</option>
+            <option value="@picked.Id">@GameOption(picked)</option>
         }
         @foreach (var g in _games)
         {
-            <option value="@g.Id">@MatchupWithDate(g)</option>
+            <option value="@g.Id">@GameOption(g)</option>
         }
     </DeskSelect>
 
@@ -81,8 +87,12 @@ else
         </div>
 
         <DeskGrid T="MovementRow" Items="_rows" Resizable="false" EmptyText="No prices on this side.">
+            @* The book by its name, as Every book names it: the feed's key ("draftkings") is
+               for joining rows, not for reading. *@
             <PropertyColumn T="MovementRow" TProperty="string" Property="r => r.Book" Title="Book"
-                            InitialDirection="SortDirection.Ascending" />
+                            InitialDirection="SortDirection.Ascending">
+                <CellTemplate>@BookNames.Display(context.Item.Book)</CellTemplate>
+            </PropertyColumn>
 
             @* No colour and no axis: the numbers are in the next cells, and the shape only has
                to say which way and when. A book seen once draws a dash, not a flat line. *@
@@ -171,7 +181,7 @@ else
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="meta">
-            @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
+            @_form.LinesRead.ToString("N0") stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
     </DeskRow>
 
@@ -262,15 +272,18 @@ else
 
                         @* Rates are averaged, counts are totalled, and the header says
                            which so a number is never ambiguous. A player with no reading
-                           sorts below every real one rather than beside the zeroes. *@
-                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                           sorts below every real one rather than beside the zeroes. The
+                           header is the stat's name, not the provider's key: "passing.YDS"
+                           is how the line is filed, "Pass yds" is how it is read. *@
+                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(StatLabels.StatLabel(key) + (IsRate(side, key) ? "/g" : ""))"
                                         Align="Align.Right"
                                         SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                             <CellTemplate>
                                 @* A player with no reading for this key gets a dash, not a
-                                   zero — they are different facts. *@
+                                   zero — they are different facts. A season's yards run to
+                                   four figures, so a count takes its thousands separator. *@
                                 @(context.Item.Summary(key) is { } v
-                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
                                     : "—")
                             </CellTemplate>
                         </TemplateColumn>
@@ -559,7 +572,7 @@ else
 
     /// <summary>
     /// The finding, in the voice a person would use saying it out loud — "Dallas Cowboys
-    /// shortened +136 to -218 at draftkings" — about the side in focus.
+    /// shortened +136 to -218 at DraftKings" — about the side in focus, the book by its name.
     ///
     /// <para>
     /// The biggest move is the thing worth saying, so it is found and stated, including when
@@ -580,14 +593,15 @@ else
             return "Every book is holding its opening number";
 
         var (open, now) = (biggest.Open, biggest.Now);
+        var book = BookNames.Display(biggest.Book);
 
         if ((biggest.LineChange ?? 0) != 0)
         {
             // Over and Under share one number, so a total's move belongs to the total.
             return market == Markets.Total
-                ? $"The total moved {Bare(open.Line!.Value)} to {Bare(now.Line!.Value)} at {biggest.Book}"
+                ? $"The total moved {Bare(open.Line!.Value)} to {Bare(now.Line!.Value)} at {book}"
                 : $"{outcome} moved {OddsMath.FormatLine(open.Line!.Value, outcome)} to "
-                  + $"{OddsMath.FormatLine(now.Line!.Value, outcome)} at {biggest.Book}";
+                  + $"{OddsMath.FormatLine(now.Line!.Value, outcome)} at {book}";
         }
 
         // Shortened or drifted, said the way the desk would say it: a price whose implied
@@ -600,8 +614,16 @@ else
         };
 
         return $"{who} {(ImpliedChange(biggest) > 0 ? "shortened" : "drifted")} "
-               + $"{Price(open.PriceAmerican)} to {Price(now.PriceAmerican)} at {biggest.Book}";
+               + $"{Price(open.PriceAmerican)} to {Price(now.PriceAmerican)} at {book}";
     }
+
+    /// <summary>
+    /// A game as the picker lists it: "Oct 26 · Dallas Cowboys at Philadelphia Eagles". The day
+    /// leads because the list is in date order and the day is what tells two games of a series
+    /// apart; and a select too narrow for the whole label loses the end of a club's name rather
+    /// than leaving a separator with nothing after it.
+    /// </summary>
+    public static string GameOption(Game game) => $"{Day(game.StartsAt)} · {Matchup(game)}";
 
     /// <summary>
     /// The secondary line: the span the rows cover and how many moves are in it — "Aug 24 to
