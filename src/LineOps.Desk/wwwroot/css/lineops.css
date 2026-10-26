@@ -1188,6 +1188,10 @@ html, body {
     --n: 1;
     --i: 0;
     width: 100%;
+    /* Two or three short nouns, not a bar across the window: at 1800px each tab was 900px
+       wide, the words a long way from each other and from the content they name. Capped, the
+       tabs lead the content column the way a tab view's control sits over its pane. */
+    max-width: 480px;
     padding: 3px 0;
     margin-bottom: 12px;
     border-bottom: 1px solid var(--separator);
@@ -3202,6 +3206,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    wash, so the one distinction a note makes is still made, by tint, alongside the text
    that says what the cost is. */
 .note {
+    /* A reading width, as body copy has one (HIG, Typography: 45–75 characters a line). On a
+       wide window a note ran the whole body, a single 180-character line under the toolbar. */
+    max-width: 80ch;
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius);
     background: var(--surface-2);
@@ -4343,6 +4350,17 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-primary);
     white-space: nowrap;
 }
+
+/* A segmented control in a form row is as wide as its segments. A grid item stretches by
+   default, so "SF | ATL" ran the whole control column, two words 400px apart; the bet group's
+   selection controls opt back into the column's width (.selection-gate, below). */
+.wgroup__row--form > .gate {
+    justify-self: start;
+    /* Each segment at least 64px, as a macOS segment has a floor, so "PIT | NO" is two keys
+       and not two abbreviations touching; never wider than the row. */
+    min-width: min(100%, calc(var(--n, 2) * 64px));
+    max-width: 100%;
+}
 /* Footers explain, under the group, in the secondary colour: the sentence about what a group
    will do is not a box of its own. */
 .wgroup__foot {
@@ -4910,6 +4928,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    neutral grey (#636366 on the dark card: 30% primary ink over the card's surface) at 6px. */
 .selection-gate.marble-row.gate {
     max-width: none;
+    /* The bet group's three controls share the control column's width so their segments line
+       up (rule 2); every other segmented control in a form row is as wide as its segments. */
+    justify-self: stretch;
     padding: 2px;
     background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     border-radius: var(--radius);
