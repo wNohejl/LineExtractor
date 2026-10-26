@@ -492,26 +492,19 @@
     display: none;
 }
 
-/* More: the plain key with the ellipsis, just before the actions, so the one
-   Filled key stays last. With no search to take the slack it is pushed to the
-   trailing edge itself, and the keys sit beside it. */
+/* More: the plain key with the ellipsis, straight after the filters still on the
+   row, so what folded stays beside what it folded from; the actions keep the
+   trailing edge on their own. */
 .ptoolbar__more-key {
     flex: 0 0 auto;
-    margin-left: auto;
-}
-
-.ptoolbar__more-key + .ptoolbar__actions {
-    margin-left: 0;
 }
 
 /* The panel is a short grouped form, not a menu: one row per control at
    toolbar density, the label leading in the primary ink, the control trailing.
    No edges between rows; the popover's own edge is the group's one. */
-/* The panel hangs from More's trailing edge (Align End) and is never wider than
-   the toolbar, so it cannot leave the window it opened in. popover.js only knows
-   the viewport: a panel wider than the room left of the key would be flipped to
-   open rightward, past the window's edge. Capped to the row (the toolbar is the
-   ptoolbar container, so 100cqw is its width), there is always room on the left. */
+/* The panel hangs from More's leading edge and is never wider than the toolbar
+   (the ptoolbar container, so 100cqw is its width); popover.js slides it back
+   inside the window if the key sits too far along for it to fit. */
 .ptoolbar__more-key > .popover__panel {
     min-width: min(200px, 100cqw);
     max-width: min(360px, 100cqw);

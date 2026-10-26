@@ -122,10 +122,12 @@ public class PanelToolbarTests : DeskTestContext
         Assert.NotNull(more);
         Assert.Equal("false", more!.GetAttribute("aria-expanded"));
 
-        // The key sits after the content and before the actions slot, so the Filled key stays last.
-        var children = cut.Find(".ptoolbar").Children;
+        // The key sits straight after the filters still on the row, where the folded ones were;
+        // the actions keep the trailing edge, the Filled key last.
+        var children = cut.Find(".ptoolbar").Children.ToList();
+        var kept = children.FindIndex(c => c.ClassList.Contains("kept"));
+        Assert.Contains("ptoolbar__more-key", children[kept + 1].ClassList);
         Assert.Contains("ptoolbar__actions", children[^1].ClassList);
-        Assert.Contains("ptoolbar__more-key", children[^2].ClassList);
 
         more.Click();
 
