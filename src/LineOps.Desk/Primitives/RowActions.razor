@@ -1,5 +1,6 @@
 @namespace LineOps.Desk.Primitives
 @using LineOps.Desk.Windowing
+@implements IAsyncDisposable
 
 @*
     The action strip on an open row, and the snippet it reveals.
@@ -145,8 +146,37 @@
     {
         _open = key;
 
-        if (SnippetHost.HasDelegate)
-            await SnippetHost.InvokeAsync(Selected is { Snippet: not null } ? HostedSnippet : null);
+        if (!SnippetHost.HasDelegate)
+            return;
+
+        _hosting = Selected is { Snippet: not null };
+        await SnippetHost.InvokeAsync(_hosting ? HostedSnippet : null);
+    }
+
+    /// <summary>Whether the host is drawing a snippet this strip handed it.</summary>
+    private bool _hosting;
+
+    /// <summary>
+    /// A strip can go while its snippet is still out: the Board's filter drops the open row, a
+    /// reload replaces it. The snippet in the host's row is this strip's, and nothing else can
+    /// close it, so the strip takes it back. Only one it handed out and has not taken back since:
+    /// a strip with nothing out says nothing, so it cannot clear a snippet a newer strip owns.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (!_hosting || !SnippetHost.HasDelegate)
+            return;
+
+        _hosting = false;
+
+        try
+        {
+            await SnippetHost.InvokeAsync(null);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The host went first, as when the whole window closes; there is nothing to clear.
+        }
     }
 
     private RenderFragment OpenSnippet => __builder =>

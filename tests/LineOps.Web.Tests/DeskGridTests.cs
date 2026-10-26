@@ -16,6 +16,10 @@ public class DeskGridTests : DeskTestContext
 
     private static readonly Row[] Rows = [new(1, "One"), new(2, "Two"), new(3, "Three")];
 
+    internal static IReadOnlyList<Row> AllRows => Rows;
+
+    internal static IReadOnlyList<Row> Row2Hidden => [Rows[0], Rows[2]];
+
     private static RenderFragment Columns => b =>
     {
         b.OpenComponent<PropertyColumn<Row, int>>(0);

@@ -424,4 +424,39 @@ public class RowActionsTests : DeskTestContext
         Assert.All(cut.FindAll(".rowacts__keys [role=radio]"),
             v => Assert.Equal("false", v.GetAttribute("aria-checked")));
     }
+
+    /// <summary>
+    /// A strip that goes while its snippet is out — the Board's filter dropped the row — takes
+    /// it back, or it hangs under the row with nothing that can close it.
+    /// </summary>
+    [Fact]
+    public void Disposing_a_strip_with_a_hosted_snippet_hands_the_host_nothing()
+    {
+        var handed = new List<RenderFragment?>();
+        var cut = HostedStrip([Snippet("h2h", "Head to head")], handed);
+
+        cut.Find(".rowacts__keys button").Click();
+        Assert.NotNull(handed[^1]);
+
+        DisposeComponents();
+
+        Assert.Equal(2, handed.Count);
+        Assert.Null(handed[^1]);
+    }
+
+    /// <summary>A strip with nothing out says nothing as it goes, so it cannot clear a newer strip's snippet.</summary>
+    [Fact]
+    public void Disposing_a_strip_with_nothing_out_says_nothing()
+    {
+        var handed = new List<RenderFragment?>();
+        var cut = HostedStrip([Snippet("h2h", "Head to head")], handed);
+
+        cut.Find(".rowacts__keys button").Click();
+        cut.Find(".rowacts__keys button").Click();
+        var said = handed.Count;
+
+        DisposeComponents();
+
+        Assert.Equal(said, handed.Count);
+    }
 }

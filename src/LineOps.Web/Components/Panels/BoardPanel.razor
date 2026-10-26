@@ -232,14 +232,14 @@ else
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 @{ var leader = FinalLeader(context.Item.Game); }
-                <DeskLink Destination="game" Class="board__matchup" Tooltip="@Matchup(context.Item.Game)"
+                <DeskLink Destination="game" Tooltip="@Matchup(context.Item.Game)"
                           OnClick="() => Manager.OpenGame(context.Item.Game)">
                     <span class="board__team@(leader == ScoreLeader.Home ? " board__team--loser" : "")">
-                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.AwayTeam, "Away")
+                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.AwayTeam, Scoreline.Abbrev(context.Item.Game.AwayTeam, "Away"))
                     </span>
                     <span class="sr-only">@(" at ")</span>
                     <span class="board__team@(leader == ScoreLeader.Away ? " board__team--loser" : "")">
-                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.HomeTeam, "Home")
+                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.HomeTeam, Scoreline.Abbrev(context.Item.Game.HomeTeam, "Home"))
                     </span>
                 </DeskLink>
                 @if (context.Item.Game.DoubleHeaderGame is { } number)
@@ -263,7 +263,7 @@ else
                     @* Keyed by the game so moving to another row is a fresh strip rather than
                        one still showing the previous game's snippet. *@
                     <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item)"
-                                SnippetHost="@((RenderFragment? snippet) => _snippet = snippet)" />
+                                SnippetHost="@((RenderFragment? snippet) => HostSnippet(context.Item.Game.Id, snippet))" />
                 }
             </CellTemplate>
         </TemplateColumn>
@@ -700,6 +700,13 @@ else
             _visible = _visible.Where(r => r.BestEv > 0).OrderByDescending(r => r.BestEv).ToList();
 
         _closing = _visible.Count(r => r.PricesAreClosing);
+
+        // A filter or a reload that drops the open row closes it, as a phase change does. Left
+        // open, the row would come back with a fresh strip showing nothing chosen while the
+        // snippet it no longer owns still hung under it.
+        _open = StillOpen(_open, _visible);
+        if (_open is null)
+            _snippet = null;
     }
 
     /// <summary>
@@ -792,6 +799,23 @@ else
     {
         _open = _open?.Game.Id == row.Game.Id ? null : row;
         _snippet = null;
+    }
+
+    /// <summary>
+    /// The open row, if the rows now showing still include its game; otherwise none. By game,
+    /// because a reload brings the same game back as a new row.
+    /// </summary>
+    public static BoardRow? StillOpen(BoardRow? open, IReadOnlyList<BoardRow> visible)
+        => open is not null && visible.FirstOrDefault(r => r.Game.Id == open.Game.Id) is { } row ? row : null;
+
+    /// <summary>
+    /// A strip handing over its snippet, or taking it back. Only the open game's strip is heard:
+    /// a strip going away after another row opened cannot clear the newer row's snippet.
+    /// </summary>
+    private void HostSnippet(int gameId, RenderFragment? snippet)
+    {
+        if (_open?.Game.Id == gameId)
+            _snippet = snippet;
     }
 
     private static DeskState StatusState(GameStatus status) => status switch
