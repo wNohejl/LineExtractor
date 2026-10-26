@@ -7,10 +7,14 @@
 //
 // Dialogs differ from desk windows in one way that matters: they may be dragged anywhere,
 // which is the whole reason they exist (ADR 0007 — arbitrary placement is what modals and
-// popovers are for). They are still clamped to the viewport, because a dialog dragged off the
-// edge is a dialog you cannot close.
+// popovers are for). They are still kept on the desk — the area between the header and the
+// footer — because a dialog dragged under the chrome is a dialog whose title bar, and so its
+// close key, you cannot reach.
 
 const MARGIN = 8;
+const STEP = 26;
+
+const placed = new WeakMap();
 
 // Under the Window manager's UI scale (CSS zoom on <html>) a rectangle, a pointer's clientX and
 // the window's innerWidth are visual pixels, while style.left and offsetWidth are layout pixels.
@@ -19,6 +23,47 @@ const MARGIN = 8;
 function zoomOf(element) {
     return element?.currentCSSZoom || 1;
 }
+
+/// The rectangle a dialog may occupy, in layout pixels: the desk between the header and the
+/// footer, or the viewport when there is no desk (a test page, a phone).
+function deskOf(dialog) {
+    const zoom = zoomOf(dialog);
+    const desk = document.querySelector('.desk')?.getBoundingClientRect();
+    const box = desk ?? { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+
+    return {
+        top: box.top / zoom + MARGIN,
+        left: box.left / zoom + MARGIN,
+        right: box.right / zoom - MARGIN,
+        bottom: box.bottom / zoom - MARGIN
+    };
+}
+
+/// Keeps a dialog inside the desk: as tall and as wide as the desk at most, its body scrolling
+/// for the rest, and moved back in by as much as it has grown or the window has shrunk. Sizes
+/// are layout pixels (offsetWidth/offsetHeight), which the open animation's scale leaves alone.
+function fit(dialog) {
+    if (!dialog?.isConnected) return;
+
+    const area = deskOf(dialog);
+
+    dialog.style.maxHeight = `${Math.max(120, area.bottom - area.top)}px`;
+    dialog.style.maxWidth = `${Math.max(240, area.right - area.left)}px`;
+
+    const width = dialog.offsetWidth;
+    const height = dialog.offsetHeight;
+    const left = parseFloat(dialog.style.left) || area.left;
+    const top = parseFloat(dialog.style.top) || area.top;
+
+    dialog.style.left = `${Math.max(area.left, Math.min(left, area.right - width))}px`;
+    dialog.style.top = `${Math.max(area.top, Math.min(top, area.bottom - height))}px`;
+}
+
+function refitAll() {
+    for (const dialog of document.querySelectorAll('.deskdialog')) fit(dialog);
+}
+
+window.addEventListener('resize', refitAll, { passive: true });
 
 export function attachDrag(handle, dialog, dotNetRef) {
     if (!handle || !dialog) return;
@@ -45,12 +90,14 @@ function beginDrag(event, handle, dialog, dotNetRef) {
     dialog.classList.add('deskdialog--dragging');
     document.body.classList.add('dialog-dragging');
 
-    const move = e => {
-        const maxLeft = window.innerWidth / zoom - dialog.offsetWidth - MARGIN;
-        const maxTop = window.innerHeight / zoom - dialog.offsetHeight - MARGIN;
+    const area = deskOf(dialog);
 
-        const left = Math.min(Math.max(MARGIN, e.clientX / zoom - offsetX), Math.max(MARGIN, maxLeft));
-        const top = Math.min(Math.max(MARGIN, e.clientY / zoom - offsetY), Math.max(MARGIN, maxTop));
+    const move = e => {
+        const maxLeft = area.right - dialog.offsetWidth;
+        const maxTop = area.bottom - dialog.offsetHeight;
+
+        const left = Math.min(Math.max(area.left, e.clientX / zoom - offsetX), Math.max(area.left, maxLeft));
+        const top = Math.min(Math.max(area.top, e.clientY / zoom - offsetY), Math.max(area.top, maxTop));
 
         dialog.style.left = `${left}px`;
         dialog.style.top = `${top}px`;
@@ -111,15 +158,55 @@ export function focusFrontAfter(closing) {
     requestAnimationFrame(tick);
 }
 
-/// Places a new dialog without covering the last one exactly.
-export function cascade(dialog, index) {
+/// Places a new dialog over the window it was opened from, the way a macOS sheet hangs from
+/// its window's title bar (HIG, Sheets): centred on that window, just under its bar, so the
+/// operator sees which window asked for it. A second dialog from the same window cascades a
+/// step down and across rather than covering the first exactly.
+///
+/// It was a fixed spot — 120 across, 90 down — whatever window opened it, with a viewport-high
+/// cap: a wizard launched from the right-hand window landed over the left one, and its foot
+/// fell under the footer. Now it is sized to the desk, its body scrolls, and it keeps fitting
+/// as its content arrives: the wager wizard's steps load after the dialog is drawn, and a
+/// ResizeObserver moves the dialog up by however much it grew past the desk's foot.
+export function place(dialog, index) {
     if (!dialog) return;
 
-    const step = 26;
     const zoom = zoomOf(dialog);
-    const left = Math.min(120 + index * step, Math.max(MARGIN, window.innerWidth / zoom - dialog.offsetWidth - MARGIN));
-    const top = Math.min(90 + index * step, Math.max(MARGIN, window.innerHeight / zoom - dialog.offsetHeight - MARGIN));
+    const area = deskOf(dialog);
+    const host = dialog.closest('.win');
+    const hostBox = host?.getBoundingClientRect();
+    const barBox = host?.querySelector('.win__bar')?.getBoundingClientRect();
+
+    // Sized before it is placed, so the centring uses the width it will actually have.
+    dialog.style.maxHeight = `${Math.max(120, area.bottom - area.top)}px`;
+    dialog.style.maxWidth = `${Math.max(240, area.right - area.left)}px`;
+
+    const width = dialog.offsetWidth;
+    const offset = index * STEP;
+
+    const left = hostBox
+        ? (hostBox.left + hostBox.width / 2) / zoom - width / 2 + offset
+        : area.left + offset;
+    const top = barBox
+        ? barBox.bottom / zoom + MARGIN + offset
+        : area.top + offset;
 
     dialog.style.left = `${left}px`;
     dialog.style.top = `${top}px`;
+    fit(dialog);
+
+    if (!placed.has(dialog) && 'ResizeObserver' in window) {
+        const observer = new ResizeObserver(() => fit(dialog));
+        observer.observe(dialog);
+        placed.set(dialog, observer);
+    }
+}
+
+/// Kept for callers that still say cascade: the same placement.
+export const cascade = place;
+
+/// Stops watching a dialog that is closing.
+export function release(dialog) {
+    placed.get(dialog)?.disconnect();
+    placed.delete(dialog);
 }

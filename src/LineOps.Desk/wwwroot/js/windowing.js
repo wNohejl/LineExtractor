@@ -29,6 +29,8 @@ export function initialise(dotNetRef) {
 //   Ctrl/Cmd+Z             undo              (not in a field)
 //   Ctrl/Cmd+Shift+Z, Ctrl+Y  redo           (not in a field)
 //   Ctrl+Alt+Left/Right    move the focused window one place (not in a field)
+//   Ctrl/Cmd+[ and ]       the focused window's Back and Forward (not in a field), as Finder
+//                          and Safari have them; the keys on each window's bar do the same
 //
 // The palette and settings work from inside a field because that is where a hand already on the
 // keyboard usually is, and neither chord means anything to a field. Undo and the arrows do — a
@@ -63,6 +65,10 @@ function deskHotkeys(e) {
     if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey
         && (key === 'ArrowLeft' || key === 'ArrowRight')) {
         return send(e, 'OnMoveWindowRequested', key === 'ArrowLeft' ? -1 : 1);
+    }
+
+    if (!e.altKey && !e.shiftKey && (key === '[' || key === ']')) {
+        return send(e, 'OnPageRequested', key === '[' ? -1 : 1);
     }
 }
 

@@ -87,6 +87,29 @@ public class DeskKeyboardTests : DeskTestContext
         Assert.Equal(depth, desk.HistoryDepth);
     }
 
+    // ---- A window's own pages ----------------------------------------------------
+
+    /// <summary>
+    /// Ctrl+[ and Ctrl+] press the focused window's Back and Forward, the keys on its bar;
+    /// nowhere to go is a chord that does nothing.
+    /// </summary>
+    [Fact]
+    public void The_page_chords_turn_the_focused_window()
+    {
+        var desk = Manager();
+        var game = desk.Open(Window(WindowCatalog.Game), new Dictionary<string, object> { ["GameId"] = 1 }, "Mets at Braves");
+        desk.Follow(game.Id, Window(WindowCatalog.Team), new Dictionary<string, object> { ["TeamId"] = 7 }, "Atlanta Braves");
+        Assert.Equal(WindowCatalog.Team, game.Definition.Key);
+
+        Assert.True(TheDesk.PageFocused(desk, -1));
+        Assert.Equal(WindowCatalog.Game, game.Definition.Key);
+
+        Assert.True(TheDesk.PageFocused(desk, +1));
+        Assert.Equal(WindowCatalog.Team, game.Definition.Key);
+
+        Assert.False(TheDesk.PageFocused(desk, +1));
+    }
+
     // ---- Settings --------------------------------------------------------------
 
     [Fact]

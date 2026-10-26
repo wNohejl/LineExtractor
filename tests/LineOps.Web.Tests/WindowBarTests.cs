@@ -327,4 +327,65 @@ public class WindowBarTests : DeskTestContext
         Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*color:\s*var\(--text-secondary\)", css);
         Assert.Matches(@"\.win__ctl:hover\s*\{[^}]*background:\s*var\(--surface-3\)", css);
     }
+
+    /// <summary>
+    /// Back and Forward sit on the window they move, not in the header (HIG, Toolbars: a
+    /// window's own back and forward lead its toolbar). Every window draws the pair, so a title
+    /// sits in the same place on every bar; a window that opens its links beside it says why
+    /// its pair is dimmed.
+    /// </summary>
+    [Fact]
+    public void Every_window_carries_its_own_back_and_forward()
+    {
+        var desk = NewDesk();
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+
+        var notes = desk.Open(new WindowDefinition
+        {
+            Key = "notes",
+            Title = "Notes",
+            Icon = "",
+            ComponentType = typeof(UnsavedInputTests.DraftPanel)
+        });
+
+        var window = RenderComponent<AppWindow>(p => p.Add(x => x.Window, notes));
+
+        var nav = window.Find(".win__bar > .win__nav");
+        var keys = nav.QuerySelectorAll("button");
+        Assert.Equal(["Back", "Forward"], keys.Select(k => k.GetAttribute("aria-label")));
+        Assert.All(keys, k => Assert.True(k.HasAttribute("disabled")));
+        Assert.Equal("This window opens its links beside it", keys[0].GetAttribute("title"));
+        Assert.Equal("Control+[ Meta+[", keys[0].GetAttribute("aria-keyshortcuts"));
+
+        // The leading edge: before the window's icon and title.
+        Assert.Contains("win__nav", window.Find(".win__bar").FirstElementChild!.ClassList);
+
+        // And the header has none left: its arrows undid the last change anywhere on the desk.
+        var header = RenderComponent<DeskHeader>();
+        Assert.Empty(header.FindAll("button[aria-label='Back'], button[aria-label='Forward']"));
+    }
+
+    /// <summary>
+    /// A window closed by its own key says so in the header with a key that names it, as an
+    /// evicted one does: the desk-wide way back the header's Back arrow used to be.
+    /// </summary>
+    [Fact]
+    public void Closing_a_window_offers_to_reopen_it()
+    {
+        var desk = NewDesk();
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        var journal = desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+
+        desk.Close(journal.Id);
+
+        Assert.Equal("Closed Journal.", desk.LastEviction);
+        Assert.Equal(["Journal"], desk.LastEvictedTitles);
+
+        var header = RenderComponent<DeskHeader>();
+        Assert.Equal("Reopen Journal", header.Find(".hdr__notice-undo").TextContent.Trim());
+
+        Assert.True(desk.Back());
+        Assert.Contains(desk.Windows, w => w.Definition.Key == WindowCatalog.Journal);
+        Assert.Null(desk.LastEviction);
+    }
 }

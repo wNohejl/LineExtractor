@@ -144,8 +144,9 @@ public class WindowManager
     public bool AtCapacity => OpenCount >= Settings.MaxConcurrentWindows;
 
     /// <summary>
-    /// What was just closed to make room, and for what. Eviction must never be silent —
-    /// a window vanishing without explanation reads as a bug, not a policy.
+    /// What was just closed — to make room, or by its own close key — said as a sentence the
+    /// header shows with a key to bring it back. Eviction must never be silent: a window
+    /// vanishing without explanation reads as a bug, not a policy.
     /// </summary>
     public string? LastEviction { get; private set; }
 
@@ -396,7 +397,13 @@ public class WindowManager
 
         Remember();
         _windows.Remove(window);
-        LastEviction = null;
+
+        // Said the way an eviction is, so the way back is a key that names the window. The
+        // header's Back arrow used to be that way back; it moved onto the windows, where it
+        // walks a window's own pages, and a window closed by its own key has no window left to
+        // carry it.
+        LastEviction = $"Closed {window.Title}.";
+        LastEvictedTitles = [window.Title];
 
         if (FocusedId == id)
             FocusedId = MostRecent()?.Id;

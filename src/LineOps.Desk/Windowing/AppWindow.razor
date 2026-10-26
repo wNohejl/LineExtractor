@@ -23,23 +23,33 @@
      @onpointerdown="OnPointerDown">
 
     <div class="win__bar" data-tab-handle @ondblclick="OnBarDoubleClick" @onclick="OnBarClick">
-        @* A subject window follows its links in place (WindowManager.Follow), so it carries its
-           own Back and Forward — always drawn, dimmed when there is nowhere to go, so the
-           title does not jump sideways the first time a link is followed. *@
-        @if (!Window.Minimised && Window.FollowsInPlace)
+        @* Back and Forward live on the window they move, at the leading edge of its bar, as a
+           Finder or Safari window carries them (HIG, Toolbars). They used to sit in the header,
+           where they undid the last open or close anywhere on the desk — a direction the
+           operator had to work out from what changed. Here each pair says what it does: this
+           window, to the page it names.
+
+           Every window draws them, dimmed when there is nowhere to go, so a title sits in the
+           same place on every bar and never jumps sideways the first time a link is followed.
+           Only subject windows follow links in place (WindowManager.Follow); a catalogue
+           window's pair stays dimmed and says so. Ctrl+[ and Ctrl+] (⌘ on a Mac) press them
+           on the focused window. *@
+        @if (!Window.Minimised)
         {
-            <div class="win__nav">
+            <div class="win__nav" role="group" aria-label="@($"{Window.Title} history")">
                 <button class="win__nav-btn" type="button" data-window-control
-                        title="@(Window.BackTitle is { } back ? $"Back to {back}" : "Back")"
+                        title="@BackTitle"
                         aria-label="@(Window.BackTitle is { } backLabel ? $"Back to {backLabel}" : "Back")"
+                        aria-keyshortcuts="Control+[ Meta+["
                         disabled="@(!Window.CanPageBack)"
                         @onclick="PageBack" @onclick:stopPropagation="true"
                         @ondblclick:stopPropagation="true">
                     <Glyph Icon="@Icons.Material.Filled.ChevronLeft" />
                 </button>
                 <button class="win__nav-btn" type="button" data-window-control
-                        title="@(Window.ForwardTitle is { } forward ? $"Forward to {forward}" : "Forward")"
+                        title="@ForwardTitle"
                         aria-label="@(Window.ForwardTitle is { } forwardLabel ? $"Forward to {forwardLabel}" : "Forward")"
+                        aria-keyshortcuts="Control+] Meta+]"
                         disabled="@(!Window.CanPageForward)"
                         @onclick="PageForward" @onclick:stopPropagation="true"
                         @ondblclick:stopPropagation="true">
@@ -121,6 +131,15 @@
     [Parameter] public bool IsFocused { get; set; }
 
     private string ElementId => $"win-{Window.Id}";
+
+    // The tooltip names where the key goes and its chord; a dimmed key says why it is dimmed.
+    private string BackTitle => Window.BackTitle is { } back
+        ? $"Back to {back} (Ctrl+[)"
+        : Window.FollowsInPlace ? "Nothing earlier in this window" : "This window opens its links beside it";
+
+    private string ForwardTitle => Window.ForwardTitle is { } forward
+        ? $"Forward to {forward} (Ctrl+])"
+        : "Nothing later in this window";
 
     private string PulseClass => Window.Pulse switch
     {

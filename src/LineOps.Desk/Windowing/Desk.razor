@@ -248,6 +248,25 @@
     public void OnMoveWindowRequested(int delta) => MoveFocused(Manager, delta);
 
     /// <summary>
+    /// Ctrl+[ or Ctrl+] outside a field: the focused window's own Back or Forward, the keys on
+    /// its bar. See <see cref="PageFocused"/>.
+    /// </summary>
+    [JSInvokable]
+    public void OnPageRequested(int delta) => PageFocused(Manager, delta);
+
+    /// <summary>
+    /// Turns the focused window back or forward a page. Nothing focused, or nowhere to go, is a
+    /// chord that does nothing — the same answer its dimmed key gives.
+    /// </summary>
+    public static bool PageFocused(WindowManager manager, int delta)
+    {
+        if (manager.FocusedId is not { } id)
+            return false;
+
+        return delta < 0 ? manager.PageBack(id) : manager.PageForward(id);
+    }
+
+    /// <summary>
     /// The catalogue key of the desk's settings window — the Window manager. The desk names it
     /// rather than the application because Ctrl+, is the desk's chord; a catalogue without an
     /// entry under it simply has no settings to open, and the chord does nothing.

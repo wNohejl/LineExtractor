@@ -524,9 +524,9 @@ html, body {
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    /* Shrinks only by the eviction notice's sentence, the one thing in it that can give;
-       every key keeps its size. */
-    flex: 0 1 auto;
+    /* Shrinks only by the notice's sentence, the one thing in it that can give; every key
+       keeps its size. The large factor makes it give before the window strip does (.bar). */
+    flex: 0 50 auto;
     min-width: 0;
 }
 
@@ -630,7 +630,12 @@ html, body {
 .bar {
     display: flex;
     align-items: center;
-    flex: 1 1 auto;
+    /* Based just above the width its group names need (the 700px container rule below folds
+       them to chevrons), so the header's other shrinkable thing — the notice's sentence, in
+       .hdr__tools, which shrinks fifty times as fast — gives way first. Based at auto, both
+       shrank in proportion and a notice folded every group name on a 1280px desk; based at
+       700px exactly, the bar's small share of the shrink still took it to 698. */
+    flex: 1 1 720px;
     min-width: 0;
     /* The strip measures itself against the bar, not the viewport: what matters is
        the width the header actually gives it, which the tools cluster and the brand
@@ -2338,6 +2343,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     from { opacity: 0; transform: scale(.96); }
     to { opacity: 1; transform: scale(1); }
 }
+
+/* A dialog is drawn inside the window that opened it, and every window is a stacking context
+   of its own (z-index on .win), so the next window along drew over a dialog that reached it,
+   and the footer over its foot. The window holding one rises above its neighbours and the
+   dividers; it stays under the header and footer, which the dialog no longer reaches —
+   dialogs.js keeps it on the desk and sizes it to fit. */
+.win:has(.deskdialog) { z-index: calc(var(--z-divider) + 1); }
 
 .deskdialog__bar {
     display: flex;

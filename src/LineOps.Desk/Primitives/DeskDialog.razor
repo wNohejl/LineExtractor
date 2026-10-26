@@ -76,7 +76,7 @@
         _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/dialogs.js");
         _self = DotNetObjectReference.Create(this);
 
-        await _module.InvokeVoidAsync("cascade", _element, Index);
+        await _module.InvokeVoidAsync("place", _element, Index);
         await _module.InvokeVoidAsync("attachDrag", _handle, _element, _self);
 
         // Focus lands in the dialog it opened, so Escape closes it without a click first.
@@ -109,6 +109,8 @@
         {
             try
             {
+                await _module.InvokeVoidAsync("release", _element);
+
                 // The next dialog down takes focus, so a second Escape closes it too.
                 await _module.InvokeVoidAsync("focusFrontAfter", _element);
                 await _module.DisposeAsync();
