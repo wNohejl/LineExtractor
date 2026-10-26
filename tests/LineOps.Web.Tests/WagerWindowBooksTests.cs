@@ -258,7 +258,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Assert.Equal(-3m, bet.LineTaken);
         Assert.Equal("draftkings", bet.Book);
         Assert.True(bet.ManualPrice);
-        Assert.Contains("your own price", cut.Find(".wager-logged").TextContent);
+        Assert.Contains("your own price", cut.Find(".wreceipt__bet").TextContent);
     }
 
     [Fact]

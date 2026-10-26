@@ -94,10 +94,48 @@ public class BoardWagerTests : WagerTestContext
         Assert.Equal(-128, bet.PriceTaken);
         Assert.Equal(50m, bet.Stake);
 
-        // The stake clears so the lit key cannot log the same wager twice; the side stays.
+        // The steps give way to the receipt: what was logged, and what to do next.
+        var receipt = cut.Find(".wreceipt");
+        Assert.Equal("Logged in the journal", receipt.QuerySelector(".wreceipt__title")!.TextContent.Trim());
+        Assert.Equal($"{50m:C0} on ML · Chiefs at -128 · draftkings", Squash(receipt.QuerySelector(".wreceipt__bet")!.TextContent));
+        Assert.Empty(cut.FindAll(".wsteps"));
+
+        // Same bet again is the old behaviour: the side stays, the stake is asked for again, so
+        // the lit key cannot log the same wager twice.
+        Key(cut, "Same bet again").Click();
+        Assert.Empty(cut.FindAll(".wreceipt"));
         Assert.True(Log(cut).HasAttribute("disabled"));
-        Assert.Contains($"Logged {50m:C0} on ML · Chiefs at -128 (draftkings).", cut.Find(".wager-logged").TextContent);
+        Assert.Contains("Chiefs", cut.FindAll(".wstep__summary").First().TextContent);
     }
+
+    [Fact]
+    public void New_bet_clears_what_the_logged_bet_chose_and_opens_the_first_step()
+    {
+        var cut = Render(Markets.Spread, BoardRows.Away);
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        // New bet is the receipt's one Filled key, and the last.
+        var keys = cut.Find(".wreceipt__keys").QuerySelectorAll("button").ToList();
+        Assert.Equal("New bet", keys[^1].TextContent.Trim());
+        Assert.Contains("desk-btn--filled", keys[^1].ClassList);
+        Assert.Single(keys, k => k.ClassList.Contains("desk-btn--filled"));
+
+        keys[^1].Click();
+
+        // Step 1 again, nothing chosen; the review and its Log key wait for a price.
+        Assert.Empty(cut.FindAll(".wreceipt"));
+        Assert.Empty(cut.FindAll(".wbet [role=radio][aria-checked=true]"));
+        Assert.NotNull(cut.Find(".wbet__wait"));
+        Assert.Empty(cut.FindAll("button.desk-btn--filled"));
+
+        // A re-render handing the window the same door does not land it back on the old side.
+        cut.SetParametersAndRender(p => p.Add(x => x.Market, Markets.Spread).Add(x => x.Outcome, BoardRows.Away));
+        Assert.Empty(cut.FindAll(".wbet [role=radio][aria-checked=true]"));
+    }
+
+    private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     // ---- Before you log -------------------------------------------------------------------
 

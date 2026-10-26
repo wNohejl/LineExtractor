@@ -144,6 +144,49 @@ else
         </Note>
     }
 
+    @* Logged: the wizard ends on what it did, as an assistant ends on its last page, and offers
+       the next thing to do rather than leaving the form filled in with its key gone dim. It
+       used to clear only the stake and keep the side, so the next bet started from the last
+       one's choices — the operator had to undo them by hand or start over from the Journal.
+       New bet is the one Filled key: the game stays, everything chosen for the logged bet
+       goes, and step 1 opens. Same bet again is the old behaviour, kept for a second stake on
+       the same side; View in journal opens the record. *@
+    @if (_receipt is { } receipt)
+    {
+        <section class="wcard wreceipt" role="status" aria-labelledby="wreceipt-title">
+            <span class="wreceipt__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.CheckCircle" /></span>
+            <div class="wreceipt__main">
+                <h3 id="wreceipt-title" class="wreceipt__title">Logged in the journal</h3>
+                <p class="wreceipt__bet">
+                    <strong class="num">@receipt.Stake.ToString("C0")</strong> on @receipt.Bet at
+                    <span class="num">@Price(receipt.PriceAmerican)</span> · @receipt.Book@(receipt.Manual ? ", your own price" : "")
+                </p>
+                <p class="wreceipt__foot num">
+                    @if (receipt.Profit is { } profit && receipt.Payout is { } payout)
+                    {
+                        <text>To win @profit.ToString("C0") · @payout.ToString("C0") back if it wins. </text>
+                    }
+                    Closing-line value resolves once the game starts and the close is recorded.
+                </p>
+            </div>
+            <div class="wreceipt__keys">
+                <DeskButton Icon="@Icons.Material.Filled.MenuBook" OnClick="OpenJournalAsync"
+                            Title="Open the Journal, where this bet is now recorded">
+                    View in journal
+                </DeskButton>
+                <DeskButton Icon="@Icons.Material.Filled.ContentCopy" OnClick="SameBetAgain"
+                            Title="Keep this side and book, and take another stake">
+                    Same bet again
+                </DeskButton>
+                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Add" OnClick="NewBetAsync"
+                            Title="Clear the bet and start another on this game">
+                    New bet
+                </DeskButton>
+            </div>
+        </section>
+    }
+    else
+    {
     @* One main card holds the stepper, as the package wizard draws it: a bordered surface with
        the rail inside; the review step becomes its own card beside the form when the window is
        wide enough for two columns (CSS, .wcard and .wstep--review). *@
@@ -484,8 +527,9 @@ else
         </DeskStep>
     </DeskSteps>
     </div>
+    }
 
-    @if (_offer is { IsClosing: true })
+    @if (_receipt is null && _offer is { IsClosing: true })
     {
         @* The status note (wizards.md, reconciling rule 7): under the steps card, outside it,
            aligned to its content edge; the orange symbol and one sentence in primary ink. Not a
@@ -608,6 +652,17 @@ else
     private string? _logged;
     // The last note was a banking, so it offers the slip tab.
     private bool _banked;
+
+    // The bet just logged, shown in place of the steps until the operator picks what is next.
+    private LoggedWager? _receipt;
+
+    private sealed record LoggedWager(string Bet, int PriceAmerican, string Book, decimal Stake,
+                                      decimal? Profit, decimal? Payout, bool Manual);
+
+    // What the door named, last time it was applied. A re-render that hands the same door back
+    // leaves the window as the operator left it, so New bet is not undone by the window landing
+    // on the door's side again.
+    private string? _door;
     private string? _moved;
     private bool _saving;
 
@@ -689,6 +744,16 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
+        var door = string.Join('|', GameId, Market, Outcome, Book, Stake, Note, PriceAmerican, TakenLine, Described, BuildParlay);
+
+        if (door == _door)
+            return;
+
+        _door = door;
+
+        // A new door is a new bet: whatever was logged through the last one has been seen.
+        _receipt = null;
+
         // A first read shows the skeleton; a door re-aiming a loaded window does not flash it.
         _loading = Row is null && GameId is not null;
         _book = Book;
@@ -876,6 +941,7 @@ else
         _manual = false;
         _moved = null;
         _logged = null;
+        _receipt = null;
         _offer = null;
         _opened = null;
         _sideChosen = false;
@@ -1170,6 +1236,45 @@ else
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// The receipt's Filled key. Everything the logged bet chose goes — the side, a typed price
+    /// or line, the described bet, the stake and the note — and step 1 opens on the same game.
+    /// The book stays as the default, since the next bet is usually at the same book; choosing
+    /// a side shows its price there or the best one, as the first bet did.
+    /// </summary>
+    private async Task NewBetAsync()
+    {
+        _receipt = null;
+        _logged = null;
+        _error = null;
+        _market = null;
+        _outcome = null;
+        _manual = false;
+        _typedPrice = null;
+        _typedLine = null;
+        _described = null;
+        _stake = 0;
+        _note = null;
+        _moved = null;
+        _opened = null;
+        _sideChosen = false;
+
+        Reprice();
+        SyncUnsaved();
+        await ReadPriorAsync();
+    }
+
+    /// <summary>
+    /// The receipt's second key: the side and the book the logged bet had, a fresh stake. What
+    /// the window did after a log before the receipt existed.
+    /// </summary>
+    private void SameBetAgain()
+    {
+        _receipt = null;
+        _logged = null;
+        _opened = null;
+    }
+
     private RenderFragment ValueLine(WagerOffer offer) => @<text>
         @if (offer.Ev is { } ev)
         {
@@ -1267,10 +1372,17 @@ else
 
             // Hosted as a window there is no host to close the form, so it says what it did and
             // clears the stake: a form left exactly as it was, key still lit, logged the same
-            // wager twice on the next press. The side stays, so the journal check can name it.
+            // wager twice on the next press. The side stays, so the journal check can name it,
+            // and Same bet again can pick up from it; the receipt stands in front until the
+            // operator chooses that or New bet.
             _logged = $"Logged {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book})"
                       + (offer.Manual ? ", your own price." : ".");
             _banked = false;
+            _receipt = new LoggedWager(
+                offer.Label, offer.PriceAmerican, offer.Book, _stake,
+                offer.PriceAmerican == 0 ? null : OddsMath.ProfitOnWin(offer.PriceAmerican, _stake),
+                offer.PriceAmerican == 0 ? null : OddsMath.PayoutOnWin(offer.PriceAmerican, _stake),
+                offer.Manual);
             Toasts.Success(_logged);
             _stake = 0;
             _note = null;
