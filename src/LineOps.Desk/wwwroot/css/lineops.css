@@ -4707,8 +4707,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     content: "";
     position: absolute;
     left: 19px;
-    top: 28px;
-    bottom: -13px;
+    top: 30px; /* from under the marker: 10px padding, 4px margin, 16px ring */
+    bottom: -15px; /* into the next marker, which sits 2px lower than it did */
     width: 2px;
     border-radius: 1px;
     background: color-mix(in srgb, var(--text-primary) 13%, transparent);
@@ -4720,7 +4720,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     justify-self: center;
     width: 16px;
     height: 16px;
-    margin-top: 2px;
+    margin-top: 4px; /* centred on the 24px name capsule */
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -4735,15 +4735,29 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
 .wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.wstep__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 20px; }
+.wstep__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 24px; }
+
+/* Each step's name is a capsule on the rail, not a word floating beside it: the marker says
+   where the step stands, the capsule names it, and the two read as one object. The step being
+   worked carries the accent edge and wash — selection, the accent's own job; a finished step a
+   firm neutral edge; a waiting one a quiet edge and secondary ink. 24px tall, so the 16px
+   marker centres on it (.wstep__dot's margin). */
 .wstep__title {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    height: 24px;
     margin: 0;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--separator-strong);
+    border-radius: 999px;
     font-size: var(--text-headline);
     font-weight: var(--weight-semibold);
-    line-height: 20px;
+    line-height: 1;
     color: var(--text-primary);
 }
-.wstep--todo .wstep__title { color: var(--text-secondary); }
+.wstep--current .wstep__title { border-color: var(--accent); background: var(--accent-wash); }
+.wstep--todo .wstep__title { border-color: var(--separator); color: var(--text-secondary); }
 .wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .wstep__summary:empty { display: none; }
 /* The folded choice is a DeskLink: the same dotted rule and "change" shortcut every linked
@@ -5082,30 +5096,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     text-transform: none;
 }
 
-/* Widths. The window body is a container; the wizard reads it, not the viewport.
-   Under 1000px: one column, cards at 760px. From 1000px: two columns — the header and the
-   form on the left, the review step lifted out as its own card on the right, so a wide window
-   shows the whole bet and its checks at once instead of a form in a sea of body. */
+/* Widths. The window body is a container; the wizard reads it, not the viewport. One column at
+   every width, the cards at 760px, the stepper drawn the same in a side window and maximised.
+   From 1000px it used to split in two, the review lifted out as a card of its own beside the
+   form, and that card dropped its marker and its piece of the rail: maximising the window took
+   the sequence apart, three numbered steps becoming two steps and a box. A wide window now
+   keeps the stepper whole and the rest of the body plain, as a centred assistant does. */
 
 .wtabs + .tabs__panel { container-type: inline-size; }
-@container (min-width: 1000px) {
-    .wcard { --wizard-max: 1180px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); column-gap: var(--space-6); align-items: start; }
-    .whead { --wizard-max: 1180px; }
-    .wcard > .wsteps { display: contents; }
-    .wcard > .wsteps > .wstep:not(.wstep--review) { grid-column: 1; }
-    .wstep--review {
-        grid-column: 2;
-        grid-row: 1 / -1;
-        grid-template-columns: minmax(0, 1fr);
-        padding: var(--space-4);
-        background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-3));
-        border: 1px solid var(--separator-strong);
-        border-radius: var(--radius-panel);
-    }
-    .wstep--review::before, .wstep--review > .wstep__dot { display: none; }
-    .wstep--review .wgroup { background: var(--surface-2); }
-    .wcard > .wsteps > .wstep:not(.wstep--review):nth-last-child(2)::before { display: none; }
-}
 /* The price row names the side it prices, under its label, so the row reads as that side's. */
 .wbet__echo { display: block; margin-top: 2px; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); white-space: normal; }
 .wbet__echo:empty { display: none; }
@@ -5135,46 +5133,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 @container (max-width: 300px) {
     .selection-chip__nums { flex-wrap: wrap; justify-content: center; white-space: normal; column-gap: var(--space-1); }
     .selection-gate .gate__opt { padding-left: var(--space-1); padding-right: var(--space-1); }
-}
-
-/* ---- A last tell from the design pass. In the wide layout the review card held its checks in
-   a bordered group of their own, a third level of box inside the main card; there the checks
-   are rows divided by hairlines, the card the only frame. */
-@container (min-width: 1000px) {
-    .wstep--review .wgroup { background: transparent; border: 0; border-radius: 0; }
-    .wstep--review .wgroup__row { padding-left: 0; padding-right: 0; }
-    .wstep--review .wgroup__row + .wgroup__row::before { left: 0; }
-    .wstep--review .wreview { padding: 0; }
-}
-
-/* ---- The wide wizard as two sibling cards (wizards.md, layout c and reconciling rule 1).
-   The review lifted out beside the form sat inside the steps card's stroke: a card inside a
-   card. Wide, the steps card's frame is drawn by a grid pseudo-element under the form column
-   alone, so the form and the review are two cards side by side, 12px apart, one stroke level,
-   the same fill and stroke. The form's steps are placed in its rows explicitly, because an
-   auto-placed item would step around the frame. */
-@container (min-width: 1000px) {
-    /* Explicit rows: the bet, the stake, then the rest. The review and the form's frame span all
-       three, so a review taller than the form puts its slack in the last row, under the form's
-       steps, rather than spreading it between them; the last row is at least 4px, the steps
-       card's bottom inset. */
-    .wcard {
-        padding: 0; background: none; border: 0; border-radius: 0; column-gap: var(--space-3);
-        grid-template-rows: auto auto minmax(var(--space-1), 1fr);
-    }
-    .wcard::before {
-        content: "";
-        grid-column: 1;
-        grid-row: 1 / -1;
-        align-self: stretch;
-        background: var(--surface-2);
-        border: 1px solid var(--separator);
-        border-radius: var(--radius-panel);
-    }
-    .wcard > .wsteps > .wstep:nth-child(1) { grid-row: 1; margin-top: var(--space-1); }
-    .wcard > .wsteps > .wstep:nth-child(2):not(.wstep--review) { grid-row: 2; }
-    .wcard > .wsteps > .wstep:not(.wstep--review) { z-index: 1; }
-    .wcard .wstep--review { border: 1px solid var(--separator); background: var(--surface-2); }
 }
 
 /* ---- The status note (reconciling rule 7): under the steps card, outside it, 8px below,
