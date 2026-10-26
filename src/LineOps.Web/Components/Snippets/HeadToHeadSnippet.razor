@@ -50,7 +50,7 @@ else
             {
                 <tr>
                     <td class="dim">@Day(row.StartsAt)</td>
-                    <td class="trunc">@row.AwayTeam at @row.HomeTeam</td>
+                    <td class="trunc"><TeamMark Sport="@row.SportKey" Abbrev="@row.AwayAbbrev" />@row.AwayTeam at <TeamMark Sport="@row.SportKey" Abbrev="@row.HomeAbbrev" />@row.HomeTeam</td>
                     <td class="r mono">
                         @(row.HasScore ? $"{row.AwayScore}-{row.HomeScore}" : "—")
                     </td>

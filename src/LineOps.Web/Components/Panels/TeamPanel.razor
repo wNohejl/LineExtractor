@@ -33,7 +33,7 @@ else if (_team is null)
 else
 {
     <PanelTitle>
-        <ChildContent>@_team.Name</ChildContent>
+        <ChildContent><TeamMark Sport="@_team.Sport?.Key" Abbrev="@_team.Abbrev" Size="TeamMarkSize.Large" />@_team.Name</ChildContent>
         <Tags>
             <Tag>@_team.Sport?.Name</Tag>
             @* The season on screen, said even when there is only one and the gate below has

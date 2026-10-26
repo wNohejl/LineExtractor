@@ -101,11 +101,13 @@ else
                it is set, and the title of this window is no exception. *@
             <PanelTitle>
                 <ChildContent>
+                    <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" Size="TeamMarkSize.Large" />
                     <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                               OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
                         @(game.AwayTeam?.Name ?? "Away")
                     </DeskLink>
                     <span class="dim" style="margin:0 4px">at</span>
+                    <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" Size="TeamMarkSize.Large" />
                     <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                               OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name)">
                         @(game.HomeTeam?.Name ?? "Home")

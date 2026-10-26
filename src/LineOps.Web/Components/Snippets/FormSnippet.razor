@@ -26,8 +26,8 @@ else if (_error is not null)
 else
 {
     <div class="snippet__form">
-        @RenderSide(_away, _awayName)
-        @RenderSide(_home, _homeName)
+        @RenderSide(_away, _awayName, _awayAbbrev)
+        @RenderSide(_home, _homeName, _homeAbbrev)
     </div>
 }
 
@@ -41,6 +41,9 @@ else
     private IReadOnlyList<TeamGameLogRow> _away = [];
     private string _homeName = "Home";
     private string _awayName = "Away";
+    private string? _sport;
+    private string? _homeAbbrev;
+    private string? _awayAbbrev;
     private bool _loading = true;
     private string? _error;
 
@@ -64,6 +67,9 @@ else
             var game = row.Game;
             _homeName = game.HomeTeam?.Name ?? "Home";
             _awayName = game.AwayTeam?.Name ?? "Away";
+            _sport = game.Sport?.Key;
+            _homeAbbrev = game.HomeTeam?.Abbrev;
+            _awayAbbrev = game.AwayTeam?.Abbrev;
 
             var window = TimeSpan.FromDays(WindowDays);
 
@@ -84,9 +90,9 @@ else
         }
     }
 
-    private RenderFragment RenderSide(IReadOnlyList<TeamGameLogRow> log, string name) => @<text>
+    private RenderFragment RenderSide(IReadOnlyList<TeamGameLogRow> log, string name, string? abbrev) => @<text>
         <div class="snippet__formside">
-            <div class="snippet__formname trunc" title="@name">@name</div>
+            <div class="snippet__formname trunc" title="@name"><TeamMark Sport="@_sport" Abbrev="@abbrev" />@name</div>
 
             @if (log.Count == 0)
             {

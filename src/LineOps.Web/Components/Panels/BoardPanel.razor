@@ -219,6 +219,9 @@ else
         *@
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
+                @* The two clubs' marks, away then home in the order the matchup names them. *@
+                <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />
+                <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />
                 <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
                     @Matchup(context.Item.Game)
                 </DeskLink>

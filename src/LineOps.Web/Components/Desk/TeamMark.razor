@@ -1,0 +1,24 @@
+@*
+    A team's mark: a disc in the club's colour beside its name or score. Team colour is content,
+    not chrome, so this is the one place it reaches the page, and only through --team on the
+    mark's own element; .teammark draws it. Decorative, so hidden from assistive tech: the name
+    beside it says who the team is. A club with no colour on file draws nothing.
+*@
+
+@if (Hex is { } hex)
+{
+    <span class="teammark @(Size == TeamMarkSize.Large ? "teammark--lg" : "teammark--sm")"
+          style="--team:@hex" aria-hidden="true"></span>
+}
+
+@code {
+    /// <summary>The sport's key, <c>nfl</c> or <c>mlb</c>.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    /// <summary>The team's abbreviation as ESPN spells it.</summary>
+    [Parameter] public string? Abbrev { get; set; }
+
+    [Parameter] public TeamMarkSize Size { get; set; } = TeamMarkSize.Small;
+
+    private string? Hex => TeamColors.For(Sport ?? "", Abbrev ?? "");
+}

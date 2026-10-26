@@ -40,6 +40,7 @@ else
     <PanelTitle>
         <ChildContent>
             <span class="ptitle__match">
+                <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" Size="TeamMarkSize.Large" />
                 <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                           OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name, WindowId)">
                     @(game.AwayTeam?.Name ?? "Away")
@@ -49,6 +50,7 @@ else
                     <span class="mono">@(game.AwayScore ?? 0)</span>
                 }
                 <span class="dim">at</span>
+                <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" Size="TeamMarkSize.Large" />
                 <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                           OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
                     @(game.HomeTeam?.Name ?? "Home")

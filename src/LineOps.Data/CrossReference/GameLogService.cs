@@ -119,6 +119,7 @@ public class GameLogService(LineOpsDbContext db)
         var meetings = await db.Games
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
+            .Include(g => g.Sport)
             .Where(g => g.Id != gameId
                         && g.StartsAt < game.StartsAt
                         && ((g.HomeTeamId == home && g.AwayTeamId == away)
@@ -153,7 +154,10 @@ public class GameLogService(LineOpsDbContext db)
                 ClosingSpread: row.ClosingSpread,
                 AtsResult: row.AtsResult,
                 ClosingTotal: row.ClosingTotal,
-                TotalResult: row.TotalResult);
+                TotalResult: row.TotalResult,
+                SportKey: g.Sport?.Key,
+                HomeAbbrev: g.HomeTeam?.Abbrev,
+                AwayAbbrev: g.AwayTeam?.Abbrev);
         }).ToList();
     }
 
@@ -495,7 +499,11 @@ public record HeadToHeadRow(
     decimal? ClosingSpread,
     EntryResult? AtsResult,
     decimal? ClosingTotal,
-    EntryResult? TotalResult)
+    EntryResult? TotalResult,
+    // The sport and both clubs' abbreviations, so the snippet can draw each team's mark.
+    string? SportKey = null,
+    string? HomeAbbrev = null,
+    string? AwayAbbrev = null)
 {
     public bool HasClosingLine => ClosingSpread is not null || ClosingTotal is not null;
 

@@ -3007,6 +3007,31 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
 .ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
+/* A team's mark: a disc in the club's colour before its name. Team colour is content, not
+   chrome; TeamMark sets --team from the one map in C#, and nothing else here reads it. The
+   ring keeps a navy or black club legible on a dark surface. The disc sits on the baseline
+   and is lifted half the gap between its size and the cap height, so it centres on the
+   capitals in running text and in a baseline-aligned flex row alike. */
+.teammark {
+    --teammark-size: 8px;
+    display: inline-block;
+    flex: none;
+    width: var(--teammark-size);
+    height: var(--teammark-size);
+    border-radius: 50%;
+    background: var(--team);
+    box-shadow: 0 0 0 1px var(--separator-strong);
+    vertical-align: baseline;
+    position: relative;
+    bottom: calc((0.7em - var(--teammark-size)) / 2);
+    bottom: calc((1cap - var(--teammark-size)) / 2);
+    margin-right: var(--space-1);
+}
+.teammark--sm { --teammark-size: 8px; }
+.teammark--lg { --teammark-size: 12px; }
+/* The match row spaces its pieces with a gap already; the mark adds none of its own there. */
+.ptitle__match > .teammark { margin-right: 0; }
+
 /* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives
    in every window. A bare search field is an <input> straight in the row; a labelled
