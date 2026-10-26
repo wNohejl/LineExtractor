@@ -66,6 +66,21 @@
     --state-negative-wash: rgba(255, 69, 58, .15);
     --state-warning-wash: rgba(255, 159, 10, .15);
 
+    /* --- Ink ----------------------------------------------------------------
+       The state colours and the accent above are fills: a dot, a wash, a filled
+       key, seen as an area. Text in the same hue has to clear WCAG 4.5:1 over
+       the panel, and not every fill does — systemBlue measures 4.30:1 on
+       --surface-1. So each has an -ink twin, and a rule that colours words or a
+       glyph reads the ink while fills stay on the fill (HIG audit 2026-10-25,
+       Accessibility). On this desk green, red and orange are already readable,
+       so the ink lifts only what needs it: orange and red step to Apple's
+       lighter accessible tints, blue to #409CFF. Every block in themes.css
+       carries the same four; ThemeContrastTests measures each one. */
+    --state-positive-ink: #30D158; /* 7.75:1 */
+    --state-warning-ink: #FFB340; /* 8.79:1 */
+    --state-negative-ink: #FF6961; /* 5.56:1 */
+    --accent-ink: #409CFF; /* 5.54:1 */
+
     /* --- Chart neutrals -------------------------------------------------------
        Two steps of Apple's dark-mode system grey ramp (systemGray, systemGray2),
        kept opaque on purpose: a multi-series chart's neutral slots must stay one
@@ -78,7 +93,7 @@
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
        for things that float — menus, dialogs, sheets, the rail. Flat panel
        bodies stay opaque, because data legibility beats depth.
-       See the @supports rule at the end of this file for the no-backdrop-filter path. */
+       See "Material fallbacks" for the no-blur and Reduce Transparency paths. */
     --material-ultrathin: rgba(44, 44, 46, .55);
     --material-thin: rgba(40, 40, 42, .70);
     --material-regular: rgba(36, 36, 38, .82);
@@ -104,8 +119,13 @@
     --text-headline: calc(13px * var(--text-scale)); /* same size as body, distinguished by weight */
     --text-body: calc(13px * var(--text-scale));
     --text-subheadline: calc(12px * var(--text-scale));
-    --text-footnote: calc(11px * var(--text-scale));
-    --text-caption: calc(10px * var(--text-scale));
+    /* The two smallest rungs stop at 10px as rendered, the macOS floor (HIG
+       Typography). The floor is divided by --ui-scale because html is zoomed by
+       it: at Interface 80% a 12.5px layout floor renders at 10px, and at 150%
+       the scaled rung is already the larger of the two. Without it Interface 80%
+       and Text 90% drew caption at 7.2px. */
+    --text-footnote: max(calc(10px / var(--ui-scale)), calc(11px * var(--text-scale)));
+    --text-caption: max(calc(10px / var(--ui-scale)), calc(10px * var(--text-scale)));
 
     --leading-title: 1.25;
     --leading-body: 1.45;
@@ -144,8 +164,13 @@
        Motion says where a thing came from. A sheet rises, a popover scales out
        of its anchor, a control settles. Nothing moves for decoration.
        --ease-spring overshoots a hair and settles, approximating the platform
-       spring; --ease-exit does not overshoot, because things leaving should not
-       draw a second look. */
+       spring, and it is spent only where motion is rare: a dialog or a sheet
+       arriving. Anything the pointer does all day — a tab marble, a gate's cap,
+       a pop-up opening — takes --ease-standard, because a bounce repeated a
+       hundred times an hour stops reading as settling and starts reading as
+       wobble (HIG Motion: subdued for pointer, no bounce on frequent
+       interactions). --ease-exit does not overshoot, because things leaving
+       should not draw a second look. */
     --dur-fast: .15s;
     --dur-base: .25s;
     --dur-slow: .35s;
@@ -176,6 +201,11 @@
        that problem is gone now that filled buttons are the only accent surface
        and the ring sits outside them on an offset. */
     --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
+
+    /* The same ring drawn inward, for a row inside a list or a tab inside a strip,
+       where the parent clips its overflow and an outer ring would be cut off at
+       the edges. Same two strokes, same colours, mirrored — still one ring. */
+    --focus-ring-inset: inset 0 0 0 1px var(--accent), inset 0 0 0 3px var(--accent-wash-strong);
 
     /* --- Layers -------------------------------------------------------------
        Deliberately low at the desk level so anything floating has room. */
@@ -289,6 +319,14 @@
     --state-negative-wash: rgba(255, 59, 48, .15);
     --state-warning-wash: rgba(255, 149, 0, .15);
 
+    /* Ink. Apple's light fills read as areas and fail as words: green 2.22:1,
+       orange 2.20, red 3.55 and blue 4.02 on white. The inks are Apple's
+       increased-contrast values, and the accent ink is --accent-press. */
+    --state-positive-ink: #008932; /* 4.54:1 */
+    --state-warning-ink: #C55300; /* 4.55:1 */
+    --state-negative-ink: #E9152D; /* 4.56:1 */
+    --accent-ink: #0062CC; /* 5.80:1 */
+
     /* --- Chart neutrals -----------------------------------------------------
        systemGray holds at #8E8E93 — it is the one step of the ramp that reads on
        either ground, which is why Apple gives it no light/dark variant. The dim
@@ -303,8 +341,8 @@
        pale material over pale content loses its edge sooner than a dark one does.
        The blur is identical — it is an optical constant, not a colour.
 
-       The @supports fallback at the end of this file needs no light branch: every
-       rule in it resolves a --surface-* token, and those are redeclared above. */
+       The material fallbacks (no blur, Reduce Transparency) need no light branch: every
+       rule in them resolves a --surface-* token, and those are redeclared above. */
     --material-ultrathin: rgba(255, 255, 255, .60);
     --material-thin: rgba(250, 250, 252, .74);
     --material-regular: rgba(246, 246, 248, .86);
@@ -326,6 +364,33 @@
     /* The sweep inverts outright — a white highlight is invisible on white. */
     --sheen: rgba(0, 0, 0, .10);
     --sheen-soft: rgba(0, 0, 0, .05);
+}
+
+/* Increase Contrast, on the Standard desk.
+
+   When the operator has never chosen a family, ThemeService answers Increase
+   Contrast by wearing the High contrast one. These two blocks are for the
+   operator who chose Standard and still has the setting on: the HIG asks for an
+   increased-contrast variant of every colour, and the two that carry the most
+   structure are the hairline and the second text tier. Both step up — the
+   separator from .10 to .24, secondary text from 55% to 70% white (60% to 75%
+   black on the light desk) — and nothing else moves, so the hierarchy keeps its
+   order. The other families keep their own values; High contrast is their answer.
+
+   They key off [data-theme] because they are token blocks, redeclaring tokens and
+   nothing else, the same as the two above. Inside the media query they win on
+   source order, and themes.css (loaded later) still wins for its own families. */
+@media (prefers-contrast: more) {
+    :root,
+    [data-theme="apple-dark"] {
+        --separator: rgba(255, 255, 255, .24);
+        --text-secondary: rgba(255, 255, 255, .70);
+    }
+
+    [data-theme="apple-light"] {
+        --separator: rgba(0, 0, 0, .24);
+        --text-secondary: rgba(0, 0, 0, .75);
+    }
 }
 
 /* ============================================================================
@@ -472,7 +537,7 @@ html, body {
     flex: 0 0 auto;
 }
 
-.hdr__brand em { font-style: normal; color: var(--accent); }
+.hdr__brand em { font-style: normal; color: var(--accent-ink); }
 
 /* The identity, pressed. It stays a wordmark rather than becoming a button — no fill, no
    border — because the desk has exactly one thing in this position and dressing it as a
@@ -502,7 +567,7 @@ html, body {
 }
 
 .hdr__brand--menu:hover svg { color: var(--text-secondary); }
-.hdr__brand--menu[aria-expanded="true"] svg { transform: rotate(180deg); color: var(--accent); }
+.hdr__brand--menu[aria-expanded="true"] svg { transform: rotate(180deg); color: var(--accent-ink); }
 .hdr__brand--menu:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 
 /* The menu it owns hangs off the left edge, under the wordmark. */
@@ -510,7 +575,7 @@ html, body {
 
 .hdr__sub {
     font-size: var(--text-footnote);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -646,7 +711,7 @@ html, body {
     background: none;
     border: 0;
     border-radius: var(--radius-sm);
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     cursor: pointer;
     font-family: var(--face-ui);
     font-size: var(--text-subheadline);
@@ -692,7 +757,9 @@ html, body {
    cannot do both because it leaves the moment you reach for anything else.
 
    Collapsed — open, but put away. Stated as quieter rather than as another column
-   you are looking at. */
+   you are looking at: italic, with a faded glyph. Its name stays at secondary, the
+   closed keys' tier, because a name is read; tertiary is for hints and disabled
+   things only (HIG audit 2026-10-25). */
 .bar__key--open {
     color: var(--text-primary);
     background: var(--surface-2);
@@ -700,12 +767,12 @@ html, body {
 
 .bar__key--current {
     background: var(--accent-wash);
-    color: var(--accent);
+    color: var(--accent-ink);
 }
 
-.bar__key--current svg { color: var(--accent); }
+.bar__key--current svg { color: var(--accent-ink); }
 
-.bar__key--collapsed { color: var(--text-tertiary); font-style: italic; }
+.bar__key--collapsed { color: var(--text-secondary); font-style: italic; }
 .bar__key--collapsed svg { opacity: .5; }
 .bar__key svg { width: 17px; height: 17px; }
 
@@ -783,8 +850,8 @@ html, body {
 .bar__menu--pinned .bar__group svg { transform: rotate(180deg); opacity: .9; }
 
 .bar__group--open { color: var(--text-primary); background: var(--surface-2); }
-.bar__group--current { background: var(--accent-wash); color: var(--accent); }
-.bar__group--current svg { color: var(--accent); }
+.bar__group--current { background: var(--accent-wash); color: var(--accent-ink); }
+.bar__group--current svg { color: var(--accent-ink); }
 
 .bar__group-pulse {
     position: absolute;
@@ -895,7 +962,7 @@ html, body {
     white-space: nowrap;
 }
 
-.hdr__count--full { color: var(--state-warning); }
+.hdr__count--full { color: var(--state-warning-ink); }
 
 /* ---- The marble -----------------------------------------------------------
    The travel shared by every control that holds one choice among a few: the
@@ -922,7 +989,7 @@ html, body {
     z-index: 0;
     box-sizing: border-box;
     transform: translateX(calc(var(--i, 0) * (100% + var(--gap, 0px))));
-    transition: transform var(--dur-base) var(--ease-spring);
+    transition: transform var(--dur-base) var(--ease-standard);
 }
 
 /* One column's share of the row, gaps taken out first. */
@@ -980,7 +1047,7 @@ html, body {
     background: var(--surface-3);
     box-shadow: var(--shadow-1);
     transform: translateX(calc(var(--i) * 100%));
-    transition: transform var(--dur-base) var(--ease-spring);
+    transition: transform var(--dur-base) var(--ease-standard);
     pointer-events: none;
 }
 
@@ -1086,7 +1153,7 @@ html, body {
 
 .tabs__tab:hover { color: var(--text-primary); }
 .tabs__tab--on { color: var(--text-primary); cursor: default; }
-.tabs__tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tabs__tab:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
 
 @media (prefers-reduced-motion: reduce) {
     .tabs__tab { transition: none; }
@@ -1213,7 +1280,7 @@ html, body {
     padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
     background: var(--state-warning-wash);
     border-radius: 4px;
-    color: var(--state-warning);
+    color: var(--state-warning-ink);
     font-size: var(--text-footnote);
     flex: 0 1 auto;
     min-width: 0;
@@ -1225,7 +1292,7 @@ html, body {
 .ftr__dismiss {
     width: 24px; height: 24px;
     background: none; border: 0; padding: 0;
-    color: var(--state-warning); cursor: pointer;
+    color: var(--state-warning-ink); cursor: pointer;
     display: grid; place-items: center;
 }
 
@@ -1241,7 +1308,7 @@ html, body {
     border-radius: 3px;
     height: 24px;
     padding: 0 var(--space-2);
-    color: var(--state-warning);
+    color: var(--state-warning-ink);
     font: inherit;
     font-weight: var(--weight-semibold);
     cursor: pointer;
@@ -1301,7 +1368,7 @@ html, body {
 
 .desk-empty__mark em {
     font-style: normal;
-    color: var(--accent);
+    color: var(--accent-ink);
 }
 
 .desk-empty__hint {
@@ -1670,52 +1737,14 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* Selected/active reads as a wash, not a border — the same recipe as a Tinted
    button and the platform's own menu highlight. */
-.rail__btn--accent { background: var(--accent-wash); color: var(--accent); }
+.rail__btn--accent { background: var(--accent-wash); color: var(--accent-ink); }
 .rail__btn svg { width: 17px; height: 17px; }
 
 /* ------------------------------------------------------- rail popover ---- */
 
+/* The launcher's wrapper. Its panel is a DeskPopover now, styled in controls.css with
+   the other popovers; this rule only keeps the trigger laid out in the header and rail. */
 .railmenu { position: relative; display: flex; }
-
-.railmenu__backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 9500;
-    /* Invisible, but it must catch the press so dismissing the menu does not also
-       click whatever window is underneath. */
-    background: transparent;
-}
-
-.railmenu__panel {
-    position: absolute;
-    z-index: 9600;
-    background: var(--material-regular);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-    box-shadow: var(--shadow-sheet);
-    max-height: min(70vh, 560px);
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--surface-3) transparent;
-}
-
-/* Each panel opens away from the rail it belongs to. */
-.railmenu__panel--bottom { bottom: calc(100% + 8px); left: 0; }
-.railmenu__panel--top { top: calc(100% + 8px); left: 0; }
-.railmenu__panel--left { left: calc(100% + 8px); top: 0; }
-.railmenu__panel--right { right: calc(100% + 8px); top: 0; }
-
-/* Near a screen edge a left-anchored panel would overflow; nudge the horizontal
-   ones to stay inside the viewport. */
-@media (max-width: 520px) {
-    .railmenu__panel--bottom, .railmenu__panel--top { left: auto; right: 0; }
-}
-
-/* A menu whose button lives at the right edge of the chrome anchors its right edge
-   to the button instead, so the panel opens inward rather than off-screen. */
-.railmenu__panel--end { left: auto; right: 0; }
 
 /* ------------------------------------------------------------ palette ----- */
 
@@ -1826,15 +1855,15 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    It also has to agree with the glide plate that paints in its place while the pointer
    is inside the list — see .glide-plate's own --surface-3. */
 .launcher__item:hover { background: var(--surface-3); }
-.launcher__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.launcher__item:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
 .launcher__item svg { width: 17px; height: 17px; color: var(--text-secondary); margin-top: 1px; flex: 0 0 auto; }
-.launcher__desc { display: block; color: var(--text-tertiary); font-size: var(--text-footnote); margin-top: 2px; line-height: 1.4; }
+.launcher__desc { display: block; color: var(--text-secondary); font-size: var(--text-footnote); margin-top: 2px; line-height: 1.4; }
 
 .launcher__note {
     padding: 8px 11px;
     margin: 4px 0 0;
     border-top: 1px solid var(--separator);
-    color: var(--state-warning);
+    color: var(--state-warning-ink);
     font-size: var(--text-footnote);
     line-height: 1.45;
 }
@@ -1889,9 +1918,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     line-height: 1.05;
 }
 
-.metric--good .metric__value { color: var(--state-positive); }
-.metric--warn .metric__value { color: var(--state-warning); }
-.metric--bad .metric__value { color: var(--state-negative); }
+.metric--good .metric__value { color: var(--state-positive-ink); }
+.metric--warn .metric__value { color: var(--state-warning-ink); }
+.metric--bad .metric__value { color: var(--state-negative-ink); }
 .metric--info .metric__value { color: var(--text-primary); }
 
 .metric__label {
@@ -1900,11 +1929,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     margin-top: 5px;
 }
 
-.metric__note { font-size: var(--text-footnote); color: var(--text-tertiary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.metric__note { font-size: var(--text-footnote); color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
-/* A tile that is also the way to the thing it counts. It lifts under the pointer; a tile
-   that only reports stays still. The chevron carries the same message without motion or
-   hover, for a touch pointer and for anyone running reduced motion. */
+/* A tile that is also the way to the thing it counts. It takes the hover fill under the
+   pointer; a tile that only reports stays still. It used to lift a pixel as well, which is
+   motion on an interaction that happens all day (HIG Motion) — the fill and the chevron
+   already say "pressable", and the chevron says it without hover, for a touch pointer and
+   for anyone running reduced motion. */
 .metric--action {
     display: block;
     width: 100%;
@@ -1913,12 +1944,10 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     color: inherit;
     cursor: pointer;
     transition: background var(--dur-fast) var(--ease-standard),
-                border-color var(--dur-fast) var(--ease-standard),
-                transform var(--dur-fast) var(--ease-standard);
+                border-color var(--dur-fast) var(--ease-standard);
 }
 
-.metric--action:hover { background: var(--surface-3); transform: translateY(-1px); }
-.metric--action:active { transform: translateY(0); }
+.metric--action:hover { background: var(--surface-3); }
 
 .metric--action:focus-visible {
     outline: none;
@@ -1930,7 +1959,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 @media (prefers-reduced-motion: reduce) {
     .metric--action { transition: background var(--dur-fast) linear; }
-    .metric--action:hover, .metric--action:active { transform: none; }
 }
 
 /* Data tables: dense, hairline-separated, numbers right-aligned and tabular.
@@ -1967,7 +1995,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .grid tbody tr:hover td { background: var(--surface-2); }
 .grid .r { text-align: right; font-variant-numeric: tabular-nums; }
-.grid .dim { color: var(--text-tertiary); }
+.grid .dim { color: var(--text-secondary); }
 
 /* Quieter than the row, still readable as data. --text-tertiary is the right tier for
    an annotation nobody has to read — a hint, a placeholder, a unit — and it measures
@@ -2100,7 +2128,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .mud-table-row:hover .price__edge,
 .board__row--open .price__edge { opacity: 1; }
 
-.price__edge--wide { color: var(--state-positive); }
+.price__edge--wide { color: var(--state-positive-ink); }
 
 /* Expected value against the fair price. A price worth taking says so without a hover —
    that is the one reading the board exists to surface — and in the same positive tone as a
@@ -2142,7 +2170,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .board__row--open .price__ev { opacity: 1; }
 
 .price__ev--plus {
-    color: var(--state-positive);
+    color: var(--state-positive-ink);
     font-weight: var(--weight-semibold);
     opacity: 1;
 }
@@ -2157,8 +2185,8 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    mistaken for the live market on the row above. Muted, not hidden: hiding it is
    what left sixteen of nineteen rows empty. */
 .price--closing .price__odds { color: var(--text-secondary); }
-.price--closing .price__line,
-.price--closing .price__sel { color: var(--text-tertiary); }
+.price--closing .price__line { color: var(--text-tertiary); }
+.price--closing .price__sel { color: var(--text-secondary); }
 
 /* A closed price's book recedes with the rest of the cell. */
 .price--closing .price__book { color: var(--text-tertiary); }
@@ -2195,7 +2223,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
    worth acting on, so the row says which. */
 .board__gap {
     margin-top: 3px;
-    color: var(--state-warning);
+    color: var(--state-warning-ink);
     font-size: var(--text-footnote);
     line-height: 1.35;
     max-width: 34ch;
@@ -2257,6 +2285,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 .board__matchup-link { position: relative; }
 .board__matchup-link .desklink__shortcut {
     position: absolute;
+    pointer-events: none; /* out of flow and over the next cell: the link, not the hint, takes the press */
     left: 100%;
     top: 0;
     z-index: 1;
@@ -2362,8 +2391,8 @@ body.dialog-dragging { user-select: none; }
    even though there is no second family left to set them in. */
 .deskdialog__sub {
     font-variant-numeric: tabular-nums;
-    font-size: var(--text-caption);
-    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2395,129 +2424,6 @@ body.dialog-dragging { user-select: none; }
 
     .deskdialog__bar { cursor: default; }
 }
-
-/* ---- Pull menu -------------------------------------------------------------
-   The manual ingestion control. Built here rather than with MudMenu for the same
-   reason the launcher is (ADR 0007): it anchors to desk chrome and must not
-   inherit another library's positioning and z-index rules.
-   --------------------------------------------------------------------------- */
-
-.pullmenu { position: relative; display: inline-flex; }
-
-.pullmenu__backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-popover);
-    /* Invisible, but it must catch the press so dismissing does not also click
-       whatever is underneath. */
-    background: transparent;
-}
-
-.pullmenu__panel {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    z-index: calc(var(--z-popover) + 1);
-    min-width: 290px;
-    padding: 5px;
-    background: var(--material-regular);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
-    /* The one place a hairline is allowed: a floating material surface needs an
-       edge to separate it from whatever it is floating over. */
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-    box-shadow: var(--shadow-3);
-
-    /* Anchored entrance: the panel's own right edge sits under its trigger (see
-       `right: 0` above), so it opens out of the button's corner rather than
-       fading in place. --pullmenu-origin lets a future caller override the
-       corner if the trigger ever anchors from the left instead. */
-    transform-origin: var(--pullmenu-origin, top right);
-    animation: pullmenu-in var(--dur-fast) var(--ease-spring);
-}
-
-@keyframes pullmenu-in {
-    from { opacity: 0; transform: scale(.92); }
-    to { opacity: 1; transform: scale(1); }
-}
-
-.pullmenu__item {
-    display: block;
-    width: 100%;
-    min-height: 26px;
-    padding: 4px var(--space-2);
-    background: none;
-    border: 0;
-    border-radius: 4px;
-    color: var(--text-primary);
-    font-family: inherit;
-    font-size: var(--text-body);
-    text-align: left;
-    cursor: pointer;
-}
-
-/* Accent, not neutral — deliberately different from the launcher's and the glide
-   plates' hover, which stay neutral under "accent means selection, not hover"
-   (see the launcher rule above). A menu is the one place that rule inverts: the
-   hovered row in a real menu IS a provisional selection, because releasing the
-   pointer commits it — that is what macOS's own menus do, and what makes this
-   read as a menu rather than a hover-follow strip. Do not "fix" this back to
-   --surface-3 in a future sweep. */
-.pullmenu__item:hover { background: var(--accent-wash); color: var(--accent); }
-.pullmenu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-
-/* A selected item states itself with a leading glyph, not a wash — the wash is
-   spent on hover above, and stacking both would blur which one is true. Not
-   currently exercised by any job (none of PullMenu's entries are a picker), but
-   established here so a future selectable row has the right answer waiting. */
-.pullmenu__item--selected { position: relative; padding-left: calc(var(--space-2) + 16px); }
-.pullmenu__item--selected::before {
-    content: "\2713";
-    position: absolute;
-    left: var(--space-2);
-    color: var(--accent);
-}
-
-/* Destructive: the same red-text/red-wash pairing as a destructive button. */
-.pullmenu__item--destructive { color: var(--state-negative); }
-.pullmenu__item--destructive:hover { background: var(--state-negative-wash); color: var(--state-negative); }
-
-@media (prefers-reduced-motion: reduce) {
-    .pullmenu__panel { animation: none; }
-}
-
-.pullmenu__row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.pullmenu__label { font-size: var(--text-body); }
-
-/* The price is stated before the click, not discovered afterwards. */
-.pullmenu__cost {
-    flex: 0 0 auto;
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-}
-
-.pullmenu__desc {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-tertiary);
-    font-size: var(--text-footnote);
-    line-height: 1.4;
-}
-
-/* Unavailable states the reason in place of the description, so the menu explains
-   itself rather than just refusing. */
-.pullmenu__item--blocked { cursor: not-allowed; }
-.pullmenu__item--blocked:hover { background: none; color: var(--text-primary); }
-.pullmenu__item--blocked .pullmenu__label { color: var(--text-tertiary); }
-.pullmenu__item--blocked .pullmenu__desc { color: var(--state-warning); }
 
 /* ---- Linked cell -----------------------------------------------------------
    A cell naming something with a window of its own. The desk answers "what will
@@ -2558,7 +2464,7 @@ body.dialog-dragging { user-select: none; }
     gap: 3px;
     flex: 0 0 auto;
     opacity: 0;
-    color: var(--accent);
+    color: var(--accent-ink);
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
     transition: opacity .1s ease;
@@ -2579,22 +2485,22 @@ body.dialog-dragging { user-select: none; }
    fill, and the same declaration serves :focus-visible. */
 .desklink:hover .desklink__label,
 .desklink:focus-visible .desklink__label {
-    color: var(--accent);
+    color: var(--accent-ink);
     border-bottom-color: var(--accent);
 }
 
 .desklink:hover .desklink__shortcut,
 .desklink:focus-visible .desklink__shortcut { opacity: 1; }
 
-.desklink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.desklink:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 @media (prefers-reduced-motion: reduce) {
     .desklink__label, .desklink__shortcut { transition: none; }
 }
 
-.up { color: var(--state-positive); }
-.down { color: var(--state-negative); }
-.warnc { color: var(--state-warning); }
+.up { color: var(--state-positive-ink); }
+.down { color: var(--state-negative-ink); }
+.warnc { color: var(--state-warning-ink); }
 
 /* Tag: a small state word, set as a capsule.
 
@@ -2643,9 +2549,9 @@ body.dialog-dragging { user-select: none; }
     white-space: nowrap;
 }
 
-.tag--good { background: var(--state-positive-wash); color: var(--state-positive); }
-.tag--warn { background: var(--state-warning-wash); color: var(--state-warning); }
-.tag--bad { background: var(--state-negative-wash); color: var(--state-negative); }
+.tag--good { background: var(--state-positive-wash); color: var(--state-positive-ink); }
+.tag--warn { background: var(--state-warning-wash); color: var(--state-warning-ink); }
+.tag--bad { background: var(--state-negative-wash); color: var(--state-negative-ink); }
 /* Info is a reading with no state to report, so it takes the neutral capsule; the accent
    is kept for what can be pressed. */
 .tag--info { background: var(--surface-3); color: var(--text-secondary); }
@@ -2763,7 +2669,7 @@ body.dialog-dragging { user-select: none; }
 }
 
 /* --- Tinted: an accent wash behind accent text. --------------------------- */
-.desk-btn--tinted { --btn-fill: var(--accent-wash); --btn-ink: var(--accent); }
+.desk-btn--tinted { --btn-fill: var(--accent-wash); --btn-ink: var(--accent-ink); }
 
 .desk-btn--tinted:hover:not(:disabled) { --btn-fill: var(--accent-wash-strong); }
 
@@ -2779,14 +2685,14 @@ body.dialog-dragging { user-select: none; }
 .desk-btn--filled:active:not(:disabled) { --btn-fill: var(--accent-press); }
 
 /* --- Destructive: the only place a button borrows a state colour. ---------- */
-.desk-btn--destructive.desk-btn--plain { --btn-ink: var(--state-negative); }
+.desk-btn--destructive.desk-btn--plain { --btn-ink: var(--state-negative-ink); }
 
 .desk-btn--destructive.desk-btn--plain:hover:not(:disabled) {
     --btn-fill: var(--state-negative-wash);
-    --btn-ink: var(--state-negative);
+    --btn-ink: var(--state-negative-ink);
 }
 
-.desk-btn--destructive.desk-btn--tinted { --btn-fill: var(--state-negative-wash); --btn-ink: var(--state-negative); }
+.desk-btn--destructive.desk-btn--tinted { --btn-fill: var(--state-negative-wash); --btn-ink: var(--state-negative-ink); }
 
 .desk-btn--destructive.desk-btn--tinted:hover:not(:disabled) {
     --btn-fill: color-mix(in oklab, var(--state-negative) 24%, transparent);
@@ -2916,8 +2822,9 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 .field--sm { height: 24px; font-size: var(--text-footnote); }
 select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px) 10px; }
 
-/* The count field: a small number with the stepper keys beside it, so it is as wide as two
-   digits need and carries no spinner of its own — the keys next to it are the stepper. */
+/* The count field: a small number beside its stepper, the one capsule DeskStepper draws, so
+   it is as wide as two digits need and carries no spinner of its own — the capsule is the
+   stepper. */
 .field--count { width: 7ch; text-align: center; appearance: textfield; }
 .field--count::-webkit-inner-spin-button,
 .field--count::-webkit-outer-spin-button { appearance: none; margin: 0; }
@@ -2951,7 +2858,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     text-transform: none;
 }
 
-.field-req { color: var(--state-negative); margin-left: 3px; }
+.field-req { color: var(--state-negative-ink); margin-left: 3px; }
 
 .field-err {
     /* Carried across from the old block: .field-err renders as a <p> in
@@ -2959,7 +2866,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
        reopen the vertical rhythm .field-set's gap is meant to own. */
     margin: 0;
     font-size: var(--text-footnote);
-    color: var(--state-negative);
+    color: var(--state-negative-ink);
 }
 
 .field[aria-invalid="true"] { border-color: var(--state-negative); }
@@ -3364,8 +3271,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     gap: var(--space-2);
 }
 
-.runbook__summary::-webkit-details-marker { display: none; }
-
 /* The mark is an icon, not an illustration. Without a size the inline SVG arrives with
    no intrinsic dimensions, stretches to the flex line, and renders roughly 385px square
    — found in the browser, not in the stylesheet, because nothing here was wrong to read.
@@ -3374,7 +3279,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* Accent on the text, not a fill behind it: the summary is already --text-primary at
    rest, so a neutral hover would paint nothing, and the disclosure is a control you
    follow — the same reading .desklink gets. */
-.runbook__summary:hover { color: var(--accent); }
+.runbook__summary:hover { color: var(--accent-ink); }
 
 .runbook__body {
     padding: 0 var(--space-3) var(--space-3);
@@ -3572,7 +3477,11 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* One focus ring, everywhere: --focus-ring, a 1px accent edge in a 3px wash. This was
+   a 2px outline, a second shape beside the ring the desk's own keys draw, so a Tab
+   through a window showed two different rings (HIG audit 2026-10-25). A control whose
+   parent clips its edge takes --focus-ring-inset in its own rule. */
+:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* A horizontal row of tabs cannot host itself usefully on a narrow screen — there is no
    room to drag a tab past a neighbour with a thumb. Windows stack into a single scrolling
@@ -3646,7 +3555,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    rather than as its own colour, so it borrows the tinted wash instead of a tone. */
 .desk-btn--on {
     --btn-fill: var(--accent-wash);
-    --btn-ink: var(--accent);
+    --btn-ink: var(--accent-ink);
 }
 
 /* The inline answer. Inset from the row so it reads as belonging to it rather
@@ -3703,7 +3612,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-secondary);
 }
 
-.snippet__note { color: var(--text-tertiary); font-size: var(--text-caption); }
+.snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); }
 .snippet__spacer { flex: 1 1 auto; }
 
 /* The escape hatch. Quiet by default — the snippet is usually the answer, and a
@@ -3718,7 +3627,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     border-radius: 4px;
     color: var(--text-secondary);
     font: inherit;
-    font-size: var(--text-caption);
+    font-size: var(--text-footnote);
     padding: 0 var(--space-2);
     cursor: pointer;
     transition: color .12s ease, background-color .12s ease;
@@ -3793,8 +3702,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 .fact__value { font-size: var(--text-subheadline); color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.fact__value .good { color: var(--state-positive); }
-.fact__value .bad { color: var(--state-negative); }
+.fact__value .good { color: var(--state-positive-ink); }
+.fact__value .bad { color: var(--state-negative-ink); }
 
 /* A tighter grid, for tables that live inside a snippet rather than a window. */
 .grid--tight { font-size: var(--text-subheadline); }
@@ -3905,8 +3814,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     margin: var(--space-2) 0 0;
     padding-top: var(--space-2);
     border-top: 1px solid var(--separator);
-    color: var(--text-tertiary);
-    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
     line-height: 1.5;
 }
 
@@ -3923,8 +3832,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    than relying on the hover treatment. */
 .logrow__head:focus-visible,
 .snippet__open:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    outline: none;
+    box-shadow: var(--focus-ring-inset);
     border-radius: 4px;
 }
 
@@ -4108,7 +4017,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-.desk-sheet__close:hover { background: var(--state-negative); color: var(--on-accent); }
+/* Neutral, not red: closing a sheet discards nothing, so the key does not wear the
+   destructive colour. It rests on --surface-3 already, so hover answers in the glyph. */
+.desk-sheet__close:hover { background: var(--surface-3); color: var(--text-primary); }
 .desk-sheet__close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .desk-sheet__close svg { width: 14px; height: 14px; }
 
@@ -4270,28 +4181,79 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .swatch--on .swatch__name { color: var(--text-primary); }
 
 /* ---- Material fallbacks -----------------------------------------------------
-   Opaque fallbacks for every material surface. This block must stay LAST in the
-   file: @supports adds no specificity, so these single-class rules beat their
-   unconditional counterparts only on source order. A rule added above this line
-   is a rule that works; a material added below it needs its fallback added here
-   and re-tested.
+   Opaque fallbacks for every material surface. This block must stay AFTER every
+   material rule it overrides: @supports and @media add no specificity, so these
+   rules beat their unconditional counterparts only on source order. A material
+   added below this line needs its fallback added here and re-tested.
 
    No blur available means no translucency either — a flat wash over the desk
    would just look like a mistake. Chrome falls back to the same opaque tier as
-   a title bar; the rail's own popover falls back one tier down, to the tier a
-   panel body rests on; the dialog falls back to the same tier as chrome, since
-   it is chrome that happens to float. The modal sheet falls back the same way as
-   the floating dialog — it is the same kind of surface, just one that takes the
-   desk hostage — and it keeps both classes so it still clears the bridge's
-   single-class .mud-dialog, which source order alone would not do. The pull menu
-   falls back to the raised-row tier, --surface-2 — a menu resting on the desk
-   like a control, not a window body like the rail's popover. */
+   a title bar; a group drawer falls back one tier down, to the tier a panel body
+   rests on; the dialog and the command palette fall back to the same tier as
+   chrome, since they are chrome that happens to float. The modal sheet falls
+   back the same way as the floating dialog — it is the same kind of surface, just
+   one that takes the desk hostage — and it keeps both classes so it still clears
+   the bridge's single-class .mud-dialog, which source order alone would not do. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
-    .railmenu__panel { background: var(--surface-1); }
+    .bar__menu .bar__menu-panel { background: var(--surface-1); }
+    .palette__panel { background: var(--surface-2); }
     .deskdialog { background: var(--surface-2); }
     .mud-dialog.desk-sheet { background: var(--surface-2); }
-    .pullmenu__panel { background: var(--surface-2); }
+}
+
+/* Reduce Transparency: the same opaque surfaces, asked for rather than forced.
+   The HIG's Materials rule is that appearance changes with the setting, so the
+   desk answers it the way it answers a browser with no blur — each material
+   becomes the --surface-* tier above — and drops the blur too, which an opaque
+   fill would hide anyway but would still be paid for on every frame.
+
+   Two ways in, one answer. The media query is the browser's own report and works
+   before the circuit connects; data-reduced-transparency is what theme.js stamps
+   on <html> from ThemeService, so the desk agrees with whatever the operator's
+   machine says even where a browser does not expose the query. The attribute
+   rules weigh one attribute more than the rule they override, so they hold
+   wherever they sit. */
+@media (prefers-reduced-transparency: reduce) {
+    .hdr, .ftr { background: var(--surface-2); }
+    .bar__menu .bar__menu-panel { background: var(--surface-1); }
+    .palette__panel { background: var(--surface-2); }
+    .deskdialog { background: var(--surface-2); }
+    .mud-dialog.desk-sheet { background: var(--surface-2); }
+
+    .hdr, .ftr, .bar__menu .bar__menu-panel, .palette__panel,
+    .deskdialog, .mud-dialog.desk-sheet {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
+}
+
+[data-reduced-transparency="true"] .hdr,
+[data-reduced-transparency="true"] .ftr,
+[data-reduced-transparency="true"] .palette__panel,
+[data-reduced-transparency="true"] .deskdialog,
+[data-reduced-transparency="true"] .mud-dialog.desk-sheet {
+    background: var(--surface-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+[data-reduced-transparency="true"] .bar__menu .bar__menu-panel {
+    background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* Every other material — a popover in controls.css, MudBlazor's own popovers via
+   the bridge — reads the --material-* tokens rather than a class listed here, so
+   under the attribute the tokens themselves turn opaque. :root plus the attribute
+   outweighs the theme blocks, which would otherwise win on source order. */
+:root[data-reduced-transparency="true"] {
+    --material-ultrathin: var(--surface-2);
+    --material-thin: var(--surface-2);
+    --material-regular: var(--surface-2);
+    --material-thick: var(--surface-2);
+    --material-blur: none;
 }
 
 /* ---- The wager window, its advisory checks, and the slip ------------------------------
@@ -4436,8 +4398,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wager-offer__age svg { width: 12px; height: 12px; flex: 0 0 auto; }
 .wager-offer__value { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .wager-offer__ev { font-weight: var(--weight-semibold); }
-.wager-offer__ev--up { color: var(--state-positive); }
-.wager-offer__ev--down { color: var(--state-warning); }
+.wager-offer__ev--up { color: var(--state-positive-ink); }
+.wager-offer__ev--down { color: var(--state-warning-ink); }
 
 /* ---- The checks: a grouped list of facts, a mark leading each row. */
 /* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
@@ -4499,28 +4461,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .wager-typed .field-set { margin: 0; }
 
-/* ---- The books: a filter of chips, each with its price, over a list to choose from. The chosen
-   row carries the accent on its mark and its price; the rest stay neutral. */
+/* ---- The books: a filter of chips, each with its price. The list to choose from is the book
+   pop-up's menu now (BookPicker on DeskPopover and DeskMenu, styled in controls.css). */
 .book-chips { flex-wrap: wrap; gap: var(--space-1); }
 .book-chip__price { margin-left: var(--space-1); opacity: .8; }
-.book-row {
-    width: 100%;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-.book-row:hover { background: var(--surface-3); }
-.book-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.book-row__mark { flex: none; width: 16px; height: 16px; color: var(--accent); }
-.book-row__mark svg { width: 16px; height: 16px; }
-.book-row__book { font-weight: var(--weight-semibold); }
-.book-row__age { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
-.book-row__line { min-width: 48px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.book-row__price { min-width: 52px; text-align: right; font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.book-row--chosen .book-row__price { color: var(--accent); }
 
 /* ---- The game search: one field, its results directly beneath, newest first. */
 .game-search { display: flex; flex-direction: column; gap: var(--space-1); }
@@ -4536,7 +4480,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     justify-content: space-between;
 }
 .game-search__opt:hover, .game-search__opt--active { background: var(--accent-wash); }
-.game-search__opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.game-search__opt:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
 .game-search__opt--none .game-search__match { color: var(--text-secondary); font-weight: normal; }
 .game-search__chosen { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
 .game-search__text { display: flex; flex-direction: column; min-width: 0; }
@@ -4683,7 +4627,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wstep__change { font-size: var(--text-subheadline); align-self: baseline; }
 .wstep__change .desklink__label { font-size: inherit; }
 .wstep__change:hover .wstep__summary,
-.wstep__change:focus-visible .wstep__summary { color: var(--accent); }
+.wstep__change:focus-visible .wstep__summary { color: var(--accent-ink); }
 /* A folded step's choice is the one link on its line, so the dotted rule shows on hover
    without a row to carry it. */
 .wstep__change:hover .desklink__label { border-bottom-color: var(--accent); }
@@ -4738,9 +4682,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 .selection-chip__side { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.selection-gate .gate__opt--on { color: var(--accent); }
+.selection-gate .gate__opt--on { color: var(--accent-ink); }
 .selection-chip--on .selection-chip__team, .selection-chip--on .selection-chip__side { font-weight: var(--weight-semibold); }
-.selection-chip--on .selection-chip__price { color: var(--accent); }
+.selection-chip--on .selection-chip__price { color: var(--accent-ink); }
 .selection-chip__price--none { font-size: var(--text-footnote); color: var(--text-tertiary); }
 /* The market's name explains itself on hover: the dotted rule is the desk's "there is help here". */
 .selection-group__label {
@@ -4782,41 +4726,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .book-picker__trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .book-picker__trigger svg { width: 16px; height: 16px; color: var(--text-secondary); }
-.book-picker__scrim { position: fixed; inset: 0; z-index: var(--z-popover); background: transparent; }
-.book-picker__panel {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: calc(var(--z-popover) + 1);
-    width: min(400px, 86vw);
-    padding: var(--space-1);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-    background: var(--material-regular);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
-    box-shadow: var(--shadow-3);
-    transform-origin: top left;
-    animation: pullmenu-in var(--dur-fast) var(--ease-spring);
-}
-.book-picker__head {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-2) var(--space-1);
-    font-size: var(--text-subheadline);
-    font-weight: var(--weight-semibold);
-}
-.book-picker__aside { margin-left: auto; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); }
-.book-picker__list { display: flex; flex-direction: column; }
-.book-picker__list .book-row { border-radius: var(--radius); padding: var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
-.book-picker__list .book-row:hover { background: var(--accent-wash); }
-@media (prefers-reduced-motion: reduce) {
-    .book-picker__panel { animation: none; }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .book-picker__panel { background: var(--surface-2); }
-}
+/* The menu is the shared popover panel, which stops at 360px; a book's row holds its name,
+   line, price and "Best price · Captured 3 min ago", and that needs the old picker's width
+   to stay on one line. */
+.book-picker .popover__panel { width: min(400px, 86vw); max-width: none; }
 
 /* ---- Stake and review inside the stepper. The stake's field and quick values run on one
    line; the keys sit at the step's foot, trailing, 12px below the last row, the Filled key
@@ -4855,7 +4768,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     padding: 0 5px;
     border-radius: 9px;
     background: var(--accent-wash);
-    color: var(--accent);
+    color: var(--accent-ink);
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
     line-height: 18px;
@@ -4878,7 +4791,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
 /* The stake field holds a number the slip refused: the one line here in a state colour,
    because it is about the value typed, not the card. */
-.slip-card__zero { color: var(--state-warning); }
+.slip-card__zero { color: var(--state-warning-ink); }
 .slip-cards { display: block; }
 
 .slip-parlay__price {
@@ -4894,11 +4807,11 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* Not selectable: Shift-click banks a price as a parlay leg, and on selectable text the same
    gesture extends the page's selection across every row between two clicks. */
 .price--take { cursor: pointer; user-select: none; }
-.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent); }
-.price--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent-ink); }
+.price--take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .take { all: unset; cursor: pointer; user-select: none; }
-.take:hover span { color: var(--accent); }
-.take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.take:hover span { color: var(--accent-ink); }
+.take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- The house rule on groups, and the wizard at every width ------------------------------
    A group is bordered: a 1px hairline on its fill, the way macOS draws a grouped form and the
@@ -4971,18 +4884,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The book menu opens from this row, the group's last: a group that clips (.wgroup's
    overflow: hidden) cut the menu off at the group's bottom edge, so it opened invisible. The
    bet group lets it out, and rounds its last row's fill to the group's corners itself. The menu
-   hangs from the row, right-aligned under the trigger at the row's trailing padding, and never
-   wider than the row, so it stays inside the window at every width. */
+   itself is a DeskPopover, which positions itself against its trigger. */
 .wbet { overflow: visible; }
 .wbet > .wbet__price:last-child { border-radius: 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px); }
-.wbet__price .book-picker { position: static; }
-.wbet__price .book-picker__panel {
-    top: calc(100% + 4px);
-    left: auto;
-    right: var(--space-4);
-    width: min(400px, calc(100% - 2 * var(--space-4)));
-    transform-origin: top right;
-}
 /* Rule 3's echo: the side and its line at 13px semibold over the market and matchup at 11px
    secondary; it cross-fades in over 150ms when the choice changes (rule 4; keyed in Razor so a
    new side is a new element). The price trails at title 2, then the pop-up, then the pencil. */
@@ -5002,7 +4906,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    price keep their alignment with the rows above while the fill still reads as a row. */
 .wcard .wbet > .wbet__price { padding: 6px var(--space-3); margin: 0 calc(-1 * var(--space-3)); }
 .wcard .wbet > .wbet__price:last-child { border-radius: 0 0 var(--radius) var(--radius); }
-.wcard .wbet__price .book-picker__panel { right: var(--space-3); width: min(400px, calc(100% - 2 * var(--space-3))); }
 
 /* The book is a pop-up button, as macOS draws one (recipe rule 5): 22px, 6px corners, a 10%
    fill with no stroke at rest, 12px text with the current book as its label, padding 0 6px 0
@@ -5027,7 +4930,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     padding: 0;
     background: none;
     box-shadow: none;
-    color: var(--state-positive);
+    color: var(--state-positive-ink);
     font-size: var(--text-footnote);
     font-weight: var(--weight-medium);
     letter-spacing: 0;
@@ -5146,7 +5049,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 .wstatus__mark { flex: none; display: inline-flex; margin-top: 2px; }
 .wstatus__mark svg { width: 13px; height: 13px; }
-.wstatus--warning .wstatus__mark { color: var(--state-warning); }
+.wstatus--warning .wstatus__mark { color: var(--state-warning-ink); }
 .wstatus--warning .wstatus__text { color: var(--text-primary); }
 
 /* ---- The stake field is a number without the browser's spinner: the quick keys beside it are
@@ -5157,7 +5060,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .stake-row input[type="number"]::-webkit-inner-spin-button,
 .stake-row input[type="number"]::-webkit-outer-spin-button,
 .wcard input[type="number"]::-webkit-inner-spin-button,
-.wcard input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.wcard input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
 .stake-row__field { max-width: 130px; }
+/* The quick values stand beside a 28px field, so they are 28px too: a Small key's 24px is
+   for a 29px grid row, and here it left the keys sitting short of the field they set. */
+.stake-row .desk-btn--sm { height: 28px; }
 .stake-row .desk-btn--plain[aria-pressed="true"] { --btn-fill: var(--surface-3); --btn-ink: var(--text-primary); }
 .wstake__win { font-variant-numeric: tabular-nums; }

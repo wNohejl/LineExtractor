@@ -49,6 +49,14 @@ public static class DeskTheme
     public const string StateNegative = "#FF453A";
     public const string StateWarning = "#FF9F0A";
 
+    // Inks: the same states and the accent when they colour text or a glyph rather than a
+    // fill. A fill is seen as an area; text has to clear WCAG's 4.5:1 over the panel, and the
+    // accent and orange do not (4.30 and, on the light desk, far less). Mirrors --*-ink.
+    public const string StatePositiveInk = "#30D158";
+    public const string StateWarningInk = "#FFB340";
+    public const string StateNegativeInk = "#FF6961";
+    public const string AccentInk = "#409CFF";
+
     public const string Separator = "rgba(255, 255, 255, .10)";
 
     // Chart neutrals. Two steps of Apple's dark-mode system grey ramp, kept opaque on
@@ -91,6 +99,13 @@ public static class DeskTheme
     public const string LightStatePositive = "#34C759";
     public const string LightStateNegative = "#FF3B30";
     public const string LightStateWarning = "#FF9500";
+
+    // Apple's increased-contrast values: the light fills measure 2.2 to 3.6:1 as text on
+    // white, these 4.54 to 4.56. The accent ink is --accent-press, 5.80:1.
+    public const string LightStatePositiveInk = "#008932";
+    public const string LightStateWarningInk = "#C55300";
+    public const string LightStateNegativeInk = "#E9152D";
+    public const string LightAccentInk = "#0062CC";
 
     public const string LightSeparator = "rgba(0, 0, 0, .10)";
 

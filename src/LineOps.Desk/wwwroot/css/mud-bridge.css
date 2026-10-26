@@ -327,7 +327,7 @@
    scoped `.grid .dim` / `.grid .trunc` and so quietly stopped applying the moment a panel
    moved to DeskGrid — a converted panel kept the markup and lost the styling, which is the
    one failure mode this file exists to prevent. */
-.deskgrid .dim { color: var(--text-tertiary); }
+.deskgrid .dim { color: var(--text-secondary); }
 
 .deskgrid .trunc {
     max-width: 1px; /* forces the cell to take its share and no more */
@@ -350,7 +350,7 @@
    .grid .dim and .grid .trunc and nowhere else, so a panel lost them at the moment it was
    converted — a dimmed cell came back full-strength ink, a truncated one started wrapping.
    Same declarations, same reasons, restated for the grid that replaced it. */
-.deskgrid .mud-table-body .mud-table-cell .dim { color: var(--text-tertiary); }
+.deskgrid .mud-table-body .mud-table-cell .dim { color: var(--text-secondary); }
 
 /* Applied to the cell itself, through a column's CellClass — the same place .grid put it. */
 .deskgrid .mud-table-body .mud-table-cell.trunc {
@@ -365,6 +365,22 @@
    on later it should still sit on the desk's surface rather than Material's. */
 .deskgrid .mud-table-foot .mud-table-cell { border-top: 1px solid var(--separator); color: var(--text-secondary); }
 .deskgrid .mud-table-pagination { border-top: 1px solid var(--separator); color: var(--text-secondary); }
+
+/* The column resize handle. Mud draws nothing at rest and a 2px Material-primary bar under the
+   pointer; the desk draws the handle as a column edge in the header, the way a macOS table
+   header does — one 1px --separator-strong line, centred in Mud's 8px grab strip — and lights
+   it in the accent while it is hovered or dragged, because then it is a control in use. The
+   strip keeps its width, so the target stays easy to hit while the line stays a hairline. */
+.deskgrid .mud-table-cell .mud-resizer {
+    border-right: 0;
+    background: linear-gradient(var(--separator-strong), var(--separator-strong)) center / 1px 100% no-repeat;
+}
+
+.deskgrid .mud-table-cell .mud-resizer:hover,
+.deskgrid .mud-table-cell .mud-resizing {
+    border-right: 0;
+    background: linear-gradient(var(--accent), var(--accent)) center / 1px 100% no-repeat;
+}
 
 /* A grid whose rows go somewhere says so on the row, not just in a cell. */
 .deskgrid--clickable .mud-table-body .mud-table-row { cursor: pointer; }

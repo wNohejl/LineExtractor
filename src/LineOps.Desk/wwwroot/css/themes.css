@@ -18,6 +18,9 @@
    DeskThemeTests enforces the first mechanically for every block here, holds
    each to its C# mirror in Theming/DeskPalette.cs, and computes the contrast
    of secondary and tertiary text in every block rather than trusting a table.
+   ThemeContrastTests holds each block's four inks (--state-*-ink, --accent-ink)
+   to 4.5:1 over its own --surface-1: a family whose fill fails as text carries
+   its own palette value, deepened or lifted until it reads, as the ink.
 
    Load order: after lineops.css. Every block weighs (0,1,0), the same as :root,
    and wins on source order alone.
@@ -69,6 +72,13 @@
     --state-negative-wash: rgba(191, 97, 106, .18);
     --state-warning-wash: rgba(235, 203, 139, .16);
 
+    /* Ink. Aurora green, yellow and Frost read as text already; nord11 red is 3.05:1 on
+       nord0, so its ink is the same red lifted until it reads. */
+    --state-positive-ink: #A3BE8C; /* 6.13:1 */
+    --state-warning-ink: #EBCB8B; /* 8.00:1 */
+    --state-negative-ink: #D99197; /* 5.02:1 */
+    --accent-ink: #88C0D0; /* 6.24:1 */
+
     --chart-neutral: #7B88A1;
     --chart-neutral-dim: #4C566A;
 
@@ -118,6 +128,13 @@
     --state-positive-wash: rgba(122, 154, 94, .15);
     --state-negative-wash: rgba(191, 97, 106, .14);
     --state-warning-wash: rgba(208, 135, 112, .15);
+
+    /* Ink. Every Aurora hue is a fill on Snow Storm (2.6 to 3.8:1 as text), so each ink
+       is its hue deepened; the accent ink is --accent-press. */
+    --state-positive-ink: #557140; /* 5.07:1 */
+    --state-warning-ink: #9C5A44; /* 4.90:1 */
+    --state-negative-ink: #A8505A; /* 4.90:1 */
+    --accent-ink: #486690; /* 5.42:1 */
 
     --chart-neutral: #7B88A1;
     --chart-neutral-dim: #A5AFC0;
@@ -183,6 +200,13 @@
     --state-negative-wash: rgba(220, 50, 47, .18);
     --state-warning-wash: rgba(181, 137, 0, .18);
 
+    /* Ink. Green and yellow read on base03; red (3.25:1) and blue (4.08:1) do not, so
+       red is lifted and blue takes --accent-hover. */
+    --state-positive-ink: #859900; /* 4.69:1 */
+    --state-warning-ink: #B58900; /* 4.68:1 */
+    --state-negative-ink: #F26562; /* 4.87:1 */
+    --accent-ink: #3E9BDC; /* 4.95:1 */
+
     --chart-neutral: #839496; /* base0 */
     --chart-neutral-dim: #586E75; /* base01 */
 
@@ -232,6 +256,13 @@
     --state-positive-wash: rgba(133, 153, 0, .15);
     --state-negative-wash: rgba(220, 50, 47, .13);
     --state-warning-wash: rgba(181, 137, 0, .15);
+
+    /* Ink. On base3 the accents are fills (green and yellow under 3:1), so each ink is
+       its hue deepened; red takes --state-negative-hover, blue --accent-press. */
+    --state-positive-ink: #5F6E00; /* 5.24:1 */
+    --state-warning-ink: #856400; /* 5.10:1 */
+    --state-negative-ink: #B8201D; /* 5.97:1 */
+    --accent-ink: #1A6699; /* 5.72:1 */
 
     --chart-neutral: #93A1A1; /* base1 */
     --chart-neutral-dim: #BFC6BE;
@@ -290,6 +321,13 @@
     --state-negative-wash: rgba(235, 111, 146, .16);
     --state-warning-wash: rgba(246, 193, 119, .15);
 
+    /* Ink. Foam, gold, love and iris all read on the Main surface, so the inks are
+       the fills. */
+    --state-positive-ink: #9CCFD8; /* 9.68:1 */
+    --state-warning-ink: #F6C177; /* 10.06:1 */
+    --state-negative-ink: #EB6F92; /* 5.67:1 */
+    --accent-ink: #C4A7E7; /* 7.88:1 */
+
     --chart-neutral: #908CAA; /* subtle */
     --chart-neutral-dim: #6E6A86; /* muted */
 
@@ -341,6 +379,14 @@
     --state-positive-wash: rgba(86, 148, 159, .15);
     --state-negative-wash: rgba(180, 99, 122, .14);
     --state-warning-wash: rgba(234, 157, 52, .16);
+
+    /* Ink. Dawn's hues are pale on its surface (2.2 to 4.0:1). Positive takes pine, the
+       palette's deeper teal; gold is deepened; love takes --state-negative-hover and
+       iris --accent-press. */
+    --state-positive-ink: #286983; /* 5.88:1 */
+    --state-warning-ink: #9A6114; /* 4.94:1 */
+    --state-negative-ink: #9E4F66; /* 5.37:1 */
+    --accent-ink: #6F5889; /* 5.89:1 */
 
     --chart-neutral: #9893A5; /* Dawn muted */
     --chart-neutral-dim: #CECACD; /* Dawn highlight-high */
@@ -405,6 +451,12 @@
     --state-negative-wash: rgba(255, 92, 92, .20);
     --state-warning-wash: rgba(255, 178, 36, .20);
 
+    /* Ink. Already built to be read: the inks are the fills. */
+    --state-positive-ink: #3DDC6E; /* 10.99:1 */
+    --state-warning-ink: #FFB224; /* 10.98:1 */
+    --state-negative-ink: #FF5C5C; /* 6.54:1 */
+    --accent-ink: #4DB8FF; /* 9.07:1 */
+
     --chart-neutral: #A0A0A0;
     --chart-neutral-dim: #6E6E6E;
 
@@ -454,6 +506,12 @@
     --state-positive-wash: rgba(0, 122, 31, .14);
     --state-negative-wash: rgba(200, 0, 30, .12);
     --state-warning-wash: rgba(163, 90, 0, .14);
+
+    /* Ink. Already built to be read: the inks are the fills. */
+    --state-positive-ink: #007A1F; /* 5.52:1 */
+    --state-warning-ink: #A35A00; /* 5.22:1 */
+    --state-negative-ink: #C8001E; /* 6.04:1 */
+    --accent-ink: #0050C8; /* 7.04:1 */
 
     --chart-neutral: #6E6E6E;
     --chart-neutral-dim: #A8A8A8;
