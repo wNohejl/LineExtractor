@@ -22,9 +22,9 @@
     {
     <MetricRow>
         <Metric Label="Open"
-                Value="@_open.ToString()"
+                Value='@_open.ToString("N0")'
                 State="@(_open > 0 ? DeskState.Negative : DeskState.Positive)" />
-        <Metric Label="Resolved" Value="@_resolved.ToString()" State="DeskState.Positive" />
+        <Metric Label="Resolved" Value='@_resolved.ToString("N0")' State="DeskState.Positive" />
         <Metric Label="Median resolve" Value="@_mttr" />
     </MetricRow>
 
@@ -49,56 +49,104 @@
     }
     else
     {
-        <DeskGrid T="Incident" Items="_incidents" Class="deskgrid--clickable"
-                  OnRowClick="@(e => SelectAsync(e.Item.Id))"
-                  EmptyText="No incidents match this filter.">
-            <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
-                <CellTemplate><span class="mono dim">@context.Item.Id</span></CellTemplate>
-            </PropertyColumn>
+        @* Two lists under two names. One table held both, sorted by when each opened, so the
+           tiles sat straight on a run of rows whose first question — is this still open? — was
+           answered in the fifth column. Open leads, because it is the work; Resolved is the
+           record. A list with nothing in it is not drawn: the Open tile already says zero. *@
+        @if (_openIncidents.Count > 0)
+        {
+            <PanelSection Title="Open">
+                <DeskGrid T="Incident" Items="_openIncidents" Class="deskgrid--clickable"
+                          OnRowClick="@(e => SelectAsync(e.Item.Id))"
+                          EmptyText="No open incidents.">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
+                        <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
+                    </PropertyColumn>
 
-            <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
-                <CellTemplate>
-                    <Tag State="@SeverityState(context.Item.Severity)">
-                        @context.Item.Severity
-                    </Tag>
-                </CellTemplate>
-            </PropertyColumn>
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
+                        <CellTemplate>
+                            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
+                        </CellTemplate>
+                    </PropertyColumn>
 
-            <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
-                <CellTemplate>
-                    <DeskLink Destination="RCA"
-                              Icon="@Icons.Material.Filled.Description"
-                              OnClick="() => SelectAsync(context.Item.Id)">
-                        @context.Item.Title
-                    </DeskLink>
-                </CellTemplate>
-            </PropertyColumn>
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
+                        <CellTemplate>
+                            <DeskLink Destination="RCA"
+                                      Icon="@Icons.Material.Filled.Description"
+                                      OnClick="() => SelectAsync(context.Item.Id)">
+                                @context.Item.Title
+                            </DeskLink>
+                        </CellTemplate>
+                    </PropertyColumn>
 
-            <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
-                <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
-            </PropertyColumn>
+                    <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
+                        <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
+                    </PropertyColumn>
 
-            <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
-                            Align="Align.Right" InitialDirection="SortDirection.Descending">
-                <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
-            </PropertyColumn>
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
+                                    Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
+                    </PropertyColumn>
 
-            @* Sorted, because "which incidents still owe an RCA" is the discipline this
-               window exists to enforce. *@
-            <PropertyColumn T="Incident" TProperty="bool"
-                            Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
-                <CellTemplate>
-                    @if (string.IsNullOrWhiteSpace(context.Item.RootCause))
-                    {
-                        <Tag State="DeskState.Warning">Missing</Tag>
-                    }
-                    else
-                    {
-                        <Tag State="DeskState.Positive">Written</Tag>
-                    }
-                </CellTemplate>
-            </PropertyColumn>
-        </DeskGrid>
+                    @* Sorted, because "which incidents still owe an RCA" is the discipline this
+                       window exists to enforce. A written one is said quietly; a missing one
+                       keeps its tag, so it is the thing that stands out. *@
+                    <PropertyColumn T="Incident" TProperty="bool"
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
+                        <CellTemplate>@Rca(context.Item)</CellTemplate>
+                    </PropertyColumn>
+                </DeskGrid>
+            </PanelSection>
+        }
+
+        @if (_resolvedIncidents.Count > 0)
+        {
+            @* The record. Its state is in its name, so it has no State column; how long each took
+               is the reading instead. Severity is a fact about the past here, said in words: a run
+               of red capsules down a list of finished incidents would read as an alarm. *@
+            <PanelSection Title="Resolved">
+                <DeskGrid T="Incident" Items="_resolvedIncidents" Class="deskgrid--clickable"
+                          OnRowClick="@(e => SelectAsync(e.Item.Id))"
+                          EmptyText="No resolved incidents.">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
+                        <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
+                        <CellTemplate><span class="quiet">@SeverityName(context.Item.Severity)</span></CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
+                        <CellTemplate>
+                            <DeskLink Destination="RCA"
+                                      Icon="@Icons.Material.Filled.Description"
+                                      OnClick="() => SelectAsync(context.Item.Id)">
+                                @context.Item.Title
+                            </DeskLink>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
+                                    Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
+                    </PropertyColumn>
+
+                    @* Sorts on the real duration, so "slowest to resolve" is a click. *@
+                    <PropertyColumn T="Incident" TProperty="double"
+                                    Property="i => i.TimeToResolve == null ? 0 : i.TimeToResolve.Value.TotalMinutes"
+                                    Title="Took" Align="Align.Right">
+                        <CellTemplate>
+                            <span class="num dim">@(context.Item.TimeToResolve is { } took ? Duration(took) : "—")</span>
+                        </CellTemplate>
+                    </PropertyColumn>
+
+                    <PropertyColumn T="Incident" TProperty="bool"
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
+                        <CellTemplate>@Rca(context.Item)</CellTemplate>
+                    </PropertyColumn>
+                </DeskGrid>
+            </PanelSection>
+        }
     }
     }
 }
@@ -111,7 +159,7 @@ else
     <PanelTitle>
         <ChildContent>@_selected.Title</ChildContent>
         <Tags>
-            <Tag State="@SeverityState(_selected.Severity)">@_selected.Severity</Tag>
+            <Tag State="@SeverityState(_selected.Severity)">@SeverityName(_selected.Severity)</Tag>
             <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
         </Tags>
         <Detail>#@_selected.Id · opened @Starts(_selected.OpenedAt)</Detail>
@@ -131,35 +179,46 @@ else
         <RunbookSteps RuleKey="@rule" Open="@(_selected.Status != IncidentStatus.Resolved)" />
     }
 
+    @* A grouped list: the time leads each row in one column and the note trails, an inset
+       hairline between. It was a stack of stamp-over-text pairs with nothing to align them, and
+       the composer under them a field named only by its placeholder. Writing a note is the
+       operator's; a visitor reads the timeline (ADR 0018). *@
     <PanelSection Title="Timeline">
-        <DeskStack>
-            @foreach (var note in _timeline)
-            {
-                <div>
-                    <div class="mono meta">
-                        @DisplayTime.Format(note.At, "MMM d HH:mm:ss") @DisplayTime.Label
-                    </div>
-                    <div>@note.Note</div>
-                </div>
-            }
-
-        @* Writing a note is the operator's; a visitor reads the timeline (ADR 0018). It is the
-           stack's last row, so the stack's gap, not a margin, parts it from the last note. *@
-        @if (Manager.Access.CanOperate)
+        @if (_timeline.Count == 0 && !Manager.Access.CanOperate)
         {
-            <DeskRow>
-                @* Immediate: the Add key beside it is disabled until there is text, so the key has
-                   to learn about the first keystroke rather than about the blur. *@
-                <DeskField TValue="string" Immediate="true" style="flex:1; min-width:180px"
-                           placeholder="Add a timeline note" @bind-Value="_newNote" />
-                <DeskButton OnClick="AddNoteAsync"
-                            Disabled="@string.IsNullOrWhiteSpace(_newNote)"
-                            Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
-                    Add
-                </DeskButton>
-            </DeskRow>
+            <p class="opsnone">Nothing on the timeline yet.</p>
         }
-        </DeskStack>
+        else
+        {
+            <div class="wgroup opsgroup opsgroup--log">
+                @foreach (var note in _timeline)
+                {
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label opsstamp">@DisplayTime.Format(note.At, "MMM d HH:mm:ss") @DisplayTime.Label</span>
+                        <span class="opsrow__text">@note.Note</span>
+                    </div>
+                }
+
+                @if (Manager.Access.CanOperate)
+                {
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">New note</span>
+                        <div class="opsrow">
+                            @* Immediate: the Add key beside it is disabled until there is text, so the key has
+                               to learn about the first keystroke rather than about the blur. *@
+                            <DeskField TValue="string" Immediate="true" Class="opsrow__fill"
+                                       aria-label="New timeline note"
+                                       placeholder="What was seen, or what was tried" @bind-Value="_newNote" />
+                            <DeskButton OnClick="AddNoteAsync"
+                                        Disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                                        Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
+                                Add
+                            </DeskButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
     </PanelSection>
 
     @* The RCA writes: a visitor reads it once it is resolved — which is the point of keeping
@@ -168,23 +227,30 @@ else
     {
         @if (_selected.Status == IncidentStatus.Resolved)
         {
+            @* Read back as the facts of a grouped list, each under its own name; the two answers
+               used to sit one above the other with nothing to say which was which. *@
             <PanelSection Title="Root-cause analysis">
-                <DeskStack>
-                    <div>@_selected.RootCause</div>
-                    <div>@_selected.CorrectiveActions</div>
-                </DeskStack>
+                <div class="wgroup opsgroup opsgroup--log">
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Root cause</span>
+                        <span class="opsrow__text">@_selected.RootCause</span>
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Corrective action</span>
+                        <span class="opsrow__text">@_selected.CorrectiveActions</span>
+                    </div>
+                </div>
             </PanelSection>
         }
     }
     else
     {
         <PanelSection Title="Root-cause analysis">
-            <Note State="@(_selected.Status == IncidentStatus.Resolved ? DeskState.Neutral : DeskState.Warning)">
-                Both fields are required to resolve. An incident without a cause and a fix teaches
-                nothing later.
-            </Note>
-
-            <PanelForm>
+            @* Capped at a form's width: across a maximised window the two fields ran 1,500px and
+               the keys sat at the far edge, a screen away from the text they commit. What the
+               form needs is said once, quietly, under its fields — a footer, not a tinted box
+               above them; the Resolve key's tooltip says which of it is still missing. *@
+            <PanelForm Class="opsrca">
                 <ChildContent>
                     <DeskTextArea rows="4" Label="Root cause" Required
                                   placeholder="What actually broke, and why did it break now?"
@@ -193,6 +259,11 @@ else
                     <DeskTextArea rows="4" Label="Corrective action" Required
                                   placeholder="What change prevents a recurrence? Reference the commit."
                                   @bind-Value="_corrective" />
+
+                    <p class="opsfoot">
+                        Both are needed to resolve. An incident without a cause and a fix teaches
+                        nothing later.
+                    </p>
 
                     @if (_error is not null)
                     {
@@ -209,7 +280,7 @@ else
 
                     @* Two different reasons this key is grey, and the operator cannot tell them
                        apart by looking: the RCA is short of a field, or the incident is already
-                       resolved and there is nothing left to do. The Note above states the rule;
+                       resolved and there is nothing left to do. The footer above states the rule;
                        the title states which of the two is true right now. *@
                     <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
                                 OnClick="ResolveAsync" Disabled="@(!CanResolve)"
@@ -231,6 +302,11 @@ else
     [Parameter] public int? IncidentId { get; set; }
 
     private IReadOnlyList<Incident> _incidents = [];
+
+    /// <summary>The work and the record, split once per read rather than per render.</summary>
+    private IReadOnlyList<Incident> _openIncidents = [];
+    private IReadOnlyList<Incident> _resolvedIncidents = [];
+
     private Incident? _selected;
     private IReadOnlyList<TimelineNote> _timeline = [];
 
@@ -298,8 +374,10 @@ else
         var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
 
         _incidents = await service.GetAllAsync();
-        _open = _incidents.Count(i => i.Status != IncidentStatus.Resolved);
-        _resolved = _incidents.Count(i => i.Status == IncidentStatus.Resolved);
+        _openIncidents = _incidents.Where(i => i.Status != IncidentStatus.Resolved).ToList();
+        _resolvedIncidents = _incidents.Where(i => i.Status == IncidentStatus.Resolved).ToList();
+        _open = _openIncidents.Count;
+        _resolved = _resolvedIncidents.Count;
 
         var durations = _incidents
             .Where(i => i.TimeToResolve is not null)
@@ -409,6 +487,25 @@ else
     /// <summary>Critical reads as Negative; anything below it is Warning.</summary>
     private static DeskState SeverityState(AlertSeverity severity)
         => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
+
+    /// <summary>Severity as a word, not an enum member: Warn reads as Warning.</summary>
+    private static string SeverityName(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Warn => "Warning",
+        _ => severity.ToString()
+    };
+
+    /// <summary>
+    /// Whether the RCA is written. Written is the expected state and is said quietly; Missing
+    /// keeps its tag, so down a column of incidents it is the one that stands out.
+    /// </summary>
+    private RenderFragment Rca(Incident incident)
+    {
+        if (string.IsNullOrWhiteSpace(incident.RootCause))
+            return @<Tag State="DeskState.Warning">Missing</Tag>;
+
+        return @<span class="quiet">Written</span>;
+    }
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch
     {

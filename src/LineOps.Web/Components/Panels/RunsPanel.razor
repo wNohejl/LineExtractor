@@ -11,7 +11,7 @@
 
 <PanelToolbar>
     <ChildContent>
-        <DeskSelect TValue="string"
+        <DeskSelect TValue="string" aria-label="Source"
                     Value="_sourceFilter" ValueChanged="OnSourceChanged">
             <option value="">All sources</option>
             @foreach (var s in _sources)
@@ -20,7 +20,7 @@
             }
         </DeskSelect>
 
-        <DeskSelect TValue="string"
+        <DeskSelect TValue="string" aria-label="State"
                     Value="_statusFilter" ValueChanged="OnStatusChanged">
             <option value="">Any state</option>
             @foreach (var s in Enum.GetValues<RunStatus>())
@@ -36,12 +36,9 @@
     </Actions>
 </PanelToolbar>
 
-<Note>
-    Every execution lands here, successful or not — this table is the only feed the KPIs and
-    alerts are computed from.
-</Note>
-
-<PanelSection Title="Runs">
+@* No section rule over the table: the window is called Runs and the table is all it holds, so a
+   rule saying "Runs" again named nothing. What the table is for is its footer, under it in the
+   secondary colour, rather than a filled note between the toolbar and the rows. *@
 @if (Failed)
 {
     <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
@@ -51,9 +48,19 @@
 {
 <DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet."
           Loading="@(!Loaded)" LoadingLabel="Fetching runs">
+    @* Success is the expected outcome and is said quietly; a run that failed or half-failed
+       keeps its tag. Two hundred green capsules was a wall of colour, and the red one it was
+       there to show was hard to find in it. *@
     <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
         <CellTemplate>
-            <Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag>
+            @if (context.Item.Status == RunStatus.Success)
+            {
+                <span class="quiet">Success</span>
+            }
+            else
+            {
+                <Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag>
+            }
         </CellTemplate>
     </PropertyColumn>
 
@@ -92,15 +99,15 @@
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" Format="N0"
                     HeaderClass="col--wider" CellClass="col--wider" />
 
-    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Req" Align="Align.Right"
+    <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Requests" Align="Align.Right"
                     HeaderClass="col--wider" CellClass="col--wider">
-        <CellTemplate><span class="quiet">@context.Item.RequestsMade</span></CellTemplate>
+        <CellTemplate><span class="quiet">@context.Item.RequestsMade.ToString("N0")</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right"
                     HeaderClass="col--wider" CellClass="col--wider">
         <CellTemplate>
-            <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString() : "—")</span>
+            <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString("N0") : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
@@ -110,8 +117,19 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+
+@if (Loaded)
+{
+    <p class="opsfoot">
+        Every run lands here, successful or not; the KPIs and alerts are computed from this table
+        alone.
+        @if (_runs.Count >= RunLimit)
+        {
+            <text>The latest @RunLimit.ToString("N0") are shown.</text>
+        }
+    </p>
 }
-</PanelSection>
+}
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
@@ -122,6 +140,9 @@
 
     /// <summary>Set when opened from a source's name elsewhere on the desk.</summary>
     [Parameter] public int? SourceId { get; set; }
+
+    /// <summary>How many of the latest runs the table holds; the footer says so when it is full.</summary>
+    private const int RunLimit = 200;
 
     private List<IngestionRun> _runs = [];
     private List<Source> _sources = [];
@@ -191,7 +212,7 @@
         if (Enum.TryParse<RunStatus>(_statusFilter, out var status))
             query = query.Where(r => r.Status == status);
 
-        _runs = await query.OrderByDescending(r => r.StartedAt).Take(200).ToListAsync();
+        _runs = await query.OrderByDescending(r => r.StartedAt).Take(RunLimit).ToListAsync();
     }
 
     // Recent failures are what this window is for, so they drive its pulse.

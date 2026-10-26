@@ -11,23 +11,8 @@
 @inject IOptions<LineOps.Ingestion.Configuration.IngestionOptions> Ingestion
 @inject DeskToasts Toasts
 
-@* The one action this window exists to commit — rolling the KPIs up and re-running the alert
-   rules — so it is the panel's single Filled. Busy rather than Disabled: an evaluation in
-   flight is a control that is occupied, not one that is not for you, and the shimmer says
-   which. See ADR 0016. *@
 @* A visitor reads Ops — source health, SLOs, the alerts and what they cost — and changes none of
    it: no evaluation, no polling switch, no incident, no fault injected (ADR 0018). *@
-@if (Manager.Access.CanOperate)
-{
-    <PanelToolbar>
-        <Actions>
-                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
-                            OnClick="EvaluateAsync" Busy="@_busy">
-                    Evaluate now
-                </DeskButton>
-        </Actions>
-    </PanelToolbar>
-}
 
 @if (Failed)
 {
@@ -54,14 +39,35 @@ else
         @_healthy/@_health.Count
     </Metric>
     <Metric Label="Open alerts"
-            Value="@_alerts.Count.ToString()"
-            Note='@(_criticals > 0 ? $"{_criticals} critical" : "none critical")'
+            Value='@_alerts.Count.ToString("N0")'
+            Note='@(_criticals > 0 ? $"{_criticals:N0} critical" : "none critical")'
             State="@(_criticals > 0 ? DeskState.Negative : _alerts.Count > 0 ? DeskState.Warning : DeskState.Positive)" />
     <Metric Label="Rows today" Value='@_rowsToday.ToString("N0")' />
     <Metric Label="Open incidents"
-            Value="@_openIncidents.ToString()"
+            Value='@_openIncidents.ToString("N0")'
             State="@(_openIncidents > 0 ? DeskState.Negative : DeskState.Positive)" />
 </MetricRow>
+
+@* The one action this window exists to commit — rolling the KPIs up and re-running the alert
+   rules — so it is the panel's single Filled. Busy rather than Disabled: an evaluation in
+   flight is a control that is occupied, not one that is not for you, and the shimmer says
+   which. See ADR 0016.
+
+   It sits under the figures it recomputes, leading, with the line that says what it does. It
+   used to be the only thing in a toolbar of its own, pinned to the right edge: in a maximised
+   window that was a 40px band above the tiles that read as empty, with the key a screen's width
+   from anything it acts on (HIG: the primary action aligns with the content; nothing pinned to
+   a far edge away from what it belongs to). *@
+@if (Manager.Access.CanOperate)
+{
+    <div class="opsact">
+        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                    OnClick="EvaluateAsync" Busy="@_busy">
+            Evaluate now
+        </DeskButton>
+        <span class="opsact__why">Rolls today's figures up and runs the alert rules again.</span>
+    </div>
+}
 
 @*
     Odds feeds get their own section because their failure mode is silence: an unconfigured
@@ -70,131 +76,15 @@ else
 *@
 <PanelSection Title="Odds feeds">
 
-@* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
-   here regardless would describe a schedule that is not running — the number would be real
-   arithmetic about an allowance nobody is spending. What is left still matters, because that is
-   what a press of Pull lines draws on. *@
-@if (!_unattended)
-{
-    <p class="empty">
-        Lines are pulled on request only — nothing is fetched unasked.
-        @if (_plan?.ScansRemainingToday is { } available)
-        {
-            <text>
-                @* Credits, not requests. The two are equal on this desk — one sport, two
-                   markets — which is exactly why showing the wrong one would look right until
-                   a market or a sport is added. *@
-                <span class="mono">@available</span> pulls left in @_plan.WindowLabel allowance, at
-                <span class="mono">@(_plan.CreditsPerScan)</span> credits each.
-            </text>
-        }
-        @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
-        @if (Manager.Access.CanOperate)
-        {
-            <text>Use <strong>Pull data → Pull lines</strong>.</text>
-        }
-    </p>
-
-    @* The price, before anything is spent: what each sport's scan asks for and bills, and how
-       often the scheduler would scan at that price if it were switched on. The planner paces on
-       what is left, so it never overspends — a longer market list shows up here as a slower
-       cadence, which is the real cost of adding one. *@
-    @if (_plan is { } projected && _marketsBySport.Count > 0)
-    {
-        <p class="empty">
-            @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
-            {
-                @(index > 0 ? " · " : "")<span class="mono">@sport.Sport.ToUpperInvariant()</span>
-                @* Spelled as one expression: a leading space inside <text> before code was dropped, and
-                   the sport ran into its markets ("MLBmoneyline"). *@
-                @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
-                @if (sport.Credits > 0)
-                {
-                    <text> (<span class="mono">@sport.Credits</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
-                }
-            }.
-            @if (projected.ScansRemainingToday is { } left && left > 0)
-            {
-                <text>
-                    Switched to automatic, this list would scan about every
-                    <span class="mono">@Cadence(projected.BudgetInterval)</span> for the rest of
-                    @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
-                    first pitch, slower far from it.
-                </text>
-            }
-        </p>
-    }
-}
-else if (_plan is { } plan)
-{
-    <p class="empty">
-        Scanning every <span class="mono">@Cadence(plan.Interval)</span> at
-        <span class="mono">@plan.CostPerScan</span> requests a scan
-        @if (plan.ScansRemainingToday is { } left)
-        {
-            @* "today's" or "this month's" — the provider decides which, and saying the wrong
-               one turns a month's remaining allowance into an apparently generous day. *@
-            <text>— <span class="mono">@left</span> scans left in @plan.WindowLabel allowance</text>
-            @if (plan.BoundBy is { } bound)
-            {
-                <text>, paced by <span class="mono">@bound</span></text>
-            }
-        }
-        else
-        {
-            <text>— nothing metered, so this is the politeness floor rather than a budget</text>
-        }.
-    </p>
-}
-
-@* The switch the paragraph above prices. Held with the data, so the web host and the worker obey
-   the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
-   turning it off stops spending and needs no second thought. Only offered with a live feed:
-   scheduling scans of a provider that cannot be reached would spend nothing and say otherwise. *@
-@* The switch and the feeds it governs, one stack so the stack owns the air between them. *@
-<DeskStack>
-@if (Manager.Access.CanOperate && _feeds.Any(f => f.IsLive))
-{
-    <DeskRow Gap="DeskSpace.Space2">
-        @if (_unattended)
-        {
-            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.PanTool"
-                        OnClick="() => SetPollingAsync(automatic: false)">
-                Pull on request only
-            </DeskButton>
-        }
-        else if (_confirmAutomatic)
-        {
-            <span class="meta">
-                Scan at this price until switched back, from this host and the worker alike?
-            </span>
-            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                        Icon="@Icons.Material.Filled.Schedule"
-                        OnClick="() => SetPollingAsync(automatic: true)">
-                Yes, scan automatically
-            </DeskButton>
-            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
-        }
-        else
-        {
-            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Schedule"
-                        OnClick="() => _confirmAutomatic = true">
-                Scan automatically…
-            </DeskButton>
-        }
-        <span class="meta">
-            @(_pollingSetHere ? "Chosen here." : "From configuration until chosen here.")
-        </span>
-    </DeskRow>
-}
-
 <DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds providers configured.">
+    @* Live is the state a feed is meant to be in, so it is said quietly; Off keeps its tag,
+       because it is the one an operator is looking for. *@
     <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
             @if (context.Item.IsLive)
             {
-                <Tag State="DeskState.Positive">Live</Tag>
+                <span class="quiet">Live</span>
             }
             else
             {
@@ -207,7 +97,7 @@ else if (_plan is { } plan)
 
     <TemplateColumn T="OddsProviderState" Title="Books" Sortable="false">
         <CellTemplate>
-            <span class="dim">@string.Join(", ", context.Item.Books)</span>
+            <span class="dim">@string.Join(", ", context.Item.Books.Select(BookNames.Display))</span>
         </CellTemplate>
     </TemplateColumn>
 
@@ -215,7 +105,119 @@ else if (_plan is { } plan)
         <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
     </PropertyColumn>
 </DeskGrid>
-</DeskStack>
+
+@* The switch the footers below price. Held with the data, so the web host and the worker obey
+   the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
+   turning it off stops spending and needs no second thought. Only offered with a live feed:
+   scheduling scans of a provider that cannot be reached would spend nothing and say otherwise.
+
+   A grouped row, as a setting is drawn (apple-hig-components, forms.md): the name leads, the
+   control trails, and what the choice costs is the group's footer rather than a paragraph
+   running the width of the window. Two modes, both worth seeing, so a segmented control; a
+   choice of Automatic waits on the confirm row under it before anything is spent. *@
+@if (ShowsScanning)
+{
+    <div class="wgroup opsgroup">
+        <div class="wgroup__row wgroup__row--form">
+            <span class="wgroup__label">Scanning</span>
+            <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
+                        Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
+        </div>
+        @if (_confirmAutomatic)
+        {
+            <div class="wgroup__row opsconfirm">
+                <span class="opsconfirm__ask">
+                    Scan at this price until switched back, from this host and the worker alike?
+                </span>
+                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                            Icon="@Icons.Material.Filled.Schedule"
+                            OnClick="() => SetPollingAsync(automatic: true)">
+                    Yes, scan automatically
+                </DeskButton>
+                <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
+            </div>
+        }
+    </div>
+}
+
+@* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
+   here regardless would describe a schedule that is not running — the number would be real
+   arithmetic about an allowance nobody is spending. What is left still matters, because that is
+   what a press of Pull lines draws on. *@
+@if (!_unattended)
+{
+    <p class="@FootClass">
+        Lines are pulled on request only — nothing is fetched unasked.
+        @if (_plan?.ScansRemainingToday is { } available)
+        {
+            <text>
+                @* Credits, not requests. The two are equal on this desk — one sport, two
+                   markets — which is exactly why showing the wrong one would look right until
+                   a market or a sport is added. *@
+                <span class="num">@available.ToString("N0")</span> pulls left in @_plan.WindowLabel allowance, at
+                <span class="num">@_plan.CreditsPerScan.ToString("N0")</span> credits each.
+            </text>
+        }
+        @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
+        @if (Manager.Access.CanOperate)
+        {
+            <text>Use <strong>Pull data → Pull lines</strong>.</text>
+        }
+        @Provenance
+    </p>
+
+    @* The price, before anything is spent: what each sport's scan asks for and bills, and how
+       often the scheduler would scan at that price if it were switched on. The planner paces on
+       what is left, so it never overspends — a longer market list shows up here as a slower
+       cadence, which is the real cost of adding one. *@
+    @if (_plan is { } projected && _marketsBySport.Count > 0)
+    {
+        <p class="@FootClass">
+            @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
+            {
+                @(index > 0 ? " · " : "")<span>@sport.Sport.ToUpperInvariant()</span>
+                @* Spelled as one expression: a leading space inside <text> before code was dropped, and
+                   the sport ran into its markets ("MLBmoneyline"). *@
+                @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
+                @if (sport.Credits > 0)
+                {
+                    <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
+                }
+            }.
+            @if (projected.ScansRemainingToday is { } left && left > 0)
+            {
+                <text>
+                    Switched to automatic, this list would scan about every
+                    <span class="num">@Cadence(projected.BudgetInterval)</span> for the rest of
+                    @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
+                    first pitch, slower far from it.
+                </text>
+            }
+        </p>
+    }
+}
+else if (_plan is { } plan)
+{
+    <p class="@FootClass">
+        Scanning every <span class="num">@Cadence(plan.Interval)</span> at
+        <span class="num">@plan.CostPerScan.ToString("N0")</span> requests a scan
+        @if (plan.ScansRemainingToday is { } left)
+        {
+            @* "today's" or "this month's" — the provider decides which, and saying the wrong
+               one turns a month's remaining allowance into an apparently generous day. *@
+            <text>— <span class="num">@left.ToString("N0")</span> scans left in @plan.WindowLabel allowance</text>
+            @if (plan.BoundBy is { } bound)
+            {
+                <text>, paced by @FeedName(bound)</text>
+            }
+        }
+        else
+        {
+            <text>— nothing metered, so this is the politeness floor rather than a budget</text>
+        }.
+        @Provenance
+    </p>
+}
 </PanelSection>
 
 <PanelSection Title="Source health">
@@ -265,6 +267,8 @@ else if (_plan is { } plan)
         </CellTemplate>
     </PropertyColumn>
 
+    @* Healthy is said quietly, as Live is above: a column of green capsules on every row is a
+       wall of colour that hides the one row that is not. Stale and Degraded keep their tags. *@
     <TemplateColumn T="SourceHealth" Title="State" Sortable="false">
         <CellTemplate>
             @if (context.Item.NeverRun)
@@ -281,7 +285,7 @@ else if (_plan is { } plan)
             }
             else
             {
-                <Tag State="DeskState.Positive">Healthy</Tag>
+                <span class="quiet">Healthy</span>
             }
         </CellTemplate>
     </TemplateColumn>
@@ -290,16 +294,25 @@ else if (_plan is { } plan)
 
 <PanelSection Title="Open alerts">
 
+@* Nothing open is a sentence, not an empty table: a header row with nothing under it reads as a
+   table that failed to fill, and this is the all-clear the window exists to give. *@
+@if (_alerts.Count == 0)
+{
+    <p class="opsnone">No open alerts. Every source is inside its SLO.</p>
+}
+else
+{
 <DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending">
         <CellTemplate>
-            <Tag State="@SeverityState(context.Item.Severity)">@context.Item.Severity</Tag>
+            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
         </CellTemplate>
     </PropertyColumn>
 
+    @* The rule's name in words; its key, which is what the runbook is filed under, on hover. *@
     <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule">
-        <CellTemplate><span class="mono dim">@context.Item.RuleKey</span></CellTemplate>
+        <CellTemplate><span class="dim" title="@context.Item.RuleKey">@RuleName(context.Item.RuleKey)</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened">
@@ -329,64 +342,75 @@ else if (_plan is { } plan)
                 <DeskLink Destination="incident"
                           Icon="@Icons.Material.Filled.ReportProblem"
                           OnClick="() => Manager.OpenIncident(context.Item.IncidentId.Value)">
-                    <span class="mono">#@context.Item.IncidentId</span>
+                    <span class="num">#@context.Item.IncidentId</span>
                 </DeskLink>
             }
         </CellTemplate>
     </TemplateColumn>
 </DeskGrid>
+}
 </PanelSection>
 }
 
-@* The drill breaks a source on purpose; a visitor watches the result, never causes it. *@
+@* The drill breaks a source on purpose; a visitor watches the result, never causes it.
+
+   A grouped form: each injectable source a row, its name leading and its fault trailing; what
+   the drill does is the group's footer, not a filled note above it; and the key that runs it
+   leads under the group. It was a note box, then rows laid out with an inline min-width, then
+   the key — three shapes for one form. *@
 @if (Manager.Access.CanOperate)
 {
     <PanelSection Title="On-call drill">
-    <Note>
-        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
-        one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
-        With no fault injected the run is a real metered pull, so it scans the league with the most
-        games still to start rather than a league named in the code.
-    </Note>
-
-    <DeskStack>
-        @* Said rather than implied. With no injectable source registered the note above still
-           promises "inject a fault" and nothing on screen offers one, which reads as a missing
-           control rather than as a missing adapter. *@
-        @if (_injectable.Count == 0)
+        @if (_injectable.Count > 0)
         {
-            <EmptyState Kind="EmptyStateKind.Filtered">
-                No registered source accepts fault injection, so there is nothing to break on
-                purpose. The drill below still exercises the ingest → rollup → alert path.
-            </EmptyState>
-        }
-
-        @foreach (var source in _injectable)
-        {
-            <div class="row">
-                <span style="min-width:170px">@source.Name</span>
-                <DeskSelect TValue="string"
-                            Value="@(source.FailureMode ?? "")"
-                            ValueChanged="v => SetModeAsync(source.Id, v)">
-                    <option value="">Healthy</option>
-                    <option value="error">Upstream 503</option>
-                    <option value="timeout">Request timeout</option>
-                    <option value="empty">Empty payload (silent)</option>
-                </DeskSelect>
-                @if (source.FailureMode is not null)
+            <div class="wgroup opsgroup opsgroup--wide">
+                @foreach (var source in _injectable)
                 {
-                    <Tag State="DeskState.Negative">Injecting</Tag>
+                    <div class="wgroup__row wgroup__row--form" @key="source.Id">
+                        <span class="wgroup__label">@source.Name</span>
+                        <div class="opsrow">
+                            <DeskSelect TValue="string"
+                                        Value="@(source.FailureMode ?? "")"
+                                        ValueChanged="v => SetModeAsync(source.Id, v)"
+                                        aria-label="@($"Fault injected into {source.Name}")">
+                                <option value="">Healthy</option>
+                                <option value="error">Upstream 503</option>
+                                <option value="timeout">Request timeout</option>
+                                <option value="empty">Empty payload (silent)</option>
+                            </DeskSelect>
+                            @if (source.FailureMode is not null)
+                            {
+                                <Tag State="DeskState.Negative">Injecting</Tag>
+                            }
+                        </div>
+                    </div>
                 }
             </div>
         }
+        else
+        {
+            @* Said rather than implied. With no injectable source registered the footer still
+               promises "inject a fault" and nothing on screen offers one, which reads as a missing
+               control rather than as a missing adapter. *@
+            <p class="opsfoot">
+                No registered source accepts fault injection, so there is nothing to break on
+                purpose. The drill still exercises the ingest → rollup → alert path.
+            </p>
+        }
 
-        <div class="row">
+        <p class="@(_injectable.Count > 0 ? "wgroup__foot opsfoot" : "opsfoot")">
+            Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
+            one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
+            With no fault injected the run is a real metered pull, so it scans the league with the most
+            games still to start rather than a league named in the code.
+        </p>
+
+        <div class="opsact">
             <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
                         OnClick="DrillAsync" Busy="@_busy">
                 Run ingest &amp; evaluate
             </DeskButton>
         </div>
-    </DeskStack>
     </PanelSection>
 }
 
@@ -422,21 +446,89 @@ else if (_plan is { } plan)
         await LoadAsync();
     }
 
-    /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
+    /// <summary>The two ways lines are fetched, as the Scanning row's segments.</summary>
+    private static readonly IReadOnlyList<DeskSwitchOption<bool>> ScanModes =
+    [
+        new(false, "On request", "Lines are pulled only when Pull lines is pressed"),
+        new(true, "Automatic", "Lines are scanned on a schedule, paced to the allowance")
+    ];
+
+    /// <summary>
+    /// The segment pressed. Automatic is held on the confirm row until it is said yes to, so the
+    /// control shows the choice while the question beside it is open; On request stops spending
+    /// at once, and pressing the mode already in force withdraws a pending question.
+    /// </summary>
+    private async Task ChooseScanningAsync(bool automatic)
+    {
+        if (automatic == _unattended)
+        {
+            _confirmAutomatic = false;
+            return;
+        }
+
+        if (automatic)
+        {
+            _confirmAutomatic = true;
+            return;
+        }
+
+        await SetPollingAsync(automatic: false);
+    }
+
+    /// <summary>The switch is the operator's, and only offered when there is a live feed to scan.</summary>
+    private bool ShowsScanning => Manager.Access.CanOperate && _feeds.Any(f => f.IsLive);
+
+    /// <summary>
+    /// The prose under the feeds is the Scanning group's footer when the group is drawn, inset to
+    /// its rows; without it, the same lines are the section's footnotes, flush with the grid.
+    /// </summary>
+    private string FootClass => ShowsScanning ? "wgroup__foot opsfoot" : "opsfoot";
+
+    /// <summary>
+    /// Where the mode in force came from — said only beside the switch that sets it. It follows
+    /// a sentence, and Razor drops the whitespace before an expression, so the space is its own.
+    /// </summary>
+    private string? Provenance => !ShowsScanning
+        ? null
+        : _pollingSetHere
+            ? " Chosen here, for this host and the worker alike."
+            : " Set by configuration until it is chosen here.";
+
     private IReadOnlyList<SportMarkets> _marketsBySport = [];
 
+    /// <summary>A provider by the name the feeds table gives it; the planner reports its key.</summary>
+    private string FeedName(string key)
+        => _feeds.FirstOrDefault(f => string.Equals(f.Key, key, StringComparison.OrdinalIgnoreCase))?.Name ?? key;
+
+    /// <summary>A market by its display name, as the board's headers spell it.</summary>
     private static string MarketName(string market) => market switch
     {
-        Markets.Moneyline => "moneyline",
-        Markets.Spread => "spread",
-        Markets.Total => "total",
+        Markets.Moneyline => "Moneyline",
+        Markets.Spread => "Spread",
+        Markets.Total => "Total",
         _ => market
     };
 
+    /// <summary>
+    /// A rule by name rather than by key: "volume_anomaly" reads as "Volume anomaly". The key
+    /// stays on the cell's tooltip, because it is what the runbook files the rule under.
+    /// </summary>
+    private static string RuleName(string key)
+        => string.IsNullOrEmpty(key) ? key : char.ToUpperInvariant(key[0]) + key[1..].Replace('_', ' ');
+
+    /// <summary>Severity as a word, not an enum member: Warn reads as Warning.</summary>
+    private static string SeverityName(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.Warn => "Warning",
+        _ => severity.ToString()
+    };
+
+    /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
     private static string Cadence(TimeSpan interval)
         => interval.TotalHours >= 1
             ? $"{interval.TotalHours:0.#}h"
             : $"{interval.TotalMinutes:0.#}m";
+
     private IReadOnlyList<Alert> _alerts = [];
     private List<Source> _injectable = [];
     private int _healthy;
