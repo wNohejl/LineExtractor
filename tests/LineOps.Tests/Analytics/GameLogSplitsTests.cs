@@ -141,6 +141,52 @@ public class GameLogSplitsTests
     }
 
     /// <summary>
+    /// A level final is not a loss. <c>Won</c> is "scored more", so a tie reads not-won, and a
+    /// record that counted not-won as lost said 5-1 above a game log drawing that game as T.
+    /// </summary>
+    [Fact]
+    public void A_tie_is_not_a_loss()
+    {
+        var log = new[]
+        {
+            Row(1, forScore: 5, againstScore: 3),
+            Row(2, forScore: 2, againstScore: 2),
+            Row(3, forScore: 1, againstScore: 4)
+        };
+
+        Assert.Equal((1, 1), Record(log));
+        Assert.Equal(1, Ties(log));
+    }
+
+    [Fact]
+    public void A_record_with_a_tie_reads_wins_losses_ties()
+    {
+        var log = new[]
+        {
+            Row(1, forScore: 5, againstScore: 3),
+            Row(2, forScore: 20, againstScore: 20),
+            Row(3, forScore: 1, againstScore: 4),
+            Row(4, forScore: 7, againstScore: 6)
+        };
+
+        Assert.Equal("2-1-1", FormatRecord(log));
+    }
+
+    /// <summary>A league without ties keeps the record it has always read: two numbers.</summary>
+    [Fact]
+    public void A_record_without_a_tie_reads_wins_losses()
+    {
+        var log = new[]
+        {
+            Row(1, forScore: 5, againstScore: 3),
+            Row(2, forScore: 1, againstScore: 4),
+            Row(3, status: GameStatus.Scheduled, forScore: 0, againstScore: 0)
+        };
+
+        Assert.Equal("1-1", FormatRecord(log));
+    }
+
+    /// <summary>
     /// An ATS record that folds pushes into either column misstates it: 8-2-3 is neither 8-2
     /// nor 8-5, and a bettor reading either would draw the wrong conclusion about the edge.
     /// </summary>

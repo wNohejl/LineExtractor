@@ -1,0 +1,41 @@
+@using LineOps.Desk.Primitives
+
+@*
+    What a snippet shows when its load failed: the sentence naming what did not load, and the
+    key that loads it again.
+
+    LoadFailure's job at row scale. A panel's failure is the Error kind of EmptyState, a block
+    with room around it; a snippet is a few lines under a grid row, so it keeps the warning
+    note it always used and carries the key inside it, Plain and small, at the line's end.
+
+    The key is the only retry a snippet has. A row's views are a segmented control, and
+    pressing the chosen segment again does nothing, so a sentence ending "Try again." named an
+    action the row no longer offered. The sentence now says only what did not load; the key
+    says what to do.
+
+    Clicks stop here. The strip and the Board's hosted child row already stop a click inside
+    them before it reaches the grid row, which opens the game; this stops its own as well, so a
+    snippet hosted somewhere without that guard cannot open a window by asking to load again.
+*@
+
+<div @onclick:stopPropagation="true">
+    <Note State="DeskState.Warning" Style="margin:0">
+        <DeskRow Justify="DeskJustify.Between">
+            <span>@Message</span>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
+                        Icon="@Icons.Material.Filled.Refresh" OnClick="Retry">
+                Try again
+            </DeskButton>
+        </DeskRow>
+    </Note>
+</div>
+
+@code {
+    /// <summary>What did not load, as a sentence: "The market did not load."</summary>
+    [Parameter, EditorRequired] public string? Message { get; set; }
+
+    /// <summary>The snippet's own load, run again. A callback, so the snippet re-renders as it settles.</summary>
+    [Parameter, EditorRequired] public EventCallback OnRetry { get; set; }
+
+    private Task Retry() => OnRetry.InvokeAsync();
+}

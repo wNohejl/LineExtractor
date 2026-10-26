@@ -21,7 +21,7 @@
 }
 else if (_error is not null)
 {
-    <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
+    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
 }
 else if (_rows.Count == 0)
 {
@@ -83,7 +83,10 @@ else
     private bool _loading = true;
     private string? _error;
 
-    protected override async Task OnParametersSetAsync()
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
+    private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
@@ -99,7 +102,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "Recent games did not load");
-            _error = "Recent games did not load. Try again.";
+            _error = "Recent games did not load.";
         }
         finally
         {

@@ -105,20 +105,22 @@
 else
 {
     @* The incident is the window's subject, so its name is the window's title — not a section
-       rule, which names a part of the window rather than the thing the window is about. *@
+       rule, which names a part of the window rather than the thing the window is about.
+       Severity and state are tags on its baseline, said once: the meta line used to repeat the
+       severity the toolbar's tag already showed, and the toolbar is for keys. *@
     <PanelTitle>
         <ChildContent>@_selected.Title</ChildContent>
-        <Detail>#@_selected.Id · @_selected.Severity · opened @Starts(_selected.OpenedAt)</Detail>
+        <Tags>
+            <Tag State="@SeverityState(_selected.Severity)">@_selected.Severity</Tag>
+            <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
+        </Tags>
+        <Detail>#@_selected.Id · opened @Starts(_selected.OpenedAt)</Detail>
     </PanelTitle>
 
     <PanelToolbar>
         <DeskButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="() => _selected = null">
             All incidents
         </DeskButton>
-        <Tag State="@SeverityState(_selected.Severity)">
-            @_selected.Severity
-        </Tag>
-        <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
     </PanelToolbar>
 
     @* The procedure before the workspace: an incident is opened to be worked, and the first thing

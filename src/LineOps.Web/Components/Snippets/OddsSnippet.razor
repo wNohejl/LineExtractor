@@ -21,7 +21,7 @@
 }
 else if (_error is not null)
 {
-    <Note State="DeskState.Warning" Style="margin:0">@_error</Note>
+    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
 }
 else if (_row is null || _row.Unpriced is { } reason)
 {
@@ -55,7 +55,10 @@ else
     private bool _loading = true;
     private string? _error;
 
-    protected override async Task OnParametersSetAsync()
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
+    private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
@@ -70,7 +73,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "The market did not load");
-            _error = "The market did not load. Try again.";
+            _error = "The market did not load.";
         }
         finally
         {

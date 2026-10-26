@@ -74,11 +74,38 @@ public static class GameLogSplits
     /// <summary>
     /// Record over a set of rows, counting only games that finished.
     ///
-    /// Returned as a tuple rather than a type because it has no behaviour and two call sites;
-    /// a record here would be ceremony around two integers.
+    /// A loss is a final the team scored fewer in, not any final it did not win: <c>Won</c> is
+    /// "scored more", so a level final is not-won, and counting not-won as lost turned an NFL
+    /// tie into a loss under a game log that draws it T. Ties are neither column here; see
+    /// <see cref="Ties"/>, and <see cref="FormatRecord"/> for the record as it is read.
+    ///
+    /// Returned as a tuple rather than a type because it has no behaviour; a record here would
+    /// be ceremony around two integers.
     /// </summary>
     public static (int Wins, int Losses) Record(IReadOnlyList<TeamGameLogRow> rows)
-        => (rows.Count(r => r.Won == true), rows.Count(r => r.Won == false));
+        => (rows.Count(r => r.Won == true), rows.Count(IsLoss));
+
+    /// <summary>Finals that ended level. Zero in a league that does not end games tied.</summary>
+    public static int Ties(IReadOnlyList<TeamGameLogRow> rows)
+        => rows.Count(r => r.Status == Core.Entities.GameStatus.Final
+                           && r.ScoreFor is { } f && r.ScoreAgainst is { } a && f == a);
+
+    /// <summary>
+    /// The record as the desk reads it: "5-1", or "5-0-1" once a tie is in it. The third
+    /// number is only written when there is one, so a baseball record keeps the two numbers
+    /// it has always had.
+    /// </summary>
+    public static string FormatRecord(IReadOnlyList<TeamGameLogRow> rows)
+    {
+        var (wins, losses) = Record(rows);
+        var ties = Ties(rows);
+
+        return ties > 0 ? $"{wins}-{losses}-{ties}" : $"{wins}-{losses}";
+    }
+
+    private static bool IsLoss(TeamGameLogRow r)
+        => r.Status == Core.Entities.GameStatus.Final
+           && r.ScoreFor is { } f && r.ScoreAgainst is { } a && f < a;
 
     /// <summary>
     /// Against-the-spread record. Pushes are counted separately because an ATS record that

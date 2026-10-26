@@ -322,9 +322,9 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// </summary>
     protected static string StateStatus(IReadOnlyList<TeamGameLogRow> season, string? seasonLabel)
     {
-        var (wins, losses) = GameLogSplits.Record(season);
+        var record = GameLogSplits.FormatRecord(season);
 
-        return seasonLabel is null ? $"{wins}-{losses}" : $"{wins}-{losses} · {seasonLabel}";
+        return seasonLabel is null ? record : $"{record} · {seasonLabel}";
     }
 
     protected static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();

@@ -68,4 +68,18 @@ public class SubjectWindowStatusTests
 
         Assert.Equal("5-0 · 2026", Probe.Of(season, "2026"));
     }
+
+    [Fact]
+    public void A_tied_final_reads_as_a_tie_not_a_loss()
+    {
+        // The window's log draws a level final as T; the bar above it must not call it a loss.
+        var season = Enumerable.Range(1, 5)
+            .Select(i => new TeamGameLogRow(i, DateTimeOffset.UnixEpoch.AddDays(i), "KC", true,
+                24, 17, GameStatus.Final, null, null, null, null))
+            .Append(new TeamGameLogRow(6, DateTimeOffset.UnixEpoch.AddDays(6), "KC", true,
+                20, 20, GameStatus.Final, null, null, null, null))
+            .ToList();
+
+        Assert.Equal("5-0-1 · 2026", Probe.Of(season, "2026"));
+    }
 }
