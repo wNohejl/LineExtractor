@@ -135,6 +135,21 @@ public class BoardWagerTests : WagerTestContext
     }
 
     [Fact]
+    public void A_journal_that_cannot_be_read_warns_that_a_duplicate_is_not_ruled_out()
+    {
+        Data.LatestFailWith = new InvalidOperationException("journal table locked");
+
+        var cut = Render();
+        Key(cut, 25m.ToString("C0")).Click();
+
+        var warning = cut.Find(".check--warning").TextContent;
+        Assert.Contains("The journal could not be read, so a duplicate cannot be ruled out.", warning);
+        Assert.DoesNotContain("Reading the journal for this side.", cut.Markup);
+        Assert.DoesNotContain("journal table locked", cut.Markup);
+        Assert.False(Log(cut).HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void A_closing_offer_disables_Log_and_keeps_Add_to_slip()
     {
         Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));

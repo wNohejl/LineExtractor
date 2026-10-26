@@ -16,6 +16,9 @@ public sealed class FakeWagerData : IWagerData
     public int RowReads { get; private set; }
     public JournalEntry? Latest { get; set; }
     public int LatestReads { get; private set; }
+
+    /// <summary>Set to make the duplicate check's journal read fail with this.</summary>
+    public Exception? LatestFailWith { get; set; }
     public IngestionJob? LinesJob { get; set; }
     public List<string> JobsRun { get; } = [];
     public List<EntryDraft> Straights { get; } = [];
@@ -37,7 +40,7 @@ public sealed class FakeWagerData : IWagerData
     public Task<JournalEntry?> LatestOnSideAsync(int gameId, string market, string outcome, DateTimeOffset since, CancellationToken ct = default)
     {
         LatestReads++;
-        return Task.FromResult(Latest);
+        return LatestFailWith is { } ex ? Task.FromException<JournalEntry?>(ex) : Task.FromResult(Latest);
     }
 
     public Task LogStraightsAsync(IReadOnlyList<EntryDraft> bets, CancellationToken ct = default)

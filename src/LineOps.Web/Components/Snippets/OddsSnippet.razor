@@ -2,6 +2,7 @@
 @using LineOps.Core.Analytics
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
+@inject ILogger<OddsSnippet> Logger
 
 @*
     The current market on one game, at a glance.
@@ -68,7 +69,8 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Could not read the market: {ex.Message}";
+            Logger.LogError(ex, "The market did not load");
+            _error = "The market did not load. Try again.";
         }
         finally
         {

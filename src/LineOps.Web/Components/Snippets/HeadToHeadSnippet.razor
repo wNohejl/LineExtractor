@@ -2,6 +2,7 @@
 @using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
+@inject ILogger<HeadToHeadSnippet> Logger
 
 @*
     The last few meetings between these two sides, with what the market made of each.
@@ -101,7 +102,8 @@ else
         {
             // A snippet that fails must not take the row down with it — the other actions on
             // this row still work, and the operator should be told which one did not.
-            _error = $"Could not read previous meetings: {ex.Message}";
+            Logger.LogError(ex, "Previous meetings did not load");
+            _error = "Previous meetings did not load. Try again.";
         }
         finally
         {

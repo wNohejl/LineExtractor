@@ -40,7 +40,8 @@ public static class Checks
     /// </summary>
     public static IReadOnlyList<Check> Build(
         WagerOffer offer, DateTimeOffset? startsAt, DateTimeOffset now,
-        bool priorRead, JournalEntry? prior, decimal stake, CheckActions? actions = null)
+        bool priorRead, JournalEntry? prior, decimal stake, CheckActions? actions = null,
+        bool priorFailed = false)
     {
         actions ??= new CheckActions();
 
@@ -50,7 +51,7 @@ public static class Checks
             offer.Manual ? Typed(startsAt, now)
                 : offer.IsClosing ? Closing(startsAt ?? now, now, actions)
                 : Age(offer, now, actions),
-            Duplicate(priorRead, prior, actions)
+            Duplicate(priorRead, prior, actions, priorFailed)
         ];
     }
 
@@ -112,8 +113,15 @@ public static class Checks
             actions.OpenJournal is not null ? OpenJournal : null, actions.OpenJournal);
     }
 
-    public static Check Duplicate(bool read, JournalEntry? prior, CheckActions actions)
+    /// <summary>
+    /// Whether this side is already in the journal. A read that failed is a warning rather than
+    /// "reading" for ever: logging stays allowed, but nothing has ruled out a second bet.
+    /// </summary>
+    public static Check Duplicate(bool read, JournalEntry? prior, CheckActions actions, bool failed = false)
     {
+        if (failed)
+            return new Check(DeskState.Warning, "The journal could not be read, so a duplicate cannot be ruled out.");
+
         if (!read)
             return new Check(DeskState.Neutral, "Reading the journal for this side.");
 

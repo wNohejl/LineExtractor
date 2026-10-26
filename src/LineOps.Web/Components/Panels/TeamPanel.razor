@@ -22,7 +22,11 @@
     round trip, so situations can be flicked through at reading speed.
 *@
 
-@if (_team is null)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (_team is null)
 {
     <EmptyState>Loading @(_teamName ?? "the team")…</EmptyState>
 }
@@ -185,6 +189,8 @@ else
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
 
 @code {
+    protected override string LoadSubject => "The team";
+
     /// <summary>
     /// The splits strip, on the Recent games rule. Every option filters the same loaded log,
     /// so nothing here queries. Picking an opponent is a filter the strip cannot express, so

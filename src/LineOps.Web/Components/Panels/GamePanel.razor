@@ -21,7 +21,11 @@
     on form" means: a flat aggregate here, a game log or a recent-record one click away.
 *@
 
-@if (_row is null)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (_row is null)
 {
     <EmptyState>Loading the game…</EmptyState>
 }
@@ -165,6 +169,8 @@ else
 }
 
 @code {
+    protected override string LoadSubject => "The game";
+
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Journal };
 
     protected override Task RefreshAsync() => LoadAsync();

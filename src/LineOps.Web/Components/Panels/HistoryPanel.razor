@@ -56,6 +56,8 @@
     </PanelSection>
 }
 
+@if (Loaded || !Failed)
+{
 <PanelSection Title="Coverage">
 
 @if (_coverage is { } c)
@@ -92,6 +94,7 @@ else if (!Loaded && !Failed)
     <DeskSkeleton Lines="2" />
 }
 </PanelSection>
+}
 
 <PanelSection Title="Run">
 <DeskRow Justify="DeskJustify.Between">

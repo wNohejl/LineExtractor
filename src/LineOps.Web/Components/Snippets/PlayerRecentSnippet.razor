@@ -1,6 +1,7 @@
 @namespace LineOps.Web.Components.Snippets
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
+@inject ILogger<PlayerRecentSnippet> Logger
 
 @*
     A player's last few games, line by line.
@@ -97,7 +98,8 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Could not read recent games: {ex.Message}";
+            Logger.LogError(ex, "Recent games did not load");
+            _error = "Recent games did not load. Try again.";
         }
         finally
         {

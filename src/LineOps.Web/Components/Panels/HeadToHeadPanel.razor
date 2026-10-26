@@ -16,7 +16,11 @@
     resolving the sides first. The matchup is what was clicked.
 *@
 
-@if (_loading)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (_loading)
 {
     <EmptyState>Reading previous meetings…</EmptyState>
 }
@@ -152,6 +156,8 @@ else
 }
 
 @code {
+    protected override string LoadSubject => "The meetings";
+
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();

@@ -591,6 +591,7 @@ else
     // The duplicate check's reading: a field the render reads, never a query from the render.
     private JournalEntry? _prior;
     private bool _priorRead;
+    private bool _priorFailed;
 
     private IngestionJob? _linesJob;
     private bool _pulling;
@@ -807,6 +808,8 @@ else
     /// </summary>
     private async Task ReadPriorAsync()
     {
+        _priorFailed = false;
+
         if (Row is null || _market is null || _outcome is null || _noGame)
         {
             _prior = null;
@@ -817,11 +820,24 @@ else
         _priorRead = false;
         var (gameId, market, outcome) = (Row.Game.Id, _market, _outcome);
 
-        await WithActivityAsync(async () =>
+        // Its own catch rather than WithActivityAsync: a failed read here is not the window failing
+        // to load, it is one check that cannot answer. The check says so (a warning, not a block),
+        // where "reading" for ever would read as a check still on its way.
+        Report(PulseState.Active);
+
+        try
         {
             _prior = await Data.LatestOnSideAsync(gameId, market, outcome, DateTimeOffset.UtcNow - Checks.DuplicateWindow);
             _priorRead = true;
-        }, () => PulseState.Healthy);
+            Report(PulseState.Healthy);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The journal was not read for the duplicate check");
+            _prior = null;
+            _priorFailed = true;
+            Report(PulseState.Warn, "journal unread");
+        }
     }
 
     private async Task PickGameAsync(Game? game)
@@ -993,7 +1009,8 @@ else
                 return [Checks.Value(offer, _stake), Checks.Typed(null, DateTimeOffset.UtcNow)];
 
             return Checks.Build(offer, Row.Game.StartsAt, DateTimeOffset.UtcNow, _priorRead, _prior, _stake,
-                new CheckActions(PullLabel, _pulling ? null : (Func<Task>)PullAsync, OpenJournalAsync));
+                new CheckActions(PullLabel, _pulling ? null : (Func<Task>)PullAsync, OpenJournalAsync),
+                _priorFailed);
         }
     }
 
@@ -1030,7 +1047,8 @@ else
         }
         catch (Exception ex)
         {
-            Toasts.Fail($"{job.Label} failed: {ex.Message}");
+            Log.LogError(ex, "{Job} failed", job.Label);
+            Toasts.Fail($"{job.Label} did not finish. Try again.");
         }
         finally
         {
@@ -1152,7 +1170,8 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Not logged: {ex.Message}";
+            Log.LogError(ex, "The wager was not logged");
+            _error = "The entry was not logged. Try again.";
         }
         finally
         {

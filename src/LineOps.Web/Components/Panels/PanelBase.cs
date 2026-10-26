@@ -52,6 +52,7 @@ public abstract class PanelBase : ComponentBase, IDisposable
     private Func<Task>? _lastWork;
     private Func<PulseState>? _lastSettle;
     private Func<string?>? _lastStatus;
+    private int _generation;
 
     /// <summary>The panel's own log, named after the panel, for what the operator is not shown.</summary>
     protected ILogger Log => _log ??= Loggers.CreateLogger(GetType());
@@ -190,11 +191,20 @@ public abstract class PanelBase : ComponentBase, IDisposable
         _lastSettle = settle;
         _lastStatus = status;
 
+        // Loads overlap — a filter changed while a refresh was in flight — and the one that
+        // finishes last is not always the one asked for last. Only the latest started may say
+        // how the panel stands; an older one that lands after it is logged and ignored.
+        var generation = Interlocked.Increment(ref _generation);
+
         Report(PulseState.Active);
 
         try
         {
             await work();
+
+            if (generation != Volatile.Read(ref _generation))
+                return;
+
             LoadError = null;
             Loaded = true;
             Report(settle(), status?.Invoke());
@@ -202,6 +212,10 @@ public abstract class PanelBase : ComponentBase, IDisposable
         catch (Exception ex)
         {
             Log.LogError(ex, "{Panel} did not load", GetType().Name);
+
+            if (generation != Volatile.Read(ref _generation))
+                return;
+
             LoadError = $"{LoadSubject} did not load.";
             Report(PulseState.Critical, "load failed");
         }

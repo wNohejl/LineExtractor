@@ -1,6 +1,7 @@
 @namespace LineOps.Web.Components.Snippets
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
+@inject ILogger<FormSnippet> Logger
 
 @*
     Both sides' recent record, as the five results each.
@@ -74,7 +75,8 @@ else
         }
         catch (Exception ex)
         {
-            _error = $"Could not read recent form: {ex.Message}";
+            Logger.LogError(ex, "Recent form did not load");
+            _error = "Recent form did not load. Try again.";
         }
         finally
         {

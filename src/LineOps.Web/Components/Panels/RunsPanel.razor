@@ -125,6 +125,7 @@
 
     private List<IngestionRun> _runs = [];
     private List<Source> _sources = [];
+    private bool _sourcesRead;
     private string _sourceFilter = string.Empty;
     private string _statusFilter = string.Empty;
 
@@ -139,13 +140,7 @@
         if (SourceId is { } id)
             _sourceFilter = id.ToString();
 
-        await WithActivityAsync(async () =>
-        {
-            await using (var db = await DbFactory.CreateDbContextAsync())
-                _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
-
-            await ReadRunsAsync();
-        }, RunsPulse, RunsStatus);
+        await LoadAsync();
     }
 
     /// <summary>
@@ -179,6 +174,14 @@
     private async Task ReadRunsAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+
+        // Read with the first load that succeeds, so a window whose first read failed still
+        // gets its source picker once a filter or a retry gets through.
+        if (!_sourcesRead)
+        {
+            _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
+            _sourcesRead = true;
+        }
 
         var query = db.IngestionRuns.Include(r => r.Source).AsQueryable();
 

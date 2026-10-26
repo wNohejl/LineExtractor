@@ -20,7 +20,11 @@
     and no fixed column set fits baseball and hockey both.
 *@
 
-@if (_player is null)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (_player is null)
 {
     <EmptyState>Loading the player…</EmptyState>
 }
@@ -151,6 +155,8 @@ else
 }
 
 @code {
+    protected override string LoadSubject => "The player";
+
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();

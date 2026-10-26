@@ -128,6 +128,7 @@ else
 
     private List<Row> _rows = [];
     private List<Sport> _sports = [];
+    private bool _sportsRead;
     private string _sport = string.Empty;
     private string _search = string.Empty;
     private bool _capped;
@@ -140,13 +141,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await WithActivityAsync(async () =>
-        {
-            await using (var db = await DbFactory.CreateDbContextAsync())
-                _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
-
-            await ReadPlayersAsync();
-        }, PlayersPulse, PlayersStatus);
+        await LoadAsync();
     }
 
     private async Task OnSportChanged(string value)
@@ -183,6 +178,13 @@ else
     private async Task ReadPlayersAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+
+        // With the first load that succeeds, so a failed first read still gets its picker later.
+        if (!_sportsRead)
+        {
+            _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
+            _sportsRead = true;
+        }
 
         var query = db.Players.AsNoTracking()
             .Include(p => p.Sport).Include(p => p.Team)

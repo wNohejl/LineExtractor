@@ -2,6 +2,7 @@
 @using LineOps.Ingestion.Services
 @using LineOps.Desk.Windowing
 @inject IngestionJobs Jobs
+@inject ILogger<PullMenu> Logger
 @inject DeskToasts Toasts
 @inject LineOps.Desk.IDeskAccess Access
 
@@ -171,7 +172,9 @@
         }
         catch (Exception ex)
         {
-            Toasts.Fail($"{job.Label} failed: {ex.Message}");
+            // The exception is for the log; the toast says what did not happen and what to do.
+            Logger.LogError(ex, "{Job} failed", job.Label);
+            Toasts.Fail($"{job.Label} did not finish. Try again.");
         }
         finally
         {
