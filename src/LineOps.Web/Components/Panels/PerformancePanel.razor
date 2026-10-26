@@ -3,7 +3,24 @@
 @inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
 
-@if (!_anySettled)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @* The figures' lines and the bankroll chart's block, at the chart's own height, until the
+       ledger has been read — "no settled entries" is a finding, not a placeholder. *@
+    @if (!Failed)
+    {
+        <DeskStack aria-busy="true" aria-label="Reading the ledger">
+            <DeskSkeleton Lines="2" />
+            <DeskSkeleton Shape="DeskSkeletonShape.Block" Height="200px" />
+        </DeskStack>
+    }
+}
+else if (!_anySettled)
 {
     @* The one step out of an empty screen belongs on the screen. *@
     <EmptyState Kind="EmptyStateKind.New">
@@ -232,7 +249,16 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    protected override string LoadSubject => "Performance";
+
+    // CLV is the honest signal, so it — not profit — sets this window's state.
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _summary.SettledCount == 0 ? PulseState.Idle
+            : _avgClv > 0 ? PulseState.Healthy
+            : PulseState.Warn,
+        () => _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
+
+    private async Task ReadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
         var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
@@ -276,13 +302,6 @@ else
             .ToArray();
 
         ReadClv(set.Selections);
-
-        // CLV is the honest signal, so it — not profit — sets this window's state.
-        Report(
-            _summary.SettledCount == 0 ? PulseState.Idle
-            : _avgClv > 0 ? PulseState.Healthy
-            : PulseState.Warn,
-            _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
     }
 
     /// <summary>

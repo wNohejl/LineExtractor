@@ -325,10 +325,16 @@
             var logged = parlay ? Slip.Legs : Slip.Ready;
             var ids = logged.Select(i => i.Id).ToHashSet();
 
+            // Not WithActivityAsync: that is for reads, and keeps a failure to offer a retry. A
+            // write that failed must stop here with the slip untouched, so the catch below sees it.
+            Report(PulseState.Active);
+
             if (parlay)
-                await WithActivityAsync(() => Data.LogParlayAsync(Slip.ToParlayDraft()), () => PulseState.Healthy);
+                await Data.LogParlayAsync(Slip.ToParlayDraft());
             else
-                await WithActivityAsync(() => Data.LogStraightsAsync(Slip.StraightDrafts()), () => PulseState.Healthy);
+                await Data.LogStraightsAsync(Slip.StraightDrafts());
+
+            Report(PulseState.Healthy);
 
             // One line per item, in the order the slip holds them.
             var steps = Slip.Items.Select(i => !ids.Contains(i.Id)
@@ -349,8 +355,11 @@
         }
         catch (Exception ex)
         {
-            // The slip is untouched: nothing was written (one save), so nothing leaves it.
-            _error = $"Not logged: {ex.Message}";
+            // The slip is untouched: nothing was written (one save), so nothing leaves it. The
+            // exception is for the log; the operator gets what happened and what to do.
+            Log.LogError(ex, "The slip did not log");
+            Report(PulseState.Critical, "not logged");
+            _error = "The entry was not logged. Try again.";
         }
         finally
         {

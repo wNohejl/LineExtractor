@@ -42,7 +42,15 @@
 </Note>
 
 <PanelSection Title="Runs">
-<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet.">
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (Loaded || !Failed)
+{
+<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet."
+          Loading="@(!Loaded)" LoadingLabel="Fetching runs">
     <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
         <CellTemplate>
             <Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag>
@@ -102,12 +110,15 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+}
 </PanelSection>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "The runs";
 
     /// <summary>Set when opened from a source's name elsewhere on the desk.</summary>
     [Parameter] public int? SourceId { get; set; }
@@ -123,15 +134,18 @@
     {
         _aimedAt = SourceId;
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
-
         // Arriving via a shortcut lands on that source rather than on everything, which is the
         // whole point of following one — the filter then stays under the operator's control.
         if (SourceId is { } id)
             _sourceFilter = id.ToString();
 
-        await LoadAsync();
+        await WithActivityAsync(async () =>
+        {
+            await using (var db = await DbFactory.CreateDbContextAsync())
+                _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
+
+            await ReadRunsAsync();
+        }, RunsPulse, RunsStatus);
     }
 
     /// <summary>
@@ -160,7 +174,9 @@
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private Task LoadAsync() => WithActivityAsync(ReadRunsAsync, RunsPulse, RunsStatus);
+
+    private async Task ReadRunsAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
@@ -173,16 +189,18 @@
             query = query.Where(r => r.Status == status);
 
         _runs = await query.OrderByDescending(r => r.StartedAt).Take(200).ToListAsync();
-
-        // Recent failures are what this window is for, so they drive its pulse.
-        var recentFailures = _runs.Take(20).Count(r => r.Status == RunStatus.Failed);
-
-        Report(
-            recentFailures > 4 ? PulseState.Critical
-            : recentFailures > 0 ? PulseState.Warn
-            : PulseState.Healthy,
-            recentFailures > 0 ? $"{recentFailures} recent fails" : $"{_runs.Count} runs");
     }
+
+    // Recent failures are what this window is for, so they drive its pulse.
+    private int RecentFailures => _runs.Take(20).Count(r => r.Status == RunStatus.Failed);
+
+    private PulseState RunsPulse()
+        => RecentFailures > 4 ? PulseState.Critical
+            : RecentFailures > 0 ? PulseState.Warn
+            : PulseState.Healthy;
+
+    private string RunsStatus()
+        => RecentFailures > 0 ? $"{RecentFailures} recent fails" : $"{_runs.Count} runs";
 
     private static DeskState StatusState(RunStatus status) => status switch
     {

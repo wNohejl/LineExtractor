@@ -6,6 +6,20 @@
 
 @if (_selected is null)
 {
+    @if (Failed)
+    {
+        <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    }
+
+    @if (!Loaded)
+    {
+        @if (!Failed)
+        {
+            <DeskGrid T="Incident" Items="_incidents" Loading="true" LoadingLabel="Fetching incidents" />
+        }
+    }
+    else
+    {
     <MetricRow>
         <Metric Label="Open"
                 Value="@_open.ToString()"
@@ -85,6 +99,7 @@
                 </CellTemplate>
             </PropertyColumn>
         </DeskGrid>
+    }
     }
 }
 else
@@ -269,7 +284,13 @@ else
             _selected = null;
     }
 
-    private async Task LoadAsync()
+    protected override string LoadSubject => "The incidents";
+
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _open > 0 ? PulseState.Critical : PulseState.Healthy,
+        () => _open > 0 ? $"{_open} open" : "none open");
+
+    private async Task ReadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
@@ -284,9 +305,6 @@ else
             .OrderBy(t => t).ToList();
 
         _mttr = durations.Count == 0 ? "—" : Duration(durations[durations.Count / 2]);
-
-        Report(_open > 0 ? PulseState.Critical : PulseState.Healthy,
-            _open > 0 ? $"{_open} open" : "none open");
     }
 
     private async Task SelectAsync(int id)
@@ -352,7 +370,18 @@ else
         }
         catch (ArgumentException ex)
         {
-            _error = ex.Message;
+            // The service refuses a blank field; say which, in the desk's words, beside it.
+            Log.LogWarning(ex, "Incident #{Id} was not resolved", _selected?.Id);
+            _error = ex.ParamName == "correctiveActions"
+                ? "A corrective action is needed to resolve the incident."
+                : ex.ParamName == "rootCause"
+                    ? "A root cause is needed to resolve the incident."
+                    : "The incident was not saved. Try again.";
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Incident #{Id} was not resolved", _selected?.Id);
+            _error = "The incident was not saved. Try again.";
         }
     }
 

@@ -33,7 +33,24 @@
 
 </PanelToolbar>
 
-@if (_rows.Count == 0)
+@if (_syncError is not null)
+{
+    <Note State="DeskState.Warning">@_syncError</Note>
+}
+
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskGrid T="Row" Items="_rows" Loading="true" LoadingLabel="Fetching players" />
+    }
+}
+else if (_rows.Count == 0)
 {
     @if (string.IsNullOrWhiteSpace(_search) && string.IsNullOrEmpty(_sport))
     {
@@ -117,11 +134,19 @@ else
     private bool _busy;
     private CancellationTokenSource? _pending;
 
+    private string? _syncError;
+
+    protected override string LoadSubject => "The players";
+
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
-        await LoadAsync();
+        await WithActivityAsync(async () =>
+        {
+            await using (var db = await DbFactory.CreateDbContextAsync())
+                _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
+
+            await ReadPlayersAsync();
+        }, PlayersPulse, PlayersStatus);
     }
 
     private async Task OnSportChanged(string value)
@@ -149,7 +174,13 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private Task LoadAsync() => WithActivityAsync(ReadPlayersAsync, PlayersPulse, PlayersStatus);
+
+    private PulseState PlayersPulse() => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy;
+
+    private string? PlayersStatus() => _rows.Count == 0 ? null : $"{_rows.Count}{(_capped ? "+" : "")} players";
+
+    private async Task ReadPlayersAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
 
@@ -182,14 +213,12 @@ else
             .ToDictionaryAsync(x => x.Key, x => x.Count);
 
         _rows = players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList();
-
-        Report(_rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
-            _rows.Count == 0 ? null : $"{_rows.Count}{(_capped ? "+" : "")} players");
     }
 
     private async Task SyncAsync()
     {
         _busy = true;
+        _syncError = null;
         Report(PulseState.Active, "syncing");
 
         try
@@ -212,11 +241,17 @@ else
             }
 
             await LoadAsync();
-            Report(PulseState.Healthy, $"+{rows:N0} rows");
+
+            // A reload that failed has already said so; the sync's count would paper over it.
+            if (!Failed)
+                Report(PulseState.Healthy, $"+{rows:N0} rows");
         }
         catch (Exception ex)
         {
-            Report(PulseState.Critical, ex.GetType().Name);
+            // The type name was what the pulse used to say; it belongs in the log.
+            Log.LogError(ex, "Player stats sync failed");
+            Report(PulseState.Critical, "sync failed");
+            _syncError = "Player stats did not sync. Try again.";
         }
         finally
         {

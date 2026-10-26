@@ -24,6 +24,11 @@
     provider only.
 </Note>
 
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
 @if (_eligibility.Count > 0)
 {
     <PanelSection Title="Sources">
@@ -81,6 +86,10 @@
             <text>No history gathered yet.</text>
         }
     </p>
+}
+else if (!Loaded && !Failed)
+{
+    <DeskSkeleton Lines="2" />
 }
 </PanelSection>
 
@@ -191,8 +200,12 @@
    number here rather than a belief. Held against the league's schedule where it fixes one. *@
 <PanelSection Title="Seasons">
 
-<DeskGrid T="SeasonCoverage" Items="_seasons"
-          EmptyText="No games on record for the leagues in play.">
+@* Placeholders until the record is read; nothing at all if that read failed, since "no games
+   on record" would be a finding the failure line above has just said was not made. *@
+@if (Loaded || !Failed)
+{
+<DeskGrid T="SeasonCoverage" Items="_seasons" Loading="@(!Loaded)" LoadingLabel="Reading the seasons"
+          SkeletonRows="4" EmptyText="No games on record for the leagues in play.">
     <PropertyColumn T="SeasonCoverage" TProperty="string" Property="s => s.SportKey" Title="League">
         <CellTemplate><span class="mono">@context.Item.SportKey.ToUpperInvariant()</span></CellTemplate>
     </PropertyColumn>
@@ -257,11 +270,14 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+}
 </PanelSection>
 
 <PanelSection Title="Recent days">
 
-<DeskGrid T="BackfillCheckpoint" Items="_recent"
+@if (Loaded || !Failed)
+{
+<DeskGrid T="BackfillCheckpoint" Items="_recent" Loading="@(!Loaded)" LoadingLabel="Reading recent days"
           EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">
     <PropertyColumn T="BackfillCheckpoint" TProperty="DateOnly" Property="c => c.Date" Title="Day"
                     InitialDirection="SortDirection.Descending">
@@ -292,12 +308,15 @@
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+}
 </PanelSection>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "The history record";
 
     private IReadOnlyList<SourceEligibility> _eligibility = [];
     private BackfillCoverage? _coverage;

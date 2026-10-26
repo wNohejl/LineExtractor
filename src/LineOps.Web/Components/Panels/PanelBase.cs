@@ -3,6 +3,7 @@ using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
 using LineOps.Desk.Windowing;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace LineOps.Web.Components.Panels;
 
@@ -41,6 +42,40 @@ public abstract class PanelBase : ComponentBase, IDisposable
     [Inject] protected WindowManager Manager { get; set; } = default!;
 
     [Inject] private DeskSignals Signals { get; set; } = default!;
+
+    [Inject] private ILoggerFactory Loggers { get; set; } = default!;
+
+    private ILogger? _log;
+
+    // The last load, kept so Try again repeats exactly what failed — filters and all — rather
+    // than each panel remembering which of its loads it was in.
+    private Func<Task>? _lastWork;
+    private Func<PulseState>? _lastSettle;
+    private Func<string?>? _lastStatus;
+
+    /// <summary>The panel's own log, named after the panel, for what the operator is not shown.</summary>
+    protected ILogger Log => _log ??= Loggers.CreateLogger(GetType());
+
+    /// <summary>
+    /// What the panel holds, as the subject of a sentence — "The board", "The runs". The failure
+    /// line is built from it, so it names what did not arrive rather than reporting an absence.
+    /// </summary>
+    protected virtual string LoadSubject => "This window";
+
+    /// <summary>
+    /// The sentence the panel shows when its last load failed, or null. Never the exception's
+    /// own text: that is written for whoever reads the log, and it goes there.
+    /// </summary>
+    protected string? LoadError { get; private set; }
+
+    /// <summary>The last load failed. The panel shows <see cref="LoadError"/> and a retry.</summary>
+    protected bool Failed => LoadError is not null;
+
+    /// <summary>
+    /// A load has completed at least once. Before it the panel holds its shape with placeholders:
+    /// an empty result means "nothing here" only once there has been a result.
+    /// </summary>
+    protected bool Loaded { get; private set; }
 
     /// <summary>The data topics this panel draws from (<c>DataTopics</c>). Empty: never refreshed.</summary>
     protected virtual IReadOnlySet<string> Watches { get; } = new HashSet<string>();
@@ -140,21 +175,49 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// Runs a load with the pulse showing activity, then settles it on the outcome.
     /// Wrapping it here means every panel reports progress the same way rather than each
     /// remembering to.
+    ///
+    /// <para>
+    /// A failure is caught, logged and kept: the pulse goes Critical, <see cref="LoadError"/>
+    /// holds a sentence for the operator, and <see cref="RetryAsync"/> repeats the load. It is
+    /// not rethrown, because an exception escaping a lifecycle method ends the circuit — the
+    /// whole desk, not this window. So this is for reads only: a write whose caller must know it
+    /// failed handles its own failure.
+    /// </para>
     /// </summary>
     protected async Task WithActivityAsync(Func<Task> work, Func<PulseState> settle, Func<string?>? status = null)
     {
+        _lastWork = work;
+        _lastSettle = settle;
+        _lastStatus = status;
+
         Report(PulseState.Active);
 
         try
         {
             await work();
+            LoadError = null;
+            Loaded = true;
             Report(settle(), status?.Invoke());
         }
-        catch
+        catch (Exception ex)
         {
+            Log.LogError(ex, "{Panel} did not load", GetType().Name);
+            LoadError = $"{LoadSubject} did not load.";
             Report(PulseState.Critical, "load failed");
-            throw;
         }
+    }
+
+    /// <summary>
+    /// Repeats the last load. The failure line clears first, so what shows while it runs is the
+    /// placeholders, or the rows already held, rather than the sentence about the last attempt.
+    /// </summary>
+    protected Task RetryAsync()
+    {
+        if (_lastWork is null || _lastSettle is null)
+            return Task.CompletedTask;
+
+        LoadError = null;
+        return WithActivityAsync(_lastWork, _lastSettle, _lastStatus);
     }
 
     /// <summary>

@@ -102,7 +102,12 @@
     rather than about tonight; they belong on Ops beside the run log. What earns a place here is
     what changes a decision on this screen: how much of the board is priced, whether the market
     has moved at all today, and whether anything is currently saying the data may be lying.
+
+    Drawn once the board has loaded: before that every tile reads zero, which is a claim about
+    tonight the desk has not checked.
 *@
+@if (Loaded)
+{
 <MetricRow>
     <Metric Label="Games" Value='@_rows.Count.ToString("N0")' Note="@HorizonNote"
             State="DeskState.Info" Numeric />
@@ -125,8 +130,23 @@
             OnClick="@(_alerts > 0 ? EventCallback.Factory.Create(this, Manager.OpenOps) : default)"
             ActionHint="Open the Ops window on source health and the open alerts" />
 </MetricRow>
+}
 
-@if (_rows.Count == 0)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @* Before the first load the board holds its rows' shape; "Nothing on the board" is a
+       finding, and there is nothing to find it from yet. *@
+    @if (!Failed)
+    {
+        <DeskGrid T="BoardRow" Items="_rows" Loading="true" LoadingLabel="Fetching the board" />
+    }
+}
+else if (_rows.Count == 0)
 {
     @* An honest empty state offers the fix rather than naming a control on another window.
        The pull is the first step, so it is the one action this state carries. *@
@@ -369,6 +389,8 @@ else
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Alerts };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "The board";
 
     /// <summary>Which part of the day a reader wants on screen.</summary>
     private enum BoardPhase { Any, Upcoming, Live, Played }

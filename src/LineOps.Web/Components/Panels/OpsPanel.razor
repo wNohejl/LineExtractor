@@ -29,6 +29,25 @@
     </PanelToolbar>
 }
 
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@* Until the first read, the figures and tables below would all say zero and "no alerts" —
+   the all-clear this window exists to give only when it is true. Their shape stands in. *@
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskStack>
+            <DeskSkeleton Lines="2" />
+            <DeskGrid T="SourceHealth" Items="_health" Loading="true" LoadingLabel="Reading source health" />
+        </DeskStack>
+    }
+}
+else
+{
 <MetricRow>
     <Metric Label="Sources in SLO"
             State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
@@ -317,6 +336,7 @@ else if (_plan is { } plan)
     </TemplateColumn>
 </DeskGrid>
 </PanelSection>
+}
 
 @* The drill breaks a source on purpose; a visitor watches the result, never causes it. *@
 @if (Manager.Access.CanOperate)
@@ -435,7 +455,17 @@ else if (_plan is { } plan)
     private bool IsRateLow(SourceHealth h)
         => h.RunsInWindow >= 3 && h.SuccessRate < Options.Value.SuccessRateSlo;
 
-    private async Task LoadAsync()
+    protected override string LoadSubject => "Source health";
+
+    // This window is the reason the pulse exists: it reports the platform's worst state,
+    // so a minimised Ops window still shows red when something breaches.
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _criticals > 0 ? PulseState.Critical
+            : _alerts.Count > 0 ? PulseState.Warn
+            : PulseState.Healthy,
+        () => _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
+
+    private async Task ReadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
         var kpi = scope.ServiceProvider.GetRequiredService<KpiCalculator>();
@@ -474,14 +504,6 @@ else if (_plan is { } plan)
             .ToList();
 
         _injectable = await db.Sources.Where(s => keys.Contains(s.Key)).OrderBy(s => s.Name).ToListAsync();
-
-        // This window is the reason the pulse exists: it reports the platform's worst state,
-        // so a minimised Ops window still shows red when something breaches.
-        Report(
-            _criticals > 0 ? PulseState.Critical
-            : _alerts.Count > 0 ? PulseState.Warn
-            : PulseState.Healthy,
-            _alerts.Count == 0 ? "all clear" : $"{_alerts.Count} open");
     }
 
     // Identity, not arithmetic. The same EvaluateAsync pass that opens an alert also

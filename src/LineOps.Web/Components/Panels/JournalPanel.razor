@@ -125,7 +125,19 @@ else
     </PanelForm>
 }
 
-@if (_entries.Count == 0 && _parlays.Count == 0)
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        <DeskGrid T="JournalEntry" Items="_entries" Loading="true" LoadingLabel="Fetching the journal" />
+    }
+}
+else if (_entries.Count == 0 && _parlays.Count == 0)
 {
     <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
         @(Filtered
@@ -431,7 +443,15 @@ else
 
     private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
 
-    private async Task LoadAsync()
+    protected override string LoadSubject => "The journal";
+
+    private int _pending;
+
+    private Task LoadAsync() => WithActivityAsync(ReadAsync,
+        () => _pending > 0 ? PulseState.Warn : PulseState.Healthy,
+        () => _entries.Count + _parlays.Count == 0 && !Filtered ? null : $"{_pending} pending");
+
+    private async Task ReadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
         var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
@@ -450,11 +470,8 @@ else
         await using var db = await DbFactory.CreateDbContextAsync();
         _sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync();
 
-        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
-                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
-
-        Report(pending > 0 ? PulseState.Warn : PulseState.Healthy,
-            _entries.Count + _parlays.Count == 0 && !Filtered ? null : $"{pending} pending");
+        _pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
+                   + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
     }
 
     private async Task FilterAsync(Action change)

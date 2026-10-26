@@ -1,0 +1,29 @@
+@*
+    What a panel shows when its load failed: the sentence PanelBase built ("The board did not
+    load.") and the one thing to do about it. One component so every panel says it the same
+    way — the Error kind of EmptyState, with the retry as its action — and so no panel is
+    tempted to show the exception it caught; that went to the log.
+
+    Shown in place of the panel's body before anything has loaded, and above the rows it
+    already holds after, so a refresh that failed does not take numbers the operator was
+    reading off the screen.
+*@
+
+<EmptyState Kind="EmptyStateKind.Error">
+    <ChildContent>@Message</ChildContent>
+    <Action>
+        <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh" OnClick="Retry">
+            Try again
+        </DeskButton>
+    </Action>
+</EmptyState>
+
+@code {
+    /// <summary>The panel's <c>LoadError</c>: a sentence naming what did not load.</summary>
+    [Parameter, EditorRequired] public string? Message { get; set; }
+
+    /// <summary>The panel's <c>RetryAsync</c>. A callback, so the panel re-renders when it settles.</summary>
+    [Parameter, EditorRequired] public EventCallback OnRetry { get; set; }
+
+    private Task Retry() => OnRetry.InvokeAsync();
+}

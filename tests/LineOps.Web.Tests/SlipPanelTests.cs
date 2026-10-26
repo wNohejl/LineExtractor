@@ -226,7 +226,9 @@ public class SlipPanelTests : WagerTestContext
         cut.Find("button.desk-btn--filled").Click();
 
         Assert.Equal(2, Slip.Items.Count);
-        Assert.Contains("Not logged: database is down", cut.Find(".note--warn").TextContent);
+        // A sentence for the operator; the exception's own text goes to the log, not the slip.
+        Assert.Contains("The entry was not logged. Try again.", cut.Find(".note--warn").TextContent);
+        Assert.DoesNotContain("database is down", cut.Markup);
     }
 
     [Fact]
