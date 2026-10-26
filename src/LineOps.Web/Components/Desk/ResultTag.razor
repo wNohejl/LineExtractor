@@ -1,0 +1,75 @@
+@using LineOps.Desk.Primitives
+
+@*
+    A result, as one capsule: W, L, P, or T.
+
+    Before this a result was drawn five ways — a Tag with TagStates.Won in the form run and the
+    Team window, raw "tag tag--good" spans in the Head-to-head window, and a hand-built render
+    fragment in its snippet — and P read as Info in some and as a bare span in others. They
+    happened to agree on hue; nothing held them to it. Every site now names the result and this
+    draws it: W the positive wash with positive text, L the negative pair, P and T the neutral
+    capsule, because a push returns the stake and a tie is neither side's.
+
+    It is a Tag underneath, so it is exactly a tag's size and holds a 29px row. .tag--result
+    only centres the word and gives a single letter a floor, so a run of W and L capsules reads
+    as even beads rather than a W wider than its L.
+
+    The word defaults to the letter. A site whose column says more (Cover / No, O 8.5) passes
+    its own word; the capsule and its state stay the same.
+*@
+
+<Tag State="@StateOf(Result)" Class="@Classes" Title="@Title">@(ChildContent ?? Letter)</Tag>
+
+@code {
+    [Parameter, EditorRequired] public ResultKind Result { get; set; }
+
+    /// <summary>A longer word than the letter, for a column that needs one. Optional.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The game or line behind the capsule — one letter cannot name it.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private RenderFragment Letter => b => b.AddContent(0, LetterOf(Result));
+
+    private string Classes => Class is { Length: > 0 } ? $"tag--result {Class}" : "tag--result";
+
+    /// <summary>What each result means to the operator. Push and tie are no one's.</summary>
+    public static DeskState StateOf(ResultKind result) => result switch
+    {
+        ResultKind.Win => DeskState.Positive,
+        ResultKind.Loss => DeskState.Negative,
+        _ => DeskState.Neutral
+    };
+
+    public static string LetterOf(ResultKind result) => result switch
+    {
+        ResultKind.Win => "W",
+        ResultKind.Loss => "L",
+        ResultKind.Push => "P",
+        _ => "T"
+    };
+
+    /// <summary>
+    /// A game's result from its side's point of view. Null while the game is unfinished — a
+    /// game in progress has not been lost. The lookups grade a final as for &gt; against, so a
+    /// tie reaches here as "not won"; the level score is what says it was a tie.
+    /// </summary>
+    public static ResultKind? Of(bool? won, int? scoreFor, int? scoreAgainst) => won switch
+    {
+        null => null,
+        _ when scoreFor is { } f && scoreAgainst is { } a && f == a => ResultKind.Tie,
+        true => ResultKind.Win,
+        false => ResultKind.Loss
+    };
+
+    /// <summary>A graded bet's result. Pending and void have none to show.</summary>
+    public static ResultKind? Of(EntryResult result) => result switch
+    {
+        EntryResult.Win => ResultKind.Win,
+        EntryResult.Loss => ResultKind.Loss,
+        EntryResult.Push => ResultKind.Push,
+        _ => null
+    };
+}

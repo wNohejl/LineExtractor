@@ -26,11 +26,16 @@
     {
         var g = _run[i];
 
-        <Tag State="@TagStates.Won(g.Won)"
-             Class="@(i == _run.Count - 1 ? "formrun__latest" : null)"
-             Title="@Describe(g, i == _run.Count - 1)">
-            @(g.Won == true ? "W" : g.Won == false ? "L" : "–")
-        </Tag>
+        var latest = i == _run.Count - 1 ? "formrun__latest" : null;
+
+        if (ResultTag.Of(g.Won, g.ScoreFor, g.ScoreAgainst) is { } result)
+        {
+            <ResultTag Result="@result" Class="@latest" Title="@Describe(g, latest is not null)" />
+        }
+        else
+        {
+            <Tag State="DeskState.Info" Class="@latest" Title="@Describe(g, latest is not null)">–</Tag>
+        }
     }
 </span>
 

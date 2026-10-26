@@ -98,11 +98,11 @@ else
             <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Winner" Align="Align.Right"
                             SortBy="@(r => r.SubjectWon is { } w ? (w ? 2 : 0) : 1)">
                 <CellTemplate>
-                    @if (context.Item.SubjectWon is { } won)
+                    @if (ResultTag.Of(context.Item.SubjectWon, context.Item.HomeScore, context.Item.AwayScore) is { } result)
                     {
-                        <span class="tag @(won ? "tag--good" : "tag--bad")">
-                            @(won ? _homeName : _awayName)
-                        </span>
+                        <ResultTag Result="@result">
+                            @(result switch { ResultKind.Win => _homeName, ResultKind.Loss => _awayName, _ => "Tie" })
+                        </ResultTag>
                     }
                     else
                     {
@@ -121,12 +121,11 @@ else
             <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="ATS" Align="Align.Right"
                             SortBy="@(r => r.AtsResult is { } a ? (int)a : int.MinValue)">
                 <CellTemplate>
-                    @if (context.Item.AtsResult is { } ats)
+                    @if (context.Item.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
                     {
-                        <span class="tag @(ats == EntryResult.Win ? "tag--good" : ats == EntryResult.Loss ? "tag--bad" : "tag--info")"
-                              title="@_homeName against the closing spread">
+                        <ResultTag Result="@cover" Title="@($"{_homeName} against the closing spread")">
                             @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
-                        </span>
+                        </ResultTag>
                     }
                     else
                     {
@@ -138,11 +137,13 @@ else
             <TemplateColumn T="HeadToHeadRow" Sortable="true" Title="Total" Align="Align.Right"
                             SortBy="@(r => r.TotalResult is { } t ? (int)t : int.MinValue)">
                 <CellTemplate>
-                    @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line)
+                    @if (context.Item.TotalResult is { } total && context.Item.ClosingTotal is { } line
+                         && ResultTag.Of(total) is { } over)
                     {
-                        <span class="tag @(total == EntryResult.Win ? "tag--good" : total == EntryResult.Loss ? "tag--bad" : "tag--info")">
+                        @* Graded from the over's point of view, so a win is an over. *@
+                        <ResultTag Result="@over">
                             @(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line
-                        </span>
+                        </ResultTag>
                     }
                     else
                     {

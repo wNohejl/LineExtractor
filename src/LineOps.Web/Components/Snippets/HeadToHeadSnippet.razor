@@ -55,8 +55,27 @@ else
                         @(row.HasScore ? $"{row.AwayScore}-{row.HomeScore}" : "—")
                     </td>
                     <td class="r mono">@(row.ClosingSpread is { } s ? Line(s) : "—")</td>
-                    <td class="r">@ResultTag(row.AtsResult)</td>
-                    <td class="r">@TotalTag(row.TotalResult, row.ClosingTotal)</td>
+                    <td class="r">
+                        @if (row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
+                        {
+                            <ResultTag Result="@cover">@(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")</ResultTag>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
+                    </td>
+                    <td class="r">
+                        @* Graded from the over's point of view, so a win is an over and a loss an under. *@
+                        @if (row.TotalResult is { } total && row.ClosingTotal is { } line && ResultTag.Of(total) is { } over)
+                        {
+                            <ResultTag Result="@over">@(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line</ResultTag>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
@@ -114,47 +133,4 @@ else
     private static string Day(DateTimeOffset at) => DisplayTime.Format(at, "MMM d, yyyy");
 
     private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
-
-    private static RenderFragment ResultTag(EntryResult? result) => builder =>
-    {
-        if (result is null)
-        {
-            builder.AddContent(0, "—");
-            return;
-        }
-
-        var (css, text) = result switch
-        {
-            EntryResult.Win => ("tag--good", "Cover"),
-            EntryResult.Loss => ("tag--bad", "No"),
-            _ => ("tag--info", "Push")
-        };
-
-        builder.OpenElement(1, "span");
-        builder.AddAttribute(2, "class", $"tag {css}");
-        builder.AddContent(3, text);
-        builder.CloseElement();
-    };
-
-    private static RenderFragment TotalTag(EntryResult? result, decimal? line) => builder =>
-    {
-        if (result is null || line is null)
-        {
-            builder.AddContent(0, "—");
-            return;
-        }
-
-        // Graded from the over's point of view, so a win is an over and a loss is an under.
-        var (css, text) = result switch
-        {
-            EntryResult.Win => ("tag--good", $"O {line}"),
-            EntryResult.Loss => ("tag--bad", $"U {line}"),
-            _ => ("tag--info", $"P {line}")
-        };
-
-        builder.OpenElement(1, "span");
-        builder.AddAttribute(2, "class", $"tag {css}");
-        builder.AddContent(3, text);
-        builder.CloseElement();
-    };
 }

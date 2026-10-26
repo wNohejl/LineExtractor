@@ -15,8 +15,10 @@
 *@
 
 @* A region rather than a plain div: it appears in response to a press, and announcing it as a
-   named landmark is what tells a screen-reader user that something arrived and what it is. *@
-<div class="snippet" id="@Id" role="region" aria-label="@Title">
+   named landmark is what tells a screen-reader user that something arrived and what it is.
+   It arrives the same way to the eye: a short fade down from just above, so the answer reads
+   as coming from the key that was pressed rather than having been there all along. *@
+<div class="snippet snippet--arrive"id="@Id" role="region" aria-label="@Title">
     <div class="snippet__bar">
         <span class="snippet__icon"><Glyph Icon="@Icon" /></span>
         <span class="snippet__title">@Title</span>

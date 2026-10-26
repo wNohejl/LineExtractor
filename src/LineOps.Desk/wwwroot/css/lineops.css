@@ -2589,7 +2589,12 @@ body.dialog-dragging { user-select: none; }
    The word is sentence case at --text-footnote (11px), untracked — it was caption (10px)
    capitals at .07em, an all-caps eyebrow the HIG does not have (audit 2026-10-25). The
    box is unchanged by that: line-height 14px + 2px + 2px padding = 18px, and 11px glyphs
-   sit inside a 14px line with room to spare, so the 29px row holds. */
+   sit inside a 14px line with room to spare, so the 29px row holds.
+
+   A live tag's dot (.tag__live, below) is a 6px inline-block lifted 1px off the baseline,
+   which puts its centre on the cap height and its whole box inside that same 14px line —
+   so a live tag is still an 18px capsule and the row still measures 29px. A result capsule
+   (.tag--result) changes only its width, never its height. */
 .tag {
     display: inline-block;
     padding: 2px var(--space-2);
@@ -2610,6 +2615,35 @@ body.dialog-dragging { user-select: none; }
 /* Info is a reading with no state to report, so it takes the neutral capsule; the accent
    is kept for what can be pressed. */
 .tag--info { background: var(--surface-3); color: var(--text-secondary); }
+
+/* A game in progress: the one state still changing while the operator reads it, so it alone
+   moves — a slow breath, not a blink. The dot is aria-hidden; the word "Live" is what is read
+   and what an operator who cannot see motion or hue still has. Warning, because that is the
+   live game's state everywhere on the desk. */
+.tag__live {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: var(--space-1);
+    border-radius: 50%;
+    background: var(--state-warning);
+    vertical-align: 1px;
+    animation: tag-live 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes tag-live {
+    from { opacity: 1; }
+    to { opacity: .35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tag__live { animation: none; }
+}
+
+/* A result — W, L, P or T (ResultTag). The state washes are the tag's own; this centres the
+   word and gives one letter a floor, so a run of results reads as even beads rather than a W
+   wider than the L beside it. Width only: the capsule is a tag's height. */
+.tag--result { min-width: 1em; text-align: center; }
 
 /* ------------------------------------------------------------------ buttons ---
    Apple's three-level hierarchy, and nothing else. ADR 0008 made gloss mean
@@ -3593,6 +3627,29 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     background: var(--surface-2);
     border-radius: var(--radius);
     overflow: hidden;
+}
+
+/* The snippet arrives rather than appears: it fades in from 4px above, the side its key is
+   on, so the answer reads as coming out of the press. 180ms ease-out matches none of the
+   desk's motion tokens (--dur-fast is 150ms, --ease-standard is the browser's ease and
+   --ease-spring overshoots), so the values are written here; an inline answer should
+   decelerate into place, not bounce. It plays once, on
+   insertion — a re-render keeps the element and does not replay it. Reduced motion keeps the
+   fade and drops the travel. */
+.snippet--arrive { animation: snippet-arrive 180ms ease-out; }
+
+@keyframes snippet-arrive {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes snippet-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .snippet--arrive { animation-name: snippet-fade; }
 }
 
 .snippet__bar {

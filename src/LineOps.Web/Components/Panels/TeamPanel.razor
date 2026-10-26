@@ -95,18 +95,27 @@ else
                                 @(row.HasScore ? $"{row.ScoreFor}-{row.ScoreAgainst}" : "—")
                             </span>
 
-                            <Tag State="@TagStates.Won(row.Won)">
-                                @(row.Won == true ? "W" : row.Won == false ? "L" : row.Status.ToString())
-                            </Tag>
+                            @if (ResultTag.Of(row.Won, row.ScoreFor, row.ScoreAgainst) is { } result)
+                            {
+                                <ResultTag Result="@result" />
+                            }
+                            else
+                            {
+                                @* Live reads as it does on the Board and in the Game window. *@
+                                <Tag State="@(row.Status == GameStatus.Live ? DeskState.Warning : TagStates.Won(row.Won))"
+                                     Live="@(row.Status == GameStatus.Live)">
+                                    @row.Status
+                                </Tag>
+                            }
 
                             @* The ATS tag rides on the closed row: it is the column an operator
                                scans for, and hiding it behind an expand would defeat the log. *@
-                            @if (row.AtsResult is { } ats)
+                            @if (row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
                             {
-                                <Tag State="@TagStates.Result(ats)"
-                                     Title="@($"Against a closing spread of {row.ClosingSpread}")">
+                                <ResultTag Result="@cover"
+                                           Title="@($"Against a closing spread of {row.ClosingSpread}")">
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
-                                </Tag>
+                                </ResultTag>
                             }
 
                             <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>

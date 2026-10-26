@@ -41,7 +41,7 @@ else
                         OnTeam="@((int teamId) => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name, WindowId))" />
         </ChildContent>
         <Tags>
-            <Tag State="@StatusState(game.Status)">@Phase(game)</Tag>
+            <Tag State="@StatusState(game.Status)" Live="@isLive">@Phase(game)</Tag>
             @if (game.DoubleHeaderGame is { } number)
             {
                 <Tag State="DeskState.Info">Game @number of a doubleheader</Tag>
@@ -105,7 +105,14 @@ else
             {
                 var clv = PerformanceAnalytics.ComputeClv(bet);
                 <DeskRow Gap="DeskSpace.Space2">
-                    <Tag State="@BetState(bet.Result)">@bet.Result</Tag>
+                    @if (ResultTag.Of(bet.Result) is { } settled)
+                    {
+                        <ResultTag Result="@settled">@bet.Result</ResultTag>
+                    }
+                    else
+                    {
+                        <Tag State="@BetState(bet.Result)">@bet.Result</Tag>
+                    }
                     <span>
                         @(bet.FreeTextMarket ?? bet.Outcome)
                         @if (bet.LineTaken is { } l)

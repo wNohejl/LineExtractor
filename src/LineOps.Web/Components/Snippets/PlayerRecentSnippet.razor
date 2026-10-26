@@ -48,11 +48,11 @@ else
                     <td class="dim">@DisplayTime.Day(row.StartsAt)</td>
                     <td class="trunc">@(row.Home ? "vs" : "at") @row.Opponent</td>
                     <td class="r">
-                        @if (row.Won is { } won)
+                        @if (ResultTag.Of(row.Won, row.ScoreFor, row.ScoreAgainst) is { } result)
                         {
-                            <Tag State="@TagStates.Won(won)">
-                                @(won ? "W" : "L")@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
-                            </Tag>
+                            <ResultTag Result="@result">
+                                @ResultTag.LetterOf(result)@(row.HasScore ? $" {row.ScoreFor}-{row.ScoreAgainst}" : "")
+                            </ResultTag>
                         }
                         else
                         {

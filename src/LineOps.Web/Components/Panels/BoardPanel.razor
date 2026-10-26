@@ -288,7 +288,8 @@ else
                 else
                 {
                     <div class="scoreline">
-                        <Tag State="@StatusState(context.Item.Game.Status)">
+                        <Tag State="@StatusState(context.Item.Game.Status)"
+                             Live="@(context.Item.Game.Status == GameStatus.Live)">
                             @StatusWord(context.Item.Game.Status)
                         </Tag>
 

@@ -15,9 +15,16 @@
 
     Unmatched attributes splat *before* class, so a stray class= from a call site cannot
     quietly erase .tag and take the badge's whole appearance with it.
+
+    Live leads the word with a small pulsing dot: a game in progress is the one state on the
+    desk still changing while the operator looks at it. The dot is a second channel, like the
+    hue — hidden from assistive tech, and never a stand-in for the word, which is what is read.
 *@
 
-<span @attributes="Extra" class="@Classes" title="@Title">@ChildContent</span>
+<span @attributes="Extra" class="@Classes" title="@Title">@if (Live)
+    {
+        <span class="tag__live" aria-hidden="true"></span>
+    }@ChildContent</span>
 
 @code {
     /// <summary>The state word itself. A tag is never blank — hue alone carries no meaning.</summary>
@@ -28,6 +35,9 @@
 
     /// <summary>Tooltip, for the detail that does not fit in a badge (an error message, a timestamp).</summary>
     [Parameter] public string? Title { get; set; }
+
+    /// <summary>The game is in progress: a pulsing dot leads the word the caller still writes.</summary>
+    [Parameter] public bool Live { get; set; }
 
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
@@ -49,6 +59,8 @@
             DeskState.Info => "tag--info",
             _ => null
         };
+
+        yield return Live ? "tag--live" : null;
 
         yield return Class;
     }
