@@ -149,14 +149,18 @@
     <DeskSwitch Options="_textScales" Label="Text size" Mono="true"
                 Value="S.TextScale" ValueChanged="@((double scale) => SetTextScale(scale))" />
 </div>
+@* A key inside a sentence reads as a link drawn the wrong shape; it sits on a row of its own
+   after the switches it resets. *@
+@if (S.UiScale != 1 || S.TextScale != 1)
+{
+    <div class="row">
+        <DeskButton OnClick="ResetScale">Reset to 100%</DeskButton>
+    </div>
+}
 <p class="empty">
     Interface scales everything — type, spacing, controls — so fewer windows fit a row
     @(S.UiScale > 1 ? $"(this desk now fits {Manager.RecommendedCapacity})" : "at larger sizes").
     Text grows only the words and leaves the layout where it is.
-    @if (S.UiScale != 1 || S.TextScale != 1)
-    {
-        <DeskButton Size="DeskKeySize.Small" OnClick="ResetScale">Reset to 100%</DeskButton>
-    }
 </p>
 
 </PanelSection>
@@ -168,14 +172,11 @@
     <DeskField TValue="int?" Mono="true" Class="field--count" type="number"
                min="@MinWindows" max="@MaxWindows" aria-label="Concurrent windows"
                Value="S.MaxConcurrentWindows" ValueChanged="@((int? n) => SetMax(n))" />
-    <DeskButton Title="One fewer window" aria-label="One fewer window"
-                OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= MinWindows)">
-        <Glyph Icon="@Icons.Material.Filled.Remove" />
-    </DeskButton>
-    <DeskButton Title="One more window" aria-label="One more window"
-                OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= MaxWindows)">
-        <Glyph Icon="@Icons.Material.Filled.Add" />
-    </DeskButton>
+    @* Icon keys, so they take the square shape rather than a label-width key with a glyph in it. *@
+    <DeskButton Icon="@Icons.Material.Filled.Remove" Title="One fewer window" aria-label="One fewer window"
+                OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= MinWindows)" />
+    <DeskButton Icon="@Icons.Material.Filled.Add" Title="One more window" aria-label="One more window"
+                OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= MaxWindows)" />
     <DeskButton OnClick="MatchRecommended">
         Match this desk (@Manager.RecommendedCapacity)
     </DeskButton>
@@ -215,11 +216,11 @@
     <p class="empty">
         The primary window takes this share of the row wherever it sits — it does not force
         its position, so dragging it to reorder the row is never fought. It is also what
-        opens on an empty desk. Dragging a divider overrides the share until you
-        <DeskButton Size="DeskKeySize.Small" OnClick="@(_ => Manager.ResetWidths())">
-            reset widths
-        </DeskButton>.
+        opens on an empty desk. Dragging a divider overrides the share until you reset the widths.
     </p>
+    <div class="row">
+        <DeskButton OnClick="@(_ => Manager.ResetWidths())">Reset widths</DeskButton>
+    </div>
 }
 
 </PanelSection>
@@ -319,12 +320,12 @@ else
         new(DeskThemeMode.System, "System")
     ];
 
-    // Five positions each, the gate's honest ceiling. Interface reaches down to 80% because a
-    // laptop running a four-window desk is the case for shrinking; text starts at 90% because
-    // the desk's footnote is already 11px and going smaller only makes it unreadable.
+    // Interface starts at 90%, not 80%: a laptop running a four-window desk is the case for
+    // shrinking, but at 80% the desk's captions fall under 10px, below the type floor, and a
+    // caption nobody can read saves no room. Text starts at 90% for the same reason — the
+    // footnote is already 11px and going smaller only makes it unreadable.
     private static readonly IReadOnlyList<DeskSwitchOption<double>> _uiScales =
     [
-        new(0.8, "80%"),
         new(0.9, "90%"),
         new(1.0, "100%"),
         new(1.25, "125%"),

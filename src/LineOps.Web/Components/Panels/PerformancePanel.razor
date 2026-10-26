@@ -42,14 +42,9 @@ else
     <PanelToolbar>
         <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
                     Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
-        <DeskSelect TValue="string" style="max-width:120px"
-                    Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
-            <option value="">All sports</option>
-            @foreach (var sport in _sports)
-            {
-                <option value="@sport">@sport.ToUpperInvariant()</option>
-            }
-        </DeskSelect>
+        @* All and the two leagues: a fixed set of three, so a segment, as in the Journal. *@
+        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                    Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
         @if (_seasons.Count > 1)
         {
             <DeskSelect TValue="int?" style="max-width:120px"
@@ -240,6 +235,13 @@ else
     private List<int> _seasons = [];
     private List<string> _books = [];
     private List<string> _markets = [];
+
+    /// <summary>
+    /// "All", then each league with a settled bet; "" is all. With bets in only one league the
+    /// segment still offers it beside All; with none, the gate draws nothing.
+    /// </summary>
+    private IReadOnlyList<DeskSwitchOption<string>> SportOptions =>
+        [new("", "All", "Every sport"), .. _sports.Select(s => new DeskSwitchOption<string>(s, s.ToUpperInvariant()))];
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

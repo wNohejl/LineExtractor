@@ -86,4 +86,51 @@ public class WindowManagerControlsTests : DeskTestContext
         match.Click();
         Assert.Equal(Manager.RecommendedCapacity, Manager.Settings.MaxConcurrentWindows);
     }
+
+    /// <summary>
+    /// 80% put the desk's captions under 10px, below the type floor; the interface scale
+    /// starts at 90%.
+    /// </summary>
+    [Fact]
+    public void Interface_scale_starts_at_ninety_percent()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var options = cut.Find("[role='radiogroup'][aria-label='Interface scale']").QuerySelectorAll(".gate__opt");
+        Assert.Equal("90%", options[0].TextContent.Trim());
+        Assert.DoesNotContain(options, o => o.TextContent.Trim() == "80%");
+    }
+
+    /// <summary>A key inside a sentence reads as a link drawn the wrong shape; each sits on a row of its own.</summary>
+    [Fact]
+    public void Reset_keys_sit_on_rows_not_inside_sentences()
+    {
+        Manager.UpdateSettings(s =>
+        {
+            s.UiScale = 1.25;
+            s.PrimaryWindowKey = Manager.Catalog.All.First(d => !d.RequiresSubject).Key;
+        });
+
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Empty(cut.FindAll("p button"));
+
+        var reset = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reset to 100%");
+        Assert.Contains("desk-btn--plain", reset.GetAttribute("class"));
+        Assert.Equal("row", reset.ParentElement!.ClassName);
+
+        var widths = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reset widths");
+        Assert.Contains("desk-btn--plain", widths.GetAttribute("class"));
+        Assert.Equal("row", widths.ParentElement!.ClassName);
+        Assert.Contains("until you reset the widths.", cut.Markup);
+    }
+
+    [Fact]
+    public void The_window_count_stepper_keys_are_square_icon_keys()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Contains("desk-btn--icon", cut.Find("button[aria-label='One fewer window']").GetAttribute("class"));
+        Assert.Contains("desk-btn--icon", cut.Find("button[aria-label='One more window']").GetAttribute("class"));
+    }
 }

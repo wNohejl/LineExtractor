@@ -29,14 +29,10 @@ else
                     Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
         <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
                     Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
-        <DeskSelect TValue="string" style="max-width:120px"
-                    Value="_sport" ValueChanged="@((string? s) => FilterAsync(() => _sport = s))">
-            <option value="">All sports</option>
-            @foreach (var sport in _sports)
-            {
-                <option value="@sport">@sport.ToUpperInvariant()</option>
-            }
-        </DeskSelect>
+        @* Two leagues and "all" is a fixed set of three, so it is a segment beside the other two
+           rather than a pop-up that hides the alternatives (HIG: segmented controls). *@
+        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                    Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
         <DeskSelect TValue="string" style="max-width:140px"
                     Value="_bookFilter" ValueChanged="@((string? b) => FilterAsync(() => _bookFilter = b))">
             <option value="">All books</option>
@@ -98,8 +94,14 @@ else
 
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Stake</span>
-                <StakeRow Stake="_entry.Stake" StakeChanged="@(s => _entry.Stake = s)"
+                <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
                           PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)" />
+                @* The shared stake row has no Error of its own, so the sentence sits after it in
+                   the field's own error style. *@
+                @if ((Touched("stake") ? StakeError(_entry.Stake) : null) is { } stakeError)
+                {
+                    <p class="field-err" role="alert">@stakeError</p>
+                }
             </div>
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Book</span>
@@ -108,7 +110,8 @@ else
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Note</span>
                 <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
-                           placeholder="Optional" @bind-Value="_entry.Note" />
+                           placeholder="Optional" Value="_entry.Note"
+                           ValueChanged="@((string? n) => Edit("note", () => _entry.Note = n))" />
             </div>
         </div>
 
@@ -116,9 +119,14 @@ else
     <Footer>
         <DeskButton OnClick="CloseForm">Cancel</DeskButton>
         @* A disabled key that does not say what it is waiting for is a key the operator
-           has to guess at. *@
+           has to guess at — and a tooltip only tells the one who hovers. The reason is text
+           beside the key, and the key points a screen reader at it. *@
+        @if (!EntryValid(_entry, true))
+        {
+            <span class="meta" id="save-why">Needs a selection, a stake above zero, a price and a book.</span>
+        }
         <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
-                    Title="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
+                    aria-describedby="@(EntryValid(_entry, true) ? null : "save-why")">
             Save changes
         </DeskButton>
     </Footer>
@@ -427,10 +435,88 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private bool Filtered => _status != JournalStatus.All || _days != 0 || _sport is { Length: > 0 } || _bookFilter is { Length: > 0 };
 
     private static bool EntryValid(Draft d, bool needsPrice)
-        => d.Stake > 0
-           && (!needsPrice || d.PriceTaken != 0)
+        => StakeError(d.Stake) is null
+           && (!needsPrice || PriceError(d.PriceTaken) is null)
            && !string.IsNullOrWhiteSpace(d.Book)
            && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
+
+    /// <summary>
+    /// American odds have a dead band: nothing is quoted between −100 and +100, so a number in
+    /// it is a typo — most often a dropped digit — and zero is no price at all.
+    /// </summary>
+    public static string? PriceError(int price)
+        => price is > -100 and < 100 ? "A price is −100 or lower, or +100 or higher." : null;
+
+    public static string? StakeError(decimal stake)
+        => stake <= 0 ? "Enter a stake above zero." : null;
+
+    /// <summary>
+    /// A spread or a total with no number cannot be graded. A total of zero or less is not a
+    /// line any game is offered at — the message says "above zero", so zero is held to it too.
+    /// A spread can sit at zero (a pick'em) or either side of it.
+    /// </summary>
+    public static string? LineError(string market, decimal? line) => market switch
+    {
+        Markets.Spread or Markets.Total when line is null => "Enter the line.",
+        Markets.Total when line <= 0 => "A total is above zero.",
+        _ => null
+    };
+
+    /// <summary>
+    /// Whether the form holds anything the journal does not. A note or a described bet cleared
+    /// back to nothing is the null it was opened with, and the manual-price flag follows the
+    /// price and line, so neither counts as a change of its own.
+    /// </summary>
+    public static bool EntryIsDirty(EntryDraft current, EntryDraft opened)
+    {
+        static EntryDraft Plain(EntryDraft d) => d with
+        {
+            Note = string.IsNullOrWhiteSpace(d.Note) ? null : d.Note,
+            FreeTextMarket = string.IsNullOrWhiteSpace(d.FreeTextMarket) ? null : d.FreeTextMarket,
+            ManualPrice = false
+        };
+
+        return Plain(current) != Plain(opened);
+    }
+
+    // A total's two sides as the grader reads them, lower-case.
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> TotalSides =
+    [
+        new("over", "Over"),
+        new("under", "Under")
+    ];
+
+    /// <summary>Away then home, by abbreviation, valued by name. Null until both teams are loaded.</summary>
+    private static IReadOnlyList<DeskSwitchOption<string>>? TeamSides(Game? game)
+        => game is { AwayTeam: { } away, HomeTeam: { } home }
+            ? [new(away.Name, away.Abbrev, away.Name), new(home.Name, home.Abbrev, home.Name)]
+            : null;
+
+    /// <summary>"All", then each enabled league; "" is all, as the filter reads it.</summary>
+    private IReadOnlyList<DeskSwitchOption<string>> SportOptions =>
+        [new("", "All", "Every sport"), .. _sports.Select(s => new DeskSwitchOption<string>(s, s.ToUpperInvariant()))];
+
+    // A field says what is wrong only once it has been touched: an error on a box nobody has
+    // reached yet tells the operator they are wrong before they have said anything.
+    private readonly HashSet<string> _touched = [];
+
+    /// <summary>The entry as it was opened, so the form can tell an edit from a look.</summary>
+    private EntryDraft? _opened;
+
+    private bool Touched(string field) => _touched.Contains(field);
+
+    /// <summary>
+    /// Every field's change comes through here: it marks the field touched, and tells the window
+    /// whether it now holds input the journal does not — so closing it, or evicting it, asks first.
+    /// </summary>
+    private void Edit(string field, Action change)
+    {
+        change();
+        _touched.Add(field);
+
+        if (_opened is not null)
+            MarkUnsaved(EntryIsDirty(_entry.ToDraft(), _opened), "this journal entry");
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -537,6 +623,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             OriginalLine = entry.LineTaken,
             WasManual = entry.ManualPrice
         };
+        _opened = _entry.ToDraft();
+        _touched.Clear();
         _mode = FormMode.Entry;
     }
 
@@ -544,11 +632,16 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         _mode = FormMode.None;
         _editing = null;
+        _opened = null;
+        _touched.Clear();
+
+        // Saved or cancelled, the form holds nothing the journal lacks.
+        MarkUnsaved(false);
     }
 
     private Task SetEntryBookAsync(string book)
     {
-        _entry.Book = book;
+        Edit("book", () => _entry.Book = book);
         return Task.CompletedTask;
     }
 
@@ -655,13 +748,14 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         <div class="wgroup__row wgroup__row--form">
             <span class="wgroup__label">Game</span>
             <GamePicker Value="d.GameId" Selected="d.Game"
-                        SelectedChanged="@((Game? g) => d.Game = g)" ValueChanged="@((int? id) => d.GameId = id)" />
+                        SelectedChanged="@((Game? g) => Edit("game", () => d.Game = g))"
+                        ValueChanged="@((int? id) => Edit("game", () => d.GameId = id))" />
         </div>
 
         <div class="wgroup__row wgroup__row--form">
             <span class="wgroup__label">Market</span>
             <DeskSelect TValue="string" Value="d.Market" Class="wfield--short" aria-label="Market"
-                        ValueChanged="@((string? m) => d.Market = m ?? Markets.Spread)">
+                        ValueChanged="@((string? m) => Edit("market", () => d.Market = m ?? Markets.Spread))">
                 <option value="@Markets.Moneyline">Moneyline</option>
                 <option value="@Markets.Spread">Spread</option>
                 <option value="@Markets.Total">Total</option>
@@ -674,14 +768,29 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             @if (d.Market == FreeText)
             {
                 <DeskField TValue="string" Class="wfield--fill" aria-label="The bet"
-                           placeholder="e.g. Player X over 1.5 receiving TDs" @bind-Value="d.FreeTextMarket" />
+                           placeholder="e.g. Player X over 1.5 receiving TDs" Value="d.FreeTextMarket"
+                           ValueChanged="@((string? t) => Edit("bet", () => d.FreeTextMarket = t))" />
+            }
+            else if (d.Market == Markets.Total)
+            {
+                @* A total is over or under; there is nothing else to type. *@
+                <DeskSwitch TValue="string" Options="TotalSides" Label="Selection" Size="DeskKeySize.Small"
+                            Value="d.Outcome" ValueChanged="@((string o) => Edit("selection", () => d.Outcome = o))" />
+            }
+            else if (d.GameId is not null && TeamSides(d.Game) is not null)
+            {
+                @* On a tracked game the side is one of two teams the desk already knows, away
+                   then home as the scoreboard reads; the value is the team's name, which is what
+                   settlement matches against. *@
+                <DeskSwitch TValue="string" Options="@TeamSides(d.Game)" Label="Selection" Size="DeskKeySize.Small"
+                            Value="d.Outcome" ValueChanged="@((string o) => Edit("selection", () => d.Outcome = o))" />
             }
             else
             {
                 <DeskField TValue="string" Class="wfield--short" aria-label="Selection"
-                           placeholder="@(d.Market == Markets.Total ? "over / under" : "Team")"
+                           placeholder="Team"
                            Value="d.Outcome"
-                           ValueChanged="@((string? o) => d.Outcome = o ?? string.Empty)" />
+                           ValueChanged="@((string? o) => Edit("selection", () => d.Outcome = o ?? string.Empty))" />
             }
         </div>
 
@@ -690,14 +799,18 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Line</span>
                 <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="0.5"
-                           aria-label="Line" placeholder="-3" @bind-Value="d.LineTaken" />
+                           aria-label="Line" placeholder="-3" Value="d.LineTaken"
+                           ValueChanged="@((decimal? l) => Edit("line", () => d.LineTaken = l))"
+                           Error="@(Touched("line") ? LineError(d.Market, d.LineTaken) : null)" />
             </div>
         }
 
         <div class="wgroup__row wgroup__row--form">
             <span class="wgroup__label">Price</span>
             <DeskField TValue="int" Mono="true" Class="wfield--short" type="number"
-                       aria-label="Price" placeholder="-110" @bind-Value="d.PriceTaken" />
+                       aria-label="Price" placeholder="-110" Value="d.PriceTaken"
+                       ValueChanged="@((int p) => Edit("price", () => d.PriceTaken = p))"
+                       Error="@(Touched("price") ? PriceError(d.PriceTaken) : null)" />
         </div>
     </text>;
 

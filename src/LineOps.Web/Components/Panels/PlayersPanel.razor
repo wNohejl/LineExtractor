@@ -17,13 +17,9 @@
 *@
 <PanelToolbar Actions="@(Manager.Access.CanOperate ? SyncKey : null)">
     <ChildContent>
-        <DeskSelect TValue="string" Value="_sport" ValueChanged="OnSportChanged">
-            <option value="">All sports</option>
-            @foreach (var s in _sports)
-            {
-                <option value="@s.Id">@s.Name</option>
-            }
-        </DeskSelect>
+        @* All and the enabled leagues: a fixed set, so a segment, as in the Journal. *@
+        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                    Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
 
         @* Filters as you type, after a pause: two queries per keystroke was a query storm for
            anyone typing a whole name. A player's team works too — "judge nyy". *@
@@ -136,6 +132,11 @@ else
     private CancellationTokenSource? _pending;
 
     private string? _syncError;
+
+    /// <summary>"All", then each enabled league by id — the query filters on SportId — engraved with its key.</summary>
+    private IReadOnlyList<DeskSwitchOption<string>> SportOptions =>
+        [new("", "All", "Every sport"),
+         .. _sports.Select(s => new DeskSwitchOption<string>(s.Id.ToString(), s.Key.ToUpperInvariant(), s.Name))];
 
     protected override string LoadSubject => "The players";
 

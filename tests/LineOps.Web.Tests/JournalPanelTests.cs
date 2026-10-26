@@ -80,4 +80,66 @@ public class JournalPanelTests
         Assert.Contains("<StakeRow", source);
         Assert.Contains("ManualPrice", source);
     }
+
+    /// <summary>
+    /// A disabled key's reason is text beside it, not a tooltip: a tooltip waits for a hover the
+    /// operator has no reason to make, and a screen reader is told through aria-describedby.
+    /// </summary>
+    [Fact]
+    public void Disabled_save_states_its_reason_in_text()
+    {
+        var source = Source();
+
+        Assert.Contains("<span class=\"meta\" id=\"save-why\">Needs a selection, a stake above zero, a price and a book.</span>", source);
+        // Pointed at only while the reason is on screen: a describedby naming a missing id says nothing.
+        Assert.Contains("aria-describedby=\"@(EntryValid(_entry, true) ? null : \"save-why\")\"", source);
+        Assert.DoesNotContain("Title=\"@(EntryValid", source);
+    }
+
+    [Fact]
+    public void Price_stake_and_line_say_what_is_wrong_once_touched()
+    {
+        var source = Source();
+
+        Assert.Contains("Error=\"@(Touched(\"price\") ? PriceError(d.PriceTaken) : null)\"", source);
+        Assert.Contains("Touched(\"stake\") ? StakeError(_entry.Stake) : null", source);
+        Assert.Contains("Error=\"@(Touched(\"line\") ? LineError(d.Market, d.LineTaken) : null)\"", source);
+    }
+
+    /// <summary>
+    /// On a tracked game the selection is one of two known answers, so it is a choice of two,
+    /// not a box to type a team into; a total is over or under. Free text keeps its field.
+    /// </summary>
+    [Fact]
+    public void A_selection_on_a_tracked_game_is_a_choice_of_two()
+    {
+        var source = Source();
+
+        Assert.Contains("<DeskSwitch TValue=\"string\" Options=\"@TeamSides(", source);
+        Assert.Contains("<DeskSwitch TValue=\"string\" Options=\"TotalSides\"", source);
+        Assert.Contains("new(\"over\", \"Over\")", source);
+        Assert.Contains("new(\"under\", \"Under\")", source);
+    }
+
+    /// <summary>A half-edited entry tells the window, so closing or evicting it asks first.</summary>
+    [Fact]
+    public void The_edit_form_marks_the_window_unsaved_while_it_differs()
+    {
+        var source = Source();
+
+        Assert.Contains("MarkUnsaved(EntryIsDirty(_entry.ToDraft(), _opened), \"this journal entry\")", source);
+        Assert.Contains("MarkUnsaved(false)", source);
+    }
+
+    [Theory]
+    [InlineData("JournalPanel.razor")]
+    [InlineData("PerformancePanel.razor")]
+    [InlineData("PlayersPanel.razor")]
+    public void The_sport_filter_is_a_segment(string panel)
+    {
+        var source = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", panel));
+
+        Assert.Contains("<DeskSwitch Options=\"SportOptions\" Label=\"Sport\"", source);
+        Assert.DoesNotContain("All sports", source);
+    }
 }
