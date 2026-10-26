@@ -371,7 +371,7 @@
     {
         if (Slip.Items.Count > 1
             && !await Alerts.ConfirmAsync("Start the slip over?",
-                $"{Slip.Items.Count} wagers leave the slip. Nothing is logged.",
+                message: $"{Slip.Items.Count} wagers leave the slip. Nothing is logged.",
                 confirmLabel: "Start over", destructive: true))
             return;
 

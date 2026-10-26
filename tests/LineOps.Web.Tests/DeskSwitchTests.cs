@@ -123,6 +123,27 @@ public class DeskSwitchTests : DeskTestContext
         Assert.Empty(picked);
     }
 
+    /// <summary>
+    /// A gate whose owner rests on "none" — a row's inline views, where nothing open is the
+    /// usual state — lets the lit position go: pressing it again reports the type's default.
+    /// </summary>
+    [Fact]
+    public void A_deselectable_gate_lets_the_lit_position_go()
+    {
+        var picked = new List<string?>();
+
+        var cut = RenderComponent<DeskSwitch<string>>(p => p
+            .Add(x => x.Options, [new DeskSwitchOption<string>("h2h", "Head to head"), new("last5", "Last five")])
+            .Add(x => x.Label, "Inline view")
+            .Add(x => x.Value, "h2h")
+            .Add(x => x.Deselectable, true)
+            .Add(x => x.ValueChanged, EventCallback.Factory.Create<string>(this, v => picked.Add(v))));
+
+        cut.FindAll("[role=radio]")[0].Click();
+
+        Assert.Equal([null], picked);
+    }
+
     [Theory]
     [InlineData("ArrowRight", 90)]
     [InlineData("ArrowDown", 90)]

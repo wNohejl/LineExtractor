@@ -2,12 +2,12 @@
 @using LineOps.Web.Services
 
 @*
-    The book a price is from, as a menu on the price itself.
+    The book a price is from, as a pop-up on the price itself.
 
     It used to be a section of its own beneath the price — a row of filter chips over a radio
     list — so choosing the book and reading what it pays were two places apart, and the window
     grew a section for what is really one control: "which book's number is this?". Folded into
-    the price, the trigger names the book the headline is from, and opening it lists every book
+    the price, the key names the book the headline is from, and opening it lists every book
     quoting the side with its line, price and age, best first. Picking one closes the menu and
     re-reads the headline from that book.
 
@@ -15,66 +15,50 @@
     opened on a worse number than the one it could see, and said so in small print. The best
     price is the default; a book the operator does not use is one row to pass over.
 
-    The menu floats, so it takes the floating material, like the pull menu. A press anywhere
-    outside closes it, through an invisible scrim, so dismissing never also presses whatever was
-    underneath. Escape closes it too.
+    A choice of one among several is a pop-up (HIG pop-up buttons), so the list is a radio menu
+    in the desk's popover: one Tab stop with arrows, Home, End and typeahead inside, Escape and
+    an outside press to close, focus back on the key, and one popover open at a time — all of
+    it DeskPopover's and DeskMenu's, where this used to build its own scrim and listbox of
+    buttons that tabbed one by one.
 *@
 
-<div class="book-picker" @onkeydown="OnKey">
-    @* The current book's name is the pop-up's label, as a macOS pop-up button shows its
-       choice (wizards.md, bet-and-price rule 5). Disabled — no side chosen yet — it keeps its
-       place and says "Book", so the row does not jump when a side is picked. *@
-    <button type="button" class="book-picker__trigger"
-            aria-haspopup="listbox"
-            aria-expanded="@(_open ? "true" : "false")"
-            aria-controls="@_listId"
-            disabled="@Disabled"
-            title="@(Disabled ? "Choose a side first" : "Change the book this price is from")"
-            @onclick="Toggle">
-        <span class="wager-offer__book">@(Chosen ?? "Book")</span>
-        @if (ChosenIsBest)
-        {
-            <Tag State="DeskState.Positive">Best</Tag>
-        }
-        <Glyph Icon="@Icons.Material.Filled.UnfoldMore" />
-    </button>
-
-    @if (_open)
-    {
-        <div class="book-picker__scrim" @onclick="Close"></div>
-
-        <div class="book-picker__panel">
-            <div class="book-picker__head">
-                <span>Choose the book you bet with</span>
-                <span class="book-picker__aside">@Books.Count quoting</span>
-            </div>
-
-            <div class="book-picker__list" role="listbox" id="@_listId" aria-label="Books quoting this side">
+<div class="book-picker">
+    <DeskPopover Open="_open" OpenChanged="SetOpen">
+        <Anchor>
+            @* The current book's name is the pop-up's label, as a macOS pop-up button shows its
+               choice (wizards.md, bet-and-price rule 5), with the up/down chevron a pop-up wears.
+               Disabled — no side chosen yet — it keeps its place and says "Book", so the row
+               does not jump when a side is picked. *@
+            <button type="button" class="book-picker__trigger"
+                    aria-haspopup="menu"
+                    aria-expanded="@(_open ? "true" : "false")"
+                    data-popover-return="true"
+                    disabled="@Disabled"
+                    title="@(Disabled ? "Choose a side first" : "Change the book this price is from")"
+                    @onclick="Toggle">
+                <span class="wager-offer__book">@(Chosen ?? "Book")</span>
+                @if (ChosenIsBest)
+                {
+                    <Tag State="DeskState.Positive">Best</Tag>
+                }
+                <Glyph Icon="@Icons.Material.Filled.UnfoldMore" />
+            </button>
+        </Anchor>
+        <ChildContent>
+            @* A row reads the book, then what it pays trailing in tabular figures, then a line
+               saying whether it is the best price and how old it is. *@
+            <DeskMenu Label="Books quoting this side" Radio="true">
                 @foreach (var book in Books)
                 {
-                    var chosen = string.Equals(book.Book, Chosen, StringComparison.OrdinalIgnoreCase);
-                    <button type="button" role="option" aria-selected="@(chosen ? "true" : "false")"
-                            class="book-row @(chosen ? "book-row--chosen" : null)"
-                            @onclick="() => ChooseAsync(book.Book)">
-                        <span class="book-row__mark" aria-hidden="true">
-                            @if (chosen)
-                            {
-                                <Glyph Icon="@Icons.Material.Filled.Check" />
-                            }
-                        </span>
-                        <span class="book-row__book">@book.Book</span>
-                        @if (book.IsBest)
-                        {
-                            <Tag State="DeskState.Positive">Best</Tag>
-                        }
-                        <span class="book-row__age" title="When this price was captured">@Age(book)</span>
-                        <span class="book-row__line num">@(book.Line is { } l ? OddsMath.FormatLine(l, book.Outcome) : "")</span>
-                        <span class="book-row__price num">@Price(book.PriceAmerican)</span>
-                    </button>
+                    <DeskMenuItem Label="@book.Book"
+                                  Detail="@Pays(book)"
+                                  Description="@About(book)"
+                                  Checked="@string.Equals(book.Book, Chosen, StringComparison.OrdinalIgnoreCase)"
+                                  OnClick="@(() => ChooseAsync(book.Book))" />
                 }
-            </div>
-        </div>
-    }
+            </DeskMenu>
+        </ChildContent>
+    </DeskPopover>
 </div>
 
 @code {
@@ -89,8 +73,6 @@
     /// <summary>Nothing to choose from yet: the pop-up shows, disabled, and never opens.</summary>
     [Parameter] public bool Disabled { get; set; }
 
-    private readonly string _listId = "books-" + Guid.NewGuid().ToString("N")[..8];
-
     private bool _open;
 
     private bool ChosenIsBest
@@ -98,27 +80,24 @@
 
     private void Toggle() => _open = !Disabled && !_open;
 
-    private void Close() => _open = false;
+    private void SetOpen(bool open) => _open = open && !Disabled;
 
-    private void OnKey(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape")
-            _open = false;
-    }
+    // The menu item closes the popover before it runs the choice, so this only reports it.
+    private Task ChooseAsync(string book) => OnChoose.InvokeAsync(book);
 
-    private async Task ChooseAsync(string book)
-    {
-        _open = false;
-        await OnChoose.InvokeAsync(book);
-    }
+    private static string Pays(WagerOffer offer)
+        => (offer.Line is { } l ? OddsMath.FormatLine(l, offer.Outcome) + " " : "") + Price(offer.PriceAmerican);
+
+    private static string About(WagerOffer offer)
+        => offer.IsBest ? $"Best price · {Age(offer)}" : Age(offer);
 
     private static string Age(WagerOffer offer)
     {
         if (offer.IsClosing)
-            return "close";
+            return "Closing line";
 
         var age = DateTimeOffset.UtcNow - offer.CapturedAt;
-        return age < TimeSpan.FromMinutes(1) ? "now" : Checks.Span(age);
+        return age < TimeSpan.FromMinutes(1) ? "Captured just now" : $"Captured {Checks.Span(age)} ago";
     }
 
     private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();

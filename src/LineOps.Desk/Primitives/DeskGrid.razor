@@ -48,8 +48,10 @@
     }
     else
     {
-    <MudDataGrid T="T"
+    <MudDataGrid @ref="_grid"
+                 T="T"
                  Items="@Items"
+                 ColumnResizeMode="@(Resizes ? ResizeMode.Column : ResizeMode.None)"
                  Dense="true"
                  Hover="true"
                  Bordered="false"
@@ -89,6 +91,18 @@
     [Parameter] public bool Sortable { get; set; } = true;
 
     [Parameter] public bool Dense { get; set; } = true;
+
+    /// <summary>
+    /// Columns can be dragged wider at their heading's trailing edge (HIG lists and tables,
+    /// macOS). Column mode, not container: a column grows at its neighbour's expense, so the
+    /// grid never spills past the window and every column stays on screen.
+    ///
+    /// Unset, a grid resizes when it has more than five columns — the Board, the Journal and
+    /// Performance, whose wide tables clip what the operator came to read — and a narrow one
+    /// does not, since its columns already fit and a handle on each heading is only something
+    /// to catch by accident. Set it to say either way.
+    /// </summary>
+    [Parameter] public bool? Resizable { get; set; }
 
     /// <summary>
     /// Pins the header while the body scrolls. Off by default: a window body already scrolls,
@@ -162,6 +176,33 @@
     /// with the matchup, not with the start time.
     /// </summary>
     [Parameter] public int ChildRowIndent { get; set; }
+
+    /// <summary>More columns than this and an unset <see cref="Resizable"/> resizes.</summary>
+    private const int NarrowColumns = 5;
+
+    private MudDataGrid<T>? _grid;
+
+    // How many columns the grid drew. Columns are the caller's child content and register with
+    // the grid while it renders, so the count is only known after a render: a wide grid is drawn
+    // once without handles and then again with them. The handles are hairlines in the heading,
+    // so the second render moves nothing.
+    private bool _wide;
+
+    private bool Resizes => Resizable ?? _wide;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Resizable is not null || _grid is null)
+            return;
+
+        var wide = _grid.RenderedColumns.Count > NarrowColumns;
+
+        if (wide == _wide)
+            return;
+
+        _wide = wide;
+        StateHasChanged();
+    }
 
     // Not a MudBlazor row: it takes no row click and no row hover, and holds whatever the
     // caller opened; its cells take the grid's cell class for the same padding and hairline.

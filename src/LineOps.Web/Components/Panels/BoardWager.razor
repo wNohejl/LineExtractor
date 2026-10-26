@@ -33,7 +33,7 @@
     The game is the window's header, not a step: from the Board it is a fact the door brought,
     set as a title with the kickoff beneath it; from the Journal it is the search, and once a
     game is picked, the game with Change beside it. Under it, three steps on a rail (DeskSteps):
-    Your bet (the side, and the price on it), Stake, Review and log. Each step's controls sit in
+    Bet (the side, and the price on it), Stake, Review and log. Each step's controls sit in
     one outlined group, its parts divided by rules. Only the step to do is open; a finished
     step folds to its title and what was chosen, with Change to reopen it, and a waiting step
     is one line saying what it waits for. So the window is as tall as the step being worked,
@@ -149,11 +149,11 @@ else
        wide enough for two columns (CSS, .wcard and .wstep--review). *@
     <div class="wcard">
     <DeskSteps Label="@(BuildParlay ? "Add a parlay leg" : "Log a wager")">
-        @* ---- 1 · Your bet: the side, and the price on it ---------------------------------
+        @* ---- 1 · Bet: the side, and the price on it ---------------------------------
            One step and one outlined group, in two sections: the board of sides above a rule,
            the chosen side's price and book beneath it. A bet is a side at a price; asking for
            them on two steps put a fold between the number and the thing it is the number for. *@
-        <DeskStep Number="1" Title="Your bet" State="@StateOf(BetStep)" Open="@IsOpen(BetStep)"
+        <DeskStep Number="1" Title="Bet" State="@StateOf(BetStep)" Open="@IsOpen(BetStep)"
                   OnOpen="() => OpenStep(BetStep)"
                   Waiting="Pick a game first."
                   Hint="@(_noGame
@@ -282,8 +282,8 @@ else
                                 <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
                                             Icon="@Icons.Material.Filled.Edit"
                                             aria-pressed="false"
-                                            aria-label="Enter my own price"
-                                            Title="Enter my own price"
+                                            aria-label="Enter a price"
+                                            Title="Enter a price"
                                             OnClick="ToggleManual" />
                             </div>
                         </div>
@@ -371,7 +371,7 @@ else
         @* ---- 3 · Review and log -------------------------------------------------------- *@
         <DeskStep Number="@(BuildParlay ? 2 : 3)" Title="@(BuildParlay ? "Review and add" : "Review and log")"
                   State="@StateOf(ReviewStep)" Open="@IsOpen(ReviewStep)" Class="wstep--review"
-                  Waiting="@(_offer is null ? "Your bet and its price come first." : "A stake comes first.")"
+                  Waiting="@(_offer is null ? "The bet and its price come first." : "A stake comes first.")"
                   Hint="@(BuildParlay
                       ? "Check anything flagged, then add it. The parlay's stake, price and book are set on the Slip tab, where it is logged."
                       : "Check anything flagged, then log it. LineOps records the bet; nothing is sent to a sportsbook.")">
@@ -826,8 +826,13 @@ else
     }
 
     /// <summary>
-    /// The duplicate check's one query, keyed on the side (game, market, outcome) at any book, inside
-    /// the activity wrapper so the title bar pulses while it runs.
+    /// The duplicate check's one query, keyed on the side (game, market, outcome) at any book. It
+    /// reports the title bar's pulse itself — active while it runs, healthy or a warning after —
+    /// and stays outside WithActivityAsync on purpose: that wrapper treats a failure as the
+    /// window not loading — LoadError set, the pulse critical with "load failed" — and keeps the
+    /// work it ran as the one Retry repeats. A journal that cannot be read is not the window
+    /// failing; it leaves one check unable to answer, so the pulse is a warning and the check
+    /// says so.
     /// </summary>
     private async Task ReadPriorAsync()
     {
@@ -873,6 +878,8 @@ else
         _logged = null;
         _offer = null;
         _opened = null;
+        _sideChosen = false;
+        SyncUnsaved();
 
         if (game is null)
         {
@@ -918,6 +925,8 @@ else
         _moved = null;
         // Chosen: the step folds and the next one opens.
         _opened = null;
+        _sideChosen = true;
+        SyncUnsaved();
 
         if (choice.Offer is null)
             Prefill(null);
@@ -943,6 +952,7 @@ else
         _moved = null;
         _opened = null;
         Reprice();
+        SyncUnsaved();
     }
 
     /// <summary>
@@ -988,7 +998,24 @@ else
         Reprice();
     }
 
-    private void SetStake(decimal stake) => _stake = stake;
+    private void SetStake(decimal stake)
+    {
+        _stake = stake;
+        SyncUnsaved();
+    }
+
+    /// <summary>
+    /// A side the operator picked, as opposed to one a door landed on: a window opened from a
+    /// Board row already shows a side, and closing it loses nothing the operator chose.
+    /// </summary>
+    private bool _sideChosen;
+
+    /// <summary>
+    /// Tells the window whether it holds a wager the operator has started — a side picked or a
+    /// stake set — so closing or evicting it asks first. Cleared when the wager is logged, banked
+    /// on the slip or added as a leg, and when a new game is searched for.
+    /// </summary>
+    private void SyncUnsaved() => MarkUnsaved(_sideChosen || _stake > 0, "this wager");
 
     private bool CanLog => _offer is { IsClosing: false } && _stake > 0 && (Row is not null || _noGame);
 
@@ -1075,7 +1102,7 @@ else
     private int LegCount => Slip.Mode == SlipMode.Parlay ? Slip.Legs.Count : Slip.Items.Count(i => i.AsLeg);
 
     private string LegTitle
-        => _offer is null ? "Your bet and its price come first."
+        => _offer is null ? "The bet and its price come first."
            : _offer.IsClosing ? "A closing line cannot be a leg: enter the price you got with the pencil."
            : "Bank this bet on the slip as a parlay leg, with no stake of its own";
 
@@ -1194,6 +1221,8 @@ else
         Toasts.Success(_logged);
         _stake = 0;
         _note = null;
+        _sideChosen = false;
+        SyncUnsaved();
     }
 
     /// <summary>
@@ -1213,6 +1242,8 @@ else
         var logged = $"Added {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}) to the slip as a leg.";
         Toasts.Success(logged);
         _note = null;
+        _sideChosen = false;
+        SyncUnsaved();
 
         if (BuildParlay && Searching)
             await PickGameAsync(null);
@@ -1243,6 +1274,8 @@ else
             Toasts.Success(_logged);
             _stake = 0;
             _note = null;
+            _sideChosen = false;
+            SyncUnsaved();
 
             await OnPlaced.InvokeAsync();
 

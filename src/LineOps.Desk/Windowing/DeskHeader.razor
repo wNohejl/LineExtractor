@@ -192,7 +192,7 @@
 
         var discard = await Alerts.ConfirmAsync(
             "Discard unsaved changes and close every window?",
-            "A window has input that has not been saved.",
+            message: "A window has input that has not been saved.",
             confirmLabel: "Discard",
             cancelLabel: "Keep editing",
             destructive: true);

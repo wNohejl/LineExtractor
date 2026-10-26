@@ -95,13 +95,8 @@ else
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Stake</span>
                 <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
-                          PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)" />
-                @* The shared stake row has no Error of its own, so the sentence sits after it in
-                   the field's own error style. *@
-                @if ((Touched("stake") ? StakeError(_entry.Stake) : null) is { } stakeError)
-                {
-                    <p class="field-err" role="alert">@stakeError</p>
-                }
+                          PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)"
+                          Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
             </div>
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Book</span>
@@ -219,17 +214,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             <CellTemplate>
                 <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
                     @* Graded rows are done; a void stays open to a correction, because an automatic
-                       void is the common rule and a given book may have ruled otherwise. *@
+                       void is the common rule and a given book may have ruled otherwise.
+                       Settling commits a result, so it is a pull-down of commands, not a pop-up
+                       of values that acted on change and snapped back to its placeholder. *@
                     @if (!context.Item.IsGraded)
                     {
-                        <DeskSelect TValue="string" Class="field--sm"
-                                    ValueChanged="v => SetResultAsync(context.Item.Id, v)">
-                            <option value="">Settle…</option>
-                            <option value="@EntryResult.Win">Win</option>
-                            <option value="@EntryResult.Loss">Loss</option>
-                            <option value="@EntryResult.Push">Push</option>
-                            <option value="@EntryResult.Void">Void</option>
-                        </DeskSelect>
+                        <DeskPullDown Label="Settle" Emphasis="DeskEmphasis.Plain" Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                            <DeskMenuItem Label="Win" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Win))" />
+                            <DeskMenuItem Label="Loss" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Loss))" />
+                            <DeskMenuItem Label="Push" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Push))" />
+                            <DeskMenuItem Label="Void" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Void))" />
+                        </DeskPullDown>
                     }
                     <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Edit"
                                 Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
@@ -315,16 +310,14 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                        offered where there is a price to pay it at. *@
                     @if (!context.Item.IsGraded)
                     {
-                        <DeskSelect TValue="string" Class="field--sm"
-                                    ValueChanged="v => SetParlayResultAsync(context.Item, v)">
-                            <option value="">Settle…</option>
+                        <DeskPullDown Label="Settle" Emphasis="DeskEmphasis.Plain" Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
                             @if (context.Item.PriceQuoted is not null)
                             {
-                                <option value="@EntryResult.Win">Win</option>
+                                <DeskMenuItem Label="Win" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Win))" />
                             }
-                            <option value="@EntryResult.Loss">Loss</option>
-                            <option value="@EntryResult.Void">Void</option>
-                        </DeskSelect>
+                            <DeskMenuItem Label="Loss" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Loss))" />
+                            <DeskMenuItem Label="Void" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Void))" />
+                        </DeskPullDown>
                     }
                     <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
@@ -660,7 +653,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         var confirmed = await Alerts.ConfirmAsync(
             "Delete this entry?",
-            $"{Describe(entry)} — {entry.Stake:C0} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
+            message: $"{Describe(entry)} — {entry.Stake:C0} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
             confirmLabel: "Delete", destructive: true);
 
         if (!confirmed)
@@ -677,7 +670,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         var confirmed = await Alerts.ConfirmAsync(
             "Delete this parlay?",
-            $"{parlay.Legs.Count} legs, {parlay.Stake:C0}. The parlay and all its legs leave the journal.",
+            message: $"{parlay.Legs.Count} legs, {parlay.Stake:C0}. The parlay and all its legs leave the journal.",
             confirmLabel: "Delete", destructive: true);
 
         if (!confirmed)
@@ -690,11 +683,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         await LoadAsync();
     }
 
-    private async Task SetResultAsync(int entryId, string? value)
+    private async Task SetResultAsync(int entryId, EntryResult result)
     {
-        if (!Enum.TryParse<EntryResult>(value, out var result))
-            return;
-
         await using var db = await DbFactory.CreateDbContextAsync();
         var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
 
@@ -703,11 +693,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         await LoadAsync();
     }
 
-    private async Task SetParlayResultAsync(Parlay parlay, string? value)
+    private async Task SetParlayResultAsync(Parlay parlay, EntryResult result)
     {
-        if (!Enum.TryParse<EntryResult>(value, out var result))
-            return;
-
         var payout = result == EntryResult.Win && parlay.PriceQuoted is { } q
             ? OddsMath.PayoutOnWin(q, parlay.Stake)
             : (decimal?)null;

@@ -1,6 +1,7 @@
 using Bunit;
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
+using LineOps.Desk.Primitives;
 using LineOps.Web.Components.Desk;
 using LineOps.Web.Services;
 using LineOps.Web.Tests.Support;
@@ -92,6 +93,47 @@ public class SharedControlsTests : DeskTestContext
 
         Assert.Equal("number", input.GetAttribute("type"));
         Assert.Equal("5", input.GetAttribute("step"));
+    }
+
+    /// <summary>
+    /// What is wrong with the stake sits under the stake, and the field points at it, as every
+    /// other field's error does (DeskField). The row draws it, so no host hangs its own after it.
+    /// </summary>
+    [Fact]
+    public void The_stake_row_says_what_is_wrong_under_its_field()
+    {
+        var clean = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 0m));
+        Assert.Empty(clean.FindAll(".field-err"));
+        Assert.Null(clean.Find("input[placeholder='Stake']").GetAttribute("aria-describedby"));
+
+        var cut = RenderComponent<StakeRow>(p => p
+            .Add(x => x.Stake, 0m)
+            .Add(x => x.Error, "Enter a stake above zero."));
+
+        var error = cut.Find(".field-err");
+        Assert.Equal("Enter a stake above zero.", error.TextContent.Trim());
+        Assert.Equal("alert", error.GetAttribute("role"));
+
+        var input = cut.Find("input[placeholder='Stake']");
+        Assert.Equal(error.GetAttribute("id"), input.GetAttribute("aria-describedby"));
+        Assert.Equal("true", input.GetAttribute("aria-invalid"));
+    }
+
+    /// <summary>
+    /// A confirm names what it does — "Delete run", "Discard" — never "OK" (HIG alerts). The
+    /// label is required and comes second, so a call site cannot leave it to a default.
+    /// </summary>
+    [Fact]
+    public void Every_confirm_names_its_consequence()
+    {
+        var parameters = typeof(IDeskAlerts).GetMethod(nameof(IDeskAlerts.ConfirmAsync))!.GetParameters();
+
+        Assert.Equal(["heading", "confirmLabel", "message", "cancelLabel", "destructive"], parameters.Select(p => p.Name));
+        Assert.False(parameters[1].HasDefaultValue);
+
+        var sources = Directory.EnumerateFiles(Path.Combine(Repo.Root(), "src"), "*.razor", SearchOption.AllDirectories)
+            .Select(File.ReadAllText);
+        Assert.DoesNotContain(sources, s => s.Contains("confirmLabel: \"OK\""));
     }
 
     [Fact]

@@ -102,8 +102,31 @@ public class JournalPanelTests
         var source = Source();
 
         Assert.Contains("Error=\"@(Touched(\"price\") ? PriceError(d.PriceTaken) : null)\"", source);
-        Assert.Contains("Touched(\"stake\") ? StakeError(_entry.Stake) : null", source);
+        // The stake row carries its own error now, under its field, rather than a sentence the
+        // Journal hung after the row.
+        Assert.Contains("Error=\"@(Touched(\"stake\") ? StakeError(_entry.Stake) : null)\"", source);
+        Assert.DoesNotContain("stakeError", source);
         Assert.Contains("Error=\"@(Touched(\"line\") ? LineError(d.Market, d.LineTaken) : null)\"", source);
+    }
+
+    /// <summary>
+    /// Settling commits a result: a command, so a pull-down of commands rather than a pop-up
+    /// of values that acted on change and snapped back to its placeholder (HIG pop-up buttons).
+    /// Plain and small, because it sits in a row beside the row's other keys.
+    /// </summary>
+    [Fact]
+    public void Settle_is_a_pull_down()
+    {
+        var source = Source();
+
+        Assert.DoesNotContain("Settle…", source);
+        Assert.Contains("<DeskPullDown Label=\"Settle\" Emphasis=\"DeskEmphasis.Plain\" Size=\"DeskKeySize.Small\"", source);
+
+        foreach (var result in new[] { "Win", "Loss", "Push", "Void" })
+            Assert.Contains($"<DeskMenuItem Label=\"{result}\" OnClick=\"@(() => SetResultAsync(context.Item.Id, EntryResult.{result}))\" />", source);
+
+        // A parlay settles the same way, and offers a win only where there is a price to pay it at.
+        Assert.Contains("<DeskMenuItem Label=\"Win\" OnClick=\"@(() => SetParlayResultAsync(context.Item, EntryResult.Win))\" />", source);
     }
 
     /// <summary>

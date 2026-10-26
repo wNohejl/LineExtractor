@@ -69,7 +69,7 @@ public class WagerStepperTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
 
         Assert.Equal(
-            ["Your bet", "Stake", "Review and log"],
+            ["Bet", "Stake", "Review and log"],
             cut.FindAll(".wstep__title").Select(t => t.TextContent.Trim()));
         Assert.Equal("ol", cut.Find(".wsteps").TagName.ToLowerInvariant());
     }
@@ -81,8 +81,8 @@ public class WagerStepperTests : WagerTestContext
 
         Assert.Equal(["todo", "todo", "todo"], States(cut));
         Assert.Equal([false, false, false], Open(cut));
-        Assert.Contains("Pick a game first.", Step(cut, "Your bet").QuerySelector(".wstep__wait")!.TextContent);
-        Assert.Contains("Your bet and its price come first.", Step(cut, "Review and log").QuerySelector(".wstep__wait")!.TextContent);
+        Assert.Contains("Pick a game first.", Step(cut, "Bet").QuerySelector(".wstep__wait")!.TextContent);
+        Assert.Contains("The bet and its price come first.", Step(cut, "Review and log").QuerySelector(".wstep__wait")!.TextContent);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Spread, BoardRows.Away);
 
-        Assert.Equal("Spread · Bills +2.5 · -105 +2.5 at fanduel", Summary(cut, "Your bet"));
+        Assert.Equal("Spread · Bills +2.5 · -105 +2.5 at fanduel", Summary(cut, "Bet"));
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
     }
 
@@ -129,7 +129,7 @@ public class WagerStepperTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         Assert.Empty(cut.FindAll(".selection-chip"));
 
-        Change(cut, "Your bet");
+        Change(cut, "Bet");
 
         Assert.Equal([true, true, true], Open(cut));
         Assert.Equal("ML · Chiefs", cut.Find(".selection-chip--on").GetAttribute("aria-label"));
@@ -137,7 +137,7 @@ public class WagerStepperTests : WagerTestContext
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
         Assert.Equal([false, true, true], Open(cut));
-        Assert.Equal("ML · Bills · +110 at fanduel", Summary(cut, "Your bet"));
+        Assert.Equal("ML · Bills · +110 at fanduel", Summary(cut, "Bet"));
     }
 
     [Fact]
@@ -159,12 +159,12 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
 
-        Assert.Empty(Step(cut, "Your bet").QuerySelector(".wstep__dot")!.TextContent.Trim());
-        Assert.NotNull(Step(cut, "Your bet").QuerySelector(".wstep__dot svg"));
+        Assert.Empty(Step(cut, "Bet").QuerySelector(".wstep__dot")!.TextContent.Trim());
+        Assert.NotNull(Step(cut, "Bet").QuerySelector(".wstep__dot svg"));
         Assert.Equal("2", Step(cut, "Stake").QuerySelector(".wstep__dot")!.TextContent.Trim());
     }
 
-    // ---- Your bet -------------------------------------------------------------------------
+    // ---- Bet -----------------------------------------------------------------------------
 
     [Fact]
     public void The_bet_is_a_row_per_market_each_a_two_segment_control()
@@ -211,19 +211,19 @@ public class WagerStepperTests : WagerTestContext
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Chiefs").Click();
 
         Assert.Equal(["done", "current", "todo"], States(cut));
-        Assert.Equal("ML · Chiefs · -128 at draftkings", Summary(cut, "Your bet"));
+        Assert.Equal("ML · Chiefs · -128 at draftkings", Summary(cut, "Bet"));
     }
 
-    // ---- The price, the lower half of Your bet -------------------------------------------------------------------
+    // ---- The price, the lower half of Bet -------------------------------------------------------------------
 
     [Fact]
     public void The_edit_key_sits_on_the_price()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Your bet");
+        Change(cut, "Bet");
 
         var key = cut.Find(".wager-offer__top .wager-manual-key");
-        Assert.Equal("Enter my own price", key.GetAttribute("title"));
+        Assert.Equal("Enter a price", key.GetAttribute("title"));
         // Price, then the book pop-up (recipe rule 3), then the pencil that replaces the number.
         Assert.Contains("book-picker", key.PreviousElementSibling!.ClassList);
         Assert.Contains("wager-offer__price", key.PreviousElementSibling!.PreviousElementSibling!.ClassList);
@@ -233,37 +233,37 @@ public class WagerStepperTests : WagerTestContext
     public void The_book_is_a_menu_on_the_price_that_lists_every_book_with_its_number()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Your bet");
+        Change(cut, "Bet");
 
         var trigger = cut.Find(".wager-offer .book-picker__trigger");
         Assert.Equal("false", trigger.GetAttribute("aria-expanded"));
         Assert.Contains("draftkings", trigger.TextContent);
-        Assert.Empty(cut.FindAll(".book-row"));
+        Assert.Empty(cut.FindAll("[role=menuitemradio]"));
 
         trigger.Click();
 
         Assert.Equal("true", cut.Find(".book-picker__trigger").GetAttribute("aria-expanded"));
-        var rows = cut.FindAll(".book-row");
+        var rows = cut.FindAll("[role=menuitemradio]");
         Assert.Equal(2, rows.Count);
         Assert.Contains("-135", rows[1].TextContent);
 
         rows[1].Click();
 
         // Chosen: the step folds on the new number.
-        Assert.Empty(cut.FindAll(".book-row"));
-        Assert.Equal("ML · Chiefs · -135 at fanduel", Summary(cut, "Your bet"));
+        Assert.Empty(cut.FindAll("[role=menuitemradio]"));
+        Assert.Equal("ML · Chiefs · -135 at fanduel", Summary(cut, "Bet"));
     }
 
     [Fact]
     public void Escape_closes_the_book_menu()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
-        Change(cut, "Your bet");
+        Change(cut, "Bet");
         cut.Find(".book-picker__trigger").Click();
 
-        cut.Find(".book-picker").KeyDown("Escape");
+        cut.Find("[role=menu]").KeyDown("Escape");
 
-        Assert.Empty(cut.FindAll(".book-row"));
+        Assert.Empty(cut.FindAll("[role=menuitemradio]"));
     }
 
     // ---- The game search ------------------------------------------------------------------

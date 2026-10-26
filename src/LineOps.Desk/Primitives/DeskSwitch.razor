@@ -48,7 +48,7 @@
                     tabindex="@TabStop(index)"
                     title="@option.Title"
                     @ref="_refs[index]"
-                    @onclick="() => SelectAsync(index)">
+                    @onclick="() => PressAsync(index)">
                 @option.Label
             </button>
         }
@@ -69,6 +69,14 @@
 
     /// <summary>Tabular figures for numeric positions — "14d / 30d / 90d" should line up like a column.</summary>
     [Parameter] public bool Mono { get; set; }
+
+    /// <summary>
+    /// "None" is a state the owner rests in — a row's inline views, where nothing open is the
+    /// usual case — so pressing the lit position lets it go and reports <c>default</c>, as a
+    /// toggle does (HIG segmented controls: a control can return to no selection). Without it
+    /// the pointer could open a view and only Escape could close it.
+    /// </summary>
+    [Parameter] public bool Deselectable { get; set; }
 
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
@@ -157,6 +165,20 @@
     // position when the cap is absent), and arrows do the travelling inside it.
     private string TabStop(int index)
         => index == Math.Max(SelectedIndex, 0) ? "0" : "-1";
+
+    // The pointer's way in. Pressing the lit position is a no-op on an ordinary gate, which is
+    // always on something; a deselectable one lets it go. The arrows never reach here, so they
+    // only ever move the cap, never lift it.
+    private async Task PressAsync(int index)
+    {
+        if (index == SelectedIndex && Deselectable)
+        {
+            await ValueChanged.InvokeAsync(default!);
+            return;
+        }
+
+        await SelectAsync(index);
+    }
 
     private async Task SelectAsync(int index)
     {

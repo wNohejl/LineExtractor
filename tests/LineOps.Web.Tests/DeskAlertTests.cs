@@ -327,7 +327,7 @@ public class DeskAlertTests : DeskTestContext
 
         provider.InvokeAsync(() => answer = alerts.ConfirmAsync(
             "Delete this run?",
-            "The ingested odds stay; only the run record goes.",
+            message: "The ingested odds stay; only the run record goes.",
             confirmLabel: "Delete run",
             cancelLabel: "Keep it",
             destructive: destructive));

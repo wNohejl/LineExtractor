@@ -220,19 +220,31 @@ public class RowActionsTests : DeskTestContext
     }
 
     /// <summary>
-    /// A chosen segment stays chosen when pressed again — it is a radio, not a toggle. The way
-    /// back to the bare keys is Escape, as for everything else that opens on this desk.
+    /// The open view's segment closes it. Nothing open is where the row rests, so the lit
+    /// segment lets go when pressed and a pointer can close what it opened (HIG: a segmented
+    /// control can return to no selection). Escape does the same from the keyboard.
     /// </summary>
     [Fact]
-    public void Pressing_the_chosen_view_again_keeps_it_open()
+    public void Clicking_the_open_view_closes_it()
     {
         var cut = Strip([Snippet("h2h", "Head to head"), Snippet("last5", "Last five")]);
 
         cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
-        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
-
         Assert.Contains("h2h snippet", cut.Find("[role=region]").TextContent);
 
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
+
+        Assert.Empty(cut.FindAll("[role=region]"));
+        Assert.All(cut.FindAll(".rowacts__keys [role=radio]"),
+            v => Assert.Equal("false", v.GetAttribute("aria-checked")));
+    }
+
+    [Fact]
+    public void Escape_closes_the_open_view_too()
+    {
+        var cut = Strip([Snippet("h2h", "Head to head"), Snippet("last5", "Last five")]);
+
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
         cut.Find(".rowacts").KeyDown(new KeyboardEventArgs { Key = "Escape" });
 
         Assert.Empty(cut.FindAll("[role=region]"));

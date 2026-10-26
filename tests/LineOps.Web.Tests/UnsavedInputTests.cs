@@ -197,7 +197,7 @@ public class UnsavedInputTests : DeskTestContext
 
         public List<(string Heading, string? Message, string Confirm, string? Cancel, bool Destructive)> Asked { get; } = [];
 
-        public Task<bool> ConfirmAsync(string heading, string? message = null, string confirmLabel = "OK",
+        public Task<bool> ConfirmAsync(string heading, string confirmLabel, string? message = null,
             string? cancelLabel = "Cancel", bool destructive = false)
         {
             Asked.Add((heading, message, confirmLabel, cancelLabel, destructive));

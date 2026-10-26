@@ -19,14 +19,17 @@ public interface IDeskAlerts
     /// Puts a question to the operator and waits. Returns true if they confirmed.
     /// </summary>
     /// <param name="heading">The question, as a question.</param>
+    /// <param name="confirmLabel">
+    /// Name the consequence — "Delete run", not "OK". Required, and second, so no call site can
+    /// leave the key to a default that says nothing.
+    /// </param>
     /// <param name="message">The consequence, in a sentence. Omit when the heading says it all.</param>
-    /// <param name="confirmLabel">Name the consequence — "Delete run", not "OK".</param>
     /// <param name="cancelLabel">Null for a one-button alert that only needs acknowledging.</param>
     /// <param name="destructive">Renders the confirm red, and never as the default.</param>
     Task<bool> ConfirmAsync(
         string heading,
+        string confirmLabel,
         string? message = null,
-        string confirmLabel = "OK",
         string? cancelLabel = "Cancel",
         bool destructive = false);
 }
@@ -37,8 +40,8 @@ public sealed class DeskAlerts(IDialogService dialogs) : IDeskAlerts
     /// <inheritdoc />
     public async Task<bool> ConfirmAsync(
         string heading,
+        string confirmLabel,
         string? message = null,
-        string confirmLabel = "OK",
         string? cancelLabel = "Cancel",
         bool destructive = false)
     {

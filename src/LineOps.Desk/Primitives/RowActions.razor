@@ -39,12 +39,14 @@
         @if (_views.Count > 1)
         {
             @* No position is chosen until one is pressed: DeskSwitch shows no cap for a value that
-               matches none, so "nothing open" needs no segment of its own. A chosen segment stays
-               chosen when pressed again, as a radio does; Escape is the way back. *@
+               matches none, so "nothing open" needs no segment of its own. Pressing the open
+               view's segment again closes it (Deselectable), so the pointer can put away what it
+               opened; Escape does the same from the keyboard. *@
             <DeskSwitch TValue="string"
                         Options="_viewOptions"
                         Label="Inline view"
                         Size="DeskKeySize.Small"
+                        Deselectable="true"
                         Value="_open"
                         ValueChanged="@((string key) => ChooseAsync(key))"
                         aria-controls="@(_open is null ? null : SnippetId)" />

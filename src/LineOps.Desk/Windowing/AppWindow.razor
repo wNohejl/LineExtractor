@@ -170,7 +170,7 @@
         {
             var discard = await Alerts.ConfirmAsync(
                 $"Discard {Window.UnsavedInputLabel ?? "unsaved changes"}?",
-                "The window has input that has not been saved.",
+                message: "The window has input that has not been saved.",
                 confirmLabel: "Discard",
                 cancelLabel: "Keep editing",
                 destructive: true);

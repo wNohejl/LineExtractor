@@ -14,7 +14,9 @@
        beside it are the steps, and a 5-dollar arrow is not how a stake is chosen. *@
     <DeskField TValue="decimal" Mono="true" Immediate="true" Class="stake-row__field"
                type="number" step="5" min="0"
-               placeholder="Stake" Value="Stake" ValueChanged="SetAsync" />
+               placeholder="Stake" Value="Stake" ValueChanged="SetAsync"
+               aria-invalid="@(HasError ? "true" : null)"
+               aria-describedby="@(HasError ? _errorId : null)" />
 
     @foreach (var quick in Quick)
     {
@@ -38,6 +40,14 @@
     }
 </div>
 
+@* Under the row, not inside it: the row is one line of field, keys and Returns, and a sentence
+   among them would push the keys aside. The field points at it, so a screen reader reads the
+   problem with the field rather than only when the alert fires. *@
+@if (HasError)
+{
+    <p class="field-err" id="@_errorId" role="alert">@Error</p>
+}
+
 @code {
     private static readonly decimal[] Quick = [25m, 50m, 100m];
 
@@ -53,6 +63,16 @@
     /// group's footer instead (the wager window, after the wizard recipe).
     /// </summary>
     [Parameter] public bool ShowReturns { get; set; } = true;
+
+    /// <summary>
+    /// What is wrong with the stake, said under the row in the field's own error style (as
+    /// DeskField's Error is). Null when nothing is, or nothing has been touched yet.
+    /// </summary>
+    [Parameter] public string? Error { get; set; }
+
+    private readonly string _errorId = "stake-err-" + Guid.NewGuid().ToString("N")[..8];
+
+    private bool HasError => !string.IsNullOrWhiteSpace(Error);
 
     private Task SetAsync(decimal stake) => StakeChanged.InvokeAsync(stake);
 }

@@ -69,7 +69,7 @@ public class WagerRecipeTests : WagerTestContext
     public void The_price_row_echoes_the_side_over_its_market_and_trails_the_price_then_the_book()
     {
         var cut = Render(Markets.Spread, BoardRows.Away);
-        Change(cut, "Your bet");
+        Change(cut, "Bet");
 
         var row = cut.Find(".wbet__price.wager-offer");
         Assert.Equal("Bills +2.5", Text(row.QuerySelector(".wbet__side")!));
