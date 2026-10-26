@@ -81,7 +81,7 @@
                         <div class="slip-card__top">
                             <div>
                                 <div class="slip-card__sel">@item.Selection</div>
-                                <div class="slip-card__meta">@item.Matchup · @Day(item.StartsAt) · @item.Book</div>
+                                <div class="slip-card__meta">@item.Matchup · @Day(item.StartsAt) · @item.Book@(item.ManualPrice ? " · your price" : "")</div>
                             </div>
 
                             @if (Slip.Mode == SlipMode.Straight)
@@ -104,7 +104,27 @@
                             <span>@state.Sentence</span>
                         </div>
 
-                        @if (state.Remedy is { } remedy)
+                        @if (item.IsClosing)
+                        {
+                            @* The way a bet placed before its game started gets onto the slip's
+                               parlay, or logs straight: the price actually taken, typed here,
+                               starting from the closing number on the card. It used to send the
+                               operator to the Journal, which logs one bet and never a parlay. *@
+                            <div class="slip-card__take">
+                                <span class="slip-card__take-label" id="@($"took-{item.Id:N}")">Price you got</span>
+                                <DeskField TValue="int?" Mono="true" Immediate="true" type="number" Class="slip-card__price"
+                                           aria-labelledby="@($"took-{item.Id:N}")"
+                                           Error="@(_badPrice.Contains(item.Id) ? "A price is −100 or lower, or +100 or higher." : null)"
+                                           Value="@(_typed.TryGetValue(item.Id, out var typed) ? typed : item.PriceAmerican)"
+                                           ValueChanged="@((int? p) => _typed[item.Id] = p)" />
+                                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                            Title="Log this wager at the price typed beside it"
+                                            OnClick="() => TakePrice(item)">
+                                    Use this price
+                                </DeskButton>
+                            </div>
+                        }
+                        else if (state.Remedy is { } remedy)
                         {
                             <div class="slip-card__remedy">@remedy</div>
                         }
@@ -128,9 +148,27 @@
                 @* The parlay as form rows: the combined price, the stake, the book's own price
                    and the book, each label leading; how the price was reached is the footer. *@
                 <div class="wgroup slip-parlay">
+                    @* Each leg's odds, then their product: the parlay's price is the legs' decimal
+                       prices multiplied, so every leg is shown with the multiplier it brings and
+                       the Combined row is the result of the column above it — the computation in
+                       view rather than a number appearing from nowhere. *@
+                    @foreach (var leg in Slip.Legs)
+                    {
+                        <div class="wgroup__row slip-leg" @key="leg.Id">
+                            <span class="slip-leg__sel">@SelectionText.Of(leg.Market, leg.Outcome, leg.Line)</span>
+                            <span class="slip-leg__price num">@Price(leg.PriceAmerican)</span>
+                            <span class="slip-leg__x num" title="Decimal odds: what one unit returns if this leg wins">×@Decimal(leg.PriceAmerican)</span>
+                        </div>
+                    }
                     <div class="wgroup__row wgroup__row--form slip-parlay__head">
                         <span class="wgroup__label">Combined</span>
-                        <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
+                        <span class="slip-parlay__combined">
+                            <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
+                            @if (Slip.CombinedPrice is { } shown)
+                            {
+                                <span class="num slip-leg__x">×@Decimal(shown)</span>
+                            }
+                        </span>
                     </div>
                     <div class="wgroup__row wgroup__row--form">
                         <span class="wgroup__label">Stake</span>
@@ -170,9 +208,20 @@
                                     enter the book's own parlay price.
                                 </text>
                             }
+                            else if (Slip.Legs.Count >= 2)
+                            {
+                                @* The multiplication itself, so the operator can check it against the
+                                   book's ticket: 1.76 × 1.57 × 1.60 = 4.42, which is +342. *@
+                                <text>
+                                    @Slip.Legs.Count legs, decimal odds multiplied:
+                                    <span class="num">@string.Join(" × ", Slip.Legs.Select(l => Decimal(l.PriceAmerican))) = @Decimal(Slip.MultipliedPrice!.Value)</span>,
+                                    which is <span class="num">@Price(Slip.MultipliedPrice!.Value)</span>.
+                                    A book's own parlay price replaces it.
+                                </text>
+                            }
                             else
                             {
-                                @(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs")<text>, prices multiplied; a book's own parlay price can replace it.</text>
+                                @(Slip.Legs.Count == 1 ? "1 leg" : "No legs yet")<text>. A parlay multiplies two or more; a card on a game that has started becomes a leg once you enter the price you got.</text>
                             }
                         </p>
             </section>
@@ -250,14 +299,41 @@
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase);
 
+    // Prices typed on closing cards, before Use this price takes them; and cards whose typed
+    // number was refused.
+    private readonly Dictionary<Guid, int?> _typed = [];
+    private readonly HashSet<Guid> _badPrice = [];
+
+    /// <summary>
+    /// Use this price: the typed number, or the closing number the field started from if nothing
+    /// was typed, becomes the card's price (<see cref="WagerSlip.TakePrice"/>).
+    /// </summary>
+    private void TakePrice(SlipItem item)
+    {
+        var price = _typed.TryGetValue(item.Id, out var typed) ? typed : item.PriceAmerican;
+
+        if (price is { } taken && Slip.TakePrice(item.Id, taken))
+        {
+            _typed.Remove(item.Id);
+            _badPrice.Remove(item.Id);
+        }
+        else
+        {
+            _badPrice.Add(item.Id);
+        }
+    }
+
+    /// <summary>Decimal odds to two places — what one unit returns, stake included.</summary>
+    private static string Decimal(int american)
+        => OddsMath.ToDecimal(american).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
     private CardState StateOf(SlipItem item)
     {
+        // A started game's price is its close, which could not have been taken. Not a refusal:
+        // the card asks for the price that was taken, and with it becomes a wager like any other.
         if (item.IsClosing)
-            return Slip.Mode == SlipMode.Parlay
-                ? new CardState(DeskState.Negative, "Cannot log", "Not a leg: the game has started.",
-                    "Drop it, or log it from the Journal with the price you got.")
-                : new CardState(DeskState.Negative, "Cannot log", "Closing line: this price cannot have been taken.",
-                    "Drop it, or log it from the Journal with the price you got.");
+            return new CardState(DeskState.Warning, "Price needed",
+                "The game has started, so this is its closing line, not a price you could have taken. Enter the one you got.");
 
         if (Slip.Mode == SlipMode.Parlay && Slip.SharesMarketWithLeg(item))
             return new CardState(DeskState.Negative, "Not a leg",
@@ -298,7 +374,10 @@
     private string? Waiting
         => Slip.Mode == SlipMode.Straight
             ? Slip.Ready.Count == 0 ? "Nothing on the slip can be logged as it stands." : null
-            : Slip.Legs.Count < 2 ? "A parlay needs two legs the market still offers."
+            : Slip.Legs.Count < 2
+                ? Slip.Items.Any(i => i.IsClosing)
+                    ? "A parlay needs two legs. Enter the price you got on a started game's card to make it one."
+                    : "A parlay needs two legs."
             : Slip.IsSameGame && Slip.ParlayPriceQuoted is null ? "A same-game parlay needs the book's own parlay price."
             : Slip.ParlayStake <= 0 ? "Needs a stake above zero."
             : string.IsNullOrWhiteSpace(Slip.ParlayBook) ? "Needs the book the parlay was placed at."

@@ -173,6 +173,33 @@ public sealed class WagerSlip
     }
 
     /// <summary>
+    /// Records the price the operator actually got on an item: how a bet placed before its game
+    /// started — the four legs of a parlay logged the morning after — gets onto a parlay at all.
+    /// The card held the closing line, a number that could not have been taken from here, and the
+    /// slip would only say to log it from the Journal instead. A typed price is a claim about what
+    /// was taken, as it is in the wager window's pencil: the item stops being closing, its value is
+    /// read against the same fair price, and it can be a leg or a straight bet like any other.
+    /// False, and nothing changed, for a number that is not a price (between −100 and +100) or an
+    /// id not on the slip.
+    /// </summary>
+    public bool TakePrice(Guid id, int priceAmerican)
+    {
+        if (priceAmerican is > -100 and < 100)
+            return false;
+
+        var index = _items.FindIndex(i => i.Id == id);
+        if (index < 0)
+            return false;
+
+        var item = _items[index];
+        var ev = item.Fair is { } fair ? FairValue.Ev(fair.Probability, priceAmerican) : (double?)null;
+
+        _items[index] = item with { PriceAmerican = priceAmerican, IsClosing = false, ManualPrice = true, Ev = ev };
+        Raise();
+        return true;
+    }
+
+    /// <summary>
     /// Whether this item can be logged as the slip stands. Never a closing price: it is a number
     /// that could not have been taken from here. In straight mode, also a stake above zero — the
     /// slip never admits one at zero, so this is the invariant restated, not a state a card can

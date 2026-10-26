@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Desk.Windowing;
 using LineOps.Web.Components.Panels;
@@ -56,10 +57,58 @@ public class SlipPanelTests : WagerTestContext
         var cut = RenderComponent<SlipPanel>();
 
         var tags = cut.FindAll(".slip-card .tag").Select(t => t.TextContent.Trim()).ToList();
-        Assert.Equal(new[] { "Ready", "Cannot log" }, tags);
+        Assert.Equal(new[] { "Ready", "Price needed" }, tags);
 
-        var blocked = Assert.Single(cut.FindAll(".slip-card--blocked"));
-        Assert.Contains("Drop it, or log it from the Journal with the price you got.", blocked.TextContent);
+        // A started game's card asks for the price that was taken, starting from the close.
+        var take = cut.Find(".slip-card__take");
+        Assert.Equal("Price you got", take.QuerySelector(".slip-card__take-label")!.TextContent.Trim());
+        Assert.Equal("-110", take.QuerySelector("input")!.GetAttribute("value"));
+        Assert.Contains("Use this price", take.TextContent);
+    }
+
+    /// <summary>
+    /// A retroactive parlay: cards on games that have started, each given the price taken, are
+    /// legs; the Parlay group lists each leg's price with its decimal multiplier, the Combined row
+    /// is their product, and the footer writes the multiplication out.
+    /// </summary>
+    [Fact]
+    public void A_retroactive_parlay_shows_each_legs_odds_and_their_product()
+    {
+        Slip.Add(Item(price: -132, closing: true, gameId: 1));
+        Slip.Add(Item(price: -176, closing: true, gameId: 2));
+        Slip.SetMode(SlipMode.Parlay);
+
+        var cut = RenderComponent<SlipPanel>();
+        Assert.Empty(cut.FindAll(".slip-leg"));
+        Assert.Contains("Enter the price you got", cut.Find(".slip-why").TextContent);
+
+        // The first at the close as printed, the second typed.
+        cut.FindAll(".slip-card__take button")[0].Click();
+        cut.FindAll(".slip-card__take input")[0].Input("-170");
+        cut.FindAll(".slip-card__take button")[0].Click();
+
+        var legs = cut.FindAll(".slip-leg");
+        Assert.Equal(2, legs.Count);
+        Assert.Equal(["-132", "-170"], legs.Select(l => l.QuerySelector(".slip-leg__price")!.TextContent.Trim()));
+        Assert.Equal(["×1.76", "×1.59"], legs.Select(l => l.QuerySelector(".slip-leg__x")!.TextContent.Trim()));
+
+        var combined = OddsMath.CombinedAmerican([-132, -170]);
+        Assert.Equal(OddsMath.FormatPrice(combined), cut.Find(".slip-parlay__price").TextContent.Trim());
+        Assert.Contains("1.76 × 1.59 =", cut.Find(".slip-parlay__note").TextContent);
+        Assert.All(cut.FindAll(".slip-card__meta"), m => Assert.Contains("your price", m.TextContent));
+    }
+
+    [Fact]
+    public void A_number_that_is_not_a_price_stays_on_the_card_and_says_so()
+    {
+        Slip.Add(Item(closing: true));
+        var cut = RenderComponent<SlipPanel>();
+
+        cut.Find(".slip-card__take input").Input("50");
+        cut.Find(".slip-card__take button").Click();
+
+        Assert.True(Slip.Items.Single().IsClosing);
+        Assert.Contains("A price is −100 or lower, or +100 or higher.", cut.Find(".slip-card__take").TextContent);
     }
 
     [Fact]

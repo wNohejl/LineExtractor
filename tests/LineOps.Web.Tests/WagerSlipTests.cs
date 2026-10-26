@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Web.Services;
 
@@ -66,6 +67,46 @@ public class WagerSlipTests
         Assert.False(slip.CanLog(closing));
         Assert.DoesNotContain(closing, slip.Legs);
         Assert.Single(slip.Ready);
+    }
+
+    /// <summary>
+    /// A parlay placed before its games started, logged after: each card held the close, so none
+    /// was a leg. The price that was taken, typed, makes each a leg and a wager like any other.
+    /// </summary>
+    [Fact]
+    public void A_closing_item_becomes_a_leg_at_the_price_you_got()
+    {
+        var slip = new WagerSlip();
+        var first = slip.Add(Item(price: -132, closing: true, gameId: 1));
+        var second = slip.Add(Item(price: -176, closing: true, gameId: 2));
+        slip.SetMode(SlipMode.Parlay);
+        Assert.Empty(slip.Legs);
+
+        Assert.True(slip.TakePrice(first.Id, -130));
+        Assert.True(slip.TakePrice(second.Id, -176));
+
+        Assert.Equal(2, slip.Legs.Count);
+        var taken = slip.Items.Single(i => i.Id == first.Id);
+        Assert.Equal(-130, taken.PriceAmerican);
+        Assert.False(taken.IsClosing);
+        Assert.True(taken.ManualPrice);
+
+        // 1.769 × 1.568 = 2.774, which is +177.
+        Assert.Equal(OddsMath.CombinedAmerican([-130, -176]), slip.CombinedPrice);
+        Assert.Equal(177, slip.CombinedPrice);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-99)]
+    [InlineData(99)]
+    public void A_number_that_is_not_a_price_is_refused(int price)
+    {
+        var slip = new WagerSlip();
+        var closing = slip.Add(Item(closing: true));
+
+        Assert.False(slip.TakePrice(closing.Id, price));
+        Assert.True(slip.Items.Single().IsClosing);
     }
 
     [Fact]

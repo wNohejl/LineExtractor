@@ -4855,6 +4855,22 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     font-variant-numeric: tabular-nums;
 }
 .slip-parlay__note { font-size: var(--text-footnote); color: var(--text-secondary); }
+
+/* The parlay's legs, one row each above Combined: the selection leading, its price and the
+   decimal multiplier it brings trailing in tabular figures, so the column reads down into the
+   product. The multiplier is secondary: the price is what the book printed. */
+.slip-leg { gap: var(--space-3); padding: var(--space-1) var(--space-4); min-height: 32px; }
+.slip-leg__sel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slip-leg__price { flex: 0 0 auto; font-weight: var(--weight-semibold); }
+.slip-leg__x { flex: 0 0 auto; min-width: 5ch; text-align: right; color: var(--text-secondary); font-size: var(--text-subheadline); }
+.slip-parlay__combined { display: flex; align-items: baseline; gap: var(--space-3); }
+
+/* A card on a game that has started asks for the price that was taken: a label, the field
+   (starting from the closing number) and the key that takes it, on one line under the card's
+   sentence. */
+.slip-card__take { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.slip-card__take-label { font-size: var(--text-subheadline); color: var(--text-secondary); }
+.slip-card__price { width: 96px; }
 .slip-report .desk-btn { margin-left: var(--space-2); }
 .slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
 
