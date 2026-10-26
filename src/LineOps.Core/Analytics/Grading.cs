@@ -64,6 +64,119 @@ public static class Grading
             _ => null
         };
 
+    /// <summary>
+    /// Grades an entry on a fight (ADR 0021). Null where it cannot be graded automatically, as for
+    /// <see cref="Grade"/>: a free-text market — a method or round prop — or a fight with no result.
+    /// </summary>
+    public static EntryResult? GradeFight(
+        JournalEntry entry, string homeFighter, string awayFighter, int? homeScore, int? awayScore, Bout bout)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.FreeTextMarket))
+            return null;
+
+        return GradeFightOutcome(
+            entry.Market, entry.Outcome, entry.LineTaken, homeFighter, awayFighter, homeScore, awayScore, bout);
+    }
+
+    /// <summary>
+    /// The rules for a fight, applied to a priced outcome.
+    ///
+    /// <list type="bullet">
+    /// <item><b>No contest</b> voids every market: the fight had no result to grade against.</item>
+    /// <item><b>Moneyline:</b> the winner wins; a draw pushes, as US books settle a two-way fight line.</item>
+    /// <item><b>Total</b> is in rounds: a stoppage at 3:14 of the first lasted 0.65 of one, a fight
+    /// that went the distance lasted every round scheduled. A fight that reaches the half-round
+    /// mark — 2:30 of the second, for 1.5 — has gone over, which is how the books word it.</item>
+    /// <item>There is no fight spread.</item>
+    /// </list>
+    /// </summary>
+    public static EntryResult? GradeFightOutcome(
+        string market,
+        string outcome,
+        decimal? line,
+        string homeFighter,
+        string awayFighter,
+        int? homeScore,
+        int? awayScore,
+        Bout bout)
+    {
+        if (bout.Outcome is not { } result)
+            return null;
+
+        if (result == BoutOutcome.NoContest)
+            return EntryResult.Void;
+
+        return market switch
+        {
+            Markets.Moneyline => GradeFightMoneyline(
+                FighterSide(outcome, homeFighter, awayFighter), result, homeScore, awayScore),
+
+            Markets.Total => GradeRounds(outcome, line, bout),
+
+            _ => null
+        };
+    }
+
+    private static EntryResult? GradeFightMoneyline(Side? side, BoutOutcome result, int? homeScore, int? awayScore)
+    {
+        if (side is null)
+            return null;
+
+        if (result == BoutOutcome.Draw)
+            return EntryResult.Push;
+
+        if (homeScore is not { } home || awayScore is not { } away || home == away)
+            return null;
+
+        return (side == Side.Home) == (home > away) ? EntryResult.Win : EntryResult.Loss;
+    }
+
+    private static EntryResult? GradeRounds(string outcome, decimal? lineTaken, Bout bout)
+    {
+        if (lineTaken is not { } line || FightSports.ElapsedRounds(bout) is not { } lasted)
+            return null;
+
+        var isOver = outcome.Equals("over", StringComparison.OrdinalIgnoreCase);
+        var isUnder = outcome.Equals("under", StringComparison.OrdinalIgnoreCase);
+
+        if (!isOver && !isUnder)
+            return null;
+
+        // Exactly on the number: a half-round line was reached, so the over has it; a whole-round
+        // line — which books do not hang, but a typed entry could — is a push.
+        var wentOver = lasted == line
+            ? line % 1 != 0 ? true : (bool?)null
+            : lasted > line;
+
+        return wentOver switch
+        {
+            null => EntryResult.Push,
+            true => isOver ? EntryResult.Win : EntryResult.Loss,
+            false => isOver ? EntryResult.Loss : EntryResult.Win
+        };
+    }
+
+    /// <summary>
+    /// A fighter named on an entry, onto a corner: by the side's own name, accents and suffixes
+    /// folded, then by surname alone where only one corner has it — "Pereira" typed into a note.
+    /// </summary>
+    private static Side? FighterSide(string outcome, string home, string away)
+    {
+        if (ResolveSide(outcome, home, away) is { } exact)
+            return exact;
+
+        var homeSame = FighterNames.Same(outcome, home);
+        var awaySame = FighterNames.Same(outcome, away);
+
+        if (homeSame != awaySame)
+            return homeSame ? Side.Home : Side.Away;
+
+        var homeSurname = FighterNames.SameSurname(outcome, home);
+        var awaySurname = FighterNames.SameSurname(outcome, away);
+
+        return homeSurname != awaySurname ? homeSurname ? Side.Home : Side.Away : null;
+    }
+
     private static EntryResult? GradeMoneyline(
         string outcome, string home, string away, int homeScore, int awayScore)
     {

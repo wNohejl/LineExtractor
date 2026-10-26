@@ -29,7 +29,9 @@ public static class EspnLeagues
         ["mlb"] = "baseball/mlb",
         ["nhl"] = "hockey/nhl",
         ["mls"] = "soccer/usa.1",
-        ["epl"] = "soccer/eng.1"
+        ["epl"] = "soccer/eng.1",
+        // Fought, not played (ADR 0021): the cards come from the fight center, not a box score.
+        ["ufc"] = "mma/ufc"
     };
 
     /// <summary>Every sport key this port can serve.</summary>

@@ -123,8 +123,15 @@ public static class TeamNames
         }
 
         var space = name.LastIndexOf(' ');
+
+        // A fighter is a side too (ADR 0021), and "Khalil Rountree Jr." is Rountree Jr., not Jr.
+        if (space > 0 && GenerationalSuffixes.Contains(name[(space + 1)..].TrimEnd('.')))
+            space = name.LastIndexOf(' ', space - 1);
+
         return space < 0 ? name : name[(space + 1)..];
     }
+
+    private static readonly HashSet<string> GenerationalSuffixes = new(StringComparer.OrdinalIgnoreCase) { "Jr", "Sr", "II", "III", "IV" };
 }
 
 /// <summary>

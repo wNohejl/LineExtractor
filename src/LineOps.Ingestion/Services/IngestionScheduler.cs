@@ -61,6 +61,7 @@ public class IngestionScheduler(
     private DateTimeOffset? _lastLivePoll;
     private DateTimeOffset? _lastResultsSweep;
     private DateTimeOffset? _lastRetentionRun;
+    private DateTimeOffset? _lastFighterPass;
 
     private TimeSpan _lineInterval = TimeSpan.FromMinutes(30);
 
@@ -138,6 +139,14 @@ public class IngestionScheduler(
                 await RunJobAsync(IngestionJobs.Settle, ct);
                 _lastResultsSweep = now;
             }
+
+            // Fighters on a card ahead, and fighters who have just fought, are owed a profile
+            // (ADR 0021). Free to ask, and nothing is fetched when nobody is owed one.
+            if (_options.EffectiveSports.Any(Core.Analytics.FightSports.IsFight) && Due(_lastFighterPass, FighterPass, now))
+            {
+                await RunJobAsync(IngestionJobs.EspnFighters, ct);
+                _lastFighterPass = now;
+            }
         }
 
         // Lines are the one thing the scheduler will not fetch on its own initiative unless
@@ -179,6 +188,12 @@ public class IngestionScheduler(
         if (_lastSlateRefresh is null)
             return true;
 
+        // A fight card is announced and changed — a short-notice replacement, a scrapped bout —
+        // all week, and nothing else puts it on the desk (ADR 0021), so a desk holding a fought
+        // sport reads its slate at least every few hours, games starting or not.
+        if (_options.EffectiveSports.Any(Core.Analytics.FightSports.IsFight) && now - _lastSlateRefresh >= FightCardRefresh)
+            return true;
+
         var horizon = now + _options.GamePasses.PreGameLead;
 
         return await db.Games.AnyAsync(g => g.StartsAt > now && g.StartsAt <= horizon, ct);
@@ -192,6 +207,12 @@ public class IngestionScheduler(
     /// game that just started is not yet marked live in our data — that is exactly what the next
     /// poll is for. Bounded to the last day so a stuck fixture cannot pin this pass on forever.
     /// </summary>
+    /// <summary>How often a desk holding a fought sport re-reads the week's cards when nothing else asks it to.</summary>
+    private static readonly TimeSpan FightCardRefresh = TimeSpan.FromHours(6);
+
+    /// <summary>How often fighter profiles are checked for fighters owed one.</summary>
+    private static readonly TimeSpan FighterPass = TimeSpan.FromHours(1);
+
     private async Task<bool> LivePollIsDueAsync(DateTimeOffset now, CancellationToken ct)
     {
         if (!Due(_lastLivePoll, _options.GamePasses.LivePoll, now))

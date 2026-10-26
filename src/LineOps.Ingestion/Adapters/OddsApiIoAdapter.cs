@@ -83,6 +83,8 @@ public class OddsApiIoAdapter(
         "nba" => "basketball",
         "mlb" => "baseball",
         "nhl" => "ice-hockey",
+        // Every promotion under one slug; only fights matching a UFC bout on the desk are kept (ADR 0021).
+        "ufc" => "mixed-martial-arts",
         _ => sportKey
     };
 

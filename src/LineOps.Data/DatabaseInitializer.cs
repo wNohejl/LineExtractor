@@ -146,7 +146,9 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
             ("nfl", "NFL"),
             ("nba", "NBA"),
             ("mlb", "MLB"),
-            ("nhl", "NHL")
+            ("nhl", "NHL"),
+            // Fought, not played: a bout is a game between two fighters (ADR 0021).
+            ("ufc", "UFC")
         };
 
         var existing = await db.Sports.Select(s => s.Key).ToListAsync(ct);

@@ -43,6 +43,7 @@ public static class IngestionServiceCollectionExtensions
         services.AddScoped<CreditBudgetGuard>();
         services.AddScoped<OddsIngestionService>();
         services.AddScoped<StatsIngestionService>();
+        services.AddScoped<FighterProfileService>();
         services.AddScoped<SettlementService>();
         services.AddScoped<JournalService>();
         services.AddScoped<OddsRetentionService>();
@@ -92,6 +93,14 @@ public static class IngestionServiceCollectionExtensions
                 .AddStandardResilienceHandler();
 
             services.AddScoped<IStatsSource>(sp =>
+            {
+                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
+                adapter.RequestDelay = options.Espn.RequestDelay;
+                return adapter;
+            });
+
+            // The same port describes fighters (ADR 0021), at the same pace.
+            services.AddScoped<IFighterSource>(sp =>
             {
                 var adapter = sp.GetRequiredService<EspnStatsAdapter>();
                 adapter.RequestDelay = options.Espn.RequestDelay;

@@ -58,6 +58,13 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
             .Where(e => e.Result == EntryResult.Pending && e.GameId != null)
             .ToListAsync(ct);
 
+        // A fight is graded by how it ended rather than by a score (ADR 0021), so the bouts behind
+        // the pending entries are read once, here.
+        var gameIds = candidates.Select(e => e.GameId!.Value).Distinct().ToList();
+        var bouts = await db.Bouts
+            .Where(b => gameIds.Contains(b.GameId))
+            .ToDictionaryAsync(b => b.GameId, ct);
+
         foreach (var entry in candidates)
         {
             var game = entry.Game;
@@ -69,6 +76,33 @@ public class SettlementService(LineOpsDbContext db, ILogger<SettlementService> l
             {
                 PerformanceAnalytics.ApplyResult(entry, EntryResult.Void);
                 voided++;
+                continue;
+            }
+
+            if (game is { Status: GameStatus.Final } && bouts.TryGetValue(game.Id, out var bout))
+            {
+                // A no contest has no result to price against, so no CLV is read for it either.
+                if (bout.Outcome != BoutOutcome.NoContest && entry.ClosingSnapshotId is null
+                    && await ResolveClvAsync(entry, game, ct))
+                    clvResolved++;
+
+                var fought = Grading.GradeFight(
+                    entry, game.HomeTeam?.Name ?? string.Empty, game.AwayTeam?.Name ?? string.Empty,
+                    game.HomeScore, game.AwayScore, bout);
+
+                if (fought is null)
+                {
+                    pending++;
+                    continue;
+                }
+
+                PerformanceAnalytics.ApplyResult(entry, fought.Value);
+
+                if (fought == EntryResult.Void)
+                    voided++;
+                else
+                    graded++;
+
                 continue;
             }
 

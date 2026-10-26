@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,7 @@ namespace LineOps.Ingestion.Adapters;
 /// nothing critical depends solely on ESPN, and when it does break it produces a genuine
 /// incident to triage rather than a hypothetical one.
 /// </summary>
-public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource, IClosingLineSource
+public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource, IClosingLineSource, IFighterSource
 {
     public const string SourceKey = "espn";
 
@@ -56,6 +57,10 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
         if (MapPath(sportKey) is not { } path)
             return Empty;
 
+        // A card is read whole from the fight center; the scoreboard alone has no method or order.
+        if (FightSports.IsFight(sportKey))
+            return await FetchCardsAsync(path, sportKey, date, withResults: false, ct);
+
         var url = $"{path}/scoreboard?dates={date:yyyyMMdd}";
 
         using var doc = await GetJsonAsync(url, ct);
@@ -92,6 +97,10 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
     {
         if (MapPath(sportKey) is not { } path)
             return Empty;
+
+        // MMA has no summary endpoint: the fight center is the box score, one request a card.
+        if (FightSports.IsFight(sportKey))
+            return await FetchCardsAsync(path, sportKey, date, withResults: true, ct);
 
         var scoreboard = await FetchScheduleAsync(sportKey, date, ct);
         var finals = scoreboard.Games.Where(g => g.Status == "final").ToList();
@@ -228,7 +237,7 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
             return [];
 
         var url = $"https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}"
-                  + $"/events/{game.SourceGameId}/competitions/{game.SourceGameId}/odds";
+                  + $"/events/{game.SourceEventId ?? game.SourceGameId}/competitions/{game.SourceGameId}/odds";
 
         using var doc = await GetJsonAsync(url, ct);
 
@@ -279,9 +288,14 @@ public class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger)
         if (chosen is not { } entry)
             yield break;
 
-        foreach (var (key, outcome) in new[] { ("homeTeamOdds", homeTeam), ("awayTeamOdds", awayTeam) })
+        // A fight's sides are athletes, not teams (ADR 0021); the block is the same shape either way.
+        foreach (var (key, athleteKey, outcome) in new[]
+                 {
+                     ("homeTeamOdds", "homeAthleteOdds", homeTeam), ("awayTeamOdds", "awayAthleteOdds", awayTeam)
+                 })
         {
-            if (!entry.TryGetProperty(key, out var side) || !side.TryGetProperty("close", out var close))
+            if (!(entry.TryGetProperty(key, out var side) || entry.TryGetProperty(athleteKey, out side))
+                || !side.TryGetProperty("close", out var close))
                 continue;
 
             if (TryAmerican(close, "moneyLine", out var ml))

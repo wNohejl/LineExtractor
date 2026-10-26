@@ -351,10 +351,42 @@ public class HistoryBackfillService(
             }
         }
 
+        // Fighters last (ADR 0021). The walk has just met every bout since the season start, and a
+        // fighter's profile is a career rather than a day, so it is taken once per fighter rather
+        // than once per fight — in batches, each in its own scope for the same reason a day has
+        // one, until nobody is owed one or a batch takes none.
+        foreach (var sportKey in sports.Where(FightSports.IsFight))
+        {
+            for (var batch = 0; abortReason is null; batch++)
+            {
+                if (ct.IsCancellationRequested)
+                    return Report("Stopped.");
+
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var fighters = scope.ServiceProvider.GetRequiredService<FighterProfileService>();
+
+                var before = rows;
+                var outcome = await fighters.RefreshAsync(sportKey, FightersJobKey, FighterBatch, ct,
+                    new Progress<int>(n => progress?.Report(new BackfillProgress(
+                        "espn", $"{sportKey} fighters", today, walked, skipped, failed, games, before + n))));
+
+                rows += outcome.RowsIngested;
+
+                if (outcome.RowsIngested == 0 || outcome.RunId == 0)
+                    break;
+            }
+        }
+
         return Report(abortReason);
 
         BackfillReport Report(string? reason) => new(walked, skipped, failed, games, rows, reason);
     }
+
+    /// <summary>The run key a backfill's fighter pass records under.</summary>
+    public const string FightersJobKey = "stats:backfill:fighters";
+
+    /// <summary>Fighters per scope in the backfill's fighter pass.</summary>
+    private const int FighterBatch = 50;
 
     private static async Task<DayOutcome> WalkDayAsync(
         LineOpsDbContext db,

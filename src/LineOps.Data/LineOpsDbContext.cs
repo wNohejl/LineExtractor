@@ -11,6 +11,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<Player> Players => Set<Player>();
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<Game> Games => Set<Game>();
+    public DbSet<Bout> Bouts => Set<Bout>();
+    public DbSet<FighterProfile> FighterProfiles => Set<FighterProfile>();
 
     public DbSet<OddsSnapshot> OddsSnapshots => Set<OddsSnapshot>();
     public DbSet<ClosingLine> ClosingLines => Set<ClosingLine>();
@@ -103,6 +105,48 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.AwayTeam).WithMany().HasForeignKey(x => x.AwayTeamId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // A fight's card and result (ADR 0021). Keyed by its game: a bout is that game's detail,
+        // and deleting the game takes it.
+        b.Entity<Bout>(e =>
+        {
+            e.HasKey(x => x.GameId);
+            e.Property(x => x.EventId).HasMaxLength(32).IsRequired();
+            e.Property(x => x.EventName).HasMaxLength(160).IsRequired();
+            e.Property(x => x.EventShortName).HasMaxLength(64);
+            e.Property(x => x.CardSegment).HasMaxLength(32);
+            e.Property(x => x.WeightClass).HasMaxLength(48);
+            e.Property(x => x.HomeRecord).HasMaxLength(16);
+            e.Property(x => x.AwayRecord).HasMaxLength(16);
+            e.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Method).HasMaxLength(64);
+            e.Property(x => x.MethodDetail).HasMaxLength(96);
+
+            // "The rest of this card" — the board and the game window read a card as one.
+            e.HasIndex(x => x.EventId);
+
+            e.HasOne(x => x.Game).WithOne().HasForeignKey<Bout>(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // A fighter's few typed facts and ESPN's figures kept whole, one per fighter's Team row.
+        b.Entity<FighterProfile>(e =>
+        {
+            e.HasKey(x => x.TeamId);
+            e.Property(x => x.Nickname).HasMaxLength(64);
+            e.Property(x => x.Country).HasMaxLength(64);
+            e.Property(x => x.Association).HasMaxLength(128);
+            e.Property(x => x.Stance).HasMaxLength(32);
+            e.Property(x => x.WeightClass).HasMaxLength(48);
+            e.Property(x => x.HeightInches).HasPrecision(5, 1);
+            e.Property(x => x.ReachInches).HasPrecision(5, 1);
+            e.Property(x => x.Record).HasMaxLength(24);
+            e.Property(x => x.Career).HasColumnType("jsonb");
+            e.Property(x => x.History).HasColumnType("jsonb");
+
+            e.HasOne(x => x.Team).WithOne().HasForeignKey<FighterProfile>(x => x.TeamId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<OddsSnapshot>(e =>

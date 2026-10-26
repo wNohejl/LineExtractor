@@ -130,6 +130,75 @@ namespace LineOps.Data.Migrations
                     b.ToTable("BackfillCheckpoints");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.Bout", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AwayRecord")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("CardSegment")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("EndRound")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EndSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("EventName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("EventShortName")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("HomeRecord")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("MatchNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("MethodDetail")
+                        .HasMaxLength(96)
+                        .HasColumnType("character varying(96)");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("ScheduledRounds")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("TitleFight")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("WeightClass")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
+                    b.HasKey("GameId");
+
+                    b.HasIndex("EventId");
+
+                    b.ToTable("Bouts");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.ClosingLine", b =>
                 {
                     b.Property<long>("Id")
@@ -186,6 +255,62 @@ namespace LineOps.Data.Migrations
                         .HasDatabaseName("ux_closing_line");
 
                     b.ToTable("ClosingLines");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.FighterProfile", b =>
+                {
+                    b.Property<int>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Association")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateOnly?>("BornOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Career")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal?>("HeightInches")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<string>("History")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Nickname")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal?>("ReachInches")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("numeric(5,1)");
+
+                    b.Property<string>("Record")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<DateTimeOffset>("RefreshedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Stance")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("WeightClass")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
+                    b.HasKey("TeamId");
+
+                    b.ToTable("FighterProfiles");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.Game", b =>
@@ -861,6 +986,17 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Sport");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.Bout", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithOne()
+                        .HasForeignKey("LineOps.Core.Entities.Bout", "GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.ClosingLine", b =>
                 {
                     b.HasOne("LineOps.Core.Entities.Game", "Game")
@@ -885,6 +1021,17 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Player");
 
                     b.Navigation("Source");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.FighterProfile", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Team", "Team")
+                        .WithOne()
+                        .HasForeignKey("LineOps.Core.Entities.FighterProfile", "TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.Game", b =>

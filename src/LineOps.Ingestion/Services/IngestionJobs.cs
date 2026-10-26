@@ -50,6 +50,18 @@ public class IngestionJobs(
     private const int ClosingLinesPerRun = 600;
 
     /// <summary>
+    /// Fighter profiles owed (ADR 0021): fighters on a card ahead, and fighters who have fought
+    /// since theirs was taken. Four requests a fighter, against ESPN's athlete pages.
+    /// </summary>
+    public const string EspnFighters = "espn:fighters";
+
+    /// <summary>Fighters one press describes: two full cards' worth, a few minutes at ESPN's pace.</summary>
+    private const int FightersPerRun = 60;
+
+    /// <summary>Requests one fighter's profile costs: athlete page, stat sheets, career rates, record.</summary>
+    public const int RequestsPerFighter = 4;
+
+    /// <summary>
     /// Prefix for a lines pull narrowed to one sport, e.g. <c>odds:lines:mlb</c>.
     ///
     /// A credit-billed provider charges per sport per call, so "fetch lines" is not one price —
@@ -164,14 +176,35 @@ public class IngestionJobs(
                 Available: closers > 0,
                 Unavailable: closers > 0 ? null : "No stats source states closing lines."),
 
-            new IngestionJob(
-                Key: Settle,
-                Label: "Settle finished games",
-                Description: "Grades journal entries whose games are final and resolves their CLV.",
-                EstimatedRequests: 0,
-                Available: true,
-                Unavailable: null)
         };
+
+        // Only a desk that holds a fought sport has fighters to describe.
+        if (sports.Any(FightSports.IsFight))
+        {
+            var owedFighters = 0;
+            var fighters = scope.ServiceProvider.GetRequiredService<FighterProfileService>();
+
+            foreach (var sport in sports.Where(FightSports.IsFight))
+                owedFighters += await fighters.OwedCountAsync(sport, ct);
+
+            jobs.Add(new IngestionJob(
+                Key: EspnFighters,
+                Label: "Fighter profiles owed",
+                Description: "Bio, career rates and every recorded fight with ESPN's stat sheet, for fighters on a card "
+                             + $"ahead or who have fought since theirs was taken — {RequestsPerFighter} requests a fighter, "
+                             + $"{FightersPerRun} fighters a press.",
+                EstimatedRequests: Math.Min(owedFighters, FightersPerRun) * RequestsPerFighter,
+                Available: stats > 0,
+                Unavailable: stats > 0 ? null : "No stats source registered."));
+        }
+
+        jobs.Add(new IngestionJob(
+            Key: Settle,
+            Label: "Settle finished games",
+            Description: "Grades journal entries whose games are final and resolves their CLV.",
+            EstimatedRequests: 0,
+            Available: true,
+            Unavailable: null));
 
         // One entry per sport rather than one for all of them.
         //
@@ -207,6 +240,7 @@ public class IngestionJobs(
                 EspnSlate => await RunSlateAsync(ct),
                 EspnResults => await RunResultsAsync(ct),
                 EspnClosingLines => await RunClosingLinesAsync(ct),
+                EspnFighters => await RunFightersAsync(FightersPerRun, ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
 
@@ -531,6 +565,38 @@ public class IngestionJobs(
         return new JobOutcome(EspnClosingLines, failures == 0, rows, failures,
             $"{rows:N0} closing lines written; {owedBefore - owedAfter} of {owedBefore} games owed a close now have one"
             + (owedAfter > 0 ? $", {owedAfter} still without (ESPN has no line for them)." : "."));
+    }
+
+    /// <summary>
+    /// Profiles for the fighters owed one, in every configured fought sport (ADR 0021). A fighter
+    /// ESPN cannot describe is retried on the next press; the rest are not held up by it.
+    /// </summary>
+    private async Task<JobOutcome> RunFightersAsync(int limit, CancellationToken ct)
+    {
+        var rows = 0;
+        var failures = 0;
+        var stillOwed = 0;
+
+        foreach (var sportKey in _options.EffectiveSports.Where(FightSports.IsFight))
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var fighters = scope.ServiceProvider.GetRequiredService<FighterProfileService>();
+
+            var outcome = await fighters.RefreshAsync(sportKey, EspnFighters, limit, ct);
+            rows += outcome.RowsIngested;
+
+            if (outcome.Status == RunStatus.Failed)
+                failures++;
+
+            stillOwed += await fighters.OwedCountAsync(sportKey, ct);
+        }
+
+        return new JobOutcome(EspnFighters, failures == 0, rows, failures,
+            $"{rows:N0} fighter {(rows == 1 ? "profile" : "profiles")} taken"
+            + (stillOwed > 0 ? $"; {stillOwed:N0} still owed." : "."));
     }
 
     private static async Task<int> OwedClosesAsync(IServiceProvider provider, IReadOnlyList<string> sports, CancellationToken ct)

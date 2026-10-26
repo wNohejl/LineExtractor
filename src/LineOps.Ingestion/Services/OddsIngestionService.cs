@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Diagnostics;
 using LineOps.Core.Entities;
@@ -153,6 +154,34 @@ public class OddsIngestionService(
         return new IngestionOutcome(run.Id, run.Status, rows, run.Error);
     }
 
+    /// <summary>
+    /// A book's side of a fight as the bout's own fighter: the book's home or away by its own name,
+    /// then by the fighter's name with accents and suffixes folded. Null for a side that is neither
+    /// fighter — a draw offered as a third outcome, which a two-way board does not carry.
+    /// </summary>
+    internal static Func<string, string?> FighterOutcomes(CanonicalGame canonical, Game bout, bool swapped)
+    {
+        var home = bout.HomeTeam?.Name;
+        var away = bout.AwayTeam?.Name;
+
+        return outcome =>
+        {
+            if (home is null || away is null)
+                return null;
+
+            if (outcome == canonical.HomeTeamName)
+                return swapped ? away : home;
+
+            if (outcome == canonical.AwayTeamName)
+                return swapped ? home : away;
+
+            var isHome = FighterNames.Same(outcome, home);
+            var isAway = FighterNames.Same(outcome, away);
+
+            return isHome == isAway ? null : isHome ? home : away;
+        };
+    }
+
     private async Task<int> PersistAsync(
         Source sourceRow,
         OddsFetchResult result,
@@ -167,10 +196,31 @@ public class OddsIngestionService(
 
         // Resolve every referenced game once, then index by the provider's id.
         var gameMap = new Dictionary<string, Game>();
+
+        // A fight is attached to the bout ESPN holds and is never created from a book, and its
+        // sides are renamed to the bout's own fighters so the board can pair them (ADR 0021).
+        var fights = FightSports.IsFight(sport.Key);
+        var sides = new Dictionary<string, Func<string, string?>>();
+
         foreach (var canonical in result.Games)
         {
-            var game = await resolver.ResolveGameAsync(sport, sourceRow.Key, canonical, ct);
-            gameMap[canonical.SourceGameId] = game;
+            if (!fights)
+            {
+                gameMap[canonical.SourceGameId] = await resolver.ResolveGameAsync(sport, sourceRow.Key, canonical, ct);
+                continue;
+            }
+
+            if (await resolver.FindBoutAsync(sport, sourceRow.Key, canonical, ct) is not { } bout)
+                continue;
+
+            gameMap[canonical.SourceGameId] = bout.Game;
+            sides[canonical.SourceGameId] = FighterOutcomes(canonical, bout.Game, bout.Swapped);
+        }
+
+        if (fights)
+        {
+            logger.LogInformation("{Source}/{Sport}: {Matched} of {Listed} fights are UFC bouts on the desk",
+                sourceRow.Key, sportKey, gameMap.Count, result.Games.Count);
         }
 
         var snapshots = new List<OddsSnapshot>();
@@ -180,13 +230,23 @@ public class OddsIngestionService(
             if (!gameMap.TryGetValue(odds.SourceGameId, out var game))
                 continue;
 
+            var outcome = odds.Outcome;
+
+            if (sides.TryGetValue(odds.SourceGameId, out var rename) && odds.Market != Markets.Total)
+            {
+                if (rename(outcome) is not { } fighter)
+                    continue;
+
+                outcome = fighter;
+            }
+
             snapshots.Add(new OddsSnapshot
             {
                 GameId = game.Id,
                 SourceId = sourceRow.Id,
                 Book = odds.Book,
                 Market = odds.Market,
-                Outcome = odds.Outcome,
+                Outcome = outcome,
                 Line = odds.Line,
                 PriceAmerican = odds.PriceAmerican,
                 CapturedAt = odds.CapturedAt,

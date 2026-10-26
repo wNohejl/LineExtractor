@@ -84,34 +84,28 @@ public class EntityResolver(LineOpsDbContext db)
             return hit;
 
         var normalised = Normalise(reference.Name);
-        Team? team = null;
+        var known = await db.Teams.Where(t => t.SportId == sport.Id).ToListAsync(ct);
 
         // Strongest: this source has told us its id for a team before.
-        if (reference.SourceTeamId is { } sourceTeamId)
-        {
-            var known = await db.Teams.Where(t => t.SportId == sport.Id).ToListAsync(ct);
-            team = known.FirstOrDefault(t =>
-                t.ExternalIds.TryGetValue(sourceKey, out var id) && id == sourceTeamId);
-        }
+        var team = reference.SourceTeamId is { } sourceTeamId
+            ? known.FirstOrDefault(t => t.ExternalIds.TryGetValue(sourceKey, out var id) && id == sourceTeamId)
+            : null;
 
-        team ??= await db.Teams
-            .Where(t => t.SportId == sport.Id)
-            .FirstOrDefaultAsync(t => t.Name == reference.Name, ct);
+        // Then the name — exact, then normalised, since providers differ on punctuation ("St. Louis"
+        // vs "St Louis") and casing. Never onto a row this source already knows under another id:
+        // that is someone else with the same name. Clubs do not share names; fighters do — two
+        // "Bruno Silva"s have fought in the UFC — and taking the first would merge two careers.
+        var unclaimed = known.Where(t => !ClaimedByAnother(t, sourceKey, reference.SourceTeamId)).ToList();
 
-        if (team is null)
-        {
-            // Last chance on a normalised comparison — providers differ on
-            // punctuation ("St. Louis" vs "St Louis") and casing.
-            var candidates = await db.Teams.Where(t => t.SportId == sport.Id).ToListAsync(ct);
-            team = candidates.FirstOrDefault(t => Normalise(t.Name) == normalised);
-        }
+        team ??= unclaimed.FirstOrDefault(t => t.Name == reference.Name)
+                 ?? unclaimed.FirstOrDefault(t => Normalise(t.Name) == normalised);
 
         if (team is null)
         {
             team = new Team
             {
                 SportId = sport.Id,
-                Name = reference.Name,
+                Name = UnusedName(known, reference),
                 Abbrev = reference.Abbrev ?? Abbreviate(reference.Name)
             };
             db.Teams.Add(team);
@@ -153,6 +147,116 @@ public class EntityResolver(LineOpsDbContext db)
         return team;
     }
 
+    /// <summary>Whether this row carries an id from this source that is not the one being resolved.</summary>
+    private static bool ClaimedByAnother(Team team, string sourceKey, string? sourceTeamId)
+        => sourceTeamId is not null
+           && team.ExternalIds.TryGetValue(sourceKey, out var existing)
+           && existing != sourceTeamId
+           && existing != team.Name;
+
+    /// <summary>
+    /// A name for a new side that no other side in the sport holds. Names are unique per sport, so
+    /// a second fighter of the same name is written with what tells them apart — "Bruno Silva
+    /// (Flyweight)" — and, failing that, the provider's id. Readers that compare fighters fold the
+    /// bracket away (<see cref="FighterNames.Fold"/>).
+    /// </summary>
+    private static string UnusedName(IReadOnlyList<Team> known, CanonicalTeamRef reference)
+    {
+        if (known.All(t => t.Name != reference.Name))
+            return reference.Name;
+
+        foreach (var qualifier in new[] { reference.Qualifier, reference.SourceTeamId })
+        {
+            if (string.IsNullOrWhiteSpace(qualifier))
+                continue;
+
+            var name = $"{reference.Name} ({qualifier})";
+            if (known.All(t => t.Name != name))
+                return name;
+        }
+
+        return $"{reference.Name} ({Guid.NewGuid():N})"[..Math.Min(128, reference.Name.Length + 35)];
+    }
+
+    /// <summary>
+    /// The UFC bout a book's fight is, or null when the desk holds none (ADR 0021).
+    ///
+    /// <para>
+    /// A book lists every promotion under one MMA key and does not say which, so a fight is only
+    /// ever <i>attached</i> to a bout ESPN created — never created from a book, which would put
+    /// regional cards and other promotions on the desk. A bout is found by its two fighters, in
+    /// either corner (books do not keep ESPN's red and blue), within a day and a half of the
+    /// book's start: two fighters do not meet twice in a week, and a book's start for a card's
+    /// fight is often the card's rather than the bout's. Both fighters by name, or one by name and
+    /// the other by surname — a fighter billed under a new first name.
+    /// </para>
+    /// </summary>
+    /// <returns>The bout's game with its fighters loaded, and whether the book's home is the bout's away.</returns>
+    public async Task<(Game Game, bool Swapped)?> FindBoutAsync(
+        Sport sport, string sourceKey, CanonicalGame canonical, CancellationToken ct)
+    {
+        var candidates = await db.Games
+            .Include(g => g.HomeTeam)
+            .Include(g => g.AwayTeam)
+            .Where(g => g.SportId == sport.Id
+                        && g.StartsAt > canonical.StartsAt - BoutDrift
+                        && g.StartsAt < canonical.StartsAt + BoutDrift)
+            .ToListAsync(ct);
+
+        // This book has named the bout before: only which way round is left to read.
+        var known = candidates.FirstOrDefault(g =>
+            g.ExternalIds.TryGetValue(sourceKey, out var id) && id == canonical.SourceGameId);
+
+        if (known is not null)
+            return (known, Orientation(known, canonical)?.Swapped ?? false);
+
+        var best = candidates
+            .Where(g => !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId))
+            .Select(g => (Game: g, Fit: Orientation(g, canonical)))
+            .Where(x => x.Fit is not null)
+            .OrderByDescending(x => x.Fit!.Value.Strength)
+            .ThenBy(x => (x.Game.StartsAt - canonical.StartsAt).Duration())
+            .FirstOrDefault();
+
+        if (best.Game is not { } game)
+            return null;
+
+        game.ExternalIds = new Dictionary<string, string>(game.ExternalIds) { [sourceKey] = canonical.SourceGameId };
+        await db.SaveChangesAsync(ct);
+
+        return (game, best.Fit!.Value.Swapped);
+    }
+
+    /// <summary>How far a book's start for a fight may sit from ESPN's start for the bout.</summary>
+    public static readonly TimeSpan BoutDrift = TimeSpan.FromHours(36);
+
+    /// <summary>
+    /// Whether a book's two fighters are this bout's, and which way round: strength 2 when both
+    /// names agree, 1 when one does and the other's surname does, null when they are not this bout.
+    /// </summary>
+    private static (bool Swapped, int Strength)? Orientation(Game game, CanonicalGame canonical)
+    {
+        var home = game.HomeTeam?.Name;
+        var away = game.AwayTeam?.Name;
+
+        static int Fit(string? ours, string? theirs)
+            => FighterNames.Same(ours, theirs) ? 2 : FighterNames.SameSurname(ours, theirs) ? 1 : 0;
+
+        var straight = (Fit(home, canonical.HomeTeamName), Fit(away, canonical.AwayTeamName));
+        var swapped = (Fit(home, canonical.AwayTeamName), Fit(away, canonical.HomeTeamName));
+
+        static int? Strength((int A, int B) fit)
+            => fit is (2, 2) ? 2 : fit is (2, 1) or (1, 2) ? 1 : null;
+
+        return (Strength(straight), Strength(swapped)) switch
+        {
+            ({ } s, { } t) => t > s ? (true, t) : (false, s),
+            ({ } s, null) => (false, s),
+            (null, { } t) => (true, t),
+            _ => null
+        };
+    }
+
     public async Task<Game> ResolveGameAsync(
         Sport sport, string sourceKey, CanonicalGame canonical, CancellationToken ct)
     {
@@ -179,11 +283,22 @@ public class EntityResolver(LineOpsDbContext db)
         // a fifteen-game slate this is thirty lookups once and free thereafter.
         if (game is not null && (canonical.Home is not null || canonical.Away is not null))
         {
-            if (canonical.Home is { } homeRef)
-                await ResolveTeamAsync(sport, sourceKey, homeRef, ct);
+            var homeSide = canonical.Home is { } homeRef ? await ResolveTeamAsync(sport, sourceKey, homeRef, ct) : null;
+            var awaySide = canonical.Away is { } awayRef ? await ResolveTeamAsync(sport, sourceKey, awayRef, ct) : null;
 
-            if (canonical.Away is { } awayRef)
-                await ResolveTeamAsync(sport, sourceKey, awayRef, ct);
+            // A bout's fighters follow the card (ADR 0021). A short-notice replacement keeps the
+            // bout and changes a corner, and a corner read the wrong way round would put the
+            // result's 1–0 on the loser. A club never changes its fixture's sides, so only a
+            // fight is corrected, and only by the schedule's authority.
+            if (FightSports.IsFight(sport.Key)
+                && homeSide is not null && awaySide is not null
+                && (game.HomeTeamId != homeSide.Id || game.AwayTeamId != awaySide.Id)
+                && await IsScheduleAuthorityAsync(sourceKey, ct))
+            {
+                game.HomeTeamId = homeSide.Id;
+                game.AwayTeamId = awaySide.Id;
+                await db.SaveChangesAsync(ct);
+            }
         }
 
         if (game is null)

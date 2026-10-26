@@ -222,6 +222,8 @@ public class TheOddsApiAdapter(
         "nba" => "basketball_nba",
         "mlb" => "baseball_mlb",
         "nhl" => "icehockey_nhl",
+        // Every promotion under one key; only fights matching a UFC bout on the desk are kept (ADR 0021).
+        "ufc" => "mma_mixed_martial_arts",
         _ => sportKey
     };
 

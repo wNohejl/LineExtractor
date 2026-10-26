@@ -1,0 +1,552 @@
+{
+  "athlete": {
+    "id": "4705658",
+    "uid": "s:3301~a:4705658",
+    "guid": "69596ae1-6dea-3b39-8fcb-a6333019ca68",
+    "firstName": "Alex",
+    "lastName": "Pereira",
+    "displayName": "Alex Pereira",
+    "fullName": "Alex Pereira",
+    "nickname": "Poatan",
+    "active": true,
+    "status": {
+      "id": "1",
+      "name": "Active",
+      "type": "active",
+      "abbreviation": "Active"
+    },
+    "statsSummary": {
+      "displayName": "Stats",
+      "statistics": [
+        {
+          "name": "wins-losses-draws",
+          "type": "wins-losses-draws",
+          "displayName": "Wins-Losses-Draws",
+          "shortDisplayName": "W-L-Draws",
+          "description": "Wins-Losses-Draws",
+          "abbreviation": "W-L-D",
+          "value": 13.0,
+          "displayValue": "13-4-0"
+        },
+        {
+          "name": "tkos-tkoLosses",
+          "type": "tkos-tkolosses",
+          "displayName": "Technical Knockout-Technical Knockout Losses",
+          "shortDisplayName": "TKO-TKOL",
+          "description": "Technical Knockout-Technical Knockout Losses",
+          "abbreviation": "(T)KO",
+          "value": 11.0,
+          "displayValue": "11-2"
+        },
+        {
+          "name": "submissions-submissionLosses",
+          "type": "submissions-submissionlosses",
+          "displayName": "Submissions-Submission Losses",
+          "shortDisplayName": "SUB-SUBL",
+          "description": "Submissions-Submission Losses",
+          "abbreviation": "SUB",
+          "value": 0.0,
+          "displayValue": "0-1"
+        }
+      ]
+    },
+    "displayHeight": "6' 4\"",
+    "displayWeight": "251 lbs",
+    "displayDOB": "7/7/1987",
+    "age": 39,
+    "gender": "MALE",
+    "association": {
+      "id": "7027",
+      "name": "Teixeira MMA & Fitness"
+    },
+    "citizenship": "Brazil",
+    "citizenshipCountry": {
+      "alternateId": "147",
+      "abbreviation": "BRA",
+      "color": "#FFDF00",
+      "alternateColor": "#002776"
+    },
+    "flag": {
+      "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+      "alt": "Brazil",
+      "rel": [
+        "country-flag"
+      ]
+    },
+    "weightClass": {
+      "id": "982",
+      "text": "Heavyweight",
+      "shortName": "Heavyweight",
+      "slug": "heavyweight"
+    },
+    "displayReach": "79\"",
+    "stance": {
+      "id": "75",
+      "text": "Orthodox"
+    },
+    "displayFightingStyle": "Kickboxing"
+  },
+  "events": [
+    "s:3301~l:3321~e:600058854~c:401863576",
+    "s:3301~l:3321~e:600054473~c:401780156",
+    "s:3301~l:3321~e:600051447~c:401734554",
+    "s:3301~l:3321~e:600048801~c:401702667",
+    "s:3301~l:3321~e:600043173~c:401678716",
+    "s:3301~l:3321~e:600041053~c:401619309",
+    "s:3301~l:3321~e:600036292~c:401601429",
+    "s:3301~l:3321~e:600034052~c:401548519",
+    "s:3301~l:3321~e:600029512~c:401525107",
+    "s:3301~l:3321~e:600023427~c:401465975",
+    "s:3301~l:3321~e:600015541~c:401436431",
+    "s:3301~l:3321~e:600014167~c:401411659",
+    "s:3301~l:3321~e:600010313~c:401367769",
+    "s:3301~l:3355~e:600000142~c:401264373",
+    "s:3301~l:3359~e:400936107~c:401264370",
+    "s:3301~l:3359~e:400963927~c:401264369",
+    "s:3301~l:3359~e:400857337~c:401264368"
+  ],
+  "eventsMap": {
+    "s:3301~l:3321~e:600058854~c:401863576": {
+      "id": "600058854",
+      "uid": "s:3301~l:3321~e:600058854~c:401863576",
+      "name": "UFC Freedom 250: Topuria vs. Gaethje",
+      "shortName": "UFC Freedom 250",
+      "gameDate": "2026-06-14T19:00:00-05:00",
+      "gameResult": "L",
+      "opponent": {
+        "id": "4426000",
+        "uid": "s:3301~a:4426000",
+        "displayName": "Ciryl Gane",
+        "fullName": "Ciryl Gane",
+        "lastName": "Gane",
+        "shortName": "C. Gane"
+      },
+      "status": {
+        "displayClock": "1:27",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600054473~c:401780156": {
+      "id": "600054473",
+      "uid": "s:3301~l:3321~e:600054473~c:401780156",
+      "name": "UFC 320: Ankalaev vs. Pereira 2",
+      "shortName": "UFC 320",
+      "gameDate": "2025-10-04T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4273399",
+        "uid": "s:3301~a:4273399",
+        "displayName": "Magomed Ankalaev",
+        "fullName": "Magomed Ankalaev",
+        "lastName": "Ankalaev",
+        "shortName": "M. Ankalaev"
+      },
+      "status": {
+        "displayClock": "1:20",
+        "period": 1,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600051447~c:401734554": {
+      "id": "600051447",
+      "uid": "s:3301~l:3321~e:600051447~c:401734554",
+      "name": "UFC 313: Pereira vs. Ankalaev",
+      "shortName": "UFC 313",
+      "gameDate": "2025-03-08T17:00:00-06:00",
+      "gameResult": "L",
+      "opponent": {
+        "id": "4273399",
+        "uid": "s:3301~a:4273399",
+        "displayName": "Magomed Ankalaev",
+        "fullName": "Magomed Ankalaev",
+        "lastName": "Ankalaev",
+        "shortName": "M. Ankalaev"
+      },
+      "status": {
+        "displayClock": "5:00",
+        "period": 5,
+        "result": {
+          "name": "decision---unanimous",
+          "displayName": "Decision - Unanimous",
+          "shortDisplayName": "U Dec"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600048801~c:401702667": {
+      "id": "600048801",
+      "uid": "s:3301~l:3321~e:600048801~c:401702667",
+      "name": "UFC 307: Pereira vs. Rountree Jr.",
+      "shortName": "UFC 307",
+      "gameDate": "2024-10-05T17:30:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4028627",
+        "uid": "s:3301~a:4028627",
+        "displayName": "Khalil Rountree Jr.",
+        "fullName": "Khalil Rountree Jr.",
+        "lastName": "Rountree Jr.",
+        "shortName": "K. Rountree Jr."
+      },
+      "status": {
+        "displayClock": "4:32",
+        "period": 4,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600043173~c:401678716": {
+      "id": "600043173",
+      "uid": "s:3301~l:3321~e:600043173~c:401678716",
+      "name": "UFC 303: Pereira vs. Procházka 2",
+      "shortName": "UFC 303",
+      "gameDate": "2024-06-29T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "3156612",
+        "uid": "s:3301~a:3156612",
+        "displayName": "Jiří Procházka",
+        "fullName": "Jiří Procházka",
+        "lastName": "Procházka",
+        "shortName": "J. Procházka"
+      },
+      "status": {
+        "displayClock": "0:13",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600041053~c:401619309": {
+      "id": "600041053",
+      "uid": "s:3301~l:3321~e:600041053~c:401619309",
+      "name": "UFC 300: Pereira vs. Hill",
+      "shortName": "UFC 300",
+      "gameDate": "2024-04-13T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4425355",
+        "uid": "s:3301~a:4425355",
+        "displayName": "Jamahal Hill",
+        "fullName": "Jamahal Hill",
+        "lastName": "Hill",
+        "shortName": "J. Hill"
+      },
+      "status": {
+        "displayClock": "3:14",
+        "period": 1,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600036292~c:401601429": {
+      "id": "600036292",
+      "uid": "s:3301~l:3321~e:600036292~c:401601429",
+      "name": "UFC 295: Procházka vs. Pereira",
+      "shortName": "UFC 295",
+      "gameDate": "2023-11-11T17:00:00-06:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "3156612",
+        "uid": "s:3301~a:3156612",
+        "displayName": "Jiří Procházka",
+        "fullName": "Jiří Procházka",
+        "lastName": "Procházka",
+        "shortName": "J. Procházka"
+      },
+      "status": {
+        "displayClock": "4:08",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600034052~c:401548519": {
+      "id": "600034052",
+      "uid": "s:3301~l:3321~e:600034052~c:401548519",
+      "name": "UFC 291: Poirier vs. Gaethje 2",
+      "shortName": "UFC 291",
+      "gameDate": "2023-07-29T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "2506250",
+        "uid": "s:3301~a:2506250",
+        "displayName": "Jan Blachowicz",
+        "fullName": "Jan Blachowicz",
+        "lastName": "Blachowicz",
+        "shortName": "J. Blachowicz"
+      },
+      "status": {
+        "displayClock": "5:00",
+        "period": 3,
+        "result": {
+          "name": "decision---split",
+          "displayName": "Decision - Split",
+          "shortDisplayName": "S Dec"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3321~e:600029512~c:401525107": {
+      "id": "600029512",
+      "uid": "s:3301~l:3321~e:600029512~c:401525107",
+      "name": "UFC 287: Pereira vs. Adesanya 2",
+      "shortName": "UFC 287",
+      "gameDate": "2023-04-08T21:00:00-05:00",
+      "gameResult": "L",
+      "opponent": {
+        "id": "4285679",
+        "uid": "s:3301~a:4285679",
+        "displayName": "Israel Adesanya",
+        "fullName": "Israel Adesanya",
+        "lastName": "Adesanya",
+        "shortName": "I. Adesanya"
+      },
+      "status": {
+        "displayClock": "4:21",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600023427~c:401465975": {
+      "id": "600023427",
+      "uid": "s:3301~l:3321~e:600023427~c:401465975",
+      "name": "UFC 281: Adesanya vs. Pereira",
+      "shortName": "UFC 281",
+      "gameDate": "2022-11-12T17:00:00-06:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4285679",
+        "uid": "s:3301~a:4285679",
+        "displayName": "Israel Adesanya",
+        "fullName": "Israel Adesanya",
+        "lastName": "Adesanya",
+        "shortName": "I. Adesanya"
+      },
+      "status": {
+        "displayClock": "2:01",
+        "period": 5,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": true
+    },
+    "s:3301~l:3321~e:600015541~c:401436431": {
+      "id": "600015541",
+      "uid": "s:3301~l:3321~e:600015541~c:401436431",
+      "name": "UFC 276: Adesanya vs. Cannonier",
+      "shortName": "UFC 276",
+      "gameDate": "2022-07-02T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "3093653",
+        "uid": "s:3301~a:3093653",
+        "displayName": "Sean Strickland",
+        "fullName": "Sean Strickland",
+        "lastName": "Strickland",
+        "shortName": "S. Strickland"
+      },
+      "status": {
+        "displayClock": "2:36",
+        "period": 1,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3321~e:600014167~c:401411659": {
+      "id": "600014167",
+      "uid": "s:3301~l:3321~e:600014167~c:401411659",
+      "name": "UFC Fight Night: Santos vs. Ankalaev",
+      "shortName": "UFC Fight Night",
+      "gameDate": "2022-03-12T15:00:00-06:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4333158",
+        "uid": "s:3301~a:4333158",
+        "displayName": "Bruno Silva",
+        "fullName": "Bruno Silva",
+        "lastName": "Silva",
+        "shortName": "B. Silva"
+      },
+      "status": {
+        "displayClock": "5:00",
+        "period": 3,
+        "result": {
+          "name": "decision---unanimous",
+          "displayName": "Decision - Unanimous",
+          "shortDisplayName": "U Dec"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3321~e:600010313~c:401367769": {
+      "id": "600010313",
+      "uid": "s:3301~l:3321~e:600010313~c:401367769",
+      "name": "UFC 268: Usman vs. Covington 2",
+      "shortName": "UFC 268",
+      "gameDate": "2021-11-06T17:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "3171474",
+        "uid": "s:3301~a:3171474",
+        "displayName": "Andreas Michailidis",
+        "fullName": "Andreas Michailidis",
+        "lastName": "Michailidis",
+        "shortName": "A. Michailidis"
+      },
+      "status": {
+        "displayClock": "0:18",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3355~e:600000142~c:401264373": {
+      "id": "600000142",
+      "uid": "s:3301~l:3355~e:600000142~c:401264373",
+      "name": "LFA 95: Pereira vs. Powell",
+      "shortName": "LFA 95",
+      "gameDate": "2020-11-20T20:00:00-06:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4705659",
+        "uid": "s:3301~a:4705659",
+        "displayName": "Thomas Powell",
+        "fullName": "Thomas Powell",
+        "lastName": "Powell",
+        "shortName": "T. Powell"
+      },
+      "status": {
+        "displayClock": "4:04",
+        "period": 1,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3359~e:400936107~c:401264370": {
+      "id": "400936107",
+      "uid": "s:3301~l:3359~e:400936107~c:401264370",
+      "name": "Jungle Fight 87",
+      "shortName": "Jungle Fight 87",
+      "gameDate": "2016-05-21T11:00:00-05:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "4631658",
+        "uid": "s:3301~a:4631658",
+        "displayName": "Marcus Vinicius",
+        "fullName": "Marcus Vinicius",
+        "lastName": "Vinicius",
+        "shortName": "M. Vinicius"
+      },
+      "status": {
+        "displayClock": "4:55",
+        "period": 2,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3359~e:400963927~c:401264369": {
+      "id": "400963927",
+      "uid": "s:3301~l:3359~e:400963927~c:401264369",
+      "name": "Jungle Fight 85",
+      "shortName": "Jungle Fight 85",
+      "gameDate": "2016-01-23T11:00:00-06:00",
+      "gameResult": "W",
+      "opponent": {
+        "id": "2984144",
+        "uid": "s:3301~a:2984144",
+        "displayName": "Marcelo Cruz",
+        "fullName": "Marcelo Cruz",
+        "lastName": "Cruz",
+        "shortName": "M. Cruz"
+      },
+      "status": {
+        "displayClock": "4:07",
+        "period": 1,
+        "result": {
+          "name": "kotko",
+          "displayName": "KO/TKO",
+          "shortDisplayName": "KO/TKO"
+        }
+      },
+      "titleFight": false
+    },
+    "s:3301~l:3359~e:400857337~c:401264368": {
+      "id": "400857337",
+      "uid": "s:3301~l:3359~e:400857337~c:401264368",
+      "name": "Jungle Fight 82",
+      "shortName": "Jungle Fight 82",
+      "gameDate": "2015-10-24T11:00:00-05:00",
+      "gameResult": "L",
+      "opponent": {
+        "id": "4705662",
+        "uid": "s:3301~a:4705662",
+        "displayName": "Quemuel Ottoni",
+        "fullName": "Quemuel Ottoni",
+        "lastName": "Ottoni",
+        "shortName": "Q. Ottoni"
+      },
+      "status": {
+        "displayClock": "2:52",
+        "period": 3,
+        "result": {
+          "name": "submission-rear-naked-choke",
+          "displayName": "Submission (Rear Naked Choke)",
+          "shortDisplayName": "Submission (RNC)"
+        }
+      },
+      "titleFight": false
+    }
+  }
+}

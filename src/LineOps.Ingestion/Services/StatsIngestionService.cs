@@ -1,3 +1,4 @@
+using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
@@ -156,6 +157,12 @@ public class StatsIngestionService(
         var requests = 0;
         var failures = 0;
 
+        // A fight's odds live under its card's event, not its own id (ADR 0021).
+        var owedIds = owed.Select(g => g.Id).ToList();
+        var cards = await db.Bouts
+            .Where(b => owedIds.Contains(b.GameId))
+            .ToDictionaryAsync(b => b.GameId, b => b.EventId, ct);
+
         foreach (var game in owed)
         {
             ct.ThrowIfCancellationRequested();
@@ -168,7 +175,8 @@ public class StatsIngestionService(
             {
                 requests++;
                 var found = await source.FetchClosingLinesAsync(sportKey,
-                    new ClosingLineRequest(eventId, game.HomeTeam.Name, game.AwayTeam.Name, game.StartsAt), ct);
+                    new ClosingLineRequest(eventId, game.HomeTeam.Name, game.AwayTeam.Name, game.StartsAt,
+                        cards.GetValueOrDefault(game.Id)), ct);
 
                 gameMap[eventId] = game;
                 lines.AddRange(found);
@@ -220,6 +228,9 @@ public class StatsIngestionService(
             var game = await resolver.ResolveGameAsync(sport, sourceRow.Key, canonical, ct);
             gameMap[canonical.SourceGameId] = game;
             rows++;
+
+            if (canonical.Bout is { } bout)
+                rows += await UpsertBoutAsync(game, bout, ct);
         }
 
         // Resolve each stat line to a game *before* creating anyone, so that a player only
@@ -389,6 +400,14 @@ public class StatsIngestionService(
 
         var gameIds = gameMap.Values.Select(g => g.Id).ToHashSet();
 
+        // A fight's close names its fighters as the provider bills them; a fighter whose name is
+        // shared is held under a qualified one ("Bruno Silva (Flyweight)"), and a side the board
+        // cannot pair is a close nobody reads. So a fight's sides are written as its own (ADR 0021).
+        var fighters = await db.Games
+            .Where(g => gameIds.Contains(g.Id) && FightSports.Keys.Contains(g.Sport!.Key))
+            .Select(g => new { g.Id, Home = g.HomeTeam!.Name, Away = g.AwayTeam!.Name })
+            .ToDictionaryAsync(g => g.Id, g => (g.Home, g.Away), ct);
+
         var held = (await db.ClosingLines
                 .Where(c => c.SourceId == sourceRow.Id && gameIds.Contains(c.GameId))
                 .Select(c => new { c.GameId, c.Market, c.Outcome })
@@ -403,7 +422,17 @@ public class StatsIngestionService(
             if (!gameMap.TryGetValue(line.SourceGameId, out var game))
                 continue;
 
-            if (!held.Add((game.Id, line.Market, line.Outcome)))
+            var outcome = line.Outcome;
+
+            if (line.Market != Markets.Total && fighters.TryGetValue(game.Id, out var corners))
+            {
+                if (FighterNames.Same(outcome, corners.Home) && !FighterNames.Same(outcome, corners.Away))
+                    outcome = corners.Home;
+                else if (FighterNames.Same(outcome, corners.Away) && !FighterNames.Same(outcome, corners.Home))
+                    outcome = corners.Away;
+            }
+
+            if (!held.Add((game.Id, line.Market, outcome)))
                 continue;
 
             db.ClosingLines.Add(new ClosingLine
@@ -412,7 +441,7 @@ public class StatsIngestionService(
                 SourceId = sourceRow.Id,
                 Book = line.Book,
                 Market = line.Market,
-                Outcome = line.Outcome,
+                Outcome = outcome,
                 Line = line.Line,
                 PriceAmerican = line.PriceAmerican,
                 CapturedAt = line.CapturedAt
@@ -426,6 +455,68 @@ public class StatsIngestionService(
 
         return written;
     }
+
+    /// <summary>
+    /// A fight's card and result beside its game (ADR 0021): written on first sight, refreshed as
+    /// the card changes and the result arrives. The provider is the authority on its own card, so
+    /// every field follows it — except a result, which a later read that has lost it (a fight
+    /// center gone quiet, the scoreboard standing in) does not erase.
+    /// </summary>
+    /// <returns>1 when the row was written or changed.</returns>
+    private async Task<int> UpsertBoutAsync(Game game, CanonicalBout canonical, CancellationToken ct)
+    {
+        var bout = await db.Bouts.FirstOrDefaultAsync(b => b.GameId == game.Id, ct);
+
+        if (bout is null)
+        {
+            bout = new Bout { GameId = game.Id };
+            db.Bouts.Add(bout);
+        }
+
+        var before = (bout.EventId, bout.EventName, bout.EventShortName, bout.CardSegment, bout.MatchNumber, bout.WeightClass,
+            bout.ScheduledRounds, bout.TitleFight, bout.HomeRecord, bout.AwayRecord, bout.Outcome, bout.Method,
+            bout.MethodDetail, bout.EndRound, bout.EndSeconds);
+
+        bout.EventId = canonical.EventId;
+        bout.EventName = Truncate(canonical.EventName, 160)!;
+        bout.EventShortName = Truncate(canonical.EventShortName, 64) ?? bout.EventShortName;
+        bout.CardSegment = Truncate(canonical.CardSegment, 32) ?? bout.CardSegment;
+        bout.MatchNumber = canonical.MatchNumber ?? bout.MatchNumber;
+        bout.WeightClass = Truncate(canonical.WeightClass, 48) ?? bout.WeightClass;
+        bout.ScheduledRounds = canonical.ScheduledRounds;
+        bout.TitleFight = canonical.TitleFight;
+        bout.HomeRecord = Truncate(canonical.HomeRecord, 16) ?? bout.HomeRecord;
+        bout.AwayRecord = Truncate(canonical.AwayRecord, 16) ?? bout.AwayRecord;
+
+        if (canonical.Outcome is not null || bout.Outcome is null)
+        {
+            bout.Outcome = canonical.Outcome;
+            bout.Method = Truncate(canonical.Method, 64) ?? (canonical.Outcome is null ? null : bout.Method);
+            bout.MethodDetail = Truncate(canonical.MethodDetail, 96);
+            bout.EndRound = canonical.EndRound;
+            bout.EndSeconds = canonical.EndSeconds;
+        }
+
+        // A no contest has no winner and so no score, whatever a scoreboard said before the ruling.
+        if (bout.Outcome == BoutOutcome.NoContest && (game.HomeScore is not null || game.AwayScore is not null))
+        {
+            game.HomeScore = null;
+            game.AwayScore = null;
+        }
+
+        var after = (bout.EventId, bout.EventName, bout.EventShortName, bout.CardSegment, bout.MatchNumber, bout.WeightClass,
+            bout.ScheduledRounds, bout.TitleFight, bout.HomeRecord, bout.AwayRecord, bout.Outcome, bout.Method,
+            bout.MethodDetail, bout.EndRound, bout.EndSeconds);
+
+        if (db.Entry(bout).State != EntityState.Added && before == after)
+            return 0;
+
+        await db.SaveChangesAsync(ct);
+        return 1;
+    }
+
+    private static string? Truncate(string? value, int max)
+        => value is null || value.Length <= max ? value : value[..max];
 
     /// <summary>
     /// The team a stat line was made for, when the source said and it is one of the game's two
@@ -470,10 +561,13 @@ public class StatsIngestionService(
 
         foreach (var canonical in canonicals)
         {
-            // The team first, so a name shared by two people can be told apart by it.
+            // The team first, so a name shared by two people can be told apart by it — by the
+            // provider's id where it gave one, since a fighter's team is the fighter, and two
+            // fighters can share a name (ADR 0021).
             var team = canonical.TeamName is null
                 ? null
-                : await resolver.ResolveTeamAsync(sport, sourceKey, canonical.TeamName, ct);
+                : await resolver.ResolveTeamAsync(sport, sourceKey,
+                    new CanonicalTeamRef(canonical.TeamName, canonical.SourceTeamId), ct);
 
             var player = MatchPlayer(existing, canonical, sourceKey, team?.Id);
 

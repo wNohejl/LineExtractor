@@ -10,7 +10,36 @@ namespace LineOps.Core.Contracts;
 /// a stable id and an official abbreviation should hand both over — the id makes resolution
 /// exact, and the abbreviation stops us inventing one from the name.
 /// </summary>
-public record CanonicalTeamRef(string Name, string? SourceTeamId = null, string? Abbrev = null);
+public record CanonicalTeamRef(string Name, string? SourceTeamId = null, string? Abbrev = null)
+{
+    /// <summary>
+    /// What tells this side apart from another of the same name, should the name be taken — a
+    /// fighter's weight class. Two UFC fighters have been billed "Bruno Silva"; teams never share
+    /// a name, so a club sends none.
+    /// </summary>
+    public string? Qualifier { get; init; }
+}
+
+/// <summary>
+/// A fight's card and result, as the provider states them, carried on its <see cref="CanonicalGame"/>
+/// (ADR 0021). Home is the red corner. Null on every game that is not a fight.
+/// </summary>
+public record CanonicalBout(
+    string EventId,
+    string EventName,
+    string? EventShortName,
+    string? CardSegment,
+    int? MatchNumber,
+    string? WeightClass,
+    int ScheduledRounds,
+    bool TitleFight,
+    string? HomeRecord,
+    string? AwayRecord,
+    BoutOutcome? Outcome,
+    string? Method,
+    string? MethodDetail,
+    int? EndRound,
+    int? EndSeconds);
 
 /// <summary>Canonical game as normalised at the adapter boundary.</summary>
 public record CanonicalGame(
@@ -27,7 +56,9 @@ public record CanonicalGame(
     CanonicalTeamRef? Away = null,
     /// <summary>The season the provider says this game belongs to, when it says. See <c>Game.SeasonYear</c>.</summary>
     int? SeasonYear = null,
-    SeasonType? SeasonType = null);
+    SeasonType? SeasonType = null,
+    /// <summary>The card and result, when the game is a fight.</summary>
+    CanonicalBout? Bout = null);
 
 /// <summary>Canonical priced outcome as normalised at the adapter boundary.</summary>
 public record CanonicalOdds(
@@ -158,8 +189,73 @@ public interface IStatsSource
     Task<StatsFetchResult> FetchBoxScoresAsync(string sportKey, DateOnly date, CancellationToken ct);
 }
 
+/// <summary>One figure as ESPN states it: its key, the label it gives it, and the value as written.</summary>
+public record FighterStat(string Key, string Label, string Value);
+
+/// <summary>
+/// A fighter's career figures (ADR 0021): the rates ESPN computes over the whole career, and the
+/// record broken down — wins and losses by knockout and by submission, title fights, no contests.
+/// </summary>
+public record FighterCareer(IReadOnlyList<FighterStat> Rates, IReadOnlyList<FighterStat> Record);
+
+/// <summary>
+/// One fight from a fighter's recorded history, with ESPN's full stat sheet for it where ESPN kept
+/// one. <paramref name="Ufc"/> is false for a fight outside the promotion — a regional card before
+/// the fighter was signed, which ESPN records without stats.
+/// </summary>
+public record FighterFight(
+    string Id,
+    string? EventId,
+    string? Event,
+    bool Ufc,
+    DateTimeOffset? Date,
+    string? OpponentId,
+    string? Opponent,
+    string? Result,
+    string? Method,
+    string? MethodDetail,
+    int? Round,
+    string? Clock,
+    bool Title,
+    IReadOnlyList<FighterStat> Stats);
+
+/// <summary>A fighter as the provider describes them: the few typed facts, and the figures kept whole.</summary>
+public record CanonicalFighter(
+    string SourceFighterId,
+    string FullName,
+    string? Nickname,
+    string? Country,
+    string? Association,
+    string? Stance,
+    string? WeightClass,
+    decimal? HeightInches,
+    decimal? ReachInches,
+    DateOnly? BornOn,
+    string? Record,
+    FighterCareer Career,
+    IReadOnlyList<FighterFight> History);
+
+public record FighterFetchResult(CanonicalFighter? Fighter, FetchCost Cost);
+
+/// <summary>
+/// A provider that can describe one fighter in full — bio, career rates and every recorded fight.
+/// ESPN, three requests a fighter. Separate from <see cref="IStatsSource"/> because it is asked per
+/// fighter rather than per day, and only for sports that are fought.
+/// </summary>
+public interface IFighterSource
+{
+    string Key { get; }
+
+    Task<FighterFetchResult> FetchFighterAsync(string sportKey, string sourceFighterId, CancellationToken ct);
+}
+
 /// <summary>A finished game whose closing line is owed, as a stats provider identifies it.</summary>
-public record ClosingLineRequest(string SourceGameId, string HomeTeamName, string AwayTeamName, DateTimeOffset StartsAt);
+/// <param name="SourceEventId">
+/// The event the game sits in, where that is not the game itself: a fight is one competition of a
+/// card (ADR 0021). Null for a team sport, whose event and competition share an id.
+/// </param>
+public record ClosingLineRequest(
+    string SourceGameId, string HomeTeamName, string AwayTeamName, DateTimeOffset StartsAt, string? SourceEventId = null);
 
 /// <summary>
 /// A stats provider that can state, for one finished game, what the line closed at — without a
