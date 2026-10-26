@@ -33,33 +33,12 @@ else
 {
     var game = _row.Game;
     var isLive = game.Status == GameStatus.Live;
-    // Not "either side has a number": ESPN writes zeros for a fixture that has not started, so
-    // that test put a 0–0 headline on every game on tomorrow's slate. Scoreline owns the rule.
-    var showScore = Scoreline.Has(game);
 
     <PanelTitle>
         <ChildContent>
-            <span class="ptitle__match">
-                <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" Size="TeamMarkSize.Large" />
-                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                          OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name, WindowId)">
-                    @(game.AwayTeam?.Name ?? "Away")
-                </DeskLink>
-                @if (showScore)
-                {
-                    <span class="mono">@(game.AwayScore ?? 0)</span>
-                }
-                <span class="dim">at</span>
-                <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" Size="TeamMarkSize.Large" />
-                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                          OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name, WindowId)">
-                    @(game.HomeTeam?.Name ?? "Home")
-                </DeskLink>
-                @if (showScore)
-                {
-                    <span class="mono">@(game.HomeScore ?? 0)</span>
-                }
-                </span>
+            @* Two rows, away over home, the winner heavier than the loser. *@
+            <Scoreboard Game="game"
+                        OnTeam="@((int teamId) => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name, WindowId))" />
         </ChildContent>
         <Tags>
             <Tag State="@StatusState(game.Status)">@Phase(game)</Tag>

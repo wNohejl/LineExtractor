@@ -3000,9 +3000,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 /* The detail line is a row of facts, not a sentence: Razor drops the whitespace between
    a span and the code block that follows it, so two facts in one inline span ran together. */
-/* The matchup in a game's title — team, score, "at", team — spaced by a gap, since the pieces
-   are separate elements and the markup between them carries no space. */
-.ptitle__match { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1); }
 .ptitle__text { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
 .ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
@@ -3029,8 +3026,55 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 .teammark--sm { --teammark-size: 8px; }
 .teammark--lg { --teammark-size: 12px; }
-/* The match row spaces its pieces with a gap already; the mark adds none of its own there. */
-.ptitle__match > .teammark { margin-right: 0; }
+
+/* A game's title as a scoreboard: away over home, name | score, the score the largest thing in
+   the window. The rows are subgrids of one grid, so both scores share a right edge whatever the
+   names' lengths. Everything is a span (it sits in the title's h2), so the shape is all here.
+   The row sets the weight and ink; a finished game's loser drops to secondary at regular, so
+   the winner reads heavier without a word. Accent never reaches it: the names are links, and
+   only their hover says so. Compact is the same parts on one line for the wager header: the
+   rows dissolve into the line and every part is title3. */
+.scoreboard {
+    --scoreboard-row: grid;
+    --scoreboard-score: var(--text-title1);
+    display: inline-grid;
+    grid-template-columns: minmax(0, auto) auto;
+    column-gap: var(--space-4);
+    row-gap: var(--space-1);
+    align-items: baseline;
+    line-height: var(--leading-title);
+    font-size: var(--text-title3);
+}
+.scoreboard--compact {
+    --scoreboard-row: contents;
+    --scoreboard-score: var(--text-title3);
+    display: inline-flex;
+    flex-wrap: wrap;
+    column-gap: var(--space-2);
+}
+.scoreboard__row {
+    display: var(--scoreboard-row);
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+.scoreboard__row--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
+.scoreboard__name { display: inline-flex; align-items: baseline; min-width: 0; font-size: var(--text-title3); }
+.scoreboard__score {
+    justify-self: end;
+    text-align: right;
+    font-size: var(--scoreboard-score);
+    font-variant-numeric: tabular-nums;
+}
+.scoreboard__time {
+    justify-self: end;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-regular);
+    color: var(--text-secondary);
+}
+.scoreboard__at { color: var(--text-secondary); font-weight: var(--weight-regular); }
 
 /* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives

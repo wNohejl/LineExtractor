@@ -1,0 +1,82 @@
+@*
+    A game's title as a scoreboard: away over home, each team's mark and name with its score
+    trailing. It replaced a sentence ("● Steelers 16 at ● Saints 10") in which the names and the
+    figures were one run of title type and nothing said who won. Here the score is the largest
+    thing on the line, and when a game is over the loser's row drops to secondary ink at regular
+    weight, so the winner reads heavier without a word. Live and tied games keep both rows at
+    full weight: nobody has lost yet, or nobody did.
+
+    It sits inside PanelTitle's h2, which takes phrasing content only, so every part is a span:
+    the two-row shape is CSS (a grid whose rows are subgrids, so both scores share one right
+    edge). The marks and the links' shortcuts are hidden from assistive tech, and a hidden
+    separator joins the rows, so the heading still says "Pittsburgh Steelers 16, New Orleans
+    Saints 10" — or "… at …" before a ball is thrown. Spaces between parts are written as
+    expressions because Razor drops whitespace-only text around markup; a grid or flex
+    container ignores them, a screen reader does not.
+
+    Compact is the same parts on one line, for the wager header: away, "at", home, at
+    --text-title3 throughout.
+*@
+
+@{
+    var hasScore = Scoreline.Has(Game);
+    var loser = Loser;
+}
+
+<span class="scoreboard@(Compact ? " scoreboard--compact" : "")">
+    @Row(Game.AwayTeamId, Game.AwayTeam, "Away", Game.AwayScore, hasScore, loser == Side.Away, trailing: null)
+    @if (Compact)
+    {
+        @(" ")<span class="scoreboard__at">at</span>@(" ")
+    }
+    else
+    {
+        <span class="sr-only">@(hasScore ? ", " : " at ")</span>
+    }
+    @Row(Game.HomeTeamId, Game.HomeTeam, "Home", Game.HomeScore, hasScore, loser == Side.Home,
+         trailing: Compact || hasScore || Game.Status != GameStatus.Scheduled ? null : DisplayTime.Stamp(Game.StartsAt))
+</span>
+
+@code {
+    /// <summary>The game whose two teams and score this draws.</summary>
+    [Parameter, EditorRequired] public Game Game { get; set; } = default!;
+
+    /// <summary>A team's name was pressed; carries that team's id so the host can open its window.</summary>
+    [Parameter] public EventCallback<int> OnTeam { get; set; }
+
+    /// <summary>One line at <c>--text-title3</c> instead of two stacked rows.</summary>
+    [Parameter] public bool Compact { get; set; }
+
+    private enum Side { None, Away, Home }
+
+    // Only a finished game has a loser, and only when the scores differ: an NFL tie has none.
+    private Side Loser => Game.Status == GameStatus.Final && Scoreline.Has(Game)
+        ? (Game.AwayScore ?? 0).CompareTo(Game.HomeScore ?? 0) switch
+        {
+            < 0 => Side.Away,
+            > 0 => Side.Home,
+            _ => Side.None,
+        }
+        : Side.None;
+
+    private RenderFragment Row(int teamId, Team? team, string fallback, int? score, bool hasScore, bool isLoser, string? trailing) => __builder =>
+    {
+        <span class="scoreboard__row@(isLoser ? " scoreboard__row--loser" : "")">
+            <span class="scoreboard__name">
+                <TeamMark Sport="@Game.Sport?.Key" Abbrev="@team?.Abbrev" Size="TeamMarkSize.Large" />
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                          OnClick="() => OnTeam.InvokeAsync(teamId)">
+                    @(team?.Name ?? fallback)
+                </DeskLink>
+            </span>
+            @if (hasScore)
+            {
+                @(" ")<span class="scoreboard__score">@(score ?? 0)</span>
+            }
+            else if (trailing is not null)
+            {
+                @(" ")<span class="scoreboard__time">@trailing</span>
+            }
+        </span>
+    };
+}
