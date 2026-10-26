@@ -1,0 +1,219 @@
+/* =============================================================================
+   Controls — the desk's newer primitives.
+
+   Loaded straight after lineops.css, which defines every token used here. These
+   rules spend tokens and define none, so a theme block in themes.css re-colours
+   them the same way it re-colours everything else.
+
+   The file exists so the primitives have a home of their own rather than another
+   few hundred lines in lineops.css. DeskPopover, DeskMenu, DeskMenuItem and
+   DeskPullDown live here; the hand-built menus they replace (.railmenu__panel,
+   .pullmenu__*) still have their rules in lineops.css until those are retired.
+   ============================================================================= */
+
+/* ---- Popover ----------------------------------------------------------------
+   A panel anchored to its opener, with no scrim: popover.js hears the outside
+   press on the document instead, so the press that dismisses one popover goes on
+   to open the next (HIG: one at a time, switched with a single click).
+   --------------------------------------------------------------------------- */
+
+.popover {
+    position: relative;
+    display: inline-flex;
+}
+
+.popover__panel {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    z-index: var(--z-popover);
+    min-width: 200px;
+    max-width: 360px;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+    padding: var(--space-1);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    /* A floating material needs one edge to part it from what it floats over. */
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-3);
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-3) transparent;
+    animation: popover-in var(--dur-fast) var(--ease-standard);
+}
+
+/* An opener near the trailing edge of the desk anchors the panel's trailing edge. */
+.popover__panel--end {
+    left: auto;
+    right: 0;
+}
+
+/* popover.js measures the panel on open and flips it away from any edge of the
+   window it would cross. An attribute rather than a class, so a re-render that
+   rewrites the class list leaves the measurement alone. */
+.popover__panel[data-flip~="up"] {
+    top: auto;
+    bottom: calc(100% + var(--space-2));
+}
+
+.popover__panel[data-flip~="end"] {
+    left: auto;
+    right: 0;
+}
+
+.popover__panel[data-flip~="start"] {
+    left: 0;
+    right: auto;
+}
+
+/* It drops a few pixels out of its opener as it fades in: enough to say where it
+   came from, short enough not to be waited for. */
+@keyframes popover-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popover-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .popover__panel { animation-name: popover-fade; }
+}
+
+/* Where the material cannot blur, a translucent fill only muddies what is behind
+   it; the raised-row tier reads as a surface on its own. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .popover__panel { background: var(--surface-2); }
+}
+
+/* ---- Menu -------------------------------------------------------------------
+   Rows at macOS density: 28px, one radius inside the panel's, no rules between
+   items, a hairline only between groups. The highlight is the neutral fill the
+   launcher and the palette already use, so every menu on the desk lights the same
+   way; the accent is kept for the focus ring and for the check of a choice.
+   --------------------------------------------------------------------------- */
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    outline: none;
+}
+
+.menu__item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 28px;
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-body);
+    line-height: 20px;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* The highlight is the accent wash, as the desk's menus have always drawn it: a menu row is
+   about to be pressed, which is what the accent means here, and a grey plate would read as
+   a disabled row on the --surface-2 panel. */
+.menu__item:hover {
+    background: var(--accent-wash);
+}
+
+/* The ring sits outside the row, the same ring as every other control, rather than
+   an outline drawn inside a row this small. */
+.menu__item:focus-visible {
+    outline: none;
+    background: var(--accent-wash);
+    box-shadow: var(--focus-ring);
+}
+
+.menu__item--destructive {
+    color: var(--state-negative);
+}
+
+/* Dimmed, and still reachable with the arrows so its reason is read; the pointer
+   gets no highlight, because there is nothing to press. */
+.menu__item[aria-disabled="true"] {
+    color: var(--text-tertiary);
+    cursor: default;
+}
+
+.menu__item[aria-disabled="true"]:hover {
+    background: transparent;
+}
+
+.menu__text {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.menu__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.menu__label {
+    min-width: 0;
+}
+
+/* What a row costs or holds is stated before it is chosen, in figures that line up
+   down the menu. */
+.menu__detail {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-variant-numeric: tabular-nums;
+}
+
+.menu__desc {
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    line-height: 1.4;
+}
+
+.menu__item[aria-disabled="true"] .menu__desc {
+    color: var(--text-tertiary);
+}
+
+.menu__check,
+.menu__icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    width: 16px;
+    height: 20px;
+}
+
+.menu__check {
+    color: var(--accent);
+}
+
+.menu__icon {
+    color: var(--text-secondary);
+}
+
+.menu__check svg,
+.menu__icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.menu__sep {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background: var(--separator);
+    border: 0;
+}

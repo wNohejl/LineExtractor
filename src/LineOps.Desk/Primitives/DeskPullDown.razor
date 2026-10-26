@@ -1,0 +1,86 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A pull-down button: a key that opens a menu of commands.
+
+    The HIG's pull-down is for actions related to the key's purpose — "Pull data" opening the
+    named pulls — where a pop-up is for choosing a value. The key says it opens something with
+    a trailing chevron and stays Tinted by default: pressing it does not act, the item chosen
+    from it does, so it should not claim the one Filled key a context gets.
+
+    The key is a DeskButton, so it sizes, dims and runs the busy shimmer exactly like the keys
+    beside it, and the menu is a DeskMenu in a DeskPopover, so it gets the keyboard, the one-
+    at-a-time rule and the focus return without restating any of it.
+
+    Open can be bound. An owner that has to open its own menu — a pull asked for from an empty
+    state whose job is unavailable, where the menu is where the reason is written — binds Open
+    and OpenChanged; one that does not is left to the key.
+*@
+
+<DeskPopover Open="_open" OpenChanged="SetOpenAsync" Align="Align" Class="@Class">
+    <Anchor>
+        <DeskButton Emphasis="Emphasis"
+                    Size="Size"
+                    Icon="@Icon"
+                    Busy="Busy"
+                    Title="@Title"
+                    OnClick="ToggleAsync"
+                    aria-haspopup="menu"
+                    aria-expanded="@(_open ? "true" : "false")"
+                    data-popover-return="true">
+            @Label
+            <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+        </DeskButton>
+    </Anchor>
+    <ChildContent>
+        <DeskMenu Label="@Label">
+            @ChildContent
+        </DeskMenu>
+    </ChildContent>
+</DeskPopover>
+
+@code {
+    /// <summary>The key's text, and the menu's accessible name.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public string? Icon { get; set; }
+
+    [Parameter] public DeskEmphasis Emphasis { get; set; } = DeskEmphasis.Tinted;
+
+    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+
+    /// <summary>A command from this menu is running: the key shimmers and will not open.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Which edge of the key the menu lines up with; End for a key at the right of a toolbar.</summary>
+    [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.Start;
+
+    /// <summary>The DeskMenuItems.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Whether the menu is open, for an owner that binds it.</summary>
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private bool _open;
+
+    // Bound, the owner's value wins on every render; unbound, the key's own state stands.
+    protected override void OnParametersSet()
+    {
+        if (OpenChanged.HasDelegate)
+            _open = Open;
+    }
+
+    private Task ToggleAsync() => SetOpenAsync(!_open);
+
+    private async Task SetOpenAsync(bool open)
+    {
+        _open = open;
+        await OpenChanged.InvokeAsync(open);
+    }
+}

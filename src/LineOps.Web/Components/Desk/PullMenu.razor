@@ -20,48 +20,28 @@
 @* A visitor spends nothing: no menu is drawn, so there is nothing to press (ADR 0018). *@
 @if (Access.CanOperate)
 {
-<div class="pullmenu">
-    @* Tinted with a chevron, not Filled: pressing it opens a menu, it does not act — the action
-       is the entry chosen from the menu (HIG: a pull-down's key says it opens something). *@
-    <DeskButton Emphasis="DeskEmphasis.Tinted"
-                Icon="@Icons.Material.Filled.CloudDownload"
-                Busy="@(_running is not null)"
-                OnClick="Toggle"
-                aria-haspopup="true"
-                aria-expanded="@(_open ? "true" : "false")">
-        @(_running is null ? "Pull data" : _runningLabel)
-        <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
-    </DeskButton>
-
-    @if (_open)
-    {
-        <div class="pullmenu__backdrop" @onclick="Close"></div>
-
-        <div class="pullmenu__panel">
-            @foreach (var job in _jobs)
-            {
-                <button type="button"
-                        class="pullmenu__item @(job.Available ? null : "pullmenu__item--blocked")"
-                        disabled="@(!job.Available || _running is not null)"
-                        @onclick="() => RunJobAsync(job)">
-                    <span class="pullmenu__row">
-                        <span class="pullmenu__label">@job.Label</span>
-                        @* Credits where the provider bills in them, because that is the number
-                           that runs out — a call costing one request can cost several credits. *@
-                        <span class="pullmenu__cost">
-                            @(job.EstimatedCredits > 0
-                                ? $"{job.EstimatedCredits} credits"
-                                : job.EstimatedRequests == 0 ? "no requests" : $"~{job.EstimatedRequests} req")
-                        </span>
-                    </span>
-                    <span class="pullmenu__desc">
-                        @(job.Available ? job.Description : job.Unavailable)
-                    </span>
-                </button>
-            }
-        </div>
-    }
-</div>
+    @* A pull-down, not Filled: pressing the key opens a menu, it does not act — the action is
+       the entry chosen from the menu (HIG: a pull-down's key says it opens something). It sits
+       at the trailing end of the Board's toolbar, so the menu lines up with the key's right edge. *@
+    <DeskPullDown Label="@(_running is null ? "Pull data" : _runningLabel)"
+                  Icon="@Icons.Material.Filled.CloudDownload"
+                  Busy="@(_running is not null)"
+                  Align="DeskPopoverAlign.End"
+                  Open="_open"
+                  OpenChanged="OnOpenChanged">
+        @foreach (var job in _jobs)
+        {
+            @* Credits where the provider bills in them, because that is the number that runs
+               out — a call costing one request can cost several credits. An unavailable job
+               stays in the menu with its reason, so the menu explains itself. *@
+            <DeskMenuItem Label="@job.Label"
+                          Detail="@Cost(job)"
+                          Description="@job.Description"
+                          Disabled="@(!job.Available)"
+                          DisabledReason="@job.Unavailable"
+                          OnClick="() => RunJobAsync(job)" />
+        }
+    </DeskPullDown>
 }
 
 @* A pull's outcome is a toast, not a Note. A Note is the ambient tier — it sits beside the
@@ -86,9 +66,9 @@
     protected override async Task OnInitializedAsync()
         => _jobs = await Jobs.DescribeAsync();
 
-    private async Task Toggle()
+    private async Task OnOpenChanged(bool open)
     {
-        _open = !_open;
+        _open = open;
 
         // Costs move with the season — a sport coming in changes every estimate — so the menu
         // re-reads them on open rather than trusting what it loaded once.
@@ -96,7 +76,10 @@
             _jobs = await Jobs.DescribeAsync();
     }
 
-    private void Close() => _open = false;
+    private static string Cost(IngestionJob job)
+        => job.EstimatedCredits > 0
+            ? $"{job.EstimatedCredits} credits"
+            : job.EstimatedRequests == 0 ? "no requests" : $"~{job.EstimatedRequests} req";
 
     /// <summary>
     /// Runs one named pull as if it had been chosen from the menu.

@@ -2,52 +2,51 @@
 @inject DeskBrand Brand
 
 @*
-    A small popover the rail owns outright.
+    The header's own menu: the workspace launcher, opened from the wordmark.
 
     Deliberately not MudMenu: this is the primary way windows get created, so it should not
-    inherit another library's positioning and z-index rules — especially when it has to open
-    away from a rail that can be on any of four edges. It also gives us Escape-to-close and
-    a real backdrop without fighting anyone.
+    inherit another library's positioning and z-index rules. It is a DeskPopover holding a
+    DeskMenu, so it opens with focus on its first item, takes arrows, Home, End and typeahead,
+    closes on Escape or an outside press, and gives focus back to the wordmark — and opening
+    another menu closes it in the same click.
+
+    The items are the caller's own buttons, not DeskMenuItems; DeskMenu drives any
+    role="menuitem" descendant, so the launcher markup a caller passes did not have to change.
 *@
 
-<div class="railmenu @Class">
-    @* Two triggers, one menu. The brand is a trigger rather than a decoration because the
-       thing it opens changes the whole desk, and the identity is the only element on the
-       header that is about the desk as a whole. *@
-    <button class="@(Trigger == "brand" ? "hdr__brand hdr__brand--menu" : $"rail__btn {(Accent ? "rail__btn--accent" : null)}")"
-            type="button"
-            title="@Label"
-            aria-label="@Label"
-            aria-haspopup="true"
-            aria-expanded="@_open.ToString().ToLowerInvariant()"
-            @onclick="Toggle">
-        @if (Trigger == "brand")
-        {
-            <span>@Brand.Wordmark<em>@Brand.Emphasis</em></span>
-            <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
-        }
-        else
-        {
-            <Glyph Icon="@Icon" />
-        }
-    </button>
-
-    @if (_open)
-    {
-        @* Backdrop closes on any outside press, and swallows the press so it does not
-           also land on a window underneath. *@
-        <div class="railmenu__backdrop" @onclick="Close"></div>
-
-        @* Always opens downward: these live in the fixed header, so there is no edge to
-           open away from any more. *@
-        <div class="railmenu__panel railmenu__panel--top @(AlignEnd ? "railmenu__panel--end" : null)"
-             role="menu"
-             @onkeydown="OnKeyDown"
-             tabindex="-1">
+<DeskPopover Open="_open"
+             OpenChanged="OnOpenChanged"
+             Align="@(AlignEnd ? DeskPopoverAlign.End : DeskPopoverAlign.Start)"
+             Class="@($"railmenu {Class}")">
+    <Anchor>
+        @* Two triggers, one menu. The brand is a trigger rather than a decoration because the
+           thing it opens changes the whole desk, and the identity is the only element on the
+           header that is about the desk as a whole. *@
+        <button class="@(Trigger == "brand" ? "hdr__brand hdr__brand--menu" : $"rail__btn {(Accent ? "rail__btn--accent" : null)}")"
+                type="button"
+                title="@Label"
+                aria-label="@Label"
+                aria-haspopup="menu"
+                aria-expanded="@(_open ? "true" : "false")"
+                data-popover-return="true"
+                @onclick="Toggle">
+            @if (Trigger == "brand")
+            {
+                <span>@Brand.Wordmark<em>@Brand.Emphasis</em></span>
+                <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+            }
+            else
+            {
+                <Glyph Icon="@Icon" />
+            }
+        </button>
+    </Anchor>
+    <ChildContent>
+        <DeskMenu Label="@Label">
             @ChildContent
-        </div>
-    }
-</div>
+        </DeskMenu>
+    </ChildContent>
+</DeskPopover>
 
 @code {
     /// <summary>Unused when <see cref="Trigger"/> is "brand", which draws the wordmark instead.</summary>
@@ -71,11 +70,18 @@
 
     private void Toggle() => _open = !_open;
 
-    public void Close() => _open = false;
+    private void OnOpenChanged(bool open) => _open = open;
 
-    private void OnKeyDown(KeyboardEventArgs e)
+    /// <summary>
+    /// Closes the menu — what a caller does after one of its items ran. Focus goes back to the
+    /// trigger, because the item that held it has gone.
+    /// </summary>
+    public void Close()
     {
-        if (e.Key == "Escape")
-            Close();
+        if (!_open)
+            return;
+
+        _open = false;
+        StateHasChanged();
     }
 }

@@ -66,7 +66,7 @@ public static class DeskServiceCollectionExtensions
     /// <para>
     /// Everything here is scoped, because everything here is per circuit: the window layout
     /// is one session's state, a toast belongs to the circuit that raised it, the dialog
-    /// stack is per circuit, and the theme writes to one circuit's <c>&lt;html&gt;</c>. A
+    /// stack and the one open popover are per circuit, and the theme writes to one circuit's <c>&lt;html&gt;</c>. A
     /// singleton would hand every operator on the server whoever acted last.
     /// </para>
     /// </summary>
@@ -82,6 +82,9 @@ public static class DeskServiceCollectionExtensions
         services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();
         services.AddScoped<IDeskAlerts, DeskAlerts>();
+        services.AddScoped<DeskPopovers>();
+        // The palette lists every provider; the desk's own commands are one of them.
+        services.AddScoped<IDeskSearch, DeskCommands>();
         services.AddScoped<ThemeService>();
         return services;
     }

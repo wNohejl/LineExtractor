@@ -1,0 +1,138 @@
+@namespace LineOps.Desk.Primitives
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject DeskPopovers Popovers
+
+@*
+    A panel anchored to the control that opened it.
+
+    The desk had three of these, each built by hand with its own invisible scrim to catch the
+    outside click: the rail menu, the pull menu and the book picker. A scrim is a wall, so the
+    first click on a second opener only took the first menu down, and the HIG's "close one
+    popover and open another with a single click" was two clicks everywhere. This one has no
+    scrim. popover.js listens for the outside press on the document instead, and DeskPopovers
+    remembers which popover is up so that opening another can put it away.
+
+    The component owns the open/closed state's consequences, not the state: the owner binds
+    Open and OpenChanged, because the owner is usually the one that knows why it opened (a job
+    that needs its reason read, a header that closes it after a choice). What this does on
+    open and close is the part every owner would otherwise repeat: one popover at a time, the
+    panel flipped upward or inward when it would leave the window, and focus back on the opener
+    when the panel took it away with it.
+
+    The opener is whatever the Anchor fragment draws. It names itself with
+    data-popover-return="true" so popover.js knows which element to give focus back to even
+    when the fragment wraps it in something else, and it states aria-haspopup and
+    aria-expanded itself, so they are in the markup before any script has run. popover.js
+    adds aria-controls, which needs the panel to exist.
+*@
+
+<div @ref="_root" class="popover @Class" role="presentation">
+    @Anchor
+
+    @if (Open)
+    {
+        @* Keys pressed inside stop here: Escape closes the menu, and must not also close the
+           floating dialog or window the menu happens to sit in. *@
+        <div @ref="_panel"
+             id="@PanelId"
+             class="popover__panel @(Align == DeskPopoverAlign.End ? "popover__panel--end" : null)"
+             @onkeydown:stopPropagation="true">
+            <CascadingValue Value="this" IsFixed="true">
+                @ChildContent
+            </CascadingValue>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>
+    /// Raised with false when the popover closes itself — an outside press, Escape, a choice,
+    /// or another popover opening. Bind it: a popover whose owner ignores this cannot close.
+    /// </summary>
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The opener. Its focusable element carries <c>data-popover-return="true"</c>.</summary>
+    [Parameter] public RenderFragment? Anchor { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.Start;
+
+    /// <summary>Extra classes on the wrapper, so an owner can place the opener in its own layout.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>The panel's id, for an opener's <c>aria-controls</c>.</summary>
+    public string PanelId { get; } = $"popover-{Guid.NewGuid():N}"[..16];
+
+    private ElementReference _root;
+    private ElementReference _panel;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<DeskPopover>? _self;
+
+    // What the browser was last told. Open is the owner's wish; this is what has been acted
+    // on, so a render that does not change Open does nothing in either direction.
+    private bool _shown;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open == _shown)
+            return;
+
+        _shown = Open;
+
+        if (Open)
+        {
+            // The host first, so the one-at-a-time rule holds even when the script never loads.
+            await Popovers.OpenAsync(this);
+
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/popover.js");
+            _self ??= DotNetObjectReference.Create(this);
+
+            if (_module is not null)
+                await _module.InvokeVoidAsync("open", _panel, _root, _self);
+        }
+        else
+        {
+            Popovers.Closed(this);
+
+            if (_module is not null)
+                await _module.InvokeVoidAsync("close", _root);
+        }
+    }
+
+    /// <summary>
+    /// Asks the owner to close the popover. A no-op when it is already closed, because several
+    /// routes can arrive for the same close — Escape is seen by the menu and the document both.
+    /// </summary>
+    public Task CloseAsync() => Open ? OpenChanged.InvokeAsync(false) : Task.CompletedTask;
+
+    /// <summary>The outside press, or Escape pressed outside the panel, from popover.js.</summary>
+    [JSInvokable]
+    public Task OnDismiss() => InvokeAsync(CloseAsync);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_shown)
+            Popovers.Closed(this);
+
+        if (_module is not null)
+        {
+            try
+            {
+                if (_shown)
+                    await _module.InvokeVoidAsync("close", _root);
+
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit went first — nothing to release on a browser that is gone.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}

@@ -1,0 +1,183 @@
+@namespace LineOps.Desk.Primitives
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    A menu: a column of commands that the keyboard can drive.
+
+    The hand-built menus it replaces declared role="menu" or nothing, and then left the
+    keyboard on the opener: no focus into the panel, no arrows, Escape only where someone had
+    remembered it. A menu the pointer can use and the keyboard cannot is half a menu.
+
+    One Tab stop (a roving tabindex), arrows that wrap, Home and End, and typeahead — a letter
+    jumps to the next item starting with it, a quick run of letters to the item starting with
+    the run. Enter and Space are the focused button's own, so a key activates an item through
+    the same click a pointer does and nothing can run twice. Escape asks the popover the menu
+    sits in to close; the popover gives focus back to its opener.
+
+    The bookkeeping is in C# wherever it can be, so it is testable: DeskMenuItems register
+    here and this decides which one holds the Tab stop. Menus whose items are not
+    DeskMenuItems — the workspace launcher's own buttons, which this primitive must not
+    require rewriting — are driven by popover.js instead, against any [role^="menuitem"]
+    descendant. Escape works for both, because it is handled here.
+*@
+
+<div @ref="_element"
+     class="menu @Class"
+     role="menu"
+     aria-label="@Label"
+     tabindex="-1"
+     @onkeydown="OnKeyDown">
+    <CascadingValue Value="this" IsFixed="true">
+        @ChildContent
+    </CascadingValue>
+</div>
+
+@code {
+    /// <summary>How long a run of typed letters is still one search, as the platform does it.</summary>
+    private const long TypeaheadWindowMs = 500;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The accessible name of the whole menu — usually the opener's own label.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The items are mutually exclusive choices rather than commands: each becomes a
+    /// menuitemradio, and the checked one says so.
+    /// </summary>
+    [Parameter] public bool Radio { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>The popover this menu sits in, if any — what Escape and a choice close.</summary>
+    [CascadingParameter] public DeskPopover? Popover { get; set; }
+
+    private readonly List<DeskMenuItem> _items = [];
+    private ElementReference _element;
+    private IJSObjectReference? _module;
+    private DeskMenuItem? _active;
+    private string _typed = string.Empty;
+    private long _typedAt;
+
+    // Items register in the order they are created, which is the order they are drawn: a
+    // render creates every child before any of them renders. An item inserted later lands at
+    // the end of the arrow order; the desk's menus are rebuilt on each open, so none do.
+    internal void Register(DeskMenuItem item) => _items.Add(item);
+
+    internal void Unregister(DeskMenuItem item)
+    {
+        _items.Remove(item);
+
+        if (ReferenceEquals(_active, item))
+            _active = null;
+    }
+
+    /// <summary>The item that holds the menu's one Tab stop.</summary>
+    internal bool IsTabStop(DeskMenuItem item) => ReferenceEquals(item, Current);
+
+    /// <summary>An item was chosen by pointer; the keyboard carries on from there if the menu stays.</summary>
+    internal void Chose(DeskMenuItem item) => _active = item;
+
+    // Focus lands on the first item that can do something. A dimmed item can still be reached
+    // with the arrows, so its reason is read out, but opening on one would make the first
+    // thing the menu says a refusal.
+    private DeskMenuItem? Current => _active ?? _items.FirstOrDefault(i => !i.Disabled) ?? _items.FirstOrDefault();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/popover.js");
+
+        // The script stops arrow keys scrolling the panel, and drives a menu of foreign items
+        // outright — including moving focus into it.
+        if (_module is not null)
+            await _module.InvokeVoidAsync("menu", _element);
+
+        if (Current is { } first)
+            await first.FocusAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            if (Popover is not null)
+                await Popover.CloseAsync();
+
+            return;
+        }
+
+        // Foreign items are popover.js's to move between.
+        if (Current is not { } current)
+            return;
+
+        var count = _items.Count;
+        var at = _items.IndexOf(current);
+
+        var next = e.Key switch
+        {
+            "ArrowDown" => _items[(at + 1) % count],
+            "ArrowUp" => _items[(at - 1 + count) % count],
+            "Home" => _items[0],
+            "End" => _items[count - 1],
+            _ => Typeahead(e, at)
+        };
+
+        if (next is null || ReferenceEquals(next, current))
+            return;
+
+        _active = next;
+        current.Refresh();
+        next.Refresh();
+
+        await next.FocusAsync();
+    }
+
+    /// <summary>
+    /// The item a typed letter jumps to, or null when the key is not a letter or nothing
+    /// matches. A single letter searches from the item after the focused one, so pressing it
+    /// again walks every item that starts with it; a run of letters searches from the focused
+    /// item, so "fe" stays on "Fetch games" rather than skipping past it.
+    /// </summary>
+    private DeskMenuItem? Typeahead(KeyboardEventArgs e, int at)
+    {
+        if (e.Key.Length != 1 || char.IsWhiteSpace(e.Key[0]) || e.CtrlKey || e.MetaKey || e.AltKey)
+            return null;
+
+        var now = Environment.TickCount64;
+        _typed = now - _typedAt <= TypeaheadWindowMs ? _typed + e.Key : e.Key;
+        _typedAt = now;
+
+        // "ff" is someone pressing f twice, not searching for a word that starts "ff".
+        var search = _typed.Distinct().Count() == 1 ? _typed[..1] : _typed;
+        var start = search.Length == 1 ? at + 1 : at;
+
+        for (var step = 0; step < _items.Count; step++)
+        {
+            var candidate = _items[(start + step) % _items.Count];
+
+            if (candidate.Label.StartsWith(search, StringComparison.CurrentCultureIgnoreCase))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null)
+            return;
+
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit went first — nothing to release on a browser that is gone.
+        }
+    }
+}

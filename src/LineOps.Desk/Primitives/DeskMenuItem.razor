@@ -1,0 +1,135 @@
+@namespace LineOps.Desk.Primitives
+@implements IDisposable
+
+@*
+    One row of a DeskMenu.
+
+    A label, and optionally what the row costs or holds (the trailing detail, in tabular
+    figures so a column of them lines up) and one line saying what it does. A row that cannot
+    run stays in the menu, dimmed, with the reason in place of its description: the HIG keeps
+    unavailable commands visible so the menu explains itself rather than shrinking, and a
+    reason in the row is read where a tooltip is not.
+
+    Dimmed is aria-disabled, never the disabled attribute: a disabled button cannot take
+    focus, and the arrows have to be able to land on the row for its reason to be announced.
+    The click is refused here instead.
+*@
+
+<button @ref="_element"
+        type="button"
+        role="@Role"
+        class="@Classes"
+        tabindex="@TabIndex"
+        aria-disabled="@(Disabled ? "true" : null)"
+        aria-checked="@AriaChecked"
+        title="@(Disabled ? DisabledReason : null)"
+        @onclick="ActivateAsync">
+    @if (ShowsCheck)
+    {
+        @* The column is kept on every row of a radio menu, checked or not, so the labels
+           start at one edge. *@
+        <span class="menu__check" aria-hidden="true">
+            @if (Checked)
+            {
+                <Glyph Icon="@Icons.Material.Filled.Check" />
+            }
+        </span>
+    }
+
+    @if (Icon is not null)
+    {
+        <span class="menu__icon"><Glyph Icon="@Icon" /></span>
+    }
+
+    <span class="menu__text">
+        <span class="menu__row">
+            <span class="menu__label">@Label</span>
+            @if (Detail is not null)
+            {
+                <span class="menu__detail">@Detail</span>
+            }
+        </span>
+
+        @if (Line is not null)
+        {
+            <span class="menu__desc">@Line</span>
+        }
+    </span>
+</button>
+
+@code {
+    /// <summary>A verb first, no article: "Pull odds", not "The odds pull".</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>Trailing and secondary — a cost, a count, a shortcut.</summary>
+    [Parameter] public string? Detail { get; set; }
+
+    /// <summary>A second line saying what the row does.</summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>
+    /// A MudBlazor icon string. The HIG asks for icons on every item of a group or none, and
+    /// only where they tell the items apart, so leave it off rather than repeat one glyph.
+    /// </summary>
+    [Parameter] public string? Icon { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Why the row cannot run: shown in place of the description, and as the tooltip.</summary>
+    [Parameter] public string? DisabledReason { get; set; }
+
+    /// <summary>Destroys something. Red, and the caller still confirms it.</summary>
+    [Parameter] public bool Destructive { get; set; }
+
+    /// <summary>The current choice, drawn with a leading check.</summary>
+    [Parameter] public bool Checked { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    [CascadingParameter] public DeskMenu? Menu { get; set; }
+
+    private ElementReference _element;
+
+    protected override void OnInitialized() => Menu?.Register(this);
+
+    private bool Radio => Menu?.Radio == true;
+
+    private string Role => Radio ? "menuitemradio" : "menuitem";
+
+    // aria-checked belongs to the radio role; on a plain menuitem it is not allowed, so a
+    // checked command row carries the glyph alone.
+    private string? AriaChecked => Radio ? (Checked ? "true" : "false") : null;
+
+    private bool ShowsCheck => Radio || Checked;
+
+    private string? TabIndex => Menu is null ? null : Menu.IsTabStop(this) ? "0" : "-1";
+
+    private string? Line => Disabled && DisabledReason is not null ? DisabledReason : Description;
+
+    private string Classes => Destructive ? "menu__item menu__item--destructive" : "menu__item";
+
+    /// <summary>Re-renders after the menu moved its Tab stop onto or off this row.</summary>
+    internal void Refresh() => StateHasChanged();
+
+    internal ValueTask FocusAsync() => _element.FocusAsync();
+
+    /// <summary>
+    /// Closes the menu before running the command, not after: a command can take a while (a
+    /// pull does), and a menu left standing over the desk while it runs reads as one that did
+    /// not take the choice.
+    /// </summary>
+    private async Task ActivateAsync()
+    {
+        if (Disabled)
+            return;
+
+        Menu?.Chose(this);
+
+        if (Menu?.Popover is { } popover)
+            await popover.CloseAsync();
+
+        await OnClick.InvokeAsync();
+    }
+
+    public void Dispose() => Menu?.Unregister(this);
+}
