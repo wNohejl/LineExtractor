@@ -109,7 +109,7 @@ else
                     <Tag>@game.Sport?.Key.ToUpperInvariant()</Tag>
                     @if (game.Status == GameStatus.Live)
                     {
-                        <Tag State="DeskState.Positive">Live</Tag>
+                        <Tag State="DeskState.Warning" Live="true">Live</Tag>
                     }
                     else if (game.Status == GameStatus.Final)
                     {

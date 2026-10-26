@@ -196,3 +196,72 @@ public class LiveAndResultTests : DeskTestContext
         return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 }
+
+/// <summary>A game's state reads in sentence case, the same word on the Board and the Team log.</summary>
+public class StatusWordTests
+{
+    [Theory]
+    [InlineData(GameStatus.Live, "Live")]
+    [InlineData(GameStatus.Final, "Final")]
+    [InlineData(GameStatus.Postponed, "Postponed")]
+    [InlineData(GameStatus.Scheduled, "Scheduled")]
+    public void Status_reads_in_sentence_case(GameStatus status, string word)
+        => Assert.Equal(word, LineOps.Web.Components.TagStates.StatusWord(status));
+}
+
+/// <summary>The wager window's header draws Live as every other window does: warning, with the dot.</summary>
+public class WagerLiveTagTests : LineOps.Web.Tests.Support.WagerTestContext
+{
+    [Fact]
+    public void A_live_game_in_the_wager_header_pulses_like_everywhere_else()
+    {
+        Data.Row!.Game.Status = GameStatus.Live;
+
+        var cut = RenderComponent<LineOps.Web.Components.Panels.BoardWager>(p =>
+            p.Add(x => x.GameId, LineOps.Web.Tests.Support.BoardRows.GameId));
+
+        var live = cut.FindAll("span.tag").Single(t => t.TextContent.Trim() == "Live");
+        Assert.Contains("tag--warn", live.ClassList);
+        Assert.Contains("tag--live", live.ClassList);
+        Assert.NotNull(live.QuerySelector(".tag__live[aria-hidden=true]"));
+    }
+}
+
+/// <summary>
+/// The Board's matchup cell holds two clubs, a line each. In a tiled Board the grid's two-line
+/// clamp on a link label and the link's reserved shortcut slot squeezed it to "▪ / Cowbo…".
+/// </summary>
+public class BoardMatchupCellTests
+{
+    private static readonly string Css = File.ReadAllText(Path.Combine(Root(), "src/LineOps.Desk/wwwroot/css/lineops.css"));
+    private static readonly string Razor = File.ReadAllText(Path.Combine(Root(), "src/LineOps.Web/Components/Panels/BoardPanel.razor"));
+
+    [Fact]
+    public void Each_club_stays_on_one_line()
+        => Assert.Matches(@"\.board__team\s*\{[^}]*white-space:\s*nowrap;", Css);
+
+    [Fact]
+    public void The_matchup_label_is_not_clamped_to_two_lines()
+    {
+        // Five classes, to outrank mud-bridge's .deskgrid .mud-table-body .mud-table-cell .desklink__label.
+        Assert.Matches(
+            @"\.deskgrid--board \.mud-table-body \.mud-table-cell \.board__matchup-link \.desklink__label\s*\{[^}]*display:\s*block;[^}]*-webkit-line-clamp:\s*unset;[^}]*line-clamp:\s*unset;",
+            Css);
+        Assert.Contains("<DeskLink Destination=\"game\" Class=\"board__matchup-link\"", Razor);
+    }
+
+    [Fact]
+    public void The_matchup_links_shortcut_is_out_of_the_flow()
+    {
+        Assert.Matches(@"\.board__matchup-link\s*\{\s*position:\s*relative;", Css);
+        Assert.Matches(@"\.board__matchup-link \.desklink__shortcut\s*\{[^}]*position:\s*absolute;[^}]*left:\s*100%;", Css);
+    }
+
+    private static string Root()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "CLAUDE.md")))
+            dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
+    }
+}

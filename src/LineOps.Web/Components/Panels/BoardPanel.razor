@@ -232,7 +232,7 @@ else
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 @{ var leader = FinalLeader(context.Item.Game); }
-                <DeskLink Destination="game" Tooltip="@Matchup(context.Item.Game)"
+                <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@Matchup(context.Item.Game)"
                           OnClick="() => Manager.OpenGame(context.Item.Game)">
                     <span class="board__team@(leader == ScoreLeader.Home ? " board__team--loser" : "")">
                         <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.AwayTeam, Scoreline.Abbrev(context.Item.Game.AwayTeam, "Away"))
@@ -271,7 +271,7 @@ else
         @*
             Score and state, in one column.
 
-            They are the same fact at two resolutions — a game is FINAL *and* it is 3–5 — and
+            They are the same fact at two resolutions — a game is final *and* it is 3–5 — and
             two columns to say it would cost width the six market cells need more. The score
             itself takes no hue: on this desk hue reports the state of your own position
             (ADR 0008), so colouring a losing side negative would be a second vocabulary in the
@@ -282,7 +282,7 @@ else
                 @if (context.Item.Game.Status == GameStatus.Scheduled)
                 {
                     @* Nothing has happened yet, and the Starts column already says when it
-                       will. A tag reading SCHED here would repeat that in a second alphabet. *@
+                       will. A tag reading Scheduled here would only repeat it. *@
                     <span class="dim">—</span>
                 }
                 else
@@ -290,7 +290,7 @@ else
                     <div class="scoreline">
                         <Tag State="@StatusState(context.Item.Game.Status)"
                              Live="@(context.Item.Game.Status == GameStatus.Live)">
-                            @StatusWord(context.Item.Game.Status)
+                            @TagStates.StatusWord(context.Item.Game.Status)
                         </Tag>
 
                         @if (context.Item.HasScore)
@@ -827,14 +827,6 @@ else
         _ => DeskState.Info
     };
 
-    /// <summary>Short, because it sits in a narrow column beside the two lines of the score.</summary>
-    private static string StatusWord(GameStatus status) => status switch
-    {
-        GameStatus.Live => "LIVE",
-        GameStatus.Final => "FINAL",
-        GameStatus.Postponed => "PPD",
-        _ => "SCHED"
-    };
 
     /// <summary>
     /// A game whose state says it has been played but whose score has not arrived. That is a

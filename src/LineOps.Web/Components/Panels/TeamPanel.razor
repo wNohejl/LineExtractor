@@ -104,7 +104,7 @@ else
                                 @* Live reads as it does on the Board and in the Game window. *@
                                 <Tag State="@(row.Status == GameStatus.Live ? DeskState.Warning : TagStates.Won(row.Won))"
                                      Live="@(row.Status == GameStatus.Live)">
-                                    @row.Status
+                                    @TagStates.StatusWord(row.Status)
                                 </Tag>
                             }
 

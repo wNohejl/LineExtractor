@@ -45,4 +45,17 @@ public static class TagStates
         EntryResult.Loss => DeskState.Negative,
         _ => DeskState.Info
     };
+
+    /// <summary>
+    /// A game's state, as the word its tag says — sentence case, spelled out, the same on the
+    /// Board and in the Team window's log. The Board never shows Scheduled (its Starts column
+    /// already says when), so the full words cost its narrow score column nothing.
+    /// </summary>
+    public static string StatusWord(GameStatus status) => status switch
+    {
+        GameStatus.Live => "Live",
+        GameStatus.Final => "Final",
+        GameStatus.Postponed => "Postponed",
+        _ => "Scheduled"
+    };
 }

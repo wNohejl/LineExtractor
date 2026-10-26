@@ -2230,8 +2230,42 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 /* The matchup: a club per line, mark then nickname, inside the game link. A final's loser
    drops to secondary ink to match its score; the names keep the cell's regular weight, so the
    figures carry the contrast. */
-.board__team { display: block; }
+.board__team {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .board__team--loser { color: var(--text-secondary); }
+
+/* The matchup link holds two clubs, a line each, so the grid's two-line clamp on a link's
+   label (mud-bridge) cut the home line off whenever a narrow cell wrapped a mark away from its
+   name: "▪ / Cowbo…", no Eagles. Each club now stays on one line (above) and the label is a
+   plain block, so both lines always show. The selector outranks mud-bridge's four classes.
+
+   The link's shortcut is taken out of the flow, as in the scoreboard: in a grid cell it
+   reserved 44px beside the label, which at a tiled Board's 127px cell left the names 57px.
+   It shows past the label's end on hover, on the hovered row's surface. Measured in the
+   controller's browser check (Board tiled at ~550px); not re-measured after the fix. */
+.deskgrid--board .mud-table-body .mud-table-cell .board__matchup-link .desklink__label {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    min-width: 0;
+}
+
+.board__matchup-link { position: relative; }
+.board__matchup-link .desklink__shortcut {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    z-index: 1;
+    margin-left: 6px;
+    padding: 0 var(--space-1);
+    white-space: nowrap;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+}
 
 /* A result the stats pass has not reached yet. Tertiary is right here: it is a
    hint about the feed, not a value anybody has to read. */
