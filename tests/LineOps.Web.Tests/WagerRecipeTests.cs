@@ -160,6 +160,37 @@ public class WagerRecipeTests : WagerTestContext
     }
 
     [Fact]
+    public void A_closing_line_with_no_stake_still_says_the_stake_is_needed()
+    {
+        // Log is blocked by the close and Add to slip is out of sight until there is a stake, so
+        // the line beside Log is what says the slip is a stake away; the close is the note's.
+        Data.Row = BoardRows.Row(closing: true, startsAt: DateTimeOffset.UtcNow.AddMinutes(-42));
+        var cut = Render();
+
+        Assert.NotNull(cut.Find(".wcard + .wstatus"));
+        Assert.Null(Key(cut, "Add to slip"));
+        Assert.Equal("Needs a stake above zero.", cut.Find(".waction__keys .wager-why").TextContent.Trim());
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == 50m.ToString("C0")).Click();
+
+        Assert.NotNull(Key(cut, "Add to slip"));
+        Assert.Empty(cut.FindAll(".wager-why"));
+    }
+
+    [Fact]
+    public void The_current_steps_title_is_primary_and_the_wide_grid_puts_its_slack_last()
+    {
+        var css = Source("src", "LineOps.Desk", "wwwroot", "css", "lineops.css");
+
+        // Rule 4: the ring and dot carry the accent, not the title.
+        Assert.DoesNotMatch(@"\.wstep--current \.wstep__title \{[^}]*accent", css);
+        // Wide: explicit rows, the review and the form's frame spanning all of them, so a tall
+        // review's extra height lands in the last row instead of between the form's steps.
+        Assert.Contains("grid-template-rows: auto auto minmax(var(--space-1), 1fr);", css);
+        Assert.DoesNotContain("grid-row: 1 / span 4", css);
+    }
+
+    [Fact]
     public void An_open_market_has_no_status_note()
     {
         var cut = Render();

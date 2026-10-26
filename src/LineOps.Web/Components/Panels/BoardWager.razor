@@ -1000,15 +1000,17 @@ else
 
     /// <summary>
     /// What the Filled key is waiting for, said beside it. A closing line is not said here: it is
-    /// the status note under the steps card, and a reason said twice is one too many.
+    /// the status note under the steps card, and a reason said twice is one too many. A missing
+    /// stake still is, closing line or not: with no stake Add to slip is out of sight, and this
+    /// line is what says the slip is a stake away.
     /// </summary>
     private string? Waiting
         => _offer is null && Typing
             ? (_noGame && string.IsNullOrWhiteSpace(_described)
                 ? "Needs a description of the bet."
                 : "Needs a price (like -110 or +150) and a book.")
-           : _offer is { IsClosing: true } ? null
            : _stake <= 0 && !BuildParlay ? "Needs a stake above zero."
+           : _offer is { IsClosing: true } ? null
            : null;
 
     /// <summary>A team's name in the header was pressed: open that team's window.</summary>

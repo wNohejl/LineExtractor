@@ -3083,6 +3083,24 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     font-variant-numeric: tabular-nums;
 }
 .scoreboard__at { color: var(--text-secondary); font-weight: var(--weight-regular); }
+/* A DeskLink reserves its shortcut's width so a grid row does not shift on hover; in the
+   scoreboard that reserved slot pushed "· at" about 80px away from the away name and opened a
+   gap before the score column. Here the shortcut is taken out of the flow and shown beside the
+   name on hover, on the card's surface so it covers what it overlaps cleanly. */
+.scoreboard .desklink { position: relative; }
+.scoreboard .desklink__shortcut {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    z-index: 1;
+    margin-left: 6px;
+    padding: 0 var(--space-1);
+    translate: 0 -50%;
+    white-space: nowrap;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+}
 /* Without subgrid a row is its own two-column grid: the score keeps its row and its right
    edge, though the two scores no longer share one. */
 @supports not (grid-template-columns: subgrid) {
@@ -4564,7 +4582,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     line-height: 20px;
     color: var(--text-primary);
 }
-.wstep--current .wstep__title { color: var(--accent); }
 .wstep--todo .wstep__title { color: var(--text-secondary); }
 .wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .wstep__summary:empty { display: none; }
@@ -4927,7 +4944,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 /* Widths. The window body is a container; the wizard reads it, not the viewport.
-   Under 1100px: one column, cards at 760px. From 1100px: two columns — the header and the
+   Under 1000px: one column, cards at 760px. From 1000px: two columns — the header and the
    form on the left, the review step lifted out as its own card on the right, so a wide window
    shows the whole bet and its checks at once instead of a form in a sea of body. */
 
@@ -4939,7 +4956,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .wcard > .wsteps > .wstep:not(.wstep--review) { grid-column: 1; }
     .wstep--review {
         grid-column: 2;
-        grid-row: 1 / span 4;
+        grid-row: 1 / -1;
         grid-template-columns: minmax(0, 1fr);
         padding: var(--space-4);
         background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-3));
@@ -4998,11 +5015,18 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    the same fill and stroke. The form's steps are placed in its rows explicitly, because an
    auto-placed item would step around the frame. */
 @container (min-width: 1000px) {
-    .wcard { padding: 0; background: none; border: 0; border-radius: 0; column-gap: var(--space-3); }
+    /* Explicit rows: the bet, the stake, then the rest. The review and the form's frame span all
+       three, so a review taller than the form puts its slack in the last row, under the form's
+       steps, rather than spreading it between them; the last row is at least 4px, the steps
+       card's bottom inset. */
+    .wcard {
+        padding: 0; background: none; border: 0; border-radius: 0; column-gap: var(--space-3);
+        grid-template-rows: auto auto minmax(var(--space-1), 1fr);
+    }
     .wcard::before {
         content: "";
         grid-column: 1;
-        grid-row: 1 / span 4;
+        grid-row: 1 / -1;
         align-self: stretch;
         background: var(--surface-2);
         border: 1px solid var(--separator);

@@ -136,4 +136,21 @@ public class ScoreboardTests : DeskTestContext
         // The loser is still quieter on one line.
         Assert.Contains("scoreboard__row--loser", cut.FindAll(".scoreboard__row")[1].ClassList);
     }
+
+    [Fact]
+    public void A_names_link_shortcut_takes_no_room_in_the_line()
+    {
+        // DeskLink reserves its shortcut's width (a grid row must not shift on hover); in the
+        // scoreboard that slot pushed "· at" and the score column away from the names. The
+        // shortcut is still there for the hover, but the scoreboard takes it out of the flow.
+        var cut = RenderComponent<Scoreboard>(p => p
+            .Add(s => s.Game, Steelers_at_Saints(GameStatus.Final, 16, 10))
+            .Add(s => s.Compact, true));
+        Assert.Equal(2, cut.FindAll(".scoreboard__name .desklink .desklink__shortcut").Count);
+
+        var css = File.ReadAllText(Path.Combine(LineOps.Web.Tests.Support.Repo.Root(),
+            "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+        Assert.Matches(@"\.scoreboard \.desklink \{\s*position: relative;", css);
+        Assert.Matches(@"(?s)\.scoreboard \.desklink__shortcut \{[^}]*position: absolute;[^}]*left: 100%;", css);
+    }
 }
