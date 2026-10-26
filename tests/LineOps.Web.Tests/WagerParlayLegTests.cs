@@ -39,7 +39,8 @@ public class WagerParlayLegTests : WagerTestContext
     {
         var cut = FromBoard(Markets.Total, "Over");
 
-        Assert.True(Key(cut, "Add to slip").HasAttribute("disabled"));
+        // A key that cannot be used yet is not on screen: Add to slip waits for a stake out of sight.
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
         Assert.False(Key(cut, "Add as leg").HasAttribute("disabled"));
 
         Key(cut, "Add as leg").Click();
@@ -57,9 +58,9 @@ public class WagerParlayLegTests : WagerTestContext
         Data.Row = BoardRows.Row(closing: true);
         var cut = FromBoard(Markets.Moneyline, BoardRows.Home);
 
-        var key = Key(cut, "Add as leg");
-        Assert.True(key.HasAttribute("disabled"));
-        Assert.Contains("closing line cannot be a leg", key.GetAttribute("title"));
+        // The key is not offered, and the status note under the card says why.
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add as leg", StringComparison.Ordinal));
+        Assert.Contains("This is the closing line", cut.Find(".wstatus__text").TextContent);
     }
 
     [Fact]

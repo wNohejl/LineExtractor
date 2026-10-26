@@ -4294,6 +4294,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
         padding-bottom: var(--space-2);
     }
     .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
+    /* In the wizard the label above a control is 11px (wizards.md, bet-and-price rule 6). */
+    .wcard .wgroup__row--form > .wgroup__label { font-size: var(--text-footnote); }
 }
 
 /* ---- The offer: the one number this window is about, set as the window's title. */
@@ -4461,17 +4463,27 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-4);
+    /* Two sibling cards, 12px apart, one stroke level (wizards.md, reconciling rule 1). */
+    margin-bottom: var(--space-3);
     max-width: var(--wizard-max, 760px);
-    padding: var(--space-4) var(--space-5, 20px);
+    padding: var(--space-4);
     background: var(--surface-2);
-    border: 1px solid var(--separator-strong);
-    border-bottom: 3px solid var(--accent);
-    border-radius: var(--radius-panel) var(--radius-panel) var(--radius-sm) var(--radius-sm);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
 }
 .whead > .ptitle, .whead > .game-search { flex: 1 1 320px; min-width: 0; }
 .whead .ptitle { margin-bottom: 0; }
-.whead .ptitle__name { font-size: var(--text-title1); font-weight: var(--weight-bold, 700); letter-spacing: -.01em; }
+/* Reconciling rule 2: the title at 17px semibold, the time 12px secondary beneath it. The
+   matchup is the compact scoreboard, raised from its title-3 default to the header's title. */
+.whead .ptitle__name { font-size: var(--text-title2); font-weight: var(--weight-semibold); }
+.whead .scoreboard--compact { --scoreboard-score: var(--text-title2); }
+.whead .scoreboard--compact .scoreboard__name { font-size: var(--text-title2); }
+/* Chips: 20px tall, 10px radius, 11px medium, a quiet fill with no stroke. */
+.whead .ptitle__row .tag { padding: 3px var(--space-2); line-height: 14px; border-radius: 10px; }
+/* Duplicate trails the header: in the title's meta line from the Board, after the search
+   from the Journal. */
+.whead__keys { margin-left: auto; display: flex; align-items: center; }
+.whead__keys:empty { display: none; }
 .whead .game-search__chosen .game-search__match { font-size: var(--text-title2); }
 /* Every name in the header is a link, as in the Game window's title: the teams open their
    windows, the kickoff opens the game, the chosen game in the search changes it. A link set
@@ -4486,51 +4498,57 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wstep__summary .wager-offer__price { font-size: inherit; font-weight: var(--weight-semibold); color: var(--text-primary); }
 .wstep__summary .wager-offer__book { font-size: inherit; }
 
+/* The steps card (reconciling rules 1 and 3): the header card's fill, stroke and radius, 4px
+   above and below, and nothing inside it stroked — each step is a section of the card divided
+   from the next by a full-width hairline quieter than the card's edge. */
 .wcard {
+    --wsep: color-mix(in srgb, var(--text-primary) 9%, transparent);
     max-width: var(--wizard-max, 760px);
-    padding: var(--space-5, 20px) var(--space-6) var(--space-6);
+    padding: var(--space-1) 0;
     background: var(--surface-2);
-    border: 1px solid var(--separator-strong);
+    border: 1px solid var(--separator);
     border-radius: var(--radius-panel);
 }
 
-/* ---- The stepper inside the card: a 16px ring on a 2px rail. The current step's ring holds
-   a dot and its title takes the accent; a done ring fills with a check; a waiting step's ring
-   is grey and its title dims, with what it waits for on the same line. Only an open step has a
-   body, so a folded step is one line. */
+/* ---- The stepper inside the card (reconciling rules 4-6): a 40px marker column with a 16px
+   ring centred 20px from the card's edge, on a 2px rail that runs ring to ring behind the
+   folded lines. Waiting: a hollow 1.5px ring. Current: a 2px accent ring with a 6px dot.
+   Done: a filled accent disc with a check, and the rail below it in the accent. A folded
+   step is one 40px line; only an open step has a body, indented to the title's edge. */
 .wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .wstep {
     position: relative;
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    column-gap: var(--space-4);
-    padding-bottom: var(--space-5, 20px);
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 0;
+    padding: 10px var(--space-4) 10px 0;
 }
-.wstep:last-child { padding-bottom: 0; }
+.wstep + .wstep { border-top: 1px solid var(--wsep, var(--separator)); }
 .wstep::before {
     content: "";
     position: absolute;
-    left: 8px;
-    top: 24px;
-    bottom: 4px;
+    left: 19px;
+    top: 28px;
+    bottom: -13px;
     width: 2px;
     border-radius: 1px;
-    background: var(--separator-strong);
+    background: color-mix(in srgb, var(--text-primary) 13%, transparent);
     transition: background var(--dur-fast) var(--ease-standard);
 }
 .wstep:last-child::before { display: none; }
-.wstep--done::before { background: color-mix(in oklab, var(--accent) 55%, transparent); }
+.wstep--done::before { background: color-mix(in oklab, var(--accent) 70%, transparent); }
 .wstep__dot {
+    justify-self: center;
     width: 16px;
     height: 16px;
-    margin-top: 3px;
+    margin-top: 2px;
     border-radius: 50%;
     display: grid;
     place-items: center;
     font-size: 0;
     color: var(--on-accent);
     background: transparent;
-    box-shadow: inset 0 0 0 2px var(--text-tertiary);
+    box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
     transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
 }
 .wstep__dot svg { width: 11px; height: 11px; }
@@ -4538,12 +4556,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
 .wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.wstep__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 22px; }
+.wstep__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 20px; }
 .wstep__title {
     margin: 0;
     font-size: var(--text-headline);
     font-weight: var(--weight-semibold);
-    line-height: 22px;
+    line-height: 20px;
     color: var(--text-primary);
 }
 .wstep--current .wstep__title { color: var(--accent); }
@@ -4656,7 +4674,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .book-picker__trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .book-picker__trigger svg { width: 16px; height: 16px; color: var(--text-secondary); }
-.book-picker__at { font-size: var(--text-footnote); color: var(--text-secondary); }
 .book-picker__scrim { position: fixed; inset: 0; z-index: var(--z-popover); background: transparent; }
 .book-picker__panel {
     position: absolute;
@@ -4693,16 +4710,19 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .book-picker__panel { background: var(--surface-2); }
 }
 
-/* ---- Stake and review inside the stepper: everything runs from the left. The returns sit
-   after the quick keys on one line; the keys lead the action row with what they wait for
-   beside them; a check's remedy follows its sentence. */
+/* ---- Stake and review inside the stepper. The stake's field and quick values run on one
+   line; the keys sit at the step's foot, trailing, 12px below the last row, the Filled key
+   rightmost and what it waits for beside it (wizards.md: Continue at the foot of the step);
+   a check's remedy follows its sentence. */
 .wsteps .wgroup { max-width: 560px; }
 .wsteps .stake-row, .wgroup__row--form .stake-row { flex-wrap: wrap; }
 .wsteps .stake-row__returns, .wgroup__row--form .stake-row__returns { margin-left: var(--space-2); flex-direction: row; align-items: baseline; gap: var(--space-2); }
 .wsteps .stake-row__returns-label, .wgroup__row--form .stake-row__returns-label { text-transform: none; letter-spacing: 0; font-size: var(--text-subheadline); font-weight: var(--weight-regular); }
 .wsteps .waction { border-top: 0; padding-top: 0; }
-.wsteps .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
-.wsteps .wager-why { text-align: left; }
+.wsteps .waction__keys { justify-content: flex-end; flex-wrap: wrap; margin-top: var(--space-2); }
+.wsteps .wager-why { text-align: right; color: var(--text-secondary); }
+/* The slip's count on a Plain key is a neutral capsule: the accent is the Filled key's. */
+.waction__keys .desk-btn--plain .slip-badge { background: var(--surface-3); color: var(--text-secondary); }
 .wsteps .check .desk-btn { margin-left: var(--space-2); }
 /* The review sentence is the checks' footer, not a box of its own. */
 .wreview {
@@ -4774,13 +4794,18 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 /* ---- The house rule on groups, and the wizard at every width ------------------------------
    A group is bordered: a 1px hairline on its fill, the way macOS draws a grouped form and the
-   package wizard draws its sections. Inside the wizard's card the group sits a half level
-   lighter than the card so the edge reads as an edge and not a seam. Placed last so it wins. */
+   package wizard draws its sections. Placed last so it wins.
+   Inside the wizard's card there is no group: the card is the group (wizards.md, reconciling
+   rules 1, 6 and 8, and "never a stroked group inside the steps card"). A step's rows sit bare
+   in the card at the title's edge, divided by the card's quiet hairline, and its footer and
+   review sentence align to the same edge. Notes that do not block logging lose their box. */
 .wgroup { border: 1px solid var(--separator-strong); }
-.wcard .wgroup { background: color-mix(in srgb, var(--surface-2) 55%, var(--surface-3)); }
-.wcard .wgroup__row + .wgroup__row::before { left: 0; }
+.wcard .wgroup { background: none; border: 0; border-radius: 0; }
+.wcard .wgroup__row--form { padding: 6px 0; min-height: 36px; }
+.wcard .wgroup__row + .wgroup__row::before { left: 0; border-top-color: var(--wsep); }
+.wcard .wgroup__foot, .wcard .wreview { padding: 0; }
+.wcard .note:not(.note--warn) { padding: 0; background: none; }
 .wsteps .wgroup { max-width: none; }
-.wstep__title { font-size: var(--text-title2); line-height: 24px; }
 
 /* The segmented control as macOS draws it (wizards.md, the bet-and-price recipe, rule 2): a
    recessed track and a raised neutral thumb, both rounded rectangles on the control radius, the
@@ -4788,29 +4813,36 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    never applied — .marble-row.gate out-ranks .selection-gate — so a 999px accent pill sat in a
    7px track, and a solid accent slab was the loudest thing in the window, louder than Log. The
    chosen side reads by its raised thumb and its semibold words; the accent stays for focus, the
-   current step and the one Filled key. Compound selectors, so they out-rank the base recipe. */
+   current step and the one Filled key. Compound selectors, so they out-rank the base recipe.
+   Rule 2's values: a 24px track filled at 8% with no outline (a control never carries its own
+   outline at rest), 12px text, the side in primary and its price in secondary, and the thumb a
+   neutral grey (#636366 on the dark card: 30% primary ink over the card's surface) at 6px. */
 .selection-gate.marble-row.gate {
     max-width: none;
     padding: 2px;
-    background: var(--surface-0);
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     border-radius: var(--radius);
-    box-shadow: inset 0 0 0 1px var(--separator);
+    box-shadow: none;
 }
 .selection-gate .marble.gate__cap {
     top: 2px;
     bottom: 2px;
     left: 2px;
     width: calc((100% - 4px) / var(--n));
-    border-radius: calc(var(--radius) - 2px);
-    /* The chosen side fills in the accent, as the package wizard the operator chose draws its
-       chosen option: selection is one of the accent's three jobs, and this is the window's one. */
-    background: var(--accent);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+    border-radius: calc(var(--radius) - 1px);
+    background: color-mix(in srgb, var(--text-primary) 30%, var(--surface-2));
+    box-shadow: var(--shadow-1);
 }
-.selection-gate .gate__opt { min-height: 28px; border-radius: calc(var(--radius) - 2px); }
-.selection-gate .gate__opt--on,
-.selection-gate .gate__opt--on .selection-chip__price { color: var(--on-accent); }
-.selection-gate .gate__opt--on .selection-chip__price--none { color: color-mix(in srgb, var(--on-accent) 70%, transparent); }
+.selection-gate .gate__opt {
+    min-height: 20px;
+    padding: 2px var(--space-2);
+    border-radius: calc(var(--radius) - 1px);
+    font-size: var(--text-subheadline);
+    line-height: 16px;
+}
+.selection-gate .gate__opt--on { color: var(--text-primary); }
+.selection-gate .gate__opt--on .selection-chip__price { color: var(--text-secondary); }
+.selection-gate .gate__opt--on .selection-chip__price--none { color: var(--text-tertiary); }
 
 /* The price row closes the group and echoes the choice (recipe rule 3): the stronger
    full-width hairline above it and a faint fill on the row alone, not a 3px accent bar down its
@@ -4843,30 +4875,46 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     width: min(400px, calc(100% - 2 * var(--space-4)));
     transform-origin: top right;
 }
-.wbet__side { font-weight: var(--weight-semibold); overflow: hidden; text-overflow: ellipsis; }
+/* Rule 3's echo: the side and its line at 13px semibold over the market and matchup at 11px
+   secondary; it cross-fades in over 150ms when the choice changes (rule 4; keyed in Razor so a
+   new side is a new element). The price trails at title 2, then the pop-up, then the pencil. */
+.wbet__echo-pair { display: flex; flex-direction: column; min-width: 0; animation: wbet-echo-in var(--dur-fast) var(--ease-standard); }
+.wbet__side { font-size: var(--text-headline); font-weight: var(--weight-semibold); line-height: var(--leading-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbet__detail { margin-top: 2px; font-size: var(--text-footnote); line-height: var(--leading-tight); color: var(--text-secondary); }
+@keyframes wbet-echo-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .wbet__echo-pair { animation: none; }
+}
 @container (min-width: 401px) {
     .wbet__price.wager-offer { grid-template-columns: minmax(0, 1fr) auto; }
 }
-.wbet__price .wager-offer__top { gap: var(--space-2); }
-.wbet__price .wager-offer__line { font-size: var(--text-body); }
+.wbet__price .wager-offer__top { gap: var(--space-2); justify-content: flex-end; }
+.wbet__price .book-picker { margin-left: 0; }
+/* In the card the price row's faint fill reaches 12px past the rows' edge, so the echo and the
+   price keep their alignment with the rows above while the fill still reads as a row. */
+.wcard .wbet > .wbet__price { padding: 6px var(--space-3); margin: 0 calc(-1 * var(--space-3)); }
+.wcard .wbet > .wbet__price:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+.wcard .wbet__price .book-picker__panel { right: var(--space-3); width: min(400px, calc(100% - 2 * var(--space-3))); }
 
-/* The book is a pop-up button, as macOS draws one (recipe rule 5): a quiet fill, no stroke at
-   rest, the control radius, the current book as its label and an up/down chevron at its end.
-   It was an outlined pill holding a filled capitals tag, which read as a chip to dismiss rather
-   than a menu to open. "Best" is a word in the positive colour, not a second badge. */
+/* The book is a pop-up button, as macOS draws one (recipe rule 5): 22px, 6px corners, a 10%
+   fill with no stroke at rest, 12px text with the current book as its label, padding 0 6px 0
+   9px, and an up/down chevron in secondary at its end. It was an outlined pill holding a
+   filled capitals tag, which read as a chip to dismiss rather than a menu to open. "Best" is a
+   word in the positive colour, not a second badge. Disabled until a side is chosen. */
 .book-picker__trigger {
-    height: 26px;
-    gap: 6px;
-    padding: 0 var(--space-1) 0 var(--space-3);
-    border-radius: var(--radius);
+    height: 22px;
+    gap: var(--space-1);
+    padding: 0 6px 0 9px;
+    border-radius: calc(var(--radius) - 1px);
     background: color-mix(in srgb, var(--text-primary) 10%, transparent);
     box-shadow: none;
 }
-.book-picker__trigger:hover { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
+.book-picker__trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
+.book-picker__trigger:disabled { color: var(--text-tertiary); cursor: default; background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
 .book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .book-picker__trigger:focus-visible { box-shadow: var(--focus-ring); }
-.book-picker__trigger .wager-offer__book { font-size: var(--text-body); }
-.book-picker__trigger svg { width: 14px; height: 14px; }
+.book-picker__trigger .wager-offer__book { font-size: var(--text-subheadline); font-weight: var(--weight-medium); }
+.book-picker__trigger svg { width: 12px; height: 12px; }
 .book-picker__trigger .tag {
     padding: 0;
     background: none;
@@ -4900,7 +4948,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     }
     .wstep--review::before, .wstep--review > .wstep__dot { display: none; }
     .wstep--review .wgroup { background: var(--surface-2); }
-    .wcard > .wsteps > .wstep:not(.wstep--review):nth-last-child(2) { padding-bottom: 0; }
     .wcard > .wsteps > .wstep:not(.wstep--review):nth-last-child(2)::before { display: none; }
 }
 /* The price row names the side it prices, under its label, so the row reads as that side's. */
@@ -4912,17 +4959,20 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    broke wherever they ran out of room. Narrow, the card tightens, the rail's gutter halves, and
    the returns take a line of their own under the amount, so every row breaks in one place. */
 @container (max-width: 480px) {
-    .wcard { padding: var(--space-3) var(--space-3) var(--space-4); }
     .whead { padding: var(--space-3); }
-    .whead .ptitle__name { font-size: var(--text-title2); }
-    .wstep { column-gap: var(--space-2); padding-bottom: var(--space-4); }
-    .wstep__title { font-size: var(--text-title3); }
+    .wstep { padding-right: var(--space-3); }
     .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wcard .wgroup__row--form { padding-left: 0; padding-right: 0; }
     .wstep__hint { font-size: var(--text-footnote); }
     .wgroup__row--form .stake-row { row-gap: var(--space-1); }
     .wgroup__row--form .stake-row__returns { flex-basis: 100%; margin-left: 0; }
     .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
-    .wcard .waction__keys .desk-btn { flex: 1 1 auto; }
+    .wcard .wgroup__foot { padding: 0; }
+    /* Stacked (wizards.md, layout a): the keys full width, the Filled key on top with what it
+       waits for directly under it, its Plain companions below. */
+    .wcard .waction__keys { flex-direction: column; align-items: stretch; }
+    .wcard .waction__keys > .desk-btn--filled { order: -2; }
+    .wcard .waction__keys > .wager-why { order: -1; text-align: center; }
 }
 /* In the narrowest groups (a window beside two others) a segment's numbers wrap onto their own
    lines rather than running into the next segment: "-3 -109" beside "+3 -103" collided at ~65px. */
@@ -4931,15 +4981,68 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .selection-gate .gate__opt { padding-left: var(--space-1); padding-right: var(--space-1); }
 }
 
-/* ---- Two last tells from the design pass. The header card is the subject, edged like every
-   card: a 3px accent base under it competed with the current step's accent, the one coloured
-   mark the reader should follow, so it goes and the corners match. In the wide layout the
-   review card held its checks in a bordered group of their own, a third level of box inside
-   the main card; there the checks are rows divided by hairlines, the card the only frame. */
-.whead { border-bottom: 1px solid var(--separator-strong); border-radius: var(--radius-panel); }
+/* ---- A last tell from the design pass. In the wide layout the review card held its checks in
+   a bordered group of their own, a third level of box inside the main card; there the checks
+   are rows divided by hairlines, the card the only frame. */
 @container (min-width: 1000px) {
     .wstep--review .wgroup { background: transparent; border: 0; border-radius: 0; }
     .wstep--review .wgroup__row { padding-left: 0; padding-right: 0; }
     .wstep--review .wgroup__row + .wgroup__row::before { left: 0; }
     .wstep--review .wreview { padding: 0; }
 }
+
+/* ---- The wide wizard as two sibling cards (wizards.md, layout c and reconciling rule 1).
+   The review lifted out beside the form sat inside the steps card's stroke: a card inside a
+   card. Wide, the steps card's frame is drawn by a grid pseudo-element under the form column
+   alone, so the form and the review are two cards side by side, 12px apart, one stroke level,
+   the same fill and stroke. The form's steps are placed in its rows explicitly, because an
+   auto-placed item would step around the frame. */
+@container (min-width: 1000px) {
+    .wcard { padding: 0; background: none; border: 0; border-radius: 0; column-gap: var(--space-3); }
+    .wcard::before {
+        content: "";
+        grid-column: 1;
+        grid-row: 1 / span 4;
+        align-self: stretch;
+        background: var(--surface-2);
+        border: 1px solid var(--separator);
+        border-radius: var(--radius-panel);
+    }
+    .wcard > .wsteps > .wstep:nth-child(1) { grid-row: 1; margin-top: var(--space-1); }
+    .wcard > .wsteps > .wstep:nth-child(2):not(.wstep--review) { grid-row: 2; }
+    .wcard > .wsteps > .wstep:not(.wstep--review) { z-index: 1; }
+    .wcard .wstep--review { border: 1px solid var(--separator); background: var(--surface-2); }
+}
+
+/* ---- The status note (reconciling rule 7): under the steps card, outside it, 8px below,
+   aligned to the card's content edge (the 40px marker column); a 13px symbol and a 12px
+   sentence. A warning takes the orange symbol and primary ink. No box: the review's red check
+   already marks the price, and this says what to do about it. */
+.wstatus {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    max-width: var(--wizard-max, 760px);
+    margin: var(--space-2) 0 0;
+    padding: 0 var(--space-4) 0 40px;
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wstatus__mark { flex: none; display: inline-flex; margin-top: 2px; }
+.wstatus__mark svg { width: 13px; height: 13px; }
+.wstatus--warning .wstatus__mark { color: var(--state-warning); }
+.wstatus--warning .wstatus__text { color: var(--text-primary); }
+
+/* ---- The stake field is a number without the browser's spinner: the quick keys beside it are
+   its steps (Task 13). The same for the typed price and line in the wager window. The chosen
+   quick key is Plain with a neutral pressed fill, not the accent tint. */
+.stake-row input[type="number"],
+.wcard input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.stake-row input[type="number"]::-webkit-inner-spin-button,
+.stake-row input[type="number"]::-webkit-outer-spin-button,
+.wcard input[type="number"]::-webkit-inner-spin-button,
+.wcard input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.stake-row__field { max-width: 130px; }
+.stake-row .desk-btn--plain[aria-pressed="true"] { --btn-fill: var(--surface-3); --btn-ink: var(--text-primary); }
+.wstake__win { font-variant-numeric: tabular-nums; }

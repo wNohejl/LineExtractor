@@ -224,7 +224,9 @@ public class WagerStepperTests : WagerTestContext
 
         var key = cut.Find(".wager-offer__top .wager-manual-key");
         Assert.Equal("Enter my own price", key.GetAttribute("title"));
-        Assert.Contains("wager-offer__price", key.PreviousElementSibling!.ClassList);
+        // Price, then the book pop-up (recipe rule 3), then the pencil that replaces the number.
+        Assert.Contains("book-picker", key.PreviousElementSibling!.ClassList);
+        Assert.Contains("wager-offer__price", key.PreviousElementSibling!.PreviousElementSibling!.ClassList);
     }
 
     [Fact]

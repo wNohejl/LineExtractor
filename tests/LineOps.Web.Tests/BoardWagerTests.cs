@@ -27,6 +27,8 @@ public class BoardWagerTests : WagerTestContext
 
     private static IElement Log(IRenderedFragment cut) => cut.Find("button.desk-btn--filled");
 
+    private static string SlipTab(IRenderedFragment cut) => cut.FindAll("[role=tab]")[1].TextContent.Trim();
+
     [Fact]
     public void With_only_a_game_it_lands_on_the_side_with_the_most_value()
     {
@@ -158,7 +160,9 @@ public class BoardWagerTests : WagerTestContext
         Key(cut, 50m.ToString("C0")).Click();
 
         Assert.True(Log(cut).HasAttribute("disabled"));
-        Assert.Equal("This is the closing line. Enter my own price records the one you got.", cut.Find(".wager-why").TextContent.Trim());
+        // Why is the status note under the steps card, said once — not a line beside the keys.
+        Assert.Contains("This is the closing line, so it cannot be logged", cut.Find(".wstatus__text").TextContent);
+        Assert.Empty(cut.FindAll(".wager-why"));
         Assert.Contains("Closing line: the game started 42 min ago", cut.Find(".check--negative").TextContent);
 
         Key(cut, "Add to slip").Click();
@@ -168,15 +172,16 @@ public class BoardWagerTests : WagerTestContext
     }
 
     [Fact]
-    public void Add_to_slip_counts_on_the_badge_and_clears_the_stake()
+    public void Add_to_slip_counts_on_the_slip_tab_and_clears_the_stake()
     {
         var cut = Render();
-        Assert.Equal("0", cut.Find(".slip-badge").TextContent.Trim());
+        Assert.Equal("Slip · 0", SlipTab(cut));
 
         Key(cut, 50m.ToString("C0")).Click();
         Key(cut, "Add to slip").Click();
 
-        Assert.Equal("1", cut.Find(".slip-badge").TextContent.Trim());
+        // The count is the Slip tab's: with the stake cleared, Add to slip (and its badge) waits out of sight.
+        Assert.Equal("Slip · 1", SlipTab(cut));
         Assert.Equal(50m, Slip.Items.Single().Stake);
         Assert.Contains($"Added {50m:C0} on ML · Chiefs at -128 to the slip.", cut.Find(".wager-logged").TextContent);
         Assert.True(Log(cut).HasAttribute("disabled"));   // the stake is cleared
@@ -227,14 +232,14 @@ public class BoardWagerTests : WagerTestContext
     }
 
     [Fact]
-    public void The_badge_follows_the_slip_when_another_window_changes_it()
+    public void The_slip_count_follows_the_slip_when_another_window_changes_it()
     {
         var cut = Render();
 
         cut.InvokeAsync(() => Slip.Add(new LineOps.Web.Services.SlipItem(Guid.Empty, 8, "x", DateTimeOffset.UtcNow, "nfl",
             Markets.Moneyline, "x", null, "draftkings", -110, DateTimeOffset.UtcNow, false, 10m, null, null, null)));
 
-        cut.WaitForAssertion(() => Assert.Equal("1", cut.Find(".slip-badge").TextContent.Trim()));
+        cut.WaitForAssertion(() => Assert.Equal("Slip · 1", SlipTab(cut)));
     }
 
     [Fact]

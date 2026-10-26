@@ -10,21 +10,24 @@
 *@
 
 <div class="row stake-row">
-    <DeskField TValue="decimal" Mono="true" Immediate="true"
-               type="number" step="5" min="0" style="max-width:130px"
+    @* A number field without the browser's spinner (lineops.css, .stake-row): the quick keys
+       beside it are the steps, and a 5-dollar arrow is not how a stake is chosen. *@
+    <DeskField TValue="decimal" Mono="true" Immediate="true" Class="stake-row__field"
+               type="number" step="5" min="0"
                placeholder="Stake" Value="Stake" ValueChanged="SetAsync" />
 
     @foreach (var quick in Quick)
     {
-        @* The amount the stake already is reads as chosen, as a toggle-style button does (HIG:
-           state shown by fill, not by colour alone, and said to a screen reader). *@
+        @* Plain keys. The amount the stake already is reads as chosen, as a toggle-style button
+           does (HIG: state shown by a neutral fill, not by the accent, and said to a screen
+           reader); the accent is for focus, the current step and the one Filled key. *@
         var chosen = Stake == quick;
-        <DeskButton Size="DeskKeySize.Small" Emphasis="@(chosen ? DeskEmphasis.Tinted : DeskEmphasis.Plain)"
+        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Plain"
                     aria-pressed="@(chosen ? "true" : "false")"
                     OnClick="() => SetAsync(quick)">@quick.ToString("C0")</DeskButton>
     }
 
-    @if (PriceAmerican is { } price && price != 0 && Stake > 0)
+    @if (ShowReturns && PriceAmerican is { } price && price != 0 && Stake > 0)
     {
         @* Label, figure, detail — stacked, so the figure is the thing the eye lands on. *@
         <span class="stake-row__returns num">
@@ -44,6 +47,12 @@
 
     /// <summary>The price the stake would be paid at. Null: no Returns (nothing to price it at yet).</summary>
     [Parameter] public int? PriceAmerican { get; set; }
+
+    /// <summary>
+    /// Draw Returns beside the quick keys. Off where the host says what the stake wins as its
+    /// group's footer instead (the wager window, after the wizard recipe).
+    /// </summary>
+    [Parameter] public bool ShowReturns { get; set; } = true;
 
     private Task SetAsync(decimal stake) => StakeChanged.InvokeAsync(stake);
 }

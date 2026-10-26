@@ -65,7 +65,8 @@ public class SharedControlsTests : DeskTestContext
 
         var keys = cut.FindAll("button").Where(b => b.TextContent.Trim().StartsWith('$')).ToList();
         Assert.Equal(["false", "true", "false"], keys.Select(k => k.GetAttribute("aria-pressed")));
-        Assert.Contains("desk-btn--tinted", keys[1].ClassName);
+        // Plain keys: the chosen one reads by its pressed state, not by the accent tint.
+        Assert.All(keys, k => Assert.Contains("desk-btn--plain", k.ClassName));
 
         // A typed amount that is none of them leaves all three unchosen.
         var typed = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 40m));

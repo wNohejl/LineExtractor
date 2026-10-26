@@ -88,13 +88,13 @@ public class WagerWindowTabsTests : WagerTestContext
     }
 
     [Fact]
-    public void Add_to_slip_is_disabled_at_zero_stake_and_says_why()
+    public void Add_to_slip_waits_out_of_sight_at_zero_stake_and_Log_says_why()
     {
         var cut = Render();
 
-        var add = cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
-        Assert.True(add.HasAttribute("disabled"));
-        Assert.Equal("Needs a stake above zero.", add.GetAttribute("title"));
+        // A key that cannot be used yet is not on screen; the Filled key's reason says what to do.
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
+        Assert.Equal("Needs a stake above zero.", cut.Find(".wager-why").TextContent.Trim());
         Assert.Empty(Slip.Items);
     }
 }

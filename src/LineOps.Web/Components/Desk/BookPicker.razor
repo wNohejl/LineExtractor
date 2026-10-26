@@ -21,14 +21,17 @@
 *@
 
 <div class="book-picker" @onkeydown="OnKey">
+    @* The current book's name is the pop-up's label, as a macOS pop-up button shows its
+       choice (wizards.md, bet-and-price rule 5). Disabled — no side chosen yet — it keeps its
+       place and says "Book", so the row does not jump when a side is picked. *@
     <button type="button" class="book-picker__trigger"
             aria-haspopup="listbox"
             aria-expanded="@(_open ? "true" : "false")"
             aria-controls="@_listId"
-            title="Change the book this price is from"
+            disabled="@Disabled"
+            title="@(Disabled ? "Choose a side first" : "Change the book this price is from")"
             @onclick="Toggle">
-        <span class="book-picker__at">at</span>
-        <span class="wager-offer__book">@Chosen</span>
+        <span class="wager-offer__book">@(Chosen ?? "Book")</span>
         @if (ChosenIsBest)
         {
             <Tag State="DeskState.Positive">Best</Tag>
@@ -83,6 +86,9 @@
 
     [Parameter] public EventCallback<string> OnChoose { get; set; }
 
+    /// <summary>Nothing to choose from yet: the pop-up shows, disabled, and never opens.</summary>
+    [Parameter] public bool Disabled { get; set; }
+
     private readonly string _listId = "books-" + Guid.NewGuid().ToString("N")[..8];
 
     private bool _open;
@@ -90,7 +96,7 @@
     private bool ChosenIsBest
         => Books.FirstOrDefault(b => string.Equals(b.Book, Chosen, StringComparison.OrdinalIgnoreCase))?.IsBest == true;
 
-    private void Toggle() => _open = !_open;
+    private void Toggle() => _open = !Disabled && !_open;
 
     private void Close() => _open = false;
 

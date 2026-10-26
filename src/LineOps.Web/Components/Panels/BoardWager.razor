@@ -96,22 +96,14 @@ else
         {
             var game = Row.Game;
 
-            @* The same links the Game window's title carries: each team opens its window, and
-               the kickoff opens the game. A name on the desk is a link to its window wherever
-               it is set, and the title of this window is no exception. *@
+            @* The game as the compact scoreboard (the Game window's title on one line): each
+               team's mark and name, a link to its window, and the score once there is one; the
+               kickoff opens the game. One line that wraps as a unit, so "at" no longer floats
+               between two wrapped names. Duplicate is the header's trailing key: it acts on the
+               whole bet, not on the review step. *@
             <PanelTitle>
                 <ChildContent>
-                    <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" Size="TeamMarkSize.Large" />
-                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                              OnClick="() => Manager.OpenTeam(game.AwayTeamId, game.AwayTeam?.Name)">
-                        @(game.AwayTeam?.Name ?? "Away")
-                    </DeskLink>
-                    <span class="dim" style="margin:0 4px">at</span>
-                    <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" Size="TeamMarkSize.Large" />
-                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                              OnClick="() => Manager.OpenTeam(game.HomeTeamId, game.HomeTeam?.Name)">
-                        @(game.HomeTeam?.Name ?? "Home")
-                    </DeskLink>
+                    <Scoreboard Game="game" Compact="true" OnTeam="id => OpenTeam(game, id)" />
                 </ChildContent>
                 <Tags>
                     <Tag>@game.Sport?.Key.ToUpperInvariant()</Tag>
@@ -130,7 +122,14 @@ else
                         @DisplayTime.Stamp(game.StartsAt)
                     </DeskLink>
                 </Detail>
+                <Keys>@DuplicateKey</Keys>
             </PanelTitle>
+        }
+
+        @if (Searching)
+        {
+            @* From the Journal the header is the search; the key trails it the same way. *@
+            <span class="whead__keys">@DuplicateKey</span>
         }
     </div>
 
@@ -209,10 +208,13 @@ else
                     @if (!HasSide)
                     {
                         @* The price row keeps its place before a side is picked, so the group
-                           does not jump when one is. *@
-                        <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty">
-                            <span class="wgroup__label">Price</span>
-                            <span class="wbet__wait">Pick a side to see its price and book.</span>
+                           does not jump when one is: it says what it waits for in tertiary, and
+                           the book pop-up is there but disabled (recipe rule 3), not hidden. *@
+                        <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty wager-offer">
+                            <span class="wbet__wait">Choose a side above.</span>
+                            <div class="wager-offer__top">
+                                <BookPicker Books="[]" Disabled="true" />
+                            </div>
                         </div>
                     }
                     else if (Typing)
@@ -263,24 +265,26 @@ else
                     else if (_offer is { } offer && Side?.Offer is { } quoted)
                     {
                         @* The row closes the group and echoes the choice (wizards.md, the bet-and-price
-                           recipe): the side leads where a label would ("Spread · Broncos"), and the
-                           line, the price and the book trail to the edge the segments end at, in the
-                           order the segment reads them (line, then price). The echo is the label. *@
+                           recipe, rule 3): leading, the side with its line at 13px semibold
+                           ("Bills +2.5") over its market and matchup in secondary ("Spread · at
+                           Chiefs"); trailing, the price at title 2 and then the book pop-up, with
+                           the pencil that replaces the number last. The echo is the label, so there
+                           is no "Price" label, and the line is said once, in the echo. Keyed on the
+                           side, so a new choice cross-fades in (rule 4) rather than swapping. *@
                         <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
-                            <span class="wgroup__label wbet__side">@SelectionText.Of(_market!, offer.Outcome, null)</span>
+                            <span class="wbet__echo-pair" @key="offer.Label">
+                                <span class="wbet__side">@EchoSide(offer)</span>
+                                <span class="wbet__detail">@EchoDetail(_market!, offer.Outcome)</span>
+                            </span>
                             <div class="wager-offer__top">
-                                @if (offer.Line is { } line)
-                                {
-                                    <span class="wager-offer__line num">@OddsMath.FormatLine(line, offer.Outcome)</span>
-                                }
                                 <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                                <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
                                 <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
                                             Icon="@Icons.Material.Filled.Edit"
                                             aria-pressed="false"
                                             aria-label="Enter my own price"
                                             Title="Enter my own price"
                                             OnClick="ToggleManual" />
-                                <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
                             </div>
                         </div>
                     }
@@ -337,11 +341,12 @@ else
             <ChildContent>
                 @* Two rows of the same grouped form: the amount with its quick values beside
                    the field (HIG: common values sit beside the field), and the note; what the
-                   stake returns is the group's footer, said by StakeRow. *@
+                   stake wins is the group's footer, under it, and follows the field as it is
+                   typed (the field is Immediate). *@
                 <div class="wgroup wstake">
                     <div class="wgroup__row wgroup__row--form">
                         <span class="wgroup__label">Stake</span>
-                        <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" />
+                        <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" ShowReturns="false" />
                     </div>
                     <div class="wgroup__row wgroup__row--form">
                         <span class="wgroup__label">Note</span>
@@ -352,6 +357,13 @@ else
                                    aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
                     </div>
                 </div>
+                @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
+                {
+                    <p class="wgroup__foot wstake__win num">
+                        To win <strong>@OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake).ToString("C0")</strong>
+                        · @OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake).ToString("C0") back with the stake
+                    </p>
+                }
             </ChildContent>
         </DeskStep>
         }
@@ -406,11 +418,27 @@ else
                     </Note>
                 }
 
+                <p class="wfoot">
+                    Logged against the price shown; closing-line value resolves once the game starts and
+                    the close is recorded.
+                </p>
+
+                @* The step's foot, trailing, as an assistant's Continue sits (wizards.md): the one
+                   Filled key last and rightmost, its Plain companions to its left, and — while it
+                   cannot be pressed — one line saying what it waits for, leading. Nothing on
+                   screen that cannot be used yet: Add to slip appears with a stake, Add as leg
+                   with a price that can be taken. The Filled key stays, disabled, because its
+                   reason is the next instruction; a closing line's reason is the status note
+                   under the card, said once. The count on the Slip tab is the acknowledgment
+                   (the key's badge leaves with the key once the stake clears); the slip does
+                   not open (spec §11.3) — it is a tab here, a link away. A bet on no game has
+                   no slip card. *@
                 <div class="waction__keys">
-                    @* The window's one Filled key is Log; the slip is Plain. The badge is the
-                       acknowledgment; the slip does not open (spec §11.3) — it is a tab here, a
-                       link away. A bet on no game has no slip card. The slip never takes a $0
-                       bet, so the key waits for a stake the same way Log does. *@
+                    @if (Waiting is { } why)
+                    {
+                        <span class="wager-why">@why</span>
+                    }
+
                     @if (BuildParlay)
                     {
                         @* Building a parlay, the one Filled key adds the leg: nothing is logged
@@ -424,57 +452,50 @@ else
                     }
                     else
                     {
-                    <DeskButton Emphasis="DeskEmphasis.Filled"
-                                Icon="@Icons.Material.Filled.Bolt"
-                                Busy="@_saving"
-                                Disabled="@(!CanLog)"
-                                Title="Record this bet in the Journal"
-                                OnClick="PlaceAsync">
-                        Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
-                    </DeskButton>
-
-                    @if (Row is not null)
-                    {
-                        <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
-                                    Disabled="@(!CanBank)"
-                                    Title="@(_offer is null ? "Your bet and its price come first."
-                                           : _stake <= 0 ? "Needs a stake above zero."
-                                           : "Bank this wager on the desk's slip, to log later or build a parlay")">
-                            Add to slip
-                            <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
-                        </DeskButton>
-
                         @* A leg needs no stake — the parlay holds it — so this key does not wait
                            for one the way Add to slip does. *@
-                        <DeskButton Icon="@Icons.Material.Filled.Link" OnClick="AddLegAsync"
-                                    Disabled="@(!CanBankLeg)" Title="@LegTitle">
-                            Add as leg
+                        @if (CanBankLeg)
+                        {
+                            <DeskButton Icon="@Icons.Material.Filled.Link" OnClick="AddLegAsync" Title="@LegTitle">
+                                Add as leg
+                            </DeskButton>
+                        }
+
+                        @if (CanBank)
+                        {
+                            <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
+                                        Title="Bank this wager on the desk's slip, to log later or build a parlay">
+                                Add to slip
+                                <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
+                            </DeskButton>
+                        }
+
+                        <DeskButton Emphasis="DeskEmphasis.Filled"
+                                    Icon="@Icons.Material.Filled.Bolt"
+                                    Busy="@_saving"
+                                    Disabled="@(!CanLog)"
+                                    Title="Record this bet in the Journal"
+                                    OnClick="PlaceAsync">
+                            Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
                         </DeskButton>
-                    }
-
-                    @* The same door the Journal's Duplicate uses: a second window on this bet,
-                       stake and note carried, so the same bet at another book is one click. *@
-                    <DeskButton Icon="@Icons.Material.Filled.ContentCopy" OnClick="Duplicate"
-                                Disabled="@(_offer is null)"
-                                Title="Open this bet again in a new window, to log it at another book or a second time">
-                        Duplicate
-                    </DeskButton>
-                    }
-
-                    @if (Waiting is { } why)
-                    {
-                        <span class="warnc wager-why">@why</span>
                     }
                 </div>
             </div>
-
-            <p class="wfoot">
-                Logged against the price shown; closing-line value resolves once the game starts and
-                the close is recorded.
-            </p>
         </DeskStep>
     </DeskSteps>
     </div>
+
+    @if (_offer is { IsClosing: true })
+    {
+        @* The status note (wizards.md, reconciling rule 7): under the steps card, outside it,
+           aligned to its content edge; the orange symbol and one sentence in primary ink. Not a
+           tinted box: the red check in the review already marks the price, and this says what
+           to do about it. *@
+        <p class="wstatus wstatus--warning" role="status">
+            <span class="wstatus__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.Warning" /></span>
+            <span class="wstatus__text">This is the closing line, so it cannot be @(BuildParlay ? "a leg" : "logged"): the pencil on the price records the one you got.</span>
+        </p>
+    }
 }
 </DeskTabs>
 
@@ -977,15 +998,71 @@ else
     /// </summary>
     private bool CanBank => _offer is not null && _stake > 0 && Row is not null;
 
-    /// <summary>What the Log key is waiting for, said beside it.</summary>
+    /// <summary>
+    /// What the Filled key is waiting for, said beside it. A closing line is not said here: it is
+    /// the status note under the steps card, and a reason said twice is one too many.
+    /// </summary>
     private string? Waiting
         => _offer is null && Typing
             ? (_noGame && string.IsNullOrWhiteSpace(_described)
                 ? "Needs a description of the bet."
                 : "Needs a price (like -110 or +150) and a book.")
-           : _offer is { IsClosing: true } ? "This is the closing line. Enter my own price records the one you got."
+           : _offer is { IsClosing: true } ? null
            : _stake <= 0 && !BuildParlay ? "Needs a stake above zero."
            : null;
+
+    /// <summary>A team's name in the header was pressed: open that team's window.</summary>
+    private void OpenTeam(Game game, int teamId)
+        => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name);
+
+    /// <summary>
+    /// The same door the Journal's Duplicate uses: a second window on this bet, stake and note
+    /// carried, so the same bet at another book is one click. It acts on the whole bet, so it
+    /// trails the header rather than queueing behind Log; with no bet yet it is not drawn.
+    /// </summary>
+    private RenderFragment DuplicateKey => __builder =>
+    {
+        if (_offer is not null)
+        {
+            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy" OnClick="Duplicate"
+                        Title="Open this bet again in a new window, to log it at another book or a second time">
+                Duplicate
+            </DeskButton>
+        }
+    };
+
+    /// <summary>The price row's first line: the side and its line, "Bills +2.5", "Over 47.5", "Chiefs".</summary>
+    private static string EchoSide(WagerOffer offer)
+        => offer.Line is { } line
+            ? $"{SelectionText.Short(offer.Outcome)} {OddsMath.FormatLine(line, offer.Outcome)}"
+            : SelectionText.Short(offer.Outcome);
+
+    /// <summary>
+    /// The price row's second line: the market by its full name and where the side stands in the
+    /// game — "Spread · at Chiefs" for the away side, "Moneyline · vs Bills" for the home side,
+    /// "Total · Bills at Chiefs" for a total.
+    /// </summary>
+    private string EchoDetail(string market, string outcome)
+    {
+        var name = market switch
+        {
+            Markets.Moneyline => "Moneyline",
+            Markets.Spread => "Spread",
+            Markets.Total => "Total",
+            _ => market
+        };
+
+        if (Row?.Game is not { } game)
+            return name;
+
+        var away = game.AwayTeam?.Name;
+        var home = game.HomeTeam?.Name;
+
+        return outcome == away && home is not null ? $"{name} · at {SelectionText.Short(home)}"
+             : outcome == home && away is not null ? $"{name} · vs {SelectionText.Short(away)}"
+             : away is not null && home is not null ? $"{name} · {SelectionText.Short(away)} at {SelectionText.Short(home)}"
+             : name;
+    }
 
     /// <summary>
     /// A leg is a price the market still offers, or one the operator typed: never a close, which
