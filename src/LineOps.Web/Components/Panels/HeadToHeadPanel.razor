@@ -16,13 +16,23 @@
     resolving the sides first. The matchup is what was clicked.
 *@
 
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal; one refresh that failed used to replace the meetings
+   with the sentence, and every refresh that succeeded blanked them while it ran. *@
 @if (Failed)
 {
     <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
-else if (_loading)
+
+@if (!Loaded)
 {
-    <EmptyState>Reading previous meetings…</EmptyState>
+    @if (!Failed)
+    {
+        @* The title row and the first meetings, in the places they will land — a sentence
+           saying the meetings are being read is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="HeadToHeadRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the meetings" />
+    }
 }
 else if (_rows.Count == 0)
 {
@@ -50,7 +60,7 @@ else
         @* Coverage is stated rather than implied: a column of dashes beside a record says
            nothing about whether the market data is missing or the games were never priced. *@
         <Detail>
-            @_subjectWins-@_subjectLosses for @_homeName ·
+            @_record for @_homeName ·
             @_covered of @_rows.Count with a closing line
         </Detail>
     </PanelTitle>
@@ -175,43 +185,47 @@ else
     private IReadOnlyList<HeadToHeadRow> _rows = [];
     private string _homeName = "Home";
     private string _awayName = "Away";
-    private int _subjectWins;
-    private int _subjectLosses;
+    private string _record = "0-0";
     private int _covered;
-    private bool _loading = true;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    /// <summary>
+    /// The meetings' record from the upcoming home side's point of view: "3-2", or "3-1-1" once a
+    /// tie is in it. A loss is a final that side scored fewer in. The service grades a final as
+    /// for &gt; against, so a level one arrives as "not won", and counting every "not won" as a
+    /// loss called a tie a loss above a grid that draws it T. The same rule as the Team window's
+    /// record (GameLogSplits.FormatRecord).
+    /// </summary>
+    public static string Record(IReadOnlyList<HeadToHeadRow> rows)
+    {
+        var wins = rows.Count(r => r.SubjectWon == true);
+        var ties = rows.Count(r => r.SubjectWon is not null && r.HomeScore == r.AwayScore);
+        var losses = rows.Count(r => r.SubjectWon == false) - ties;
+
+        return ties > 0 ? $"{wins}-{losses}-{ties}" : $"{wins}-{losses}";
+    }
 
     private async Task LoadAsync()
     {
         await WithActivityAsync(async () =>
         {
-            _loading = true;
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            try
+            if (await board.GetRowAsync(GameId) is { } row)
             {
-                await using var scope = ScopeFactory.CreateAsyncScope();
-                var board = scope.ServiceProvider.GetRequiredService<BoardService>();
-                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
-
-                if (await board.GetRowAsync(GameId) is { } row)
-                {
-                    _homeName = row.Game.HomeTeam?.Name ?? "Home";
-                    _awayName = row.Game.AwayTeam?.Name ?? "Away";
-                }
-
-                _rows = await log.HeadToHeadAsync(GameId, Take);
-
-                // Read from the upcoming home team's perspective throughout, which is what the
-                // service already did — so the record and the column agree.
-                _subjectWins = _rows.Count(r => r.SubjectWon == true);
-                _subjectLosses = _rows.Count(r => r.SubjectWon == false);
-                _covered = _rows.Count(r => r.HasClosingLine);
+                _homeName = row.Game.HomeTeam?.Name ?? "Home";
+                _awayName = row.Game.AwayTeam?.Name ?? "Away";
             }
-            finally
-            {
-                _loading = false;
-            }
+
+            _rows = await log.HeadToHeadAsync(GameId, Take);
+
+            // Read from the upcoming home team's perspective throughout, which is what the
+            // service already did — so the record and the column agree.
+            _record = Record(_rows);
+            _covered = _rows.Count(r => r.HasClosingLine);
         },
         settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
         status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count} meetings");

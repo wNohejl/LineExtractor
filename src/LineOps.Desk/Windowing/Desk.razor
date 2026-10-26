@@ -299,7 +299,21 @@
 
     /// <summary>The browser's Back or Forward landed on a desk entry. See windowing.js.</summary>
     [JSInvokable]
-    public void OnHistoryTraversed(int depth) => Manager.TraverseTo(depth);
+    public async Task OnHistoryTraversed(int depth)
+    {
+        // A walk refused for unsaved input leaves the browser on an entry the desk is not at;
+        // send it back to the desk's own, or the next Back would be counted from the wrong place.
+        if (HistoryCorrection(Manager, depth) is var steps and not 0)
+            await JS.InvokeVoidAsync("history.go", steps);
+    }
+
+    /// <summary>
+    /// Walks the desk to the browser's <paramref name="depth"/> and says how far the browser must
+    /// then move to agree with it: zero when the walk happened, and the refused distance back
+    /// when it did not. The landing fires popstate at the desk's own depth, which walks nowhere.
+    /// </summary>
+    public static int HistoryCorrection(WindowManager manager, int depth)
+        => manager.TraverseTo(depth) ? 0 : manager.HistoryDepth - depth;
 
     [JSInvokable]
     public void OnViewportChanged(double width, double height)

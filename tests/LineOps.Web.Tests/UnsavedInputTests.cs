@@ -171,6 +171,140 @@ public class UnsavedInputTests : DeskTestContext
         Assert.Empty(desk.Windows);
     }
 
+    // ------------------------------------------------------------------ history ----
+
+    /// <summary>
+    /// Back undoes the last open, and the last open was the Journal the operator is typing in.
+    /// The step would close it, so it does not happen: the manager asks, as the close key does.
+    /// </summary>
+    [Fact]
+    public void Back_refuses_to_drop_a_dirty_window()
+    {
+        var desk = Desk();
+        desk.Open(Window(WindowCatalog.Board));
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var asked = new List<WindowInstance>();
+        desk.CloseNeedsConfirmation += asked.Add;
+        var depth = desk.HistoryDepth;
+
+        Assert.False(desk.Back());
+
+        Assert.Contains(journal, desk.Windows);
+        Assert.Same(journal, Assert.Single(asked));
+        Assert.Equal(depth, desk.HistoryDepth);
+        Assert.False(desk.CanGoForward);
+    }
+
+    [Fact]
+    public void Back_proceeds_when_the_step_keeps_the_dirty_window()
+    {
+        // The step closes Ops; the dirty Journal is in the moment it returns to.
+        var desk = Desk();
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        var ops = desk.Open(Window(WindowCatalog.Ops));
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var asked = 0;
+        desk.CloseNeedsConfirmation += _ => asked++;
+
+        Assert.True(desk.Back());
+
+        Assert.Contains(journal, desk.Windows);
+        Assert.DoesNotContain(ops, desk.Windows);
+        Assert.Equal(0, asked);
+    }
+
+    [Fact]
+    public void Forward_refuses_to_drop_a_dirty_window()
+    {
+        // Close the Journal, step back to bring it back, start typing: Forward would close it again.
+        var desk = Desk();
+        desk.Open(Window(WindowCatalog.Board));
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        desk.Close(journal.Id);
+        Assert.True(desk.Back());
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var asked = new List<WindowInstance>();
+        desk.CloseNeedsConfirmation += asked.Add;
+
+        Assert.False(desk.Forward());
+
+        Assert.Contains(journal, desk.Windows);
+        Assert.Same(journal, Assert.Single(asked));
+        Assert.True(desk.CanGoForward);
+    }
+
+    [Fact]
+    public void Traversing_the_browsers_history_refuses_to_drop_a_dirty_window()
+    {
+        var desk = Desk();
+        desk.Open(Window(WindowCatalog.Board));
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        desk.Open(Window(WindowCatalog.Ops));
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var asked = new List<WindowInstance>();
+        desk.CloseNeedsConfirmation += asked.Add;
+        var depth = desk.HistoryDepth;
+
+        // Two steps back lands before the Journal was opened. Nothing moves, not even the
+        // first step, which on its own would have been harmless.
+        Assert.False(desk.TraverseTo(depth - 2));
+
+        Assert.Equal(depth, desk.HistoryDepth);
+        Assert.Equal(3, desk.OpenCount);
+        Assert.Same(journal, Assert.Single(asked));
+    }
+
+    [Fact]
+    public void A_refused_walk_sends_the_browser_back_to_the_desks_entry()
+    {
+        var desk = Desk();
+        desk.Open(Window(WindowCatalog.Board));
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        desk.Open(Window(WindowCatalog.Ops));
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var depth = desk.HistoryDepth;
+
+        // The browser went two entries back; the desk stayed, so the browser goes two forward.
+        Assert.Equal(2, LineOps.Desk.Windowing.Desk.HistoryCorrection(desk, depth - 2));
+        Assert.Equal(depth, desk.HistoryDepth);
+
+        // Landing there fires popstate at the desk's own depth, which walks nowhere.
+        Assert.Equal(0, LineOps.Desk.Windowing.Desk.HistoryCorrection(desk, depth));
+
+        // A walk that keeps the Journal needs no correction.
+        Assert.Equal(0, LineOps.Desk.Windowing.Desk.HistoryCorrection(desk, depth - 1));
+        Assert.Equal(depth - 1, desk.HistoryDepth);
+    }
+
+    [Fact]
+    public void Workspace_refuses_to_replace_a_dirty_window()
+    {
+        var desk = Desk();
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+        desk.SetUnsaved(journal.Id, true, "this journal entry");
+        var asked = new List<WindowInstance>();
+        desk.CloseNeedsConfirmation += asked.Add;
+        var depth = desk.HistoryDepth;
+
+        Assert.False(desk.ApplyWorkspace(desk.Catalog.Workspaces[0]));
+
+        Assert.Same(journal, desk.Windows.Single());
+        Assert.Same(journal, Assert.Single(asked));
+        Assert.Equal(depth, desk.HistoryDepth);
+    }
+
+    [Fact]
+    public void Workspace_applies_over_clean_windows()
+    {
+        var desk = Desk();
+        var journal = desk.Open(Window(WindowCatalog.Journal));
+
+        Assert.True(desk.ApplyWorkspace(desk.Catalog.Workspaces[0]));
+
+        Assert.DoesNotContain(journal, desk.Windows);
+    }
+
     // ------------------------------------------------------------------ chrome ----
 
     /// <summary>A panel with one key that marks it as holding input, the way the Journal form will.</summary>

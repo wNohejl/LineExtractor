@@ -719,9 +719,21 @@ public class WindowManager
         primary.Weight = othersWeight * share / (1 - share);
     }
 
-    /// <summary>Opens a named set of windows in order, replacing whatever is on the desk.</summary>
-    public void ApplyWorkspace(Workspace workspace)
+    /// <summary>
+    /// Opens a named set of windows in order, replacing whatever is on the desk — unless a window
+    /// on it holds unsaved input, in which case nothing changes and
+    /// <see cref="CloseNeedsConfirmation"/> is raised with the first such window. A workspace
+    /// replaces every window, so one typed-in window stops the lot, as Close all does. True when
+    /// the workspace is on the desk.
+    /// </summary>
+    public bool ApplyWorkspace(Workspace workspace)
     {
+        if (Row().FirstOrDefault(w => w.HasUnsavedInput) is { } dirty)
+        {
+            CloseNeedsConfirmation?.Invoke(dirty);
+            return false;
+        }
+
         if (_windows.Count > 0)
             Remember();
 
@@ -752,6 +764,7 @@ public class WindowManager
 
         FocusedId = _windows.FirstOrDefault()?.Id;
         Relayout();
+        return true;
     }
 
     public WindowInstance? Find(string id) => _windows.FirstOrDefault(w => w.Id == id);
@@ -953,25 +966,85 @@ public class WindowManager
     /// Puts the desk back the way it was before the last open, close or re-aim. A window closed
     /// to make room comes back; the one that displaced it goes. Before this there was no way
     /// back at all: the desk has one route, so the browser's Back left the application.
+    ///
+    /// <para>
+    /// Not when the step would close or re-aim a window holding unsaved input: then nothing
+    /// moves and <see cref="CloseNeedsConfirmation"/> is raised with it, as the close key does.
+    /// Back was the one road left by which a half-typed entry went without a question.
+    /// </para>
     /// </summary>
     public bool Back()
     {
-        if (_back.Count == 0)
+        if (_back.Count == 0 || Refuses(_back[^1]))
             return false;
 
-        _forward.Add(Moment());
-        Become(Pop(_back));
+        StepBack();
         return true;
     }
 
+    /// <summary>The road Back came down, under the same rule for unsaved input.</summary>
     public bool Forward()
     {
-        if (_forward.Count == 0)
+        if (_forward.Count == 0 || Refuses(_forward[^1]))
             return false;
 
+        StepForward();
+        return true;
+    }
+
+    private void StepBack()
+    {
+        _forward.Add(Moment());
+        Become(Pop(_back));
+    }
+
+    private void StepForward()
+    {
         _back.Add(Moment());
         Become(Pop(_forward));
+    }
+
+    /// <summary>
+    /// Whether becoming <paramref name="moment"/> would cost a window its unsaved input, and if
+    /// so, says which by raising <see cref="CloseNeedsConfirmation"/>.
+    /// </summary>
+    private bool Refuses(DeskMoment moment)
+    {
+        if (Displaced(moment) is not { } window)
+            return false;
+
+        CloseNeedsConfirmation?.Invoke(window);
         return true;
+    }
+
+    /// <summary>
+    /// The first window, in row order, holding unsaved input that <paramref name="moment"/> would
+    /// close — it is not in that moment — or replace: it is there showing another view, or the
+    /// same view on another subject. A window kept as it is passes, whatever else the step does.
+    /// </summary>
+    private WindowInstance? Displaced(DeskMoment moment)
+    {
+        foreach (var window in Row().Where(w => w.HasUnsavedInput))
+        {
+            var saved = moment.Row.FirstOrDefault(m => ReferenceEquals(m.Window, window));
+
+            if (saved is null
+                || saved.Definition != window.Definition
+                || !SameSubject(window.Parameters, saved.Parameters))
+                return window;
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether two parameter sets name the same subject. A key set to null is a key not named.</summary>
+    private static bool SameSubject(Dictionary<string, object> current, Dictionary<string, object> saved)
+    {
+        var now = current.Where(p => p.Value is not null).ToDictionary();
+        var then = saved.Where(p => p.Value is not null).ToDictionary();
+
+        return now.Count == then.Count
+            && then.All(p => now.TryGetValue(p.Key, out var value) && Equals(value, p.Value));
     }
 
     /// <summary>Called before anything that changes what the desk shows. A new step forgets the road ahead.</summary>
@@ -989,16 +1062,31 @@ public class WindowManager
         HistoryVersion++;
     }
 
-    /// <summary>Walks to a depth the browser named — one step for Back, several for a long press on it.</summary>
-    public void TraverseTo(int depth)
+    /// <summary>
+    /// Walks to a depth the browser named — one step for Back, several for a long press on it.
+    /// Judged by where the walk ends rather than step by step: a window the walk passes out of
+    /// and back into is the same window when it lands, input and all. When the end would close
+    /// or re-aim a window holding unsaved input, nothing moves, <see cref="CloseNeedsConfirmation"/>
+    /// is raised, and the answer is false.
+    /// </summary>
+    public bool TraverseTo(int depth)
     {
-        while (HistoryDepth > depth && Back())
-        {
-        }
+        var target = depth < HistoryDepth && _back.Count > 0
+            ? _back[Math.Max(0, _back.Count - (HistoryDepth - depth))]
+            : depth > HistoryDepth && _forward.Count > 0
+                ? _forward[Math.Max(0, _forward.Count - (depth - HistoryDepth))]
+                : null;
 
-        while (HistoryDepth < depth && Forward())
-        {
-        }
+        if (target is not null && Refuses(target))
+            return false;
+
+        while (HistoryDepth > depth && _back.Count > 0)
+            StepBack();
+
+        while (HistoryDepth < depth && _forward.Count > 0)
+            StepForward();
+
+        return true;
     }
 
     private DeskMoment Moment() => new(

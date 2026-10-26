@@ -20,16 +20,23 @@
     and no fixed column set fits baseball and hockey both.
 *@
 
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal, and one refresh that failed used to replace a loaded
+   game log with the sentence. *@
 @if (Failed)
 {
     <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
-else if (_player is null)
+
+@if (_player is null)
 {
-    @* The title row and the first rows of the game log, in the places they will land — a
-       sentence saying the player is loading is a placeholder shaped like nothing. *@
-    <DeskSkeleton Width="40%" />
-    <DeskGrid T="PlayerGameRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the player" />
+    @if (!Failed)
+    {
+        @* The title row and the first rows of the game log, in the places they will land — a
+           sentence saying the player is loading is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="PlayerGameRow" Items="_rows" Loading="true" SkeletonRows="3" LoadingLabel="Fetching the player" />
+    }
 }
 else
 {
@@ -124,11 +131,13 @@ else
                 <PropertyColumn T="PlayerGameRow" TProperty="bool?" Property="r => r.Won"
                                 Title="Result" Align="Align.Right">
                     <CellTemplate>
-                        @if (context.Item.Won is { } won)
+                        @* The capsule the Team and Form windows draw, so a level final reads T
+                           here as it does there rather than as a loss. *@
+                        @if (ResultTag.Of(context.Item.Won, context.Item.ScoreFor, context.Item.ScoreAgainst) is { } result)
                         {
-                            <span class="tag @(won ? "tag--good" : "tag--bad")">
-                                @(won ? "W" : "L")@(context.Item.HasScore ? $" {context.Item.ScoreFor}-{context.Item.ScoreAgainst}" : "")
-                            </span>
+                            <ResultTag Result="@result">
+                                @ResultTag.LetterOf(result)@(context.Item.HasScore ? $" {context.Item.ScoreFor}-{context.Item.ScoreAgainst}" : "")
+                            </ResultTag>
                         }
                         else
                         {

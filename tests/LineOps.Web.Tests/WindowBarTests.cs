@@ -247,4 +247,84 @@ public class WindowBarTests : DeskTestContext
 
         Assert.Equal(expected, rendered);
     }
+
+    // ---- The eviction notice, beside the count it is about ------------------------
+
+    /// <summary>
+    /// A window closed to make room is reported beside the count that made it happen, where the
+    /// operator is looking when they open something — not in the footer's bottom edge, which the
+    /// HIG keeps for status that is never critical. One line, its full sentence as the title, a
+    /// key to bring the window back and one to dismiss.
+    /// </summary>
+    [Fact]
+    public void Eviction_notice_renders_in_the_header()
+    {
+        var desk = NewDesk();
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
+        desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        desk.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
+        desk.Open(WindowCatalog.Find(WindowCatalog.Runs)!);
+        Assert.NotNull(desk.LastEviction);
+
+        var header = RenderComponent<DeskHeader>();
+        var footer = RenderComponent<DeskFooter>();
+
+        var notice = header.Find(".hdr__notice");
+        Assert.Equal("status", notice.GetAttribute("role"));
+        Assert.Equal(desk.LastEviction, notice.QuerySelector(".hdr__notice-text")!.GetAttribute("title"));
+        Assert.Equal("Reopen Journal", notice.QuerySelector(".hdr__notice-undo")!.TextContent.Trim());
+        Assert.Equal("Dismiss", notice.QuerySelector(".hdr__notice-dismiss")!.GetAttribute("aria-label"));
+
+        // Beside the count, inside the desk's own controls.
+        Assert.Equal("hdr__count", notice.NextElementSibling?.ClassList.FirstOrDefault()
+                                   ?? notice.PreviousElementSibling?.ClassList.FirstOrDefault());
+
+        Assert.Empty(footer.FindAll("[role='status']"));
+        Assert.DoesNotContain(desk.LastEviction!, footer.Markup);
+
+        header.Find(".hdr__notice-dismiss").Click();
+        Assert.Null(desk.LastEviction);
+        Assert.Empty(header.FindAll(".hdr__notice"));
+    }
+
+    // ---- Window controls --------------------------------------------------------
+
+    /// <summary>
+    /// Minimise, maximise and close are the desk's own plain icon keys, glyphs drawn — not grey
+    /// dots that half-imitate a Mac's traffic lights in a Windows order. Each still names its
+    /// window to a screen reader and its action to a pointer, and Close does not ask the glide
+    /// plate for the stop tone: dismissing a window is not destroying anything.
+    /// </summary>
+    [Fact]
+    public void Window_controls_are_labelled_keys()
+    {
+        var desk = NewDesk();
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+
+        // The chrome is what is under test, so the window hosts a panel with no services to find.
+        var notes = desk.Open(new WindowDefinition
+        {
+            Key = "notes",
+            Title = "Notes",
+            Icon = "",
+            ComponentType = typeof(UnsavedInputTests.DraftPanel)
+        });
+
+        var window = RenderComponent<AppWindow>(p => p.Add(x => x.Window, notes));
+
+        var keys = window.FindAll(".win__controls > button");
+        Assert.Equal(3, keys.Count);
+        Assert.All(keys, k => Assert.Contains("win__ctl", k.ClassList));
+        Assert.All(keys, k => Assert.NotNull(k.QuerySelector("svg")));
+        Assert.Equal(["Minimise", "Take the whole row", "Close"], keys.Select(k => k.GetAttribute("title")));
+        Assert.Equal(["Minimise Notes", "Maximise Notes", "Close Notes"], keys.Select(k => k.GetAttribute("aria-label")));
+        Assert.All(keys, k => Assert.Null(k.GetAttribute("data-glide-tone")));
+
+        var css = File.ReadAllText(Path.Combine(Support.Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+        Assert.DoesNotContain(".win__ctl::before", css);
+        Assert.DoesNotMatch(@"\.win__ctl[\w-]*:hover[^{]*\{[^}]*state-negative", css);
+        Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*color:\s*var\(--text-secondary\)", css);
+        Assert.Matches(@"\.win__ctl:hover\s*\{[^}]*background:\s*var\(--surface-3\)", css);
+    }
 }

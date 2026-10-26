@@ -67,7 +67,14 @@
                is itself a control — it expands a collapsed window — and a click that
                reaches both runs both: minimise set the flag, the bar read the flag it
                had just set and expanded the window straight back. The button appeared
-               to do nothing. A press on a control is for that control only. *@
+               to do nothing. A press on a control is for that control only.
+
+               They are the desk's own plain icon keys, glyphs always drawn, kept at the
+               trailing edge in the order a Windows title bar has them. They were grey dots
+               that showed their glyphs on hover — a Mac's traffic lights in a Windows order,
+               the half-imitation of system chrome the HIG warns reads as broken. Close takes
+               the same neutral hover as the others: dismissing a window destroys nothing, and
+               a window holding unsaved input asks before it goes. *@
             <div class="win__controls" data-glide>
                 <button class="win__ctl" type="button" data-window-control
                         title="Minimise" aria-label="Minimise @Window.Title"
@@ -84,7 +91,6 @@
                                    : Icons.Material.Filled.CropSquare)" />
                 </button>
                 <button class="win__ctl win__ctl--close" type="button" data-window-control
-                        data-glide-tone="stop"
                         title="Close" aria-label="Close @Window.Title"
                         @onclick="Close" @onclick:stopPropagation="true">
                     <Glyph Icon="@Icons.Material.Filled.Close" />

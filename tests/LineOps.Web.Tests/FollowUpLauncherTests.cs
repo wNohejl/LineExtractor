@@ -1,5 +1,12 @@
+using Bunit;
+using LineOps.Desk;
+using LineOps.Desk.Primitives;
 using LineOps.Desk.Windowing;
+using LineOps.Web.Components.Panels;
 using LineOps.Web.Windowing;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
 
@@ -15,8 +22,139 @@ namespace LineOps.Web.Tests;
 /// announcement the dialog sits in the list unpainted until something unrelated redraws the
 /// panel, which reads as a dialog that did not open.
 /// </summary>
-public class FollowUpLauncherTests
+public class FollowUpLauncherTests : DeskTestContext
 {
+    // ------------------------------------------------------------- whose status ----
+
+    /// <summary>A hosted view that says how it stands the moment it is drawn, as every panel does.</summary>
+    public sealed class ReportingPanel : PanelBase
+    {
+        [Parameter] public int GameId { get; set; }
+
+        protected override void OnInitialized() => Report(PulseState.Warn, "no moves");
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            builder.OpenElement(0, "p");
+            builder.AddAttribute(1, "class", "reporting");
+            builder.CloseElement();
+        }
+    }
+
+    /// <summary>The application's catalogue with the reporting view added as Line movement.</summary>
+    private sealed class ProbeCatalog : IWindowCatalog
+    {
+        private readonly AppWindowCatalog _app = new();
+
+        public static readonly WindowDefinition Movement = new()
+        {
+            Key = "probe-movement",
+            Title = "Line movement",
+            Icon = "",
+            ComponentType = typeof(ReportingPanel)
+        };
+
+        public IReadOnlyList<WindowDefinition> All => [.. _app.All, Movement];
+
+        public IReadOnlyList<Workspace> Workspaces => _app.Workspaces;
+
+        public string DefaultPrimary => _app.DefaultPrimary;
+
+        /// <summary>A view to stand under the probe key in place of <see cref="Movement"/>.</summary>
+        public WindowDefinition? Override { get; set; }
+
+        public WindowDefinition? Find(string key) => key == Movement.Key ? Override ?? Movement : _app.Find(key);
+    }
+
+    /// <summary>
+    /// Board row → Odds → Movement on a full desk opens Line movement as a floating dialog drawn
+    /// inside the Board's window. The Board's window id cascaded straight through to it, so the
+    /// dialog's "no moves" landed in the Board's title bar. The dialog is not a window and has
+    /// no bar of its own; what it reports goes nowhere rather than to its host.
+    /// </summary>
+    [Fact]
+    public void A_follow_up_dialog_does_not_write_its_hosts_status()
+    {
+        var desk = new WindowManager(new ProbeCatalog());
+        desk.UpdateSettings(s => s.MaxConcurrentWindows = 1);
+        var board = desk.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        desk.SetPulse(board.Id, PulseState.Healthy, "12 games");
+        Services.AddSingleton(desk);
+
+        var launcher = new FollowUpLauncher();
+        launcher.Launch(desk, ProbeCatalog.Movement.Key, "GameId", 7, "Home v Away");
+        Assert.Single(launcher.Open);
+
+        // The layer as the Board draws it: inside the cascade its window gives every panel.
+        var host = RenderComponent<CascadingValue<string>>(p => p
+            .Add(x => x.Name, "WindowId")
+            .Add(x => x.Value, board.Id)
+            .AddChildContent<FollowUpLayer>(layer => layer.Add(x => x.Launcher, launcher)));
+
+        Assert.NotNull(host.Find(".reporting"));
+        Assert.Equal(PulseState.Healthy, board.Pulse);
+        Assert.Equal("12 games", board.StatusText);
+    }
+
+    /// <summary>A hosted view with a draft key, as the wager dialog has.</summary>
+    public sealed class DraftingPanel : PanelBase
+    {
+        [Parameter] public int GameId { get; set; }
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            builder.OpenElement(0, "button");
+            builder.AddAttribute(1, "class", "draft");
+            builder.AddAttribute(2, "onclick", EventCallback.Factory.Create(this, () => MarkUnsaved(true, "this bet")));
+            builder.CloseElement();
+        }
+    }
+
+    /// <summary>
+    /// Status stays out of the host's bar, but unsaved input does not: closing the Board takes the
+    /// wager dialog floating over it, and what was typed in it. So the dialog's draft marks the
+    /// Board, whose close key then asks; and once the dialog closes, the mark goes with it.
+    /// </summary>
+    [Fact]
+    public void A_follow_up_dialog_still_marks_its_host_unsaved()
+    {
+        var catalog = new ProbeCatalog();
+        var desk = new WindowManager(catalog);
+        desk.UpdateSettings(s => s.MaxConcurrentWindows = 1);
+        var board = desk.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        Services.AddSingleton(desk);
+
+        var wager = new WindowDefinition
+        {
+            Key = ProbeCatalog.Movement.Key,
+            Title = "Wager",
+            Icon = "",
+            ComponentType = typeof(DraftingPanel)
+        };
+        var launcher = new FollowUpLauncher();
+        catalog.Override = wager;
+        launcher.Launch(desk, wager.Key, "GameId", 7, "Home v Away");
+        var followUp = Assert.Single(launcher.Open);
+
+        var host = RenderComponent<CascadingValue<string>>(p => p
+            .Add(x => x.Name, "WindowId")
+            .Add(x => x.Value, board.Id)
+            .AddChildContent<FollowUpLayer>(layer => layer.Add(x => x.Launcher, launcher)));
+
+        host.Find(".draft").Click();
+
+        Assert.True(board.HasUnsavedInput);
+        Assert.Equal("this bet", board.UnsavedInputLabel);
+        Assert.False(desk.TryClose(board.Id));
+
+        host.InvokeAsync(() => launcher.Close(followUp));
+        host.WaitForAssertion(() => Assert.Empty(host.FindAll(".draft")));
+
+        Assert.False(board.HasUnsavedInput);
+    }
+
+    // ------------------------------------------------------------- the switch ----
+
     /// <summary>A desk with no room left, so follow-ups take the floating path.</summary>
     private static WindowManager FullDesk()
     {

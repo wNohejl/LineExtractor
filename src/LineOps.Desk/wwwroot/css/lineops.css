@@ -524,7 +524,10 @@ html, body {
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    flex: 0 0 auto;
+    /* Shrinks only by the eviction notice's sentence, the one thing in it that can give;
+       every key keeps its size. */
+    flex: 0 1 auto;
+    min-width: 0;
 }
 
 .hdr__brand {
@@ -926,6 +929,7 @@ html, body {
 .hdr__tools .rail__btn {
     width: 28px;
     height: 28px;
+    flex: 0 0 auto; /* the cluster may shrink for the eviction notice; its keys never do */
 }
 
 .hdr__tools .rail__btn svg { width: 17px; height: 17px; }
@@ -956,6 +960,7 @@ html, body {
 }
 
 .hdr__count {
+    flex: 0 0 auto;
     font-size: var(--text-subheadline);
     color: var(--text-secondary);
     padding: 0 var(--space-1);
@@ -963,6 +968,73 @@ html, body {
 }
 
 .hdr__count--full { color: var(--state-warning-ink); }
+
+/* A window closed to make room, said beside the count that closed it. It sat in the footer;
+   the HIG keeps a bottom bar for status that is never critical, and a window vanishing is
+   the one thing on the desk that must be seen. One line in the warning wash, which is its
+   whole grouping — an edge as well would frame the keys inside it. The sentence gives way
+   first and keeps its whole self as the title; the keys never do. */
+.hdr__notice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 420px;
+    padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
+    background: var(--state-warning-wash);
+    border-radius: var(--radius-sm);
+    color: var(--state-warning-ink);
+    font-size: var(--text-footnote);
+}
+
+.hdr__notice svg { width: 14px; height: 14px; flex: 0 0 auto; }
+
+.hdr__notice-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The way back, said where the closing is. A plain key: its semibold words on the wash say
+   it can be pressed, with no outline drawn inside the notice's fill. */
+.hdr__notice-undo {
+    flex: 0 0 auto;
+    height: 24px;
+    padding: 0 var(--space-2);
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--state-warning-ink);
+    font: inherit;
+    font-weight: var(--weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.hdr__notice-dismiss {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--state-warning-ink);
+    cursor: pointer;
+}
+
+.hdr__notice-dismiss svg { width: 13px; height: 13px; }
+
+.hdr__notice-undo:hover,
+.hdr__notice-dismiss:hover { color: var(--text-primary); }
+
+.hdr__notice-undo:focus-visible,
+.hdr__notice-dismiss:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- The marble -----------------------------------------------------------
    The travel shared by every control that holds one choice among a few: the
@@ -1162,8 +1234,9 @@ html, body {
 /* ---- The glide ------------------------------------------------------------
    One highlight plate per cluster of flat controls, slid between them by
    js/desk-glide.js, instead of each control flashing its own background. Any
-   container opts in with data-glide; a child that wants the plate in a tone
-   states it with data-glide-tone (close buttons say "stop"). The plate only
+   container opts in with data-glide. (desk-glide.js still copies a child's
+   data-glide-tone onto the plate, but nothing asks for one: the window's Close
+   key used to, for a red fill, and closing a window is not destruction.) The plate only
    exists while a pointer or focus is inside, so there is nothing to keep in
    sync when Blazor re-renders the cluster.
    ------------------------------------------------------------------------- */
@@ -1173,8 +1246,8 @@ html, body {
 
 /* The default (untoned) fill has to agree with the fill every plain hover uses when the
    plate is not there to do the job instead — see .desk-btn--plain:hover's own
-   --btn-fill: var(--surface-3). Its consumers are the window controls (minimise and
-   maximise both fall to this default), GamePanel's Movement/Head-to-head row, and the
+   --btn-fill: var(--surface-3). Its consumers are the window controls (all three fall
+   to this default, Close with them), GamePanel's Movement/Head-to-head row, and the
    Workspaces launcher's items, whose own :hover rules stand down while the plate is live
    (see the transparent overrides below). The marble variant (.glide-plate--marble) sets
    its own background after this rule. */
@@ -1204,14 +1277,6 @@ html, body {
 /* Appearing under the first control it meets, the plate arrives in place —
    sliding in from the container's corner would draw a line nobody made. */
 .glide-plate--still { transition: opacity .1s ease; }
-
-/* Narrowly repointed here (outside this task's own blocks) because this rule, not
-   .win__ctl--close:hover, is what actually paints the close control's hover fill: the
-   glide plate sits behind the button and the button's own background stands down while
-   the plate is live (see the comment above). Left pointing at a deleted token, Close's
-   "fills --state-negative on its own hover" requirement would be true in the stylesheet
-   and false on screen. */
-.glide-plate[data-tone="stop"] { background: var(--state-negative); }
 
 /* The marble, measured. Same travel as the CSS-variable one on the gate, but it
    takes the size of whatever it lands on, which is what lets the toolbar hold
@@ -1270,51 +1335,6 @@ html, body {
 /* A word inside a stat ("fixed"), set as the stat is: it qualifies the reading, it is not a
    control, so it takes neither the accent nor capitals. */
 .ftr__flag { margin-left: var(--space-1); }
-
-/* A refusal appears next to the taskbar, where the click that failed was aimed. The warning
-   wash is its whole grouping; an edge as well would frame the Undo inside it. */
-.ftr__refusal {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
-    background: var(--state-warning-wash);
-    border-radius: 4px;
-    color: var(--state-warning-ink);
-    font-size: var(--text-footnote);
-    flex: 0 1 auto;
-    min-width: 0;
-}
-
-.ftr__refusal svg { width: 14px; height: 14px; flex: 0 0 auto; }
-.ftr__refusal span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.ftr__dismiss {
-    width: 24px; height: 24px;
-    background: none; border: 0; padding: 0;
-    color: var(--state-warning-ink); cursor: pointer;
-    display: grid; place-items: center;
-}
-
-.ftr__dismiss svg { width: 13px; height: 13px; }
-.ftr__dismiss:hover { color: var(--text-primary); }
-
-/* The way back from an eviction, said where the eviction is. A plain button: its semibold
-   words on the wash say it can be pressed, with no outline drawn inside the refusal's fill. */
-.ftr__undo {
-    flex: 0 0 auto;
-    background: none;
-    border: 0;
-    border-radius: 3px;
-    height: 24px;
-    padding: 0 var(--space-2);
-    color: var(--state-warning-ink);
-    font: inherit;
-    font-weight: var(--weight-semibold);
-    cursor: pointer;
-}
-
-.ftr__undo:hover { color: var(--text-primary); }
 
 /* ---------------------------------------------------------------- desk ---- */
 
@@ -1525,79 +1545,44 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
 
-/* No gap: each control already carries 8px of padding around its dot, so butting the
-   boxes together leaves the dots 16px apart and every pixel between them belongs to one
-   control or the other. A gap here would be dead space between three small targets, and
-   a negative margin to close it would overlap the boxes — aiming at minimise and hitting
-   maximise is a worse failure than a wide cluster. */
+/* Two pixels between the keys, so a hover fill reads as one key lit rather than a strip
+   lighting in thirds. */
 .win__controls {
     display: flex;
-    gap: 0;
+    gap: 2px;
     flex: 0 0 auto;
 }
 
-/* Traffic-light behaviour, not Apple's literal three colours: a resting circle in
-   --text-tertiary, quiet until the bar it lives on is worth looking at. The glyph
-   stays hidden until then — three unlabelled dots read as chrome, three dots with
-   icons stamped on them read as a diagram. */
-/* The dot is 12px because that is what reads as a traffic light. The button around it is
-   not: a 12px hit target is the macOS look borrowed without the hit area that makes it
-   usable, and it lands well under the 24px minimum a pointer can be expected to find.
-   So the control is 28px of clickable area with the dot drawn inside it, and the row is
-   spaced by the gap between dots rather than between buttons — the chrome keeps its
-   proportions and the target stops being a game of skill. */
+/* The desk's own plain icon keys: 24px, a key's size inside a row, the glyph always drawn
+   in secondary ink. They were 12px grey dots that showed their glyphs only on hover — a
+   Mac's traffic lights set in a Windows order, the half-imitation of system chrome the HIG
+   says reads as broken. A key says what it does at rest; a dot made the operator hover to
+   find out. The hover is the --surface-3 fill every plain key on the desk takes, Close's
+   included: closing a window is dismissal, not destruction, and a window holding unsaved
+   input asks before it goes. */
 .win__ctl {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     display: grid;
     place-items: center;
+    padding: 0;
     background: transparent;
     border: 0;
-    /* Square on purpose. Rounding clips hit-testing, so a 50% radius here would throw away
-       the corners of the target for a shape nobody can see — the dot below is the visual. */
-    border-radius: 0;
-    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
     cursor: pointer;
-    padding: 0;
-    position: relative;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
 }
 
-/* What the operator actually sees. Hit area and appearance are separated deliberately:
-   everything that used to paint .win__ctl's background now paints this. */
-.win__ctl::before {
-    content: '';
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--text-tertiary);
-    transition: background-color var(--dur-fast) var(--ease-standard);
+.win__ctl svg { width: 16px; height: 16px; }
+
+.win__ctl:hover {
+    background: var(--surface-3);
+    color: var(--text-primary);
 }
 
-.win__ctl svg {
-    position: relative; /* above the dot rather than behind it */
-    width: 8px;
-    height: 8px;
-    opacity: 0;
-    transition: opacity var(--dur-fast) var(--ease-standard);
-}
-
-/* Revealed by hovering anywhere on the bar — not just the one control — the way the
-   traffic lights themselves light up together. Focus-visible reveals its own glyph
-   too, or a keyboard user tabbing to Close would find an unlabelled blank circle. */
-.win__bar:hover .win__ctl svg,
-.win__ctl:focus-visible svg {
-    opacity: 1;
-}
-
-.win__ctl:hover::before { background: var(--text-secondary); }
-.win__ctl--close:hover::before { background: var(--state-negative); }
-.win__ctl--close:hover { color: var(--on-accent); }
-
-/* The ring hugs the dot, not the 28px hit area — a focus ring the size of the target
-   would read as a box floating in the title bar. */
-.win__ctl:focus-visible { outline: none; }
-.win__ctl:focus-visible::before { box-shadow: var(--focus-ring); }
+.win__ctl:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- SIGNATURE: the pulse strip ------------------------------------------
    A 2px live band under every title bar, mirrored on the window's rail chip.
@@ -3743,7 +3728,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 /* A row is parted from the one above by a hairline inset to its text's leading edge, the
-   way a grouped list draws it (.wgroup__row). Open or closed, the chevron says which. */
+   way a grouped list draws it (.wgroup__row). Each row is a DeskDisclosure: the leading
+   triangle says open or closed. It was a trailing chevron that flipped down and up — the
+   HIG's disclosure button, which belongs under a control, on rows that want a triangle. */
 .logrow { position: relative; }
 
 .logrow + .logrow::before {
@@ -3771,9 +3758,33 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     transition: background .12s ease;
 }
 
+/* The row's own measure over the disclosure's: controls.css loads after this sheet and
+   sets the summary's type and corner, so these are stated one step more specifically. A
+   row is square inside its list — the list's corner is the only one. */
+.logrow > .logrow__head {
+    font-size: var(--text-subheadline);
+    border-radius: 0;
+}
+
+/* The row's cells, in the disclosure's label: one line, the opponent taking the width. */
+.logrow__head .disclosure__label {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* The body runs the row's full width under its hairline rather than indenting to the
+   label; it carries its own padding. */
+.logrow > .disclosure__content { padding-left: 0; }
+
 /* Neutral, and the same --surface-3 every other hover fill on the desk uses. The row
-   is being pointed at, not opened — opening it is what the turned chevron reports. */
+   is being pointed at, not opened — opening it is what the turned triangle reports. */
 .logrow__head:hover { background: var(--surface-3); }
+
+/* A row's shape while the log loads (TeamPanel): the row's measure, none of its press. */
+.logrow__head--placeholder { cursor: default; }
+.logrow__head--placeholder:hover { background: transparent; }
 
 .logrow__date { font-size: var(--text-footnote); min-width: 7ch; font-variant-numeric: tabular-nums; }
 
@@ -3787,16 +3798,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* Turns to point down when the row is open, so the control states which way it
-   goes rather than only that it is a control. */
-.logrow__chev {
-    display: inline-flex;
-    color: var(--text-tertiary);
-    transition: transform .14s ease;
-}
-
-.logrow--open .logrow__chev { transform: rotate(180deg); }
-
 .logrow__body {
     padding: var(--space-3);
     border-top: 1px solid var(--separator);
@@ -3804,7 +3805,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .logrow__chev, .logrow__head, .snippet__open { transition: none; }
+    .logrow__head, .snippet__open { transition: none; }
 }
 
 /* Coverage, stated under the thing it qualifies. A column of dashes is ambiguous
@@ -3836,6 +3837,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     box-shadow: var(--focus-ring-inset);
     border-radius: 4px;
 }
+
+/* A log row's summary is also a disclosure's, whose ring (controls.css, loaded later) is
+   drawn outside — and the list clips its rows, so an outside ring would be cut off. */
+.logrow > .logrow__head:focus-visible { box-shadow: var(--focus-ring-inset); }
 
 /* Which side a price is for. Two prices sit side by side in every market and the
    board orders them home-first — but an ordering the reader cannot see is not an

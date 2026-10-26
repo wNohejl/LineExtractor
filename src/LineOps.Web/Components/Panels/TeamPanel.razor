@@ -22,13 +22,28 @@
     round trip, so situations can be flicked through at reading speed.
 *@
 
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game signal, and one refresh that failed used to replace a loaded
+   team with the sentence. *@
 @if (Failed)
 {
     <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
-else if (_team is null)
+
+@if (_team is null)
 {
-    <EmptyState>Loading @(_teamName ?? "the team")…</EmptyState>
+    @if (!Failed)
+    {
+        @* The title row and the first rows of the game log, in the places they will land — a
+           sentence saying the team is loading is a placeholder shaped like nothing. *@
+        <DeskSkeleton Width="40%" />
+        <div class="loglist">
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="logrow"><div class="logrow__head logrow__head--placeholder"><DeskSkeleton Width="100%" /></div></div>
+            }
+        </div>
+    }
 }
 else
 {
@@ -44,7 +59,7 @@ else
             }
         </Tags>
         <Detail>
-            @_wins-@_losses @SeasonPhrase
+            @GameLogSplits.FormatRecord(_visible) @SeasonPhrase
             (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
         </Detail>
         @* The season gate. One position per season this team has played in, newest first;
@@ -83,11 +98,12 @@ else
             <div class="loglist">
                 @foreach (var row in _visible)
                 {
-                    <div class="logrow @(_openGame == row.GameId ? "logrow--open" : "")">
-                        <button type="button" class="logrow__head"
-                                aria-expanded="@((_openGame == row.GameId).ToString().ToLowerInvariant())"
-                                aria-controls="@($"game-{row.GameId}")"
-                                @onclick="() => ToggleGame(row.GameId)">
+                    @* A disclosure: the triangle leads, the cells are its label, and the game's
+                       reading against the number is what it discloses. *@
+                    <DeskDisclosure Class="logrow" SummaryClass="logrow__head"
+                                    Open="@(_openGame == row.GameId)"
+                                    OpenChanged="@((bool open) => SetGame(row.GameId, open))">
+                        <Summary>
                             <span class="logrow__date dim">@Day(row.StartsAt)</span>
                             <span class="logrow__opp trunc">@(row.Home ? "vs" : "at") @row.Opponent</span>
 
@@ -117,12 +133,8 @@ else
                                     @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
                                 </ResultTag>
                             }
-
-                            <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
-                        </button>
-
-                        @if (_openGame == row.GameId)
-                        {
+                        </Summary>
+                        <ChildContent>
                             <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"game-{row.GameId}")">
                                 <GameResultSnippet Row="row" />
 
@@ -140,8 +152,8 @@ else
                                     </DeskButton>
                                 </div>
                             </DeskStack>
-                        }
-                    </div>
+                        </ChildContent>
+                    </DeskDisclosure>
                 }
             </div>
         }
@@ -158,11 +170,10 @@ else
         <div class="loglist">
             @foreach (var player in _roster)
             {
-                <div class="logrow @(_openPlayer == player.PlayerId ? "logrow--open" : "")">
-                    <button type="button" class="logrow__head"
-                            aria-expanded="@((_openPlayer == player.PlayerId).ToString().ToLowerInvariant())"
-                            aria-controls="@($"player-{player.PlayerId}")"
-                            @onclick="() => TogglePlayer(player.PlayerId)">
+                <DeskDisclosure Class="logrow" SummaryClass="logrow__head"
+                                Open="@(_openPlayer == player.PlayerId)"
+                                OpenChanged="@((bool open) => SetPlayer(player.PlayerId, open))">
+                    <Summary>
                         <span class="logrow__opp trunc" title="@player.Name">@player.Name</span>
                         @* No position is left out rather than drawn as a dash: "— 5 GP" read as a
                            stat that failed to load, when the games count is the whole answer. *@
@@ -171,11 +182,8 @@ else
                             <span class="dim">@position</span>
                         }
                         <span class="dim mono">@player.Appearances GP</span>
-                        <span class="logrow__chev"><Glyph Icon="@Icons.Material.Filled.ExpandMore" /></span>
-                    </button>
-
-                    @if (_openPlayer == player.PlayerId)
-                    {
+                    </Summary>
+                    <ChildContent>
                         <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"player-{player.PlayerId}")">
                             <PlayerRecentSnippet PlayerId="player.PlayerId" />
 
@@ -187,8 +195,8 @@ else
                                 </DeskButton>
                             </div>
                         </DeskStack>
-                    }
-                </div>
+                    </ChildContent>
+                </DeskDisclosure>
             }
         </div>
     }
@@ -230,7 +238,7 @@ else
     /// behind it — a 0-0-0 would read as "never covered" rather than "never priced".
     /// </summary>
     private RenderFragment RecordDetail => @<text>
-        <span class="mono">@_wins-@_losses</span>
+        <span class="mono">@GameLogSplits.FormatRecord(_visible)</span>
 
         @if (_atsWins + _atsLosses + _atsPushes > 0)
         {
@@ -275,7 +283,6 @@ else
     private readonly FollowUpLauncher _followUps = new();
 
     private Team? _team;
-    private string? _teamName;
     private IReadOnlyList<TeamGameLogRow> _log = [];
     private IReadOnlyList<TeamGameLogRow> _visible = [];
     private IReadOnlyList<PlayerForm> _roster = [];
@@ -297,7 +304,7 @@ else
     /// <summary>Wide on purpose: only reached when the team has no season to bound by.</summary>
     private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
 
-    private int _wins, _losses, _atsWins, _atsLosses, _atsPushes, _overs, _unders, _covered;
+    private int _atsWins, _atsLosses, _atsPushes, _overs, _unders, _covered;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -334,7 +341,6 @@ else
             var form = await lookup.GetTeamAsync(TeamId, FallbackWindow, maxPlayers: 15, seasonYear: _seasonYear);
 
             _team = form?.Team;
-            _teamName = _team?.Name;
             _roster = form?.Roster ?? [];
 
             var sport = _team?.Sport?.Key ?? string.Empty;
@@ -381,7 +387,6 @@ else
             ? GameLogSplits.VersusOpponent(_log, opponent)
             : GameLogSplits.Apply(_log, _split);
 
-        (_wins, _losses) = GameLogSplits.Record(_visible);
         (_atsWins, _atsLosses, _atsPushes) = GameLogSplits.AtsRecord(_visible);
         (_overs, _unders, _) = GameLogSplits.TotalRecord(_visible);
         _covered = GameLogSplits.WithClosingLine(_visible);
@@ -391,9 +396,13 @@ else
             _openGame = null;
     }
 
-    private void ToggleGame(int gameId) => _openGame = _openGame == gameId ? null : gameId;
+    // One row open at a time in each list: opening a row closes the one that was open, and
+    // closing a row closes only that one.
+    private void SetGame(int gameId, bool open)
+        => _openGame = open ? gameId : _openGame == gameId ? null : _openGame;
 
-    private void TogglePlayer(int playerId) => _openPlayer = _openPlayer == playerId ? null : playerId;
+    private void SetPlayer(int playerId, bool open)
+        => _openPlayer = open ? playerId : _openPlayer == playerId ? null : _openPlayer;
 
     /// <summary>How a game reads from this team's side, for a window title.</summary>
     private static string Against(TeamGameLogRow row) => $"{(row.Home ? "vs" : "at")} {row.Opponent}";

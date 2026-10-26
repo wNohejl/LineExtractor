@@ -82,4 +82,33 @@ public class SubjectWindowStatusTests
 
         Assert.Equal("5-0-1 · 2026", Probe.Of(season, "2026"));
     }
+
+    /// <summary>
+    /// A meeting between these sides, from the home side's point of view, graded as the service
+    /// grades it: won is for &gt; against, so a level final arrives as "not won".
+    /// </summary>
+    private static HeadToHeadRow Meeting(int id, int home, int away, GameStatus status = GameStatus.Final)
+        => new(id, DateTimeOffset.UnixEpoch.AddDays(id), "Kansas City Chiefs", "Denver Broncos",
+            home, away, status, SubjectWasHome: true,
+            SubjectWon: status == GameStatus.Final ? home > away : null,
+            ClosingSpread: null, AtsResult: null, ClosingTotal: null, TotalResult: null);
+
+    [Fact]
+    public void A_tied_meeting_reads_as_a_tie_not_a_loss()
+    {
+        // The grid draws the level final as T; the record above it must not call it a loss.
+        IReadOnlyList<HeadToHeadRow> meetings =
+        [
+            Meeting(1, 24, 17),
+            Meeting(2, 20, 20),
+            Meeting(3, 10, 13),
+            Meeting(4, 0, 0, GameStatus.Scheduled)
+        ];
+
+        Assert.Equal("1-1-1", HeadToHeadPanel.Record(meetings));
+    }
+
+    [Fact]
+    public void A_meeting_record_without_ties_keeps_two_numbers()
+        => Assert.Equal("2-1", HeadToHeadPanel.Record([Meeting(1, 3, 1), Meeting(2, 5, 4), Meeting(3, 2, 6)]));
 }

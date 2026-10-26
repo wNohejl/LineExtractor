@@ -21,13 +21,23 @@
     on form" means: a flat aggregate here, a game log or a recent-record one click away.
 *@
 
+@* The failure line sits above whatever the window already holds, as the Board's does. The
+   window refreshes on every game, odds and journal signal, and one refresh that failed used to
+   replace a loaded scoreboard, its lines and its players with the sentence. *@
 @if (Failed)
 {
     <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
-else if (_row is null)
+
+@if (_row is null)
 {
-    <EmptyState>Loading the game…</EmptyState>
+    @if (!Failed)
+    {
+        @* The scoreboard's two rows and the first rows of the lines, in the places they will
+           land — a sentence saying the game is loading is a placeholder shaped like nothing. *@
+        <DeskSkeleton Shape="DeskSkeletonShape.Block" Width="45%" Height="56px" />
+        <DeskSkeleton Lines="3" />
+    }
 }
 else
 {
@@ -41,7 +51,12 @@ else
                         OnTeam="@((int teamId) => Manager.OpenTeam(teamId, teamId == game.AwayTeamId ? game.AwayTeam?.Name : game.HomeTeam?.Name, WindowId))" />
         </ChildContent>
         <Tags>
-            <Tag State="@StatusState(game.Status)" Live="@isLive">@Phase(game)</Tag>
+            @* A scheduled game's phase is its start time, which the detail line already says;
+               the Board gives it no status tag, and neither does its window. *@
+            @if (game.Status != GameStatus.Scheduled)
+            {
+                <Tag State="@StatusState(game.Status)" Live="@isLive">@Phase(game)</Tag>
+            }
             @if (game.DoubleHeaderGame is { } number)
             {
                 <Tag State="DeskState.Info">Game @number of a doubleheader</Tag>
@@ -401,7 +416,7 @@ else
             else
             {
                 <div class="meta">
-                    @form.Wins-@form.Losses over @form.Recent.Count games
+                    @form.Record over @form.Recent.Count games
                 </div>
                 <div class="row">
                     <FormRun Log="@FormResult.From(form.Recent)" />

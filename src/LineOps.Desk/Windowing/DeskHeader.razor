@@ -127,6 +127,32 @@
             <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
         </button>
 
+        @* A window that vanished must say so: silent eviction reads as a bug, not a policy.
+           Said beside the count that made it happen, where the operator is looking when they
+           open something — it sat in the footer, and the HIG keeps a bottom bar for status
+           that is never critical. One line; the whole sentence is its title when it is cut. *@
+        @if (Manager.LastEviction is { } eviction)
+        {
+            <div class="hdr__notice" role="status">
+                <Glyph Icon="@Icons.Material.Filled.LayersClear" />
+                <span class="hdr__notice-text" title="@eviction">@eviction</span>
+                @if (Manager.CanGoBack)
+                {
+                    @* Back undoes the open that caused this, so the closed window returns where
+                       it was. The key says which window that is: "Undo" alone left the
+                       operator to guess. *@
+                    <button class="hdr__notice-undo" type="button" title="Ctrl+Z"
+                            aria-keyshortcuts="Control+Z Meta+Z" @onclick="GoBack">
+                        @UndoLabel(Manager.LastEvictedTitles)
+                    </button>
+                }
+                <button class="hdr__notice-dismiss" type="button" title="Dismiss" aria-label="Dismiss"
+                        @onclick="Manager.ClearEviction">
+                    <Glyph Icon="@Icons.Material.Filled.Close" />
+                </button>
+            </div>
+        }
+
         @* The ceiling, and what the next open would cost. Was a note inside the
            launcher menu; the menu is gone, and this is where it was always
            really being asked. *@
@@ -169,7 +195,24 @@
         _workspaces?.Close();
     }
 
+    /// <summary>
+    /// The header's Back, and the notice's Reopen key. Through the browser's history, like
+    /// Ctrl+Z, so all of them walk one list (see Desk.OnUndoRequested). The step back puts an
+    /// evicted window in place and clears the notice itself.
+    /// </summary>
     private async Task GoBack() => await JS.InvokeVoidAsync("history.back");
+
+    /// <summary>
+    /// The notice's key: "Reopen Journal" for one window, "Reopen 2 windows" for several. The
+    /// manager keeps the titles beside its sentence (<see cref="WindowManager.LastEvictedTitles"/>),
+    /// so the key names what it brings back rather than offering a bare "Undo" to decode.
+    /// </summary>
+    public static string UndoLabel(IReadOnlyList<string> titles) => titles.Count switch
+    {
+        0 => "Undo",
+        1 => $"Reopen {titles[0]}",
+        _ => $"Reopen {titles.Count} windows"
+    };
 
     private async Task GoForward() => await JS.InvokeVoidAsync("history.forward");
 

@@ -137,8 +137,9 @@ public class DeskKeyboardTests : DeskTestContext
     /// way a Mac's Edit menu says "Undo Close Board" rather than "Undo".
     /// </summary>
     [Fact]
-    public void Footer_undo_names_the_window_it_reopens()
+    public void Reopen_key_names_the_window_it_reopens()
     {
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
         var desk = Services.GetRequiredService<WindowManager>();
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
         desk.Open(Window(WindowCatalog.Journal));
@@ -146,9 +147,10 @@ public class DeskKeyboardTests : DeskTestContext
         desk.Open(Window(WindowCatalog.Runs));
         Assert.NotNull(desk.LastEviction);
 
-        var footer = RenderComponent<DeskFooter>();
+        // The notice and its key moved from the footer to the header, beside the window count.
+        var header = RenderComponent<DeskHeader>();
 
-        var undo = footer.Find(".ftr__undo");
+        var undo = header.Find(".hdr__notice-undo");
         Assert.Equal("Reopen Journal", undo.TextContent.Trim());
         Assert.Equal("Ctrl+Z", undo.GetAttribute("title"));
     }
@@ -158,5 +160,5 @@ public class DeskKeyboardTests : DeskTestContext
     [InlineData(new[] { "Journal", "Board" }, "Reopen 2 windows")]
     [InlineData(new string[0], "Undo")]
     public void The_undo_label_names_the_evicted_windows(string[] titles, string label)
-        => Assert.Equal(label, DeskFooter.UndoLabel(titles));
+        => Assert.Equal(label, DeskHeader.UndoLabel(titles));
 }

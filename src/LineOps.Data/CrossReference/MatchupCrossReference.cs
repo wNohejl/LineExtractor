@@ -363,7 +363,22 @@ public record PlayerForm(
 public record TeamForm(Team Team, IReadOnlyList<TeamRecentGame> Recent, IReadOnlyList<PlayerForm> Roster)
 {
     public int Wins => Recent.Count(g => g.Won == true);
-    public int Losses => Recent.Count(g => g.Won == false);
+
+    /// <summary>
+    /// Finals the side scored fewer in. <see cref="TeamRecentGame.Won"/> is for &gt; against, so
+    /// a level final is "not won" — and is a tie, not a loss. The rule
+    /// <see cref="GameLogSplits.Record"/> keeps for the Team window.
+    /// </summary>
+    public int Losses => Recent.Count(g => g.Won == false && g.ScoreFor < g.ScoreAgainst);
+
+    /// <summary>Finals that ended level. Zero in a league that does not end games tied.</summary>
+    public int Ties => Recent.Count(g => g.Won == false && g.ScoreFor == g.ScoreAgainst);
+
+    /// <summary>
+    /// The record as the desk reads it: "5-1", or "5-1-1" once a tie is in it. The third number
+    /// is only written when there is one, as <see cref="GameLogSplits.FormatRecord"/> does.
+    /// </summary>
+    public string Record => Ties > 0 ? $"{Wins}-{Losses}-{Ties}" : $"{Wins}-{Losses}";
 }
 
 /// <summary>One game a team played (or is playing) inside the window, from that team's side.</summary>

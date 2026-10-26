@@ -3,37 +3,16 @@
 @inject WindowManager Manager
 @inject DeskSignals Signals
 @inject DeskClock Clock
-@inject IJSRuntime JS
 
 @*
-    Fixed footer: the desk's operating conditions — column count, effective size, and
-    anything that was just closed to make room.
+    Fixed footer: the desk's operating conditions — column count, effective size, live or
+    polling, and the desk's clock. Status only, and none of it critical: the HIG keeps a bottom
+    bar for that. The notice of a window closed to make room used to sit here too; it is in the
+    header now, beside the count that caused it (DeskHeader).
 *@
 
 <footer class="ftr">
     <span class="ftr__spacer"></span>
-
-    @if (Manager.LastEviction is { } eviction)
-    {
-        @* A window that vanished must say so. Silent eviction reads as a bug, not a policy. *@
-        <div class="ftr__refusal" role="status">
-            <Glyph Icon="@Icons.Material.Filled.LayersClear" />
-            <span>@eviction</span>
-            @if (Manager.CanGoBack)
-            {
-                @* Back undoes the open that caused this, so the closed window returns where it was.
-                   The key says which window that is: "Undo" alone left the operator to guess. *@
-                <button class="ftr__undo" type="button" title="Ctrl+Z" aria-keyshortcuts="Control+Z Meta+Z"
-                        @onclick="Undo">
-                    @UndoLabel(Manager.LastEvictedTitles)
-                </button>
-            }
-            <button class="ftr__dismiss" type="button" aria-label="Dismiss"
-                    @onclick="Manager.ClearEviction">
-                <Glyph Icon="@Icons.Material.Filled.Close" />
-            </button>
-        </div>
-    }
 
     <span class="ftr__stat" title="Windows tile as a horizontal row">
         @Manager.OpenCount @(Manager.OpenCount == 1 ? "column" : "columns")
@@ -72,29 +51,6 @@
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
-
-    /// <summary>
-    /// Through the browser's history, like Ctrl+Z and the header's Back, so all of them walk one
-    /// list (see Desk.OnUndoRequested). The step back puts the evicted window in place and clears
-    /// the notice itself; there is nothing to clear here if there was no step to take.
-    /// </summary>
-    private async Task Undo()
-    {
-        if (Manager.CanGoBack)
-            await JS.InvokeVoidAsync("history.back");
-    }
-
-    /// <summary>
-    /// The key's label: "Reopen Journal" for one window, "Reopen 2 windows" for several. The
-    /// manager keeps the titles beside its sentence (<see cref="WindowManager.LastEvictedTitles"/>),
-    /// so the key names what it brings back rather than offering a bare "Undo" to decode.
-    /// </summary>
-    public static string UndoLabel(IReadOnlyList<string> titles) => titles.Count switch
-    {
-        0 => "Undo",
-        1 => $"Reopen {titles[0]}",
-        _ => $"Reopen {titles.Count} windows"
-    };
 
     private void OnLiveChanged(bool _) => InvokeAsync(StateHasChanged);
 

@@ -11,6 +11,13 @@
 
     The hosted view is resolved from the catalog entry, so a follow-up opens the same component
     whether it landed here or in a desk window. Nothing is registered twice.
+
+    A dialog is not a window, so the view inside it is given no window id. The layer is drawn
+    inside its host panel, and the host's id cascaded straight through: Line movement floated
+    over the Board reported "no moves", and the Board's title bar said it. With the id cascaded
+    as null, a view here reports to nobody — the panel base skips a report with no window — and
+    the dialog's own body is where its state shows. Unsaved input is the exception: the host's
+    id goes down as HostWindowId, and the panel base marks the host with it.
 *@
 
 @foreach (var (followUp, index) in Launcher.Open.Select((f, i) => (f, i)))
@@ -23,8 +30,12 @@
                 ZIndex="@(9500 + followUp.Order)"
                 OnClose="() => Close(followUp)"
                 OnRaise="() => Raise(followUp)">
-        <DynamicComponent Type="followUp.Definition.ComponentType"
-                          Parameters="followUp.Parameters" />
+        <CascadingValue Value="NoWindow" Name="WindowId" IsFixed="true">
+            <CascadingValue Value="HostWindowId" Name="HostWindowId">
+                <DynamicComponent Type="followUp.Definition.ComponentType"
+                                  Parameters="followUp.Parameters" />
+            </CascadingValue>
+        </CascadingValue>
     </DeskDialog>
 }
 
@@ -33,6 +44,17 @@
 
     /// <summary>Raised after a close, so the host can re-render without tracking the list.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>The window id a floating view is given: none. See the note at the top.</summary>
+    private static readonly string? NoWindow = null;
+
+    /// <summary>
+    /// The window this layer is drawn in, passed on as <c>HostWindowId</c>. Unsaved input in a
+    /// dialog still marks it: closing the host takes the dialog with it, so the host's close key
+    /// and eviction must know there is typing to lose. Null for the desk's own layer.
+    /// </summary>
+    [CascadingParameter(Name = "WindowId")]
+    public string? HostWindowId { get; set; }
 
     /// <summary>
     /// The launcher currently subscribed to. Held so a host that swaps launchers does not
