@@ -2218,10 +2218,12 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
    a fixture nobody quoted, and a game already under way — only one of which is
-   worth acting on, so the row says which. */
+   worth acting on, so the row says which: "No price", and the reason once, in the
+   banner above the board (or on the open row when the reasons differ). Secondary, not
+   warning ink: an orange line under every unpriced row repeated the banner's alarm. */
 .board__gap {
     margin-top: 3px;
-    color: var(--state-warning-ink);
+    color: var(--text-secondary);
     font-size: var(--text-footnote);
     line-height: 1.35;
     max-width: 34ch;
@@ -4091,20 +4093,29 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    under. Extra space before the first of each pair groups them, so the eye reads
    three markets rather than six unrelated numbers; a vertical rule would do it
    louder, and a table on this desk has none. The cell names its element and the
-   Mud cell class so it out-ranks mud-bridge.css's cell padding, which loads later. */
-.deskgrid--board th.mud-table-cell:nth-child(3),
-.deskgrid--board td.mud-table-cell:nth-child(3),
-.deskgrid--board th.mud-table-cell:nth-child(5),
-.deskgrid--board td.mud-table-cell:nth-child(5),
-.deskgrid--board th.mud-table-cell:nth-child(7),
-.deskgrid--board td.mud-table-cell:nth-child(7) {
+   Mud cell class so it out-ranks mud-bridge.css's cell padding, which loads later.
+
+   The pair is marked by a class (.board__pair, on the first column of each), not by
+   position. These rules counted columns, and when the Value column arrived they hit the
+   wrong ones: "Moneyline" showed twice and Over got no gap. */
+.deskgrid--board th.mud-table-cell.board__pair,
+.deskgrid--board td.mud-table-cell.board__pair {
     padding-left: var(--space-4);
 }
 
-/* A market's second column repeats its name in the header. Dim the repeat so the
-   pair reads as one heading spanning two columns rather than as two headings. */
-.deskgrid--board th:nth-child(4),
-.deskgrid--board th:nth-child(6) { color: transparent; }
+/* One heading per market, centred over its two columns. The second column's header draws
+   nothing (BoardPanel.SideHeader) and every cell names its side, so the market is said once
+   while each column keeps an accessible name of its own. */
+.deskgrid--board th.board__pair { position: relative; }
+.deskgrid--board th.board__pair .column-header { position: static; }
+.deskgrid--board .board__market {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    z-index: 1;
+    translate: -50% -50%;
+    white-space: nowrap;
+}
 
 .deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
 
@@ -5467,3 +5478,33 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The RCA is a form's width, so its keys sit under the fields they commit. */
 .opsrca { max-width: 720px; }
 .opsrca .opsfoot { margin: 0; }
+
+/* ---- The Game window's lines --------------------------------------------------------------
+   One grouped row per market, the market's name leading as a form label, its two sides
+   trailing in two even columns: each the price a person can take and, beneath it, the book
+   that has it, by name. It was three inline clusters of tiny prices with unexplained book
+   codes (PN, DK, MG) crammed into the left third of the window. */
+.gamelines { max-width: 560px; --form-label: 96px; }
+.gamelines__sides {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-4);
+}
+.gamelines__cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gamelines__price {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.gamelines__side { font-weight: var(--weight-semibold); }
+.gamelines__book {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}

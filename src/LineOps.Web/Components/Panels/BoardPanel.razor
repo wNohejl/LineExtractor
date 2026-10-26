@@ -286,9 +286,15 @@ else
                     <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
                 }
 
+                @* The row says only that it has no price, in secondary ink. The reason is the
+                   banner's when every unpriced row shares it — thirteen orange copies of "No lines
+                   pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
+                   reasons differ the banner says to open a row, so the open row gives its own. *@
                 @if (context.Item.Unpriced is { } reason)
                 {
-                    <div class="board__gap" title="@reason">@reason</div>
+                    <div class="board__gap" title="@reason">
+                        No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
+                    </div>
                 }
 
                 @if (_open?.Game.Id == context.Item.Game.Id)
@@ -391,8 +397,17 @@ else
         </TemplateColumn>
 
         @* Home/over first in every market, so a column reads down consistently. StartsAt goes
-           with each price so a closing one can say how long before first pitch it was taken. *@
-        <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
+           with each price so a closing one can say how long before first pitch it was taken.
+
+           Each market is two columns and one heading. Headed "Moneyline, Moneyline, Spread,
+           Spread, Over, Under", the row of labels said every market twice and named the total by
+           its sides. The first column of a pair (.board__pair) carries the market's name, drawn
+           centred over both columns; the second shows nothing, since every cell already names
+           its side (PHI, DAL, O, U). Each header still has a name of its own for a screen
+           reader — "Moneyline, home", "Moneyline, away" — so no column is unlabelled. *@
+        <TemplateColumn T="BoardRow" Title="Moneyline, home" Align="Align.Right" Sortable="false"
+                        HeaderClass="board__pair" CellClass="board__pair">
+            <HeaderTemplate>@MarketHeader("Moneyline", "home")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -401,7 +416,8 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Moneyline" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Moneyline, away" Align="Align.Right" Sortable="false">
+            <HeaderTemplate>@SideHeader("Moneyline", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -410,7 +426,9 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Spread, home" Align="Align.Right" Sortable="false"
+                        HeaderClass="col--wider board__pair" CellClass="col--wider board__pair">
+            <HeaderTemplate>@MarketHeader("Spread", "home")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -419,7 +437,8 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Spread, away" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+            <HeaderTemplate>@SideHeader("Spread", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
@@ -428,7 +447,9 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Over" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Total, over" Align="Align.Right" Sortable="false"
+                        HeaderClass="col--wider board__pair" CellClass="col--wider board__pair">
+            <HeaderTemplate>@MarketHeader("Total", "over")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.First" Selection="O"
                            StartsAt="context.Item.Game.StartsAt"
@@ -437,7 +458,8 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Under" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Total, under" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+            <HeaderTemplate>@SideHeader("Total", "under")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
                            StartsAt="context.Item.Game.StartsAt"
@@ -899,6 +921,21 @@ else
                 <span class="board__starter" title="@s.Title"><span class="board__starter-role">@s.Role</span> @s.Name</span>
             }
         </span>
+    };
+
+    /// <summary>
+    /// The first header of a market's pair: the market's name, which the stylesheet draws centred
+    /// over both columns (.board__market), and the side the column holds, for a screen reader.
+    /// </summary>
+    private static RenderFragment MarketHeader(string market, string side) => __builder =>
+    {
+        <span class="board__market">@market</span><span class="sr-only">, @side</span>
+    };
+
+    /// <summary>The second header of a pair: nothing drawn under the shared name, a name of its own to hear.</summary>
+    private static RenderFragment SideHeader(string market, string side) => __builder =>
+    {
+        <span class="sr-only">@market, @side</span>
     };
 
     /// <summary>

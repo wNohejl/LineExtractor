@@ -70,17 +70,14 @@ else
                     <Tag State="DeskState.Info">Title fight</Tag>
                 }
             }
-            else
-            {
-            @* Which season this game belongs to, and which part of it — a February game that is
-               the prior year's postseason says so rather than leaving the date to imply it. *@
-            <Tag State="DeskState.Info">
-                @SeasonCalendar.Label(game.Sport?.Key ?? string.Empty, game.SeasonYear)@(game.SeasonType == SeasonType.Postseason ? " postseason" : " season")
-            </Tag>
-            }
         </Tags>
+        @* When, and which season it counts toward, on the one quiet line under the title. The
+           season was an Info tag on the title's row, where beside the two stacked clubs it floated
+           mid-row, away from the name it qualified, with the date alone on the line below. A
+           February game that is the prior year's postseason still says so: "2025 postseason". A
+           fight belongs to a card, not a season (ADR 0021), so it keeps its card tag above. *@
         <Detail>
-            <span>@Starts(game.StartsAt)</span>
+            <span>@Starts(game.StartsAt)@(_bout is null ? $" · {SeasonWords(game)}" : "")</span>
             @if (_bout is { } bout)
             {
                 <span>@BoutFrame(bout)</span>
@@ -158,7 +155,7 @@ else
                             <span class="dim num"> @Line(l)</span>
                         }
                     </span>
-                    <span class="dim">@LineOps.Web.Services.SelectionText.MarketName(bet.Market) · @bet.Book</span>
+                    <span class="dim">@LineOps.Web.Services.SelectionText.MarketName(bet.Market) · @BookNames.Display(bet.Book)</span>
                     @if (bet.PriceTaken != 0)
                     {
                         <span class="num">@Price(bet.PriceTaken)</span>
@@ -401,14 +398,6 @@ else
         status: () => _row is null ? "not found" : StateStatus(_row.Game));
     }
 
-    /// <summary>Which side a price is for, as the team short form. See BoardPanel.Side.</summary>
-    private string Side(bool home)
-    {
-        var team = home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam;
-
-        return string.IsNullOrWhiteSpace(team?.Abbrev) ? home ? "H" : "A" : team!.Abbrev;
-    }
-
     private static DeskState StatusState(GameStatus status) => status switch
     {
         GameStatus.Live => DeskState.Warning,
@@ -424,35 +413,111 @@ else
         }
         else
         {
-            <DeskRow Gap="DeskSpace.Space4">
-                <DeskStack Gap="DeskSpace.Space1">
-                    <div class="meta">Moneyline</div>
-                    <div class="row">
-                        <PriceCell Offer="_row.Moneyline.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
-                        <PriceCell Offer="_row.Moneyline.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
-                    </div>
-                </DeskStack>
-                @* A fight has no spread (ADR 0021). *@
-                @if (_bout is null)
-                {
-                <DeskStack Gap="DeskSpace.Space1">
-                    <div class="meta">Spread</div>
-                    <div class="row">
-                        <PriceCell Offer="_row.Spread.First" Selection="@Side(true)" StartsAt="_row.Game.StartsAt" />
-                        <PriceCell Offer="_row.Spread.Second" Selection="@Side(false)" StartsAt="_row.Game.StartsAt" />
-                    </div>
-                </DeskStack>
-                }
-                <DeskStack Gap="DeskSpace.Space1">
-                    <div class="meta">@(_bout is null ? "Total" : "Total rounds")</div>
-                    <div class="row">
-                        <PriceCell Offer="_row.Total.First" Selection="O" StartsAt="_row.Game.StartsAt" />
-                        <PriceCell Offer="_row.Total.Second" Selection="U" StartsAt="_row.Game.StartsAt" />
-                    </div>
-                </DeskStack>
-            </DeskRow>
+            @*
+                A grouped list, a row per market and a column per side: away then home, as the
+                title reads, and Over then Under. Each cell is the side and its number, with the
+                book holding it by name beneath in secondary ink.
+
+                It was three clusters of the Board's price cell side by side in the left third of
+                the window — tiny prices, a two-letter monogram (PN, DK, MG) nobody had been told
+                how to read, and a rail of ticks under each. The cell is built for a dense grid
+                where the same books repeat down a column; here there are six numbers and room
+                to name them. The rest of the market — every book's price — is the cell's
+                tooltip, and Every book's window. Readings only, as before: the wager window
+                opens from the Board and from Every book.
+            *@
+            <section class="wsection gamelines">
+                <div class="wgroup">
+                    @* A game reads away then home, as its title does; a fight reads red corner
+                       (home) first, as its card bills it and the Board's row now leads (ADR 0021). *@
+                    @if (_bout is null)
+                    {
+                        @LineRow("Moneyline", _row.Moneyline.Second, _row.Moneyline.First, SideName(false), SideName(true), total: false)
+                    }
+                    else
+                    {
+                        @LineRow("Moneyline", _row.Moneyline.First, _row.Moneyline.Second, SideName(true), SideName(false), total: false)
+                    }
+                    @* A fight has no spread (ADR 0021). *@
+                    @if (_bout is null)
+                    {
+                        @LineRow("Spread", _row.Spread.Second, _row.Spread.First, SideName(false), SideName(true), total: false)
+                    }
+                    @LineRow(_bout is null ? "Total" : "Total rounds", _row.Total.First, _row.Total.Second, "Over", "Under", total: true)
+                </div>
+                <p class="wgroup__foot">@LinesFoot</p>
+            </section>
         }
     </text>;
+
+    /// <summary>One market: its name leading, then the two sides, each a cell of <see cref="LineCell"/>.</summary>
+    private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total) => @<div class="wgroup__row wgroup__row--form">
+        <span class="wgroup__label">@market</span>
+        <div class="gamelines__sides">
+            @LineCell(first, firstSide, total)
+            @LineCell(second, secondSide, total)
+        </div>
+    </div>;
+
+    /// <summary>
+    /// A side's best number and the book holding it: "Cowboys +3.5 −110" over "DraftKings". A
+    /// total names its number bare ("Over 47.5"), since the side already says which way. Value
+    /// against the fair price follows the book on a live price; a close says it is one.
+    /// </summary>
+    private RenderFragment LineCell(BestOffer? offer, string side, bool total) => @<div class="gamelines__cell" title="@(offer is null ? null : EveryBook(offer))">
+        <span class="gamelines__price">
+            <span class="gamelines__side">@side</span>
+            @if (offer is null)
+            {
+                <span class="dim">—</span>
+            }
+            else
+            {
+                @if (offer.Line is { } line)
+                {
+                    <span>@(total ? Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : OddsMath.FormatLine(line, offer.Outcome))</span>
+                }
+                <span>@OddsMath.FormatPrice(offer.PriceAmerican)</span>
+            }
+        </span>
+        <span class="gamelines__book">
+            @if (offer is null)
+            {
+                @:Not priced
+            }
+            else
+            {
+                @BookNames.Display(offer.Book)@(offer.IsClosing ? " · closing" : "")
+                @if (!offer.IsClosing && offer.Ev is { } ev)
+                {
+                    <span class="@(ev > 0 ? "up" : null)"> · @PriceCell.EvLabel(ev)</span>
+                }
+            }
+        </span>
+    </div>;
+
+    /// <summary>Every book's number on a side, by name — the cell's tooltip.</summary>
+    private static string EveryBook(BestOffer offer)
+        => string.Join("\n", offer.Rungs.Select(r =>
+            $"{BookNames.Display(r.Book)} {(r.Line is { } l ? OddsMath.FormatLine(l, offer.Outcome) + " " : "")}{OddsMath.FormatPrice(r.PriceAmerican)}"));
+
+    /// <summary>A side as the lines name it: the club's nickname, as the Board's chips do.</summary>
+    private string SideName(bool home)
+    {
+        var team = home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam;
+        return TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"));
+    }
+
+    /// <summary>The group's footer: what the numbers are, and when a close, what that means.</summary>
+    private string LinesFoot
+        => _row!.PricesAreClosing
+            ? "Closing prices: the last number each book showed before the start. Hover a price for every book's."
+            : $"The best price on each side across {_row.BookCount:N0} {(_row.BookCount == 1 ? "book" : "books")}. Hover a price for every book's.";
+
+    /// <summary>"2026 season", or "2025 postseason" for a February game that closes the prior year.</summary>
+    private static string SeasonWords(Game game)
+        => $"{SeasonCalendar.Label(game.Sport?.Key ?? string.Empty, game.SeasonYear)} "
+           + (game.SeasonType == SeasonType.Postseason ? "postseason" : "season");
 
     private RenderFragment RenderTeamData() => @<text>
         <DeskRow Gap="DeskSpace.Space6">
@@ -466,14 +531,16 @@ else
             <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
                       OnClick="() => Manager.OpenTeam(teamId, name, WindowId)">@name</DeskLink>
 
+            @* "In the window" read as the desk window this sits in; the reach is the season
+               switched above. One game is a game. *@
             @if (form is null || form.Recent.Count == 0)
             {
-                <div class="meta">No games recorded in the window.</div>
+                <div class="meta">No games on record for this season.</div>
             }
             else
             {
                 <div class="meta">
-                    @form.Record over @form.Recent.Count games
+                    @form.Record over @form.Recent.Count.ToString("N0") @(form.Recent.Count == 1 ? "game" : "games")
                 </div>
                 <div class="row">
                     <FormRun Log="@FormResult.From(form.Recent)" />
@@ -535,7 +602,7 @@ else
                         {
                             var key = c;
 
-                            <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@key" Align="Align.Right"
+                            <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@StatLabels.StatLabel(key)" Align="Align.Right"
                                             SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
                                 <CellTemplate>
                                     <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
@@ -612,12 +679,12 @@ else
                         {
                             var key = c;
 
-                            <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                            <TemplateColumn T="PlayerForm" Sortable="true" Title="@(StatLabels.StatLabel(key) + (IsRate(side, key) ? "/g" : ""))"
                                             Align="Align.Right"
                                             SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                                 <CellTemplate>
                                     @(context.Item.Summary(key) is { } v
-                                        ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                        ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
                                         : "—")
                                 </CellTemplate>
                             </TemplateColumn>

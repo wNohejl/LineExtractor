@@ -49,14 +49,12 @@ else
 {
     <PanelTitle>
         <ChildContent><TeamMark Sport="@_team.Sport?.Key" Abbrev="@_team.Abbrev" Size="TeamMarkSize.Large" />@_team.Name</ChildContent>
+        @* The season on screen is said once, by the detail line ("5-2 in the 2026 season"),
+           even when there is only one and the gate has nothing to offer — a record without its
+           season is a number without a unit. It was also an Info tag on the name's row, which
+           said it twice and floated beside the title rather than qualifying the record. *@
         <Tags>
             <Tag>@_team.Sport?.Name</Tag>
-            @* The season on screen, said even when there is only one and the gate below has
-               nothing to offer — a record without its season is a number without a unit. *@
-            @if (_seasonYear is { } seasonYear && _team.Sport?.Key is { } sportKey)
-            {
-                <Tag State="DeskState.Info">@SeasonCalendar.Label(sportKey, seasonYear) season</Tag>
-            }
         </Tags>
         <Detail>
             @GameLogSplits.FormatRecord(_visible) @SeasonPhrase
@@ -92,7 +90,7 @@ else
         <ChildContent>
         @if (_log.Count == 0)
         {
-            <EmptyState Kind="EmptyStateKind.Filtered">No games recorded in this window.</EmptyState>
+            <EmptyState Kind="EmptyStateKind.Filtered">No games on record for this season.</EmptyState>
         }
         else if (_visible.Count == 0)
         {
@@ -176,7 +174,7 @@ else
     <PanelSection Title="Roster form">
     @if (_roster.Count == 0)
     {
-        <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster in the window.</EmptyState>
+        <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster this season.</EmptyState>
     }
     else
     {
@@ -194,7 +192,7 @@ else
                         {
                             <span class="dim">@position</span>
                         }
-                        <span class="dim mono">@player.Appearances GP</span>
+                        <span class="dim mono">@player.Appearances.ToString("N0") GP</span>
                     </Summary>
                     <ChildContent>
                         <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"player-{player.PlayerId}")">

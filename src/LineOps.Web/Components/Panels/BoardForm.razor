@@ -36,7 +36,7 @@ else
         <DeskSwitch Options="GateOptions.LookbackDays" Label="Lookback window" Mono="true"
                     Value="_windowDays" ValueChanged="@((int days) => SetWindowAsync(days))" />
         <span class="meta">
-            @_form.LinesRead stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
+            @_form.LinesRead.ToString("N0") stat @(_form.LinesRead == 1 ? "line" : "lines") read by reference
         </span>
     </PanelToolbar>
 
@@ -118,14 +118,14 @@ else
                     {
                         var key = c;
 
-                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(key + (IsRate(side, key) ? "/g" : ""))"
+                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(StatLabels.StatLabel(key) + (IsRate(side, key) ? "/g" : ""))"
                                         Align="Align.Right"
                                         SortBy="@(p => p.Summary(key) ?? double.MinValue)">
                             <CellTemplate>
                                 @* A dash where a player has no reading, not a zero — they
                                    are different facts. *@
                                 @(context.Item.Summary(key) is { } v
-                                    ? v.ToString(context.Item.IsCounting(key) ? "0.##" : "0.000")
+                                    ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
                                     : "—")
                             </CellTemplate>
                         </TemplateColumn>
