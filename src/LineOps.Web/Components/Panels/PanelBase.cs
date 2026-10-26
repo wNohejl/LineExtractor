@@ -310,7 +310,7 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// Everything after the first name, not the last word: the last word of "CJ Van Eyk" is
     /// "Eyk", and of "Vladimir Guerrero Jr." is "Jr.".
     /// </summary>
-    private static string Surname(string? fullName)
+    protected static string Surname(string? fullName)
     {
         if (fullName is null)
             return "TBD";

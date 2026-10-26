@@ -2260,6 +2260,60 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 }
 .board__team--loser { color: var(--text-secondary); }
 
+/* The two clubs side by side, each a chip with its starter beneath. Equal columns, so the two
+   starters sit level under their chips; a cell too narrow for two wraps the home club under
+   the away one, each still with its own starter. */
+.board__sides {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-1) var(--space-2);
+    /* Its own max-content, fractions and all: sized by the shrink-to-fit link around it, the
+       row came out a fraction of a pixel short of two chips and wrapped the home club under
+       the away one in a cell with room for both. */
+    width: max-content;
+    max-width: 100%;
+}
+
+.board__side {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* A club as an object: a capsule of fill, no outline (a chip inside a grid cell is a shape,
+   not a box), its mark and nickname inside. The hover lights the chip rather than underlining
+   a two-line label. */
+.board__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 2px var(--space-2);
+    background: var(--surface-2);
+    border-radius: 999px;
+    font-weight: var(--weight-medium);
+}
+.board__chip .teammark { margin-right: 0; }
+.board__matchup-link:hover .board__chip,
+.board__matchup-link:focus-visible .board__chip { background: var(--surface-3); color: var(--accent-ink); }
+.deskgrid--board .mud-table-body .mud-table-cell .board__matchup-link:hover .desklink__label { border-bottom-color: transparent; }
+
+/* The starter under the club: caption size, the role in semibold so "SP" and "QB" read as a
+   kind and the surname as a name; inset to the chip's text. */
+.board__starter {
+    padding: 0 var(--space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+}
+.board__starter-role { font-size: var(--text-caption); font-weight: var(--weight-semibold); }
+
 /* The matchup link holds two clubs, a line each, so the grid's two-line clamp on a link's
    label (mud-bridge) cut the home line off whenever a narrow cell wrapped a mark away from its
    name: "▪ / Cowbo…", no Eagles. Each club now stays on one line (above) and the label is a

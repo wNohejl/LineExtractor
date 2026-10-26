@@ -245,35 +245,30 @@ else
             starting at this column's edge, so a book list spans the row rather than wrapping
             every team name inside this one column.
 
-            The matchup is two lines, away over home, each the club's mark and its nickname.
-            As one sentence it was "Pittsburgh Steelers at New Orleans Saints", truncated to
-            "Pittsburgh Steelers a…" at the board's width, with both marks stacked before it
-            and nothing to say which was whose. The full names stay on the link's tooltip, and
-            a hidden "at" keeps the link reading "Steelers at Saints". When a game is final the
-            loser's name drops to secondary ink, as its score does beside it.
+            The matchup is the two clubs side by side, away then home, each a chip of its mark
+            and nickname with its starter in small type beneath: the probable pitcher MLB names,
+            or the quarterback an NFL club started its last game with. Stacked as two plain
+            lines over a "Gasser v Peralta" line and a stale-price warning, the clubs, their
+            starters and the gap all read as one grey block; as chips, each club is an object and
+            its starter sits under the club it pitches or throws for. The full names stay on the
+            link's tooltip and each starter's on its own, and a hidden "at" keeps the link
+            reading "Brewers at Rays". When a game is final the loser drops to secondary ink, as
+            its score does beside it.
         *@
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 @{ var leader = FinalLeader(context.Item.Game); }
                 <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@Matchup(context.Item.Game)"
                           OnClick="() => Manager.OpenGame(context.Item.Game)">
-                    <span class="board__team@(leader == ScoreLeader.Home ? " board__team--loser" : "")">
-                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.AwayTeam, Scoreline.Abbrev(context.Item.Game.AwayTeam, "Away"))
-                    </span>
-                    <span class="sr-only">@(" at ")</span>
-                    <span class="board__team@(leader == ScoreLeader.Away ? " board__team--loser" : "")">
-                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.HomeTeam, Scoreline.Abbrev(context.Item.Game.HomeTeam, "Home"))
+                    <span class="board__sides">
+                        @Side(context.Item, home: false, loser: leader == ScoreLeader.Home)
+                        <span class="sr-only">@(" at ")</span>
+                        @Side(context.Item, home: true, loser: leader == ScoreLeader.Away)
                     </span>
                 </DeskLink>
                 @if (context.Item.Game.DoubleHeaderGame is { } number)
                 {
                     <Tag State="DeskState.Info">Game @number</Tag>
-                }
-                @* The starters, where MLB has named them: the one fact that moves a baseball line
-                   more than any other, beside the matchup it belongs to. *@
-                @if (Probables(context.Item.Game) is { } probables)
-                {
-                    <div class="meta" title="Probable starting pitchers, away v home">@probables</div>
                 }
 
                 @if (context.Item.Unpriced is { } reason)
@@ -857,6 +852,51 @@ else
     /// </summary>
     private static string MissingScoreHint(GameStatus status)
         => status == GameStatus.Postponed ? "not played" : "no score yet";
+
+    /// <summary>One club in the matchup cell: its chip, and its starter beneath where one is known.</summary>
+    private static RenderFragment Side(BoardRow row, bool home, bool loser) => __builder =>
+    {
+        var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;
+        var starter = Starter(row, home);
+
+        <span class="board__side@(loser ? " board__team--loser" : "")">
+            <span class="board__chip board__team">
+                <TeamMark Sport="@row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />@TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))
+            </span>
+            @if (starter is { } s)
+            {
+                <span class="board__starter" title="@s.Title"><span class="board__starter-role">@s.Role</span> @s.Name</span>
+            }
+        </span>
+    };
+
+    /// <summary>
+    /// A club's starter as the matchup cell names it: the probable pitcher MLB has announced, or
+    /// the quarterback an NFL club started its last game with. Null when the game has neither
+    /// side's; a side not yet named reads TBD, so the two starters still line up under their clubs.
+    /// </summary>
+    public static (string Role, string Name, string Title)? Starter(BoardRow row, bool home)
+    {
+        var game = row.Game;
+
+        if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
+        {
+            var pitcher = home ? game.HomeProbablePitcher : game.AwayProbablePitcher;
+            return ("SP", Surname(pitcher), pitcher is null
+                ? "Starting pitcher not yet named"
+                : $"Probable starting pitcher: {pitcher}");
+        }
+
+        if (row.AwayQuarterback is not null || row.HomeQuarterback is not null)
+        {
+            var quarterback = home ? row.HomeQuarterback : row.AwayQuarterback;
+            return ("QB", quarterback is null ? "—" : Surname(quarterback), quarterback is null
+                ? "No passing on record for this club"
+                : $"Started at quarterback in the club's last game: {quarterback}");
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Who leads a finished game, so its loser can read lighter; Level or None for a game that

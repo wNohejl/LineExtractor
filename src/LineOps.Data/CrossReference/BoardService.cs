@@ -99,11 +99,54 @@ public class BoardService(LineOpsDbContext db)
                 games.Where(g => unexplained.Contains(g.SportId)).Select(g => g.Sport!).DistinctBy(s => s.Id).ToList(),
                 ct);
 
+        var passing = await PassingLinesAsync(games, ct);
+
         return games.Select(game => Compose(
             game,
             byGame.GetValueOrDefault(game.Id),
             closesByGame.GetValueOrDefault(game.Id),
-            lastPull.TryGetValue(game.SportId, out var at) ? at : null)).ToList();
+            lastPull.TryGetValue(game.SportId, out var at) ? at : null) with
+        {
+            AwayQuarterback = Starters.LastQuarterback(passing, game.AwayTeamId, game.StartsAt),
+            HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt)
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Every passing line the slate's NFL clubs recorded before their games, for
+    /// <see cref="Starters.LastQuarterback"/>. A handful of rows a club a week. Reaches back over
+    /// an off-season, so a week-one game still finds the quarterback who ended last season.
+    /// Empty for a slate with no NFL game, which asks nothing of the database.
+    /// </summary>
+    private async Task<List<PassingLine>> PassingLinesAsync(List<Game> games, CancellationToken ct)
+    {
+        var nfl = games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (nfl.Count == 0)
+            return [];
+
+        var teams = nfl.SelectMany(g => new[] { g.HomeTeamId, g.AwayTeamId }).Distinct().ToList();
+        var from = nfl.Min(g => g.StartsAt) - TimeSpan.FromDays(240);
+        var to = nfl.Max(g => g.StartsAt);
+
+        var rows = await db.PlayerGameStats
+            .Where(s => s.Game!.StartsAt >= from && s.Game.StartsAt < to)
+            .Where(s => EF.Functions.JsonExists(s.StatLine, "C/ATT"))
+            .Select(s => new
+            {
+                // The side the box score put the player on; a line stored before that was
+                // recorded falls back to the player's current club.
+                TeamId = s.TeamId ?? s.Player!.TeamId,
+                s.GameId,
+                s.Game!.StartsAt,
+                s.Player!.FullName,
+                s.StatLine
+            })
+            .Where(s => s.TeamId != null && teams.Contains(s.TeamId.Value))
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        return rows.Select(r => new PassingLine(r.TeamId!.Value, r.GameId, r.StartsAt, r.FullName, r.StatLine)).ToList();
     }
 
     /// <summary>
@@ -455,6 +498,15 @@ public record BoardRow(
     string? Unpriced)
 {
     public bool HasPrices => BookCount > 0;
+
+    /// <summary>
+    /// The quarterback each NFL club started its last game with (<see cref="Starters"/>), shown
+    /// under the club as baseball's probable pitcher is. Null outside the NFL and for a club
+    /// with no passing on record.
+    /// </summary>
+    public string? AwayQuarterback { get; init; }
+
+    public string? HomeQuarterback { get; init; }
 
     /// <summary>
     /// How old the newest price on this row is.

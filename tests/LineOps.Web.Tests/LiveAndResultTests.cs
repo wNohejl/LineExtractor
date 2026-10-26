@@ -265,3 +265,50 @@ public class BoardMatchupCellTests
         return dir?.FullName ?? throw new InvalidOperationException("repo root not found");
     }
 }
+
+/// <summary>
+/// The Board's matchup cell names each club's starter under its chip: the probable pitcher MLB
+/// announces, or the quarterback an NFL club started its last game with.
+/// </summary>
+public class BoardStarterTests
+{
+    private static LineOps.Data.CrossReference.BoardRow Row(Action<LineOps.Core.Entities.Game>? game = null,
+        string? awayQb = null, string? homeQb = null)
+    {
+        var row = Support.BoardRows.Row();
+        game?.Invoke(row.Game);
+        return row with { AwayQuarterback = awayQb, HomeQuarterback = homeQb };
+    }
+
+    [Fact]
+    public void A_baseball_side_shows_its_probable_pitcher()
+    {
+        var row = Row(g => { g.AwayProbablePitcher = "Robert Gasser"; g.HomeProbablePitcher = "Freddy Peralta"; });
+
+        Assert.Equal(("SP", "Gasser", "Probable starting pitcher: Robert Gasser"),
+            LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false));
+        Assert.Equal("Peralta", LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: true)!.Value.Name);
+    }
+
+    [Fact]
+    public void A_side_not_yet_named_reads_TBD_so_both_starters_line_up()
+    {
+        var row = Row(g => g.HomeProbablePitcher = "Freddy Peralta");
+
+        Assert.Equal("TBD", LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false)!.Value.Name);
+    }
+
+    [Fact]
+    public void A_football_side_shows_its_last_starting_quarterback()
+    {
+        var row = Row(awayQb: "Dak Prescott", homeQb: "Jalen Hurts");
+
+        Assert.Equal(("QB", "Prescott", "Started at quarterback in the club's last game: Dak Prescott"),
+            LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false));
+        Assert.Equal("Hurts", LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: true)!.Value.Name);
+    }
+
+    [Fact]
+    public void A_game_with_no_starters_known_draws_none()
+        => Assert.Null(LineOps.Web.Components.Panels.BoardPanel.Starter(Row(), home: true));
+}
