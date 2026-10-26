@@ -17,18 +17,24 @@
 <div class="wsections slip">
     @* Grouped lists, after the HIG (apple-hig-components, forms.md): each group a fill with an
        inset hairline between rows, named by a quiet sentence-case header and explained by a
-       footer. The wagers are rows of one list, not a box apiece. *@
-    <section class="wsection" aria-labelledby="slip-mode-h">
-        <h3 class="wgroup__head" id="slip-mode-h">Logged as</h3>
-        <div class="wgroup">
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Log</span>
-                <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
-                            Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
+       footer. The wagers are rows of one list, not a box apiece.
+       How the slip logs is a choice about wagers, so it waits for one: on an empty slip it was
+       a control that changed nothing, above a sentence saying there was nothing to change
+       (audit.md: nothing on screen that cannot be used yet). Add as leg sets it anyway. *@
+    @if (Slip.Items.Count > 0)
+    {
+        <section class="wsection" aria-labelledby="slip-mode-h">
+            <h3 class="wgroup__head" id="slip-mode-h">Logged as</h3>
+            <div class="wgroup">
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Log</span>
+                    <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
+                                Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
+                </div>
             </div>
-        </div>
-        <p class="wgroup__foot">Belongs to this desk session, not to a game.</p>
-    </section>
+            <p class="wgroup__foot">Belongs to this desk session, not to a game.</p>
+        </section>
+    }
 
     @if (_report is { } report)
     {

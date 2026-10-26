@@ -51,7 +51,7 @@ else
                 <option value="">All books</option>
                 @foreach (var book in _books)
                 {
-                    <option value="@book">@book</option>
+                    <option value="@book">@BookNames.Display(book)</option>
                 }
             </DeskSelect>
         </div>
@@ -82,14 +82,12 @@ else
     </Actions>
 </PanelToolbar>
 
-<Note>
-    LineOps does not place wagers and has no connection to any sportsbook. Entries here are
-    records of bets already placed elsewhere.
-</Note>
-
 @if (_mode == FormMode.Entry)
 {
+    @* The form names the row it edits on the line under its title, so "Edit entry" is about
+       something before the eye reaches the fields. *@
     <PanelForm Title="Edit entry" Class="pform--grouped">
+    <Detail>@(_editing is { } editing ? $"Placed {Starts(editing.PlacedAt)}" : null)</Detail>
     <ChildContent>
 
         @if (_editing is { IsGraded: true })
@@ -100,33 +98,36 @@ else
             </Note>
         }
 
-        @if (_entry.ManualPrice)
-        {
-            <Note Class="journal-manual-note">A price you entered by hand, not one the desk fetched.</Note>
-        }
-
         @* The wager window's grouped form, row for row (apple-hig-components, forms.md): the
-           label leads in one column, the control trails, one inset rule between rows. *@
-        <div class="wgroup jform">
-            @LegFields(_entry)
+           label leads in one column, the control trails, one inset rule between rows. A typed
+           price is said in the group's footer, under the rows it qualifies, rather than in a
+           box of its own above them. *@
+        <section class="wsection" aria-label="Entry">
+            <div class="wgroup jform">
+                @LegFields(_entry)
 
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Stake</span>
-                <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
-                          PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)"
-                          Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Stake</span>
+                    <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
+                              PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)"
+                              Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Book</span>
+                    @BookPicker(_entry.Book, SetEntryBookAsync)
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Note</span>
+                    <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                               placeholder="Optional" Value="_entry.Note"
+                               ValueChanged="@((string? n) => Edit("note", () => _entry.Note = n))" />
+                </div>
             </div>
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Book</span>
-                @BookPicker(_entry.Book, SetEntryBookAsync)
-            </div>
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Note</span>
-                <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
-                           placeholder="Optional" Value="_entry.Note"
-                           ValueChanged="@((string? n) => Edit("note", () => _entry.Note = n))" />
-            </div>
-        </div>
+            @if (_entry.ManualPrice)
+            {
+                <p class="wgroup__foot journal-manual-note">You typed this price; the desk did not fetch it.</p>
+            }
+        </section>
 
     </ChildContent>
     <Footer>
@@ -153,6 +154,7 @@ else
        is not edited here — a different side is a different parlay, logged from the slip — but
        the price it was taken at is a number, and a mistyped one is corrected like any other. *@
     <PanelForm Title="Edit parlay" Class="pform--grouped">
+    <Detail>@($"{edited.Parlay.Legs.Count} legs · placed {Starts(edited.Parlay.PlacedAt)}")</Detail>
     <ChildContent>
 
         @if (edited.Parlay.IsGraded)
@@ -266,7 +268,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     <PanelSection Title="Entries">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
         <PropertyColumn T="JournalEntry" TProperty="DateTimeOffset" Property="e => e.PlacedAt" Title="Placed"
-                        Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        InitialDirection="SortDirection.Descending">
             <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
         </PropertyColumn>
 
@@ -285,7 +287,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wide" CellClass="col--wide">
-            <CellTemplate><span class="dim">@context.Item.Book</span></CellTemplate>
+            <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="int" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
@@ -310,7 +312,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right">
             <CellTemplate>
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
-                    @(context.Item.IsSettled ? context.Item.NetReturn.ToString("C0") : "—")
+                    @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
+                       follows the machine's region, and on this one printed "($20)". *@
+                    @(context.Item.IsSettled ? PerformancePanel.Signed(context.Item.NetReturn) : "—")
                 </span>
             </CellTemplate>
         </PropertyColumn>
@@ -359,7 +363,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         <PropertyColumn T="Parlay" TProperty="DateTimeOffset" Property="p => p.PlacedAt" Title="Placed"
-                        Align="Align.Right" InitialDirection="SortDirection.Descending">
+                        InitialDirection="SortDirection.Descending">
             <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
         </PropertyColumn>
 
@@ -391,7 +395,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </TemplateColumn>
 
         <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book">
-            <CellTemplate><span class="dim">@context.Item.Book</span></CellTemplate>
+            <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
         <TemplateColumn T="Parlay" Title="Price" Align="Align.Right" Sortable="false">
@@ -409,7 +413,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.NetReturn" Title="Net" Align="Align.Right">
             <CellTemplate>
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
-                    @(context.Item.IsSettled ? context.Item.NetReturn.ToString("C0") : "—")
+                    @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
+                       follows the machine's region, and on this one printed "($20)". *@
+                    @(context.Item.IsSettled ? PerformancePanel.Signed(context.Item.NetReturn) : "—")
                 </span>
             </CellTemplate>
         </PropertyColumn>
@@ -453,6 +459,14 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         <DeskButton OnClick="ShowMoreAsync">Show @Step more</DeskButton>
     </DeskRow>
 }
+
+@* What the Journal is, said once at its foot in the footnote voice, as the Slip tab says it.
+   It used to be a filled note under the toolbar, wider than the form beneath it, and every
+   form opened between the two read as a stack of boxes of three widths. *@
+<p class="wfoot journal-foot">
+    LineOps does not place wagers and has no connection to any sportsbook. Entries here are
+    records of bets already placed elsewhere.
+</p>
 }
 </DeskTabs>
 
@@ -845,7 +859,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             Market = entry.FreeTextMarket is null ? entry.Market : FreeText,
             FreeTextMarket = entry.FreeTextMarket,
             Outcome = entry.Outcome == "—" ? string.Empty : entry.Outcome,
-            LineTaken = entry.LineTaken,
+            // Without the column's scale, so the field reads "-3" as the book printed it and not
+            // "-3.00". Decimal equality ignores scale, so this is not an unsaved change.
+            LineTaken = entry.LineTaken is { } line ? line / 1.000000000000000000000000000000000m : null,
             PriceTaken = entry.PriceTaken,
             Stake = entry.Stake,
             Book = entry.Book,
@@ -1155,7 +1171,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             <option value="">Book…</option>
             @foreach (var book in _books)
             {
-                <option value="@book">@book</option>
+                <option value="@book">@BookNames.Display(book)</option>
             }
         </DeskSelect>
     </text>;
@@ -1172,7 +1188,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 @e.Outcome
                 @if (e.LineTaken is { } l)
                 {
-                    <span class="dim num"> @Line(l)</span>
+                    @* The space is part of the expression: Razor drops a whitespace-only text node,
+                       and "Buffalo Bills-3.00" ran the team into its line. *@
+                    <span class="dim num">@(" " + Line(l))</span>
                 }
             </DeskLink>
         }
@@ -1181,7 +1199,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             @e.Outcome
             @if (e.LineTaken is { } l)
             {
-                <span class="dim num"> @Line(l)</span>
+                <span class="dim num">@(" " + Line(l))</span>
             }
         }
     </text>;

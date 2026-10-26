@@ -354,7 +354,11 @@ public abstract class PanelBase : ComponentBase, IDisposable
 
     protected static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
 
-    protected static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+    /// <summary>
+    /// A line as a book prints it: "-3", "+4.5". A line read back from the journal carries the
+    /// column's scale, and decimal's own ToString printed it as "-3.00".
+    /// </summary>
+    protected static string Line(decimal value) => value.ToString("+0.##;-0.##;0");
 
     protected static string Age(double minutes) => minutes switch
     {

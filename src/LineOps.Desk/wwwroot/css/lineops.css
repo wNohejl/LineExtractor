@@ -3241,19 +3241,43 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 .pform__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
 .pform__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
-/* A form whose fields are a grouped form (.wgroup rows) is not boxed again: the group is the
-   fill, and a frame around it would be a box inside a box. Its keys lead, under the group. */
-.pform--grouped { padding: 0; background: none; border: 0; max-width: 560px; }
-/* Its title is a group header: sentence case, quiet, inset to the rows' text. */
-.pform--grouped > .panel-h {
-    margin: 0 0 var(--space-1);
-    padding: 0 var(--space-4);
-    border: 0;
+/* The title and its detail line are one unit, 2px apart, so the detail reads as the title's
+   and not as the first line of the fields. */
+.pform__head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pform__detail {
+    margin: 0;
     font-size: var(--text-subheadline);
-    font-weight: var(--weight-regular);
+    line-height: var(--leading-body);
     color: var(--text-secondary);
 }
-.pform--grouped > .panel-h::after { display: none; }
+/* A form whose fields are a grouped form (.wgroup rows) is not boxed again: the group is the
+   fill, and a frame around it would be a box inside a box. Its keys lead, under the group.
+   It is a section of the window in its own right, so it takes a section's air beneath it
+   before the list it edits. */
+.pform--grouped {
+    padding: 0;
+    background: none;
+    border: 0;
+    max-width: 560px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+}
+/* Its title names the task, so it reads as a title: title 3, semibold, the primary label
+   colour, on the group's edge. It was the quiet group-header voice (subheadline, regular,
+   secondary, inset), and with a note between it and the group it floated, attached to
+   nothing (user report, Oct 26). Group headers inside the form keep the quiet voice. */
+.pform--grouped > .pform__head { padding: 0 var(--space-1); }
+.pform--grouped > .pform__head > .panel-h {
+    margin: 0;
+    border: 0;
+    font-size: var(--text-title3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+.pform--grouped > .pform__head > .panel-h::after { display: none; }
+/* The fields' notes and groups stack at the form's own rhythm. */
+.pform--grouped > .pform__body { gap: var(--space-3); }
+.pform--grouped .pform__body > .note { margin: 0; }
 .pform--grouped .pform__keys { margin-left: 0; flex-direction: row-reverse; justify-content: flex-end; }
 
 /* 3 · 4 · Note and metrics in a window body own the air beneath them too. The space
@@ -4636,7 +4660,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-secondary);
 }
 .wsection > .wgroup__foot { margin-top: 0; }
-.slip .wgroup, .slip .waction { max-width: 560px; }
+/* The whole slip is one reading column, not just its groups: the empty state centred itself
+   across a 1,600px window and the footnote ran to the far edge, so the window's three pieces
+   of text sat on three different left edges. The footnote takes the groups' text inset, and
+   so does an empty slip's sentence: centred in a 560px column above a left-aligned footnote,
+   it was two alignments in two lines. */
+.slip { max-width: 560px; }
+.slip > .wfoot { padding: 0 var(--space-4); }
+.slip > .empty--new { text-align: left; padding: var(--space-2) var(--space-4) 0; }
 /* Groups and the keys under them are separated by space, not a rule. */
 .slip .waction { border-top: 0; padding-top: 0; }
 .slip .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
@@ -5098,6 +5129,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The stake's chosen cap on a form row: the same control as the sides, one level down. */
 .wsteps .selection-gate .gate__opt:focus-visible { z-index: 2; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
+/* The Journal's foot: what the window is, under everything it holds, a section's air below
+   the last list and at a reading width. */
+.journal-foot { margin-top: var(--space-6); max-width: 80ch; }
 
 /* The badge rides inside a key, whose --btn-gap already spaces it from the label; a margin of
    its own doubled that to 10px. */

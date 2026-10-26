@@ -72,6 +72,25 @@ public class JournalPanelTests
         Assert.Equal(typeof(BoardWager), window.Definition.ComponentType);
     }
 
+    /// <summary>
+    /// "Edit entry" used to float: a quiet group-header voice with a note between it and the
+    /// fields, under a disclaimer box wider than the form. The title now carries a detail line
+    /// naming the row it edits, a typed price is the group's footer, and the disclaimer is the
+    /// window's footnote.
+    /// </summary>
+    [Fact]
+    public void The_edit_form_names_its_entry_and_the_disclaimer_is_the_footnote()
+    {
+        var source = Source();
+
+        Assert.Contains("<Detail>@(_editing is { } editing ? $\"Placed {Starts(editing.PlacedAt)}\" : null)</Detail>", source);
+        Assert.Contains("<p class=\"wgroup__foot journal-manual-note\">", source);
+        Assert.DoesNotContain("<Note Class=\"journal-manual-note\">", source);
+        Assert.Contains("<p class=\"wfoot journal-foot\">", source);
+        Assert.True(source.IndexOf("journal-foot", StringComparison.Ordinal) > source.IndexOf("Title=\"Entries\"", StringComparison.Ordinal),
+            "The disclaimer sits under the lists, not between the toolbar and the form.");
+    }
+
     [Fact]
     public void The_edit_form_uses_the_shared_stake_row_and_tags_a_typed_price()
     {
