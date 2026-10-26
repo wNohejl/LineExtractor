@@ -64,7 +64,8 @@
                  RowClass="@RowClass"
                  RowClassFunc="@RowClassFunc"
                  Loading="@Loading"
-                 Virtualize="@Virtualize">
+                 Virtualize="@Virtualize"
+                 ChildRowRenderer="@(ChildRow is null ? null : ChildRowFor)">
         <Columns>
             @ChildContent
         </Columns>
@@ -140,4 +141,42 @@
     [Parameter] public Func<T, int, string>? RowClassFunc { get; set; }
 
     [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// What opens under a row, across it: null for a row with nothing under it, which then
+    /// draws no row at all.
+    ///
+    /// The Board opened a game's snippet inside its matchup cell, so a book list was as wide as
+    /// that one column and wrapped every team name. A row of its own spans the table instead.
+    /// It is MudDataGrid's <c>ChildRowRenderer</c>, which draws the whole <c>&lt;tr&gt;</c>, rather
+    /// than <c>ChildRowContent</c>, which draws one cell spanning every column for every row
+    /// (or, with a <c>HierarchyColumn</c>, only those its expander opened): the Board's open row
+    /// is its own state, not an expander's, and the content has to start under a column of the
+    /// caller's choosing.
+    /// </summary>
+    [Parameter] public Func<T, RenderFragment?>? ChildRow { get; set; }
+
+    /// <summary>
+    /// How many leading columns the child row leaves empty, so its content starts at the next
+    /// column's leading edge whatever width those take. The Board passes 1: its snippet lines up
+    /// with the matchup, not with the start time.
+    /// </summary>
+    [Parameter] public int ChildRowIndent { get; set; }
+
+    // Not a MudBlazor row: it takes no row click and no row hover, and holds whatever the
+    // caller opened; its cells take the grid's cell class for the same padding and hairline.
+    // colspan 1000 is HTML's ceiling and MudDataGrid's own idiom for "the rest".
+    private RenderFragment<CellContext<T>> ChildRowFor => context => __builder =>
+    {
+        if (ChildRow?.Invoke(context.Item) is not { } content)
+            return;
+
+        <tr class="deskgrid__child">
+            @if (ChildRowIndent > 0)
+            {
+                <td class="mud-table-cell deskgrid__child-lead" colspan="@ChildRowIndent"></td>
+            }
+            <td class="mud-table-cell deskgrid__child-cell" colspan="1000">@content</td>
+        </tr>
+    };
 }

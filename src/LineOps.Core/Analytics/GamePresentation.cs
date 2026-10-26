@@ -94,6 +94,40 @@ public enum ScoreLeader
 }
 
 /// <summary>
+/// A team as a dense row names it: by its nickname, <c>Steelers</c> rather than
+/// <c>Pittsburgh Steelers</c>.
+///
+/// <para>
+/// The Teams table holds the full name and ESPN's abbreviation and no nickname, and the
+/// abbreviation is a code rather than a name. So the nickname is derived: the last word of the
+/// name, except for the clubs whose nickname is two words. The city is what a reader can do
+/// without on a slate where the mark beside the name already says which club it is.
+/// </para>
+/// </summary>
+public static class TeamNames
+{
+    /// <summary>Nicknames of more than one word, among the MLB and NFL clubs the desk covers.</summary>
+    private static readonly string[] TwoWordNicknames = ["Red Sox", "White Sox", "Blue Jays"];
+
+    public static string Short(Team? team, string fallback)
+    {
+        var name = team?.Name.Trim() ?? string.Empty;
+
+        if (name.Length == 0)
+            return fallback;
+
+        foreach (var nickname in TwoWordNicknames)
+        {
+            if (name.EndsWith(nickname, StringComparison.OrdinalIgnoreCase))
+                return name[^nickname.Length..];
+        }
+
+        var space = name.LastIndexOf(' ');
+        return space < 0 ? name : name[(space + 1)..];
+    }
+}
+
+/// <summary>
 /// Where a price on screen came from, said in the reader's terms.
 ///
 /// <para>

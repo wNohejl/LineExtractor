@@ -196,6 +196,8 @@ else
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
+              ChildRow="@(_snippet is null ? null : r => _open?.Game.Id == r.Game.Id ? _snippet : null)"
+              ChildRowIndent="1"
               EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
         <TemplateColumn T="BoardRow" Sortable="true" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
@@ -215,15 +217,30 @@ else
             They belong on the row rather than in a menu or a detail pane — the operator has
             just decided *this game* is interesting and the next move should be one press away.
             Putting them in the widest column means no dead width for the rows that are closed,
-            and only the open row changes height.
+            and only the open row changes height. The snippet a key opens is not drawn here: the
+            strip hands it to the board, which draws it in a row of its own under the game,
+            starting at this column's edge, so a book list spans the row rather than wrapping
+            every team name inside this one column.
+
+            The matchup is two lines, away over home, each the club's mark and its nickname.
+            As one sentence it was "Pittsburgh Steelers at New Orleans Saints", truncated to
+            "Pittsburgh Steelers a…" at the board's width, with both marks stacked before it
+            and nothing to say which was whose. The full names stay on the link's tooltip, and
+            a hidden "at" keeps the link reading "Steelers at Saints". When a game is final the
+            loser's name drops to secondary ink, as its score does beside it.
         *@
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
-                @* The two clubs' marks, away then home in the order the matchup names them. *@
-                <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />
-                <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />
-                <DeskLink Destination="game" OnClick="() => Manager.OpenGame(context.Item.Game)">
-                    @Matchup(context.Item.Game)
+                @{ var leader = FinalLeader(context.Item.Game); }
+                <DeskLink Destination="game" Class="board__matchup" Tooltip="@Matchup(context.Item.Game)"
+                          OnClick="() => Manager.OpenGame(context.Item.Game)">
+                    <span class="board__team@(leader == ScoreLeader.Home ? " board__team--loser" : "")">
+                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.AwayTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.AwayTeam, "Away")
+                    </span>
+                    <span class="sr-only">@(" at ")</span>
+                    <span class="board__team@(leader == ScoreLeader.Away ? " board__team--loser" : "")">
+                        <TeamMark Sport="@context.Item.Game.Sport?.Key" Abbrev="@context.Item.Game.HomeTeam?.Abbrev" />@TeamNames.Short(context.Item.Game.HomeTeam, "Home")
+                    </span>
                 </DeskLink>
                 @if (context.Item.Game.DoubleHeaderGame is { } number)
                 {
@@ -245,7 +262,8 @@ else
                 {
                     @* Keyed by the game so moving to another row is a fresh strip rather than
                        one still showing the previous game's snippet. *@
-                    <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item)" />
+                    <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item)"
+                                SnippetHost="@((RenderFragment? snippet) => _snippet = snippet)" />
                 }
             </CellTemplate>
         </TemplateColumn>
@@ -276,8 +294,18 @@ else
 
                         @if (context.Item.HasScore)
                         {
-                            <span class="score" title="@ScoreTitle(context.Item.Game)">
-                                @Scoreline.Format(context.Item.Game)
+                            @* Two lines beside the matchup's two, away over home, so each score
+                               sits level with its team. A final's winner reads heavier than its
+                               loser, as in the Game window's scoreboard; a live or tied game keeps
+                               both at full weight, since nobody has lost. Read aloud as the
+                               sentence the lines stand for. *@
+                            var leader = FinalLeader(context.Item.Game);
+                            <span class="board__scores" title="@ScoreTitle(context.Item.Game)">
+                                <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")"
+                                      aria-hidden="true">@(context.Item.Game.AwayScore ?? 0)</span>
+                                <span class="board__score@(leader == ScoreLeader.Away ? " board__score--loser" : "")"
+                                      aria-hidden="true">@(context.Item.Game.HomeScore ?? 0)</span>
+                                <span class="sr-only">@ScoreTitle(context.Item.Game)</span>
                             </span>
                         }
                         else
@@ -427,6 +455,13 @@ else
     private readonly FollowUpLauncher _followUps = new();
     private PullMenu? _pull;
     private BoardRow? _open;
+
+    /// <summary>
+    /// The open row's snippet, which its strip hands over to be drawn under the row rather than in
+    /// the matchup cell. Cleared with the row, so reopening it never shows a stale one.
+    /// </summary>
+    private RenderFragment? _snippet;
+
     private string _sport = string.Empty;
     private BoardPhase _phase = BoardPhase.Any;
     private string _team = string.Empty;
@@ -593,6 +628,7 @@ else
 
         // A row left open under another filter would linger as a detached strip.
         _open = null;
+        _snippet = null;
         ApplyFilter();
     }
 
@@ -753,7 +789,10 @@ else
     /// board around and the actions would stop being obviously attached to a game.
     /// </summary>
     private void Toggle(BoardRow row)
-        => _open = _open?.Game.Id == row.Game.Id ? null : row;
+    {
+        _open = _open?.Game.Id == row.Game.Id ? null : row;
+        _snippet = null;
+    }
 
     private static DeskState StatusState(GameStatus status) => status switch
     {
@@ -763,7 +802,7 @@ else
         _ => DeskState.Info
     };
 
-    /// <summary>Short, because the value beside it is a scoreline and the row is one line tall.</summary>
+    /// <summary>Short, because it sits in a narrow column beside the two lines of the score.</summary>
     private static string StatusWord(GameStatus status) => status switch
     {
         GameStatus.Live => "LIVE",
@@ -779,7 +818,14 @@ else
     private static string MissingScoreHint(GameStatus status)
         => status == GameStatus.Postponed ? "not played" : "no score yet";
 
-    /// <summary>The abbreviated score spelled out, for anyone who does not know the marks.</summary>
+    /// <summary>
+    /// Who leads a finished game, so its loser can read lighter; Level or None for a game that
+    /// is live, tied or unscored, where both sides keep full weight.
+    /// </summary>
+    private static ScoreLeader FinalLeader(Game game)
+        => game.Status == GameStatus.Final ? Scoreline.Leader(game) : ScoreLeader.None;
+
+    /// <summary>The score spelled out with full names: the cell's tooltip, and what it reads aloud.</summary>
     private static string ScoreTitle(Game game)
         => $"{game.AwayTeam?.Name ?? "Away"} {game.AwayScore ?? 0} — "
            + $"{game.HomeTeam?.Name ?? "Home"} {game.HomeScore ?? 0}";

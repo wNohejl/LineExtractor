@@ -141,6 +141,30 @@ public class GamePresentationTests
         Assert.Equal("AWY", Scoreline.Abbrev(null, "AWY"));
     }
 
+    [Theory]
+    [InlineData("Pittsburgh Steelers", "Steelers")]
+    [InlineData("New Orleans Saints", "Saints")]
+    [InlineData("Los Angeles Dodgers", "Dodgers")]
+    [InlineData("Boston Red Sox", "Red Sox")]
+    [InlineData("Chicago White Sox", "White Sox")]
+    [InlineData("Toronto Blue Jays", "Blue Jays")]
+    [InlineData("Athletics", "Athletics")]
+    [InlineData("  Kansas City Chiefs ", "Chiefs")]
+    public void ATeamReadsByItsNickname(string name, string expected)
+    {
+        // The board's matchup cell is two short lines, a team on each, where "Pittsburgh
+        // Steelers at New Orleans Saints" truncated to "Pittsburgh Steelers a…". The nickname is
+        // the last word, except for the clubs whose nickname is two.
+        Assert.Equal(expected, TeamNames.Short(new Team { Name = name }, "Away"));
+    }
+
+    [Fact]
+    public void ANamelessTeamReadsAsItsFallback()
+    {
+        Assert.Equal("Away", TeamNames.Short(null, "Away"));
+        Assert.Equal("Home", TeamNames.Short(new Team { Name = " " }, "Home"));
+    }
+
     [Fact]
     public void AClosingPriceSaysWhatItIsAndHowEarlyItWasTaken()
     {

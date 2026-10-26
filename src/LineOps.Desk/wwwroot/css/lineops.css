@@ -2213,11 +2213,25 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     white-space: nowrap;
 }
 
-.score {
-    font-variant-numeric: tabular-nums;
+/* Two lines, away over home, level with the two lines of the matchup beside it (the board's
+   cells are top-aligned for this). Weight and ink say who won, not hue: a final's winner is
+   semibold primary and its loser regular secondary, as in the Game window's scoreboard; a live
+   or tied game keeps both at full weight. */
+.board__scores {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
     font-size: var(--text-body);
-    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
 }
+.board__score { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.board__score--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
+
+/* The matchup: a club per line, mark then nickname, inside the game link. A final's loser
+   drops to secondary ink to match its score; the names keep the cell's regular weight, so the
+   figures carry the contrast. */
+.board__team { display: block; }
+.board__team--loser { color: var(--text-secondary); }
 
 /* A result the stats pass has not reached yet. Tertiary is right here: it is a
    hint about the feed, not a value anybody has to read. */
@@ -3536,6 +3550,11 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    commands after it (keys that open a window), so the two read as different kinds of thing. */
 .rowacts__gap { flex: none; width: var(--space-2); }
 
+/* A snippet its strip handed to the host — on the Board, the row under the game. It spans
+   that row from the matchup's edge, up to a measure a book list can be read across. */
+.rowacts__snippet { max-width: 720px; }
+.rowacts__snippet > .snippet { margin: 0; }
+
 /* The button whose snippet is showing. Held down rather than merely highlighted,
    because it is a state the operator is in, not a hover. It reads as selected
    rather than as its own colour, so it borrows the tinted wash instead of a tone. */
@@ -3845,6 +3864,17 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     white-space: nowrap;
 }
 
+/* Cells start at the top. The matchup is two lines, away over home, and the score beside it
+   is two lines that must sit level with them; centred, they parted whenever the matchup cell
+   grew by a probables line, a reason the row has no price, or the open row's strip. Every
+   other cell starts on the away line too, so a tall row reads from its first line down.
+
+   Row height: the matchup's two 20px lines (and the game link's 1px rule under them) make a
+   row with no prices about 50px where it was 29px. A priced row barely moves, since a price
+   cell's stack (odds, rail, edge) already stood about as tall. Estimated from the boxes here,
+   not measured in a browser. */
+.deskgrid--board td { vertical-align: top; }
+
 /* The one column that grows. It also carries the open row's actions, so the
    space is not merely absorbed — it is used. */
 .deskgrid--board th:nth-child(2),
@@ -3852,6 +3882,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     width: auto;
     white-space: normal;
 }
+
+/* The open row's snippet, in a row of its own beneath it (DeskGrid's child row). Its cell
+   starts under the matchup, the lead cell holding the start time's column, and it wraps rather
+   than widening the table. It keeps the open row's wash, so the row and what it opened read as
+   one selection rather than as the next game along. */
+.deskgrid--board .deskgrid__child-cell { width: auto; white-space: normal; }
+.deskgrid--board .deskgrid__child > td { background: var(--accent-wash); }
 
 /* Each market is two columns that belong together — home and away, over and
    under. Extra space before the first of each pair groups them, so the eye reads

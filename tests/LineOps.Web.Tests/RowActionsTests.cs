@@ -346,4 +346,82 @@ public class RowActionsTests : DeskTestContext
             first.Find("[role=region]").GetAttribute("id"),
             second.Find("[role=region]").GetAttribute("id"));
     }
+
+    /// <summary>
+    /// The Game window's player rows give no host: the snippet opens inside the strip, as it
+    /// always has.
+    /// </summary>
+    [Fact]
+    public void Without_a_host_the_snippet_opens_in_the_strip()
+    {
+        var cut = Strip([Snippet("h2h", "Head to head")]);
+
+        cut.Find(".rowacts__keys button").Click();
+
+        Assert.Contains("h2h snippet", cut.Find(".rowacts [role=region]").TextContent);
+        Assert.Empty(cut.FindAll(".rowacts__snippet"));
+    }
+
+    private IRenderedComponent<RowActions> HostedStrip(IReadOnlyList<RowAction> actions, List<RenderFragment?> handed)
+        => RenderComponent<RowActions>(p => p
+            .Add(x => x.Actions, actions)
+            .Add(x => x.SnippetHost, (RenderFragment? f) => handed.Add(f)));
+
+    /// <summary>
+    /// The Board hosts the snippet in a row of its own under the game, so it spans the row
+    /// instead of wrapping every team name inside the matchup column. The keys stay put.
+    /// </summary>
+    [Fact]
+    public void With_a_host_the_snippet_is_handed_out_rather_than_drawn_in_the_strip()
+    {
+        var handed = new List<RenderFragment?>();
+        var cut = HostedStrip([Snippet("odds", "Odds"), Snippet("h2h", "Head to head")], handed);
+
+        cut.FindAll(".rowacts__keys [role=radio]")[1].Click();
+
+        Assert.Empty(cut.FindAll("[role=region]"));
+        Assert.NotNull(handed[^1]);
+
+        var hosted = Render(handed[^1]!);
+        var region = hosted.Find(".rowacts__snippet [role=region]");
+        Assert.Contains("h2h snippet", region.TextContent);
+
+        // Still the region the segmented control points at.
+        Assert.Equal(region.GetAttribute("id"),
+            cut.Find(".rowacts__keys [role=radiogroup]").GetAttribute("aria-controls"));
+    }
+
+    [Fact]
+    public void Closing_a_hosted_snippet_hands_the_host_nothing()
+    {
+        var handed = new List<RenderFragment?>();
+        var cut = HostedStrip([Snippet("h2h", "Head to head")], handed);
+
+        cut.Find(".rowacts__keys button").Click();
+        Assert.NotNull(handed[^1]);
+
+        cut.Find(".rowacts__keys button").Click();
+        Assert.Null(handed[^1]);
+        Assert.Equal("false", cut.Find(".rowacts__keys button").GetAttribute("aria-pressed"));
+    }
+
+    /// <summary>
+    /// Escape closes a snippet wherever it is drawn: pressed inside the hosted one, it reaches
+    /// the strip that owns it, and a click there stays out of the grid row's own click.
+    /// </summary>
+    [Fact]
+    public void Escape_inside_a_hosted_snippet_closes_it()
+    {
+        var handed = new List<RenderFragment?>();
+        var cut = HostedStrip([Snippet("odds", "Odds"), Snippet("h2h", "Head to head")], handed);
+
+        cut.FindAll(".rowacts__keys [role=radio]")[0].Click();
+        var hosted = Render(handed[^1]!);
+
+        hosted.Find(".rowacts__snippet").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Null(handed[^1]);
+        Assert.All(cut.FindAll(".rowacts__keys [role=radio]"),
+            v => Assert.Equal("false", v.GetAttribute("aria-checked")));
+    }
 }

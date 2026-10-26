@@ -45,7 +45,7 @@
                         Label="Inline view"
                         Size="DeskKeySize.Small"
                         Value="_open"
-                        ValueChanged="@((string key) => _open = key)"
+                        ValueChanged="@((string key) => ChooseAsync(key))"
                         aria-controls="@(_open is null ? null : SnippetId)" />
         }
         else if (_views.Count == 1)
@@ -61,7 +61,7 @@
                         Role="@view.Role"
                         Icon="@view.Icon"
                         Class="@(isOpen ? "desk-btn--on" : null)"
-                        OnClick="@(() => _open = isOpen ? null : view.Key)"
+                        OnClick="@(() => ChooseAsync(isOpen ? null : view.Key))"
                         aria-pressed="@(isOpen ? "true" : "false")"
                         aria-expanded="@(isOpen ? "true" : "false")"
                         aria-controls="@SnippetId">
@@ -89,20 +89,23 @@
         }
     </div>
 
-    @if (Selected is { Snippet: not null } open)
+    @if (!SnippetHost.HasDelegate)
     {
-        <SnippetShell Id="@SnippetId"
-                      Title="@open.Label"
-                      Icon="@open.Icon"
-                      OpenLabel="@open.OpenLabel"
-                      OnOpen="@open.OpenWindow">
-            @open.Snippet
-        </SnippetShell>
+        @OpenSnippet
     }
 </div>
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<RowAction> Actions { get; set; } = [];
+
+    /// <summary>
+    /// Where the open snippet is drawn, when not in the strip. Given, the strip draws only its
+    /// keys and hands the snippet to the host each time it changes — null when it closes — and
+    /// the host draws it where it reads best: the Board, in a row of its own under the game, so a
+    /// book list spans the row rather than wrapping inside the matchup column. Not given (the
+    /// Game window's player rows), the snippet opens under the keys as before.
+    /// </summary>
+    [Parameter] public EventCallback<RenderFragment?> SnippetHost { get; set; }
 
     /// <summary>The action showing its snippet, or null when only the keys are up.</summary>
     private string? _open;
@@ -131,11 +134,44 @@
         _viewOptions = _views.Select(a => new DeskSwitchOption<string>(a.Key, a.Label)).ToList();
     }
 
-    private void OnKeyDown(KeyboardEventArgs e)
+    private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Escape" && _open is not null)
-            _open = null;
+            await ChooseAsync(null);
     }
+
+    /// <summary>Shows a view's snippet, or none, and tells a host that draws it.</summary>
+    private async Task ChooseAsync(string? key)
+    {
+        _open = key;
+
+        if (SnippetHost.HasDelegate)
+            await SnippetHost.InvokeAsync(Selected is { Snippet: not null } ? HostedSnippet : null);
+    }
+
+    private RenderFragment OpenSnippet => __builder =>
+    {
+        if (Selected is { Snippet: not null } open)
+        {
+            <SnippetShell Id="@SnippetId"
+                          Title="@open.Label"
+                          Icon="@open.Icon"
+                          OpenLabel="@open.OpenLabel"
+                          OnOpen="@open.OpenWindow">
+                @open.Snippet
+            </SnippetShell>
+        }
+    };
+
+    // Drawn by the host, outside the strip, so it carries the strip's own handling with it:
+    // Escape still closes it, and a press inside it still stops short of the grid row's click.
+    private RenderFragment HostedSnippet => __builder =>
+    {
+        <div class="rowacts__snippet" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
+             @onclick:stopPropagation="true">
+            @OpenSnippet
+        </div>
+    };
 
     /// <summary>A window-only action just goes.</summary>
     private static async Task OpenAsync(RowAction action)
