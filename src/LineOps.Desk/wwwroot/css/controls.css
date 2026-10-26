@@ -6,9 +6,9 @@
    them the same way it re-colours everything else.
 
    The file exists so the primitives have a home of their own rather than another
-   few hundred lines in lineops.css. DeskPopover, DeskMenu, DeskMenuItem and
-   DeskPullDown live here; the hand-built menus they replace (.railmenu__panel,
-   .pullmenu__*) still have their rules in lineops.css until those are retired.
+   few hundred lines in lineops.css. DeskPopover, DeskMenu, DeskMenuItem,
+   DeskPullDown, DeskStepper, DeskDisclosure and DeskSearch live here; the
+   hand-built menus they replaced are gone from lineops.css.
    ============================================================================= */
 
 /* ---- Popover ----------------------------------------------------------------
@@ -216,4 +216,224 @@
     margin: var(--space-1) 0;
     background: var(--separator);
     border: 0;
+}
+
+/* ---- Stepper ----------------------------------------------------------------
+   One control, not two keys: a single capsule in the resting-control fill with
+   one edge, two 28px-wide halves parted by a hairline. It is the field's height,
+   so the pair lines up in a row; it never shows the value — the field beside it
+   does. A half at its bound is disabled and stays drawn, dimmed, so the capsule
+   keeps its shape at either end of the range.
+   --------------------------------------------------------------------------- */
+
+.stepper {
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 28px;
+    box-sizing: border-box;
+    background: var(--surface-2);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius);
+}
+
+.stepper__half {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background: transparent;
+    border: 0;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+/* Each half rounds only its outer corners, so the hairline between them runs
+   straight from edge to edge. */
+.stepper__half:first-child {
+    border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.stepper__half + .stepper__half {
+    border-left: 1px solid var(--separator);
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.stepper__half svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+}
+
+.stepper__half:hover:not(:disabled) {
+    background: var(--surface-3);
+}
+
+/* The ring sits on the half that has the keyboard, above its neighbour. */
+.stepper__half:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.stepper__half:disabled {
+    opacity: .40;
+    cursor: default;
+}
+
+/* ---- Disclosure -------------------------------------------------------------
+   The HIG's disclosure triangle: on the leading edge, pointing at the label while
+   the details are hidden and turning down once they show. The state is read off
+   the summary's aria-expanded rather than the details' open attribute, so a
+   closed disclosure inside an open one keeps its own triangle. The details indent
+   to the label's leading edge — the triangle's width and the gap after it.
+   --------------------------------------------------------------------------- */
+
+.disclosure {
+    min-width: 0;
+}
+
+.disclosure__summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 28px;
+    list-style: none;
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.disclosure__summary::-webkit-details-marker {
+    display: none;
+}
+
+.disclosure__summary:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* A 12px box; the glyph is drawn larger and centred in it, because Material's
+   triangle fills only the middle of its 24px frame. */
+.disclosure__triangle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    color: var(--text-secondary);
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.disclosure__triangle svg {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
+.disclosure__summary[aria-expanded="true"] .disclosure__triangle {
+    transform: rotate(90deg);
+}
+
+.disclosure__label {
+    min-width: 0;
+}
+
+.disclosure__content {
+    padding-left: calc(12px + var(--space-2));
+}
+
+/* The state still shows — the triangle points down — it just does not turn. */
+@media (prefers-reduced-motion: reduce) {
+    .disclosure__triangle { transition: none; }
+}
+
+/* ---- Search -----------------------------------------------------------------
+   The desk's field well (.field supplies the fill, edge, height and focus ring)
+   with room made at each end: the magnifier leads in secondary ink, and a 24px
+   clear key trails once there is text. The browser's own cancel button and
+   search styling are put away, so there is one clear key, drawn the desk's way.
+   --------------------------------------------------------------------------- */
+
+.search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+/* In a toolbar it takes the room a plain field would. */
+.ptoolbar > .search {
+    flex: 1 1 160px;
+    min-width: min(150px, 100%);
+}
+
+.search__field {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-left: calc(var(--space-2) + 15px + var(--space-2));
+    padding-right: calc(24px + var(--space-1));
+}
+
+.search__field::-webkit-search-cancel-button,
+.search__field::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.search__glyph {
+    position: absolute;
+    top: 50%;
+    left: var(--space-2);
+    display: inline-flex;
+    color: var(--text-secondary);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.search__glyph svg {
+    width: 15px;
+    height: 15px;
+}
+
+.search__clear {
+    position: absolute;
+    top: 50%;
+    right: calc((28px - 24px) / 2); /* centred in the 28px well, top to bottom and from the end */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.search__clear:hover {
+    color: var(--text-primary);
+}
+
+.search__clear:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+.search__clear svg {
+    width: 14px;
+    height: 14px;
 }

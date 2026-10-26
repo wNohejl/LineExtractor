@@ -74,7 +74,7 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.Equal(12, Manager.Settings.MaxConcurrentWindows);
 
         // The stepper beside it nudges by one.
-        cut.Find("button[aria-label='One fewer window']").Click();
+        cut.Find("button[aria-label='Concurrent windows: one fewer']").Click();
         Assert.Equal(11, Manager.Settings.MaxConcurrentWindows);
         Assert.Equal("11", cut.Find("input[aria-label='Concurrent windows']").GetAttribute("value"));
 
@@ -125,12 +125,29 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.Contains("until you reset the widths.", cut.Markup);
     }
 
+    /// <summary>
+    /// The nudge is one stepper beside the field — a capsule of two halves — not two loose
+    /// keys with a gap between them, and a half that would cross a bound is off.
+    /// </summary>
     [Fact]
-    public void The_window_count_stepper_keys_are_square_icon_keys()
+    public void The_window_count_stepper_is_one_capsule_beside_the_field()
     {
+        Manager.UpdateSettings(s => s.MaxConcurrentWindows = 12);
+
         var cut = RenderComponent<WindowManagerPanel>();
 
-        Assert.Contains("desk-btn--icon", cut.Find("button[aria-label='One fewer window']").GetAttribute("class"));
-        Assert.Contains("desk-btn--icon", cut.Find("button[aria-label='One more window']").GetAttribute("class"));
+        var stepper = cut.Find(".stepper");
+        Assert.Equal("Concurrent windows", stepper.GetAttribute("aria-label"));
+        Assert.Equal("INPUT", stepper.PreviousElementSibling!.TagName);
+        Assert.Empty(cut.FindAll("button[aria-label='One fewer window'], button[aria-label='One more window']"));
+
+        Assert.True(cut.Find("button[aria-label='Concurrent windows: one more']").HasAttribute("disabled"));
+
+        cut.Find("button[aria-label='Concurrent windows: one fewer']").Click();
+        Assert.Equal(11, Manager.Settings.MaxConcurrentWindows);
+        Assert.False(cut.Find("button[aria-label='Concurrent windows: one more']").HasAttribute("disabled"));
+
+        cut.Find("button[aria-label='Concurrent windows: one more']").Click();
+        Assert.Equal(12, Manager.Settings.MaxConcurrentWindows);
     }
 }

@@ -17,11 +17,11 @@
 }
 else
 {
-    <details class="runbook" open="@Open">
-        <summary class="runbook__summary">
-            <Glyph Icon="@Icons.Material.Filled.MenuBook" /> Runbook — @_entry.Heading
-        </summary>
-
+    @* A disclosure triangle in place of the hidden marker and the static book glyph, so the
+       section says whether it is open; the owner's Open still moves it when the incident is
+       resolved. *@
+    <DeskDisclosure Class="runbook" SummaryClass="runbook__summary" Open="Open"
+                    Label="@($"Runbook — {_entry.Heading}")">
         <div class="runbook__body">
             @foreach (var line in _lines)
             {
@@ -35,7 +35,7 @@ else
                 }
             }
         </div>
-    </details>
+    </DeskDisclosure>
 }
 
 @code {

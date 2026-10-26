@@ -23,8 +23,7 @@
 
         @* Filters as you type, after a pause: two queries per keystroke was a query storm for
            anyone typing a whole name. A player's team works too — "judge nyy". *@
-        <DeskField TValue="string" Immediate="true"
-                   placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
+        <DeskSearch Placeholder="Search players, or player and team" Value="_search" ValueChanged="OnSearchChanged" />
     </ChildContent>
 
 </PanelToolbar>

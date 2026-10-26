@@ -1,0 +1,74 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Windowing
+
+@*
+    A stepper: one control of two halves that nudges a value by a step.
+
+    The desk drew this as two separate Plain keys with a row gap between them, which reads as
+    two commands rather than one control. The HIG's stepper is a single capsule — one fill, one
+    edge, a hairline between the halves — and it always sits beside a field that shows the
+    value, so this one never shows the value itself: the field is where the number is read and
+    where a large change is typed, the stepper is for the nudge of one.
+
+    A half that would cross a bound is disabled rather than left pressable and inert, and stays
+    visible dimmed, so the capsule keeps its shape at either end of the range. The step that
+    would overshoot a bound lands on the bound instead.
+
+    The halves are plain buttons rather than DeskButtons: a DeskButton is a whole key with its
+    own edge and radius, and two of them side by side is exactly the shape this replaces.
+*@
+
+<div class="stepper @DeskLayout.ExtraClass(Extra) @Class"
+     style="@DeskLayout.MergeStyle(null, Extra)"
+     role="group"
+     aria-label="@Label"
+     @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <button type="button"
+            class="stepper__half"
+            aria-label="@($"{Label}: one fewer")"
+            title="@($"{Label}: one fewer")"
+            disabled="@(Disabled || Value <= Min)"
+            @onclick="() => SetAsync(Value - Step)">
+        <Glyph Icon="@Icons.Material.Filled.Remove" />
+    </button>
+    <button type="button"
+            class="stepper__half"
+            aria-label="@($"{Label}: one more")"
+            title="@($"{Label}: one more")"
+            disabled="@(Disabled || Value >= Max)"
+            @onclick="() => SetAsync(Value + Step)">
+        <Glyph Icon="@Icons.Material.Filled.Add" />
+    </button>
+</div>
+
+@code {
+    /// <summary>The value the field beside it shows.</summary>
+    [Parameter] public int Value { get; set; }
+
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+
+    /// <summary>The lowest value; the "one fewer" half is disabled here.</summary>
+    [Parameter] public int Min { get; set; }
+
+    /// <summary>The highest value; the "one more" half is disabled here.</summary>
+    [Parameter] public int Max { get; set; } = int.MaxValue;
+
+    /// <summary>How far one press moves the value.</summary>
+    [Parameter] public int Step { get; set; } = 1;
+
+    /// <summary>
+    /// What is being counted, in sentence case — "Concurrent windows". It names the group and
+    /// each half: "Concurrent windows: one fewer".
+    /// </summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private Task SetAsync(int value) => ValueChanged.InvokeAsync(Math.Clamp(value, Min, Math.Max(Min, Max)));
+}

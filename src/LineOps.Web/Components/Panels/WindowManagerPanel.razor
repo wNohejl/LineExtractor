@@ -172,11 +172,9 @@
     <DeskField TValue="int?" Mono="true" Class="field--count" type="number"
                min="@MinWindows" max="@MaxWindows" aria-label="Concurrent windows"
                Value="S.MaxConcurrentWindows" ValueChanged="@((int? n) => SetMax(n))" />
-    @* Icon keys, so they take the square shape rather than a label-width key with a glyph in it. *@
-    <DeskButton Icon="@Icons.Material.Filled.Remove" Title="One fewer window" aria-label="One fewer window"
-                OnClick="() => AdjustMax(-1)" Disabled="@(S.MaxConcurrentWindows <= MinWindows)" />
-    <DeskButton Icon="@Icons.Material.Filled.Add" Title="One more window" aria-label="One more window"
-                OnClick="() => AdjustMax(1)" Disabled="@(S.MaxConcurrentWindows >= MaxWindows)" />
+    @* One capsule of two halves, not two loose keys; it disables the half that would cross a bound. *@
+    <DeskStepper Label="Concurrent windows" Min="MinWindows" Max="MaxWindows"
+                 Value="S.MaxConcurrentWindows" ValueChanged="@((int n) => SetMax(n))" />
     <DeskButton OnClick="MatchRecommended">
         Match this desk (@Manager.RecommendedCapacity)
     </DeskButton>
@@ -385,9 +383,6 @@ else
     // The bounds the field, the stepper and a typed value all keep to.
     private const int MinWindows = 1;
     private const int MaxWindows = 12;
-
-    private void AdjustMax(int delta) => Manager.UpdateSettings(s =>
-        s.MaxConcurrentWindows = Math.Clamp(s.MaxConcurrentWindows + delta, MinWindows, MaxWindows));
 
     /// <summary>
     /// A typed count, held to the same bounds. A cleared field is not a request for zero

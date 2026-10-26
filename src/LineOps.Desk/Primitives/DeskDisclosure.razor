@@ -1,0 +1,94 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Windowing
+
+@*
+    A disclosure: details hidden behind a label until they are wanted.
+
+    The desk improvised this three ways — a <details> with its marker hidden and a book glyph
+    in its place, so the runbook never said whether it was open; Team log rows with a trailing
+    chevron that flips up and down, which is the HIG's disclosure *button* idiom on rows that
+    want a triangle; and DeskStep's folded summary. The HIG's disclosure triangle is the one
+    shape for all of them: on the leading edge, pointing at the label while the details are
+    hidden and turning down once they show, beside a label that says what is inside.
+
+    It is still a <details>, so it reads as one without a script. The summary's press is taken
+    by the component rather than left to the browser, so the open state lives in one place —
+    the `open` attribute, `aria-expanded` and the triangle all follow it — and an owner that
+    binds Open hears every change. Enter and Space on the summary arrive as that same press.
+
+    The details indent to the label's leading edge, not the triangle's, so the label and what
+    it discloses read as one column.
+*@
+
+<details class="disclosure @DeskLayout.ExtraClass(Extra) @Class"
+         style="@DeskLayout.MergeStyle(null, Extra)"
+         open="@_open"
+         @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <summary class="disclosure__summary @SummaryClass"
+             aria-expanded="@(_open ? "true" : "false")"
+             @onclick="ToggleAsync"
+             @onclick:preventDefault="true">
+        <span class="disclosure__triangle" aria-hidden="true">
+            <Glyph Icon="@Icons.Material.Filled.ArrowRight" />
+        </span>
+        <span class="disclosure__label">@if (Summary is not null) { @Summary } else { @Label }</span>
+    </summary>
+
+    @if (_open)
+    {
+        <div class="disclosure__content">
+            @ChildContent
+        </div>
+    }
+</details>
+
+@code {
+    /// <summary>
+    /// Whether the details are showing. Bind it with <c>OpenChanged</c> to own the state;
+    /// unbound, it is where the disclosure starts, and a later change from the owner still
+    /// moves it.
+    /// </summary>
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>What is inside, in sentence case — "Runbook — Odds are stale".</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>A label with markup in it, in place of <see cref="Label"/>.</summary>
+    [Parameter] public RenderFragment? Summary { get; set; }
+
+    /// <summary>The details. Rendered only while open.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Extra classes for the summary row, for an owner whose row carries its own padding or
+    /// type — the runbook's summary sits inside a filled card.
+    /// </summary>
+    [Parameter] public string? SummaryClass { get; set; }
+
+    /// <summary>Extra classes on the <c>details</c>, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private bool _open;
+    private bool? _lastOpen;
+
+    // Bound, the owner's value wins on every render; unbound, the disclosure's own state
+    // stands until the owner passes a different Open than it last did.
+    protected override void OnParametersSet()
+    {
+        if (OpenChanged.HasDelegate || _lastOpen != Open)
+            _open = Open;
+
+        _lastOpen = Open;
+    }
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        await OpenChanged.InvokeAsync(_open);
+    }
+}

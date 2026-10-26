@@ -1,0 +1,131 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Windowing
+
+@*
+    A search field.
+
+    The desk's filters were plain fields with a placeholder — no glyph to say they search, no
+    way to empty them but selecting and deleting. The HIG's search field carries three things a
+    plain field does not: a leading magnifier, a clear key that appears once there is something
+    to clear, and placeholder text that names what can be found ("Search players"), so the
+    field says its scope before anyone types.
+
+    It is a `search` landmark around a `searchbox`, so a screen reader can jump to it, and the
+    box is the desk's own field well (.field) with room made at either end for the glyph and the
+    key — not a second recipe for what a field looks like. The browser's own cancel button is
+    hidden in controls.css: one clear key, drawn the desk's way.
+
+    Escape clears, as it does in every search field on the platform. When it does, the key
+    stops there, so emptying a search does not also close the floating window it sits in; on an
+    empty field Escape is left to go on to the window.
+
+    Searching happens as people type (HIG), so Immediate defaults on. The owner debounces —
+    the roster finder waits a quarter second before querying — because only the owner knows
+    what a keystroke costs.
+*@
+
+<div class="search @DeskLayout.ExtraClass(Extra) @Class"
+     style="@DeskLayout.MergeStyle(null, Extra)"
+     role="search"
+     @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <span class="search__glyph" aria-hidden="true">
+        <Glyph Icon="@Icons.Material.Filled.Search" />
+    </span>
+
+    <input @ref="_input"
+           type="search"
+           role="searchbox"
+           class="field search__field"
+           placeholder="@Placeholder"
+           aria-label="@(Label ?? Placeholder)"
+           autocomplete="off"
+           spellcheck="false"
+           value="@_text"
+           @oninput="OnInputAsync"
+           @onchange="OnChangeAsync"
+           @onkeydown="OnKeyDownAsync"
+           @onkeydown:stopPropagation="@HasText" />
+
+    @if (HasText)
+    {
+        <button type="button"
+                class="search__clear"
+                aria-label="Clear search"
+                title="Clear search"
+                @onclick="ClearFromKeyAsync">
+            <Glyph Icon="@Icons.Material.Filled.Cancel" />
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>The search text. Use <c>@bind-Value</c>.</summary>
+    [Parameter] public string? Value { get; set; }
+
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>What can be found, in sentence case — "Search players". It is also the name.</summary>
+    [Parameter, EditorRequired] public string Placeholder { get; set; } = string.Empty;
+
+    /// <summary>The accessible name, when it should say more than the placeholder.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>
+    /// Commit on every keystroke (the default: search as people type) rather than on blur.
+    /// </summary>
+    [Parameter] public bool Immediate { get; set; } = true;
+
+    /// <summary>Extra classes on the search wrapper, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private ElementReference _input;
+    private string _text = string.Empty;
+    private string? _lastValue;
+    private bool _seeded;
+
+    private bool HasText => _text.Length > 0;
+
+    // The owner's value is adopted only when it changes. An owner that debounces hands back
+    // the same stale value on every render while someone types, and that must not undo what
+    // they have typed since.
+    protected override void OnParametersSet()
+    {
+        if (!_seeded || Value != _lastValue)
+            _text = Value ?? string.Empty;
+
+        _lastValue = Value;
+        _seeded = true;
+    }
+
+    private Task OnInputAsync(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? string.Empty;
+        return Immediate ? ValueChanged.InvokeAsync(_text) : Task.CompletedTask;
+    }
+
+    private Task OnChangeAsync(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? string.Empty;
+        return Immediate ? Task.CompletedTask : ValueChanged.InvokeAsync(_text);
+    }
+
+    private Task OnKeyDownAsync(KeyboardEventArgs e)
+        => e.Key == "Escape" && HasText ? ClearAsync() : Task.CompletedTask;
+
+    // The key leaves the tree as the field empties, which would drop focus on the page; it
+    // goes back to the field, where the next search is typed.
+    private async Task ClearFromKeyAsync()
+    {
+        await ClearAsync();
+        await _input.FocusAsync();
+    }
+
+    private Task ClearAsync()
+    {
+        _text = string.Empty;
+        return ValueChanged.InvokeAsync(_text);
+    }
+}
