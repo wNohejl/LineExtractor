@@ -22,8 +22,14 @@
 *@
 
 @* Escape returns the row to its keys. A snippet is a thing you opened, and every other thing
-   you can open on this desk closes the same way. *@
-<div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true">
+   you can open on this desk closes the same way.
+
+   Clicks stop here too. The strip lives inside a grid row whose own click opens and closes
+   that row, so a press on Odds reached the row as well: the snippet opened and the same click
+   closed the row around it, and the key appeared to do nothing. A press inside the strip, or
+   inside the snippet it opens, belongs to the strip. *@
+<div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
+     @onclick:stopPropagation="true">
     @* Selection first, then commands, never mixed in one control (HIG: a segmented control does
        not mix selection and action segments). Which snippet is showing is one choice among a
        few, so the views are one segmented control; a key that opens a window is a command and
