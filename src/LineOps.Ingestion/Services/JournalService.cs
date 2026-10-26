@@ -22,6 +22,18 @@ public sealed record EntryDraft(
 /// <summary>A parlay as the form holds it: the money on the parlay, the selections on the legs.</summary>
 public sealed record ParlayDraft(string Book, decimal Stake, int? PriceQuoted, string? Note, IReadOnlyList<EntryDraft> Legs);
 
+/// <summary>
+/// What the Journal's edit form changes on a logged parlay: its money, its book and note, and
+/// the price taken on a leg, by the leg's id. A leg left out keeps its price. The legs'
+/// selections are not here: a different side is a different bet, and is logged as one.
+/// </summary>
+public sealed record ParlayEdit(
+    string Book,
+    decimal Stake,
+    int? PriceQuoted,
+    string? Note,
+    IReadOnlyDictionary<int, int>? LegPrices = null);
+
 /// <summary>What the Journal is showing.</summary>
 public sealed record JournalFilter(
     JournalStatus Status = JournalStatus.All,
@@ -311,6 +323,86 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Edits a logged parlay: its stake, the book's price, the book and the note, and the price
+    /// taken on any leg.
+    ///
+    /// <para>
+    /// The rule is the one an edited entry follows. A settled parlay whose money changed — the
+    /// stake, the book's price or a leg's price — or whose book changed goes back to pending,
+    /// and settlement grades it again from its legs: a win paid at the old stake is not what
+    /// the new one pays. Each leg is written as the slip wrote it, at no stake and at the
+    /// parlay's book, so a graded leg whose price or book changed is re-graded and priced
+    /// against the close again, as an edited entry is. A note alone leaves the result standing.
+    /// </para>
+    ///
+    /// <para>
+    /// A result the operator set by hand on a parlay settlement cannot grade — a leg that is a
+    /// described bet, or on no tracked game — is theirs and is kept, at the new money: a loss
+    /// still pays nothing, a push or void returns the stake, and a win is paid at the book's
+    /// price. A win with no book's price left has nothing to pay it at, so it goes back to
+    /// pending for the operator to settle again, as the Journal's Settle offers no win there.
+    /// </para>
+    /// </summary>
+    public async Task<Parlay> UpdateParlayAsync(Guid id, ParlayEdit edit, CancellationToken ct = default)
+    {
+        if (edit.Stake <= 0)
+            throw new ArgumentOutOfRangeException(nameof(edit), "A parlay's stake is above zero.");
+
+        var parlay = await db.Parlays.Include(p => p.Legs).FirstAsync(p => p.Id == id, ct);
+        var prices = edit.LegPrices ?? new Dictionary<int, int>();
+
+        if (prices.Keys.Any(legId => parlay.Legs.All(l => l.Id != legId)))
+            throw new InvalidOperationException("A leg is edited with its own parlay.");
+
+        if (prices.Values.Any(p => p is > -100 and < 100))
+            throw new ArgumentOutOfRangeException(nameof(edit), "A leg's price is −100 or lower, or +100 or higher.");
+
+        var book = Normalise(edit.Book);
+        var quoted = edit.PriceQuoted is 0 ? null : edit.PriceQuoted;
+
+        var changed = parlay.Stake != edit.Stake || parlay.PriceQuoted != quoted || parlay.Book != book;
+
+        parlay.Book = book;
+        parlay.Stake = edit.Stake;
+        parlay.PriceQuoted = quoted;
+        parlay.Note = Blank(edit.Note);
+
+        var legsRegraded = false;
+
+        foreach (var leg in parlay.Legs)
+        {
+            var price = prices.GetValueOrDefault(leg.Id, leg.PriceTaken);
+            var repriced = price != leg.PriceTaken;
+            changed |= repriced;
+
+            // A price typed here is the operator's word, not the desk's, as it is on an entry.
+            legsRegraded |= Apply(leg, new EntryDraft(
+                leg.GameId, leg.Market, leg.FreeTextMarket, leg.Outcome, leg.LineTaken,
+                price, 0m, book, leg.Note, leg.ManualPrice || repriced));
+        }
+
+        var regrade = false;
+
+        if (changed && parlay.Result != EntryResult.Pending)
+        {
+            // A result carried at the new money keeps the moment it settled; one sent back to
+            // pending loses it, and settlement stamps its own.
+            ParlayGrading.Apply(parlay,
+                parlay.Legs.All(Gradable) ? new ParlayOutcome(EntryResult.Pending, null) : CarriedByHand(parlay),
+                parlay.SettledAt);
+
+            regrade = parlay.Result == EntryResult.Pending;
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        if (regrade || legsRegraded)
+            await settlement.SettleAsync(ct);
+
+        return parlay;
+    }
+
     /// <summary>Sets a parlay's result by hand — for the one a missing price left pending.</summary>
     public async Task SetParlayResultAsync(Guid id, EntryResult result, decimal? payout, CancellationToken ct = default)
     {
@@ -397,6 +489,23 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         entry.ClosingBook = null;
         return true;
     }
+
+    /// <summary>Whether settlement can grade this entry from its game: a tracked game and a market it reads.</summary>
+    private static bool Gradable(JournalEntry entry)
+        => string.IsNullOrWhiteSpace(entry.FreeTextMarket) && entry.GameId is not null;
+
+    /// <summary>
+    /// A hand-set result carried to the parlay's new money, under the rule the Journal's Settle
+    /// menu pays by: nothing on a loss, the stake back on a push or void, the book's price on a
+    /// win — and pending again for a win with no book's price to pay it at.
+    /// </summary>
+    private static ParlayOutcome CarriedByHand(Parlay parlay) => parlay.Result switch
+    {
+        EntryResult.Loss => new(EntryResult.Loss, 0m),
+        EntryResult.Push or EntryResult.Void => new(parlay.Result, parlay.Stake),
+        EntryResult.Win when parlay.PriceQuoted is { } quoted => new(EntryResult.Win, OddsMath.PayoutOnWin(quoted, parlay.Stake)),
+        _ => new(EntryResult.Pending, null)
+    };
 
     private static string Normalise(string book) => book.Trim().ToLowerInvariant();
 

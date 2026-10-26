@@ -10,6 +10,7 @@
 @using LineOps.Web.Windowing
 @inject IWagerData Wagers
 @inject WagerSlip Slip
+@inject DeskToasts Toasts
 
 @*
     The slip is a tab of the Journal, as it is of the wager window: the bets banked this session
@@ -139,6 +140,100 @@ else
         }
         <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
                     aria-describedby="@(EntryValid(_entry, true) ? null : "save-why")">
+            Save changes
+        </DeskButton>
+    </Footer>
+    </PanelForm>
+}
+
+@if (_mode == FormMode.EditParlay && _parlay is { } edited)
+{
+    @* The entry form's grouped rows, for the parlay's money: one bet, so one stake, one book and
+       one price, and beneath them the legs it was built from. A leg's side is the bet itself and
+       is not edited here — a different side is a different parlay, logged from the slip — but
+       the price it was taken at is a number, and a mistyped one is corrected like any other. *@
+    <PanelForm Title="Edit parlay" Class="pform--grouped">
+    <ChildContent>
+
+        @if (edited.Parlay.IsGraded)
+        {
+            <Note>
+                This parlay is graded. Changing the stake, the book's price, a leg's price or the book
+                sends it back to pending, and settlement grades it again from its legs.
+            </Note>
+        }
+
+        <div class="wsections">
+            <div class="wgroup jform">
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Book</span>
+                    @BookPicker(edited.Book, SetParlayBookAsync)
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Stake</span>
+                    <StakeRow Stake="edited.Stake" StakeChanged="@(s => Edit("stake", () => edited.Stake = s))"
+                              PriceAmerican="@CombinedPrice(edited)"
+                              Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Book's price</span>
+                    @* The book's own price for the parlay, when it gave one: what a clean win pays.
+                       Without it the legs' prices are multiplied, as the slip does. *@
+                    <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                               aria-label="The book's price for the parlay" placeholder="Optional"
+                               Value="edited.PriceQuoted"
+                               ValueChanged="@((int? q) => Edit("quoted", () => edited.PriceQuoted = q))"
+                               Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Note</span>
+                    <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                               placeholder="Optional" Value="edited.Note"
+                               ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
+                </div>
+            </div>
+
+            <section class="wsection" aria-labelledby="parlay-legs-h">
+                <h4 class="wgroup__head" id="parlay-legs-h">Legs</h4>
+                <div class="wgroup jform">
+                    @foreach (var (leg, n) in edited.Parlay.Legs.OrderBy(l => l.Id).Select((l, i) => (l, i + 1)))
+                    {
+                        var field = $"leg-{leg.Id}";
+                        <div class="wgroup__row wgroup__row--form" @key="leg.Id">
+                            <span class="wgroup__label">Leg @n</span>
+                            <DeskRow Justify="DeskJustify.Between">
+                                <div>
+                                    <div>@Describe(leg)</div>
+                                    @if (leg.Game is not null)
+                                    {
+                                        <div class="meta">@MatchupWithDate(leg.Game)</div>
+                                    }
+                                </div>
+                                <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                                           aria-label="@($"Price taken on {Describe(leg)}")" placeholder="-110"
+                                           Value="@edited.LegPrices.GetValueOrDefault(leg.Id)"
+                                           ValueChanged="@((int? p) => Edit(field, () => edited.LegPrices[leg.Id] = p))"
+                                           Error="@(Touched(field) ? LegPriceError(edited.LegPrices.GetValueOrDefault(leg.Id), leg.PriceTaken) : null)" />
+                            </DeskRow>
+                        </div>
+                    }
+                </div>
+                <p class="wgroup__foot">
+                    The price each leg was taken at. Without the book's price, settlement multiplies
+                    them, and after a push it reprices the parlay on the legs that are left.
+                </p>
+            </section>
+        </div>
+
+    </ChildContent>
+    <Footer>
+        <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+        @if (ParlayWaiting(edited) is { } why)
+        {
+            <span class="meta" id="parlay-save-why">@why</span>
+        }
+        <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayChangesAsync" Disabled="@(ParlayWaiting(edited) is not null)"
+                    aria-describedby="@(ParlayWaiting(edited) is null ? null : "parlay-save-why")">
             Save changes
         </DeskButton>
     </Footer>
@@ -336,6 +431,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                             <DeskMenuItem Label="Void" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Void))" />
                         </DeskPullDown>
                     }
+                    @* The keys an entry's row carries, in its order. Duplicate puts the legs back on
+                       the slip as a parlay at the prices taken, to log again — the slip is where a
+                       parlay is logged, as the wager window is where an entry is. *@
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Edit"
+                                Title="Edit this parlay" OnClick="() => EditParlay(context.Item)" />
+                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy"
+                                Title="Duplicate this parlay on the slip" OnClick="() => DuplicateParlayAsync(context.Item)" />
                     <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
                                 Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
                 </DeskRow>
@@ -372,7 +474,29 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private const string FreeText = "__free__";
     private const int Step = 100;
 
-    private enum FormMode { None, Entry }
+    private enum FormMode { None, Entry, EditParlay }
+
+    /// <summary>
+    /// A logged parlay as the edit form holds it: the money and the book, which are the parlay's,
+    /// and the price on each leg, by the leg's id — null where the field is empty, as it opens on
+    /// a leg logged without one.
+    /// </summary>
+    private sealed class ParlayEditDraft(Parlay parlay)
+    {
+        public Parlay Parlay { get; } = parlay;
+        public string Book { get; set; } = parlay.Book;
+        public decimal Stake { get; set; } = parlay.Stake;
+        public int? PriceQuoted { get; set; } = parlay.PriceQuoted;
+        public string? Note { get; set; } = parlay.Note;
+
+        public Dictionary<int, int?> LegPrices { get; } =
+            parlay.Legs.ToDictionary(l => l.Id, l => l.PriceTaken == 0 ? (int?)null : l.PriceTaken);
+
+        /// <summary>An empty leg field sends nothing: the leg keeps the price it has, or its lack of one.</summary>
+        public ParlayEdit ToEdit() => new(
+            Book, Stake, PriceQuoted, Note,
+            LegPrices.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => p.Value!.Value));
+    }
 
     /// <summary>
     /// A straight bet as the edit form holds it. New bets are logged in the wager window; parlays
@@ -439,6 +563,10 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private Draft _entry = new();
     private JournalEntry? _editing;
 
+    // The parlay being edited, and its changes as the form opened, to tell an edit from a look.
+    private ParlayEditDraft? _parlay;
+    private ParlayEdit? _parlayOpened;
+
     private bool _busy;
     private string? _message;
 
@@ -489,6 +617,64 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         return Plain(current) != Plain(opened);
     }
 
+    /// <summary>
+    /// Whether the parlay form holds anything the journal does not, by the rule the entry form
+    /// keeps: a book differing only in case or spaces is the same book once stored, a cleared
+    /// note is the null it opened with, and the book's price of zero is no price.
+    /// </summary>
+    public static bool ParlayIsDirty(ParlayEdit current, ParlayEdit opened)
+    {
+        static string? Text(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        static IEnumerable<KeyValuePair<int, int>> Prices(ParlayEdit e)
+            => (e.LegPrices ?? new Dictionary<int, int>()).OrderBy(p => p.Key);
+
+        return !string.Equals(Text(current.Book), Text(opened.Book), StringComparison.OrdinalIgnoreCase)
+               || current.Stake != opened.Stake
+               || (current.PriceQuoted is 0 ? null : current.PriceQuoted) != (opened.PriceQuoted is 0 ? null : opened.PriceQuoted)
+               || Text(current.Note) != Text(opened.Note)
+               || !Prices(current).SequenceEqual(Prices(opened));
+    }
+
+    /// <summary>
+    /// A leg's price field: a typed number is held to what a price is, and an emptied field on a
+    /// leg that had a price asks for it back — clearing it would leave the parlay a price short
+    /// to reprice on, which is not a correction. A leg logged without one may stay without.
+    /// </summary>
+    private static string? LegPriceError(int? typed, int logged)
+        => typed is { } price ? PriceError(price)
+            : logged != 0 ? "Enter the price this leg was taken at."
+            : null;
+
+    /// <summary>
+    /// What the parlay pays at, for the stake row's Returns: the book's price where it gave a
+    /// real one, otherwise the legs' prices multiplied, as the slip reads it. None where a leg has
+    /// no price, or for legs on one game, which win and lose together and do not multiply.
+    /// </summary>
+    private static int? CombinedPrice(ParlayEditDraft d)
+    {
+        if (d.PriceQuoted is { } quoted)
+            return PriceError(quoted) is null ? quoted : null;
+
+        var legs = d.Parlay.Legs;
+        if (legs.Count < 2 || legs.Where(l => l.GameId is not null).GroupBy(l => l.GameId).Any(g => g.Count() > 1))
+            return null;
+
+        var prices = legs.Select(l => d.LegPrices.GetValueOrDefault(l.Id)).ToList();
+        return prices.All(p => p is { } price && PriceError(price) is null)
+            ? OddsMath.CombinedAmerican(prices.Select(p => p!.Value))
+            : null;
+    }
+
+    /// <summary>What Save is waiting for, said beside it; null when the form can be saved.</summary>
+    private static string? ParlayWaiting(ParlayEditDraft d)
+        => StakeError(d.Stake) is not null ? "Needs a stake above zero."
+            : string.IsNullOrWhiteSpace(d.Book) ? "Needs the book the parlay was placed at."
+            : d.PriceQuoted is { } quoted && PriceError(quoted) is not null ? "The book's price is −100 or lower, or +100 or higher."
+            : d.Parlay.Legs.Any(l => LegPriceError(d.LegPrices.GetValueOrDefault(l.Id), l.PriceTaken) is not null)
+                ? "Each leg needs the price it was taken at, −100 or lower or +100 or higher."
+            : null;
+
     // A total's two sides as the grader reads them, lower-case.
     private static readonly IReadOnlyList<DeskSwitchOption<string>> TotalSides =
     [
@@ -526,6 +712,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
         if (_opened is not null)
             MarkUnsaved(EntryIsDirty(_entry.ToDraft(), _opened), "this journal entry");
+        else if (_parlay is not null && _parlayOpened is not null)
+            MarkUnsaved(ParlayIsDirty(_parlay.ToEdit(), _parlayOpened), "this parlay");
     }
 
     protected override async Task OnInitializedAsync()
@@ -549,9 +737,6 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
     private async Task ReadAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
-
         var filter = new JournalFilter(
             _status,
             _sport,
@@ -559,15 +744,51 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days),
             _take);
 
-        _entries = (await journal.EntriesAsync(filter)).ToList();
-        _parlays = (await journal.ParlaysAsync(filter)).ToList();
-        _books = (await journal.KnownBooksAsync()).ToList();
+        var read = await FetchAsync(filter);
+
+        _entries = read.Entries.ToList();
+        _parlays = read.Parlays.ToList();
+        _books = read.Books.ToList();
+        _sports = read.Sports.ToList();
+        _pending = read.Pending;
+    }
+
+    /// <summary>Everything one load of the Journal shows: the rows under the filter, and the lists its pickers offer.</summary>
+    protected sealed record JournalRead(
+        IReadOnlyList<JournalEntry> Entries,
+        IReadOnlyList<Parlay> Parlays,
+        IReadOnlyList<string> Books,
+        IReadOnlyList<string> Sports,
+        int Pending);
+
+    /// <summary>
+    /// The Journal's one read of the database. Virtual so a render test can hand the panel a
+    /// journal: the test project has no database, and a row's keys are only drawn on a row
+    /// that loaded.
+    /// </summary>
+    protected virtual async Task<JournalRead> FetchAsync(JournalFilter filter)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
+
+        var entries = await journal.EntriesAsync(filter);
+        var parlays = await journal.ParlaysAsync(filter);
+        var books = await journal.KnownBooksAsync();
 
         await using var db = await DbFactory.CreateDbContextAsync();
-        _sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync();
+        var sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync();
 
-        _pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
-                   + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
+        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
+                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
+
+        return new JournalRead(entries, parlays, books, sports, pending);
+    }
+
+    /// <summary>The write behind the parlay form's Save. Virtual for the same render tests.</summary>
+    protected virtual async Task WriteParlayAsync(Guid id, ParlayEdit edit)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().UpdateParlayAsync(id, edit);
     }
 
     private async Task FilterAsync(Action change)
@@ -634,8 +855,26 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             WasManual = entry.ManualPrice
         };
         _opened = _entry.ToDraft();
+        _parlay = null;
+        _parlayOpened = null;
         _touched.Clear();
         _mode = FormMode.Entry;
+
+        // Opened on another bet, the form holds nothing the journal lacks yet.
+        MarkUnsaved(false);
+    }
+
+    /// <summary>The same grouped form, on a parlay: its money and book, and the price on each leg.</summary>
+    private void EditParlay(Parlay parlay)
+    {
+        _message = null;
+        _editing = null;
+        _opened = null;
+        _parlay = new ParlayEditDraft(parlay);
+        _parlayOpened = _parlay.ToEdit();
+        _touched.Clear();
+        _mode = FormMode.EditParlay;
+        MarkUnsaved(false);
     }
 
     private void CloseForm()
@@ -643,10 +882,102 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         _mode = FormMode.None;
         _editing = null;
         _opened = null;
+        _parlay = null;
+        _parlayOpened = null;
         _touched.Clear();
 
         // Saved or cancelled, the form holds nothing the journal lacks.
         MarkUnsaved(false);
+    }
+
+    private Task SetParlayBookAsync(string book)
+    {
+        if (_parlay is { } edited)
+            Edit("book", () => edited.Book = book);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Saves the parlay form. A write that fails keeps the form open with what was typed, and
+    /// says so: the operator's corrections are not thrown away with the error.
+    /// </summary>
+    private async Task SaveParlayChangesAsync()
+    {
+        if (_parlay is not { } edited || ParlayWaiting(edited) is not null)
+            return;
+
+        try
+        {
+            await WriteParlayAsync(edited.Parlay.Id, edited.ToEdit());
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The parlay did not save");
+            _message = "The parlay was not saved. Try again.";
+            return;
+        }
+
+        _message = "Parlay saved.";
+        CloseForm();
+        await LoadAsync();
+    }
+
+    /// <summary>
+    /// Puts a logged parlay back on the slip to log again: each leg at the price it was taken at,
+    /// typed rather than fetched (<see cref="SlipItem.ManualPrice"/>), so a leg on a game that
+    /// has started is a leg and not a closing line; then the parlay's stake, book and price. The
+    /// slip is shown in its tab here, beside the journal it was copied from.
+    ///
+    /// <para>
+    /// The slip holds one parlay, so wagers already on it are asked about before they are
+    /// replaced: they are banked and unlogged, and a copy laid over them would mix the two.
+    /// </para>
+    /// </summary>
+    private async Task DuplicateParlayAsync(Parlay parlay)
+    {
+        _message = null;
+
+        // The slip holds bets on games the desk tracks, at a price. A leg that is a described
+        // bet, on no tracked game, or logged without its price has no card to become.
+        if (parlay.Legs.Any(l => l.Game is null || !string.IsNullOrWhiteSpace(l.FreeTextMarket) || l.PriceTaken == 0))
+        {
+            _message = "The slip holds bets on tracked games at a price, and a leg of this parlay is not one. Nothing was copied.";
+            return;
+        }
+
+        if (Slip.Items.Count > 0)
+        {
+            var held = Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers";
+            var replace = await Alerts.ConfirmAsync(
+                "Replace the slip?",
+                confirmLabel: "Replace",
+                message: $"The slip holds {held}. They leave it unlogged, and this parlay's {parlay.Legs.Count} legs take their place.",
+                destructive: true);
+
+            if (!replace)
+                return;
+
+            Slip.Clear();
+        }
+
+        foreach (var leg in parlay.Legs.OrderBy(l => l.Id))
+        {
+            var game = leg.Game!;
+            Slip.AddLeg(new SlipItem(
+                Guid.Empty,
+                game.Id, Matchup(game), game.StartsAt, game.Sport?.Key ?? string.Empty,
+                leg.Market, leg.Outcome, leg.LineTaken,
+                parlay.Book, leg.PriceTaken, leg.PlacedAt, IsClosing: false,
+                Stake: 0m, Note: null, Fair: null, Ev: null,
+                ManualPrice: true));
+        }
+
+        Slip.SetMode(SlipMode.Parlay);
+        Slip.SetParlay(parlay.Stake, parlay.PriceQuoted, parlay.Book);
+
+        _tab = JournalTab.Slip;
+        Toasts.Success($"Copied the {parlay.Legs.Count}-leg parlay to the slip");
     }
 
     private Task SetEntryBookAsync(string book)
