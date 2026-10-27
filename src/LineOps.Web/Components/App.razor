@@ -12,6 +12,9 @@
     <meta name="color-scheme" content="dark light" />
     <base href="/" />
     <ResourcePreloader />
+    @* The stored theme, stamped on <html> before any stylesheet paints — ThemeService cannot
+       until the circuit opens. A classic script, not a module, so it blocks for that one job. *@
+    <script src="@Assets["_content/LineOps.Desk/js/theme-boot.js"]"></script>
 
     @*
         Order is load-bearing. MudBlazor first, so it can be overridden; lineops.css next,
