@@ -137,4 +137,76 @@ public class PanelLoadStateTests : DeskTestContext
         Assert.DoesNotContain("No runs recorded yet.", panel.Markup);
         Assert.Empty(panel.FindAll(".empty--error"));
     }
+
+    [Fact]
+    public void Line_movement_that_fails_to_load_says_so_and_offers_a_retry()
+    {
+        Use(new ScriptedFactory(fails: true));
+
+        var panel = RenderComponent<OddsPanel>(p => p.Add(x => x.GameId, 7));
+
+        panel.WaitForAssertion(() => Assert.NotNull(panel.Find(".empty--error")));
+        Assert.Contains("Line movement did not load.", panel.Find(".empty--error").TextContent);
+        Assert.Contains("Try again", panel.Find(".empty--error button").TextContent);
+        Assert.DoesNotContain("No stored prices", panel.Markup);
+        Assert.DoesNotContain("connection refused", panel.Markup);
+    }
+
+    [Fact]
+    public void Line_movement_holds_its_shape_while_loading()
+    {
+        Use(new ScriptedFactory());
+
+        var panel = RenderComponent<OddsPanel>(p => p.Add(x => x.GameId, 7));
+
+        Assert.NotEmpty(panel.FindAll("[aria-busy=true]"));
+        Assert.DoesNotContain("No stored prices", panel.Markup);
+        Assert.DoesNotContain("Select a game to cross-reference", panel.Markup);
+        Assert.Empty(panel.FindAll(".empty--error"));
+    }
+
+    /// <summary>Every book reads its row through the wager seam; a row that will not come is a failed load.</summary>
+    private void UseWagerData(Support.FakeWagerData data)
+    {
+        Services.AddSingleton<LineOps.Web.Services.IWagerData>(data);
+        Services.AddScoped<LineOps.Web.Services.WagerSlip>();
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
+    }
+
+    [Fact]
+    public void Every_book_that_fails_to_load_says_so_rather_than_waiting_for_ever()
+    {
+        var gate = new TaskCompletionSource();
+        gate.SetException(new InvalidOperationException("connection refused (raw text)"));
+        UseWagerData(new Support.FakeWagerData { RowGate = gate });
+
+        var panel = RenderComponent<BoardAllBets>(p => p.Add(x => x.GameId, Support.BoardRows.GameId));
+
+        panel.WaitForAssertion(() => Assert.NotNull(panel.Find(".empty--error")));
+        Assert.Contains("Every book did not load.", panel.Find(".empty--error").TextContent);
+        Assert.Empty(panel.FindAll(".deskgrid__skeleton"));
+        Assert.DoesNotContain("connection refused", panel.Markup);
+    }
+
+    [Fact]
+    public void Every_book_holds_its_shape_while_loading()
+    {
+        UseWagerData(new Support.FakeWagerData { RowGate = new TaskCompletionSource() });
+
+        var panel = RenderComponent<BoardAllBets>(p => p.Add(x => x.GameId, Support.BoardRows.GameId));
+
+        Assert.NotNull(panel.Find(".deskgrid__skeleton"));
+        Assert.Empty(panel.FindAll(".empty--error"));
+    }
+
+    [Fact]
+    public void Recent_form_that_fails_to_load_says_so_rather_than_waiting_for_ever()
+    {
+        // No BoardService is registered, so the panel's first read throws — a failed load.
+        var panel = RenderComponent<BoardForm>(p => p.Add(x => x.GameId, 1));
+
+        panel.WaitForAssertion(() => Assert.NotNull(panel.Find(".empty--error")));
+        Assert.Contains("Recent form did not load.", panel.Find(".empty--error").TextContent);
+        Assert.Empty(panel.FindAll(".deskgrid__skeleton"));
+    }
 }

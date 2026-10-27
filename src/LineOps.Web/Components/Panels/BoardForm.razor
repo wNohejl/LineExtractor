@@ -1,5 +1,6 @@
 @using LineOps.Data.CrossReference
 @using LineOps.Desk.Primitives
+@inherits PanelBase
 @inject IServiceScopeFactory ScopeFactory
 
 @*
@@ -10,18 +11,34 @@
     consulted *while* deciding: it wants to sit next to the board, not replace it.
 *@
 
+@* The failure line sits above whatever the window already holds, as the Board's does: a new
+   lookback that failed leaves the rosters it was replacing on screen beneath it. Before this a
+   read that threw left the skeleton up for as long as the window stayed open. *@
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
 @if (_fight)
 {
     @* A fight has no rosters: the form worth reading beside its price is the two fighters (ADR 0021). *@
     <LineOps.Web.Components.Snippets.TaleOfTheTape GameId="GameId" />
 }
+else if (!Loaded)
+{
+    @if (!Failed)
+    {
+        @* The lookback row and the first roster's rows, where they will land. Only on the first
+           read: changing the window keeps the rosters on screen until the new ones arrive. *@
+        <DeskSkeleton Width="40%" />
+        <DeskGrid T="PlayerForm" Items="@(Array.Empty<PlayerForm>())" Loading="true" SkeletonRows="3"
+                  LoadingLabel="@($"Reading the last {_windowDays} days")" />
+    }
+}
 else if (_form is null)
 {
-    @* The lookback row and the first roster's rows, where they will land. Only on the first
-       read: changing the window keeps the rosters on screen until the new ones arrive. *@
-    <DeskSkeleton Width="40%" />
-    <DeskGrid T="PlayerForm" Items="@(Array.Empty<PlayerForm>())" Loading="true" SkeletonRows="3"
-              LoadingLabel="@($"Reading the last {_windowDays} days")" />
+    @* Read, and not there: the lookup holds no game by this id. *@
+    <EmptyState Kind="EmptyStateKind.Filtered">This game is not on record, so there are no rosters to read.</EmptyState>
 }
 else if (_form.IsEmpty)
 {
@@ -56,7 +73,11 @@ else
     private int _windowDays = 30;
     private bool _fight;
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    protected override string LoadSubject => "Recent form";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    protected override Task RefreshAsync() => LoadAsync();
 
     private async Task SetWindowAsync(int days)
     {
@@ -64,19 +85,25 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
-    {
-        await using var scope = ScopeFactory.CreateAsyncScope();
+    /// <summary>
+    /// The game's row once, then the rosters' form over the lookback — through the rail every
+    /// window loads on, so a read that throws stays in this window as a failure line with a
+    /// retry rather than escaping the lifecycle and taking the circuit with it.
+    /// </summary>
+    private Task LoadAsync()
+        => WithActivityAsync(async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
 
-        Row ??= await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+            Row ??= await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
 
-        _fight = FightSports.IsFight(Row?.Game.Sport?.Key);
-        if (_fight)
-            return;
+            _fight = FightSports.IsFight(Row?.Game.Sport?.Key);
+            if (_fight)
+                return;
 
-        var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
-        _form = await lookup.GetAsync(GameId, TimeSpan.FromDays(_windowDays), maxPlayersPerTeam: 8);
-    }
+            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+            _form = await lookup.GetAsync(GameId, TimeSpan.FromDays(_windowDays), maxPlayersPerTeam: 8);
+        }, settle: () => PulseState.Healthy);
 
     private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
         => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));

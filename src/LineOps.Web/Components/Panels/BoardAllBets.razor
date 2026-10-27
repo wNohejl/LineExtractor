@@ -2,8 +2,8 @@
 @using LineOps.Data.CrossReference
 @using LineOps.Desk.Primitives
 @using LineOps.Web.Services
+@inherits PanelBase
 @inject IWagerData Data
-@inject WindowManager Manager
 @inject DeskFollowUps FollowUps
 @inject WagerSlip Slip
 @inject DeskToasts Toasts
@@ -16,11 +16,27 @@
     summarises, laid out to be read rather than scanned.
 *@
 
-@if (Row is null)
+@* The failure line sits above whatever the window already holds, as the Board's does. Before it
+   the window waited on a read that had thrown for as long as it stayed open — the skeleton
+   keyed on the row, and a row that never came looked exactly like one still coming. *@
+@if (Failed)
 {
-    @* The note's line and the first market's rows of books, where they will land. *@
-    <DeskSkeleton Width="60%" />
-    <DeskGrid T="string" Items="@(Array.Empty<string>())" Loading="true" SkeletonRows="3" LoadingLabel="Fetching every book's prices" />
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+
+@if (!Loaded)
+{
+    @if (!Failed)
+    {
+        @* The note's line and the first market's rows of books, where they will land. *@
+        <DeskSkeleton Width="60%" />
+        <DeskGrid T="string" Items="@(Array.Empty<string>())" Loading="true" SkeletonRows="3" LoadingLabel="Fetching every book's prices" />
+    }
+}
+else if (Row is null)
+{
+    @* Read, and not there: the game left the board between the click and the read. *@
+    <EmptyState Kind="EmptyStateKind.Filtered">This game is not on the board, so no book's price is held for it.</EmptyState>
 }
 else if (Row.Unpriced is { } reason)
 {
@@ -98,9 +114,19 @@ else
 
     private BoardRow? Row;
 
+    protected override string LoadSubject => "Every book";
 
-    protected override async Task OnParametersSetAsync()
-        => Row = await Data.RowAsync(GameId);
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// The game's row, through the rail every window loads on: the pulse shows the read, and a
+    /// read that throws stays in this window as a failure line with a retry, rather than escaping
+    /// the lifecycle and taking the circuit with it.
+    /// </summary>
+    private Task LoadAsync()
+        => WithActivityAsync(async () => Row = await Data.RowAsync(GameId), settle: () => PulseState.Healthy);
 
     private IEnumerable<MarketPair> Markets()
     {

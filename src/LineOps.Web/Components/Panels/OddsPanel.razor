@@ -51,6 +51,22 @@
 
 </PanelToolbar>
 
+@* The failure line sits above whatever the window already holds, as the Board's does: Line
+   movement refreshes on every odds signal, and one refresh that failed must not take the rows
+   the operator was reading. Before the first load the window holds its shape — the headline
+   and the first books' rows, where they will land — because "No stored prices" said there was
+   nothing on record while the window was still asking, and a load that failed said it too. *@
+@if (Failed)
+{
+    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (!Loaded)
+{
+    <DeskSkeleton Width="40%" />
+    <DeskGrid T="MovementRow" Items="@(Array.Empty<MovementRow>())" Loading="true" SkeletonRows="4"
+              LoadingLabel="Fetching the line's moves" />
+}
+
 @* The view's own switches sit on a row of their own, over the rows they choose, the way a
    segmented control heads the view it switches (HIG, Segmented controls). In the toolbar,
    beside the game, a window beside the Board ran out of row: the game was cut off, Total fell
@@ -69,11 +85,16 @@
 
 @if (_rows.Count == 0)
 {
-    <EmptyState Kind="EmptyStateKind.Filtered">
-        No stored prices for this game and market. A book that does not price the market has
-        nothing to show, and once a game starts its moves are folded into one closing line,
-        which the Game window shows.
-    </EmptyState>
+    @* An empty result means "nothing here" only once there has been a result, and only while
+       the last read did not fail. *@
+    @if (Loaded && !Failed)
+    {
+        <EmptyState Kind="EmptyStateKind.Filtered">
+            No stored prices for this game and market. A book that does not price the market has
+            nothing to show, and once a game starts its moves are folded into one closing line,
+            which the Game window shows.
+        </EmptyState>
+    }
 }
 else
 {
@@ -151,8 +172,13 @@ else
     The cross-reference. Odds say what the market thinks; these say what actually happened.
     Read live from the stats history by reference — nothing here is copied onto the odds tier,
     because form changes daily and a stored copy would go stale without saying so.
+
+    Read in the same load as the moves, so it waits for that load: before the first one lands
+    "Select a game" was the answer to a question the window was still asking.
 *@
 
+@if (Loaded)
+{
 <PanelSection Title="Recent form">
 
 @if (_form is null)
@@ -189,11 +215,14 @@ else
     @RenderSide(_form.Home, _form.Game.HomeTeam?.Name ?? "Home")
 }
 </PanelSection>
+}
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Odds };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    protected override string LoadSubject => "Line movement";
 
     /// <summary>Set when opened from the slate; otherwise the first upcoming game is shown.</summary>
     [Parameter] public int? GameId { get; set; }
@@ -301,34 +330,45 @@ else
         }
     </text>;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await using var db = await DbFactory.CreateDbContextAsync();
+    /// <summary>
+    /// The games list and the first game's moves, as one load. The list is read inside it rather
+    /// than ahead of it: a database that refused that first read threw out of the lifecycle and
+    /// took the circuit — the whole desk — with it, and Try again has to repeat both.
+    /// </summary>
+    protected override Task OnInitializedAsync()
+        => WithActivityAsync(async () =>
+        {
+            await using (var db = await DbFactory.CreateDbContextAsync())
+            {
+                _games = await db.Games.AsNoTracking()
+                    .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
+                    .Where(g => db.OddsSnapshots.Any(s => s.GameId == g.Id))
+                    .OrderBy(g => g.StartsAt)
+                    .Take(120)
+                    .ToListAsync();
 
-        _games = await db.Games.AsNoTracking()
-            .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
-            .Where(g => db.OddsSnapshots.Any(s => s.GameId == g.Id))
-            .OrderBy(g => g.StartsAt)
-            .Take(120)
-            .ToListAsync();
+                _gameId = GameId ?? _games.FirstOrDefault()?.Id;
+                _picked = await PickedAsync(db);
+            }
 
-        _gameId = GameId ?? _games.FirstOrDefault()?.Id;
-        _picked = await PickedAsync(db);
-        await LoadAsync();
-    }
+            await ReadAsync();
+        }, Standing, StatusLine);
 
     /// <summary>Whether the select has an option for this game, so it names it rather than its placeholder.</summary>
     private bool Listed(int? id)
         => id is not null && (_games.Any(g => g.Id == id) || _picked?.Id == id);
 
-    private async Task OnGameChanged(int? id)
+    private Task OnGameChanged(int? id)
     {
         _gameId = id;
 
-        await using (var db = await DbFactory.CreateDbContextAsync())
-            _picked = await PickedAsync(db);
+        return WithActivityAsync(async () =>
+        {
+            await using (var db = await DbFactory.CreateDbContextAsync())
+                _picked = await PickedAsync(db);
 
-        await LoadAsync();
+            await ReadAsync();
+        }, Standing, StatusLine);
     }
 
     /// <summary>The chosen game with its teams and sport, so the sides can be put in matchup order.</summary>
@@ -350,59 +390,82 @@ else
     {
         _side = side;
         Focus();
-    }
-
-    private async Task SetWindowAsync(int days)
-    {
-        _windowDays = days;
-        await LoadFormAsync();
+        Report(Standing(), StatusLine());
     }
 
     /// <summary>
-    /// The cross-reference read. Separate from the odds load because the two answer different
+    /// A new lookback reads the form alone, through the same rail as the window's other loads, so
+    /// a read that fails says so above the rosters already shown instead of ending the circuit.
+    /// </summary>
+    private Task SetWindowAsync(int days)
+    {
+        _windowDays = days;
+
+        return WithActivityAsync(async () => _form = await ReadFormAsync(), Standing, StatusLine);
+    }
+
+    /// <summary>
+    /// The cross-reference read. Separate from the odds read because the two answer different
     /// questions about the same game and only one of them changes when the market does.
     /// </summary>
-    private async Task LoadFormAsync()
+    private async Task<MatchupForm?> ReadFormAsync()
     {
-        _form = null;
-
         if (_gameId is not { } gameId)
-            return;
+            return null;
 
         await using var scope = ScopeFactory.CreateAsyncScope();
         var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
 
-        _form = await lookup.GetAsync(gameId, TimeSpan.FromDays(_windowDays));
+        return await lookup.GetAsync(gameId, TimeSpan.FromDays(_windowDays));
     }
 
-    private async Task LoadAsync()
+    /// <summary>
+    /// The window's load: the moves on the chosen market and the form beside them, with the
+    /// pulse showing activity and a failure kept to this window (PanelBase).
+    /// </summary>
+    private Task LoadAsync() => WithActivityAsync(ReadAsync, Standing, StatusLine);
+
+    /// <summary>
+    /// How the window stands once a load lands: idle with nothing to show, healthy with rows.
+    /// The side switch asks the same thing without a load, so it is one answer for both.
+    /// </summary>
+    private PulseState Standing() => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy;
+
+    /// <summary>The title bar's line: nothing before a game is chosen, "no moves", or the moves counted.</summary>
+    private string? StatusLine()
+        => _gameId is null ? null
+            : _rows.Count == 0 ? "no moves"
+            : MovesText(_rows.Sum(r => r.Moves));
+
+    /// <summary>
+    /// Both reads, and only then the hand-over. Everything is read into locals first so a read
+    /// that throws leaves the rows, the switches and the form as they were — a refresh that failed
+    /// shows its line above the moves the operator was reading rather than in place of them.
+    /// </summary>
+    private async Task ReadAsync()
     {
-        _snapshots = [];
+        var form = await ReadFormAsync();
+        List<OddsSnapshot> snapshots = [];
+
+        if (_gameId is { } gameId)
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            snapshots = await db.OddsSnapshots
+                .Where(s => s.GameId == gameId && s.Market == _market)
+                .OrderBy(s => s.CapturedAt)
+                .ToListAsync();
+        }
+
+        _form = form;
+        _snapshots = snapshots;
         _sideOptions = [];
         _rows = [];
         _headline = string.Empty;
         _span = string.Empty;
 
-        await LoadFormAsync();
-
-        if (_gameId is not { } gameId)
-        {
-            Report(PulseState.Idle);
-            return;
-        }
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        _snapshots = await db.OddsSnapshots
-            .Where(s => s.GameId == gameId && s.Market == _market)
-            .OrderBy(s => s.CapturedAt)
-            .ToListAsync();
-
         if (_snapshots.Count == 0)
-        {
-            Report(PulseState.Idle, "no moves");
             return;
-        }
 
         var sides = Sides(_snapshots.Select(s => s.Outcome), _market,
             _picked?.AwayTeam?.Name, _picked?.HomeTeam?.Name);
@@ -420,7 +483,10 @@ else
         Focus();
     }
 
-    /// <summary>Builds the rows, the headline and the window's status for the side in focus.</summary>
+    /// <summary>
+    /// Builds the rows and the headline for the side in focus. The window's status is not said
+    /// here: a load says it as it settles (<see cref="StatusLine"/>), the side switch after this.
+    /// </summary>
     private void Focus()
     {
         _rows = _side is null ? [] : MovementRows(_snapshots, _side);
@@ -429,14 +495,11 @@ else
         {
             _headline = string.Empty;
             _span = string.Empty;
-            Report(PulseState.Idle, "no moves");
             return;
         }
 
         _headline = Headline(_rows, _market, _side!);
         _span = SpanText(_rows);
-
-        Report(PulseState.Healthy, MovesText(_rows.Sum(r => r.Moves)));
     }
 
     // ---- The movement, as data -------------------------------------------------------------
