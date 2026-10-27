@@ -105,17 +105,63 @@ public class OperationsWindowsTests : DeskTestContext
     }
 
     [Fact]
-    public void Ops_scanning_is_a_grouped_row_with_its_prose_as_the_footer()
+    public void Ops_scanning_is_a_section_with_its_cost_as_footer()
     {
         var panel = RenderOps(LiveFeed());
 
-        var row = panel.Find(".wgroup .wgroup__row--form");
+        var section = panel.Find("section.wsection[aria-label=Scanning]");
+        var row = section.QuerySelector(".wgroup .wgroup__row--form")!;
         Assert.Equal("Scanning", row.QuerySelector(".wgroup__label")!.TextContent.Trim());
         Assert.NotNull(row.QuerySelector("[role=radiogroup]"));
 
-        var footer = panel.Find(".wgroup + .wgroup__foot");
+        // The footer is the section's, directly under the group it prices.
+        var footer = section.QuerySelector(".wgroup + .wgroup__foot")!;
         Assert.Contains("Lines are pulled on request only", footer.TextContent);
         Assert.Contains("Set by configuration until it is chosen here.", footer.TextContent);
+
+        panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "Automatic").Click();
+
+        var keys = panel.FindAll(".opsconfirm button").Select(b => b.TextContent.Trim()).ToList();
+        Assert.Equal(["Scan automatically", "Cancel"], keys);
+    }
+
+    [Fact]
+    public void Ops_drill_faults_are_a_section_with_what_the_drill_does_as_footer()
+    {
+        var panel = RenderComponent<OpsPanel>();
+        panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll(".empty--error")));
+
+        Set(panel.Instance, "_injectable", new List<Source> { new() { Id = 1, Key = "theoddsapi", Name = "The Odds API" } });
+        Loaded(panel.Instance);
+        panel.Render();
+
+        var faults = panel.Find("section.wsection[aria-label=Faults]");
+        Assert.Equal("The Odds API", faults.QuerySelector(".wgroup__label")!.TextContent.Trim());
+        Assert.Contains("Inject a fault, run an ingest", faults.QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
+    }
+
+    [Fact]
+    public void An_ops_action_that_fails_tells_the_operator()
+    {
+        // No LineOpsDbContext is registered on this bench, so the write behind the confirm
+        // throws when it asks for one — as a dropped connection would.
+        var panel = RenderOps(LiveFeed());
+
+        panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "Automatic").Click();
+        panel.FindAll(".opsconfirm button").Single(b => b.TextContent.Trim() == "Scan automatically").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            var said = Services.GetRequiredService<DeskToasts>().Last;
+            Assert.NotNull(said);
+            Assert.Equal(DeskState.Negative, said.State);
+            Assert.Equal("Scanning was not changed. Try again.", said.Message);
+        });
+
+        // The window is still the window: its rows, its group, and no raw exception text.
+        Assert.Contains("The Odds API", panel.Markup);
+        Assert.NotNull(panel.Find("section.wsection[aria-label=Scanning] .wgroup__row--form"));
+        Assert.DoesNotContain("InvalidOperationException", panel.Markup);
     }
 
     [Fact]
@@ -290,19 +336,39 @@ public class OperationsWindowsTests : DeskTestContext
     }
 
     [Fact]
-    public void History_run_is_a_grouped_form_and_re_walk_still_asks_first()
+    public void History_run_group_is_a_section()
     {
         var panel = RenderHistory();
 
-        var labels = panel.FindAll(".wgroup__label").Select(l => l.TextContent.Trim()).ToList();
-        Assert.Contains("Past days", labels);
-        Assert.Contains("Held days", labels);
-        Assert.Contains("re-resolved onto themselves", panel.Find(".wgroup + .wgroup__foot").TextContent);
+        var run = panel.Find("section.wsection[aria-label=Run]");
+        var labels = run.QuerySelectorAll(".wgroup__label").Select(l => l.TextContent.Trim()).ToList();
+        Assert.Equal(["Past days", "Held days"], labels);
+        Assert.Contains("re-resolved onto themselves", run.QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
 
         panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk…").Click();
 
         var ask = panel.FindAll(".opsrow__text").Single(t => t.TextContent.Contains("again?")).TextContent;
         Assert.Equal("Walk 3,054 held days again?", string.Join(' ', ask.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
-        Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Yes, re-walk");
+        Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Re-walk");
+        Assert.DoesNotContain(panel.FindAll("button"), b => b.TextContent.Contains("Yes,"));
+    }
+
+    [Fact]
+    public void A_re_walk_that_fails_says_so_in_the_run_group()
+    {
+        // ForgetAsync asks its scope for a LineOpsDbContext this bench does not register, so the
+        // re-walk throws before anything is cleared — as a dropped connection would.
+        var panel = RenderHistory();
+
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk…").Click();
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk").Click();
+
+        var note = panel.WaitForElement("section.wsection[aria-label=Run] .note");
+        Assert.Contains("The walk did not start. Try again.", note.TextContent);
+        Assert.Contains("note--warn", note.ClassName);
+
+        // The keys are back, and the record the window holds is still on it.
+        Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Re-walk…");
+        Assert.Contains("3,054", Section(panel, "Coverage"));
     }
 }

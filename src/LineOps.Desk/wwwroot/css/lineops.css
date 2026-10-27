@@ -5425,6 +5425,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .opsstamp { color: var(--text-secondary); font-size: var(--text-subheadline); font-variant-numeric: tabular-nums; }
 /* A group after a grid or a footnote stands apart by space, never a rule. */
 .opsgroup:not(:first-child) { margin-top: var(--space-4); }
+/* A section that follows a grid or a metric row in the same body takes the same air a second
+   group did: the group inside it is the section's first child now, not the body's. */
+.psection__body > * + .wsection { margin-top: var(--space-4); }
 
 /* A row's control column: a key, a select, a tag and a sentence side by side, wrapping as one
    rather than squeezing. A select is sized to its words, as it is in a toolbar. */
@@ -5452,7 +5455,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .opsact { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
 .opsact__why { max-width: 80ch; font-size: var(--text-subheadline); color: var(--text-secondary); }
 .metrics + .opsact { margin-top: calc(-1 * var(--space-1)); }
-.opsfoot + .opsact, .opsgroup + .opsact { margin-top: var(--space-4); }
+.opsfoot + .opsact, .opsgroup + .opsact, .wsection + .opsact { margin-top: var(--space-4); }
 
 /* The question a setting asks before it spends, as a row of its group: the sentence, then its
    keys, starting at the labels' edge. */

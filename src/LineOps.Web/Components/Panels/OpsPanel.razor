@@ -114,109 +114,41 @@ else
    A grouped row, as a setting is drawn (apple-hig-components, forms.md): the name leads, the
    control trails, and what the choice costs is the group's footer rather than a paragraph
    running the width of the window. Two modes, both worth seeing, so a segmented control; a
-   choice of Automatic waits on the confirm row under it before anything is spent. *@
+   choice of Automatic waits on the confirm row under it before anything is spent.
+
+   The group and the prose that prices it are one section, as every grouped form on the desk
+   is, so the price belongs to the switch rather than to whatever happens to follow it. With
+   no switch to price, the same prose is the feeds' footnotes, flush with the grid. *@
 @if (ShowsScanning)
 {
-    <div class="wgroup opsgroup">
-        <div class="wgroup__row wgroup__row--form">
-            <span class="wgroup__label">Scanning</span>
-            <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
-                        Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
-        </div>
-        @if (_confirmAutomatic)
-        {
-            <div class="wgroup__row opsconfirm">
-                <span class="opsconfirm__ask">
-                    Scan at this price until switched back, from this host and the worker alike?
-                </span>
-                <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                            Icon="@Icons.Material.Filled.Schedule"
-                            OnClick="() => SetPollingAsync(automatic: true)">
-                    Yes, scan automatically
-                </DeskButton>
-                <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
+    <section class="wsection" aria-label="Scanning">
+        <div class="wgroup opsgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Scanning</span>
+                <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
+                            Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
             </div>
-        }
-    </div>
-}
-
-@* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
-   here regardless would describe a schedule that is not running — the number would be real
-   arithmetic about an allowance nobody is spending. What is left still matters, because that is
-   what a press of Pull lines draws on. *@
-@if (!_unattended)
-{
-    <p class="@FootClass">
-        Lines are pulled on request only — nothing is fetched unasked.
-        @if (_plan?.ScansRemainingToday is { } available)
-        {
-            <text>
-                @* Credits, not requests. The two are equal on this desk — one sport, two
-                   markets — which is exactly why showing the wrong one would look right until
-                   a market or a sport is added. *@
-                <span class="num">@available.ToString("N0")</span> pulls left in @_plan.WindowLabel allowance, at
-                <span class="num">@_plan.CreditsPerScan.ToString("N0")</span> credits each.
-            </text>
-        }
-        @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
-        @if (Manager.Access.CanOperate)
-        {
-            <text>Use <strong>Pull data → Pull lines</strong>.</text>
-        }
-        @Provenance
-    </p>
-
-    @* The price, before anything is spent: what each sport's scan asks for and bills, and how
-       often the scheduler would scan at that price if it were switched on. The planner paces on
-       what is left, so it never overspends — a longer market list shows up here as a slower
-       cadence, which is the real cost of adding one. *@
-    @if (_plan is { } projected && _marketsBySport.Count > 0)
-    {
-        <p class="@FootClass">
-            @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
+            @if (_confirmAutomatic)
             {
-                @(index > 0 ? " · " : "")<span>@sport.Sport.ToUpperInvariant()</span>
-                @* Spelled as one expression: a leading space inside <text> before code was dropped, and
-                   the sport ran into its markets ("MLBmoneyline"). *@
-                @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
-                @if (sport.Credits > 0)
-                {
-                    <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
-                }
-            }.
-            @if (projected.ScansRemainingToday is { } left && left > 0)
-            {
-                <text>
-                    Switched to automatic, this list would scan about every
-                    <span class="num">@Cadence(projected.BudgetInterval)</span> for the rest of
-                    @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
-                    first pitch, slower far from it.
-                </text>
+                <div class="wgroup__row opsconfirm">
+                    <span class="opsconfirm__ask">
+                        Scan at this price until switched back, from this host and the worker alike?
+                    </span>
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                Icon="@Icons.Material.Filled.Schedule"
+                                OnClick="() => SetPollingAsync(automatic: true)">
+                        Scan automatically
+                    </DeskButton>
+                    <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
+                </div>
             }
-        </p>
-    }
+        </div>
+        @ScanningCost()
+    </section>
 }
-else if (_plan is { } plan)
+else
 {
-    <p class="@FootClass">
-        Scanning every <span class="num">@Cadence(plan.Interval)</span> at
-        <span class="num">@plan.CostPerScan.ToString("N0")</span> requests a scan
-        @if (plan.ScansRemainingToday is { } left)
-        {
-            @* "today's" or "this month's" — the provider decides which, and saying the wrong
-               one turns a month's remaining allowance into an apparently generous day. *@
-            <text>— <span class="num">@left.ToString("N0")</span> scans left in @plan.WindowLabel allowance</text>
-            @if (plan.BoundBy is { } bound)
-            {
-                <text>, paced by @FeedName(bound)</text>
-            }
-        }
-        else
-        {
-            <text>— nothing metered, so this is the politeness floor rather than a budget</text>
-        }.
-        @Provenance
-    </p>
+    @ScanningCost()
 }
 </PanelSection>
 
@@ -357,53 +289,52 @@ else
    A grouped form: each injectable source a row, its name leading and its fault trailing; what
    the drill does is the group's footer, not a filled note above it; and the key that runs it
    leads under the group. It was a note box, then rows laid out with an inline min-width, then
-   the key — three shapes for one form. *@
+   the key — three shapes for one form. The rows and their footer are one section, as the
+   Scanning switch and its price are. *@
 @if (Manager.Access.CanOperate)
 {
     <PanelSection Title="On-call drill">
         @if (_injectable.Count > 0)
         {
-            <div class="wgroup opsgroup opsgroup--wide">
-                @foreach (var source in _injectable)
-                {
-                    <div class="wgroup__row wgroup__row--form" @key="source.Id">
-                        <span class="wgroup__label">@source.Name</span>
-                        <div class="opsrow">
-                            <DeskSelect TValue="string"
-                                        Value="@(source.FailureMode ?? "")"
-                                        ValueChanged="v => SetModeAsync(source.Id, v)"
-                                        aria-label="@($"Fault injected into {source.Name}")">
-                                <option value="">Healthy</option>
-                                <option value="error">Upstream 503</option>
-                                <option value="timeout">Request timeout</option>
-                                <option value="empty">Empty payload (silent)</option>
-                            </DeskSelect>
-                            @if (source.FailureMode is not null)
-                            {
-                                <Tag State="DeskState.Negative">Injecting</Tag>
-                            }
+            <section class="wsection" aria-label="Faults">
+                <div class="wgroup opsgroup opsgroup--wide">
+                    @foreach (var source in _injectable)
+                    {
+                        <div class="wgroup__row wgroup__row--form" @key="source.Id">
+                            <span class="wgroup__label">@source.Name</span>
+                            <div class="opsrow">
+                                <DeskSelect TValue="string"
+                                            Value="@(source.FailureMode ?? "")"
+                                            ValueChanged="v => SetModeAsync(source.Id, v)"
+                                            aria-label="@($"Fault injected into {source.Name}")">
+                                    <option value="">Healthy</option>
+                                    <option value="error">Upstream 503</option>
+                                    <option value="timeout">Request timeout</option>
+                                    <option value="empty">Empty payload (silent)</option>
+                                </DeskSelect>
+                                @if (source.FailureMode is not null)
+                                {
+                                    <Tag State="DeskState.Negative">Injecting</Tag>
+                                }
+                            </div>
                         </div>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
+                <p class="wgroup__foot opsfoot">@WhatTheDrillDoes()</p>
+            </section>
         }
         else
         {
             @* Said rather than implied. With no injectable source registered the footer still
                promises "inject a fault" and nothing on screen offers one, which reads as a missing
-               control rather than as a missing adapter. *@
+               control rather than as a missing adapter. With no rows there is no group, so both
+               sentences are footnotes of the section rather than a footer under nothing. *@
             <p class="opsfoot">
                 No registered source accepts fault injection, so there is nothing to break on
                 purpose. The drill still exercises the ingest → rollup → alert path.
             </p>
+            <p class="opsfoot">@WhatTheDrillDoes()</p>
         }
-
-        <p class="@(_injectable.Count > 0 ? "wgroup__foot opsfoot" : "opsfoot")">
-            Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
-            one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
-            With no fault injected the run is a real metered pull, so it scans the league with the most
-            games still to start rather than a league named in the code.
-        </p>
 
         <div class="opsact">
             <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
@@ -430,20 +361,34 @@ else
     private bool _pollingSetHere;
     private bool _confirmAutomatic;
 
+    // Every action below catches its own failure. PanelBase catches a load, not a write, and an
+    // exception escaping an event handler ends the circuit — the whole desk, not this window.
+    // The operator is told in one sentence what did not happen; the window keeps what it shows.
+
     private async Task SetPollingAsync(bool automatic)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
-        await db.SetSettingAsync(AppSetting.LinePolling,
-            automatic ? AppSetting.LinePollingScheduled : AppSetting.LinePollingManual);
+            await db.SetSettingAsync(AppSetting.LinePolling,
+                automatic ? AppSetting.LinePollingScheduled : AppSetting.LinePollingManual);
 
-        _confirmAutomatic = false;
-        Toasts.Success(automatic
-            ? "Lines are scanned automatically, paced to the allowance."
-            : "Lines are pulled on request only. Nothing more is spent unasked.");
+            _confirmAutomatic = false;
+            Toasts.Success(automatic
+                ? "Lines are scanned automatically, paced to the allowance."
+                : "Lines are pulled on request only. Nothing more is spent unasked.");
 
-        await LoadAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // The confirm row stays open on a failed yes, so trying again is the key already
+            // under the pointer.
+            Log.LogError(ex, "Line polling was not set to {Mode}", automatic ? "automatic" : "manual");
+            Toasts.Fail("Scanning was not changed. Try again.");
+        }
     }
 
     /// <summary>The two ways lines are fetched, as the Scanning row's segments.</summary>
@@ -479,10 +424,95 @@ else
     private bool ShowsScanning => Manager.Access.CanOperate && _feeds.Any(f => f.IsLive);
 
     /// <summary>
-    /// The prose under the feeds is the Scanning group's footer when the group is drawn, inset to
-    /// its rows; without it, the same lines are the section's footnotes, flush with the grid.
+    /// The prose under the feeds is the Scanning section's footer when the switch is drawn, inset
+    /// to its rows; without it, the same lines are the Odds feeds footnotes, flush with the grid.
     /// </summary>
     private string FootClass => ShowsScanning ? "wgroup__foot opsfoot" : "opsfoot";
+
+    /// <summary>
+    /// What scanning costs, in words. One fragment for both places it is drawn, so the footer
+    /// and the footnotes cannot drift apart.
+    /// </summary>
+    private RenderFragment ScanningCost() => @<text>
+        @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
+           here regardless would describe a schedule that is not running — the number would be real
+           arithmetic about an allowance nobody is spending. What is left still matters, because that is
+           what a press of Pull lines draws on. *@
+        @if (!_unattended)
+        {
+            <p class="@FootClass">
+                Lines are pulled on request only — nothing is fetched unasked.
+                @if (_plan?.ScansRemainingToday is { } available)
+                {
+                    <text>
+                        @* Credits, not requests. The two are equal on this desk — one sport, two
+                           markets — which is exactly why showing the wrong one would look right until
+                           a market or a sport is added. *@
+                        <span class="num">@available.ToString("N0")</span> pulls left in @_plan.WindowLabel allowance, at
+                        <span class="num">@_plan.CreditsPerScan.ToString("N0")</span> credits each.
+                    </text>
+                }
+                @* A visitor has no Pull data menu (ADR 0018); pointing at it would send them looking. *@
+                @if (Manager.Access.CanOperate)
+                {
+                    <text>Use <strong>Pull data → Pull lines</strong>.</text>
+                }
+                @Provenance
+            </p>
+
+            @* The price, before anything is spent: what each sport's scan asks for and bills, and how
+               often the scheduler would scan at that price if it were switched on. The planner paces on
+               what is left, so it never overspends — a longer market list shows up here as a slower
+               cadence, which is the real cost of adding one. *@
+            @if (_plan is { } projected && _marketsBySport.Count > 0)
+            {
+                <p class="@FootClass">
+                    @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
+                    {
+                        @(index > 0 ? " · " : "")<span>@sport.Sport.ToUpperInvariant()</span>
+                        @* Spelled as one expression: a leading space inside <text> before code was dropped, and
+                           the sport ran into its markets ("MLBmoneyline"). *@
+                        @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
+                        @if (sport.Credits > 0)
+                        {
+                            <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
+                        }
+                    }.
+                    @if (projected.ScansRemainingToday is { } left && left > 0)
+                    {
+                        <text>
+                            Switched to automatic, this list would scan about every
+                            <span class="num">@Cadence(projected.BudgetInterval)</span> for the rest of
+                            @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
+                            first pitch, slower far from it.
+                        </text>
+                    }
+                </p>
+            }
+        }
+        else if (_plan is { } plan)
+        {
+            <p class="@FootClass">
+                Scanning every <span class="num">@Cadence(plan.Interval)</span> at
+                <span class="num">@plan.CostPerScan.ToString("N0")</span> requests a scan
+                @if (plan.ScansRemainingToday is { } left)
+                {
+                    @* "today's" or "this month's" — the provider decides which, and saying the wrong
+                       one turns a month's remaining allowance into an apparently generous day. *@
+                    <text>— <span class="num">@left.ToString("N0")</span> scans left in @plan.WindowLabel allowance</text>
+                    @if (plan.BoundBy is { } bound)
+                    {
+                        <text>, paced by @FeedName(bound)</text>
+                    }
+                }
+                else
+                {
+                    <text>— nothing metered, so this is the politeness floor rather than a budget</text>
+                }.
+                @Provenance
+            </p>
+        }
+    </text>;
 
     /// <summary>
     /// Where the mode in force came from — said only beside the switch that sets it. It follows
@@ -640,6 +670,15 @@ else
             else
                 Toasts.Success($"Evaluated — {(_alerts.Count == 0 ? "every source inside its SLO" : $"{_alerts.Count} open, none critical")}.");
         }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The evaluation did not run");
+            Toasts.Fail("The evaluation did not run. Try again.");
+
+            // The pulse still says "evaluating". A read settles it on what the platform holds,
+            // and catches its own failure if the database is what went.
+            await LoadAsync();
+        }
         finally
         {
             _busy = false;
@@ -667,14 +706,22 @@ else
 
     private async Task SetModeAsync(int sourceId, string? mode)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
-        var source = await db.Sources.FirstAsync(s => s.Id == sourceId);
-        source.FailureMode = string.IsNullOrEmpty(mode) ? null : mode;
-        await db.SaveChangesAsync();
+            var source = await db.Sources.FirstAsync(s => s.Id == sourceId);
+            source.FailureMode = string.IsNullOrEmpty(mode) ? null : mode;
+            await db.SaveChangesAsync();
 
-        await LoadAsync();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The fault on source {Source} was not set", sourceId);
+            Toasts.Fail("The fault was not set. Try again.");
+        }
     }
 
     private async Task DrillAsync()
@@ -721,6 +768,15 @@ else
             else
                 Toasts.Warn($"Drill complete on {league} — no new alerts fired.");
         }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The drill did not run");
+            Toasts.Fail("The drill did not run. Try again.");
+
+            // A drill can fail part-way, after an ingest has landed or an alert has opened; the
+            // read shows what did happen and settles the pulse it left on "drill running".
+            await LoadAsync();
+        }
         finally
         {
             _busy = false;
@@ -729,15 +785,34 @@ else
 
     private async Task PromoteAsync(long alertId)
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var incidents = scope.ServiceProvider.GetRequiredService<IncidentService>();
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var incidents = scope.ServiceProvider.GetRequiredService<IncidentService>();
 
-        await incidents.PromoteAsync(alertId);
-        await LoadAsync();
+            await incidents.PromoteAsync(alertId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // No incidents window either: raising it would show a list without the incident the
+            // operator just asked for.
+            Log.LogError(ex, "Alert {Alert} was not promoted", alertId);
+            Toasts.Fail("The alert was not promoted. Try again.");
+            return;
+        }
 
         // Raise the incidents window so the promotion has somewhere visible to land.
         var definition = WindowCatalog.Find(WindowCatalog.Incidents);
         if (definition is not null)
             Manager.Open(definition);
     }
+
+    /// <summary>What a drill does and what it spends, under the faults it injects.</summary>
+    private static RenderFragment WhatTheDrillDoes() => @<text>
+        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
+        one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
+        With no fault injected the run is a real metered pull, so it scans the league with the most
+        games still to start rather than a league named in the code.
+    </text>;
 }
