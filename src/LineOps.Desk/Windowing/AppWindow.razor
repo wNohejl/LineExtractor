@@ -118,10 +118,27 @@
         @* Keyed on the page, so turning to another page builds the body afresh: scrolled to the
            top, with none of the last page's tabs or filters carried into the next. *@
         <div class="win__body" @key="Window.PageVersion">
-            <CascadingValue Value="@Window.Id" Name="WindowId">
-                <DynamicComponent Type="Window.Definition.ComponentType"
-                                  Parameters="Window.Parameters" />
-            </CascadingValue>
+            @* The boundary is per window, so one panel's fault never takes the desk: an exception
+               that reached the circuit ended it, and every other window went with it. It sits
+               inside the keyed body, so a page turn builds a fresh one. The boundary logs the
+               exception itself; the reader gets the window's name and a key, never the message. *@
+            <ErrorBoundary @ref="_boundary">
+                <ChildContent>
+                    <CascadingValue Value="@Window.Id" Name="WindowId">
+                        <DynamicComponent Type="Window.Definition.ComponentType"
+                                          Parameters="Window.Parameters" />
+                    </CascadingValue>
+                </ChildContent>
+                <ErrorContent Context="_">
+                    <EmptyState Kind="EmptyStateKind.Error">
+                        <ChildContent>@Window.Title stopped. Nothing you typed elsewhere is lost.</ChildContent>
+                        <Action>
+                            <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh"
+                                        OnClick="Recover">Try again</DeskButton>
+                        </Action>
+                    </EmptyState>
+                </ErrorContent>
+            </ErrorBoundary>
         </div>
     }
 </div>
@@ -175,6 +192,11 @@
     private void PageForward() => Manager.PageForward(Window.Id);
     private void Minimise() => Manager.ToggleMinimise(Window.Id);
     private void Maximise() => Manager.ToggleMaximise(Window.Id);
+
+    // Try again clears the fault and renders the panel once more as a new component, so it
+    // loads from the start rather than resuming whatever state it threw in.
+    private ErrorBoundary? _boundary;
+    private void Recover() => _boundary?.Recover();
 
     private bool _asking;
 
