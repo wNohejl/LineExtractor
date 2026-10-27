@@ -235,7 +235,7 @@ else
 
         @if (_opponents.Count > 1)
         {
-            <DeskSelect TValue="string" Class="splits__pick"
+            <DeskSelect TValue="string" Class="splits__pick" aria-label="Opponent"
                         Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
                 <option value="">vs anyone</option>
                 @foreach (var name in _opponents)

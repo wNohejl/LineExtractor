@@ -18,19 +18,21 @@ namespace LineOps.Web.Tests;
 /// <summary>
 /// A logged parlay carries the keys a logged entry does: Edit opens the Journal's grouped form on
 /// its money, its book and its legs' prices; Duplicate puts its legs back on the slip as a parlay
-/// to log again. Rendered against a journal held in memory — the Journal's one read and the
-/// parlay's write are the panel's virtual seams, because this project has no database.
+/// to log again. Rendered against a journal held in memory — the Journal's one read and its two
+/// form writes are the panel's virtual seams, because this project has no database.
 /// </summary>
 public class JournalParlayTests : WagerTestContext
 {
-    /// <summary>What the Journal under test reads, and every parlay save it made.</summary>
+    /// <summary>What the Journal under test reads, and every save it made.</summary>
     public sealed class JournalOnHand
     {
+        public List<JournalEntry> Entries { get; } = [];
         public List<Parlay> Parlays { get; } = [];
         public List<string> Books { get; } = ["draftkings", "fanduel", "pinnacle"];
         public List<(Guid Id, ParlayEdit Edit)> Writes { get; } = [];
+        public List<(int? Id, EntryDraft Draft)> EntryWrites { get; } = [];
 
-        /// <summary>Set to make the next save fail with this.</summary>
+        /// <summary>Set to make the next save, of a parlay or an entry, fail with this.</summary>
         public Exception? FailWith { get; set; }
     }
 
@@ -41,8 +43,9 @@ public class JournalParlayTests : WagerTestContext
 
         protected override Task<JournalRead> FetchAsync(JournalFilter filter)
             => Task.FromResult(new JournalRead(
-                [], OnHand.Parlays.ToList(), OnHand.Books, ["mlb", "nfl"],
-                OnHand.Parlays.Count(p => p.Result == EntryResult.Pending)));
+                OnHand.Entries.ToList(), OnHand.Parlays.ToList(), OnHand.Books, ["mlb", "nfl"],
+                OnHand.Entries.Count(e => e.Result == EntryResult.Pending)
+                + OnHand.Parlays.Count(p => p.Result == EntryResult.Pending)));
 
         protected override Task WriteParlayAsync(Guid id, ParlayEdit edit)
         {
@@ -52,10 +55,19 @@ public class JournalParlayTests : WagerTestContext
             OnHand.Writes.Add((id, edit));
             return Task.CompletedTask;
         }
+
+        protected override Task WriteEntryAsync(EntryDraft draft, int? id)
+        {
+            if (OnHand.FailWith is { } ex)
+                return Task.FromException(ex);
+
+            OnHand.EntryWrites.Add((id, draft));
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>Registered because the Journal asks for a factory; the seams above mean it is never called.</summary>
-    private sealed class NoDatabase : IDbContextFactory<LineOpsDbContext>
+    internal sealed class NoDatabase : IDbContextFactory<LineOpsDbContext>
     {
         public LineOpsDbContext CreateDbContext() => throw new NotSupportedException("No database in a render test.");
     }
@@ -201,6 +213,24 @@ public class JournalParlayTests : WagerTestContext
         // Open, the form holds nothing the journal lacks, so Save waits on nothing.
         Assert.Empty(cut.FindAll("#parlay-save-why"));
         Assert.False(Key(cut, "Save changes").HasAttribute("disabled"));
+    }
+
+    /// <summary>
+    /// The entry form is one named section; the parlay form's money sat in a bare group beside
+    /// its named Legs section. Both are sections now, the first called Parlay.
+    /// </summary>
+    [Fact]
+    public void The_parlay_form_is_sections()
+    {
+        var (cut, _) = Render();
+
+        cut.Find("button[title='Edit this parlay']").Click();
+
+        var sections = cut.FindAll(".pform--grouped section.wsection");
+        Assert.True(sections.Count >= 2, $"Expected at least two sections, found {sections.Count}.");
+        Assert.Equal("Parlay", sections[0].GetAttribute("aria-label"));
+        Assert.NotNull(sections[0].QuerySelector(".wgroup.jform"));
+        Assert.Empty(cut.FindAll(".pform--grouped .wsections > .wgroup"));
     }
 
     /// <summary>The book the picker shows: its value, or the option marked selected, however the renderer wrote it.</summary>

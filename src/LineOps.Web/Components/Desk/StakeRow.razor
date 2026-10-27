@@ -14,7 +14,7 @@
        beside it are the steps, and a 5-dollar arrow is not how a stake is chosen. *@
     <DeskField TValue="decimal" Mono="true" Immediate="true" Class="stake-row__field"
                type="number" step="5" min="0"
-               placeholder="Stake" Value="Stake" ValueChanged="SetAsync"
+               placeholder="Stake" aria-label="Stake" Value="Stake" ValueChanged="SetAsync"
                aria-invalid="@(HasError ? "true" : null)"
                aria-describedby="@(HasError ? _errorId : null)" />
 

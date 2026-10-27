@@ -1,19 +1,108 @@
+using Bunit;
+using LineOps.Core.Entities;
+using LineOps.Data;
 using LineOps.Desk.Windowing;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
 using LineOps.Web.Windowing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
 
 /// <summary>
 /// The Journal records new bets through the wager window and gives parlays to the slip; its own
-/// form is for editing an entry. Read from the source: the Journal loads from the database the
-/// moment it renders, and this project has none.
+/// form is for editing an entry. Mostly read from the source: the Journal loads from the
+/// database the moment it renders, and this project has none. Where the behaviour is the point —
+/// a write that fails — it renders against the in-memory journal the parlay tests read through
+/// the panel's virtual seams.
 /// </summary>
-public class JournalPanelTests
+public class JournalPanelTests : WagerTestContext
 {
+    private readonly JournalParlayTests.JournalOnHand _journal = new();
+
+    public JournalPanelTests()
+    {
+        Services.AddSingleton(_journal);
+        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new JournalParlayTests.NoDatabase());
+    }
+
     private static string Source()
         => File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "JournalPanel.razor"));
+
+    /// <summary>A straight bet on the Chiefs, $50 at -110 with DraftKings, still pending.</summary>
+    private static JournalEntry Pending()
+    {
+        var game = new Game
+        {
+            Id = 21,
+            Sport = new Sport { Key = "nfl", Name = "NFL" },
+            AwayTeam = new Team { Name = "Buffalo Bills", Abbrev = "BUF" },
+            HomeTeam = new Team { Name = "Kansas City Chiefs", Abbrev = "KC" },
+            StartsAt = DateTimeOffset.UtcNow.AddHours(4),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
+        };
+
+        return new JournalEntry
+        {
+            Id = 7,
+            GameId = game.Id,
+            Game = game,
+            Market = Markets.Moneyline,
+            Outcome = "Kansas City Chiefs",
+            PriceTaken = -110,
+            Stake = 50m,
+            Book = "draftkings",
+            PlacedAt = DateTimeOffset.UtcNow.AddHours(-1)
+        };
+    }
+
+    /// <summary>
+    /// A write that fails used to escape the handler: the form stayed or went by accident, and
+    /// nothing said the entry was not saved. Now the form stays open on what was typed and the
+    /// toolbar says so, as the parlay form already did.
+    /// </summary>
+    [Fact]
+    public void A_save_that_fails_keeps_the_form_open_and_says_so()
+    {
+        _journal.Entries.Add(Pending());
+        _journal.FailWith = new InvalidOperationException("connection refused");
+
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[title='Edit this entry']")));
+
+        cut.Find("button[title='Edit this entry']").Click();
+        cut.Find(".pform--grouped .stake-row__field").Input("40");
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Save changes").Click();
+
+        Assert.NotEmpty(cut.FindAll(".pform--grouped"));
+        Assert.Equal("40", cut.Find(".pform--grouped .stake-row__field").GetAttribute("value"));
+        Assert.True(window.HasUnsavedInput);
+        Assert.Equal("The entry was not saved. Try again.", cut.Find(".ptoolbar__msg").TextContent.Trim());
+        Assert.DoesNotContain("connection refused", cut.Markup);
+        Assert.Empty(_journal.EntryWrites);
+    }
+
+    /// <summary>The other four writes catch theirs the same way, each saying which write did not happen.</summary>
+    [Fact]
+    public void Every_journal_write_says_when_it_did_not_happen()
+    {
+        var source = Source();
+
+        foreach (var sentence in new[]
+                 {
+                     "The entry was not saved. Try again.",
+                     "The entry was not deleted. Try again.",
+                     "The parlay was not deleted. Try again.",
+                     "The result was not recorded. Try again.",
+                     "Settlement did not run. Try again."
+                 })
+        {
+            Assert.Contains($"_message = \"{sentence}\";", source);
+        }
+    }
 
     [Fact]
     public void Log_parlay_is_gone()

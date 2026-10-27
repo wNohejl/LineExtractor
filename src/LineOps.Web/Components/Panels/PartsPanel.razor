@@ -60,7 +60,7 @@
             @* The toolbar every list window draws: a fixed set of leagues is a segment, and a filter
                that searches is a search field that names its scope. *@
             <DeskSwitch Options="_anatomySports" Label="Sport" Size="DeskKeySize.Small" @bind-Value="_anatomySport" />
-            <DeskSearch Placeholder="Search players" @bind-Value="_anatomySearch" />
+            <DeskSearch Placeholder="Search players" Label="Players" @bind-Value="_anatomySearch" />
         </ChildContent>
         <Actions>
             <DeskButton Icon="@Icons.Material.Filled.Refresh">Refresh</DeskButton>

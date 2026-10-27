@@ -226,136 +226,139 @@ else
                    inset rule between rows, the label leading and the control trailing in one
                    aligned column. The three markets are three rows of a segmented control; the
                    price is the row beneath them, a value beside its label, not a hero; what the
-                   number is worth and where it came from is the group's footer. *@
-                <div class="wgroup wbet">
-                    @if (_noGame)
-                    {
-                        <div class="wgroup__row wgroup__row--form">
-                            <span class="wgroup__label">Bet</span>
-                            <DeskField TValue="string" Immediate="true" Class="wfield--fill"
-                                       placeholder="e.g. Steelers to win the AFC North"
-                                       aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
-                        </div>
-                    }
-                    else if (Row is not null)
-                    {
-                        <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
-                    }
-
-                    @if (!HasSide)
-                    {
-                        @* The price row keeps its place before a side is picked, so the group
-                           does not jump when one is: it says what it waits for in tertiary, and
-                           the book pop-up is there but disabled (recipe rule 3), not hidden. *@
-                        <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty wager-offer">
-                            <span class="wbet__wait">Choose a side above.</span>
-                            <div class="wager-offer__top">
-                                <BookPicker Books="[]" Disabled="true" />
-                            </div>
-                        </div>
-                    }
-                    else if (Typing)
-                    {
-                        @* Typed: a row per field, label leading, fields one width (HIG: fields in
-                           a group share widths and stack). *@
-                        <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
-                            <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : Side?.Label)</span></span>
-                            <div class="wager-typed__cell">
-                                <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
-                                           aria-label="Price" placeholder="-110" Class="wfield--short"
-                                           Value="_typedPrice" ValueChanged="SetTypedPrice" />
-                                @if (Side?.Offer is not null)
-                                {
-                                    <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
-                                                Icon="@Icons.Material.Filled.Undo"
-                                                aria-pressed="true"
-                                                Title="Go back to the price the desk fetched"
-                                                OnClick="ToggleManual">
-                                        Use the fetched price
-                                    </DeskButton>
-                                }
-                            </div>
-                        </div>
-                        @if (HasLine)
+                   number is worth and where it came from is the group's footer. The group and its
+                   footer sit in a named section, as every grouped form on the desk does. *@
+                <section class="wsection" aria-label="Bet">
+                    <div class="wgroup wbet">
+                        @if (_noGame)
                         {
-                            <div class="wgroup__row wgroup__row--form wager-typed">
-                                <span class="wgroup__label">Line</span>
-                                <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
-                                           aria-label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
-                                           Class="wfield--short"
-                                           Value="_typedLine" ValueChanged="SetTypedLine" />
+                            <div class="wgroup__row wgroup__row--form">
+                                <span class="wgroup__label">Bet</span>
+                                <DeskField TValue="string" Immediate="true" Class="wfield--fill"
+                                           placeholder="e.g. Steelers to win the AFC North"
+                                           aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
                             </div>
                         }
-                        <div class="wgroup__row wgroup__row--form wager-typed">
-                            <span class="wgroup__label">Book</span>
-                            <DeskField TValue="string" Immediate="true" aria-label="Book" placeholder="draftkings"
-                                       list="@_booksListId" Class="wfield--short"
-                                       Value="_typedBook" ValueChanged="SetTypedBook" />
-                            <datalist id="@_booksListId">
-                                @foreach (var book in _knownBooks)
-                                {
-                                    <option value="@book"></option>
-                                }
-                            </datalist>
-                        </div>
-                    }
-                    else if (_offer is { } offer && Side?.Offer is { } quoted)
-                    {
-                        @* The row closes the group and echoes the choice (wizards.md, the bet-and-price
-                           recipe, rule 3): leading, the side with its line at 13px semibold
-                           ("Bills +2.5") over its market and matchup in secondary ("Spread · at
-                           Chiefs"); trailing, the price at title 2 and then the book pop-up, with
-                           the pencil that replaces the number last. The echo is the label, so there
-                           is no "Price" label, and the line is said once, in the echo. Keyed on the
-                           side, so a new choice cross-fades in (rule 4) rather than swapping. *@
-                        <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
-                            <span class="wbet__echo-pair" @key="offer.Label">
-                                <span class="wbet__side">@EchoSide(offer)</span>
-                                <span class="wbet__detail">@EchoDetail(_market!, offer.Outcome)</span>
-                            </span>
-                            <div class="wager-offer__top">
-                                <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
-                                <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
-                                <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
-                                            Icon="@Icons.Material.Filled.Edit"
-                                            aria-pressed="false"
-                                            aria-label="Enter a price"
-                                            Title="Enter a price"
-                                            OnClick="ToggleManual" />
-                            </div>
-                        </div>
-                    }
-                </div>
+                        else if (Row is not null)
+                        {
+                            <SelectionChips Row="Row" Market="@_market" Outcome="@_outcome" OnChoose="ChooseAsync" />
+                        }
 
-                @* The group's footer: what the number is worth, and where it came from. *@
-                @if (HasSide && Typing && _offer is { } typed)
-                {
-                    <p class="wgroup__foot wager-offer__value">@ValueLine(typed)</p>
-                }
-                else if (HasSide && Typing && Side?.Offer is null)
-                {
-                    <p class="wgroup__foot wager-offer__of wager-typed-why">
-                        @(_noGame
-                            ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
-                            : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
-                    </p>
-                }
-                else if (!Typing && _offer is { } priced && Side?.Offer is { } fetched)
-                {
-                    <p class="wgroup__foot wager-offer__meta">
-                        <span class="wager-offer__value">@ValueLine(priced)</span>
-                        <span class="wager-offer__of">
-                            @(priced.IsBest ? "Best" : "One") of @priced.BooksQuoting @(priced.BooksQuoting == 1 ? "book" : "books")
-                            @if (!priced.IsBest && WagerOffer.Best(_market!, fetched) is { } best)
+                        @if (!HasSide)
+                        {
+                            @* The price row keeps its place before a side is picked, so the group
+                               does not jump when one is: it says what it waits for in tertiary, and
+                               the book pop-up is there but disabled (recipe rule 3), not hidden. *@
+                            <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty wager-offer">
+                                <span class="wbet__wait">Choose a side above.</span>
+                                <div class="wager-offer__top">
+                                    <BookPicker Books="[]" Disabled="true" />
+                                </div>
+                            </div>
+                        }
+                        else if (Typing)
+                        {
+                            @* Typed: a row per field, label leading, fields one width (HIG: fields in
+                               a group share widths and stack). *@
+                            <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
+                                <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : Side?.Label)</span></span>
+                                <div class="wager-typed__cell">
+                                    <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
+                                               aria-label="Price" placeholder="-110" Class="wfield--short"
+                                               Value="_typedPrice" ValueChanged="SetTypedPrice" />
+                                    @if (Side?.Offer is not null)
+                                    {
+                                        <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
+                                                    Icon="@Icons.Material.Filled.Undo"
+                                                    aria-pressed="true"
+                                                    Title="Go back to the price the desk fetched"
+                                                    OnClick="ToggleManual">
+                                            Use the fetched price
+                                        </DeskButton>
+                                    }
+                                </div>
+                            </div>
+                            @if (HasLine)
                             {
-                                <text> · best is @best.Book @Price(best.PriceAmerican)</text>
+                                <div class="wgroup__row wgroup__row--form wager-typed">
+                                    <span class="wgroup__label">Line</span>
+                                    <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
+                                               aria-label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
+                                               Class="wfield--short"
+                                               Value="_typedLine" ValueChanged="SetTypedLine" />
+                                </div>
                             }
-                        </span>
-                        <span class="wager-offer__age" title="When the desk last fetched this price">
-                            <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(priced)
-                        </span>
-                    </p>
-                }
+                            <div class="wgroup__row wgroup__row--form wager-typed">
+                                <span class="wgroup__label">Book</span>
+                                <DeskField TValue="string" Immediate="true" aria-label="Book" placeholder="draftkings"
+                                           list="@_booksListId" Class="wfield--short"
+                                           Value="_typedBook" ValueChanged="SetTypedBook" />
+                                <datalist id="@_booksListId">
+                                    @foreach (var book in _knownBooks)
+                                    {
+                                        <option value="@book"></option>
+                                    }
+                                </datalist>
+                            </div>
+                        }
+                        else if (_offer is { } offer && Side?.Offer is { } quoted)
+                        {
+                            @* The row closes the group and echoes the choice (wizards.md, the bet-and-price
+                               recipe, rule 3): leading, the side with its line at 13px semibold
+                               ("Bills +2.5") over its market and matchup in secondary ("Spread · at
+                               Chiefs"); trailing, the price at title 2 and then the book pop-up, with
+                               the pencil that replaces the number last. The echo is the label, so there
+                               is no "Price" label, and the line is said once, in the echo. Keyed on the
+                               side, so a new choice cross-fades in (rule 4) rather than swapping. *@
+                            <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
+                                <span class="wbet__echo-pair" @key="offer.Label">
+                                    <span class="wbet__side">@EchoSide(offer)</span>
+                                    <span class="wbet__detail">@EchoDetail(_market!, offer.Outcome)</span>
+                                </span>
+                                <div class="wager-offer__top">
+                                    <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
+                                    <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
+                                    <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
+                                                Icon="@Icons.Material.Filled.Edit"
+                                                aria-pressed="false"
+                                                aria-label="Enter a price"
+                                                Title="Enter a price"
+                                                OnClick="ToggleManual" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @* The group's footer: what the number is worth, and where it came from. *@
+                    @if (HasSide && Typing && _offer is { } typed)
+                    {
+                        <p class="wgroup__foot wager-offer__value">@ValueLine(typed)</p>
+                    }
+                    else if (HasSide && Typing && Side?.Offer is null)
+                    {
+                        <p class="wgroup__foot wager-offer__of wager-typed-why">
+                            @(_noGame
+                                ? "No game, so no fetched price: enter the price you got. The Journal tags it manual."
+                                : "No book the desk scans prices this side: enter the price you got. The Journal tags it manual.")
+                        </p>
+                    }
+                    else if (!Typing && _offer is { } priced && Side?.Offer is { } fetched)
+                    {
+                        <p class="wgroup__foot wager-offer__meta">
+                            <span class="wager-offer__value">@ValueLine(priced)</span>
+                            <span class="wager-offer__of">
+                                @(priced.IsBest ? "Best" : "One") of @priced.BooksQuoting @(priced.BooksQuoting == 1 ? "book" : "books")
+                                @if (!priced.IsBest && WagerOffer.Best(_market!, fetched) is { } best)
+                                {
+                                    <text> · best is @best.Book @Price(best.PriceAmerican)</text>
+                                }
+                            </span>
+                            <span class="wager-offer__age" title="When the desk last fetched this price">
+                                <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(priced)
+                            </span>
+                        </p>
+                    }
+                </section>
 
                 @if (_moved is not null)
                 {
@@ -380,27 +383,29 @@ else
                    the field (HIG: common values sit beside the field), and the note; what the
                    stake wins is the group's footer, under it, and follows the field as it is
                    typed (the field is Immediate). *@
-                <div class="wgroup wstake">
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Stake</span>
-                        <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" ShowReturns="false" />
+                <section class="wsection" aria-label="Stake">
+                    <div class="wgroup wstake">
+                        <div class="wgroup__row wgroup__row--form">
+                            <span class="wgroup__label">Stake</span>
+                            <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" ShowReturns="false" />
+                        </div>
+                        <div class="wgroup__row wgroup__row--form">
+                            <span class="wgroup__label">Note</span>
+                            @* Immediate: a note bound on change is committed by the blur, and a press of
+                               Add to slip or Log straight from the field could run before it — the wager
+                               went on with no note. Bound as it is typed, the key reads what it shows. *@
+                            <DeskField TValue="string" Immediate="true" placeholder="Optional"
+                                       aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
+                        </div>
                     </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Note</span>
-                        @* Immediate: a note bound on change is committed by the blur, and a press of
-                           Add to slip or Log straight from the field could run before it — the wager
-                           went on with no note. Bound as it is typed, the key reads what it shows. *@
-                        <DeskField TValue="string" Immediate="true" placeholder="Optional"
-                                   aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
-                    </div>
-                </div>
-                @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
-                {
-                    <p class="wgroup__foot wstake__win num">
-                        To win <strong>@OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake).ToString("C0")</strong>
-                        · @OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake).ToString("C0") back with the stake
-                    </p>
-                }
+                    @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
+                    {
+                        <p class="wgroup__foot wstake__win num">
+                            To win <strong>@OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake).ToString("C0")</strong>
+                            · @OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake).ToString("C0") back with the stake
+                        </p>
+                    }
+                </section>
             </ChildContent>
         </DeskStep>
         }

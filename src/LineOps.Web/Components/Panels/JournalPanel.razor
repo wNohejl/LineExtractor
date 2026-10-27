@@ -165,35 +165,39 @@ else
             </Note>
         }
 
+        @* Two sections, as the entry form is one: the parlay's money, then its legs. A group
+           sitting loose in the column beside a section is a group with no name. *@
         <div class="wsections">
-            <div class="wgroup jform">
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Book</span>
-                    @BookPicker(edited.Book, SetParlayBookAsync)
+            <section class="wsection" aria-label="Parlay">
+                <div class="wgroup jform">
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Book</span>
+                        @BookPicker(edited.Book, SetParlayBookAsync)
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Stake</span>
+                        <StakeRow Stake="edited.Stake" StakeChanged="@(s => Edit("stake", () => edited.Stake = s))"
+                                  PriceAmerican="@CombinedPrice(edited)"
+                                  Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Book's price</span>
+                        @* The book's own price for the parlay, when it gave one: what a clean win pays.
+                           Without it the legs' prices are multiplied, as the slip does. *@
+                        <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                                   aria-label="The book's price for the parlay" placeholder="Optional"
+                                   Value="edited.PriceQuoted"
+                                   ValueChanged="@((int? q) => Edit("quoted", () => edited.PriceQuoted = q))"
+                                   Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
+                    </div>
+                    <div class="wgroup__row wgroup__row--form">
+                        <span class="wgroup__label">Note</span>
+                        <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
+                                   placeholder="Optional" Value="edited.Note"
+                                   ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
+                    </div>
                 </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Stake</span>
-                    <StakeRow Stake="edited.Stake" StakeChanged="@(s => Edit("stake", () => edited.Stake = s))"
-                              PriceAmerican="@CombinedPrice(edited)"
-                              Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Book's price</span>
-                    @* The book's own price for the parlay, when it gave one: what a clean win pays.
-                       Without it the legs' prices are multiplied, as the slip does. *@
-                    <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
-                               aria-label="The book's price for the parlay" placeholder="Optional"
-                               Value="edited.PriceQuoted"
-                               ValueChanged="@((int? q) => Edit("quoted", () => edited.PriceQuoted = q))"
-                               Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Note</span>
-                    <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
-                               placeholder="Optional" Value="edited.Note"
-                               ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
-                </div>
-            </div>
+            </section>
 
             <section class="wsection" aria-labelledby="parlay-legs-h">
                 <h4 class="wgroup__head" id="parlay-legs-h">Legs</h4>
@@ -805,6 +809,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         await scope.ServiceProvider.GetRequiredService<JournalService>().UpdateParlayAsync(id, edit);
     }
 
+    /// <summary>The write behind the entry form's Save. Virtual for the same render tests.</summary>
+    protected virtual async Task WriteEntryAsync(EntryDraft draft, int? id)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveEntryAsync(draft, id);
+    }
+
     private async Task FilterAsync(Action change)
     {
         change();
@@ -1002,11 +1013,22 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Saves the entry form. As the parlay form does, a write that fails keeps the form open with
+    /// what was typed and says so in the toolbar, rather than taking the operator's work with it.
+    /// </summary>
     private async Task SaveEntryAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>()
-            .SaveEntryAsync(_entry.ToDraft(), _editing?.Id);
+        try
+        {
+            await WriteEntryAsync(_entry.ToDraft(), _editing?.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Journal entry {Id} did not save", _editing?.Id);
+            _message = "The entry was not saved. Try again.";
+            return;
+        }
 
         _message = _editing is null ? "Entry logged." : "Entry saved.";
         CloseForm();
@@ -1023,8 +1045,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         if (!confirmed)
             return;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteEntryAsync(entry.Id);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteEntryAsync(entry.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Journal entry {Id} was not deleted", entry.Id);
+            _message = "The entry was not deleted. Try again.";
+            return;
+        }
 
         _message = "Entry deleted.";
         await LoadAsync();
@@ -1040,8 +1071,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         if (!confirmed)
             return;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteParlayAsync(parlay.Id);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().DeleteParlayAsync(parlay.Id);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Parlay {Id} was not deleted", parlay.Id);
+            _message = "The parlay was not deleted. Try again.";
+            return;
+        }
 
         _message = "Parlay deleted.";
         await LoadAsync();
@@ -1049,11 +1089,21 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
     private async Task SetResultAsync(int entryId, EntryResult result)
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var entry = await db.JournalEntries.FirstAsync(e => e.Id == entryId);
 
-        PerformanceAnalytics.ApplyResult(entry, result);
-        await db.SaveChangesAsync();
+            PerformanceAnalytics.ApplyResult(entry, result);
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The result on journal entry {Id} was not recorded", entryId);
+            _message = "The result was not recorded. Try again.";
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -1063,8 +1113,18 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             ? OddsMath.PayoutOnWin(q, parlay.Stake)
             : (decimal?)null;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().SetParlayResultAsync(parlay.Id, result, payout);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>().SetParlayResultAsync(parlay.Id, result, payout);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The result on parlay {Id} was not recorded", parlay.Id);
+            _message = "The result was not recorded. Try again.";
+            return;
+        }
+
         await LoadAsync();
     }
 
@@ -1081,7 +1141,16 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
             _message = $"{summary.Graded} graded · {summary.Voided} voided · {summary.ParlaysSettled} parlays · "
                        + $"{summary.ClvResolved} CLV resolved · {summary.LeftPending} pending";
+
+            // The reload catches its own failure (WithActivityAsync), so a catch here is the
+            // settlement's alone.
             await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Settlement did not run");
+            _message = "Settlement did not run. Try again.";
+            Report(PulseState.Critical, "settle failed");
         }
         finally
         {

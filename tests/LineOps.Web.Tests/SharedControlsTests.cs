@@ -59,6 +59,18 @@ public class SharedControlsTests : DeskTestContext
         Assert.Equal(50m, stake);
     }
 
+    /// <summary>
+    /// The placeholder said "Stake" until a stake was typed, and then nothing did: the field is
+    /// named for a screen reader, which the row label beside it in a grouped form is not bound to.
+    /// </summary>
+    [Fact]
+    public void The_stake_field_is_named()
+    {
+        var cut = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 25m));
+
+        Assert.Equal("Stake", cut.Find("input.stake-row__field").GetAttribute("aria-label"));
+    }
+
     [Fact]
     public void The_quick_amount_matching_the_stake_shows_as_chosen()
     {
