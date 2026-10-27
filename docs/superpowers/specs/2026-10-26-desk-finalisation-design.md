@@ -53,8 +53,8 @@ from those surveys at commit `55d43e6`.
 
 - A window that looks finished in dark and wrong in light. Both are checked, every time.
 - A "system" stylesheet that still knows what a board or a book is.
-- A primitive added for completeness and used nowhere: every new primitive replaces an existing
-  hand-built control in a window.
+- A primitive that exists only on paper: every new primitive is shown in the gallery with its
+  states, and replaces a hand-built control wherever a window has one.
 - Rewriting history, adding worktrees, or leaving a branch behind (CLAUDE.md).
 
 ## Constraints
@@ -125,8 +125,12 @@ literal colour outside a token block.
 rewritten. The league-key `.ToUpperInvariant()` calls stay: MLB, NFL and UFC are initialisms.
 
 **Proof.** A browser walk of all nineteen windows at 1280×800 and 1920×1080, dark and light,
-with screenshots saved under `docs/superpowers/evidence/2026-10-desk-final/`, and an axe-core
-run in each window reporting no serious or critical violation. The walk is the acceptance test
+against this machine's database. The screenshots show the operator's own journal and are
+**not committed**: they stay in the session's scratchpad, and what is committed is
+`docs/superpowers/evidence/2026-10-desk-final.md`, a table of window × size × theme with the
+checklist result and any defect found. An axe-core pass is run by hand through the browser
+pane's script tool (the page's CSP allows no CDN, and no test project is added for it), with no
+serious or critical violation; its summary goes in the same table. The walk is the acceptance test
 for this phase and is repeated at the end of Phase D.
 
 ### Phase B — the package shape
@@ -146,7 +150,9 @@ asserted by a test that reads both files for the selectors each side may own.
 scale, workspaces, capacity). If it references no LineOps.Web type beyond the catalogue
 interface the Desk already defines, `WindowManagerPanel` and its CSS move into
 `src/LineOps.Desk/Windowing`; if it does, the app-specific part is split off first. The
-builder confirms the dependency list before moving it.
+builder confirms the dependency list before moving it. (Checked: its only app dependency is
+`LineOps.Web.Access.AccessOptions`, which the Desk already abstracts as `IDeskAccess`; the
+panel reads that instead and moves.)
 
 **Namespaces.** `PriceCell.razor` and `PullMenu.razor` leave `LineOps.Desk.Primitives` for
 `LineOps.Web.Components.Desk`. `SnippetFailure` and `CheckList` with its `Check` record (state,
@@ -185,11 +191,17 @@ WindowManagerControlsTests) stay in `LineOps.Web.Tests`. The format gate and CI 
 projects.
 
 **Packing.** `LineOps.Desk.csproj` gains `IsPackable`, `PackageId=LineOps.Desk`, `Version=0.1.0`,
-`Description`, `PackageLicenseFile` for the Inter licence already shipped, and
-`GenerateDocumentationFile`. `dotnet pack` is part of the verification. A `README.md` in
+`Description` and `GenerateDocumentationFile`. No licence is declared until the package is
+exported; Inter's OFL stays beside the font as the font's notice, not the package's licence. `dotnet pack` is part of the verification. A `README.md` in
 `src/LineOps.Desk` covers: what it is, wiring (the four lines), the token families and how a
 theme family is added, the primitive table with one line each, the MudBlazor seam and its
 rules, and the Parts bin as the living gallery.
+
+**The gallery is the Desk's.** `PartsPanel` moves into `src/LineOps.Desk/Windowing` with its
+CSS, keyed in the catalogue by the consumer as now. Its three app demos go: the price cells
+(`PartsPanel.razor:394–396`, built on `BestOffer`) and the "New wager" sheet become plain Desk
+demos (a `DeskSheet` with a grouped form of generic fields), and the `LineOps.Data` using
+disappears. After this a fresh project that wires the Desk can open the gallery.
 
 ### Phase C — the missing controls
 
@@ -198,12 +210,12 @@ bin section and a README row:
 
 | Primitive | Semantics | Replaces |
 |---|---|---|
-| `DeskToggle` | `role="switch"`, label leading, on/off trailing, 28pt row | `DeskCheckbox` used for on/off in the Window manager and Ops Scanning |
+| `DeskToggle` | `role="switch"`, label leading, on/off trailing, 28pt row | nothing yet: Ops Scanning stays a segmented control with its confirm row by design (`OpsPanel.razor:115`); the toggle is shown in the gallery for the consumer's settings rows |
 | `DeskBadge` | a count on a key or tab; `aria-label` "n items" | counts written into labels ("Slip · 2") |
-| `DeskSpinner` | indeterminate activity, 16/20pt, `role="status"` | nothing today for a short wait inside a key or row; `DeskButton Busy` keeps its shimmer |
+| `DeskSpinner` | indeterminate activity, 16/20pt, `role="status"` | the gallery only; `DeskButton Busy` keeps its shimmer |
 | `DeskTooltip` | hover and focus, 300ms delay, `role="tooltip"`, escape closes | the one `MudTooltip` in `PriceCell.razor:32`; everywhere else `title` stays |
 | `DeskRadioGroup` / `DeskRadio` | `role="radiogroup"`, arrow keys, one tab stop | the raw `role="radio"` swatches in the Window manager, and `SelectionChips`'s hand-built gate if it is a radio and not a segmented control (the builder decides from its behaviour) |
-| `DeskSlider` | `<input type="range">` with label, value and ticks | the raw range input for UI scale in the Window manager |
+| `DeskSlider` | `<input type="range">` with label, value and ticks | the raw range input for the primary window's share (`WindowManagerPanel.razor:240`); interface scale stays a segmented control of fixed steps |
 
 Also: tests for the twelve primitives that have none (DeskCheckbox, DeskSelect, DeskTextArea,
 DeskPopover, DeskProgress, DeskRow, DeskStack, DeskStep, Metric, MetricRow, RailMenu, Glyph);
