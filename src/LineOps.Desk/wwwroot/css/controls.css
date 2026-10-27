@@ -446,10 +446,9 @@
 }
 
 /* ---- Toolbar ----------------------------------------------------------------
-   The panel toolbar is one line. lineops.css still says `flex-wrap: wrap` and,
-   under 520px, gives the message and the keys a line each; these rules come
-   later at the same specificity and replace both. A control either sits on the
-   row or is in More (toolbar.js decides which), so nothing wraps and nothing is
+   The panel toolbar is one line. lineops.css lays the row out and says
+   `flex-wrap: wrap`; these rules come later at the same specificity and hold it to one line instead. A control either sits on the row or is in
+   More (toolbar.js decides which), so nothing wraps and nothing is
    clipped: no `overflow: hidden` here, which would also cut off every popover
    that opens from the row.
    --------------------------------------------------------------------------- */
@@ -469,11 +468,6 @@
 .ptoolbar__msg {
     min-width: auto;
     white-space: nowrap;
-}
-
-@container ptoolbar (max-width: 520px) {
-    .ptoolbar__msg { flex-basis: auto; }
-    .ptoolbar__actions { flex-basis: auto; }
 }
 
 /* An Overflow control on the row: the control alone, sized to its words, its

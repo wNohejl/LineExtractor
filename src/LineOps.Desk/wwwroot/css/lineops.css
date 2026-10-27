@@ -1754,7 +1754,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     justify-content: center;
     align-items: flex-start;
     padding-top: 12vh;
-    background: rgba(0, 0, 0, .28);
+    background: color-mix(in srgb, var(--surface-0) 60%, transparent);
 }
 
 .palette__panel {
@@ -3185,14 +3185,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     align-items: center; gap: var(--space-2); max-width: 100%;
 }
 .ptoolbar__actions > *, .ptoolbar > .desk-btn { flex: 0 0 auto; max-width: 100%; }
-
-/* A narrow toolbar gives the message and the keys a line each, after the pickers, rather
-   than wedging a key beside whichever picker happened to end short. After the rules above
-   on purpose: same specificity, so it has to come later to win. */
-@container ptoolbar (max-width: 520px) {
-    .ptoolbar__msg { flex-basis: 100%; }
-    .ptoolbar__actions { flex-basis: 100%; }
-}
+/* How a narrow toolbar folds is controls.css's business: it holds the row to one line and
+   toolbar.js moves what does not fit into More. Its @container ptoolbar rule is the only
+   one, so there is no second rule here for the cascade to settle between. */
 
 /* 5 · Section. The air between sections is the section's; its rule renders Tight,
    so the global "heading after content" rule stands down and this one decides. */
@@ -3230,15 +3225,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* Rows that follow one another inside a section body space themselves. */
 .psection__body > .row + .row { margin-top: var(--space-2); }
 
-/* 6 · Form. An inset card; the footer's order is the card's, not the caller's. */
+/* 6 · Form. A form is its title and its grouped fields; the group is the only edge. It has no
+   fill, frame or padding of its own, so a .wgroup inside it — or a form inside a section —
+   never draws a box inside a box. The footer's order is the form's, not the caller's. */
 .pform {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--surface-2);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius);
     margin: 0 0 var(--space-4);
 }
 .pform__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
@@ -3252,14 +3245,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     line-height: var(--leading-body);
     color: var(--text-secondary);
 }
-/* A form whose fields are a grouped form (.wgroup rows) is not boxed again: the group is the
-   fill, and a frame around it would be a box inside a box. Its keys lead, under the group.
-   It is a section of the window in its own right, so it takes a section's air beneath it
-   before the list it edits. */
+/* A form whose fields are a grouped form (.wgroup rows) reads at a form's width, and its keys
+   lead, under the group. It is a section of the window in its own right, so it takes a
+   section's air beneath it before the list it edits. */
 .pform--grouped {
-    padding: 0;
-    background: none;
-    border: 0;
     max-width: 560px;
     gap: var(--space-3);
     margin-bottom: var(--space-6);
@@ -4571,9 +4560,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
    Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
    (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
-   body — one step up the ramp — with no outline: the fill is the boundary (hairlines separate,
-   they never outline). Rows inside a group are divided by an inset hairline that starts where
-   the text does, not at the group's edge. Sections are spaced a full --space-6 apart and a
+   body — one step up the ramp — edged by one 1px hairline, the way macOS draws a grouped form.
+   Rows inside a group are divided by an inset hairline that starts where the text does, not at
+   the group's edge. Sections are spaced a full --space-6 apart and a
    header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
    then the next section — the distinction is in the rhythm, not in boxes around boxes.
 
@@ -4585,13 +4574,16 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
 
-/* A group is a fill one level above the body, never a frame: the HIG's grouped list (a
-   secondary grouped background on the primary), where a box with a border is the strongest
-   grouping device and the last resort, and a box inside a box "feels busy and constrained"
-   (apple-hig-components, forms.md). Rows inside it are divided by one hairline, inset to the
-   label's leading edge, as grouped lists draw it. */
+/* The house rule on groups. A group is a fill one level above the body with one hairline edge:
+   the HIG's grouped list (a secondary grouped background on the primary), drawn the way macOS
+   draws a grouped form and the package wizard draws its sections. Rows inside it are divided by
+   inset hairlines, from the label's leading edge, as grouped lists draw them. A group never sits
+   inside another edged thing — a box inside a box "feels busy and constrained"
+   (apple-hig-components, forms.md) — which is why a form has no frame of its own and the
+   wizard's card, which is the group, unborders the .wgroup inside it. */
 .wgroup {
     background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
     border-radius: var(--radius-panel);
     overflow: hidden;
     /* Its rows ask how wide the group is, not the window: see the @container block after the
@@ -5213,14 +5205,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .take:hover span { color: var(--accent-ink); }
 .take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* ---- The house rule on groups, and the wizard at every width ------------------------------
-   A group is bordered: a 1px hairline on its fill, the way macOS draws a grouped form and the
-   package wizard draws its sections. Placed last so it wins.
+/* ---- The wizard at every width -------------------------------------------------------------
+   A group carries its hairline where .wgroup is defined (the house rule on groups, above).
    Inside the wizard's card there is no group: the card is the group (wizards.md, reconciling
    rules 1, 6 and 8, and "never a stroked group inside the steps card"). A step's rows sit bare
    in the card at the title's edge, divided by the card's quiet hairline, and its footer and
    review sentence align to the same edge. Notes that do not block logging lose their box. */
-.wgroup { border: 1px solid var(--separator-strong); }
 .wcard .wgroup { background: none; border: 0; border-radius: 0; }
 .wcard .wgroup__row--form { padding: 6px 0; min-height: 36px; }
 .wcard .wgroup__row + .wgroup__row::before { left: 0; border-top-color: var(--wsep); }
