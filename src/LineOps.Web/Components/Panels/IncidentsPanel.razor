@@ -218,6 +218,13 @@ else
                     </div>
                 }
             </div>
+
+            @* Said under the note it is about, not in the RCA's form further down: the field
+               still holds what was typed, so Add sends it again. *@
+            @if (_noteError is not null)
+            {
+                <Note State="DeskState.Warning" Class="opsnote">@_noteError</Note>
+            }
         }
     </PanelSection>
 
@@ -246,24 +253,36 @@ else
     else
     {
         <PanelSection Title="Root-cause analysis">
-            @* Capped at a form's width: across a maximised window the two fields ran 1,500px and
-               the keys sat at the far edge, a screen away from the text they commit. What the
-               form needs is said once, quietly, under its fields — a footer, not a tinted box
-               above them; the Resolve key's tooltip says which of it is still missing. *@
-            <PanelForm Class="opsrca">
+            @* The grouped form, row for row as a visitor's read-back draws it: each answer under
+               its own name in the label column, one inset rule between them. Two text areas
+               stacked under their own labels were a third look for a form on the desk. The
+               section's rule names it, so the form carries no second title. Capped at a form's
+               width: across a maximised window the two fields ran 1,500px and the keys sat at
+               the far edge, a screen away from the text they commit. What the form needs is
+               said once, quietly, as the group's footer; the Resolve key's tooltip says which
+               of it is still missing. *@
+            <PanelForm Class="pform--grouped opsrca">
                 <ChildContent>
-                    <DeskTextArea rows="4" Label="Root cause" Required
-                                  placeholder="What actually broke, and why did it break now?"
-                                  @bind-Value="_rootCause" />
-
-                    <DeskTextArea rows="4" Label="Corrective action" Required
-                                  placeholder="What change prevents a recurrence? Reference the commit."
-                                  @bind-Value="_corrective" />
-
-                    <p class="opsfoot">
-                        Both are needed to resolve. An incident without a cause and a fix teaches
-                        nothing later.
-                    </p>
+                    <section class="wsection" aria-label="Root-cause analysis">
+                        <div class="wgroup opsgroup opsgroup--log">
+                            <div class="wgroup__row wgroup__row--form">
+                                <span class="wgroup__label">Root cause</span>
+                                <DeskTextArea rows="4" Class="wfield--fill" aria-label="Root cause" Required
+                                              placeholder="What actually broke, and why did it break now?"
+                                              @bind-Value="_rootCause" />
+                            </div>
+                            <div class="wgroup__row wgroup__row--form">
+                                <span class="wgroup__label">Corrective action</span>
+                                <DeskTextArea rows="4" Class="wfield--fill" aria-label="Corrective action" Required
+                                              placeholder="What change prevents a recurrence? Reference the commit."
+                                              @bind-Value="_corrective" />
+                            </div>
+                        </div>
+                        <p class="wgroup__foot">
+                            Both are needed to resolve. An incident without a cause and a fix teaches
+                            nothing later.
+                        </p>
+                    </section>
 
                     @if (_error is not null)
                     {
@@ -280,7 +299,7 @@ else
 
                     @* Two different reasons this key is grey, and the operator cannot tell them
                        apart by looking: the RCA is short of a field, or the incident is already
-                       resolved and there is nothing left to do. The footer above states the rule;
+                       resolved and there is nothing left to do. The group's footer states the rule;
                        the title states which of the two is true right now. *@
                     <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
                                 OnClick="ResolveAsync" Disabled="@(!CanResolve)"
@@ -317,6 +336,9 @@ else
     private string _corrective = string.Empty;
     private string _newNote = string.Empty;
     private string? _error;
+
+    /// <summary>Why the last timeline note was not added, said beside the note field.</summary>
+    private string? _noteError;
     private int _open;
     private int _resolved;
     private string _mttr = "—";
@@ -394,6 +416,7 @@ else
 
         _selected = await service.GetAsync(id);
         _error = null;
+        _noteError = null;
 
         if (_selected is not null)
         {
@@ -414,12 +437,21 @@ else
         if (_selected is null)
             return;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<IncidentService>()
-            .AddNoteAsync(_selected.Id, _newNote);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .AddNoteAsync(_selected.Id, _newNote);
 
-        _newNote = string.Empty;
-        await SelectAsync(_selected.Id);
+            _newNote = string.Empty;
+            await SelectAsync(_selected.Id);
+        }
+        catch (Exception ex)
+        {
+            // The note stays in its field, so the operator sends it again rather than retyping it.
+            Log.LogError(ex, "A note was not added to incident #{Id}", _selected?.Id);
+            _noteError = "The note was not saved. Try again.";
+        }
     }
 
     private async Task ResolveAsync()
@@ -470,11 +502,20 @@ else
         if (_selected is null)
             return;
 
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<IncidentService>()
-            .SetStatusAsync(_selected.Id, IncidentStatus.Mitigated);
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IncidentService>()
+                .SetStatusAsync(_selected.Id, IncidentStatus.Mitigated);
 
-        await SelectAsync(_selected.Id);
+            await SelectAsync(_selected.Id);
+        }
+        catch (Exception ex)
+        {
+            // Inline, under the form whose key it was, as a failed resolve is.
+            Log.LogError(ex, "Incident #{Id} was not marked mitigated", _selected?.Id);
+            _error = "The incident was not updated. Try again.";
+        }
     }
 
     private static DeskState StatusState(IncidentStatus status) => status switch

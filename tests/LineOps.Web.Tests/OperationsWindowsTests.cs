@@ -249,6 +249,73 @@ public class OperationsWindowsTests : DeskTestContext
         Assert.Contains("1.5h", resolved.TextContent);
     }
 
+    /// <summary>The incident list, then one incident opened onto its timeline and RCA.</summary>
+    private IRenderedComponent<IncidentsPanel> RenderIncident(Incident incident)
+    {
+        var panel = RenderIncidents(incident);
+
+        Set(panel.Instance, "_selected", incident);
+        panel.Render();
+        return panel;
+    }
+
+    /// <summary>
+    /// The RCA is the grouped form every other form on the desk is: its two answers are rows of
+    /// one group, each under its own name, and the rule they answer to is the group's footer. It
+    /// was a .pform of two stacked text areas with their labels above them and a footnote of its
+    /// own, a third look for a form.
+    /// </summary>
+    [Fact]
+    public void The_rca_is_a_grouped_form()
+    {
+        var panel = RenderIncident(Incident(4, IncidentStatus.Open));
+
+        var form = panel.Find(".pform--grouped");
+        var rows = form.QuerySelectorAll("section.wsection .wgroup__row--form");
+
+        Assert.Equal(2, rows.Length);
+        Assert.Equal(["Root cause", "Corrective action"],
+            rows.Select(r => r.QuerySelector(".wgroup__label")!.TextContent.Trim()).ToArray());
+        Assert.All(rows, r => Assert.False(string.IsNullOrWhiteSpace(r.QuerySelector("textarea")!.GetAttribute("aria-label"))));
+
+        Assert.Contains("Both are needed to resolve", form.QuerySelector("section.wsection .wgroup__foot")!.TextContent);
+        Assert.Empty(form.QuerySelectorAll(".opsfoot"));
+
+        var filled = Assert.Single(form.QuerySelectorAll(".desk-btn--filled"));
+        Assert.Contains("Resolve incident", filled.TextContent);
+    }
+
+    /// <summary>
+    /// A note the database would not take is said beside the note, and the words stay in the
+    /// field to send again. The write used to have no catch at all, so a failure dropped the
+    /// circuit and the typed note with it. No IncidentService is registered here, so the write
+    /// throws the moment it asks for one.
+    /// </summary>
+    [Fact]
+    public void A_note_that_fails_to_save_keeps_its_text()
+    {
+        var panel = RenderIncident(Incident(4, IncidentStatus.Open));
+
+        panel.Find("input[aria-label='New timeline note']").Input("network blip");
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Add").Click();
+
+        panel.WaitForAssertion(() =>
+            Assert.Contains("The note was not saved. Try again.", panel.Find(".note").TextContent));
+        Assert.Equal("network blip", panel.Find("input[aria-label='New timeline note']").GetAttribute("value"));
+    }
+
+    /// <summary>Mark mitigated says when it did not, under the form it sits in.</summary>
+    [Fact]
+    public void A_mitigation_that_fails_says_so()
+    {
+        var panel = RenderIncident(Incident(4, IncidentStatus.Open));
+
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Mark mitigated").Click();
+
+        panel.WaitForAssertion(() =>
+            Assert.Contains("The incident was not updated. Try again.", panel.Find(".pform--grouped .note").TextContent));
+    }
+
     // ---- Runs --------------------------------------------------------------------------------
 
     private static IngestionRun Run(long id, RunStatus status) => new()

@@ -4455,11 +4455,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The placeholder holds the chart's shape, not a fixed height, so nothing jumps when it lands. */
 .perf-chart__skeleton .skel__block { height: auto; aspect-ratio: 2 / 1; }
 
-/* The bankroll field on the section's rule: a small field beside a small key, both 24px, as
-   wide as a bankroll's digits. Scoped to the rule's keys to outrank .psection__keys .field,
-   which sizes a picker to its words. */
-.psection__keys .perf-bankroll { width: 11ch; }
-
 /* The tables share their column widths: the name takes what the figures leave, and every
    figure column is one width, so a figure in one table sits under the same figure in the
    next. Fixed layout reads the widths from the header row. */
@@ -5470,7 +5465,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 /* The RCA is a form's width, so its keys sit under the fields they commit. */
 .opsrca { max-width: 720px; }
-.opsrca .opsfoot { margin: 0; }
+
 
 /* ---- The Game window's lines --------------------------------------------------------------
    One grouped row per market, the market's name leading as a form label, its two sides

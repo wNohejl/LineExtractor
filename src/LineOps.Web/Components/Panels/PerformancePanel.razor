@@ -141,38 +141,54 @@ else
 
         <PanelSection Title="Bankroll">
             @* The curve used to be cumulative profit from zero and called a bankroll. With a
-               starting figure it is one; it is stored with the data, not the browser. The field
-               says what it is to a screen reader as well as beside it, and a Set that cannot be
-               pressed says why. *@
-            <Keys>
-                <span class="dim" aria-hidden="true">Starting bankroll</span>
-                <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50"
-                           Class="field--sm perf-bankroll" aria-label="Starting bankroll"
-                           Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
-                <DeskButton Size="DeskKeySize.Small" Disabled="@(_bankrollInput == _startingBankroll)"
-                            Title="@(_bankrollInput == _startingBankroll ? "Type a different figure to set it." : null)"
-                            OnClick="SaveBankrollAsync">
-                    Set
-                </DeskButton>
-            </Keys>
-            <ChildContent>
-            @if (_bankroll.Length > 1)
-            {
-                @* Height="auto" with .perf-chart: the plot spans the column and keeps its own
-                   proportions, so its axis labels are drawn near the size they are written at
-                   rather than shrunk to fit a 200px box (lineops.css, "The Performance window"). *@
-                <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="auto"
-                           Class="perf-chart"
-                           Family="DeskChartFamily.Ledger"
-                           ShowLegend="false"
-                           Takeaway="@_takeaway"
-                           Description="@DeskChart.Describe(_startingBankroll > 0 ? "Bankroll over settled bets" : "Cumulative profit over settled bets", _labels, _bankrollSeries)" />
-            }
-            else
-            {
-                <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
-            }
-            </ChildContent>
+               starting figure it is one; it is stored with the data, not the browser. The figure
+               is a setting, so it is a row of a group above the curve it starts — its name in the
+               label column, the field and its key trailing, what it is for in the footer — and
+               not a field on the section's rule, where keys narrow what a section shows and a
+               hidden label beside it named it to nobody. A Set that cannot be pressed says why;
+               one that did not store says so under the row, with the figure still in the field. *@
+            <DeskStack Gap="DeskSpace.Space4">
+                <section class="wsection" aria-label="Bankroll">
+                    <div class="wgroup opsgroup opsgroup--wide">
+                        <div class="wgroup__row wgroup__row--form">
+                            <span class="wgroup__label">Starting bankroll</span>
+                            <div class="opsrow">
+                                <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50"
+                                           Class="wfield--short" aria-label="Starting bankroll"
+                                           Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
+                                <DeskButton Size="DeskKeySize.Small" Disabled="@(_bankrollInput == _startingBankroll)"
+                                            Title="@(_bankrollInput == _startingBankroll ? "Type a different figure to set it." : null)"
+                                            OnClick="SaveBankrollAsync">
+                                    Set
+                                </DeskButton>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="wgroup__foot">The curve starts here; stored with the journal, not the browser.</p>
+
+                    @if (_bankrollError is not null)
+                    {
+                        <Note State="DeskState.Warning">@_bankrollError</Note>
+                    }
+                </section>
+
+                @if (_bankroll.Length > 1)
+                {
+                    @* Height="auto" with .perf-chart: the plot spans the column and keeps its own
+                       proportions, so its axis labels are drawn near the size they are written at
+                       rather than shrunk to fit a 200px box (lineops.css, "The Performance window"). *@
+                    <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="auto"
+                               Class="perf-chart"
+                               Family="DeskChartFamily.Ledger"
+                               ShowLegend="false"
+                               Takeaway="@_takeaway"
+                               Description="@DeskChart.Describe(_startingBankroll > 0 ? "Bankroll over settled bets" : "Cumulative profit over settled bets", _labels, _bankrollSeries)" />
+                }
+                else
+                {
+                    <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
+                }
+            </DeskStack>
         </PanelSection>
 
         @* The three breakdowns are one table read three ways, so they share column widths: Bets,
@@ -251,6 +267,9 @@ else
     private PerformanceSummary _summary;
     private decimal _startingBankroll;
     private decimal? _bankrollInput;
+
+    /// <summary>Why the last Set did not store, said under the bankroll row.</summary>
+    private string? _bankrollError;
     private double[] _bankroll = [];
     private List<ChartSeries<double>> _bankrollSeries = [];
     private string[] _labels = [];
@@ -446,9 +465,22 @@ else
 
     private async Task SaveBankrollAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>()
-            .SetStartingBankrollAsync(Math.Max(0, _bankrollInput ?? 0));
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<JournalService>()
+                .SetStartingBankrollAsync(Math.Max(0, _bankrollInput ?? 0));
+            _bankrollError = null;
+        }
+        catch (Exception ex)
+        {
+            // The figure stays in the field and Set stays live, so the operator presses it again.
+            Log.LogError(ex, "The starting bankroll was not saved");
+            _bankrollError = "The bankroll was not saved. Try again.";
+            return;
+        }
+
+        // The read reports its own failure as the window's LoadFailure, so it sits outside the catch.
         await LoadAsync();
     }
 

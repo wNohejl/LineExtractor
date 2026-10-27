@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Reflection;
+using Bunit;
+using LineOps.Core.Analytics;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
 
@@ -8,9 +11,10 @@ namespace LineOps.Web.Tests;
 /// The Performance window's words and figures. Its tables read in display names — "Spread",
 /// "DraftKings" — under a first column named for what the rows are, and its money is signed with
 /// a real minus rather than the regional format's accountant's parentheses. Read from the source
-/// where the window needs a database to render.
+/// where the window needs a database to render; the bankroll row is rendered, with what a load
+/// would have read placed on the panel and no JournalService behind it, so a write throws.
 /// </summary>
-public class PerformancePanelTests
+public class PerformancePanelTests : DeskTestContext
 {
     private static string Source() => File.ReadAllText(Path.Combine(
         Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "PerformancePanel.razor"));
@@ -94,5 +98,77 @@ public class PerformancePanelTests
         var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
         Assert.Contains(".perf-chart .mud-chart svg.mud-chart-line { display: block; width: 100%; height: auto; margin: 0; }", css);
         Assert.Contains(".perf-chart .mud-chart text { font-size: var(--text-footnote); fill: var(--text-secondary); }", css);
+    }
+
+    private static void Set(object panel, string field, object? value)
+    {
+        for (var type = panel.GetType(); type is not null; type = type.BaseType)
+        {
+            if (type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic) is { } f)
+            {
+                f.SetValue(panel, value);
+                return;
+            }
+        }
+
+        throw new InvalidOperationException($"No field {field} on {panel.GetType().Name}.");
+    }
+
+    /// <summary>
+    /// The window with two settled bets read: the load itself fails (nothing serves the journal
+    /// here), and the test places what it would have read and marks the panel loaded.
+    /// </summary>
+    private IRenderedComponent<PerformancePanel> RenderSettled()
+    {
+        var panel = RenderComponent<PerformancePanel>();
+        panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll(".empty--error")));
+
+        Set(panel.Instance, "_anySettled", true);
+        Set(panel.Instance, "_summary", new PerformanceSummary(2, 1, 1, 0, 200m, 10m));
+        typeof(PanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(panel.Instance, null);
+        typeof(PanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(panel.Instance, true);
+        panel.Render();
+        return panel;
+    }
+
+    /// <summary>
+    /// The starting bankroll is a setting, so it is a row of a group: its name leads, the field
+    /// and its key trail, and what the figure is for is the group's footer. It sat on the
+    /// section's rule beside a label hidden from the screen reader, where a section's keys narrow
+    /// what it shows and do not store anything.
+    /// </summary>
+    [Fact]
+    public void Bankroll_is_a_setting_row()
+    {
+        var panel = RenderSettled();
+
+        var section = panel.Find("section.wsection[aria-label='Bankroll']");
+        var row = section.QuerySelector(".wgroup__row--form")!;
+
+        Assert.Equal("Starting bankroll", row.QuerySelector(".wgroup__label")!.TextContent.Trim());
+        Assert.Equal("Starting bankroll", row.QuerySelector("input")!.GetAttribute("aria-label"));
+        Assert.Contains("The curve starts here", section.QuerySelector(".wgroup__foot")!.TextContent);
+
+        var set = row.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Set");
+        Assert.DoesNotContain("desk-btn--filled", set.ClassName);
+
+        Assert.Empty(panel.FindAll(".psection__keys .perf-bankroll"));
+    }
+
+    /// <summary>A figure the journal would not store is said under the row, and stays in the field.</summary>
+    [Fact]
+    public void A_bankroll_that_fails_to_save_says_so()
+    {
+        var panel = RenderSettled();
+
+        panel.Find("input[aria-label='Starting bankroll']").Change("500");
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Set").Click();
+
+        panel.WaitForAssertion(() =>
+            Assert.Contains("The bankroll was not saved. Try again.",
+                panel.Find("section.wsection[aria-label='Bankroll'] .note").TextContent));
+        Assert.Equal("500", panel.Find("input[aria-label='Starting bankroll']").GetAttribute("value"));
     }
 }
