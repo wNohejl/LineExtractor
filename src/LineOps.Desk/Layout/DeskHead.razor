@@ -13,6 +13,16 @@
     on source order.
 *@
 <script src="@Assets[DeskAssets.Js("theme-boot.js")]"></script>
+@*  The regular face is on every page, and desk.css names it only once the sheet has arrived and
+    parsed, so without this the font is the last request the head makes and the first paint is in
+    the fallback. The italic is set in two places and loads when one of them draws.
+
+    The one link here not through @Assets, on purpose. A preload is only used if it is the
+    request the @font-face makes, and desk.css asks for the plain path — a stylesheet's url() is
+    not fingerprinted — so a fingerprinted preload would be a second download of the same file.
+    crossorigin because a font is always fetched in CORS mode; without it the preload is a
+    different request again. *@
+<link rel="preload" href="@(DeskAssets.Root + "/fonts/InterVariable.woff2")" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
 <link rel="stylesheet" href="@Assets[DeskAssets.Css("desk.css")]" />
 @* The newer primitives (menus, popovers) — straight after the file whose tokens they spend. *@

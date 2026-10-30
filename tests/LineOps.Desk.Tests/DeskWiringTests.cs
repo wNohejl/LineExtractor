@@ -44,6 +44,45 @@ public class DeskWiringTests : DeskTestContext
             Assert.EndsWith(expected[i], sources[i]);
     }
 
+    // Every page sets its text in the regular face, and desk.css only names it once the sheet has
+    // arrived and parsed, so without a hint the font is the last thing the head asks for and the
+    // first paint is in the fallback. The italic is set in two places and is left to load when one
+    // of them draws.
+    [Fact]
+    public void DeskHead_preloads_the_body_face_before_the_first_stylesheet()
+    {
+        var head = RenderComponent<DeskHead>();
+
+        var preload = Assert.Single(head.FindAll("link[rel=preload]"));
+        Assert.EndsWith("fonts/InterVariable.woff2", preload.GetAttribute("href"));
+        Assert.Equal("font", preload.GetAttribute("as"));
+        Assert.Equal("font/woff2", preload.GetAttribute("type"));
+
+        // A font is always fetched in CORS mode; a preload without crossorigin is a different
+        // request, and the browser fetches the face a second time.
+        Assert.True(preload.HasAttribute("crossorigin"));
+
+        var tags = head.FindAll("link, script").ToList();
+        Assert.True(tags.IndexOf(preload) < tags.FindIndex(e => e.GetAttribute("rel") == "stylesheet"),
+            "The font preload comes after a stylesheet, which it was meant to overtake.");
+    }
+
+    // The preload has to be the request the @font-face makes, and a stylesheet's url() is not
+    // fingerprinted: through @Assets the preload would name InterVariable.<hash>.woff2 and the
+    // face would be downloaded twice. Read from the source, because bUnit's Assets fingerprints
+    // nothing and the rendered href looks right either way.
+    [Fact]
+    public void The_font_preload_names_the_path_the_stylesheet_asks_for()
+    {
+        var head = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Layout", "DeskHead.razor"));
+        var desk = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
+
+        var preload = Assert.Single(head.Split('\n'), l => l.Contains("<link rel=\"preload\""));
+        Assert.DoesNotContain("@Assets[", preload);
+        Assert.Contains("/fonts/InterVariable.woff2", preload);
+        Assert.Contains("url('../fonts/InterVariable.woff2')", desk);
+    }
+
     [Fact]
     public void DeskScripts_loads_MudBlazor_before_the_desk_s_own()
     {

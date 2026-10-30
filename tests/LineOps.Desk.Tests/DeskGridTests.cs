@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Bunit;
 using LineOps.Desk.Primitives;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
 using MudBlazor;
 
 namespace LineOps.Desk.Tests;
@@ -152,6 +153,43 @@ public class DeskGridHeadingTests : DeskTestContext
         cut.WaitForAssertion(() => Assert.Contains("deskgrid__end", cut.FindAll("thead th")[0].ClassList));
         Assert.DoesNotContain("deskgrid__end", cut.FindAll("thead th")[1].ClassList);
         Assert.All(cut.FindAll("tbody tr"), row => Assert.DoesNotContain("deskgrid__end", row.Children[1].ClassList));
+    }
+
+    // The grid learns its columns only by drawing them, so it draws once more to align them (and
+    // to give a wide grid its handles). That second render is the whole of it: a parent that
+    // renders again with the same rows costs one render, not another alignment pass. Ceilings
+    // rather than exact counts, so a MudBlazor that renders less does not fail them.
+    //
+    // Counted at the grid's own render tree, not with bUnit's RenderCount: that counted the mount
+    // as one render although the grid drew twice, so it could not tell a second pass from none.
+    [Fact]
+    public void The_alignment_pass_renders_once_more_and_then_no_more()
+    {
+        var cut = RenderComponent<CountingGrid>(p => p
+            .Add(x => x.Items, Rows)
+            .Add(x => x.ChildContent, Columns(align: "Align.Right")));
+
+        cut.WaitForAssertion(() => Assert.Contains("deskgrid__end", cut.FindAll("thead th")[0].ClassList));
+        var mounted = cut.Instance.Renders;
+        Assert.True(mounted <= 2, $"Mounting the grid took {mounted} renders; the alignment pass should add one.");
+
+        cut.SetParametersAndRender(p => p.Add(x => x.Items, Rows));
+
+        var again = cut.Instance.Renders - mounted;
+        Assert.True(again <= 1, $"Setting the same rows again took {again} renders; the columns were already aligned.");
+        Assert.Contains("deskgrid__end", cut.FindAll("thead th")[0].ClassList);
+    }
+
+    // The grid as it is, counting each time it draws.
+    public class CountingGrid : DeskGrid<Row>
+    {
+        public int Renders { get; private set; }
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            Renders++;
+            base.BuildRenderTree(builder);
+        }
     }
 
     [Fact]
