@@ -121,6 +121,17 @@ else
                             OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)">
                     Head to head
                 </DeskButton>
+
+                @* The wager wizard preloaded from this game: its form opens on this matchup
+                   rather than on a game search. A visitor has no wager to log (ADR 0018). *@
+                @if (Manager.Access.CanOperate)
+                {
+                    <DeskButton Icon="@Icons.Material.Filled.Bolt" Emphasis="DeskEmphasis.Tinted"
+                                Title="Log a bet on this game in the Place wager window"
+                                OnClick="() => Manager.OpenWager(game)">
+                        Place wager
+                    </DeskButton>
+                }
             </DeskRow>
         </Keys>
     </PanelTitle>
@@ -423,8 +434,8 @@ else
                 how to read, and a rail of ticks under each. The cell is built for a dense grid
                 where the same books repeat down a column; here there are six numbers and room
                 to name them. The rest of the market — every book's price — is the cell's
-                tooltip, and Every book's window. Readings only, as before: the wager window
-                opens from the Board and from Every book.
+                tooltip, and Every book's window. A live price is a door: pressed, it opens the wager
+                window on that side at that book, as the Board's prices do.
             *@
             <section class="wsection gamelines">
                 <div class="wgroup">
@@ -454,8 +465,8 @@ else
     private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total) => @<div class="wgroup__row wgroup__row--form">
         <span class="wgroup__label">@market</span>
         <div class="gamelines__sides">
-            @LineCell(first, firstSide, total)
-            @LineCell(second, secondSide, total)
+            @LineCell(first, firstSide, total, MarketKey(market))
+            @LineCell(second, secondSide, total, MarketKey(market))
         </div>
     </div>;
 
@@ -464,7 +475,11 @@ else
     /// total names its number bare ("Over 47.5"), since the side already says which way. Value
     /// against the fair price follows the book on a live price; a close says it is one.
     /// </summary>
-    private RenderFragment LineCell(BestOffer? offer, string side, bool total) => @<div class="gamelines__cell" title="@(offer is null ? null : EveryBook(offer))">
+    private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market) => @<div class="gamelines__cell @(CanTake(offer) ? "gamelines__cell--take" : null)"
+        title="@(offer is null ? null : EveryBook(offer) + (CanTake(offer) ? "\nPress to place a wager on this side." : ""))"
+        role="@(CanTake(offer) ? "button" : null)" tabindex="@(CanTake(offer) ? "0" : null)"
+        @onclick="() => Take(market, offer)"
+        @onkeydown="@(e => { if (e.Key is "Enter" or " ") Take(market, offer); })">
         <span class="gamelines__price">
             <span class="gamelines__side">@side</span>
             @if (offer is null)
@@ -495,6 +510,29 @@ else
             }
         </span>
     </div>;
+
+    /// <summary>A row's market, as the wager window names it.</summary>
+    private static string MarketKey(string row) => row switch
+    {
+        "Moneyline" => Markets.Moneyline,
+        "Spread" => Markets.Spread,
+        _ => Markets.Total
+    };
+
+    /// <summary>A live price the operator can take: a closing number is history, not a bet.</summary>
+    private bool CanTake(BestOffer? offer) => offer is { IsClosing: false } && Manager.Access.CanOperate;
+
+    /// <summary>
+    /// A price pressed: the wager window on this game, landed on that side at the book holding
+    /// the best number — the Board's price door, from the Game window.
+    /// </summary>
+    private void Take(string market, BestOffer? offer)
+    {
+        if (!CanTake(offer) || _row?.Game is not { } game)
+            return;
+
+        Manager.OpenWager(game, market, offer!.Outcome, offer.Book);
+    }
 
     /// <summary>Every book's number on a side, by name — the cell's tooltip.</summary>
     private static string EveryBook(BestOffer offer)

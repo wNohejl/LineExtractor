@@ -175,6 +175,29 @@ public static class WindowShortcuts
         manager.Open(definition, prefill.ToParameters(), title);
     }
 
+    /// <summary>
+    /// The wager window preloaded from a game: the game's form, and the side and book when the
+    /// door names them (a price pressed in the Game window), else step 1 with every side offered.
+    /// The Board's row and its prices open the same window through their follow-up launcher.
+    /// </summary>
+    public static void OpenWager(this WindowManager manager, Game game,
+        string? market = null, string? outcome = null, string? book = null)
+    {
+        if (manager.Catalog.Find(WindowCatalog.Wager) is not { } definition)
+            return;
+
+        var parameters = new Dictionary<string, object> { ["GameId"] = game.Id };
+        if (market is not null && outcome is not null)
+        {
+            parameters["Market"] = market;
+            parameters["Outcome"] = outcome;
+        }
+        if (book is not null)
+            parameters["Book"] = book;
+
+        manager.Open(definition, parameters, Describe(game));
+    }
+
     /// <summary>Incidents, opened on one incident.</summary>
     public static void OpenIncident(this WindowManager manager, int incidentId, string? title = null)
     {
