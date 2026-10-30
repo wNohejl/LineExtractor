@@ -135,11 +135,12 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     /// straight bets and parlay legs alike, since a leg is priced against the close like any bet.
     ///
     /// <para>
-    /// Filtered in memory after one load. A journal is hundreds of rows, not millions, and the
-    /// filters cut across straights and parlays in ways one query per shape would repeat.
+    /// Filtered in memory after one load (<see cref="Narrow"/>). A journal is hundreds of rows,
+    /// not millions, and the filters cut across straights and parlays in ways one query per shape
+    /// would repeat. Virtual so a render test can stand a journal in memory behind the window.
     /// </para>
     /// </summary>
-    public async Task<PerformanceSet> PerformanceAsync(PerformanceFilter filter, CancellationToken ct = default)
+    public virtual async Task<PerformanceSet> PerformanceAsync(PerformanceFilter filter, CancellationToken ct = default)
     {
         var entries = await db.JournalEntries.AsNoTracking()
             .Include(e => e.Game).ThenInclude(g => g!.Sport)
@@ -149,6 +150,21 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
             .Include(p => p.Legs).ThenInclude(l => l.Game).ThenInclude(g => g!.Sport)
             .ToListAsync(ct);
 
+        var whole = new PerformanceSet(
+            ParlayGrading.Ledger(entries, parlays),
+            entries.Where(e => e.IsGraded).ToList());
+
+        return Narrow(whole, filter);
+    }
+
+    /// <summary>
+    /// The part of a whole <see cref="PerformanceSet"/> a filter keeps, in the order it was read.
+    /// The filter <see cref="PerformanceAsync"/> applies, as a pure step: the Performance window
+    /// reads the whole once for its pickers and narrows it here for its figures, rather than
+    /// asking the database a second time for a subset of what it already holds.
+    /// </summary>
+    public static PerformanceSet Narrow(PerformanceSet whole, PerformanceFilter filter)
+    {
         bool Keep(JournalEntry e)
             => (filter.SportKey is not { Length: > 0 } sport || e.Game?.Sport?.Key == sport)
                && (filter.SeasonYear is not { } season || e.Game?.SeasonYear == season)
@@ -156,14 +172,11 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
                && (filter.Market is not { Length: > 0 } market || e.Market == market)
                && (filter.Since is not { } since || (e.SettledAt ?? e.PlacedAt) >= since);
 
-        var ledger = ParlayGrading.Ledger(entries, parlays).Where(Keep).ToList();
-        var selections = entries.Where(e => e.IsGraded).Where(Keep).ToList();
-
-        return new PerformanceSet(ledger, selections);
+        return new PerformanceSet(whole.Ledger.Where(Keep).ToList(), whole.Selections.Where(Keep).ToList());
     }
 
-    /// <summary>The bankroll the curve starts from. Zero until the operator says otherwise.</summary>
-    public async Task<decimal> StartingBankrollAsync(CancellationToken ct = default)
+    /// <summary>The bankroll the curve starts from. Zero until the operator says otherwise. Virtual for the same render tests.</summary>
+    public virtual async Task<decimal> StartingBankrollAsync(CancellationToken ct = default)
     {
         var setting = await db.AppSettings.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Key == AppSetting.StartingBankroll, ct);

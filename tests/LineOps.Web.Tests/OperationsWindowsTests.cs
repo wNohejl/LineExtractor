@@ -438,4 +438,39 @@ public class OperationsWindowsTests : DeskTestContext
         Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Re-walk…");
         Assert.Contains("3,054", Section(panel, "Coverage"));
     }
+
+    /// <summary>
+    /// The coordinator says it changed on every day it walks — a burst, during a backfill — and
+    /// History reloads once per burst, through the second's settle every watching window keeps.
+    /// It reloaded on each: five notices, five reads of the record.
+    /// </summary>
+    [Fact]
+    public async Task History_reloads_once_for_a_burst_of_coordinator_changes()
+    {
+        // Each load's first read asks its scope for the database; counting those counts loads.
+        var loads = 0;
+        Services.AddScoped<LineOpsDbContext>(_ =>
+        {
+            Interlocked.Increment(ref loads);
+            throw new InvalidOperationException("No database in a render test.");
+        });
+
+        var panel = RenderComponent<HistoryPanel>();
+        panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll(".empty--error")));
+        Assert.Equal(1, Volatile.Read(ref loads));
+
+        var coordinator = Services.GetRequiredService<BackfillCoordinator>();
+        var changed = (Action?)typeof(BackfillCoordinator)
+            .GetField(nameof(BackfillCoordinator.Changed), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(coordinator);
+
+        for (var i = 0; i < 5; i++)
+            changed!.Invoke();
+
+        panel.WaitForAssertion(() => Assert.Equal(2, Volatile.Read(ref loads)), TimeSpan.FromSeconds(5));
+
+        // And no straggler after the settle: the burst was one reload, not one now and more later.
+        await Task.Delay(TimeSpan.FromMilliseconds(1500));
+        Assert.Equal(2, Volatile.Read(ref loads));
+    }
 }

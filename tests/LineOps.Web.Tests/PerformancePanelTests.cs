@@ -2,8 +2,11 @@ using System.Globalization;
 using System.Reflection;
 using Bunit;
 using LineOps.Core.Analytics;
+using LineOps.Core.Entities;
+using LineOps.Ingestion.Services;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
 
@@ -170,5 +173,87 @@ public class PerformancePanelTests : DeskTestContext
             Assert.Contains("The bankroll was not saved. Try again.",
                 panel.Find("section.wsection[aria-label='Bankroll'] .note").TextContent));
         Assert.Equal("500", panel.Find("input[aria-label='Starting bankroll']").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// A journal held in memory that counts what Performance asks of it. Built on no database:
+    /// the two reads the window makes are the ones overridden here, and anything else throws.
+    /// </summary>
+    private sealed class CountedJournal() : JournalService(null!, null!)
+    {
+        public List<PerformanceFilter> Reads { get; } = [];
+
+        public List<JournalEntry> Entries { get; } = [];
+
+        public override Task<PerformanceSet> PerformanceAsync(PerformanceFilter filter, CancellationToken ct = default)
+        {
+            Reads.Add(filter);
+            var whole = new PerformanceSet(Entries.ToList(), Entries.Where(e => e.IsGraded).ToList());
+            return Task.FromResult(Narrow(whole, filter));
+        }
+
+        public override Task<decimal> StartingBankrollAsync(CancellationToken ct = default) => Task.FromResult(0m);
+    }
+
+    private static JournalEntry Won(string sport, string book) => new()
+    {
+        Game = new Game { Sport = new Sport { Key = sport, Name = sport.ToUpperInvariant() }, SeasonYear = 2026 },
+        Market = "h2h",
+        Outcome = "Home",
+        Book = book,
+        Stake = 100m,
+        PriceTaken = 100,
+        Result = EntryResult.Win,
+        Payout = 200m,
+        PlacedAt = DateTimeOffset.UtcNow.AddDays(-2),
+        SettledAt = DateTimeOffset.UtcNow.AddDays(-1),
+    };
+
+    private CountedJournal UseJournal()
+    {
+        var journal = new CountedJournal();
+        journal.Entries.Add(Won("mlb", "draftkings"));
+        journal.Entries.Add(Won("nfl", "fanduel"));
+        Services.AddSingleton<JournalService>(journal);
+        return journal;
+    }
+
+    /// <summary>
+    /// One load is one read of the journal. It was two: the whole for the pickers, then the
+    /// filtered set for the figures — a second trip for a subset of what the first brought back.
+    /// </summary>
+    [Fact]
+    public void A_load_reads_the_journal_once()
+    {
+        var journal = UseJournal();
+
+        var panel = RenderComponent<PerformancePanel>();
+        panel.WaitForAssertion(() => Assert.Contains("2 bets", panel.Markup));
+
+        Assert.Equal([new PerformanceFilter()], journal.Reads);
+    }
+
+    /// <summary>
+    /// A filter narrows the figures from the one read, and the pickers keep coming from the
+    /// whole, so choosing MLB still leaves NFL on the Sport switch to go back to.
+    /// </summary>
+    [Fact]
+    public void A_filter_narrows_the_one_read_and_keeps_the_way_back()
+    {
+        var journal = UseJournal();
+
+        var panel = RenderComponent<PerformancePanel>();
+        panel.WaitForAssertion(() => Assert.Contains("2 bets", panel.Markup));
+
+        panel.FindAll("[role=radiogroup][aria-label=Sport] [role=radio]")
+            .Single(b => b.TextContent.Trim() == "MLB").Click();
+
+        panel.WaitForAssertion(() => Assert.Contains("1 bet", panel.Markup));
+        Assert.DoesNotContain("2 bets", panel.Markup);
+        Assert.Equal([new PerformanceFilter(), new PerformanceFilter()], journal.Reads);
+
+        var sports = panel.FindAll("[role=radiogroup][aria-label=Sport] [role=radio]")
+            .Select(b => b.TextContent.Trim()).ToList();
+        Assert.Equal(["All", "MLB", "NFL"], sports);
     }
 }

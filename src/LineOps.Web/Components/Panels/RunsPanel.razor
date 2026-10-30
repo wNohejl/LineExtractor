@@ -200,11 +200,11 @@
         // gets its source picker once a filter or a retry gets through.
         if (!_sourcesRead)
         {
-            _sources = await db.Sources.OrderBy(s => s.Name).ToListAsync();
+            _sources = await db.Sources.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
             _sourcesRead = true;
         }
 
-        var query = db.IngestionRuns.Include(r => r.Source).AsQueryable();
+        var query = db.IngestionRuns.AsNoTracking().Include(r => r.Source).AsQueryable();
 
         if (int.TryParse(_sourceFilter, out var sourceId))
             query = query.Where(r => r.SourceId == sourceId);

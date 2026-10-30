@@ -338,7 +338,9 @@ else
         _books = settled.Select(e => e.Book).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
         _markets = settled.Select(e => e.Market).Distinct().Order().ToList();
 
-        var set = await journal.PerformanceAsync(new PerformanceFilter(
+        // The figures are the same read, narrowed by the journal's own filter in memory. A second
+        // trip to the database brought back a subset of what the first already held.
+        var set = JournalService.Narrow(everything, new PerformanceFilter(
             _sport, _season, _book, _market, _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days)));
 
         // A refresh must not take a figure out from under someone typing one: the box follows

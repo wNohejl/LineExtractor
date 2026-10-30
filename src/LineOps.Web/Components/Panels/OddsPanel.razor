@@ -445,7 +445,7 @@ else
         {
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            snapshots = await db.OddsSnapshots
+            snapshots = await db.OddsSnapshots.AsNoTracking()
                 .Where(s => s.GameId == gameId && s.Market == _market)
                 .OrderBy(s => s.CapturedAt)
                 .ToListAsync();

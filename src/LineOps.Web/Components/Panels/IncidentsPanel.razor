@@ -395,6 +395,8 @@ else
         await using var scope = ScopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<IncidentService>();
 
+        // Every open incident, and the newest IncidentService.RecentLimit resolved ones: past the
+        // cap, the Resolved tile and the median resolve read over those, not the whole record.
         _incidents = await service.GetAllAsync();
         _openIncidents = _incidents.Where(i => i.Status != IncidentStatus.Resolved).ToList();
         _resolvedIncidents = _incidents.Where(i => i.Status == IncidentStatus.Resolved).ToList();

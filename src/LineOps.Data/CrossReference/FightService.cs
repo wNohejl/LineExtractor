@@ -52,8 +52,11 @@ public class FightService(LineOpsDbContext db)
         return Card(team, profile, null);
     }
 
-    /// <summary>The two fighters of a bout side by side, or null when the game is not a fight.</summary>
-    public async Task<FightTape?> TapeAsync(int gameId, CancellationToken ct = default)
+    /// <summary>
+    /// The two fighters of a bout side by side, or null when the game is not a fight. Virtual so a
+    /// render test can count the reads the tale of the tape makes without a database.
+    /// </summary>
+    public virtual async Task<FightTape?> TapeAsync(int gameId, CancellationToken ct = default)
     {
         if (await BoutAsync(gameId, ct) is not var (game, bout))
             return null;

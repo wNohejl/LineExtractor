@@ -106,11 +106,38 @@ public class IncidentService(LineOpsDbContext db, ILogger<IncidentService> logge
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Incident>> GetAllAsync(CancellationToken ct = default)
-        => await db.Incidents
+    /// <summary>How many resolved incidents <see cref="GetAllAsync"/> reads back, newest first.</summary>
+    public const int RecentLimit = 200;
+
+    /// <summary>
+    /// The incidents the Incidents window lists, newest first, read-only: every one still open,
+    /// and the newest <paramref name="resolved"/> of those resolved.
+    ///
+    /// <para>
+    /// The cap is on the record, never on the work. Before it this read every incident ever
+    /// opened, tracked, on every load and refresh of the window. Open incidents are uncapped
+    /// because the window's Open tile and its pulse are counted from them, and an open incident
+    /// pushed off the end by newer ones would read as none open. What the operator sees change
+    /// past the cap: the Resolved list, its tile and the median time to resolve cover the newest
+    /// <see cref="RecentLimit"/> resolved incidents, not every one on record.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<Incident>> GetAllAsync(int resolved = RecentLimit, CancellationToken ct = default)
+    {
+        var open = await db.Incidents.AsNoTracking()
             .Include(i => i.Alerts)
-            .OrderByDescending(i => i.OpenedAt)
+            .Where(i => i.Status != IncidentStatus.Resolved)
             .ToListAsync(ct);
+
+        var record = await db.Incidents.AsNoTracking()
+            .Include(i => i.Alerts)
+            .Where(i => i.Status == IncidentStatus.Resolved)
+            .OrderByDescending(i => i.OpenedAt)
+            .Take(resolved)
+            .ToListAsync(ct);
+
+        return open.Concat(record).OrderByDescending(i => i.OpenedAt).ToList();
+    }
 
     public async Task<Incident?> GetAsync(int id, CancellationToken ct = default)
         => await db.Incidents

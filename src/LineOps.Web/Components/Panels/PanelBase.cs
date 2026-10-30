@@ -93,7 +93,10 @@ public abstract class PanelBase : ComponentBase, IDisposable
     /// <summary>The data topics this panel draws from (<c>DataTopics</c>). Empty: never refreshed.</summary>
     protected virtual IReadOnlySet<string> Watches { get; } = new HashSet<string>();
 
-    /// <summary>Reloads the panel's data after a change it watches. The re-render is done for it.</summary>
+    /// <summary>
+    /// Reloads the panel's data after a change it watches, or one it asked for with
+    /// <see cref="RequestRefresh"/>. The re-render is done for it.
+    /// </summary>
     protected virtual Task RefreshAsync() => Task.CompletedTask;
 
     /// <summary>For a panel with its own subscriptions to release. Called once, on disposal.</summary>
@@ -116,7 +119,21 @@ public abstract class PanelBase : ComponentBase, IDisposable
 
     private void OnSignal(IReadOnlySet<string> topics)
     {
-        if (_disposed || !topics.Overlaps(Watches))
+        if (!topics.Overlaps(Watches))
+            return;
+
+        RequestRefresh();
+    }
+
+    /// <summary>
+    /// Asks for a <see cref="RefreshAsync"/> after the settle, as a database change notice does.
+    /// For a panel that hears of changes some other way — a service's own event — and would
+    /// otherwise reload once per notice in a burst. Safe from any thread: requests inside the
+    /// settle fold into the one reload already queued, and the reload runs on the renderer.
+    /// </summary>
+    protected void RequestRefresh()
+    {
+        if (_disposed)
             return;
 
         lock (_gate)

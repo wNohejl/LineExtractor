@@ -432,13 +432,11 @@ else if (!Loaded && !Failed)
         await LoadAsync();
     }
 
-    // The coordinator raises Changed from its own worker thread, so the hop onto the
-    // renderer's context is mandatory rather than defensive.
-    private void OnCoordinatorChanged() => InvokeAsync(async () =>
-    {
-        await LoadAsync();
-        StateHasChanged();
-    });
+    // The coordinator raises Changed from its own worker thread on every day it walks, so a
+    // backfill is a burst of them. They go through the same second's settle as the database's
+    // change notices — one reload per burst, on the renderer's context — rather than one read
+    // of the whole record per day walked.
+    private void OnCoordinatorChanged() => RequestRefresh();
 
     private async Task LoadAsync()
     {
@@ -448,7 +446,7 @@ else if (!Loaded && !Failed)
             _coverage = await Backfill.GetCoverageAsync(CancellationToken.None);
 
             await using var db = await DbFactory.CreateDbContextAsync();
-            _recent = await db.BackfillCheckpoints
+            _recent = await db.BackfillCheckpoints.AsNoTracking()
                 .Include(c => c.Sport)
                 .OrderByDescending(c => c.CompletedAt)
                 .Take(40)

@@ -96,10 +96,41 @@ else
     private FightTape? _tape;
     private bool _missing;
 
+    /// <summary>The bout read, or being read; null before the first and after a read that failed.</summary>
+    private int? _loadedGameId;
+
+    // Keyed on the bout, not on the parameter set: the Game window hands OnFighter a new lambda
+    // on every render, and a callback that changes identity is a parameter set like any other.
+    // Without the key the tape read the bout again each time the window around it drew.
     protected override async Task OnParametersSetAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        _tape = await scope.ServiceProvider.GetRequiredService<FightService>().TapeAsync(GameId);
+        if (GameId == _loadedGameId)
+            return;
+
+        var gameId = GameId;
+        _loadedGameId = gameId;
+
+        FightTape? tape;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            tape = await scope.ServiceProvider.GetRequiredService<FightService>().TapeAsync(gameId);
+        }
+        catch
+        {
+            // Not held as read, so the next render asks again, as it did before the key.
+            if (_loadedGameId == gameId)
+                _loadedGameId = null;
+
+            throw;
+        }
+
+        // The page turned while this bout was read: the newer read owns the tape.
+        if (gameId != GameId)
+            return;
+
+        _tape = tape;
         _missing = _tape is null;
     }
 

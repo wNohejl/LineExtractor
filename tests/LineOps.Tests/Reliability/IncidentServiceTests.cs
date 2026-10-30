@@ -199,4 +199,45 @@ public class IncidentServiceTests(PostgresFixture fixture)
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => Create(db).PromoteAsync(alertId: -1));
     }
+
+    [Fact]
+    public async Task TheListCapsTheResolvedRecordButNeverTheOpenWork()
+    {
+        // Dated outside anything another test writes: the open one older than every incident,
+        // the resolved ones newer, so the cap's cut falls between this test's own rows.
+        var tag = Guid.NewGuid().ToString("N");
+        var opened = new DateTimeOffset(2100, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        Incident Resolved(int day) => new()
+        {
+            Title = $"{tag} resolved {day}",
+            Severity = AlertSeverity.Warn,
+            Status = IncidentStatus.Resolved,
+            OpenedAt = opened.AddDays(day),
+            ResolvedAt = opened.AddDays(day).AddHours(1)
+        };
+
+        await using (var db = fixture.CreateContext())
+        {
+            db.Incidents.Add(new Incident
+            {
+                Title = $"{tag} open",
+                Severity = AlertSeverity.Critical,
+                Status = IncidentStatus.Open,
+                OpenedAt = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+            db.Incidents.AddRange(Resolved(1), Resolved(2), Resolved(3));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = fixture.CreateContext();
+        var listed = await Create(read).GetAllAsync(resolved: 2);
+        var mine = listed.Where(i => i.Title.StartsWith(tag, StringComparison.Ordinal)).Select(i => i.Title).ToList();
+
+        // The open incident is listed however old it is; of the resolved, the newest two, newest first.
+        Assert.Equal([$"{tag} resolved 3", $"{tag} resolved 2", $"{tag} open"], mine);
+
+        // A list for reading: nothing it returned is held by the context for a save.
+        Assert.Empty(read.ChangeTracker.Entries());
+    }
 }
