@@ -267,13 +267,7 @@ else
     /// sport and per source. The busiest keys across the roster are the ones worth the width.
     /// </summary>
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => side.SelectMany(p => p.Totals.Keys)
-            .GroupBy(k => k)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key)
-            .Select(g => g.Key)
-            .Take(5)
-            .ToList();
+        => StatColumns.Pick(side.Select(p => p.Totals.Keys), 5);
 
     private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
         @if (side.Count > 0)

@@ -825,16 +825,17 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                 return;
             }
 
-            // The same group restating a value, or a different group agreeing with it: nothing
-            // is lost by letting it stand, and qualifying here would split identical data.
-            if (owner == group || (Values.TryGetValue(key, out var held) && held == value))
+            // The same group restating a value: nothing is lost by letting it stand.
+            if (owner == group)
             {
                 Values[key] = value;
                 return;
             }
 
-            // A real disagreement. Qualify the incumbent as well as the newcomer, so the line
-            // never contains a bare key whose meaning depends on which group won.
+            // A second group reporting the key. Qualify the incumbent as well as the newcomer,
+            // so the line never contains a bare key whose meaning depends on which group won —
+            // even when the two agree: a back with 15 rushing and 15 receiving yards was stored
+            // as one bare YDS, and the back's line had no rushing yards to show.
             Values[$"{owner}.{key}"] = Values[key];
             Values.Remove(key);
             _origin.Remove(key);

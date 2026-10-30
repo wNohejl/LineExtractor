@@ -605,8 +605,16 @@ else
         }
         else
         {
-            @RenderRoster(_matchup!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
-            @RenderRoster(_matchup.Home, _row.Game.HomeTeam?.Name ?? "Home")
+            @* A roster in units where the sport names them (NFL): a back read under columns
+               chosen by the side's defenders showed a row of dashes. *@
+            @foreach (var (unit, players) in Units(_matchup!.Away))
+            {
+                @RenderRoster(players, Titled(_row!.Game.AwayTeam?.Name ?? "Away", unit))
+            }
+            @foreach (var (unit, players) in Units(_matchup.Home))
+            {
+                @RenderRoster(players, Titled(_row!.Game.HomeTeam?.Name ?? "Home", unit))
+            }
         }
     </text>;
 
@@ -656,14 +664,27 @@ else
     private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
         => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
 
+    /// <summary>
+    /// A side split into units — Passing, Rushing, Receiving, Defense, Special teams — each with
+    /// columns of its own; one table, as before, where the sport's lines name no groups.
+    /// </summary>
+    private static IEnumerable<(string? Unit, IReadOnlyList<PlayerForm> Players)> Units(IReadOnlyList<PlayerForm> side)
+    {
+        var units = side.Select(p => (Unit: StatColumns.UnitOf(p.Totals), Player: p)).ToList();
+
+        if (units.All(u => u.Unit is null))
+            return [(null, side)];
+
+        return units
+            .GroupBy(u => u.Unit)
+            .OrderBy(g => StatColumns.UnitOrder(g.Key))
+            .Select(g => (g.Key, (IReadOnlyList<PlayerForm>)g.Select(u => u.Player).ToList()));
+    }
+
+    private static string Titled(string team, string? unit) => unit is null ? team : $"{team} · {unit}";
+
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => side.SelectMany(p => p.Totals.Keys)
-            .GroupBy(k => k)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key)
-            .Select(g => g.Key)
-            .Take(4)
-            .ToList();
+        => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
 
     private RenderFragment RenderRoster(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
         @if (side.Count > 0)

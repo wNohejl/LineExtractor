@@ -18,6 +18,8 @@ public static class StatLabels
         ["passing.AVG"] = "Yds/Att",
         ["rushing.AVG"] = "Yds/Car",
         ["receiving.AVG"] = "Yds/Rec",
+        ["receiving.REC"] = "Receptions",
+        ["fumbles.REC"] = "Fum rec",
     };
 
     /// <summary>A bare key's name.</summary>

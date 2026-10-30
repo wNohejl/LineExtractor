@@ -420,6 +420,7 @@ public class GameLogService(LineOpsDbContext db)
             if (parsed is null)
                 return new Dictionary<string, string>();
 
+            StatLineKeys.Canonical(parsed);
             parsed.Remove("category");
             return parsed;
         }

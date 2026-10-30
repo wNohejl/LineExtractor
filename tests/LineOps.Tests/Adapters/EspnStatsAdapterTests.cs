@@ -97,6 +97,34 @@ public class EspnStatsAdapterTests
     }
 
     [Fact]
+    public void ParseBoxScore_QualifiesACollisionEvenWhenTheGroupsAgree()
+    {
+        // A back with 15 rushing and 15 receiving yards was stored as one bare YDS, and the
+        // line had no rushing yards for the desk to show.
+        var payload = JsonDocument.Parse("""
+            { "boxscore": { "players": [ { "team": { "id": "16", "displayName": "Minnesota Vikings" },
+              "statistics": [
+                { "name": "rushing", "labels": [ "CAR", "YDS", "TD" ],
+                  "athletes": [ { "athlete": { "id": "p-300", "displayName": "Aaron Jones Sr." }, "stats": [ "5", "15", "0" ] } ] },
+                { "name": "receiving", "labels": [ "REC", "YDS", "TD" ],
+                  "athletes": [ { "athlete": { "id": "p-300", "displayName": "Aaron Jones Sr." }, "stats": [ "2", "15", "0" ] } ] }
+              ] } ] } }
+            """).RootElement.Clone();
+
+        var players = new List<CanonicalPlayer>();
+        var stats = new List<CanonicalPlayerStat>();
+        EspnStatsAdapter.ParseBoxScore(payload, "nfl", "game-1", players, stats);
+        var line = LineFor(stats, "p-300");
+
+        Assert.Equal("15", line["rushing.YDS"]);
+        Assert.Equal("15", line["receiving.YDS"]);
+        Assert.Equal("0", line["rushing.TD"]);
+        Assert.Equal("0", line["receiving.TD"]);
+        Assert.False(line.ContainsKey("YDS"));
+        Assert.False(line.ContainsKey("TD"));
+    }
+
+    [Fact]
     public void ParseBoxScore_CollidesCorrectlyWhenTheProviderNamesNoGroups()
     {
         // MLB: ESPN sends no group name at all, which is where the collisions actually are.

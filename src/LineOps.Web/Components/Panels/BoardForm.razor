@@ -109,13 +109,7 @@ else
         => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
 
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => side.SelectMany(p => p.Totals.Keys)
-            .GroupBy(k => k)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key)
-            .Select(g => g.Key)
-            .Take(4)
-            .ToList();
+        => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
 
     private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
         @if (side.Count > 0)

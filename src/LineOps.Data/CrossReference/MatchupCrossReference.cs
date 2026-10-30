@@ -292,7 +292,9 @@ public class MatchupCrossReference(LineOpsDbContext db)
 
         try
         {
-            line = JsonSerializer.Deserialize<Dictionary<string, string>>(statLineJson);
+            line = JsonSerializer.Deserialize<Dictionary<string, string>>(statLineJson) is { } read
+                ? StatLineKeys.Canonical(read)
+                : null;
         }
         catch (JsonException)
         {

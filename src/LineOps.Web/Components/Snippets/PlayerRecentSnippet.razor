@@ -111,15 +111,9 @@ else
     }
 
     /// <summary>
-    /// The keys reported most often across these games, so a column is one that is mostly
-    /// filled rather than one that happened to appear once.
+    /// The keys filled in most of these games, headline numbers first (StatColumns): a
+    /// back reads carries, rushing yards and touchdowns before an average or a long.
     /// </summary>
     internal static List<string> DeriveColumns(IReadOnlyList<PlayerGameRow> rows, int max)
-        => rows.SelectMany(r => r.Stats.Keys)
-            .GroupBy(k => k)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.Key)
-            .Take(max)
-            .ToList();
+        => Panels.StatColumns.Pick(rows.Select(r => r.Stats.Keys), max);
 }
