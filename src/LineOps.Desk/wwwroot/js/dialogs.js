@@ -166,7 +166,7 @@ export function focusFrontAfter(closing) {
 /// It was a fixed spot — 120 across, 90 down — whatever window opened it, with a viewport-high
 /// cap: a wizard launched from the right-hand window landed over the left one, and its foot
 /// fell under the footer. Now it is sized to the desk, its body scrolls, and it keeps fitting
-/// as its content arrives: the wager wizard's steps load after the dialog is drawn, and a
+/// as its content arrives: a wizard's steps load after the dialog is drawn, and a
 /// ResizeObserver moves the dialog up by however much it grew past the desk's foot.
 export function place(dialog, index) {
     if (!dialog) return;

@@ -22,14 +22,14 @@ namespace LineOps.Desk.Primitives;
 public enum DeskChartFamily
 {
     /// <summary>
-    /// Prices and lines moving over time, one series per book/outcome. Hue is identity here,
+    /// Prices and lines moving over time, one series per source/outcome. Hue is identity here,
     /// not state, so it opens on the accent (the desk's "this is the thing you are working")
     /// and walks the rest of the state colours before reaching for anything mixed.
     /// </summary>
     Movement,
 
     /// <summary>
-    /// Money you have kept or lost — bankroll, cumulative CLV, running P/L. Positive first,
+    /// Money you have kept or lost — a balance, a cumulative margin, running P/L. Positive first,
     /// because the desk already spells "won" in the positive state and "lost" in the negative.
     /// </summary>
     Ledger,
@@ -41,7 +41,7 @@ public enum DeskChartFamily
     Health,
 
     /// <summary>
-    /// Counts with no state in them — volume by book, entries by market. Deliberately quiet:
+    /// Counts with no state in them — volume by source, entries by category. Deliberately quiet:
     /// chart neutrals, so a bar chart of "how many" cannot be misread as "how bad".
     /// </summary>
     Volume
@@ -109,7 +109,7 @@ public enum DeskChartKind
     /// <summary>A quantity over time. The default, and what every chart on the desk is today.</summary>
     Line,
 
-    /// <summary>A quantity across categories — by book, by market.</summary>
+    /// <summary>A quantity across categories — by source, by region.</summary>
     Bar,
 
     /// <summary>Bars sharing a track, when the categories add up to something.</summary>

@@ -40,7 +40,7 @@ public sealed class DeskToasts(ISnackbar snackbar)
     public void Fail(string message) => Show(message, DeskState.Negative);
 
     /// <summary>
-    /// Something was added — a wager to the slip, a leg to a parlay. Green, so an addition reads
+    /// Something was added — an item to a list, a line to a group. Green, so an addition reads
     /// as one at a glance, with a key to go and see it where there is somewhere to go. An
     /// addition used to be a grey note above the form that stayed until the next one, the same
     /// grey as every other note, so nothing said a thing had been added.
@@ -49,7 +49,7 @@ public sealed class DeskToasts(ISnackbar snackbar)
         => Show(message, DeskState.Positive, actionLabel, action);
 
     /// <summary>
-    /// Something was taken away — a wager dropped from the slip. Red, the removal's colour, with
+    /// Something was taken away — an item dropped from the list. Red, the removal's colour, with
     /// Undo when the caller can put it back: a removal the operator did not mean is one press
     /// from undone, and needs no confirmation first (HIG, Undo and redo).
     /// </summary>

@@ -1,6 +1,7 @@
 /* ============================================================================
-   LineOps — "The Desk"
-   A single-operator sports-data operations console.
+   The Desk — the system stylesheet
+   The tokens and the rules every window on the desk is drawn with, for whatever
+   application hosts it. That application's own sheet loads after this one.
 
    The visual language follows Apple's Human Interface Guidelines: true-neutral
    dark surfaces, one accent, translucent materials on anything that floats,
@@ -23,7 +24,7 @@
     color-scheme: dark;
 
     /* --- Surfaces -----------------------------------------------------------
-       A true-neutral elevation ramp. Warmth or a blue undertone would fight the
+       A true-neutral elevation ramp. Warmth or a blue undertone would compete with the
        accent; macOS keeps its chrome neutral for exactly that reason. */
     --surface-0: #1C1C1E; /* desk void — the ground everything sits on */
     --surface-1: #232326; /* panel and window body */
@@ -929,7 +930,7 @@ html, body {
    own box size, but otherwise IS the standalone rail button — same resting colour, same
    hover fill, same accent/selected treatment, same focus ring. It must not redeclare any
    of those, because `.hdr__tools .rail__btn` outranks the bare `.rail__btn` rules by
-   specificity and a redeclaration here would silently win over — and fight — the rail
+   specificity and a redeclaration here would silently win over — and undo — the rail
    decision, no matter what the base rule says. */
 .hdr__tools .rail__btn {
     width: 28px;
@@ -1156,8 +1157,8 @@ html, body {
 
 .gate--num .gate__opt { font-variant-numeric: tabular-nums; }
 
-/* Small keeps the 24px option, so a small gate is still a 28px toolbar control (Journal's and
-   Team's filters sit in toolbars); it is smaller in type and padding, not in hit region. */
+/* Small keeps the 24px option, so a small gate is still a 28px toolbar control (a log's and
+   a list's filters sit in toolbars); it is smaller in type and padding, not in hit region. */
 .gate--sm .gate__opt { height: 24px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
 /* Large is deliberately taller than a toolbar control: a 32px gate (28px + the track) for a
    choice that leads its window rather than sitting in a toolbar beside 28px keys. */
@@ -1210,7 +1211,7 @@ html, body {
     border-radius: 4px;
 }
 
-/* Title-style nouns, as the HIG labels a tab view: "Wager", "Slip · 2" — not an all-caps,
+/* Title-style nouns, as the HIG labels a tab view: "Order", "Cart · 2" — not an all-caps,
    tracked eyebrow, a label style the desk no longer uses anywhere. */
 .tabs__tab {
     min-width: 0;
@@ -1868,9 +1869,9 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* --------------------------------------------------- panel typography ---- */
 
-/* A section header: sentence case ("Recent games"), subheadline, semibold, --text-secondary,
+/* A section header: sentence case ("Recent orders"), subheadline, semibold, --text-secondary,
    untracked — the same voice as a grouped form's header (.pform--grouped > .panel-h) and the
-   wager window's group head (.wgroup__head).
+   grouped form's group head (.wgroup__head).
 
    It was footnote capitals with .06em of tracking, and before that 10.5px tertiary at .13em.
    The HIG has no all-caps eyebrow (audit 2026-10-25, "Section headers lose their capitals"):
@@ -2262,10 +2263,10 @@ body.dialog-dragging { user-select: none; }
    is kept for what can be pressed. */
 .tag--info { background: var(--surface-3); color: var(--text-secondary); }
 
-/* A game in progress: the one state still changing while the operator reads it, so it alone
+/* Something in progress: the one state still changing while the operator reads it, so it alone
    moves — a slow breath, not a blink. The dot is aria-hidden; the word "Live" is what is read
    and what an operator who cannot see motion or hue still has. Warning, because that is the
-   live game's state everywhere on the desk. */
+   live state everywhere on the desk. */
 .tag__live {
     display: inline-block;
     width: 6px;
@@ -2724,7 +2725,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* A select is sized to its words, not to the row: .field is width:100% for the forms
    it sits in, and a picker that took the whole toolbar would push everything after it
    onto the next line. Callers that want a longer picker still say so with max-width.
-   It does not shrink below its words either: flex-shrink can cut "All sports" to a
+   It does not shrink below its words either: flex-shrink can cut "All sources" to a
    letter and a caret. A row too narrow for it wraps it onto the next line instead. */
 .ptoolbar > select.field { width: auto; flex: 0 0 auto; min-width: min(5rem, 100%); max-width: 100%; }
 .ptoolbar > .gate { max-width: 100%; }
@@ -2753,7 +2754,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .win__body > :not(.psection):not(.ptitle):not(.ptoolbar):not(.metrics):not(.note):not(.pform) + .psection,
 .psection__body > :not(.psection):not(.metrics):not(.note):not(.pform) + .psection { margin-top: var(--space-6); }
 .psection + .tabs { margin-top: var(--space-4); }
-/* A row of keys after a section — Journal's Show more — sits under it as it would under a grid. */
+/* A row of keys after a section — a log's Show more — sits under it as it would under a grid. */
 .psection + .row { margin-top: var(--space-2); }
 .psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note,
 .psection__body > .deskgrid + .note { margin-top: var(--space-2); }
@@ -2896,7 +2897,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 /* A segmented control in a form row is as wide as its segments. A grid item stretches by
-   default, so "SF | ATL" ran the whole control column, two words 400px apart; the bet group's
+   default, so "Buy | Sell" ran the whole control column, two words 400px apart; a choice group's
    selection controls opt back into the column's width (.selection-gate, below). */
 .wgroup__row--form > .gate {
     justify-self: start;
@@ -3277,8 +3278,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    commands after it (keys that open a window), so the two read as different kinds of thing. */
 .rowacts__gap { flex: none; width: var(--space-2); }
 
-/* A snippet its strip handed to the host — on the Board, the row under the game. It spans
-   that row from the matchup's edge, up to a measure a book list can be read across. */
+/* A snippet its strip handed to the host — on a board, the row under the open one. It spans
+   that row from the first cell's edge, up to a measure a list can be read across. */
 .rowacts__snippet { max-width: 720px; }
 .rowacts__snippet > .snippet { margin: 0; }
 
@@ -3372,7 +3373,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .snippet__body { padding: var(--space-2); }
 
-/* A row of labelled readings, for a single game expanded. */
+/* A row of labelled readings, for a single record expanded. */
 .snippet__facts {
     display: flex;
     gap: var(--space-5);
@@ -3395,7 +3396,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .grid--tight td { padding: 5px 7px; }
 
 /* ---- Log rows --------------------------------------------------------------
-   A game or a player, expandable in place. Not a table, because the expanded
+   A record or a person, expandable in place. Not a table, because the expanded
    body is a block rather than more cells — and a colspan row that pretends
    otherwise breaks every column alignment above it.
    -------------------------------------------------------------------------- */
@@ -3515,7 +3516,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    drawn outside — and the list clips its rows, so an outside ring would be cut off. */
 .logrow > .logrow__head:focus-visible { box-shadow: var(--focus-ring-inset); }
 
-/* A destination window — one that is about a game, a team or a player. Listed so
+/* A destination window — one that is about an order, a customer or a product. Listed so
    the view is discoverable, but not openable, because without a subject it has
    nothing to show. Dimmed rather than hidden, with the route to it in place of
    the description. */
@@ -3785,11 +3786,11 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .swatch--on .swatch__name { color: var(--text-primary); }
 
 /* ---- The Window manager: grouped settings -------------------------------------
-   The Window manager is a settings screen, so it is the wager window's grouped form
+   The Window manager is a settings screen, so it is the task windows' grouped form
    (.wsections, .wgroup, .wgroup__row--form, .wgroup__foot) and nothing new: a column of
    groups, each a fill with its labels leading in one column and its controls trailing, the
    explanation as the group's footer. What is here is only what a settings column needs that
-   a wager does not.
+   a task form does not.
 
    The column stops at a form's width (forms.md, rule 8). At 1600px the picker ran 1584px and
    each sentence of explanation ran the whole window; a label and its control were a screen

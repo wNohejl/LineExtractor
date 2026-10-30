@@ -8,12 +8,12 @@
     Two-stage disclosure: opening a row shows what you can do with it, and pressing one of
     those answers the question in place. Only if the answer is not enough does a window get
     spent. The strip started life inside the Board, which meant the Board was the only surface
-    where a row led anywhere; it is a control so the Slate, the Team window and the Game window
+    where a row led anywhere; it is a control so a list, a detail window and a subject window
     behave identically — one interaction to learn, and it holds all the way down.
 
     One snippet at a time. Selecting another swaps it, rather than stacking, for the same reason
-    the Board only opens one row: a row that grows without bound pushes the rest of the slate off
-    screen and the snippet stops reading as attached to its game.
+    the Board only opens one row: a row that grows without bound pushes the rest of the list off
+    screen and the snippet stops reading as attached to its row.
 
     Which snippet is open is this control's own business, not the host panel's. It was a bound
     parameter first, and the round trip through the parent was both pointless — no panel does
@@ -26,7 +26,7 @@
    you can open on this desk closes the same way.
 
    Clicks stop here too. The strip lives inside a grid row whose own click opens and closes
-   that row, so a press on Odds reached the row as well: the snippet opened and the same click
+   that row, so a press on a key reached the row as well: the snippet opened and the same click
    closed the row around it, and the key appeared to do nothing. A press inside the strip, or
    inside the snippet it opens, belongs to the strip. *@
 <div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
@@ -79,7 +79,7 @@
 
         @* A key that opens a window is an ordinary command and must not claim to be a toggle, or
            a screen reader announces a pressed state that never changes. Its weight and role are
-           the action's own: the Board's wager key is Tinted on purpose. *@
+           the action's own: a strip's leading key may be Tinted on purpose. *@
         @foreach (var command in _commands)
         {
             <DeskButton Size="DeskKeySize.Small"
@@ -104,9 +104,9 @@
     /// <summary>
     /// Where the open snippet is drawn, when not in the strip. Given, the strip draws only its
     /// keys and hands the snippet to the host each time it changes — null when it closes — and
-    /// the host draws it where it reads best: the Board, in a row of its own under the game, so a
-    /// book list spans the row rather than wrapping inside the matchup column. Not given (the
-    /// Game window's player rows), the snippet opens under the keys as before.
+    /// the host draws it where it reads best: a board, in a row of its own under the open one, so
+    /// a list spans the row rather than wrapping inside one narrow column. Not given (a detail
+    /// window's rows), the snippet opens under the keys as before.
     /// </summary>
     [Parameter] public EventCallback<RenderFragment?> SnippetHost { get; set; }
 
@@ -115,7 +115,7 @@
 
     /// <summary>
     /// Ties the key to the region it controls. Per instance, because several strips can be on
-    /// one page — the Team window has a stack of them — and a duplicated id would point every
+    /// one page — a detail window can hold a stack of them — and a duplicated id would point every
     /// key at the first snippet on the page.
     /// </summary>
     private readonly string SnippetId = $"snip-{Guid.NewGuid():N}";

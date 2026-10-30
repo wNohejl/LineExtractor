@@ -8,7 +8,7 @@ namespace LineOps.Desk.Primitives;
 /// <para>
 /// An action normally answers its question <i>on the row</i>, in a snippet, and offers a way
 /// out to a full view only if the snippet is not enough. That ordering is the whole point of
-/// the pattern: glancing at a head-to-head record or a player's last five should not cost a
+/// the pattern: glancing at a side-by-side record or an item's last five should not cost a
 /// window slot, because spending one evicts something (ADR 0007) and browsing must not
 /// rearrange the desk.
 /// </para>
@@ -16,7 +16,7 @@ namespace LineOps.Desk.Primitives;
 /// <para>
 /// Both halves are optional and mean different things. A <see cref="Snippet"/> with no
 /// <see cref="OpenWindow"/> is complete on the row — there is nothing more to show. An
-/// <see cref="OpenWindow"/> with no snippet is a destination rather than a glance: team data
+/// <see cref="OpenWindow"/> with no snippet is a destination rather than a glance: a full record
 /// is somewhere to work, not something to peek at, so it opens directly.
 /// </para>
 /// </summary>

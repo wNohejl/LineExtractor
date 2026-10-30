@@ -66,7 +66,7 @@ public sealed record DeskLayout
     }
 }
 
-/// <summary>One open window. Parameters are the ids a window was opened on — a game, a team.</summary>
+/// <summary>One open window. Parameters are the ids a window was opened on — an order, a customer.</summary>
 public sealed record DeskLayoutWindow(
     string Key,
     string? TitleOverride,

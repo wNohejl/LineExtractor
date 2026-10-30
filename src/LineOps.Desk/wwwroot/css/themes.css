@@ -1,7 +1,7 @@
 /* ============================================================================
-   LineOps — the other theme families
+   The Desk — the other theme families
 
-   lineops.css holds the Standard desk: :root / [data-theme="apple-dark"] and
+   desk.css holds the Standard desk: :root / [data-theme="apple-dark"] and
    [data-theme="apple-light"]. This file holds everything else, as eight more
    blocks of exactly that shape — one per family per appearance, stamped on
    <html> by ThemeService as "<family>-<dark|light>".
@@ -22,7 +22,7 @@
    to 4.5:1 over its own --surface-1: a family whose fill fails as text carries
    its own palette value, deepened or lifted until it reads, as the ink.
 
-   Load order: after lineops.css. Every block weighs (0,1,0), the same as :root,
+   Load order: after desk.css and controls.css. Every block weighs (0,1,0), the same as :root,
    and wins on source order alone.
 
    Each family also paints its own swatch in the Window manager: the swatch

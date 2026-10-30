@@ -543,7 +543,7 @@ public class WindowManager
 
     /// <summary>
     /// Lets a hosted panel say it holds input that has not been saved, and what to call it in
-    /// the question — "this journal entry". Cleared when the input is saved or emptied.
+    /// the question — "this log entry". Cleared when the input is saved or emptied.
     /// </summary>
     public void SetUnsaved(string id, bool dirty, string? label = null)
     {
@@ -783,7 +783,7 @@ public class WindowManager
 
     /// <summary>
     /// Saves the row as a named workspace, replacing one of the same name. Only windows that
-    /// open on nothing go in: a workspace is a starting arrangement, and "this game's movement"
+    /// open on nothing go in: a workspace is a starting arrangement, and "this order's history"
     /// is not something to start a morning on.
     /// </summary>
     public Workspace? SaveWorkspace(string name)
@@ -1115,7 +1115,7 @@ public class WindowManager
             var window = saved.Window;
 
             // A window that followed a link since is showing another view, and the parameters of
-            // one view are not the parameters of another — a Team handed a GameId refuses it.
+            // one view are not the parameters of another — a Customer handed an OrderId refuses it.
             // So a different view is put back whole; the same view is re-aimed, as a singleton's
             // subject always was.
             if (window.Definition != saved.Definition)
@@ -1157,7 +1157,7 @@ public class WindowManager
     private const int PageLimit = 30;
 
     /// <summary>
-    /// Follows a link from inside a window: a team named in a game, a player on a roster.
+    /// Follows a link from inside a window: a customer named on an order, a person on a list.
     ///
     /// <para>
     /// A subject window going to another subject turns to it in place, and keeps the page it
@@ -1261,7 +1261,7 @@ public class WindowManager
         window.LastFocusedAt = DateTimeOffset.UtcNow;
         FocusedId = window.Id;
 
-        // A team's view is narrower than a game's: the column's minimum is the new view's.
+        // A customer's view is narrower than an order's: the column's minimum is the new view's.
         Relayout();
     }
 

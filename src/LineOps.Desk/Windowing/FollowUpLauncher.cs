@@ -7,7 +7,7 @@ public sealed class FollowUp
 {
     public required string Key { get; init; }
 
-    /// <summary>What the follow-up is about — a game id, a player id. Part of its identity.</summary>
+    /// <summary>What the follow-up is about — an order id, a customer id. Part of its identity.</summary>
     public required int SubjectId { get; init; }
 
     public required WindowDefinition Definition { get; init; }
@@ -84,7 +84,7 @@ public sealed class FollowUpLauncher
         => Launch(manager, windowKey, new Dictionary<string, object> { [parameterName] = subjectId }, subjectId, subtitle, width);
 
     /// <summary>
-    /// Opens a follow-up with several parameters — a game and the side and book a door names.
+    /// Opens a follow-up with several parameters — a record and the side and source a door names.
     /// Re-launching the same view on the same subject while it floats re-aims it with the new
     /// parameters and raises it, rather than stacking a second dialog on top.
     /// </summary>
@@ -103,8 +103,8 @@ public sealed class FollowUpLauncher
         var title = $"{definition.Title} · {subtitle}";
 
         // A singleton already on the desk is re-aimed rather than duplicated (WindowManager.Open),
-        // so a Place wager on another game lands on that game rather than on the wager the window
-        // was already showing. Opening it adds no window, so the desk's capacity does not come
+        // so an order form opened on another record lands on that record rather than on the one
+        // the window was already showing. Opening it adds no window, so the desk's capacity does not come
         // into it.
         if (definition.Singleton
             && manager.Windows.Any(w => w.Definition.Key == windowKey))

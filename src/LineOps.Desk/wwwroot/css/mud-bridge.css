@@ -1,5 +1,5 @@
 /* ============================================================================
-   LineOps — MudBlazor bridge
+   The Desk — MudBlazor bridge
 
    MudBlazor arrives with Material Design's opinions baked in: 4px radii, six
    layered drop shadows per elevation step, Roboto, ripples, and a palette that
@@ -18,15 +18,16 @@
      2. Remove the Material tells that survive step 1 because they are hard-coded
         in MudBlazor's stylesheet rather than driven by a variable.
 
-   Load order matters and is fixed in App.razor: MudBlazor.min.css, then
-   lineops.css (which defines the tokens), then themes.css (the other families'
-   token blocks), then this file. Nothing here uses
+   Load order matters and is fixed in DeskHead.razor: MudBlazor.min.css, then
+   desk.css (which defines the tokens), then controls.css, then themes.css (the
+   other families' token blocks), then this file; the application's own sheet
+   comes after all of them. Nothing here uses
    !important; every override either raises specificity honestly or wins on
    source order at equal specificity. If a rule below stops working after a
    MudBlazor upgrade, that is the signal to re-read their stylesheet, not to
    reach for !important.
 
-   Colours are never written literally here — they resolve through lineops.css,
+   Colours are never written literally here — they resolve through desk.css,
    which stays the single source of truth. The C# side of the same tokens lives
    in Theming/DeskTheme.cs.
    ============================================================================ */
@@ -138,7 +139,7 @@
 .mud-list-item:hover { background-color: var(--surface-2); }
 
 /* Inputs are fields, and a field is cut into the panel — see .field in
-   lineops.css. Material draws the opposite: a floating label over a filled well
+   desk.css. Material draws the opposite: a floating label over a filled well
    with an animated underline. Recess it and drop the underline. */
 .mud-input.mud-input-outlined > .mud-input-outlined-border {
     border-color: var(--separator);
@@ -278,7 +279,7 @@
 
 /* Row height is 29px — --space-1 top and bottom around a 20px line box at --text-body, plus
    the hairline below. Measured, not derived: a cell whose content overflows that 20px line box
-   takes the row with it, which is why .tag in lineops.css pins its own line-height. Density
+   takes the row with it, which is why .tag in desk.css pins its own line-height. Density
    is the point of this console and survives the restyle intact. Tabular figures are set here
    too, on every cell, not only .mud-align-right/.mud-align-end — see the plain .mud-table-cell
    rule above for why that hook cannot be trusted alone. */
@@ -304,7 +305,7 @@
    rules that stood here lost to them without a sound: the heading stayed a full-width flex row
    with its label stretched across the cell, so an arrow hung "after the label" was hung after
    the cell — at the column's far edge, just before the next heading's label, where it read as
-   that column's (the Journal's Placed arrow sat beside Selection). Each rule below is written
+   that column's (a Date arrow sat beside the Name heading after it). Each rule below is written
    one class deeper than the Mud rule it answers, so it wins on specificity, not on load order. */
 .deskgrid .mud-table-head .mud-table-cell .column-header {
     position: relative;
@@ -435,8 +436,8 @@
 
 /* The column resize handle. A table on this desk has no vertical rules (HIG lists and tables:
    one inset hairline between rows, nothing between columns), and a handle drawn at rest was
-   one — a --separator-strong line at every heading's trailing edge, ruling the Journal's, the
-   Runs' and every wide grid's header row into cells. So the handle draws nothing until the
+   one — a --separator-strong line at every heading's trailing edge, ruling a log's, a run
+   list's and every wide grid's header row into cells. So the handle draws nothing until the
    pointer is on it. Under the pointer, and while it is dragged, it is a control in use and
    lights as one: a 1px accent line centred in Mud's 8px grab strip, in place of Mud's 2px
    Material-primary bar. The strip keeps its width and Mud's col-resize cursor, so the edge is
@@ -491,7 +492,7 @@
    nothing to sample for the whole of every fade and then snap into focus at the end.
 
    And the opaque fallback could not be registered where the desk's other materials
-   register theirs. lineops.css's terminal @supports block loads BEFORE this file, so a
+   register theirs. desk.css's terminal @supports block loads BEFORE this file, so a
    single-class .mud-tooltip fallback there loses to this rule on source order — it
    would need a specificity hack keyed to Mud's popover DOM to land.
 
@@ -509,7 +510,7 @@
 
     /* A tooltip that explains something is a sentence, not a label. Mud's default
        collapses newlines and sets no ceiling on width, which turns "closing price,
-       captured 3h before start" plus its book breakdown into one long ribbon nobody
+       captured 3h before start" plus its source breakdown into one long ribbon nobody
        finishes reading. `pre-line` honours the break the caller wrote and still
        collapses incidental whitespace; the measure is the one prose wants. A tooltip
        carrying only a word is unaffected by either. */
@@ -601,7 +602,7 @@
 .desk-toast--neutral { --toast-accent: var(--surface-3); }
 
 /* An addition and a removal say which they are by colour as well as by word: the green of an
-   added wager and the red of a dropped one are the whole notice's tint, not a 2px edge the eye
+   added item and the red of a dropped one are the whole notice's tint, not a 2px edge the eye
    has to look for, so "added" and "removed" are told apart before they are read. The text stays
    primary, so the tint never carries the meaning alone. */
 .mud-snackbar.desk-toast.desk-toast--go,
@@ -612,7 +613,7 @@
     border-left-color: var(--toast-accent);
 }
 
-/* The toast's one key — View slip, Undo — reads in its tone's ink and semibold, a plain key. */
+/* The toast's one key — View list, Undo — reads in its tone's ink and semibold, a plain key. */
 .mud-snackbar.desk-toast .mud-snackbar-content-action .mud-button-root {
     min-width: 0;
     height: 24px;
@@ -713,7 +714,7 @@
 }
 
 /* A second channel besides colour, for a chart whose lines are told apart by series and
-   not by meaning — the odds chart, one line per book. MudBlazor 9.7 has no per-series
+   not by meaning — a price chart, one line per source. MudBlazor 9.7 has no per-series
    dash: ChartSeries carries a name and data, and its line options override only
    interpolation, fill and opacity per series. But it draws every series as a sibling
    path in one group, in series order, so every second line can be dashed by position.
@@ -742,7 +743,7 @@
 /* DeskButton renders MudButton as Variant.Text with Color.Inherit, which is the
    variant that contributes the fewest visual rules — .mud-button-text-inherit
    only sets `color: inherit`. Everything a button looks like then comes from
-   .desk-btn in lineops.css, which loads first but wins at equal specificity for
+   .desk-btn in desk.css, which loads first but wins at equal specificity for
    .mud-button's own declarations because this file loads after MudBlazor's.
 
    Two rules are needed because MudBlazor states them at two classes deep. */
@@ -759,7 +760,7 @@
    background-color of their own (--mud-palette-action-default-hover) at the
    same two-classes-deep specificity as the rule above. Left alone it would win
    over the base `.desk-btn, .btn { background-color: var(--btn-fill) }` rule in
-   lineops.css, so every hover, focus, and press would show Mud's flat grey
+   desk.css, so every hover, focus, and press would show Mud's flat grey
    instead of the variant's own fill — Plain would never show its surface tint,
    Filled would never darken toward the pressed accent. Matching the specificity
    here does not add any behaviour of its own; it just lets --btn-fill, already
@@ -774,7 +775,7 @@
 /* MudButton puts everything a key holds — DeskButton's Glyph, the label, a pull-down's chevron
    — inside one .mud-button-label span, so the gap .desk-btn sets between its flex children fell
    between the button and that single span and nowhere else. The glyph sat touching the first
-   letter of "Settle finished games" and "Build parlay". The span is a flex row already (Mud gives
+   letter of "Archive finished orders" and "Build report". The span is a flex row already (Mud gives
    it the button's own display), so it takes the button's gap too, and every emphasis and size
    spaces glyph, label and chevron the same --btn-gap apart. */
 .desk-btn > .mud-button-label { gap: inherit; }
@@ -786,7 +787,7 @@
 
 /* ------------------------------------------------------------ 4. UI scale ---- */
 
-/* The Window manager's UI scale is zoom on <html> (lineops.css, "Scale"), and
+/* The Window manager's UI scale is zoom on <html> (desk.css, "Scale"), and
    zoom has one consequence MudBlazor does not know about: getBoundingClientRect
    reports visual pixels, but a position written into style.left lands in the
    element's own, zoomed, layout pixels. Mud's popover positioner reads the

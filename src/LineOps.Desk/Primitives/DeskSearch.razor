@@ -7,7 +7,7 @@
     The desk's filters were plain fields with a placeholder — no glyph to say they search, no
     way to empty them but selecting and deleting. The HIG's search field carries three things a
     plain field does not: a leading magnifier, a clear key that appears once there is something
-    to clear, and placeholder text that names what can be found ("Search players"), so the
+    to clear, and placeholder text that names what can be found ("Search customers"), so the
     field says its scope before anyone types.
 
     It is a `search` landmark around a `searchbox`, so a screen reader can jump to it, and the
@@ -64,7 +64,7 @@
 
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
-    /// <summary>What can be found, in sentence case — "Search players". It is also the name.</summary>
+    /// <summary>What can be found, in sentence case — "Search customers". It is also the name.</summary>
     [Parameter, EditorRequired] public string Placeholder { get; set; } = string.Empty;
 
     /// <summary>The accessible name, when it should say more than the placeholder.</summary>

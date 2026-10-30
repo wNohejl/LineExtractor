@@ -4,8 +4,8 @@
 @*
     A disclosure: details hidden behind a label until they are wanted.
 
-    The desk improvised this three ways — a <details> with its marker hidden and a book glyph
-    in its place, so the runbook never said whether it was open; Team log rows with a trailing
+    The desk improvised this three ways — a <details> with its marker hidden and an icon glyph
+    in its place, so the runbook never said whether it was open; log rows with a trailing
     chevron that flips up and down, which is the HIG's disclosure *button* idiom on rows that
     want a triangle; and DeskStep's folded summary. The HIG's disclosure triangle is the one
     shape for all of them: on the leading edge, pointing at the label while the details are
@@ -52,7 +52,7 @@
 
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
 
-    /// <summary>What is inside, in sentence case — "Runbook — Odds are stale".</summary>
+    /// <summary>What is inside, in sentence case — "Runbook — Prices are stale".</summary>
     [Parameter] public string? Label { get; set; }
 
     /// <summary>A label with markup in it, in place of <see cref="Label"/>.</summary>

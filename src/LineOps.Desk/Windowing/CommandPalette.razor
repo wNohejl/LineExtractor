@@ -6,7 +6,7 @@
 
 @*
     Ctrl+K (⌘K), or the search key in the header: one field that reaches anything on the desk.
-    Windows and workspaces come from the desk itself; teams, players and games from whatever
+    Windows and workspaces come from the desk itself; customers, orders and products from whatever
     the application registers, and so does the empty field's invitation to them (the brand's
     SearchPlaceholder). Before anything is typed it lists the windows, so it doubles as a
     keyboard launcher.
@@ -169,8 +169,8 @@
                 return;
 
             // A window or workspace whose name starts with what was typed leads: someone typing
-            // "board" wants the Board, not a player called Board. Otherwise what the application
-            // knows leads — a team is what someone typing "mets" is after — and the desk's other
+            // "board" wants the Board, not a customer called Board. Otherwise what the application
+            // knows leads — a customer is what someone typing "acme" wants — and the desk's other
             // matches follow.
             var typed = _text.Trim();
             var named = local.Where(r => r.Title.StartsWith(typed, StringComparison.OrdinalIgnoreCase)).ToList();

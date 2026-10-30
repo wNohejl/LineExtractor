@@ -11,11 +11,11 @@
     link that opens it again. Current: the marker is solid accent, and the step shows its
     guidance — one or two sentences on what to do here, written for someone who has never done
     it — above its controls. Todo: the title dims and, on the same line, the step says what it
-    is waiting for ("Pick your bet first."), so an unreachable control never sits on screen
+    is waiting for ("Pick a plan first."), so an unreachable control never sits on screen
     looking broken, and a waiting step costs one line.
 
     Open is the host's to decide; left unset, the current step is open and the others are
-    folded. A host that wants two steps open at once — a stake being typed beside the review
+    folded. A host that wants two steps open at once — an amount being typed beside the review
     of it — says so.
 *@
 
@@ -81,7 +81,7 @@
     /// <summary>The step's place in the sequence, shown until it is done.</summary>
     [Parameter, EditorRequired] public int Number { get; set; }
 
-    /// <summary>The step's name: short, sentence case — "Price and book".</summary>
+    /// <summary>The step's name: short, sentence case — "Price and source".</summary>
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
 
     [Parameter] public DeskStepState State { get; set; }

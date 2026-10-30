@@ -177,4 +177,4 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 | Sentence case | Titles, headers, keys and tags read in sentence case. | `PanelHeader` and `PanelSection` set the rule's type; no test reads copy yet |
 | Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `AccessibleNameTests`, `DeskAlertTests.Every_caller_must_name_the_confirm` |
 | No literal colours | A colour is a token. Only the token blocks write one. | `DeskCssConventionTests.No_literal_colour_outside_the_token_blocks` |
-| No domain | The Desk's code names no application's records. | `DeskVocabularyTests` |
+| No domain | The Desk's code and its documentation name no application's records. | `DeskVocabularyTests` |

@@ -5,7 +5,7 @@ namespace LineOps.Desk.Windowing;
 ///
 /// <para>
 /// A topic is whatever the application names its data by — the desk neither knows nor cares
-/// what "games" or "odds" are. The application publishes (from a database listener, from its
+/// what "orders" or "prices" are. The application publishes (from a database listener, from its
 /// own writes); a window subscribes to the topics it draws from and reloads. One hub per
 /// process, shared by every circuit, because a change is a fact about the data, not about
 /// anyone's session.

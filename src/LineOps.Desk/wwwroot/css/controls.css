@@ -1,14 +1,14 @@
 /* =============================================================================
    Controls — the desk's newer primitives.
 
-   Loaded straight after lineops.css, which defines every token used here. These
+   Loaded straight after desk.css, which defines every token used here. These
    rules spend tokens and define none, so a theme block in themes.css re-colours
    them the same way it re-colours everything else.
 
    The file exists so the primitives have a home of their own rather than another
-   few hundred lines in lineops.css. DeskPopover, DeskMenu, DeskMenuItem,
+   few hundred lines in desk.css. DeskPopover, DeskMenu, DeskMenuItem,
    DeskPullDown, DeskStepper, DeskDisclosure and DeskSearch live here; the
-   hand-built menus they replaced are gone from lineops.css.
+   hand-built menus they replaced are gone from desk.css.
    ============================================================================= */
 
 /* ---- Popover ----------------------------------------------------------------
@@ -446,7 +446,7 @@
 }
 
 /* ---- Toolbar ----------------------------------------------------------------
-   The panel toolbar is one line. lineops.css lays the row out and says
+   The panel toolbar is one line. desk.css lays the row out and says
    `flex-wrap: wrap`; these rules come later at the same specificity and hold it to one line instead. A control either sits on the row or is in
    More (toolbar.js decides which), so nothing wraps and nothing is
    clipped: no `overflow: hidden` here, which would also cut off every popover

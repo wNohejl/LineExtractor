@@ -6,7 +6,7 @@
     The one row of controls that scope or act on a whole panel.
 
     Second slot of the panel anatomy (spec 2026-10-24). Before it, every panel laid its own
-    opening row: Ops put a lone Filled key on a right-aligned row of its own, Players put
+    opening row: Ops put a lone Filled key on a right-aligned row of its own, a list put
     its Filled key in the middle of the filter row, Runs stacked selects under a note and
     put Refresh after them. The operator's hand went to a different place in every window.
 
@@ -136,7 +136,7 @@
     /// <summary>The search field, last in the content group; it folds only after the Overflow has.</summary>
     [Parameter] public RenderFragment? Search { get; set; }
 
-    /// <summary>What the toolbar last did — "Settled 3 games". Quiet, between search and actions.</summary>
+    /// <summary>What the toolbar last did — "Archived 3 orders". Quiet, between search and actions.</summary>
     [Parameter] public string? Message { get; set; }
 
     /// <summary>The keys, pinned right. Plain or Tinted first, the one Filled key last.</summary>

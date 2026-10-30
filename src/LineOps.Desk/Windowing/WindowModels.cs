@@ -129,7 +129,7 @@ public record WindowDefinition
     /// Whether this window is about something, and so cannot be opened on its own.
     ///
     /// <para>
-    /// A game, a team and a player view are destinations: they take an id, and a window built
+    /// An order, a customer and a product view are destinations: they take an id, and a window built
     /// without one has nothing to show. Opened cold from the launcher they sat on "Loading…"
     /// for ever, which reads as a broken window rather than as a window that was never meant to
     /// be opened that way.
@@ -175,7 +175,7 @@ public class WindowInstance
 
     /// <summary>
     /// The view the window is showing. Settable because a subject window follows its own links:
-    /// a team named in a game opens in the game's window, which then shows the team.
+    /// a customer named on an order opens in the order's window, which then shows the customer.
     /// </summary>
     public required WindowDefinition Definition { get; set; }
 
@@ -183,9 +183,9 @@ public class WindowInstance
     /// Whether a link followed inside this window lands in it rather than in a window of its own.
     ///
     /// <para>
-    /// Only subject windows do — a game, a team, a player, a head to head. They are about one
+    /// Only subject windows do — an order, a customer, a product, a comparison. They are about one
     /// thing, so going from that thing to the next is reading on. A catalogue window is a place
-    /// the operator works from: the Board turned into a game would lose the slate the game was
+    /// the operator works from: a board turned into an order would lose the list the order was
     /// picked from, so its links still open beside it.
     /// </para>
     /// </summary>
@@ -252,7 +252,7 @@ public class WindowInstance
     public bool HasUnsavedInput { get; internal set; }
 
     /// <summary>
-    /// What would be lost, as the object of "Discard …?" — "this journal entry". Null asks about
+    /// What would be lost, as the object of "Discard …?" — "this log entry". Null asks about
     /// "unsaved changes".
     /// </summary>
     public string? UnsavedInputLabel { get; internal set; }
@@ -270,7 +270,7 @@ public class WindowInstance
     /// </summary>
     public long Sequence { get; set; }
 
-    /// <summary>Arbitrary parameters passed to the hosted component, e.g. a game id.</summary>
+    /// <summary>Arbitrary parameters passed to the hosted component, e.g. an order id.</summary>
     public Dictionary<string, object> Parameters { get; init; } = [];
 }
 

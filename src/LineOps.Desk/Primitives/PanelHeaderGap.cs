@@ -17,7 +17,7 @@ public enum PanelHeaderGap
     Default,
 
     /// <summary>
-    /// A sub-heading that belongs to the block it follows: a team inside a market, a
+    /// A sub-heading that belongs to the block it follows: an account inside a region, a
     /// split inside a form table. Close enough to read as part of the same thing.
     /// </summary>
     Nested,

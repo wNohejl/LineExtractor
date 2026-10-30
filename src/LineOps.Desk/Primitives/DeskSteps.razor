@@ -3,7 +3,7 @@
 @*
     A vertical stepper: an ordered list of DeskStep, joined by a rail down the left.
 
-    For a form that is a sequence — the wager window's game, bet, price, stake, review — where
+    For a form that is a sequence — an order form's item, option, price, quantity, review — where
     the reader needs to see where they are, what is finished and what comes next, without the
     steps hiding one another. Every step stays on screen; the rail and the markers carry the
     progress, so nothing has to be paged through to be checked.
@@ -17,6 +17,6 @@
     /// <summary>The steps, in order.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    /// <summary>What the sequence is, for a screen reader: "Log a wager".</summary>
+    /// <summary>What the sequence is, for a screen reader: "Place an order".</summary>
     [Parameter] public string? Label { get; set; }
 }

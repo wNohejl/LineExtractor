@@ -9,8 +9,8 @@ namespace LineOps.Desk.Windowing;
 /// which is right while the panel is a desk window. It is wrong once the panel is itself a
 /// floating dialog: the dialog's material (<c>backdrop-filter</c>) makes it the containing block
 /// for anything <c>position: fixed</c> inside it, so a dialog opened from within is positioned
-/// against, and clipped by, the dialog that opened it. Every book opening Place wager was the
-/// case that found it — the Log key sat below the visible edge. Follow-ups launched here are
+/// against, and clipped by, the dialog that opened it. A list row opening an order form was the
+/// case that found it — the Save key sat below the visible edge. Follow-ups launched here are
 /// drawn by the desk itself, beside the windows, where nothing clips them.
 /// </para>
 ///
