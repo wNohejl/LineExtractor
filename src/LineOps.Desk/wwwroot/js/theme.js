@@ -64,6 +64,26 @@ export function storeFamily(family) {
     }
 }
 
+// The accent — the Standard desk's chosen hue — under a key of its own, for the reason the family
+// has one. It has no older key to fall back to: it arrived after the Desk carried its own name.
+const ACCENT_KEY = 'desk.accent';
+
+export function readAccent() {
+    try {
+        return localStorage.getItem(ACCENT_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function storeAccent(accent) {
+    try {
+        localStorage.setItem(ACCENT_KEY, accent);
+    } catch {
+        /* forgotten, not fatal */
+    }
+}
+
 export function prefersDark() {
     return window.matchMedia
         ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -89,8 +109,21 @@ export function prefersReducedTransparency() {
 // after :root, so stamping any of them hands the entire desk over; "apple-dark" is set
 // explicitly rather than by removing the attribute so that what is showing is always
 // readable in the DOM inspector.
-export function apply(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
+//
+// The accent rides in the same call. Its blocks are compound — [data-theme][data-accent],
+// (0,2,0) — so they win over the family block beneath them without touching anything else.
+// ThemeService sends null for Blue and for every family but Standard, and null removes the
+// attribute: the inspector shows an accent only when one was chosen and something answers it.
+export function apply(theme, accent) {
+    const root = document.documentElement;
+
+    root.setAttribute('data-theme', theme);
+
+    if (accent) {
+        root.setAttribute('data-accent', accent);
+    } else {
+        root.removeAttribute('data-accent');
+    }
 }
 
 // Reduce Transparency, as an attribute the stylesheet answers. Removed rather than set to

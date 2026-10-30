@@ -20,7 +20,7 @@ namespace LineOps.Desk.Theming;
 /// So the constants below are the pairing seam, and they must match the <c>:root</c>
 /// block in desk.css exactly. They are the Standard family; the other families' values
 /// sit in <see cref="DeskPalettes"/> against their blocks in <c>themes.css</c>, and every
-/// family reaches MudBlazor through <see cref="For"/>. Everything that is <i>not</i> a colour — radii, type,
+/// family reaches MudBlazor through <see cref="For(DeskThemeFamily)"/>. Everything that is <i>not</i> a colour — radii, type,
 /// elevation, z-index — is remapped in <c>wwwroot/css/mud-bridge.css</c> instead,
 /// because CSS can express it and one place beats two.
 /// </para>
@@ -173,7 +173,7 @@ public static class DeskTheme
             DeskThemeFamilies.Palette(family, isDark: false)));
 
     /// <summary>
-    /// The Standard desk's theme, carrying both its palettes. What <see cref="For"/> returns for
+    /// The Standard desk's theme, carrying both its palettes. What <see cref="For(DeskThemeFamily)"/> returns for
     /// <see cref="DeskThemeFamily.Standard"/>, kept by this name because it is what a call site
     /// with no family to hand should get.
     /// </summary>
@@ -193,6 +193,26 @@ public static class DeskTheme
     /// </summary>
     public static MudTheme For(DeskThemeFamily family)
         => Themes.TryGetValue(family, out var theme) ? theme : Instance;
+
+    /// <summary>
+    /// The Standard desk's theme in every chosen accent but Blue, which is <see cref="Instance"/>
+    /// itself. Built once, like the families: an accent never varies per circuit either.
+    /// </summary>
+    private static readonly Dictionary<DeskAccent, MudTheme> Accented = DeskAccents.All
+        .Where(accent => accent != DeskAccent.Blue)
+        .ToDictionary(accent => accent, accent => Build(
+            DeskPalettes.AppleDark.WithAccent(DeskAccents.Dark(accent)),
+            DeskPalettes.AppleLight.WithAccent(DeskAccents.Light(accent))));
+
+    /// <summary>
+    /// One family's theme wearing the operator's accent. The accent is the Standard family's
+    /// alone (see <see cref="DeskAccent"/>), so every other family gets exactly what
+    /// <see cref="For(DeskThemeFamily)"/> gives it, the same instance, whatever is chosen.
+    /// </summary>
+    public static MudTheme For(DeskThemeFamily family, DeskAccent accent)
+        => family == DeskThemeFamily.Standard && Accented.TryGetValue(accent, out var theme)
+            ? theme
+            : For(family);
 
     private static MudTheme Build(DeskPalette dark, DeskPalette light) => new()
     {

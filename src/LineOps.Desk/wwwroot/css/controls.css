@@ -857,3 +857,65 @@
     opacity: .40;
     cursor: not-allowed;
 }
+
+/* ---- Accent picker ----------------------------------------------------------
+   DeskAccentPicker: one filled circle per hue, in a row, the way macOS lays its
+   accent colours out. Its own names (.accents, .accent-swatch) because .swatches
+   and .swatch are the Window manager's theme tiles, a different shape with a
+   different job, and the two sit one row apart on the same panel.
+
+   Every colour here is a token. Each swatch carries data-theme and data-accent
+   of its own, so var(--accent) inside it is the accent block that choosing it
+   would apply (themes.css) — the picker writes no colour on an element, and
+   the circle is the hue rather than a picture of it.
+
+   The chosen swatch wears a ring in its own hue, set off from the circle by a
+   gap of the panel's own ground, so "this one" is said in the colour of the one
+   it marks. The edge is the separator, inset, so a pale hue on a pale panel
+   (graphite on the light desk) still has a rim. The focus ring is the desk's
+   own: --focus-ring was resolved on <html>, in the accent that is showing.
+   --------------------------------------------------------------------------- */
+
+.accents {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-1);
+}
+
+.accent-swatch {
+    position: relative;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--separator);
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.accent-swatch:hover { transform: scale(1.08); }
+
+.accent-swatch::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.accent-swatch--on::after { border-color: var(--accent); }
+
+.accent-swatch:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--separator), var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .accent-swatch,
+    .accent-swatch::after { transition: none; }
+}

@@ -94,11 +94,20 @@ every block to the token list and to its C# mirror and computes its text contras
 `ThemeContrastTests` holds its inks to 4.5:1; `ThemeBootTests` holds the boot script to the
 family slugs.
 
+The Standard family alone also takes a chosen accent (`DeskAccent`: Blue, Teal, Indigo, Purple,
+Graphite). Blue is what its blocks already declare; each other hue is a compound block at the end
+of `themes.css`, `[data-theme="apple-dark"][data-accent="teal"]` and its light twin, redeclaring
+exactly the six accent tokens (`--accent`, `-hover`, `-press`, `-wash`, `-wash-strong`, `-ink`),
+mirrored in `DeskAccents`. `ThemeService.Accent` persists the choice under `desk.accent` and
+stamps `data-accent` only while Standard is showing, and `Palette` and `MudTheme` carry it then,
+so MudBlazor and the charts wear it too. The Window manager offers it beneath the theme tiles.
+
 ## Primitives
 
 | Primitive | What it is for | Wraps |
 | --- | --- | --- |
 | `CheckList` | Advisory checks as a grouped section: a mark, one sentence and a remedy per row. | — |
+| `DeskAccentPicker` | The Standard desk's accent: one circle per hue, a radiogroup whose arrows wrap. | — |
 | `DeskAlert` | A decision that must be made before anything else happens; confirms and destructive gates only. | `MudDialog`, through `IDeskAlerts` |
 | `DeskBadge` | A count beside the name of what it counts, heard with its noun; nothing to count, no badge. | — |
 | `DeskButton` | The key: the caller states how loud (`Emphasis`) and whether it destroys. | `MudButton` |

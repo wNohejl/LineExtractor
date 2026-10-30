@@ -106,6 +106,21 @@
                     </ItemTemplate>
                 </DeskRadioGroup>
             </div>
+
+            @* The accent, beneath the family because it refines one of them: only the Standard
+               desk takes a chosen accent, the others keep the one they were designed around. So
+               the row is here only while Standard is showing — the desk never shows a control
+               that cannot act, and a row of hues that changed nothing on a Nord desk would be
+               exactly that. ShowingFamily rather than Family: under Increase Contrast an
+               unchosen family shows as High contrast, and that desk has no accent to choose. *@
+            @if (Theme.ShowingFamily == DeskThemeFamily.Standard)
+            {
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Accent</span>
+                    <DeskAccentPicker Value="Theme.Accent" IsDark="Theme.IsDark"
+                                      ValueChanged="@((DeskAccent accent) => Theme.SetAccentAsync(accent))" />
+                </div>
+            }
         </div>
         @* Naming the resolved theme is the point of the first sentence. "System" alone does not
            tell an operator which desk they are about to get, and it is the one position where the

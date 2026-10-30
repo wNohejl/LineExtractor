@@ -28,6 +28,10 @@
    Each family also paints its own swatch in the Window manager: the swatch
    carries this block's data-theme, so a family's preview is the family, not a
    picture of it.
+
+   The file ends with a different kind of block: the Standard desk's chosen
+   accents, which redeclare six tokens rather than all of them. They are
+   explained where they are.
    ============================================================================ */
 
 
@@ -530,4 +534,111 @@
 
     --sheen: rgba(0, 0, 0, .14);
     --sheen-soft: rgba(0, 0, 0, .07);
+}
+
+
+/* ============================================================================
+   The accent, chosen.
+
+   The Standard desk spends one hue on interactivity, focus and selection, and
+   which hue is the operator's, as it is in macOS's own appearance settings.
+   Blue is the default and lives in desk.css's two Standard blocks; each block
+   here redeclares exactly the six accent tokens — the fill, its hover and
+   press, the two washes and the ink — under a compound selector, so it weighs
+   (0,2,0) and wins over the family block it sits on without touching anything
+   else. No accent is a state hue: there is no red, orange or green, because a
+   positive tag and a primary key that shared a hue would stop meaning
+   different things.
+
+   Only Standard takes one. Every other family chose its accent as part of
+   being itself, so no block here names anything but apple-dark or apple-light,
+   and ThemeService (and theme-boot.js) stamp data-accent only while Standard
+   is showing.
+
+   Here rather than beside the Standard blocks in desk.css: desk.css is the
+   file every component reads and holds the one desk; this is the file of
+   alternatives to it, and an accent is one. Placement does not decide the
+   cascade — the extra attribute does — so the choice is about where a reader
+   looks, and a reader looking for "what else can the desk wear" looks here.
+
+   Hover travels the way the ground demands: lighter on the dark desk, deeper
+   on the light one, for the reason --accent-hover gives in desk.css. Washes
+   drop from .15/.24 to .12/.20 on the light desk. The ink is the hover value
+   on dark and the press value on light, as Blue's is, lifted or deepened
+   further where that still falls short of 4.5:1 over --surface-1 (indigo on
+   dark, teal on light). The C# mirror is Theming/DeskAccent.cs; DeskThemeTests
+   holds each block to it and to the six tokens, ThemeContrastTests its ink.
+
+   A swatch in the accent picker carries data-theme and data-accent of its
+   own, so each one is painted by the block below that choosing it would apply.
+   ============================================================================ */
+
+[data-theme="apple-dark"][data-accent="teal"] {
+    --accent: #40C8E0;
+    --accent-hover: #5FD3E7;
+    --accent-press: #2BB7CF;
+    --accent-wash: rgba(64, 200, 224, .15);
+    --accent-wash-strong: rgba(64, 200, 224, .24);
+    --accent-ink: #5FD3E7; /* 8.92:1 */
+}
+[data-theme="apple-light"][data-accent="teal"] {
+    --accent: #30B0C7;
+    --accent-hover: #2A9DB2;
+    --accent-press: #24899C;
+    --accent-wash: rgba(48, 176, 199, .12);
+    --accent-wash-strong: rgba(48, 176, 199, .20);
+    /* The press measures 4.09:1 on white; one step deeper reads. */
+    --accent-ink: #1F7A8C; /* 4.98:1 */
+}
+
+[data-theme="apple-dark"][data-accent="indigo"] {
+    --accent: #5E5CE6;
+    --accent-hover: #7C7AEB;
+    --accent-press: #4B49D9;
+    --accent-wash: rgba(94, 92, 230, .15);
+    --accent-wash-strong: rgba(94, 92, 230, .24);
+    /* The hover measures 4.36:1 over the panel; one step lighter reads. */
+    --accent-ink: #8E8CF0; /* 5.34:1 */
+}
+[data-theme="apple-light"][data-accent="indigo"] {
+    --accent: #5856D6;
+    --accent-hover: #4F4DC4;
+    --accent-press: #4644AD;
+    --accent-wash: rgba(88, 86, 214, .12);
+    --accent-wash-strong: rgba(88, 86, 214, .20);
+    --accent-ink: #4644AD; /* 7.80:1 */
+}
+
+[data-theme="apple-dark"][data-accent="purple"] {
+    --accent: #BF5AF2;
+    --accent-hover: #CB78F5;
+    --accent-press: #AD3FE6;
+    --accent-wash: rgba(191, 90, 242, .15);
+    --accent-wash-strong: rgba(191, 90, 242, .24);
+    --accent-ink: #CB78F5; /* 5.63:1 */
+}
+[data-theme="apple-light"][data-accent="purple"] {
+    --accent: #AF52DE;
+    --accent-hover: #A046CF;
+    --accent-press: #8F3DB8;
+    --accent-wash: rgba(175, 82, 222, .12);
+    --accent-wash-strong: rgba(175, 82, 222, .20);
+    --accent-ink: #8F3DB8; /* 5.95:1 */
+}
+
+[data-theme="apple-dark"][data-accent="graphite"] {
+    --accent: #8E8E93;
+    --accent-hover: #A1A1A6;
+    --accent-press: #7C7C81;
+    --accent-wash: rgba(142, 142, 147, .15);
+    --accent-wash-strong: rgba(142, 142, 147, .24);
+    --accent-ink: #A1A1A6; /* 6.09:1 */
+}
+[data-theme="apple-light"][data-accent="graphite"] {
+    --accent: #8E8E93;
+    --accent-hover: #7D7D82;
+    --accent-press: #6C6C70;
+    --accent-wash: rgba(142, 142, 147, .12);
+    --accent-wash-strong: rgba(142, 142, 147, .20);
+    --accent-ink: #6C6C70; /* 5.23:1 */
 }

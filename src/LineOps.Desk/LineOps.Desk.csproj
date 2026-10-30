@@ -23,8 +23,8 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>LineOps.Desk</PackageId>
-    <Version>0.1.0</Version>
-    <Description>An Apple-HIG desk for Blazor Server on MudBlazor: windows, primitives, themes.</Description>
+    <Version>0.2.0</Version>
+    <Description>An Apple-HIG desk for Blazor Server on MudBlazor: windows, primitives, themes and a chosen accent.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <PackageReadmeFile>README.md</PackageReadmeFile>

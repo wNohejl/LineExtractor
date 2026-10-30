@@ -57,6 +57,36 @@ public class WindowManagerControlsTests : DeskTestContext
     }
 
     /// <summary>
+    /// The accent row sits under the theme tiles and only while the Standard desk is showing: the
+    /// other families keep their own accent, and the desk never shows a control that cannot act.
+    /// Choosing a swatch moves the desk's accent, not just the picker.
+    /// </summary>
+    [Fact]
+    public async Task The_accent_picker_is_offered_only_on_the_Standard_desk()
+    {
+        var theme = Services.GetRequiredService<ThemeService>();
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Equal(DeskThemeFamily.Standard, theme.ShowingFamily);
+        var picker = cut.Find(".accents");
+        Assert.Equal("Accent", picker.GetAttribute("aria-label"));
+        Assert.Equal(DeskAccents.All.Count, picker.QuerySelectorAll("[role=radio]").Length);
+
+        // Directly beneath the theme tiles, in the same group.
+        var rows = cut.FindAll(".wgroup__row").ToList();
+        var themeRow = rows.FindIndex(r => r.QuerySelector(".swatches") is not null);
+        Assert.NotNull(rows[themeRow + 1].QuerySelector(".accents"));
+
+        cut.Find(".accents [data-accent=teal]").Click();
+        Assert.Equal(DeskAccent.Teal, theme.Accent);
+        Assert.Equal("true", cut.Find(".accents [data-accent=teal]").GetAttribute("aria-checked"));
+
+        await cut.InvokeAsync(() => theme.SetFamilyAsync(DeskThemeFamily.Nord));
+
+        Assert.Empty(cut.FindAll(".accents"));
+    }
+
+    /// <summary>
     /// The primary window's share is a value along a range, so it is the desk's slider: the reader
     /// hears the percentage, the readout beside it says the same, and dragging moves the share.
     /// </summary>

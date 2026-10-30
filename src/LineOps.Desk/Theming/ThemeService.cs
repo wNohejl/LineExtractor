@@ -14,7 +14,8 @@ namespace LineOps.Desk.Theming;
 /// <para>
 /// A theme is two choices: the <see cref="Family"/> — which palette — and the <see cref="Mode"/>
 /// — dark, light, or whatever the machine says. They are independent on purpose; see
-/// <see cref="DeskThemeFamily"/> for why a family is not a fourth appearance.
+/// <see cref="DeskThemeFamily"/> for why a family is not a fourth appearance. A third, the
+/// <see cref="Accent"/>, refines the Standard family alone and is ignored while any other shows.
 /// </para>
 ///
 /// <para>
@@ -91,11 +92,44 @@ public sealed class ThemeService : IAsyncDisposable
     /// <summary>The value on <c>&lt;html&gt;</c>, and the selector of the token block that is showing.</summary>
     public string Attribute => DeskThemeFamilies.Attribute(ShowingFamily, IsDark);
 
-    /// <summary>The showing desk's colours, for the charts, which cannot read a token block.</summary>
-    public DeskPalette Palette => DeskThemeFamilies.Palette(ShowingFamily, IsDark);
+    /// <summary>
+    /// The operator's accent. Blue until they choose, and after anything unreadable. Kept whatever
+    /// family is showing, so an operator who tries Nord and comes back finds their teal waiting.
+    /// </summary>
+    public DeskAccent Accent { get; private set; } = DeskAccent.Blue;
 
-    /// <summary>The family's theme for <c>MudThemeProvider</c>; <see cref="IsDark"/> picks the palette inside it.</summary>
-    public MudBlazor.MudTheme MudTheme => DeskTheme.For(ShowingFamily);
+    /// <summary>
+    /// The value stamped as <c>data-accent</c> on <c>&lt;html&gt;</c>, or null to remove it. Null
+    /// for Blue, because Blue is what the Standard blocks already declare and the inspector should
+    /// show a choice only when one was made; null under any other family, because the accent
+    /// blocks are Standard's alone and an attribute nothing answers is a claim the desk is not
+    /// keeping.
+    /// </summary>
+    public string? AccentAttribute
+        => ShowingFamily == DeskThemeFamily.Standard && Accent != DeskAccent.Blue ? DeskAccents.Key(Accent) : null;
+
+    /// <summary>
+    /// The showing desk's colours, for the charts, which cannot read a token block. On the
+    /// Standard desk it wears the chosen accent, so a chart's accent series is the colour of the
+    /// keys around it.
+    /// </summary>
+    public DeskPalette Palette
+    {
+        get
+        {
+            var palette = DeskThemeFamilies.Palette(ShowingFamily, IsDark);
+
+            return ShowingFamily == DeskThemeFamily.Standard && Accent != DeskAccent.Blue
+                ? palette.WithAccent(DeskAccents.For(Accent, IsDark))
+                : palette;
+        }
+    }
+
+    /// <summary>
+    /// The family's theme for <c>MudThemeProvider</c>, in the chosen accent when the family is
+    /// Standard; <see cref="IsDark"/> picks the palette inside it.
+    /// </summary>
+    public MudBlazor.MudTheme MudTheme => DeskTheme.For(ShowingFamily, Accent);
 
     /// <summary>
     /// Raised whenever the showing desk may have moved — its family or its appearance. The
@@ -143,6 +177,16 @@ public sealed class ThemeService : IAsyncDisposable
             _familyChosen = true;
         }
 
+        // The family's rule, for the same reasons: a name this version defines, or no choice.
+        var storedAccent = await module.InvokeAsync<string?>("readAccent");
+
+        if (Enum.TryParse<DeskAccent>(storedAccent, ignoreCase: true, out var accent)
+            && Enum.IsDefined(accent)
+            && !int.TryParse(storedAccent, out _))
+        {
+            Accent = accent;
+        }
+
         _self ??= DotNetObjectReference.Create(this);
         await module.InvokeVoidAsync("watch", _self);
 
@@ -186,6 +230,25 @@ public sealed class ThemeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Records a new accent, persists it, and repaints. A no-op if nothing moved. Recorded even
+    /// while another family shows — the picker is hidden then, but a caller that sets it is
+    /// stating the Standard desk's accent for when it returns.
+    /// </summary>
+    public async Task SetAccentAsync(DeskAccent accent)
+    {
+        if (accent == Accent)
+            return;
+
+        Accent = accent;
+
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("storeAccent", accent.ToString());
+
+        await PaintAsync();
+        await NotifyAsync();
+    }
+
+    /// <summary>
     /// The machine changed its mind — sunset, or a settings toggle. Called from theme.js.
     /// </summary>
     /// <remarks>
@@ -202,7 +265,7 @@ public sealed class ThemeService : IAsyncDisposable
     [JSInvokable]
     public async Task OnSystemPreferenceChanged(bool prefersDark, bool moreContrast, bool reducedTransparency)
     {
-        var showing = Attribute;
+        var showing = (Attribute, AccentAttribute);
         var transparencyMoved = reducedTransparency != _systemReducedTransparency;
 
         _systemPrefersDark = prefersDark;
@@ -215,7 +278,7 @@ public sealed class ThemeService : IAsyncDisposable
             await module.InvokeVoidAsync("applyTransparency", reducedTransparency);
         }
 
-        if (Attribute == showing)
+        if ((Attribute, AccentAttribute) == showing)
             return;
 
         await PaintAsync();
@@ -229,7 +292,9 @@ public sealed class ThemeService : IAsyncDisposable
     private async Task PaintAsync()
     {
         var module = await ModuleAsync();
-        await module.InvokeVoidAsync("apply", Attribute);
+        // One call carrying both attributes, so the browser never holds a new accent under the
+        // old family (or the reverse) for a frame between two round trips.
+        await module.InvokeVoidAsync("apply", Attribute, AccentAttribute);
     }
 
     private Task NotifyAsync() => Changed?.Invoke() ?? Task.CompletedTask;

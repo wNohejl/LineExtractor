@@ -73,6 +73,46 @@ public class ThemeBootTests
         Assert.DoesNotMatch(@"setItem\(OLD_", Theme);
     }
 
+    // ---- The accent ----------------------------------------------------------------
+
+    /// <summary>
+    /// The boot script stamps every accent that has a block, by the key ThemeService stamps, and
+    /// never Blue: Blue is the Standard blocks' own, and ThemeService removes the attribute for it.
+    /// </summary>
+    [Fact]
+    public void The_boot_script_knows_every_accent_key_but_Blue()
+    {
+        foreach (var accent in DeskAccents.All.Where(a => a != DeskAccent.Blue))
+            Assert.Contains($"'{DeskAccents.Key(accent)}'", Boot);
+
+        Assert.DoesNotContain($"'{DeskAccents.Key(DeskAccent.Blue)}'", Boot);
+    }
+
+    [Fact]
+    public void Both_scripts_keep_the_accent_under_one_key()
+    {
+        Assert.Matches(@"const ACCENT_KEY = 'desk\.accent'", Theme);
+        Assert.Contains("stored('desk.accent')", Boot);
+    }
+
+    /// <summary>
+    /// The accent is the Standard family's alone, so the boot script stamps it only once the
+    /// family it resolved is Standard's slug — the same question ThemeService.AccentAttribute asks.
+    /// </summary>
+    [Fact]
+    public void The_boot_script_stamps_the_accent_only_on_the_Standard_desk()
+    {
+        Assert.Matches($@"slug === '{DeskThemeFamilies.Slug(DeskThemeFamily.Standard)}'[^\n]*\n\s*root\.dataset\.accent = accent", Boot);
+        Assert.Single(Regex.Matches(Boot, @"dataset\.accent\s*="));
+    }
+
+    [Fact]
+    public void Theme_js_removes_the_accent_attribute_when_none_is_sent()
+    {
+        Assert.Matches(@"export function apply\(theme, accent\)", Theme);
+        Assert.Contains("removeAttribute('data-accent')", Theme);
+    }
+
     [Fact]
     public void DeskHead_loads_the_boot_script_before_any_stylesheet()
     {

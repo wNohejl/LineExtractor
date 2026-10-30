@@ -8,6 +8,9 @@
 (() => {
     // A stored family is the enum member's name, read case-insensitively; anything else is no choice.
     const SLUGS = { standard: 'apple', nord: 'nord', solarized: 'solarized', rosepine: 'rose-pine', highcontrast: 'contrast' };
+    // The accents with a block of their own — DeskAccents.Key of every member but Blue, which is
+    // what the Standard blocks already declare and so is never stamped.
+    const ACCENTS = ['teal', 'indigo', 'purple', 'graphite'];
     const root = document.documentElement;
 
     const stored = key => {
@@ -29,6 +32,13 @@
         const slug = Object.prototype.hasOwnProperty.call(SLUGS, family) ? SLUGS[family]
             : matches('(prefers-contrast: more)', false) ? 'contrast' : 'apple';
         root.dataset.theme = slug + '-' + (isDark ? 'dark' : 'light');
+
+        // The accent is the Standard family's alone, so it is stamped only when that is the
+        // family resolved above — ThemeService.AccentAttribute, in the same order of questions.
+        const accent = stored('desk.accent');
+        if (slug === 'apple' && ACCENTS.indexOf(accent) >= 0) {
+            root.dataset.accent = accent;
+        }
     } catch {
         root.dataset.theme = 'apple-dark';
     }

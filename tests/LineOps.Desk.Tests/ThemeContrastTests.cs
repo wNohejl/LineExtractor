@@ -91,6 +91,40 @@ public class ThemeContrastTests
     }
 
     /// <summary>
+    /// The Standard desk's chosen accents carry inks of their own, and each is held to the same
+    /// 4.5:1 over the Standard panel it sits on — apple-dark's or apple-light's --surface-1, since
+    /// an accent block redeclares the accent and nothing under it. The pale hues are why this
+    /// exists: teal's light press measures 4.09:1 on white, indigo's dark hover 4.36:1 over the
+    /// dark panel, and each ink is deepened or lifted a step past that.
+    /// </summary>
+    [Fact]
+    public void Every_chosen_accent_ink_passes_on_the_Standard_desk()
+    {
+        var panels = ThemeBlocks()
+            .Where(b => b.Name is "apple-dark" or "apple-light")
+            .ToDictionary(b => b.Name, b => b.Tokens["--surface-1"]);
+        var blocks = AccentBlocks().ToList();
+        var failures = new List<string>();
+
+        // Four hues, a dark and a light each. Fewer means the parser lost one.
+        Assert.Equal(8, blocks.Count);
+
+        foreach (var (theme, accent, tokens) in blocks)
+        {
+            var panel = panels[theme];
+            var ink = Require(tokens, "--accent-ink", $"{theme} {accent}", failures);
+            if (ink is null)
+                continue;
+
+            var ratio = Contrast(ink, panel);
+            if (ratio < 4.5)
+                failures.Add($"{theme} {accent} --accent-ink {ink} measures {ratio:F2}:1 over {panel}");
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
     /// The ink exists so text can read the state; a text rule still on the fill token is the
     /// defect the ink was added to fix. Fills, dots, borders and washes stay on the fill.
     /// </summary>
@@ -221,6 +255,20 @@ public class ThemeContrastTests
 
             foreach (Match m in Regex.Matches(topLevel, @"\[data-theme=""([a-z-]+)""\]\s*\{([^{}]*)\}"))
                 yield return (m.Groups[1].Value, Declarations(m.Groups[2].Value));
+        }
+    }
+
+    /// <summary>
+    /// Every <c>[data-theme="…"][data-accent="…"]</c> block in both files: the Standard desk it
+    /// refines, the accent it names, and its declarations. ThemeBlocks never sees these, because
+    /// a compound selector is not followed by a brace straight after its first attribute.
+    /// </summary>
+    private static IEnumerable<(string Theme, string Accent, Dictionary<string, string> Tokens)> AccentBlocks()
+    {
+        foreach (var css in new[] { Css, ThemesCss })
+        {
+            foreach (Match m in Regex.Matches(css, @"\[data-theme=""([a-z-]+)""\]\[data-accent=""([a-z-]+)""\]\s*\{([^{}]*)\}"))
+                yield return (m.Groups[1].Value, m.Groups[2].Value, Declarations(m.Groups[3].Value));
         }
     }
 

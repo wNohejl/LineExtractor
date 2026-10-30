@@ -662,6 +662,201 @@ public class DeskThemeTests
         Assert.Equal(Enum.GetValues<DeskThemeFamily>().Length, DeskThemeFamilies.All.Count);
     }
 
+    // ---- The chosen accent --------------------------------------------------
+    //
+    // A different kind of block. A family block redeclares every colour token; an accent block is
+    // a compound selector — [data-theme="apple-…"][data-accent="…"] — that redeclares exactly the
+    // six accent tokens and nothing else, on the Standard family alone. The gates above find a
+    // block by its bare [data-theme] selector, which a compound one never matches, so they are
+    // untouched by these; these hold the accent blocks to their own shape and to DeskAccents, the
+    // way the family blocks are held to the token list and to DeskPalettes.
+
+    /// <summary>The six tokens an accent block redeclares — all of them, and only them.</summary>
+    private static readonly string[] AccentTokens =
+        ["--accent", "--accent-hover", "--accent-press", "--accent-wash", "--accent-wash-strong", "--accent-ink"];
+
+    /// <summary>Every compound accent block in both stylesheets: its theme, its accent, its tokens.</summary>
+    private static List<(string Theme, string Accent, Dictionary<string, string> Tokens)> AccentBlocks()
+        => new[] { Css, ThemesCss }
+            .SelectMany(css => Regex.Matches(css, @"\[data-theme=""([a-z-]+)""\]\[data-accent=""([a-z-]+)""\]\s*\{([^}]*)\}").Cast<Match>())
+            .Select(m => (
+                m.Groups[1].Value,
+                m.Groups[2].Value,
+                Declarations(Regex.Replace(m.Groups[3].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline))))
+            .ToList();
+
+    private static Dictionary<string, string> AccentBlock(DeskAccent accent, bool isDark)
+    {
+        var theme = DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, isDark);
+        var key = DeskAccents.Key(accent);
+
+        return AccentBlocks().Single(b => b.Theme == theme && b.Accent == key).Tokens;
+    }
+
+    public static TheoryData<DeskAccent, bool> EveryChosenAccent()
+    {
+        var accents = new TheoryData<DeskAccent, bool>();
+
+        foreach (var accent in DeskAccents.All.Where(a => a != DeskAccent.Blue))
+        {
+            accents.Add(accent, true);
+            accents.Add(accent, false);
+        }
+
+        return accents;
+    }
+
+    /// <summary>
+    /// One block per hue per appearance, none for Blue (the Standard blocks are Blue), and none
+    /// on any family but Standard. A block keyed to Nord would be a palette nobody designed, and
+    /// a Blue block would be a second copy of the Standard accent to drift from the first.
+    /// </summary>
+    [Fact]
+    public void Every_chosen_accent_has_a_block_on_each_Standard_desk_and_nowhere_else()
+    {
+        var blocks = AccentBlocks();
+        var expected = DeskAccents.All
+            .Where(a => a != DeskAccent.Blue)
+            .SelectMany(a => new[] { "apple-dark/" + DeskAccents.Key(a), "apple-light/" + DeskAccents.Key(a) })
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(expected, blocks.Select(b => b.Theme + "/" + b.Accent).Order(StringComparer.Ordinal).ToArray());
+
+        // No [data-accent] selector anywhere that is not one of these blocks — a bare one would
+        // repaint a family the accent does not belong to.
+        var everyMention = new[] { Css, ThemesCss }
+            .Sum(css => Regex.Matches(Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline), @"\[data-accent").Count);
+        Assert.Equal(blocks.Count, everyMention);
+    }
+
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_accent_block_redeclares_the_six_accent_tokens_and_nothing_else(DeskAccent accent, bool isDark)
+    {
+        Assert.Equal(AccentTokens.Order(StringComparer.Ordinal), AccentBlock(accent, isDark).Keys.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The pairing seam, for accents: what MudBlazor and the charts are handed is the colour the
+    /// block declares, token for token, compared through MudColor as every other pair is.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_accent_block_mirrors_DeskAccents(DeskAccent accent, bool isDark)
+    {
+        var tokens = AccentBlock(accent, isDark);
+        var palette = DeskAccents.For(accent, isDark);
+        var where = $"{DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, isDark)} {DeskAccents.Key(accent)}";
+
+        (string Token, string Value)[] pairs =
+        [
+            ("--accent", palette.Accent),
+            ("--accent-hover", palette.Hover),
+            ("--accent-press", palette.Press),
+            ("--accent-wash", palette.Wash),
+            ("--accent-wash-strong", palette.WashStrong),
+            ("--accent-ink", palette.Ink)
+        ];
+
+        foreach (var (token, value) in pairs)
+        {
+            Assert.True(
+                ColorValue(tokens[token]) == ColorValue(value),
+                $"{where} {token} is {tokens[token]} in CSS but {value} in DeskAccents");
+        }
+    }
+
+    /// <summary>
+    /// Blue has no block because the Standard blocks are Blue — so its row in DeskAccents has to be
+    /// what those blocks declare, or the picker's Blue and MudBlazor's Blue would disagree with the
+    /// desk the operator gets back by choosing it.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Blue_is_what_the_Standard_blocks_declare(bool isDark)
+    {
+        var block = isDark ? DarkBlock : LightBlock;
+        var blue = DeskAccents.For(DeskAccent.Blue, isDark);
+        string[] values = [blue.Accent, blue.Hover, blue.Press, blue.Wash, blue.WashStrong, blue.Ink];
+
+        for (var i = 0; i < AccentTokens.Length; i++)
+            Assert.Equal(ColorValue(TokenValue(block, AccentTokens[i], "the Standard block")), ColorValue(values[i]), ignoreCase: true);
+    }
+
+    /// <summary>
+    /// The direction rule from DeskAccents' remarks: on the dark desk hover lightens and press
+    /// deepens; on the light desk both deepen. Washes are the fill's own channels at .15/.24 dark
+    /// and .12/.20 light, so a selected row is tinted by the hue it is selected in.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_accent_travels_the_way_its_ground_demands(DeskAccent accent, bool isDark)
+    {
+        var a = DeskAccents.For(accent, isDark);
+
+        if (isDark)
+            Assert.True(Lum(a.Hover) > Lum(a.Accent), $"{accent} dark hover does not lighten");
+        else
+            Assert.True(Lum(a.Hover) < Lum(a.Accent), $"{accent} light hover does not deepen");
+
+        Assert.True(Lum(a.Press) < Lum(a.Accent), $"{accent} press does not deepen");
+
+        var fill = new MudColor(a.Accent);
+        var wash = new MudColor(a.Wash);
+        var strong = new MudColor(a.WashStrong);
+
+        Assert.Equal((fill.R, fill.G, fill.B), (wash.R, wash.G, wash.B));
+        Assert.Equal((fill.R, fill.G, fill.B), (strong.R, strong.G, strong.B));
+        Assert.Equal(isDark ? .15 : .12, wash.A / 255d, 2);
+        Assert.Equal(isDark ? .24 : .20, strong.A / 255d, 2);
+
+        static double Lum(string colour)
+        {
+            var c = new MudColor(colour);
+            return Luminance(c.R, c.G, c.B);
+        }
+    }
+
+    /// <summary>
+    /// MudBlazor and the charts cannot read the accent block, so the Standard theme and palette
+    /// they are handed carry the chosen accent — and every other family's are untouched by it, the
+    /// same instance whatever is chosen.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void The_Standard_theme_wears_the_chosen_accent_and_no_other_family_does(DeskAccent accent, bool isDark)
+    {
+        var chosen = DeskAccents.For(accent, isDark);
+        var theme = DeskTheme.For(DeskThemeFamily.Standard, accent);
+        MudBlazor.Palette mud = isDark ? theme.PaletteDark : theme.PaletteLight;
+
+        Assert.Equal(ColorValue(chosen.Accent), mud.Primary.Value, ignoreCase: true);
+        Assert.Equal(ColorValue(DeskTheme.OnAccent), mud.PrimaryContrastText.Value, ignoreCase: true);
+        Assert.Equal(ColorValue(isDark ? DeskTheme.Surface1 : DeskTheme.LightSurface1), mud.Surface.Value, ignoreCase: true);
+
+        var palette = DeskThemeFamilies.Palette(DeskThemeFamily.Standard, isDark).WithAccent(chosen);
+        Assert.Equal(chosen.Accent, palette.Accent);
+        Assert.Equal(chosen.Hover, palette.AccentHover);
+        Assert.Contains(chosen.Accent, DeskChartPalette.For(DeskChartFamily.Movement, palette));
+
+        foreach (var family in DeskThemeFamilies.All.Where(f => f != DeskThemeFamily.Standard))
+            Assert.Same(DeskTheme.For(family), DeskTheme.For(family, accent));
+
+        Assert.Same(DeskTheme.Instance, DeskTheme.For(DeskThemeFamily.Standard, DeskAccent.Blue));
+        Assert.Same(theme, DeskTheme.For(DeskThemeFamily.Standard, accent));
+    }
+
+    [Fact]
+    public void Every_accent_has_a_distinct_key_and_label()
+    {
+        Assert.Equal(Enum.GetValues<DeskAccent>().Length, DeskAccents.All.Count);
+        Assert.Equal(DeskAccents.All.Count, DeskAccents.All.Select(DeskAccents.Key).Distinct().Count());
+        Assert.Equal(DeskAccents.All.Count, DeskAccents.All.Select(DeskAccents.Label).Distinct().Count());
+        Assert.Equal(DeskAccent.Blue, DeskAccents.All[0]);
+    }
+
     /// <summary>Normalizes a colour literal the same way MudColor does, for apples-to-apples comparison.</summary>
     private static string ColorValue(string cssColor) => new MudColor(cssColor).Value;
 

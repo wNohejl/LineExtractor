@@ -1,0 +1,106 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Theming
+
+@*
+    The accent picker: one filled circle per hue, the way macOS lays its accent colours out.
+
+    It is a radiogroup like the gate switch and DeskRadioGroup — one Tab stop on the chosen
+    swatch, arrows move the choice and the focus with it, Home and End reach the ends — with one
+    difference: the arrows wrap. Five circles in a row are a ring of choices, not a list with a
+    top and a bottom, and macOS's own accent row wraps the same way. The positions are colours
+    rather than words, so there is no cap to slide: the chosen swatch wears a ring in its own hue
+    and the rest sit plain. A circle has no words on it, so each one carries its name as an
+    aria-label and a title.
+
+    Each swatch is painted the way the Window manager's theme tiles are: it carries the
+    data-theme of the Standard desk in the appearance showing and the data-accent it offers, so
+    its var(--accent) resolves against the very block that choosing it would apply. No colour is
+    written on an element, and a swatch cannot drift from what choosing it does. Blue has no
+    block, so its swatch falls through to the Standard block's own accent — which is Blue.
+*@
+
+<div class="accents @Class"
+     role="radiogroup"
+     aria-label="@Label"
+     @onkeydown="OnKeyDownAsync"
+     @attributes="Extra">
+    @for (var i = 0; i < DeskAccents.All.Count; i++)
+    {
+        var index = i;
+        var accent = DeskAccents.All[index];
+        var selected = accent == Value;
+
+        <button type="button"
+                class="accent-swatch @(selected ? "accent-swatch--on" : null)"
+                role="radio"
+                aria-checked="@(selected ? "true" : "false")"
+                aria-label="@DeskAccents.Label(accent)"
+                title="@DeskAccents.Label(accent)"
+                tabindex="@(selected ? "0" : "-1")"
+                data-theme="@DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, IsDark)"
+                data-accent="@DeskAccents.Key(accent)"
+                @ref="_refs[index]"
+                @onclick="() => SelectAsync(index)"></button>
+    }
+</div>
+
+@code {
+    /// <summary>The accent chosen. Blue, the Standard desk's own, until a caller says otherwise.</summary>
+    [Parameter] public DeskAccent Value { get; set; } = DeskAccent.Blue;
+
+    [Parameter] public EventCallback<DeskAccent> ValueChanged { get; set; }
+
+    /// <summary>Which Standard desk the swatches are drawn on — a hue's dark and light values differ.</summary>
+    [Parameter] public bool IsDark { get; set; } = true;
+
+    /// <summary>The accessible name of the whole group.</summary>
+    [Parameter] public string Label { get; set; } = "Accent";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private readonly ElementReference[] _refs = new ElementReference[DeskAccents.All.Count];
+
+    /// <summary>Where the choice sits in the row; Blue's place when the value is not one the row offers.</summary>
+    private int SelectedIndex => Math.Max(0, DeskAccents.All.ToList().IndexOf(Value));
+
+    private async Task SelectAsync(int index)
+    {
+        var accent = DeskAccents.All[index];
+
+        // A radio is not unchosen by a second press, and choosing what is chosen is not news.
+        if (accent == Value)
+            return;
+
+        await ValueChanged.InvokeAsync(accent);
+    }
+
+    /// <summary>
+    /// The radiogroup keyboard contract, wrapping: arrows move the choice and come round at the
+    /// ends, Home and End jump. The focus moves with the choice so the ring and the keyboard never
+    /// disagree about where the operator is.
+    /// </summary>
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        var count = DeskAccents.All.Count;
+        var current = SelectedIndex;
+
+        var next = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => (current + 1) % count,
+            "ArrowLeft" or "ArrowUp" => (current - 1 + count) % count,
+            "Home" => 0,
+            "End" => count - 1,
+            _ => current
+        };
+
+        if (next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}

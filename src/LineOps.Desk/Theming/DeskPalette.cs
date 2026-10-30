@@ -72,6 +72,17 @@ public sealed record DeskPalette
     /// on any ground that means going darker.
     /// </summary>
     public required string Overlay { get; init; }
+
+    /// <summary>
+    /// This palette wearing a chosen accent: the fill and its hover replaced, everything else
+    /// kept. Only those two cross into C#, for the reason the type gives — MudBlazor derives from
+    /// them and a chart draws with the fill; the press, washes and ink live in the stylesheet.
+    /// <c>--on-accent</c> stays as it is: macOS puts white on every accent it offers, and a filled
+    /// key's label is large and bold enough to be found on the paler ones (teal, graphite) where
+    /// body text would not be.
+    /// </summary>
+    public DeskPalette WithAccent(AccentPalette accent)
+        => this with { Accent = accent.Accent, AccentHover = accent.Hover };
 }
 
 /// <summary>

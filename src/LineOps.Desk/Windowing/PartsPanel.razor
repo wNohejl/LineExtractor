@@ -4,6 +4,8 @@
 @inject DeskToasts Toasts
 @inject IDeskAlerts Alerts
 @inject IDeskSheets Sheets
+@inject ThemeService Theme
+@implements IDisposable
 
 @*
     The parts bin: every reusable control the desk owns, in one window you can open
@@ -397,6 +399,23 @@
         </span>
     </ItemTemplate>
 </DeskRadioGroup>
+
+</PanelSection>
+
+<PanelSection Title="Accent picker">
+<p class="empty">
+    The Standard desk's accent, chosen: one circle per hue, in a row. A radio group whose
+    positions are colours — one Tab stop, arrows move the choice and wrap at the ends, Home and
+    End jump — and each circle names itself, because there are no words on it to hear. Every
+    circle is painted by the accent block choosing it would apply, in the appearance showing.
+</p>
+
+<DeskAccentPicker @bind-Value="_accent" IsDark="Theme.IsDark" />
+
+<p class="empty">
+    This one moves nothing but itself. The Window manager's moves the desk, and it is there only
+    while the Standard theme is showing: the other themes keep the accent they were made with.
+</p>
 
 </PanelSection>
 
@@ -1242,6 +1261,10 @@
 
     private string _cadence = "before";
 
+    // ---------------------------------------------------------- accent picker ---
+
+    private DeskAccent _accent = DeskAccent.Blue;
+
     private static readonly IReadOnlyList<DeskRadioOption<string>> _cadences =
     [
         new("never", "Never"),
@@ -1608,7 +1631,18 @@
         ("--text-caption", "10px", "--leading-body", "--weight-regular", "legends, and the 10px floor")
     ];
 
-    protected override void OnInitialized() => Report(PulseState.Idle, "reference");
+    protected override void OnInitialized()
+    {
+        Report(PulseState.Idle, "reference");
+
+        // The accent picker draws its circles in the appearance showing, and that is not a
+        // parameter of this panel, so nothing else would ask it to look again after a flip.
+        Theme.Changed += OnThemeChanged;
+    }
+
+    private Task OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
 
     // Not PanelBase: that is the application's, and carries its data plumbing — change signals,
     // loads and retries, the formatting of its own records. The gallery needs one thing from it,

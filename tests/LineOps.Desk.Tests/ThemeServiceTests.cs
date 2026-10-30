@@ -30,7 +30,8 @@ public class ThemeServiceTests : TestContext
         bool prefersDark,
         string? storedFamily = null,
         bool moreContrast = false,
-        bool reducedTransparency = false)
+        bool reducedTransparency = false,
+        string? storedAccent = null)
     {
         _module = JSInterop.SetupModule("./_content/LineOps.Desk/js/theme.js");
 
@@ -42,6 +43,8 @@ public class ThemeServiceTests : TestContext
         _module.Setup<string?>("readFamily").SetResult(storedFamily);
         _module.SetupVoid("store", _ => true).SetVoidResult();
         _module.SetupVoid("storeFamily", _ => true).SetVoidResult();
+        _module.Setup<string?>("readAccent").SetResult(storedAccent);
+        _module.SetupVoid("storeAccent", _ => true).SetVoidResult();
         _module.SetupVoid("watch", _ => true).SetVoidResult();
         _module.SetupVoid("unwatch").SetVoidResult();
         _module.SetupVoid("apply", _ => true).SetVoidResult();
@@ -437,6 +440,148 @@ public class ThemeServiceTests : TestContext
         await service.OnSystemPreferenceChanged(prefersDark: true);
 
         Assert.Equal("contrast-dark", LastPaint());
+    }
+
+    // ---- The accent ----------------------------------------------------------------
+
+    /// <summary>What the last paint stamped as data-accent: null means the attribute was removed.</summary>
+    private string? LastAccent() => (string?)_module.Invocations["apply"].Last().Arguments[1];
+
+    /// <summary>
+    /// Blue is the Standard blocks' own accent, so a desk that was never told otherwise removes
+    /// the attribute rather than stamping "blue": the inspector shows a choice only when one was made.
+    /// </summary>
+    [Fact]
+    public async Task With_no_accent_stored_the_desk_is_Blue_and_stamps_nothing()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskAccent.Blue, service.Accent);
+        Assert.Null(service.AccentAttribute);
+        Assert.Null(LastAccent());
+        Assert.Same(DeskPalettes.AppleDark, service.Palette);
+        Assert.Same(DeskTheme.Instance, service.MudTheme);
+    }
+
+    [Fact]
+    public async Task A_stored_accent_is_stamped_on_the_Standard_desk_and_reaches_Mud_and_the_charts()
+    {
+        var service = Arrange(stored: "Light", prefersDark: true, storedAccent: "Teal");
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskAccent.Teal, service.Accent);
+        Assert.Equal(LightAttribute, LastPaint());
+        Assert.Equal("teal", LastAccent());
+        Assert.Equal(DeskAccents.Light(DeskAccent.Teal).Accent, service.Palette.Accent);
+        Assert.Equal(DeskAccents.Light(DeskAccent.Teal).Hover, service.Palette.AccentHover);
+        Assert.Same(DeskTheme.For(DeskThemeFamily.Standard, DeskAccent.Teal), service.MudTheme);
+        Assert.Equal(
+            new MudBlazor.Utilities.MudColor(DeskAccents.Light(DeskAccent.Teal).Accent).Value,
+            service.MudTheme.PaletteLight.Primary.Value);
+    }
+
+    /// <summary>
+    /// The accent is the Standard family's alone. Under Nord it is kept — an operator who comes
+    /// back to Standard finds it waiting — but it is not stamped and nothing wears it.
+    /// </summary>
+    [Fact]
+    public async Task Another_family_keeps_its_own_accent_whatever_is_chosen()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedFamily: "Nord", storedAccent: "Purple");
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskAccent.Purple, service.Accent);
+        Assert.Equal("nord-dark", LastPaint());
+        Assert.Null(LastAccent());
+        Assert.Same(DeskPalettes.NordDark, service.Palette);
+        Assert.Same(DeskTheme.For(DeskThemeFamily.Nord), service.MudTheme);
+
+        await service.SetFamilyAsync(DeskThemeFamily.Standard);
+
+        Assert.Equal(DarkAttribute, LastPaint());
+        Assert.Equal("purple", LastAccent());
+    }
+
+    /// <summary>
+    /// Increase Contrast on a desk with no family chosen shows High contrast, and High contrast
+    /// has no accent to choose — so the chosen one comes off and goes back on with the setting.
+    /// </summary>
+    [Fact]
+    public async Task More_contrast_takes_the_accent_off_while_it_shows_the_contrast_family()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedAccent: "Indigo");
+        await service.InitializeAsync();
+        Assert.Equal("indigo", LastAccent());
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: true, reducedTransparency: false);
+
+        Assert.Equal("contrast-dark", LastPaint());
+        Assert.Null(LastAccent());
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: false, reducedTransparency: false);
+
+        Assert.Equal("indigo", LastAccent());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Orange")]
+    [InlineData("2")]
+    [InlineData("99")]
+    public async Task An_unreadable_stored_accent_falls_back_to_Blue(string storedAccent)
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedAccent: storedAccent);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskAccent.Blue, service.Accent);
+        Assert.Null(LastAccent());
+    }
+
+    [Fact]
+    public async Task Choosing_an_accent_persists_it_repaints_and_announces()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetAccentAsync(DeskAccent.Graphite);
+
+        Assert.Contains("Graphite", Calls("storeAccent"));
+        Assert.Equal(DarkAttribute, LastPaint());
+        Assert.Equal("graphite", LastAccent());
+        Assert.Equal(1, announced);
+
+        // Neither the mode nor the family was touched: the accent is the finest of the three.
+        Assert.Empty(Stored());
+        Assert.Empty(Calls("storeFamily"));
+
+        // And back to Blue takes the attribute off again.
+        await service.SetAccentAsync(DeskAccent.Blue);
+
+        Assert.Contains("Blue", Calls("storeAccent"));
+        Assert.Null(LastAccent());
+    }
+
+    [Fact]
+    public async Task Choosing_the_accent_already_showing_does_nothing()
+    {
+        var service = Arrange(stored: null, prefersDark: true, storedAccent: "Teal");
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetAccentAsync(DeskAccent.Teal);
+
+        Assert.Equal(0, announced);
+        Assert.Empty(Calls("storeAccent"));
     }
 
     [Fact]
