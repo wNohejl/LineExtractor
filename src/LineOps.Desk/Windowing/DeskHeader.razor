@@ -155,7 +155,9 @@
     private RailMenu? _workspaces;
 
     // Owns its refresh: reads mutable manager state (open count, capacity), so it must
-    // re-render whenever the manager changes rather than waiting on a parent to.
+    // re-render whenever the manager changes rather than waiting on a parent to. The desk's
+    // changes only: nothing the header draws itself is a window's status, and the bar inside it
+    // hears those on its own.
     protected override void OnInitialized() => Manager.Changed += OnChanged;
 
     private void OnChanged() => InvokeAsync(StateHasChanged);

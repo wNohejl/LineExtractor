@@ -1,4 +1,5 @@
 @using LineOps.Desk.Windowing
+@implements IDisposable
 @inject WindowManager Manager
 @inject IDeskAlerts Alerts
 
@@ -12,7 +13,21 @@
 
     The panel inside receives its window id as a cascading value so it can report status
     upward, and that is the only coupling to the window system.
+
+    It draws only when it has something new to draw. The desk re-renders for every change to
+    the row, and a window that redrew with it repainted its chrome — and handed its panel its
+    parameters again — for a notice dismissed or a workspace saved. The manager moves a window's
+    version whenever it changes anything the window shows; the window compares that version and
+    its focus with what it last drew (ShouldRender), and hears its own status straight from the
+    manager (WindowChanged), so a status line redraws this window and not the desk.
 *@
+
+@{
+    // Recorded as the pass draws it, so what ShouldRender compares against is what is on screen.
+    _drawnWindow = Window;
+    _drawnVersion = Window.Version;
+    _drawnFocused = IsFocused;
+}
 
 <div class="win @(IsFocused ? "win--focused" : null) @(Window.Minimised ? "win--collapsed" : null)"
      id="@ElementId"
@@ -148,6 +163,26 @@
     [Parameter] public bool IsFocused { get; set; }
 
     private string ElementId => $"win-{Window.Id}";
+
+    private WindowInstance? _drawnWindow;
+    private int _drawnVersion;
+    private bool _drawnFocused;
+
+    protected override void OnInitialized() => Manager.WindowChanged += OnWindowChanged;
+
+    // Every window hears every window's status; only the one it names redraws.
+    private void OnWindowChanged(string id)
+    {
+        if (id == Window.Id)
+            InvokeAsync(StateHasChanged);
+    }
+
+    protected override bool ShouldRender()
+        => !ReferenceEquals(Window, _drawnWindow)
+           || Window.Version != _drawnVersion
+           || IsFocused != _drawnFocused;
+
+    public void Dispose() => Manager.WindowChanged -= OnWindowChanged;
 
     // The tooltip names where the key goes and its chord; a dimmed key says why it is dimmed.
     private string BackTitle => Window.BackTitle is { } back

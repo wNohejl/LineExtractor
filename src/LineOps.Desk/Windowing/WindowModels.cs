@@ -216,6 +216,16 @@ public class WindowInstance
     /// </summary>
     public int PageVersion { get; internal set; }
 
+    /// <summary>
+    /// Bumped by the manager whenever it changes anything this window draws — its status, title,
+    /// page, width, place in the row, collapsed or maximised. The window's chrome compares it with
+    /// the version it last drew and declines a render that would draw the same thing, which is
+    /// what lets the desk re-render without redrawing every window on it.
+    /// </summary>
+    public int Version { get; private set; }
+
+    internal void Touch() => Version++;
+
     /// <summary>Overrides the definition's title, e.g. a specific matchup.</summary>
     public string? TitleOverride { get; set; }
 

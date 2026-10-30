@@ -136,11 +136,24 @@
         WindowInstance? Open,
         bool IsCurrent);
 
-    protected override void OnInitialized() => Manager.Changed += OnChanged;
+    // Both signals: the row's changes move keys between open and closed, and a window's own
+    // status is the dot and the tooltip its key carries. Of all the chrome above the desk, the
+    // bar is the one piece a status line reaches.
+    protected override void OnInitialized()
+    {
+        Manager.Changed += OnChanged;
+        Manager.WindowChanged += OnWindowChanged;
+    }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Manager.Changed -= OnChanged;
+    private void OnWindowChanged(string _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Manager.Changed -= OnChanged;
+        Manager.WindowChanged -= OnWindowChanged;
+    }
 
     /// <summary>
     /// The catalogue, always, grouped the way the catalogue groups it — with whichever

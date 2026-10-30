@@ -44,6 +44,8 @@
 
     protected override void OnInitialized()
     {
+        // The desk's changes only — the count and the size. A window's status is not the
+        // footer's to show, so it does not redraw for one.
         Manager.Changed += OnChanged;
         Signals.LiveChanged += OnLiveChanged;
         _clock = new Timer(_ => InvokeAsync(StateHasChanged), null,

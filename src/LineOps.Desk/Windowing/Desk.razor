@@ -161,7 +161,8 @@
 
         // The scale is the manager's setting and the page's zoom; this is the one place that
         // owns both the setting and the module, so it is the one place that keeps them agreed.
-        // Compared rather than pushed on every render, because every pulse re-renders the desk.
+        // Compared rather than pushed on every render, because every change to the row
+        // re-renders the desk — a resize, a focus, a divider drag.
         var (ui, text) = (Manager.Settings.UiScale, Manager.Settings.TextScale);
         if (ui != _appliedUiScale || text != _appliedTextScale)
         {
@@ -374,8 +375,10 @@
     {
         InvokeAsync(StateHasChanged);
 
-        // Changed also fires for every pulse and status line, so saving is deferred and only
-        // written when the layout itself differs from what the browser already holds.
+        // Changed fires for focus, the notice and every resize as well as for the layout, so
+        // saving is deferred and only written when the layout itself differs from what the
+        // browser already holds. A window's status is not on it (WindowChanged): the desk
+        // neither redraws nor saves for one, and each window redraws itself.
         if (_module is null || _saveQueued)
             return;
 

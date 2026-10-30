@@ -29,8 +29,21 @@ public class WindowManager
 
     private bool _viewportMeasured;
 
-    /// <summary>Raised whenever anything the UI renders has changed.</summary>
+    /// <summary>
+    /// Raised whenever the desk as a whole has changed: which windows are open, their order,
+    /// widths and focus, the settings, the notice, the saved workspaces. Not for a change that
+    /// stays inside one window — that is <see cref="WindowChanged"/>.
+    /// </summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raised with a window's id when something only that window draws has changed — its pulse,
+    /// its status line. Kept apart from <see cref="Changed"/> because panels report often, at
+    /// least twice as each one loads, and one event for both re-rendered the desk, the header,
+    /// the footer and every window on it to repaint one status line. The window it names and the
+    /// bar carrying its dot listen; nothing else needs to.
+    /// </summary>
+    public event Action<string>? WindowChanged;
 
     /// <summary>
     /// Raised when a close was asked for and a window holds unsaved input, with that window. The
@@ -434,6 +447,7 @@ public class WindowManager
 
         window.Minimised = false;
         window.LastFocusedAt = DateTimeOffset.UtcNow;
+        window.Touch();
         FocusedId = id;
 
         // Expanding changes how width is shared, so it must be recomputed. A plain focus
@@ -459,6 +473,7 @@ public class WindowManager
         }
 
         window.Minimised = true;
+        window.Touch();
 
         if (FocusedId == id)
             FocusedId = MostRecent()?.Id;
@@ -475,8 +490,11 @@ public class WindowManager
         var maximise = !window.Maximised;
 
         // Only one window can hold the row at a time.
-        foreach (var w in _windows)
+        foreach (var w in _windows.Where(w => w.Maximised))
+        {
             w.Maximised = false;
+            w.Touch();
+        }
 
         window.Maximised = maximise;
 
@@ -484,6 +502,7 @@ public class WindowManager
         // clicking its tab would do anyway.
         window.Minimised = false;
         window.LastFocusedAt = DateTimeOffset.UtcNow;
+        window.Touch();
         FocusedId = id;
 
         Relayout();
@@ -500,8 +519,16 @@ public class WindowManager
 
         foreach (var id in orderedIds)
         {
-            if (Find(id) is { } window)
-                window.Sequence = position++;
+            if (Find(id) is not { } window)
+                continue;
+
+            if (window.Sequence != position)
+            {
+                window.Sequence = position;
+                window.Touch();
+            }
+
+            position++;
         }
 
         Relayout();
@@ -528,6 +555,8 @@ public class WindowManager
 
         left.Weight = totalWeight * (leftWidthPx / totalPx);
         right.Weight = totalWeight - left.Weight;
+        left.Touch();
+        right.Touch();
 
         Relayout();
     }
@@ -535,8 +564,11 @@ public class WindowManager
     /// <summary>Returns every column to the width the primary-window setting implies.</summary>
     public void ResetWidths()
     {
-        foreach (var w in _windows)
+        foreach (var w in _windows.Where(w => w.Weight != w.Definition.DefaultWeight))
+        {
             w.Weight = w.Definition.DefaultWeight;
+            w.Touch();
+        }
 
         Relayout();
     }
@@ -558,10 +590,16 @@ public class WindowManager
 
         window.HasUnsavedInput = dirty;
         window.UnsavedInputLabel = label;
-        Notify();
+
+        // Nothing on the desk's chrome draws the flag — the close key and eviction read it when
+        // they act — so this stays with the one window rather than redrawing the desk.
+        NotifyWindow(window);
     }
 
-    /// <summary>Lets a hosted panel report its own state up to its window chrome.</summary>
+    /// <summary>
+    /// Lets a hosted panel report its own state up to its window chrome. Said to that window and
+    /// the bar alone (<see cref="WindowChanged"/>): a status line moves nothing else on the desk.
+    /// </summary>
     public void SetPulse(string id, PulseState pulse, string? statusText = null)
     {
         var window = Find(id);
@@ -573,7 +611,7 @@ public class WindowManager
 
         window.Pulse = pulse;
         window.StatusText = statusText;
-        Notify();
+        NotifyWindow(window);
     }
 
     /// <summary>
@@ -596,13 +634,7 @@ public class WindowManager
             // Only the maximised window is rendered, so the others' geometry is irrelevant;
             // keeping it sane avoids a jump when it is restored.
             foreach (var w in row)
-            {
-                w.X = Gap;
-                w.Width = DeskWidth - Gap * 2;
-            }
-
-            maximised.X = Gap;
-            maximised.Width = DeskWidth - Gap * 2;
+                Place(w, Gap, DeskWidth - Gap * 2);
 
             Notify();
             return;
@@ -624,13 +656,26 @@ public class WindowManager
 
         foreach (var w in row)
         {
-            w.Width = w.Minimised ? DeskSettings.CollapsedWidth : widths[w];
-
-            w.X = offset;
+            Place(w, offset, w.Minimised ? DeskSettings.CollapsedWidth : widths[w]);
             offset += w.Width + Gap;
         }
 
         Notify();
+    }
+
+    /// <summary>
+    /// Sets a column's place in the row, and moves its version only when the place moved: a
+    /// relayout that leaves a column where it was leaves its chrome undrawn, and one that moves
+    /// it is drawn where it now is.
+    /// </summary>
+    private static void Place(WindowInstance window, double x, double width)
+    {
+        if (window.X == x && window.Width == width)
+            return;
+
+        window.X = x;
+        window.Width = width;
+        window.Touch();
     }
 
     /// <summary>
@@ -723,7 +768,13 @@ public class WindowManager
         var share = Math.Clamp(Settings.PrimaryShare, 0.2, 0.8);
         var othersWeight = others.Sum(w => w.Weight);
 
-        primary.Weight = othersWeight * share / (1 - share);
+        var weight = othersWeight * share / (1 - share);
+
+        if (primary.Weight == weight)
+            return;
+
+        primary.Weight = weight;
+        primary.Touch();
     }
 
     /// <summary>
@@ -1136,6 +1187,7 @@ public class WindowManager
             window.TitleOverride = saved.Title;
             window.BackPages = [.. saved.BackPages];
             window.ForwardPages = [.. saved.ForwardPages];
+            window.Touch();
             _windows.Add(window);
         }
 
@@ -1259,6 +1311,7 @@ public class WindowManager
         window.UnsavedInputLabel = null;
         window.Minimised = false;
         window.LastFocusedAt = DateTimeOffset.UtcNow;
+        window.Touch();
         FocusedId = window.Id;
 
         // A customer's view is narrower than an order's: the column's minimum is the new view's.
@@ -1296,5 +1349,16 @@ public class WindowManager
     private WindowInstance? MostRecent()
         => _windows.Where(w => !w.Minimised).OrderByDescending(w => w.LastFocusedAt).FirstOrDefault();
 
+    /// <summary>
+    /// Says the desk has changed. Whatever this changed inside a window has already moved that
+    /// window's version, so the desk's render redraws those windows and passes the rest by.
+    /// </summary>
     private void Notify() => Changed?.Invoke();
+
+    /// <summary>Says one window has changed and nothing else has. See <see cref="WindowChanged"/>.</summary>
+    private void NotifyWindow(WindowInstance window)
+    {
+        window.Touch();
+        WindowChanged?.Invoke(window.Id);
+    }
 }
