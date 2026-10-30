@@ -45,8 +45,14 @@ public class StatColumnsTests
     {
         var totals = new Dictionary<string, double>
         {
-            ["CAR"] = 93, ["REC"] = 10, ["TGTS"] = 14, ["rushing.YDS"] = 420, ["rushing.AVG"] = 4.5,
-            ["receiving.YDS"] = 60, ["receiving.AVG"] = 6, ["receiving.LONG"] = 15,
+            ["CAR"] = 93,
+            ["REC"] = 10,
+            ["TGTS"] = 14,
+            ["rushing.YDS"] = 420,
+            ["rushing.AVG"] = 4.5,
+            ["receiving.YDS"] = 60,
+            ["receiving.AVG"] = 6,
+            ["receiving.LONG"] = 15,
         };
 
         Assert.Equal("Rushing", StatColumns.UnitOf(totals));

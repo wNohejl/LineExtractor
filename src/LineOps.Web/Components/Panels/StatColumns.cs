@@ -22,12 +22,20 @@ public static class StatColumns
     /// <summary>Bare keys that only one NFL group reports, so they belong to it.</summary>
     private static readonly Dictionary<string, string> BareGroup = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["C/ATT"] = "passing", ["QBR"] = "passing", ["RTG"] = "passing",
+        ["C/ATT"] = "passing",
+        ["QBR"] = "passing",
+        ["RTG"] = "passing",
         ["CAR"] = "rushing",
-        ["REC"] = "receiving", ["TGTS"] = "receiving",
-        ["TOT"] = "defensive", ["SOLO"] = "defensive", ["SACKS"] = "defensive", ["TFL"] = "defensive",
-        ["PD"] = "defensive", ["QB HTS"] = "defensive",
-        ["FG"] = "kicking", ["XP"] = "kicking",
+        ["REC"] = "receiving",
+        ["TGTS"] = "receiving",
+        ["TOT"] = "defensive",
+        ["SOLO"] = "defensive",
+        ["SACKS"] = "defensive",
+        ["TFL"] = "defensive",
+        ["PD"] = "defensive",
+        ["QB HTS"] = "defensive",
+        ["FG"] = "kicking",
+        ["XP"] = "kicking",
     };
 
     /// <summary>A group's headline numbers, in the order they are read.</summary>

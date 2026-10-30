@@ -14,7 +14,12 @@ public class StatLineKeysTests
     {
         var line = StatLineKeys.Canonical(new Dictionary<string, string>
         {
-            ["CAR"] = "23", ["YDS"] = "105", ["TD"] = "0", ["AVG"] = "4.6", ["LONG"] = "20", ["category"] = "rushing"
+            ["CAR"] = "23",
+            ["YDS"] = "105",
+            ["TD"] = "0",
+            ["AVG"] = "4.6",
+            ["LONG"] = "20",
+            ["category"] = "rushing"
         });
 
         Assert.Equal("105", line["rushing.YDS"]);
@@ -28,7 +33,11 @@ public class StatLineKeysTests
     {
         var line = StatLineKeys.Canonical(new Dictionary<string, string>
         {
-            ["CAR"] = "5", ["REC"] = "2", ["YDS"] = "15", ["rushing.AVG"] = "3.0", ["receiving.AVG"] = "7.5",
+            ["CAR"] = "5",
+            ["REC"] = "2",
+            ["YDS"] = "15",
+            ["rushing.AVG"] = "3.0",
+            ["receiving.AVG"] = "7.5",
             ["category"] = "receiving,rushing"
         });
 
@@ -43,7 +52,9 @@ public class StatLineKeysTests
         // Defensive prints no YDS, so a defender's interception yards are the interceptions group's.
         var line = StatLineKeys.Canonical(new Dictionary<string, string>
         {
-            ["TOT"] = "6", ["YDS"] = "24", ["category"] = "defensive,interceptions"
+            ["TOT"] = "6",
+            ["YDS"] = "24",
+            ["category"] = "defensive,interceptions"
         });
 
         Assert.Equal("24", line["interceptions.YDS"]);
