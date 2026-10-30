@@ -1,8 +1,9 @@
 // The glide: one highlight plate per cluster of flat controls, slid between them
 // instead of each control flashing its own background. A container opts in with
 // data-glide; nothing else is wired. Delegation on the document means clusters can
-// appear, re-render, or vanish (Blazor owns the DOM) without any bookkeeping here —
-// a plate that got diffed away is simply rebuilt on the next hover.
+// appear, re-render, or vanish (Blazor owns the DOM) with no bookkeeping here beyond
+// a note of which marbles have been seated — a plate that got diffed away is simply
+// rebuilt on the next hover.
 //
 // Two flavours, same engine:
 //
@@ -108,6 +109,7 @@
     function reseat(container) {
         if (container.matches(':hover')) return;
 
+        seated.add(container);
         const rest = restingChild(container);
 
         if (rest) move(container, rest);
@@ -127,6 +129,10 @@
     /// leave a background tab holding a marble sized to a window that has since been
     /// closed. The observer's callback already runs after the DOM is updated, and
     /// getBoundingClientRect flushes layout itself, so there is nothing to wait for.
+    ///
+    /// A marble that is already seated is in `seated`; one that arrives inside a newly
+    /// added subtree is not, and the arrival sweep below is what finds it.
+    const seated = new WeakSet();
     let pending = null;
 
     function scheduleReseat(host) {
@@ -144,26 +150,52 @@
         });
     }
 
+    /// A whole group can appear at once — the window strip does not exist until the
+    /// first window opens. Its mutation is reported against the parent, and closest()
+    /// only looks upward, so the group would never be seated by scheduleReseat. Rather
+    /// than search every added subtree as it is reported (a page that renders a long
+    /// list adds hundreds of nodes a burst), an added element only flags that something
+    /// arrived, and one sweep a frame searches the document once and seats the marbles
+    /// not yet seated. A frame is safe here where it is not for scheduleReseat: a new
+    /// marble in a hidden tab has never been shown at any size, and the first frame
+    /// after the tab is shown seats it before it is painted.
+    let sweepPending = false;
+
+    function scheduleSweep() {
+        if (sweepPending) return;
+        sweepPending = true;
+
+        requestAnimationFrame(function () {
+            sweepPending = false;
+            document.querySelectorAll('[data-glide="marble"]').forEach(function (host) {
+                if (!seated.has(host)) reseat(host);
+            });
+        });
+    }
+
     function watch() {
         const observer = new MutationObserver(function (records) {
+            let arrived = false;
+
             for (const record of records) {
                 const node = record.target instanceof Element ? record.target : null;
                 const host = node ? node.closest('[data-glide="marble"]') : null;
 
                 if (host) scheduleReseat(host);
 
-                // A whole group can appear at once — the window strip does not exist
-                // until the first window opens. Its mutation is reported against the
-                // parent, and closest() only looks upward, so the group would never
-                // be seated. Look into what was added as well.
-                for (const added of record.addedNodes) {
-                    if (!(added instanceof Element)) continue;
-
-                    if (added.matches('[data-glide="marble"]')) scheduleReseat(added);
-
-                    added.querySelectorAll('[data-glide="marble"]').forEach(scheduleReseat);
+                // Text changing under a cluster adds text nodes; only an element can
+                // bring a marble with it.
+                if (!arrived) {
+                    for (const added of record.addedNodes) {
+                        if (added instanceof Element) {
+                            arrived = true;
+                            break;
+                        }
+                    }
                 }
             }
+
+            if (arrived) scheduleSweep();
         });
 
         observer.observe(document.body, {
@@ -223,8 +255,25 @@
     // being resized — and the marble would keep the old tab's measurements. Both are
     // announced, so both reseat; windowing.js raises desk:rescaled after it has set
     // the new scale, when getBoundingClientRect already reports the new layout.
+    //
+    // A scale change is one event and reseats at once. A browser resize is a burst of
+    // them, several a frame, and every marble measured for each is work no frame shows:
+    // the first event asks for a frame, the rest find it asked for, and the frame
+    // reseats once, after the last of them, at the final size.
+    let resizePending = false;
+
+    function onResize() {
+        if (resizePending) return;
+        resizePending = true;
+
+        requestAnimationFrame(function () {
+            resizePending = false;
+            seatAll();
+        });
+    }
+
     window.addEventListener('desk:rescaled', seatAll);
-    window.addEventListener('resize', seatAll, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
 
     // Blazor renders the toolbar after the script runs, and a resting child that
     // appears later still has to be found.

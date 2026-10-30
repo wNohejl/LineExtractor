@@ -63,7 +63,23 @@ function refitAll() {
     for (const dialog of document.querySelectorAll('.deskdialog')) fit(dialog);
 }
 
-window.addEventListener('resize', refitAll, { passive: true });
+// A browser window being resized fires resize several times a frame, and each refit measures the
+// desk and every open dialog. The refits are coalesced to one a frame: the first event of a burst
+// asks for a frame, the rest find it asked for, and the frame measures after the last of them, so
+// the dialogs end fitted to the final size rather than to one the burst passed through.
+let refitPending = false;
+
+function onResize() {
+    if (refitPending) return;
+    refitPending = true;
+
+    requestAnimationFrame(() => {
+        refitPending = false;
+        refitAll();
+    });
+}
+
+window.addEventListener('resize', onResize, { passive: true });
 
 export function attachDrag(handle, dialog, dotNetRef) {
     if (!handle || !dialog) return;

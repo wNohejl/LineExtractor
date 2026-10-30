@@ -9,12 +9,16 @@
 // put a network round trip inside each frame and the interaction would visibly lag the
 // cursor. The DOM is therefore ahead of the .NET model mid-gesture; nothing else writes
 // these properties during a drag, so the eventual commit simply reconciles them.
+//
+// The viewport is reported on the same principle. A browser window dragged wider fires resize
+// several times a frame, and each report is a trip over the circuit and a relayout in .NET, so
+// resizing is coalesced to one report a frame (onResize, below).
 
 let dotNet = null;
 
 export function initialise(dotNetRef) {
     dotNet = dotNetRef;
-    window.addEventListener('resize', reportViewport, { passive: true });
+    window.addEventListener('resize', onResize, { passive: true });
     window.removeEventListener('keydown', deskHotkeys);
     window.addEventListener('keydown', deskHotkeys);
     reportViewport();
@@ -99,6 +103,24 @@ export function reportViewport() {
     const rect = desk.getBoundingClientRect();
     const zoom = zoomOf(desk);
     dotNet.invokeMethodAsync('OnViewportChanged', rect.width / zoom, rect.height / zoom);
+}
+
+// One report a frame, however many resize events arrive before it. The first event of a burst
+// asks for a frame and the rest find it already asked for; the desk is measured when the frame
+// comes, after every event in the burst, so the size reported is the last one — nothing is
+// dropped from the trailing edge. An event after that frame asks for the next. A hidden tab gets
+// no frames, so a resize there is reported on the first frame it is shown, before it is seen.
+// applyScale does not come through here: a scale is one change, and is reported at once.
+let resizePending = false;
+
+function onResize() {
+    if (resizePending) return;
+    resizePending = true;
+
+    requestAnimationFrame(() => {
+        resizePending = false;
+        reportViewport();
+    });
 }
 
 // ------------------------------------------------------------------ scale (apply) ----
