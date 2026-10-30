@@ -1,0 +1,21 @@
+@*
+    The Desk's half of <head>: the theme boot script and the stylesheets, in the one order that
+    works. A consumer puts <DeskHead /> in its App.razor head and its own sheets after it.
+
+    Order is load-bearing. The stored theme is stamped on <html> first, before any stylesheet
+    paints — ThemeService cannot until the circuit opens. A classic script, not a module, so it
+    blocks for that one job. Then MudBlazor, so it can be overridden; desk.css next, because it
+    defines the tokens; controls.css straight after the file whose tokens it spends; themes.css
+    after those, because its token blocks tie with :root on specificity and win on source order;
+    mud-bridge.css after that, because it spends the tokens on MudBlazor's variables and
+    out-specifies what MudBlazor hard-codes. The application's own stylesheet comes after this
+    component: it holds its windows, spends the Desk's tokens, and wins a tie with any Desk rule
+    on source order.
+*@
+<script src="@Assets[DeskAssets.Js("theme-boot.js")]"></script>
+<link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+<link rel="stylesheet" href="@Assets[DeskAssets.Css("desk.css")]" />
+@* The newer primitives (menus, popovers) — straight after the file whose tokens they spend. *@
+<link rel="stylesheet" href="@Assets[DeskAssets.Css("controls.css")]" />
+<link rel="stylesheet" href="@Assets[DeskAssets.Css("themes.css")]" />
+<link rel="stylesheet" href="@Assets[DeskAssets.Css("mud-bridge.css")]" />

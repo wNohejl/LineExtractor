@@ -1,0 +1,9 @@
+@*
+    The Desk's scripts, for the end of <body> after blazor.web.js: MudBlazor's, which its
+    components call into, and desk-glide.js, the plate that slides between a cluster's flat
+    controls — delegated on the document, so it is loaded once rather than imported. The Desk's
+    other scripts are modules its components import when they first need them, so nothing else
+    belongs here.
+*@
+<script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+<script src="@Assets[DeskAssets.Js("desk-glide.js")]"></script>

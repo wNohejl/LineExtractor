@@ -74,13 +74,18 @@ public class StylesheetOwnershipTests
     {
         Assert.False(File.Exists(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css")));
 
+        // The Desk's sheets are DeskHead's to link, desk.css first and mud-bridge.css last of them;
+        // the app links its own after DeskHead. The links, not the comments, which name the sheets
+        // in prose.
+        var head = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Layout", "DeskHead.razor"));
+        var desk = head.IndexOf("Css(\"desk.css\")", StringComparison.Ordinal);
+        var bridge = head.IndexOf("Css(\"mud-bridge.css\")", StringComparison.Ordinal);
+        Assert.True(desk >= 0 && bridge > desk, $"desk {desk}, mud-bridge {bridge}");
+
         var app = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "App.razor"));
-        Assert.DoesNotContain("_content/LineOps.Desk/css/lineops.css", app);
-        Assert.Contains("_content/LineOps.Desk/css/desk.css", app);
-        // The links, not the comment above them, which names the sheets in prose.
-        var desk = app.IndexOf("css/desk.css\"]", StringComparison.Ordinal);
-        var bridge = app.IndexOf("css/mud-bridge.css\"]", StringComparison.Ordinal);
+        Assert.DoesNotContain("_content/LineOps.Desk/css/", app);
+        var deskHead = app.IndexOf("<DeskHead />", StringComparison.Ordinal);
         var own = app.IndexOf("\"css/lineops.css\"]", StringComparison.Ordinal);
-        Assert.True(desk >= 0 && bridge > desk && own > bridge, $"desk {desk}, mud-bridge {bridge}, app {own}");
+        Assert.True(deskHead >= 0 && own > deskHead, $"DeskHead {deskHead}, app {own}");
     }
 }

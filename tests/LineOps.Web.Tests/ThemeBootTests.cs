@@ -74,12 +74,12 @@ public class ThemeBootTests
     }
 
     [Fact]
-    public void App_loads_the_boot_script_before_any_stylesheet()
+    public void DeskHead_loads_the_boot_script_before_any_stylesheet()
     {
-        var app = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "App.razor"));
-        var boot = app.IndexOf("theme-boot.js", StringComparison.Ordinal);
+        var head = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Layout", "DeskHead.razor"));
+        var boot = head.IndexOf("theme-boot.js\")", StringComparison.Ordinal);
 
-        Assert.True(boot >= 0, "App.razor does not load theme-boot.js.");
-        Assert.True(boot < app.IndexOf("<link rel=\"stylesheet\"", StringComparison.Ordinal));
+        Assert.True(boot >= 0, "DeskHead.razor does not load theme-boot.js.");
+        Assert.True(boot < head.IndexOf("<link rel=\"stylesheet\"", StringComparison.Ordinal));
     }
 }

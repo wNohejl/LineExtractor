@@ -15,13 +15,6 @@ public class DeskVocabularyTests
 {
     private static readonly string[] Words = ["game", "book", "odds", "wager", "journal", "team", "player", "fight", "bout", "stake", "parlay", "slip", "league", "bet"];
 
-    // Known, and owned elsewhere. The palette's placeholder names the app's subjects until the
-    // app's search supplies it through IDeskSearch; Task 4 of the package plan moves it there and
-    // deletes this entry.
-    private static readonly Dictionary<string, string[]> Allowed = new()
-    {
-        ["Windowing/CommandPalette.razor"] = ["team", "player", "game"],
-    };
 
     [Fact]
     public void The_desk_s_code_knows_no_sport()
@@ -35,10 +28,9 @@ public class DeskVocabularyTests
                               && !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar)))
         {
             var relative = Path.GetRelativePath(root, file).Replace('\\', '/');
-            var allowed = Allowed.GetValueOrDefault(relative, []);
             var code = StripComments(File.ReadAllText(file));
 
-            foreach (var w in Words.Except(allowed))
+            foreach (var w in Words)
             {
                 foreach (Match hit in Regex.Matches(code, $@"\b{w}s?\b", RegexOptions.IgnoreCase))
                 {

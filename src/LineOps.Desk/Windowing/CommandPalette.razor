@@ -2,11 +2,13 @@
 @implements IDisposable
 @inject WindowManager Manager
 @inject IEnumerable<IDeskSearch> Providers
+@inject DeskBrand Brand
 
 @*
     Ctrl+K (⌘K), or the search key in the header: one field that reaches anything on the desk.
     Windows and workspaces come from the desk itself; teams, players and games from whatever
-    the application registers. Before anything is typed it lists the windows, so it doubles as a
+    the application registers, and so does the empty field's invitation to them (the brand's
+    SearchPlaceholder). Before anything is typed it lists the windows, so it doubles as a
     keyboard launcher.
 *@
 @if (_open)
@@ -17,7 +19,7 @@
             <div class="palette__field">
                 <Glyph Icon="@Icons.Material.Filled.Search" />
                 <input @ref="_input" class="palette__input" type="text" autocomplete="off" spellcheck="false"
-                       placeholder="Go to a team, player, game or window"
+                       placeholder="@Brand.SearchPlaceholder"
                        aria-label="Search the desk" aria-controls="palette-results"
                        aria-activedescendant="@(_results.Count > 0 ? $"palette-{_active}" : null)"
                        value="@_text" @oninput="OnInput" @onkeydown="OnKey" />

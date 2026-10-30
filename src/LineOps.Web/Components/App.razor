@@ -12,24 +12,11 @@
     <meta name="color-scheme" content="dark light" />
     <base href="/" />
     <ResourcePreloader />
-    @* The stored theme, stamped on <html> before any stylesheet paints — ThemeService cannot
-       until the circuit opens. A classic script, not a module, so it blocks for that one job. *@
-    <script src="@Assets["_content/LineOps.Desk/js/theme-boot.js"]"></script>
-
-    @*
-        Order is load-bearing. MudBlazor first, so it can be overridden; desk.css next,
-        because it defines the tokens; themes.css after it, because its token blocks tie
-        with :root on specificity and win on source order; mud-bridge.css after that, because it
-        spends the tokens on MudBlazor's variables and out-specifies what MudBlazor hard-codes.
-        This app's own lineops.css comes last of all: it holds its windows, spends the Desk's
-        tokens, and wins a tie with any Desk rule on source order.
-    *@
-    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
-    <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/desk.css"]" />
-    @* The newer primitives (menus, popovers) — straight after the file whose tokens they spend. *@
-    <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/controls.css"]" />
-    <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/themes.css"]" />
-    <link rel="stylesheet" href="@Assets["_content/LineOps.Desk/css/mud-bridge.css"]" />
+    @* The theme boot script and the Desk's stylesheets, in their load-bearing order (the
+       comment in DeskHead.razor says why). This app's own lineops.css comes after them: it
+       holds its windows, spends the Desk's tokens, and wins a tie with any Desk rule on
+       source order. *@
+    <DeskHead />
     <link rel="stylesheet" href="@Assets["css/lineops.css"]" />
     @* Scoped-component styles — ReconnectModal relies on these. *@
     <link rel="stylesheet" href="@Assets["LineOps.Web.styles.css"]" />
@@ -42,8 +29,7 @@
     <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
-    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-    <script src="@Assets["_content/LineOps.Desk/js/desk-glide.js"]"></script>
+    <DeskScripts />
 </body>
 
 </html>

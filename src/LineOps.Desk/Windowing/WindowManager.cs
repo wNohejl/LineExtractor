@@ -1173,6 +1173,9 @@ public class WindowManager
     /// </para>
     /// </summary>
     /// <param name="fromId">The window whose link was followed, or null.</param>
+    /// <param name="definition">The window to open or turn to.</param>
+    /// <param name="parameters">What the window is about, as its component's parameters.</param>
+    /// <param name="titleOverride">A title to show instead of the definition's, or null.</param>
     public WindowInstance Follow(
         string? fromId,
         WindowDefinition definition,

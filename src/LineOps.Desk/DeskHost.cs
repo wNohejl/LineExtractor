@@ -3,14 +3,17 @@ using LineOps.Desk.Theming;
 using LineOps.Desk.Windowing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using MudBlazor;
+using MudBlazor.Services;
 
 namespace LineOps.Desk;
 
 /// <summary>
 /// What an application tells the desk about itself: the wordmark, split where the accent
-/// falls, and the line under it on an empty desk.
+/// falls, the line under it on an empty desk, and what the palette's empty field invites —
+/// the things this application's search can find, which the desk cannot know.
 /// </summary>
-public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline);
+public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline, string SearchPlaceholder = "Search");
 
 /// <summary>
 /// The zone the desk tells time in, and the short name it labels that time with.
@@ -61,7 +64,9 @@ public interface IWindowCatalog
 public static class DeskServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the desk. The application registers its own <see cref="IWindowCatalog"/>.
+    /// Registers the desk, and MudBlazor's services under it. The application registers its own
+    /// <see cref="IWindowCatalog"/>, and does not call <c>AddMudServices</c> itself: <paramref name="mud"/>
+    /// runs after the desk's defaults, so anything the application sets there wins.
     ///
     /// <para>
     /// Everything here is scoped, because everything here is per circuit: the window layout
@@ -70,8 +75,40 @@ public static class DeskServiceCollectionExtensions
     /// singleton would hand every operator on the server whoever acted last.
     /// </para>
     /// </summary>
-    public static IServiceCollection AddDesk(this IServiceCollection services, DeskBrand brand, DeskClock? clock = null)
+    public static IServiceCollection AddDesk(
+        this IServiceCollection services,
+        DeskBrand brand,
+        DeskClock? clock = null,
+        Action<MudServicesConfiguration>? mud = null)
     {
+        services.AddMudServices(options =>
+        {
+            // Toasts land bottom-right, clear of the side rail and of the pulse strip in the header.
+            // Newest on top so a burst reads in the order it happened from the corner inwards.
+            options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight;
+            options.SnackbarConfiguration.NewestOnTop = true;
+            // Duplicates are allowed, against MudBlazor's default. A desk notice is derived from an
+            // outcome, so pressing the same button twice on an unchanged state produces the same
+            // string twice — and suppressing the second one recreates the "did that actually run?"
+            // doubt the toast exists to remove.
+            options.SnackbarConfiguration.PreventDuplicates = false;
+            options.SnackbarConfiguration.MaxDisplayedSnackbars = 4;
+
+            // Transient means transient: it goes on its own, and the operator never has to dismiss
+            // one. The close button stays because a notice that lands over something being read
+            // should be removable without waiting it out.
+            options.SnackbarConfiguration.VisibleStateDuration = 4000;
+            options.SnackbarConfiguration.ShowCloseIcon = true;
+
+            // Material fades a snackbar in over half a second, which reads as the notice arriving
+            // late. The desk's own transitions are ~120ms; match them.
+            options.SnackbarConfiguration.ShowTransitionDuration = 120;
+            options.SnackbarConfiguration.HideTransitionDuration = 200;
+
+            // Last, so whatever the application says about MudBlazor overrides the desk's defaults.
+            mud?.Invoke(options);
+        });
+
         services.AddSingleton(brand);
         services.AddSingleton(clock ?? DeskClock.Utc);
         // One person on their own machine, who may do everything — unless the application
