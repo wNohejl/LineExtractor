@@ -153,4 +153,33 @@ public class DeskAccessTests : DeskTestContext
         Assert.True(AccessCode.Matches("test-code-1", fromScript));
         Assert.False(AccessCode.Matches("test-code-2", fromScript));
     }
+
+    /// <summary>The application's access answers the Desk's three questions from its own gate.</summary>
+    [Fact]
+    public void The_app_s_access_names_its_gate()
+    {
+        var gated = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
+            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions { Mode = LineOps.Web.Access.AccessMode.Gated }));
+        LineOps.Desk.IDeskAccess access = gated;
+
+        Assert.True(access.IsGated);
+        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignInPath, access.SignInPath);
+        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignOutPath, access.SignOutPath);
+
+        LineOps.Desk.IDeskAccess open = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
+            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions()));
+        Assert.False(open.IsGated);
+
+        // The Desk's own default has no gate and nowhere to sign in.
+        LineOps.Desk.IDeskAccess desk = LineOps.Desk.OpenDeskAccess.Instance;
+        Assert.False(desk.IsGated);
+        Assert.Null(desk.SignInPath);
+        Assert.Null(desk.SignOutPath);
+    }
+
+    private sealed class NobodySignedIn : Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider
+    {
+        public override Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> GetAuthenticationStateAsync()
+            => Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(new System.Security.Claims.ClaimsPrincipal()));
+    }
 }

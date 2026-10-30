@@ -17,6 +17,15 @@ namespace LineOps.Web.Tests;
 /// </summary>
 public class BoardOpenRowTests : DeskTestContext
 {
+    // The grid's rows, as DeskGridTests (in the Desk's own tests) draws them: three, by id and name.
+    public record Row(int Id, string Name);
+
+    private static readonly Row[] Rows = [new(1, "One"), new(2, "Two"), new(3, "Three")];
+
+    private static IReadOnlyList<Row> AllRows => Rows;
+
+    private static IReadOnlyList<Row> Row2Hidden => [Rows[0], Rows[2]];
+
     private static BoardRow Board(int gameId)
     {
         var none = new MarketPair("h2h", null, null);
@@ -52,11 +61,11 @@ public class BoardOpenRowTests : DeskTestContext
         host.Find(".rowacts__keys button").Click();
         Assert.Contains("odds snippet", host.Find(".deskgrid__child").TextContent);
 
-        await host.InvokeAsync(() => host.Instance.Show(DeskGridTests.Row2Hidden));
+        await host.InvokeAsync(() => host.Instance.Show(Row2Hidden));
         Assert.Empty(host.FindAll(".deskgrid__child"));
         Assert.Null(host.Instance.Snippet);
 
-        await host.InvokeAsync(() => host.Instance.Show(DeskGridTests.AllRows));
+        await host.InvokeAsync(() => host.Instance.Show(AllRows));
         Assert.Empty(host.FindAll(".deskgrid__child"));
         Assert.Equal("false", host.Find(".rowacts__keys button").GetAttribute("aria-pressed"));
     }
@@ -74,12 +83,12 @@ public class BoardOpenRowTests : DeskTestContext
             }
         ];
 
-        private IReadOnlyList<DeskGridTests.Row> _visible = DeskGridTests.AllRows;
+        private IReadOnlyList<Row> _visible = AllRows;
         private const int Open = 2;
 
         public RenderFragment? Snippet { get; private set; }
 
-        public void Show(IReadOnlyList<DeskGridTests.Row> rows)
+        public void Show(IReadOnlyList<Row> rows)
         {
             _visible = rows;
             StateHasChanged();
@@ -93,15 +102,15 @@ public class BoardOpenRowTests : DeskTestContext
 
         protected override void BuildRenderTree(RenderTreeBuilder b)
         {
-            b.OpenComponent<DeskGrid<DeskGridTests.Row>>(0);
+            b.OpenComponent<DeskGrid<Row>>(0);
             b.AddAttribute(1, "Items", _visible);
             b.AddAttribute(2, "ChildRow", Snippet is null
                 ? null
-                : (Func<DeskGridTests.Row, RenderFragment?>)(r => r.Id == Open ? Snippet : null));
+                : (Func<Row, RenderFragment?>)(r => r.Id == Open ? Snippet : null));
             b.AddAttribute(3, "ChildContent", (RenderFragment)(columns =>
             {
-                columns.OpenComponent<TemplateColumn<DeskGridTests.Row>>(0);
-                columns.AddAttribute(1, "CellTemplate", (RenderFragment<CellContext<DeskGridTests.Row>>)(ctx => cell =>
+                columns.OpenComponent<TemplateColumn<Row>>(0);
+                columns.AddAttribute(1, "CellTemplate", (RenderFragment<CellContext<Row>>)(ctx => cell =>
                 {
                     cell.AddContent(0, ctx.Item.Name);
                     if (ctx.Item.Id != Open)

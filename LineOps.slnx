@@ -10,6 +10,7 @@
     <Project Path="src/LineOps.Worker/LineOps.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LineOps.Desk.Tests/LineOps.Desk.Tests.csproj" />
     <Project Path="tests/LineOps.Tests/LineOps.Tests.csproj" />
     <Project Path="tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj" />
   </Folder>
