@@ -3727,7 +3727,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 .swatch:hover { transform: translateY(-1px); }
-.swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .swatch--on,
 .swatch--on:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 
@@ -3832,7 +3831,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wm-value--warn { color: var(--state-warning-ink); }
 
 /* The share slider: the accent on the control you drag, sized to be dragged, not to the row. */
-.wm-share { flex: 1 1 160px; max-width: 240px; accent-color: var(--accent); }
 
 /* A pixel dimension is four digits and a spinner; two of them and the × between read as one
    value. */

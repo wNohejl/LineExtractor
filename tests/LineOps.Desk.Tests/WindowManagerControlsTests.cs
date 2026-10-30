@@ -9,7 +9,8 @@ namespace LineOps.Desk.Tests;
 /// <summary>
 /// The Window manager's controls, each the one its job calls for: a family of themes is one
 /// choice among several, so it is a radiogroup; a count is a value, so it is a field with a
-/// stepper beside it rather than a bare number between two keys.
+/// stepper beside it rather than a bare number between two keys; a share is a value along a
+/// range, so it is a slider.
 /// </summary>
 public class WindowManagerControlsTests : DeskTestContext
 {
@@ -24,21 +25,25 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.Equal("radiogroup", group.GetAttribute("role"));
         Assert.Equal("Theme", group.GetAttribute("aria-label"));
 
-        var swatches = cut.FindAll(".swatch");
-        Assert.Equal(DeskThemeFamilies.All.Count, swatches.Count);
-        Assert.All(swatches, s =>
+        // The desk's radio group, each radio painting its family's tile inside it and named by
+        // the family it offers.
+        var radios = group.QuerySelectorAll("[role=radio]");
+        Assert.Equal(DeskThemeFamilies.All.Count, radios.Length);
+        Assert.All(radios, r =>
         {
-            Assert.Equal("radio", s.GetAttribute("role"));
-            Assert.Null(s.GetAttribute("aria-pressed"));
+            Assert.NotNull(r.QuerySelector(".swatch"));
+            Assert.Null(r.GetAttribute("aria-pressed"));
         });
+        Assert.Equal(DeskThemeFamilies.All.Select(DeskThemeFamilies.Name), radios.Select(r => r.TextContent.Trim()));
 
-        // One checked, and it is the group's one Tab stop.
-        var on = Assert.Single(swatches, s => s.GetAttribute("aria-checked") == "true");
+        // One checked, and it is the group's one Tab stop; its tile wears the ring.
+        var on = Assert.Single(radios, r => r.GetAttribute("aria-checked") == "true");
         Assert.Equal("0", on.GetAttribute("tabindex"));
-        Assert.All(swatches.Where(s => s != on), s =>
+        Assert.Contains("swatch--on", on.QuerySelector(".swatch")!.ClassName);
+        Assert.All(radios.Where(r => r != on), r =>
         {
-            Assert.Equal("false", s.GetAttribute("aria-checked"));
-            Assert.Equal("-1", s.GetAttribute("tabindex"));
+            Assert.Equal("false", r.GetAttribute("aria-checked"));
+            Assert.Equal("-1", r.GetAttribute("tabindex"));
         });
 
         // Arrows move the choice, as in every other radiogroup on the desk.
@@ -48,7 +53,40 @@ public class WindowManagerControlsTests : DeskTestContext
         cut.Find(".swatches").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
 
         Assert.Equal(DeskThemeFamilies.All[DeskThemeFamilies.All.ToList().IndexOf(first) + 1], theme.Family);
-        Assert.Equal("true", cut.FindAll(".swatch")[1].GetAttribute("aria-checked"));
+        Assert.Equal("true", cut.FindAll(".swatches [role=radio]")[1].GetAttribute("aria-checked"));
+    }
+
+    /// <summary>
+    /// The primary window's share is a value along a range, so it is the desk's slider: the reader
+    /// hears the percentage, the readout beside it says the same, and dragging moves the share.
+    /// </summary>
+    [Fact]
+    public void The_primary_share_is_a_slider()
+    {
+        Manager.UpdateSettings(s =>
+        {
+            s.PrimaryWindowKey = Manager.Catalog.All.First(d => !d.RequiresSubject).Key;
+            s.PrimaryShare = 0.45;
+        });
+
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var slider = cut.Find(".slider");
+        Assert.Contains("wgroup__row--form", slider.ParentElement!.ClassName);
+        Assert.Empty(cut.FindAll(".wm-share"));
+
+        var input = slider.QuerySelector("input[type=range]")!;
+        Assert.Equal("The primary window's share of the row", input.GetAttribute("aria-label"));
+        Assert.Equal("20", input.GetAttribute("min"));
+        Assert.Equal("80", input.GetAttribute("max"));
+        Assert.Equal("5", input.GetAttribute("step"));
+        Assert.Equal("45%", input.GetAttribute("aria-valuetext"));
+        Assert.Equal("45%", slider.QuerySelector(".slider__value")!.TextContent.Trim());
+
+        cut.Find(".slider input[type=range]").Input("60");
+
+        Assert.Equal(0.6, Manager.Settings.PrimaryShare, 3);
+        Assert.Equal("60%", cut.Find(".slider__value").TextContent.Trim());
     }
 
     [Fact]

@@ -76,28 +76,21 @@
                of the pair is showing. Each swatch is painted by its own family's token block in
                the appearance showing now — flip Light above and every swatch turns with the desk.
 
-               One family among several is a single choice, so the tiles are a radiogroup, not a
-               row of toggles: one Tab stop on the chosen tile, and arrows move the choice, as on
-               every gate. Its label sits at the top of the row, beside the first line of tiles,
-               because a label centred on two lines of tiles belongs to neither. *@
+               One family among several is a single choice, so the tiles are the desk's radio
+               group, not a row of toggles: one Tab stop on the chosen tile, and arrows move the
+               choice, as on every gate. The group owns the radios and their keys; the template
+               only paints each tile, and the tile carries its family's data-theme so the group's
+               own button stays in the desk's colours. Its label sits at the top of the row,
+               beside the first line of tiles, because a label centred on two lines of tiles
+               belongs to neither. *@
             <div class="wgroup__row wgroup__row--form wm-row--top">
                 <span class="wgroup__label">Theme</span>
-                <div class="swatches" role="radiogroup" aria-label="Theme" @onkeydown="OnSwatchKeyAsync">
-                    @for (var i = 0; i < DeskThemeFamilies.All.Count; i++)
-                    {
-                        var index = i;
-                        var family = DeskThemeFamilies.All[index];
-                        var on = family == Theme.Family;
-
-                        <button type="button"
-                                class="swatch @(on ? "swatch--on" : null)"
-                                data-theme="@DeskThemeFamilies.Attribute(family, Theme.IsDark)"
-                                role="radio"
-                                aria-checked="@(on ? "true" : "false")"
-                                tabindex="@(on ? "0" : "-1")"
-                                title="@DeskThemeFamilies.Name(family)"
-                                @ref="_swatches[index]"
-                                @onclick="@(() => Theme.SetFamilyAsync(family))">
+                <DeskRadioGroup TValue="DeskThemeFamily" Options="_families" Label="Theme" Class="swatches"
+                                Value="Theme.Family"
+                                ValueChanged="@((DeskThemeFamily family) => Theme.SetFamilyAsync(family))">
+                    <ItemTemplate Context="option">
+                        <span class="swatch @(option.Value == Theme.Family ? "swatch--on" : null)"
+                              data-theme="@DeskThemeFamilies.Attribute(option.Value, Theme.IsDark)">
                             <span class="swatch__panel" aria-hidden="true">
                                 <span class="swatch__ink"></span>
                                 <span class="swatch__ink swatch__ink--secondary"></span>
@@ -108,10 +101,10 @@
                                     <span class="swatch__dot swatch__dot--negative"></span>
                                 </span>
                             </span>
-                            <span class="swatch__name">@DeskThemeFamilies.Name(family)</span>
-                        </button>
-                    }
-                </div>
+                            <span class="swatch__name">@option.Label</span>
+                        </span>
+                    </ItemTemplate>
+                </DeskRadioGroup>
             </div>
         </div>
         @* Naming the resolved theme is the point of the first sentence. "System" alone does not
@@ -235,15 +228,14 @@
 
             @if (S.PrimaryWindowKey is not null)
             {
+                @* A share is a value along a range, so it is the desk's slider: the row moves as the
+                   thumb does, and the reader hears the percentage the readout shows. *@
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Share</span>
-                    <div class="row">
-                        <input type="range" class="wm-share" min="20" max="80" step="5"
-                               aria-label="The primary window's share of the row"
-                               value="@((int)(S.PrimaryShare * 100))"
-                               @oninput="OnShareChanged" />
-                        <span class="wm-value">@((int)(S.PrimaryShare * 100))%</span>
-                    </div>
+                    <DeskSlider Label="The primary window's share of the row" Min="20" Max="80" Step="5"
+                                Value="@Math.Round(S.PrimaryShare * 100)"
+                                ValueChanged="OnShareChanged"
+                                Format="@(v => $"{v:0}%")" />
                 </div>
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label" aria-hidden="true"></span>
@@ -412,6 +404,12 @@
         new(DeskThemeMode.System, "System")
     ];
 
+    // The families in the picker's order, each named as its tile names it.
+    private static readonly IReadOnlyList<DeskRadioOption<DeskThemeFamily>> _families =
+        DeskThemeFamilies.All
+            .Select(family => new DeskRadioOption<DeskThemeFamily>(family, DeskThemeFamilies.Name(family), DeskThemeFamilies.Name(family)))
+            .ToList();
+
     // Interface starts at 90%, not 80%: a laptop running a four-window desk is the case for
     // shrinking, but at 80% the desk's captions fall under 10px, below the type floor, and a
     // caption nobody can read saves no room. Text starts at 90% for the same reason — the
@@ -488,30 +486,6 @@
             Manager.UpdateSettings(s => s.MaxConcurrentWindows = Math.Clamp(n, MinWindows, MaxWindows));
     }
 
-    private readonly ElementReference[] _swatches = new ElementReference[DeskThemeFamilies.All.Count];
-
-    /// <summary>Arrows move the chosen family and the focus with it, as on every gate.</summary>
-    private async Task OnSwatchKeyAsync(KeyboardEventArgs e)
-    {
-        var all = DeskThemeFamilies.All;
-        var current = Math.Max(0, all.ToList().IndexOf(Theme.Family));
-
-        var next = e.Key switch
-        {
-            "ArrowRight" or "ArrowDown" => Math.Min(current + 1, all.Count - 1),
-            "ArrowLeft" or "ArrowUp" => Math.Max(current - 1, 0),
-            "Home" => 0,
-            "End" => all.Count - 1,
-            _ => current
-        };
-
-        if (next == current)
-            return;
-
-        await Theme.SetFamilyAsync(all[next]);
-        await _swatches[next].FocusAsync();
-    }
-
     private void MatchRecommended()
     {
         var target = Manager.RecommendedCapacity;
@@ -521,11 +495,8 @@
     private void OnPrimaryChanged(string key)
         => Manager.UpdateSettings(s => s.PrimaryWindowKey = string.IsNullOrEmpty(key) ? null : key);
 
-    private void OnShareChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var percent))
-            Manager.UpdateSettings(s => s.PrimaryShare = percent / 100d);
-    }
+    private void OnShareChanged(double percent)
+        => Manager.UpdateSettings(s => s.PrimaryShare = percent / 100d);
 
     private void SetUiScale(double scale) => Manager.UpdateSettings(s =>
         s.UiScale = DeskSettings.ClampScale(scale, DeskSettings.MinUiScale, DeskSettings.MaxUiScale));

@@ -722,3 +722,138 @@
 .tabs__badge {
     margin-left: var(--space-1);
 }
+
+
+/* ---- Slider -----------------------------------------------------------------
+   DeskSlider: the native range input with its value read out beside it. The
+   track and thumb are the browser's own, tinted with the accent, so the keyboard,
+   the pointer and the reader all get the platform's behaviour; the rules here
+   only size it. The track is sized to be dragged rather than to the row — a
+   slider as wide as a window puts its two ends a screen apart — and the readout
+   holds a fixed width so the track does not shift as the figure gains a digit.
+   --------------------------------------------------------------------------- */
+
+.slider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    min-height: 28px;
+}
+
+.slider__input {
+    flex: 1 1 160px;
+    min-width: 0;
+    max-width: 240px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.slider__input:disabled {
+    opacity: .40;
+    cursor: not-allowed;
+}
+
+/* The value in the primary label colour, tabular (the .num beside it), wide
+   enough for "100%" so the track keeps its length as the value moves. */
+.slider__value {
+    min-width: 4ch;
+    color: var(--text-primary);
+    font-size: var(--text-body);
+}
+
+/* ---- Radio group ------------------------------------------------------------
+   DeskRadioGroup: one choice among several, each a round mark leading its label
+   on a 28px row — or, with a template, whatever the template paints.
+
+   The group's own stacking is wrapped in :where() so it weighs nothing: a caller
+   whose template draws tiles lays them out with its own class (a grid of
+   swatches, say) and wins without contesting specificity.
+
+   The mark is drawn the way the checkbox's box is: a hairline ring on the ground
+   when off, the accent filled with an on-accent dot when on, so "chosen" is said
+   by shape as well as colour. The focus ring lands on the mark, not round the
+   whole row; a drawn option has no mark, so the ring goes round the option.
+   --------------------------------------------------------------------------- */
+
+:where(.radiogroup) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+}
+
+.radio {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.radio__mark {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: var(--surface-0);
+    box-shadow: inset 0 0 0 1px var(--separator-strong);
+    transition: background var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.radio--on .radio__mark {
+    background: var(--accent);
+    box-shadow: none;
+}
+
+.radio--on .radio__mark::after {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--on-accent);
+}
+
+.radio:hover:not(:disabled):not(.radio--on) .radio__mark {
+    background: var(--surface-3);
+}
+
+.radio__label { white-space: nowrap; }
+
+.radio:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+
+.radio:focus-visible .radio__mark {
+    box-shadow: var(--focus-ring);
+}
+
+/* A drawn option is a bare frame round its template: the button keeps the
+   semantics and the ring, the template keeps every pixel inside it. */
+.radio--drawn {
+    display: block;
+    min-height: 0;
+    border-radius: var(--radius);
+}
+
+.radio--drawn:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+.radio:disabled {
+    opacity: .40;
+    cursor: not-allowed;
+}

@@ -1,0 +1,143 @@
+@namespace LineOps.Desk.Primitives
+@typeparam TValue
+
+@*
+    A radio group: one choice among several, each option on the panel at once.
+
+    It answers the question a gate switch answers, and the difference is the shape of the
+    options. A gate is two to five short words on one channel; a radio group is for options
+    that need room — a sentence each, or a picture of what choosing them does, like a tile
+    painted in the colours it would apply. Where the options are words that fit a channel, the
+    gate is the better control; where they are pictures, nothing else holds them.
+
+    Each option is a plain button with radio semantics rather than a native radio input: the
+    keyboard model is the gate's, which a set of native radios does not give the same way in
+    every browser, and a button holds a template's tile without a label wrapped round it. One
+    Tab stop on the chosen option (the first when nothing is chosen yet), arrows move the choice
+    and the focus with it, Home and End reach the ends, and the ends do not wrap.
+
+    Without a template each option is a round mark and its label, leading, on a 28px row. With
+    one, the template paints the whole option and the group keeps only the semantics — the
+    button, its role, its state, its tab stop — so a caller's tile never has to restate them.
+
+    Pressing the chosen option again does nothing. A radio is not unchosen by a second press;
+    an on/off setting is a checkbox's job.
+*@
+
+<div class="radiogroup @(ItemTemplate is not null ? "radiogroup--drawn" : null) @DeskLayout.ExtraClass(Extra) @Class"
+     style="@DeskLayout.MergeStyle(null, Extra)"
+     role="radiogroup"
+     aria-label="@Label"
+     @onkeydown="OnKeyDownAsync"
+     @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    @for (var i = 0; i < Options.Count; i++)
+    {
+        var index = i;
+        var option = Options[index];
+        var selected = index == SelectedIndex;
+
+        <button type="button"
+                class="radio @(ItemTemplate is not null ? "radio--drawn" : null) @(selected ? "radio--on" : null)"
+                role="radio"
+                aria-checked="@(selected ? "true" : "false")"
+                tabindex="@TabStop(index)"
+                title="@option.Title"
+                disabled="@Disabled"
+                @ref="_refs[index]"
+                @onclick="() => SelectAsync(index)">
+            @if (ItemTemplate is not null)
+            {
+                @ItemTemplate(option)
+            }
+            else
+            {
+                <span class="radio__mark" aria-hidden="true"></span>
+                <span class="radio__label">@option.Label</span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>The choices, in the order they sit on the panel.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<DeskRadioOption<TValue>> Options { get; set; } = [];
+
+    [Parameter] public TValue? Value { get; set; }
+    [Parameter] public EventCallback<TValue> ValueChanged { get; set; }
+
+    /// <summary>The accessible name of the whole group — "Size", not a per-option label.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Paints each option in place of the mark and label. The radio's name is the text it
+    /// renders, so a template that draws a picture still writes the option's label somewhere.
+    /// </summary>
+    [Parameter] public RenderFragment<DeskRadioOption<TValue>>? ItemTemplate { get; set; }
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private ElementReference[] _refs = [];
+
+    protected override void OnParametersSet()
+    {
+        if (_refs.Length != Options.Count)
+            _refs = new ElementReference[Options.Count];
+    }
+
+    /// <summary>-1 when nothing matches: no option claims to be chosen until one is.</summary>
+    private int SelectedIndex
+    {
+        get
+        {
+            for (var i = 0; i < Options.Count; i++)
+            {
+                if (EqualityComparer<TValue>.Default.Equals(Options[i].Value, Value))
+                    return i;
+            }
+
+            return -1;
+        }
+    }
+
+    // Roving tabindex: the group is one Tab stop, on the chosen option or the first when none
+    // is chosen, and the arrows do the travelling inside it.
+    private string TabStop(int index)
+        => index == Math.Max(SelectedIndex, 0) ? "0" : "-1";
+
+    private async Task SelectAsync(int index)
+    {
+        if (Disabled || index == SelectedIndex)
+            return;
+
+        await ValueChanged.InvokeAsync(Options[index].Value);
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (Disabled || Options.Count == 0)
+            return;
+
+        var current = Math.Max(SelectedIndex, 0);
+
+        var next = e.Key switch
+        {
+            "ArrowRight" or "ArrowDown" => Math.Min(current + 1, Options.Count - 1),
+            "ArrowLeft" or "ArrowUp" => Math.Max(current - 1, 0),
+            "Home" => 0,
+            "End" => Options.Count - 1,
+            _ => current
+        };
+
+        if (next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}
