@@ -547,7 +547,7 @@ else
     private IReadOnlyList<DeskTab<WagerTab>> Tabs =>
     [
         new(WagerTab.Wager, "Wager"),
-        new(WagerTab.Slip, $"Slip · {Slip.Items.Count}")
+        new(WagerTab.Slip, "Slip", Count: Slip.Items.Count)
     ];
 
     /// <summary>

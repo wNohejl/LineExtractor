@@ -482,7 +482,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private IReadOnlyList<DeskTab<JournalTab>> Tabs =>
     [
         new(JournalTab.Journal, "Journal"),
-        new(JournalTab.Slip, $"Slip · {Slip.Items.Count}")
+        new(JournalTab.Slip, "Slip", Count: Slip.Items.Count)
     ];
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };

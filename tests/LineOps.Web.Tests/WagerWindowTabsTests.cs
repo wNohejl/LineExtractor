@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
@@ -19,6 +20,9 @@ public class WagerWindowTabsTests : WagerTestContext
             .Add(x => x.Market, Markets.Moneyline)
             .Add(x => x.Outcome, BoardRows.Home));
 
+    private static IElement SlipTab(IRenderedFragment cut)
+        => cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim().StartsWith("Slip", StringComparison.Ordinal));
+
     private static void Bank(IRenderedFragment cut)
     {
         cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith(50m.ToString("C0"), StringComparison.Ordinal)).Click();
@@ -30,12 +34,14 @@ public class WagerWindowTabsTests : WagerTestContext
     {
         var cut = Render();
 
+        // The count is a badge beside the name, not part of it: at zero there is none.
         var tabs = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
-        Assert.Equal(["Wager", "Slip · 0"], tabs);
+        Assert.Equal(["Wager", "Slip"], tabs);
+        Assert.Null(SlipTab(cut).QuerySelector(".badge"));
 
         Bank(cut);
 
-        Assert.Equal("Slip · 1", cut.FindAll("[role=tab]")[1].TextContent.Trim());
+        Assert.Equal("1", SlipTab(cut).QuerySelector(".badge")!.TextContent.Trim());
     }
 
     [Fact]

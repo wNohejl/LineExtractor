@@ -247,4 +247,40 @@ public class DeskTabsTests : DeskTestContext
 
         Assert.Contains("window__tabs", cut.Find("[role=tablist]").GetAttribute("class"));
     }
+
+    /// <summary>
+    /// A count rides beside the tab's name as a badge rather than inside its words, so the name
+    /// is still the name — a test, a tooltip and a reader all find the tab by it.
+    /// </summary>
+    [Fact]
+    public void A_tab_with_a_count_shows_a_badge_beside_its_name()
+    {
+        var cut = Bar("queue", tabs:
+        [
+            new("list", "List"),
+            new("queue", "Queue", Count: 2)
+        ]);
+
+        var tab = cut.FindAll("[role=tab]")[1];
+        var badge = tab.QuerySelector(".badge")!;
+
+        Assert.Equal("Queue", tab.GetAttribute("title"));
+        Assert.Equal("Queue", tab.TextContent.Replace(badge.TextContent, string.Empty).Trim());
+        Assert.Equal("2", badge.TextContent.Trim());
+        Assert.Equal("2 items", badge.GetAttribute("aria-label"));
+    }
+
+    /// <summary>Nothing to count is no badge — and a tab with no count was never asked for one.</summary>
+    [Fact]
+    public void A_count_of_zero_or_none_shows_no_badge()
+    {
+        var cut = Bar("list", tabs:
+        [
+            new("list", "List"),
+            new("queue", "Queue", Count: 0)
+        ]);
+
+        Assert.Empty(cut.FindAll("[role=tab] .badge"));
+        Assert.Equal(["List", "Queue"], cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()));
+    }
 }

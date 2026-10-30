@@ -19,6 +19,9 @@
       · Fewer than two available sections is not a choice, so the bar disappears
         and its one section renders on its own.
 
+    A tab may carry a count. It is drawn as a badge after the name, never written into
+    it, so the name a reader or a test finds the tab by holds still while the count moves.
+
     The value is kept in range: if what the caller holds is a section that has gone
     away, the first available one is selected and reported back, so a window cannot
     come to rest on a tab that is no longer there.
@@ -51,6 +54,10 @@
                     @ref="_refs[index]"
                     @onclick="() => SelectAsync(index)">
                 @tab.Label
+                @if (tab.Count is { } count)
+                {
+                    <DeskBadge Count="count" Label="items" One="item" Class="tabs__badge" />
+                }
             </button>
         }
     </div>

@@ -1,0 +1,46 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A badge: a count beside the name of what it counts.
+
+    A count written into a label ("Queue · 2") changes the label every time the count moves,
+    so the name a reader, a test or a tooltip finds the control by is never the same twice. The
+    badge keeps the two apart: the name stays the name, and the count sits after it in a small
+    pill of its own.
+
+    Nothing to count is no badge — an empty pill or a "0" is noise on a control that has
+    nothing to report. A count past the cap shows as "99+", so the pill keeps its width; the
+    reader still hears the true count, with its noun, from the aria-label: "120 items in the
+    list", never a bare figure.
+
+    Matte and quiet: secondary ink on the hover fill, caption size, tabular figures. A badge
+    reports; it is not a key and catches no light.
+*@
+
+@if (Count > 0)
+{
+    <span class="badge num @DeskLayout.ExtraClass(Extra) @Class"
+          style="@DeskLayout.MergeStyle(null, Extra)"
+          aria-label="@($"{Count} {(Count == 1 ? One ?? Label : Label)}")"
+          @attributes="DeskLayout.WithoutClassAndStyle(Extra)">@(Count > Max ? $"{Max}+" : Count.ToString(System.Globalization.CultureInfo.InvariantCulture))</span>
+}
+
+@code {
+    /// <summary>How many. Zero or fewer renders nothing.</summary>
+    [Parameter, EditorRequired] public int Count { get; set; }
+
+    /// <summary>The noun the count is of, as a reader hears it after the figure — "items in the list".</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The noun for exactly one — "item in the list" — so a reader never hears "1 items". Falls back to <see cref="Label"/>.</summary>
+    [Parameter] public string? One { get; set; }
+
+    /// <summary>The largest figure drawn; past it the pill shows the cap and a plus.</summary>
+    [Parameter] public int Max { get; set; } = 99;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+}

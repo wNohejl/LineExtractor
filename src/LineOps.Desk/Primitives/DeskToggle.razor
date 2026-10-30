@@ -1,0 +1,68 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A toggle: one setting that takes effect the moment it flips.
+
+    The checkbox beside it says "include this" and often waits for a form to be applied; a
+    toggle says "this is now on", and is right for a setting row where nothing else has to be
+    pressed. The two share their bones — a native checkbox kept in the tree, visually hidden
+    but focusable, so Space, the press on its words and the form are the browser's own — and
+    differ in what a reader is told: the input carries role="switch", so it is announced as a
+    switch that is on or off, not a box that is checked.
+
+    The words lead and the switch trails, as the HIG lays out a settings row: the reader's eye
+    finds the setting by name and then its state, in one place at the row's end. The track is
+    26 by 16 with a 12px thumb, so the control stays inside the toolbar's 28px row; on is the
+    accent fill with the thumb at the trailing end, off is the resting fill with the thumb
+    leading. Shape says the state as well as colour: the thumb's side is the answer.
+
+    Disabled is dimmed and ignored — a change that reaches it is not passed on.
+*@
+
+<label class="toggle @DeskLayout.ExtraClass(Extra) @Class"
+       style="@DeskLayout.MergeStyle(null, Extra)"
+       title="@Title">
+    <input type="checkbox"
+           role="switch"
+           class="toggle__input"
+           checked="@Checked"
+           aria-checked="@(Checked ? "true" : "false")"
+           disabled="@Disabled"
+           @attributes="DeskLayout.WithoutClassAndStyle(Extra)"
+           @onchange="OnChangeAsync" />
+    <span class="toggle__track" aria-hidden="true"><span class="toggle__thumb"></span></span>
+    <span class="toggle__label">@Label</span>
+</label>
+
+@code {
+    /// <summary>Whether the setting is on.</summary>
+    [Parameter] public bool Checked { get; set; }
+    [Parameter] public EventCallback<bool> CheckedChanged { get; set; }
+
+    /// <summary>The setting's name, in sentence case — "Show hidden items". It names the switch for a reader.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>The tooltip, for the longer wording a short label leaves out.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>
+    /// Everything else the caller passed, onto the input; <c>class</c> and <c>style</c> join the
+    /// label's own rather than replacing them.
+    /// </summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private async Task OnChangeAsync(ChangeEventArgs e)
+    {
+        if (Disabled)
+            return;
+
+        var on = e.Value is bool b ? b : bool.TryParse(e.Value?.ToString(), out var parsed) && parsed;
+        await CheckedChanged.InvokeAsync(on);
+    }
+}

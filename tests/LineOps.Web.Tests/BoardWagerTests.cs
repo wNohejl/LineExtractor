@@ -32,7 +32,10 @@ public class BoardWagerTests : WagerTestContext
 
     private static IElement Log(IRenderedFragment cut) => cut.Find("button.desk-btn--filled");
 
-    private static string SlipTab(IRenderedFragment cut) => cut.FindAll("[role=tab]")[1].TextContent.Trim();
+    /// <summary>The Slip tab's count: its badge's figure, or null where there is no badge.</summary>
+    private static string? SlipCount(IRenderedFragment cut)
+        => cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim().StartsWith("Slip", StringComparison.Ordinal))
+              .QuerySelector(".badge")?.TextContent.Trim();
 
     private IRenderedComponent<BoardWager> PlaceWagerOnARow()
         => RenderComponent<BoardWager>(p => p.Add(x => x.GameId, BoardRows.GameId));
@@ -236,13 +239,13 @@ public class BoardWagerTests : WagerTestContext
     public void Add_to_slip_counts_on_the_slip_tab_and_clears_the_stake()
     {
         var cut = Render();
-        Assert.Equal("Slip · 0", SlipTab(cut));
+        Assert.Null(SlipCount(cut));
 
         Key(cut, 50m.ToString("C0")).Click();
         Key(cut, "Add to slip").Click();
 
         // The count is the Slip tab's: with the stake cleared, Add to slip (and its badge) waits out of sight.
-        Assert.Equal("Slip · 1", SlipTab(cut));
+        Assert.Equal("1", SlipCount(cut));
         Assert.Equal(50m, Slip.Items.Single().Stake);
         // Said as an addition: a green toast with a key to the slip.
         Assert.Equal($"Added {50m:C0} on ML · Chiefs at -128 to the slip.", LastToast.Message);
@@ -303,7 +306,7 @@ public class BoardWagerTests : WagerTestContext
         cut.InvokeAsync(() => Slip.Add(new LineOps.Web.Services.SlipItem(Guid.Empty, 8, "x", DateTimeOffset.UtcNow, "nfl",
             Markets.Moneyline, "x", null, "draftkings", -110, DateTimeOffset.UtcNow, false, 10m, null, null, null)));
 
-        cut.WaitForAssertion(() => Assert.Equal("Slip · 1", SlipTab(cut)));
+        cut.WaitForAssertion(() => Assert.Equal("1", SlipCount(cut)));
     }
 
     [Fact]

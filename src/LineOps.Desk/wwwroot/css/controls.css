@@ -7,8 +7,9 @@
 
    The file exists so the primitives have a home of their own rather than another
    few hundred lines in desk.css. DeskPopover, DeskMenu, DeskMenuItem,
-   DeskPullDown, DeskStepper, DeskDisclosure and DeskSearch live here; the
-   hand-built menus they replaced are gone from desk.css.
+   DeskPullDown, DeskStepper, DeskDisclosure, DeskSearch, DeskToggle, DeskSpinner
+   and DeskBadge live here; the hand-built menus they replaced are gone from
+   desk.css.
    ============================================================================= */
 
 /* ---- Popover ----------------------------------------------------------------
@@ -557,4 +558,167 @@
 .ptoolbar__more-actions > .desk-btn {
     width: 100%;
     justify-content: flex-start;
+}
+
+/* ---- Toggle -----------------------------------------------------------------
+   A setting that takes effect as it flips: the words lead and the switch trails,
+   as a settings row reads. The native input lies invisibly over the whole row, so
+   a press anywhere on it is the input's own and the browser keeps focus, Space and
+   the reader's "switch"; the track only paints. A 26 by 16 track with a 12px
+   thumb, inside the toolbar's 28px row: on is the accent fill with the thumb at the
+   trailing end, off is the hover fill with the thumb leading, so the thumb's side
+   says the state as well as the colour does.
+   --------------------------------------------------------------------------- */
+
+.toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 28px;
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Second in the source, after the input it names; first on the row. */
+.toggle__label {
+    order: -1;
+    white-space: nowrap;
+}
+
+.toggle__track {
+    position: relative;
+    flex: none;
+    width: 26px;
+    height: 16px;
+    box-sizing: border-box;
+    background: var(--surface-3);
+    border-radius: 8px;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+/* The thumb takes the ink for a saturated fill, so it reads on the accent and on
+   the resting fill alike. */
+.toggle__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    background: var(--on-accent);
+    border-radius: 50%;
+    transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.toggle__input:checked + .toggle__track {
+    background: var(--accent);
+}
+
+.toggle__input:checked + .toggle__track .toggle__thumb {
+    transform: translateX(10px);
+}
+
+.toggle__input:focus-visible + .toggle__track {
+    box-shadow: var(--focus-ring);
+}
+
+/* Dimmed, words and all: a setting that cannot be changed says so before it is pressed. */
+.toggle__input:disabled,
+.toggle__input:disabled + .toggle__track,
+.toggle__input:disabled ~ .toggle__label {
+    cursor: not-allowed;
+    opacity: .40;
+}
+
+/* The thumb still stands at the side that says the state; it just does not travel. */
+@media (prefers-reduced-motion: reduce) {
+    .toggle__track,
+    .toggle__thumb { transition: none; }
+}
+
+/* ---- Spinner ----------------------------------------------------------------
+   Work under way with no known length, where there is no room for the 3px band:
+   a 2px ring in the hairline colour with one arc in the accent, turning once every
+   0.8s. 16px beside a line of text, 20px on its own. A status, not a key, so it
+   catches no light.
+   --------------------------------------------------------------------------- */
+
+.spinner {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+.spinner--sm {
+    width: 16px;
+    height: 16px;
+}
+
+.spinner--md {
+    width: 20px;
+    height: 20px;
+}
+
+.spinner__ring {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border: 2px solid var(--separator);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spinner-turn .8s linear infinite;
+}
+
+@keyframes spinner-turn {
+    to { transform: rotate(360deg); }
+}
+
+/* The ring stays drawn, arc and all, and stops turning: the state survives without
+   the travel. */
+@media (prefers-reduced-motion: reduce) {
+    .spinner__ring { animation: none; }
+}
+
+/* ---- Badge ------------------------------------------------------------------
+   A count beside the name of what it counts: a 16px pill in secondary ink on the
+   hover fill, caption size, tabular figures (.num). At least as wide as it is tall,
+   so a single figure is a circle and "99+" a capsule. Matte — a badge reports, it
+   is not a key.
+   --------------------------------------------------------------------------- */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    background: var(--surface-3);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+    line-height: 1;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/* On a tab it follows the name across a small gap, inside the tab's own padding. */
+.tabs__badge {
+    margin-left: var(--space-1);
 }

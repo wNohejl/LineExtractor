@@ -1,0 +1,44 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A spinner: work under way whose length cannot be known.
+
+    The desk's first answer to "in flight" is the 3px band — the pulse strip on a window, the
+    progress bar for a named piece of work — and that stays the answer wherever there is a
+    band to draw. The spinner is for the place with no room for one: beside a field that is
+    checking what was typed, in a small empty state while its first read arrives. It says only
+    "something is happening here"; when the work has a denominator, the progress bar is the
+    honest control.
+
+    A ring in the hairline colour with one arc in the accent, turning once every 0.8s, at 16px
+    beside body text or 20px on its own. It is a status with a name, so a reader hears what is
+    under way; the label defaults to "Loading" only because a spinner is often dropped in before
+    its caller knows the work's name — say what it is ("Fetching items") whenever you can.
+
+    Under prefers-reduced-motion the ring stops turning and stays drawn, arc and all: the state
+    survives without the travel.
+*@
+
+<span class="spinner @SizeClass @DeskLayout.ExtraClass(Extra) @Class"
+      style="@DeskLayout.MergeStyle(null, Extra)"
+      role="status"
+      aria-label="@Label"
+      @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <span class="spinner__ring" aria-hidden="true"></span>
+</span>
+
+@code {
+    /// <summary>Small is 16px, for a line of text; Medium, the default, is 20px. Large is drawn as Medium.</summary>
+    [Parameter] public DeskKeySize Size { get; set; } = DeskKeySize.Medium;
+
+    /// <summary>What is under way, as a reader hears it — the verb and its object where they are known.</summary>
+    [Parameter] public string Label { get; set; } = "Loading";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private string SizeClass => Size == DeskKeySize.Small ? "spinner--sm" : "spinner--md";
+}
