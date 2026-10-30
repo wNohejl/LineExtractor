@@ -2019,361 +2019,6 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 .gridwrap .grid { min-width: 100%; }
 
-/* ---- SIGNATURE III: the price cell and its spread rail ---------------------
-   The board's whole reason to exist is that four books disagree and the
-   disagreement is money. So a price cell shows one number — the best one — the
-   book holding it, and a hairline rail beneath showing where every other book
-   sits.
-
-   The rail is positional, not decorative: each tick is placed by that book's
-   implied probability between the best and worst on offer. Books that agree
-   collapse into one mark; a market worth shopping visibly spreads out. You can
-   scan a column and see which games repay the work before reading a number.
-
-   Books get a monogram rather than a colour, because on this desk hue means
-   state and nothing else (ADR 0008). Identity is carried typographically.
-   --------------------------------------------------------------------------- */
-
-.price {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: flex-end;
-    min-width: 84px;
-}
-
-.price__top {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    white-space: nowrap;
-}
-
-.price__line {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-}
-
-.price__odds {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-body);
-    color: var(--text-primary);
-}
-
-/* The book that holds the best number, in two letters: a footnote to the price, not a
-   chip and not a control, so plain secondary text with no edge and no accent. */
-.price__book {
-    font-size: var(--text-caption);
-    font-weight: var(--weight-medium);
-    letter-spacing: 0;
-    color: var(--text-secondary);
-    border: 0;
-    background: none;
-}
-
-/* Naming collision, not a relative: this is PriceCell's price-range ruler, unconnected to
-   the chrome rail above. It lives inside a window body — a reading, not chrome — so it
-   gets no material and no blur, only the same token repointing as everything else. */
-.rail {
-    position: relative;
-    width: 72px;
-    height: 7px;
-    flex: 0 0 auto;
-}
-
-/* The line the ticks sit on. Faint — it is a ruler, not a reading. */
-.rail::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 3px;
-    height: 1px;
-    background: var(--separator);
-}
-
-.rail__tick {
-    position: absolute;
-    top: 0;
-    width: 2px;
-    height: 7px;
-    margin-left: -1px;
-    border-radius: 1px;
-    background: var(--surface-3);
-}
-
-.rail__tick--best {
-    background: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-wash);
-}
-
-/* How much the best price is worth against the worst, in points of implied
-   probability. Shown on the row you are actually reading, so a column of numbers
-   does not compete with the ticks. */
-.price__edge {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-caption);
-    color: var(--text-tertiary);
-    opacity: 0;
-    transition: opacity .1s ease;
-}
-
-.mud-table-row:hover .price__edge,
-.board__row--open .price__edge { opacity: 1; }
-
-.price__edge--wide { color: var(--state-positive-ink); }
-
-/* Expected value against the fair price. A price worth taking says so without a hover —
-   that is the one reading the board exists to surface — and in the same positive tone as a
-   wide market, because both mean "act here". A price at or below fair is a detail, revealed
-   like the edge on the row being read. */
-.price__ev {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-caption);
-    color: var(--text-tertiary);
-    opacity: 0;
-    transition: opacity .1s ease;
-}
-
-/* The board's value column: the row's best bet against the fair price, the figure on top
-   and the bet it belongs to beneath. Positive is lit by the shared .up; anything else is a
-   reading, not a call to act, and sits back. */
-.value {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    min-width: 88px;
-}
-
-.value__ev {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-body);
-    font-weight: var(--weight-semibold);
-}
-
-.value__bet {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--text-caption);
-    color: var(--text-tertiary);
-    white-space: nowrap;
-}
-
-.mud-table-row:hover .price__ev,
-.board__row--open .price__ev { opacity: 1; }
-
-.price__ev--plus {
-    color: var(--state-positive-ink);
-    font-weight: var(--weight-semibold);
-    opacity: 1;
-}
-
-/* The value label after a book's price in Every book: a footnote to the number, on the caption
-   rung, set off by the 6px the panel used to write inline. Colour comes from .up or .dim beside it. */
-.rung__ev { margin-left: calc(var(--space-1) * 1.5); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
-
-/* Every book's markets at a reading width: a book's name, its two prices and its hold read as
-   one line, not as a name at the left edge of a maximised window and three numbers at the right. */
-.allbets__market { max-width: 720px; }
-
-/* A closing line is not a price you can take — the game has started and the book
-   is gone. It stays on the board because it is what the market concluded and what
-   CLV is measured against (ADR 0010), but it steps back a tone so it cannot be
-   mistaken for the live market on the row above. Muted, not hidden: hiding it is
-   what left sixteen of nineteen rows empty. */
-.price--closing .price__odds { color: var(--text-secondary); }
-.price--closing .price__line { color: var(--text-tertiary); }
-.price--closing .price__sel { color: var(--text-secondary); }
-
-/* A closed price's book recedes with the rest of the cell. */
-.price--closing .price__book { color: var(--text-tertiary); }
-
-.price--closing .rail__tick { background: var(--surface-2); }
-
-.price--closing .rail__tick--best {
-    background: var(--text-tertiary);
-    box-shadow: none;
-}
-
-/* With one book there is no rail to carry the fact, so the cell says it. Always
-   legible rather than revealed on hover — it is a property of the number, not a
-   detail about it. */
-.price__edge--closing { opacity: 1; }
-
-/* The board's grid and the note that says when part of it is folded away (see .col--wider in
-   mud-bridge.css). Same width as the grid inside it, so both answer the same question. */
-.board__table { container: board / inline-size; }
-
-.board__folded {
-    display: none;
-    margin-bottom: var(--space-2);
-    color: var(--text-secondary);
-    font-size: var(--text-footnote);
-}
-
-@container board (max-width: 820px) {
-    .board__folded { display: block; }
-}
-
-/* Why a fixture has no price. A row of dashes is ambiguous between a broken feed,
-   a fixture nobody quoted, and a game already under way — only one of which is
-   worth acting on, so the row says which: "No price", and the reason once, in the
-   banner above the board (or on the open row when the reasons differ). Secondary, not
-   warning ink: an orange line under every unpriced row repeated the banner's alarm. */
-.board__gap {
-    margin-top: 3px;
-    color: var(--text-secondary);
-    font-size: var(--text-footnote);
-    line-height: 1.35;
-    max-width: 34ch;
-}
-
-/* The score, beside the state that explains it. One cell rather than two columns:
-   "FINAL" and "3–5" are the same fact at two resolutions, and the markets need the
-   width more. No hue on the numbers — on this desk hue means the state of your own
-   position (ADR 0008), so painting a losing side red would be a second vocabulary
-   in the same table. */
-.scoreline {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    white-space: nowrap;
-}
-
-/* Two lines, away over home, level with the two lines of the matchup beside it (the board's
-   cells are top-aligned for this). Weight and ink say who won, not hue: a final's winner is
-   semibold primary and its loser regular secondary, as in the Game window's scoreboard; a live
-   or tied game keeps both at full weight. */
-.board__scores {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-end;
-    font-size: var(--text-body);
-    font-variant-numeric: tabular-nums;
-}
-.board__score { color: var(--text-primary); font-weight: var(--weight-semibold); }
-.board__score--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
-
-/* The matchup: a club per line, mark then nickname, inside the game link. A final's loser
-   drops to secondary ink to match its score; the names keep the cell's regular weight, so the
-   figures carry the contrast. */
-.board__team {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.board__team--loser { color: var(--text-secondary); }
-
-/* The two clubs side by side, each a chip with its starter beneath. Equal columns, so the two
-   starters sit level under their chips; a cell too narrow for two wraps the home club under
-   the away one, each still with its own starter. */
-.board__sides {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--space-1) var(--space-2);
-    /* Its own max-content, fractions and all: sized by the shrink-to-fit link around it, the
-       row came out a fraction of a pixel short of two chips and wrapped the home club under
-       the away one in a cell with room for both. */
-    width: max-content;
-    max-width: 100%;
-}
-
-.board__side {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    max-width: 100%;
-}
-
-/* A club as an object: a capsule of fill, no outline (a chip inside a grid cell is a shape,
-   not a box), its mark and nickname inside. The hover lights the chip rather than underlining
-   a two-line label. */
-.board__chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    align-self: flex-start;
-    max-width: 100%;
-    padding: 2px var(--space-2);
-    background: var(--surface-2);
-    border-radius: 999px;
-    font-weight: var(--weight-medium);
-}
-.board__chip .teammark { margin-right: 0; }
-.board__matchup-link:hover .board__chip,
-.board__matchup-link:focus-visible .board__chip { background: var(--surface-3); color: var(--accent-ink); }
-.deskgrid--board .mud-table-body .mud-table-cell .board__matchup-link:hover .desklink__label { border-bottom-color: transparent; }
-
-/* The starter under the club: caption size, the role in semibold so "SP" and "QB" read as a
-   kind and the surname as a name; inset to the chip's text. */
-.board__starter {
-    padding: 0 var(--space-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-}
-.board__starter-role { font-size: var(--text-caption); font-weight: var(--weight-semibold); }
-
-/* The matchup link holds two clubs, a line each, so the grid's two-line clamp on a link's
-   label (mud-bridge) cut the home line off whenever a narrow cell wrapped a mark away from its
-   name: "▪ / Cowbo…", no Eagles. Each club now stays on one line (above) and the label is a
-   plain block, so both lines always show. The selector outranks mud-bridge's four classes.
-
-   The link's shortcut is taken out of the flow, as in the scoreboard: in a grid cell it
-   reserved 44px beside the label, which at a tiled Board's 127px cell left the names 57px.
-   It shows past the label's end on hover, on the hovered row's surface. Measured in the
-   controller's browser check (Board tiled at ~550px); not re-measured after the fix. */
-.deskgrid--board .mud-table-body .mud-table-cell .board__matchup-link .desklink__label {
-    display: block;
-    -webkit-line-clamp: unset;
-    line-clamp: unset;
-    min-width: 0;
-}
-
-.board__matchup-link { position: relative; }
-.board__matchup-link .desklink__shortcut {
-    position: absolute;
-    pointer-events: none; /* out of flow and over the next cell: the link, not the hint, takes the press */
-    left: 100%;
-    top: 0;
-    z-index: 1;
-    margin-left: 6px;
-    padding: 0 var(--space-1);
-    white-space: nowrap;
-    background: var(--surface-2);
-    border-radius: var(--radius-sm);
-}
-
-/* A result the stats pass has not reached yet. Tertiary is right here: it is a
-   hint about the feed, not a value anybody has to read. */
-.score--pending {
-    font-size: var(--text-footnote);
-    color: var(--text-tertiary);
-}
-
-/* Row actions: revealed by opening a row, so the board stays the working surface
-   and the next thing you do is one press away rather than a navigation. */
-.board__actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    padding: var(--space-2) var(--space-2) var(--space-3);
-    background: var(--surface-1);
-    border-bottom: 1px solid var(--separator);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .price__edge,
-    .price__ev { transition: none; }
-}
-
 /* ---- Floating dialog -------------------------------------------------------
    The layer ADR 0007 reserved and never built: arbitrary placement, above the
    desk, for the things a tiled row cannot hold. Deliberately not modal — several
@@ -3062,95 +2707,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
 .ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
-/* A team's mark: a disc in the club's colour before its name. Team colour is content, not
-   chrome; TeamMark sets --team from the one map in C#, and nothing else here reads it. The
-   ring keeps a navy or black club legible on a dark surface. The disc sits on the baseline
-   and is lifted half the gap between its size and the cap height, so it centres on the
-   capitals in running text and in a baseline-aligned flex row alike. */
-.teammark {
-    --teammark-size: 8px;
-    display: inline-block;
-    flex: none;
-    width: var(--teammark-size);
-    height: var(--teammark-size);
-    border-radius: 50%;
-    background: var(--team);
-    box-shadow: 0 0 0 1px var(--separator-strong);
-    vertical-align: baseline;
-    position: relative;
-    bottom: calc((0.7em - var(--teammark-size)) / 2);
-    bottom: calc((1cap - var(--teammark-size)) / 2);
-    margin-right: var(--space-1);
-}
-.teammark--sm { --teammark-size: 8px; }
-.teammark--lg { --teammark-size: 12px; }
-
-/* A game's title as a scoreboard: away over home, name | score, the score the largest thing in
-   the window. The rows are subgrids of one grid, so both scores share a right edge whatever the
-   names' lengths. Everything is a span (it sits in the title's h2), so the shape is all here.
-   The row sets the weight and ink; a finished game's loser drops to secondary at regular, so
-   the winner reads heavier without a word. Accent never reaches it: the names are links, and
-   only their hover says so. Compact is the same parts on one line for the wager header: the
-   rows dissolve into the line and every part is title3. */
-.scoreboard {
-    --scoreboard-row: grid;
-    --scoreboard-score: var(--text-title1);
-    display: inline-grid;
-    grid-template-columns: minmax(0, auto) auto;
-    column-gap: var(--space-4);
-    row-gap: var(--space-1);
-    align-items: baseline;
-    line-height: var(--leading-title);
-    font-size: var(--text-title3);
-}
-.scoreboard--compact {
-    --scoreboard-row: contents;
-    --scoreboard-score: var(--text-title3);
-    display: inline-flex;
-    flex-wrap: wrap;
-    column-gap: var(--space-2);
-}
-.scoreboard__row {
-    display: var(--scoreboard-row);
-    grid-column: 1 / -1;
-    grid-template-columns: subgrid;
-    align-items: baseline;
-    color: var(--text-primary);
-    font-weight: var(--weight-semibold);
-}
-.scoreboard__row--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
-.scoreboard__name { display: inline-flex; align-items: baseline; min-width: 0; font-size: var(--text-title3); }
-.scoreboard__score {
-    justify-self: end;
-    text-align: right;
-    font-size: var(--scoreboard-score);
-    font-variant-numeric: tabular-nums;
-}
-.scoreboard__at { color: var(--text-secondary); font-weight: var(--weight-regular); }
-/* A DeskLink reserves its shortcut's width so a grid row does not shift on hover; in the
-   scoreboard that reserved slot pushed "· at" about 80px away from the away name and opened a
-   gap before the score column. Here the shortcut is taken out of the flow and shown beside the
-   name on hover, on the card's surface so it covers what it overlaps cleanly. */
-.scoreboard .desklink { position: relative; }
-.scoreboard .desklink__shortcut {
-    position: absolute;
-    left: 100%;
-    top: 50%;
-    z-index: 1;
-    margin-left: 6px;
-    padding: 0 var(--space-1);
-    translate: 0 -50%;
-    white-space: nowrap;
-    background: var(--surface-2);
-    border-radius: var(--radius-sm);
-    pointer-events: none;
-}
-/* Without subgrid a row is its own two-column grid: the score keeps its row and its right
-   edge, though the two scores no longer share one. */
-@supports not (grid-template-columns: subgrid) {
-    .scoreboard__row { grid-template-columns: minmax(0, 1fr) auto; }
-}
-
 /* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives
    in every window. A bare search field is an <input> straight in the row; a labelled
@@ -3172,10 +2728,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    letter and a caret. A row too narrow for it wraps it onto the next line instead. */
 .ptoolbar > select.field { width: auto; flex: 0 0 auto; min-width: min(5rem, 100%); max-width: 100%; }
 .ptoolbar > .gate { max-width: 100%; }
-/* The game search names its pick in one unbroken line. Beside other pickers it wraps like
-   them (line breaking reads its full width); alone on a line narrower than the matchup it
-   ellipsizes inside the row instead of running past the window's edge. */
-.ptoolbar > .game-search { min-width: 0; max-width: 100%; }
 .ptoolbar__msg { flex: 0 1 auto; min-width: 0; font-size: var(--text-subheadline); color: var(--text-secondary); }
 /* The keys wrap inside their slot rather than run off the window's edge, each line flush
    right, so the Filled key (last in source) stays last on screen. A key never shrinks:
@@ -3204,7 +2756,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* A row of keys after a section — Journal's Show more — sits under it as it would under a grid. */
 .psection + .row { margin-top: var(--space-2); }
 .psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note,
-.psection__body > .deskgrid + .note, .win__body > .board__table + .note { margin-top: var(--space-2); }
+.psection__body > .deskgrid + .note { margin-top: var(--space-2); }
 /* A picker on a rule's line is sized to its words, for the same reason a toolbar's is. */
 .psection__keys .field { width: auto; }
 .psection__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
@@ -3271,6 +2823,159 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .pform--grouped .pform__body > .note { margin: 0; }
 .pform--grouped .pform__keys { margin-left: 0; flex-direction: row-reverse; justify-content: flex-end; }
 
+/* ---- The grouped form: sections, groups and their rows ---------------------------------
+   Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
+   (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
+   body — one step up the ramp — edged by one 1px hairline, the way macOS draws a grouped form.
+   Rows inside a group are divided by an inset hairline that starts where the text does, not at
+   the group's edge. Sections are spaced a full --space-6 apart and a
+   header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
+   then the next section — the distinction is in the rhythm, not in boxes around boxes.
+
+   A settings column, a form of fields and a wizard's steps are all built from it; a check (a
+   mark leading a sentence) is one kind of row in it. */
+
+.wsections { display: flex; flex-direction: column; gap: var(--space-6); }
+.wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
+
+/* The house rule on groups. A group is a fill one level above the body with one hairline edge:
+   the HIG's grouped list (a secondary grouped background on the primary), drawn the way macOS
+   draws a grouped form and the package wizard draws its sections. Rows inside it are divided by
+   inset hairlines, from the label's leading edge, as grouped lists draw them. A group never sits
+   inside another edged thing — a box inside a box "feels busy and constrained"
+   (apple-hig-components, forms.md) — which is why a form has no frame of its own and the
+   wizard's card, which is the group, unborders the .wgroup inside it. */
+.wgroup {
+    background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+    /* Its rows ask how wide the group is, not the window: see the @container block after the
+       form-row rules, which must follow them to win the cascade. */
+    container-type: inline-size;
+}
+
+.wgroup__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 36px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+}
+
+/* The inset hairline: from the label's leading edge to the group's trailing edge. */
+.wgroup__row + .wgroup__row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--space-4);
+    border-top: 1px solid var(--separator);
+}
+
+.wgroup__row--pad { padding: var(--space-3); }
+
+/* A form row: the label leads in one column the whole group shares, so the controls line
+   up down the page; the control takes the rest. --form-label is the group's to set. */
+.wgroup__row--form {
+    display: grid;
+    grid-template-columns: var(--form-label, 88px) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+}
+.wgroup__label {
+    font-size: var(--text-body);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* A segmented control in a form row is as wide as its segments. A grid item stretches by
+   default, so "SF | ATL" ran the whole control column, two words 400px apart; the bet group's
+   selection controls opt back into the column's width (.selection-gate, below). */
+.wgroup__row--form > .gate {
+    justify-self: start;
+    /* Each segment at least 64px, as a macOS segment has a floor, so "PIT | NO" is two keys
+       and not two abbreviations touching; never wider than the row. */
+    min-width: min(100%, calc(var(--n, 2) * 64px));
+    max-width: 100%;
+}
+/* Footers explain, under the group, in the secondary colour: the sentence about what a group
+   will do is not a box of its own. */
+.wgroup__foot {
+    margin: var(--space-2) 0 0;
+    padding: 0 var(--space-4);
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wgroup__foot strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
+/* Fields inside a form row: one short width shared by a group's short fields, or the rest
+   of the row for a note. */
+.wfield--short { width: 100%; max-width: 160px; }
+.wfield--fill { width: 100%; }
+/* A group's header: a quiet sentence-case name above it, not a tracked all-caps rule. */
+.wgroup__head {
+    margin: 0 0 var(--space-1);
+    padding: 0 var(--space-4);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-regular);
+    color: var(--text-secondary);
+}
+.wsection > .wgroup__foot { margin-top: 0; }
+
+/* A narrow group (a window beside other windows) stacks each label above its control — HIG:
+   "horizontally adjacent views may need to stack vertically". Placed after the form-row rules
+   on purpose: same specificity, so it has to come later to win. */
+@container (max-width: 400px) {
+    .wgroup__row--form {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--space-1);
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+    .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
+}
+
+/* ---- The checks: a grouped list of facts, a mark leading each row. */
+/* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
+   right-aligned, instead of pinching the sentence into a column one word wide. */
+.check { align-items: flex-start; flex-wrap: wrap; row-gap: var(--space-2); }
+.check__mark {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;             /* centred on the first line of a sentence that may wrap */
+    border-radius: 50%;
+    background: var(--text-tertiary);
+}
+.check--positive .check__mark { background: var(--state-positive); }
+.check--warning .check__mark { background: var(--state-warning); }
+.check--negative .check__mark { background: var(--state-negative); }
+.check__text { flex: 1 1 200px; min-width: 0; color: var(--text-primary); }
+.check .desk-btn { flex: none; margin-left: auto; }
+
+.wfoot { margin: 0; font-size: var(--text-footnote); line-height: var(--leading-body); color: var(--text-secondary); }
+
+/* ---- A section header with something of its own beside it: a key, or a count. */
+.wsection__head { display: flex; align-items: center; gap: var(--space-2); min-height: 24px; padding: 0 var(--space-1); }
+.wsection__head > .panel-h { margin: 0; }
+.wsection__head > .desk-btn { margin-left: auto; }
+.wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* A narrow group (a window beside two others, ~300-480px) gives its inset back to its
+   controls: the rows and the footer under the group take --space-3 rather than --space-4,
+   and the footer steps down to footnote size. */
+@container (max-width: 480px) {
+    .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
+}
+
 /* 3 · 4 · Note and metrics in a window body own the air beneath them too. The space
    above comes from whatever precedes them. A Note rendered inline is a span and is
    not a slot, which is why this is scoped to a block note straight in the body. */
@@ -3333,68 +3038,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The one next step, on its own line so it reads as an offer rather than as the tail of
    the sentence above it. */
 .empty__action { display: block; margin-top: var(--space-2); }
-
-/* ------------------------------------------------------- runbook ----------
-   The triage procedure, shown inside the incident that needs it. A fill, not a frame,
-   and no accent edge: the group is read, and only its disclosure summary is pressed. */
-
-.runbook {
-    border-radius: 4px;
-    background: var(--surface-2);
-    margin: var(--space-3) 0;
-}
-
-.runbook__summary {
-    padding: var(--space-2) var(--space-3);
-    cursor: pointer;
-    color: var(--text-primary);
-    font-size: var(--text-subheadline);
-    font-weight: var(--weight-semibold);
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-/* The mark is an icon, not an illustration. Without a size the inline SVG arrives with
-   no intrinsic dimensions, stretches to the flex line, and renders roughly 385px square
-   — found in the browser, not in the stylesheet, because nothing here was wrong to read.
-   Same 15px the dialog's title mark takes. */
-.runbook__summary svg { width: 15px; height: 15px; flex: 0 0 auto; }
-/* Accent on the text, not a fill behind it: the summary is already --text-primary at
-   rest, so a neutral hover would paint nothing, and the disclosure is a control you
-   follow — the same reading .desklink gets. */
-.runbook__summary:hover { color: var(--accent-ink); }
-
-.runbook__body {
-    padding: 0 var(--space-3) var(--space-3);
-    border-top: 1px solid var(--separator);
-    color: var(--text-secondary);
-    font-size: var(--text-subheadline);
-    line-height: 1.55;
-}
-
-.runbook__line { margin: var(--space-2) 0 0; }
-
-/* Steps are indented so a numbered procedure still reads as one at a glance,
-   the marker having been stripped along with the rest of the markdown. The indent alone
-   says so; a rule beside it would be a vertical line inside the group. */
-.runbook__step { margin: var(--space-1) 0 0 var(--space-5); }
-
-.runbook__body strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
-
-/* The one place a second family survives the collapse to --face-ui. A runbook's code
-   spans are literal things to type — a job key, a flag, a path — and a monospace face
-   is what says "this is the exact string", which no weight or colour can. It is the
-   platform stack, not a bundled font: nothing here has to match Inter's metrics. */
-.runbook__body code {
-    font-family: ui-monospace, monospace;
-    font-size: var(--text-footnote);
-    background: var(--surface-1);
-    padding: 1px 4px;
-    border-radius: 3px;
-    color: var(--text-primary);
-}
 
 /* ============================================================================
    LOADING VOCABULARY — .skel, .prog, .deskgrid__skeleton
@@ -3729,54 +3372,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .snippet__body { padding: var(--space-2); }
 
-/* Odds snippet: three markets side by side, wrapping on a narrow window. */
-.snippet__markets { display: flex; gap: var(--space-5); flex-wrap: wrap; }
-
-.snippet__market-name {
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-    margin-bottom: 4px;
-}
-
-.snippet__sides { display: flex; flex-direction: column; gap: 3px; }
-
-.snippet__side {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-size: var(--text-subheadline);
-}
-
-.snippet__side--empty { color: var(--text-tertiary); }
-.snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.snippet__line { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.snippet__price { color: var(--text-primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.snippet__book { font-size: var(--text-caption); }
-
-/* Form snippet: one run of results per side. */
-.snippet__form { display: flex; gap: var(--space-5); flex-wrap: wrap; }
-.snippet__formside { display: flex; flex-direction: column; gap: 3px; }
-
-.snippet__formname {
-    font-size: var(--text-subheadline);
-    font-weight: var(--weight-semibold);
-    color: var(--text-primary);
-    max-width: 22ch;
-}
-
-.snippet__formrun { display: flex; gap: 3px; }
-
-/* A form run: oldest on the left, newest on the right, like every other time axis here.
-   The newest tag is ringed in the desk's interactive hue rather than recoloured — the
-   tag's own hue is already spent saying won or lost, and a second meaning on the same
-   channel would make a recent win and a recent loss look like the same kind of thing.
-
-   A ring rather than the underline this used to carry: a tag is a capsule now, and an
-   inset bottom band inside a 999px radius reads as a smeared crescent, not a rule. */
-.formrun { display: inline-flex; gap: 3px; align-items: center; }
-
-.formrun__latest { box-shadow: inset 0 0 0 1px var(--separator-strong); }
-
 /* A row of labelled readings, for a single game expanded. */
 .snippet__facts {
     display: flex;
@@ -3798,22 +3393,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .grid--tight { font-size: var(--text-subheadline); }
 .grid--tight th { padding: 0 7px 5px; position: static; }
 .grid--tight td { padding: 5px 7px; }
-
-/* ---- Splits strip ----------------------------------------------------------
-   Filters over rows already loaded, so these are instant. Deliberately keys
-   rather than a select: the whole set is worth seeing at once, and which one is
-   active is the question being asked of the log below.
-   -------------------------------------------------------------------------- */
-
-.splits {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-    margin-bottom: 0;
-}
-
-.splits__pick { max-width: 190px; margin-left: auto; font-size: var(--text-footnote); }
 
 /* ---- Log rows --------------------------------------------------------------
    A game or a player, expandable in place. Not a table, because the expanded
@@ -3892,16 +3471,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .logrow__date { font-size: var(--text-footnote); min-width: 7ch; font-variant-numeric: tabular-nums; }
 
-.logrow__opp {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
-
 .logrow__body {
     padding: var(--space-3);
     border-top: 1px solid var(--separator);
@@ -3928,7 +3497,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    actions" is a rule you can only learn by accident: the pointer is the only
    hint, and it arrives after you have already decided not to try. The open
    row gets the same accent wash "selected" uses everywhere else — see
-   mud-bridge.css's .board__row--open rule — never a border or a left-edge
+   the app sheet's .board__row--open rule — never a border or a left-edge
    bar, which was the retired dial's habit. */
 .deskgrid--clickable .mud-table-row { cursor: pointer; }
 
@@ -3946,19 +3515,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    drawn outside — and the list clips its rows, so an outside ring would be cut off. */
 .logrow > .logrow__head:focus-visible { box-shadow: var(--focus-ring-inset); }
 
-/* Which side a price is for. Two prices sit side by side in every market and the
-   board orders them home-first — but an ordering the reader cannot see is not an
-   ordering, and +331 beside -380 is a favourite and an underdog, not a rounding
-   difference. Plain secondary text beside the price, not a chip: a box in every cell of a
-   ruled table is a box inside a box, and the lighter colour already says it qualifies the
-   number rather than being one. */
-.price__sel {
-    font-size: var(--text-caption);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-    margin-right: var(--space-1);
-}
-
 /* A destination window — one that is about a game, a team or a player. Listed so
    the view is discoverable, but not openable, because without a subject it has
    nothing to show. Dimmed rather than hidden, with the route to it in place of
@@ -3972,50 +3528,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .launcher__item--destination .launcher__desc { font-style: italic; }
 
-/* ---- Line movement ----------------------------------------------------------
-   One side of a market, a row per book (OddsPanel). It replaced a chart of every book and
-   both sides with a legend that drew itself over the table beneath it, so everything here
-   is the opposite of a chart's furniture: a sentence, a footnote, and the table's own cells.
-
-   The headline is the finding and the footnote the span it was found over, the pair the
-   HIG asks a chart to open with. Headline weight on body size, the footnote on the
-   secondary ink — never tertiary, since the span is read — and tabular figures, because the
-   dates and the count change while the eye is on them. */
-/* The market and side switches, on their own row under the toolbar and over the rows they
-   choose; they wrap as a pair in a narrow window rather than running past its edge. */
-.movement__switches {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-3);
-}
-
-/* The finding and its rows, at a reading width. Maximised, the table ran the whole window: the
-   sparkline column took the slack and Open, Now and Move sat a screen's width from the book
-   they belong to. Capped, the row reads as one line of facts about one book; the headline
-   above it keeps the same measure, so the sentence and the table share a right edge. */
-.movement { max-width: 720px; }
-
-.movement__cap { margin: 0 0 var(--space-2); }
-.movement__headline {
-    margin: 0;
-    font-size: var(--text-headline);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-title);
-    color: var(--text-primary);
-}
-.movement__span {
-    margin: 2px 0 0;
-    font-size: var(--text-footnote);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-}
-/* A quote is a line and its price, and a move is points and cents: each is one reading, so
-   neither breaks across lines in a narrow column. */
-.movement__quote, .movement__move { white-space: nowrap; font-variant-numeric: tabular-nums; }
-
+/* ---- The sparkline --------------------------------------------------------------- */
 /* The sparkline (DeskSparkline). Word-sized and inline, centred on the row's text so a
    20px plot sits in a 28px row without moving it. The path is the secondary ink and the
    last point the primary one, so the eye lands where the series ended; there is no state
@@ -4032,94 +3545,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .sparkline__dot { fill: var(--text-primary); }
 /* Seen once: a dash in the cell's own type, not a drawing of a market nobody watched twice. */
 .sparkline--none { line-height: inherit; color: var(--text-secondary); }
-
-/* ---- The board's column rhythm ---------------------------------------------
-   Eight columns spread evenly across a wide desk pushed every price to the far
-   right of its own column, leaving a void between the matchup and the numbers
-   and putting each price further from the header naming it. The numbers are the
-   point of this screen; they should sit together and be read as a block.
-
-   So every column shrinks to its content — width:1% with nowrap is the standard
-   way to say "as narrow as you can" — and the matchup absorbs all the slack,
-   which it can use: it is the column that holds the row's action strip.
-   -------------------------------------------------------------------------- */
-
-.deskgrid--board table { width: 100%; }
-
-.deskgrid--board th,
-.deskgrid--board td {
-    width: 1%;
-    white-space: nowrap;
-}
-
-/* Cells start at the top. The matchup is two lines, away over home, and the score beside it
-   is two lines that must sit level with them; centred, they parted whenever the matchup cell
-   grew by a probables line, a reason the row has no price, or the open row's strip. Every
-   other cell starts on the away line too, so a tall row reads from its first line down.
-
-   Row height: the matchup's two 20px lines (and the game link's 1px rule under them) make a
-   row with no prices about 50px where it was 29px. A priced row barely moves, since a price
-   cell's stack (odds, rail, edge) already stood about as tall. Estimated from the boxes here,
-   not measured in a browser. */
-.deskgrid--board td { vertical-align: top; }
-
-/* The one column that grows. It also carries the open row's actions, so the
-   space is not merely absorbed — it is used. */
-.deskgrid--board th:nth-child(2),
-.deskgrid--board td:nth-child(2) {
-    width: auto;
-    white-space: normal;
-}
-
-/* The open row's snippet, in a row of its own beneath it (DeskGrid's child row). Its cell
-   starts under the matchup, the lead cell holding the start time's column, and it wraps rather
-   than widening the table. It keeps the open row's wash, so the row and what it opened read as
-   one selection rather than as the next game along. */
-.deskgrid--board .deskgrid__child-cell { width: auto; white-space: normal; }
-.deskgrid--board .deskgrid__child > td { background: var(--accent-wash); }
-
-/* Each market is two columns that belong together — home and away, over and
-   under. Extra space before the first of each pair groups them, so the eye reads
-   three markets rather than six unrelated numbers; a vertical rule would do it
-   louder, and a table on this desk has none. The cell names its element and the
-   Mud cell class so it out-ranks mud-bridge.css's cell padding, which loads later.
-
-   The pair is marked by a class (.board__pair, on the first column of each), not by
-   position. These rules counted columns, and when the Value column arrived they hit the
-   wrong ones: "Moneyline" showed twice and Over got no gap. */
-.deskgrid--board th.mud-table-cell.board__pair,
-.deskgrid--board td.mud-table-cell.board__pair {
-    padding-left: var(--space-4);
-}
-
-/* One heading per market, centred over its two columns. The second column's header draws
-   nothing (BoardPanel.SideHeader) and every cell names its side, so the market is said once
-   while each column keeps an accessible name of its own. */
-.deskgrid--board th.board__pair { position: relative; }
-.deskgrid--board th.board__pair .column-header { position: static; }
-.deskgrid--board .board__market {
-    position: absolute;
-    top: 50%;
-    left: 100%;
-    z-index: 1;
-    translate: -50% -50%;
-    white-space: nowrap;
-}
-
-.deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
-
-/* A narrow board has folded spread and totals away (.board__folded), and still needs the
-   start time and the value pick to give up a line each rather than hold the row wide: the
-   league tag drops under the time, and the pick's book under its selection. */
-@container board (max-width: 820px) {
-    .deskgrid--board td:nth-child(1) { white-space: normal; }
-    .deskgrid--board td .value__bet { white-space: normal; text-align: right; }
-
-    .deskgrid--board td:nth-child(1) .num { white-space: nowrap; }
-
-    .deskgrid.deskgrid--board .mud-table-head .mud-table-cell,
-    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell { padding-inline: 8px; }
-}
 
 /* -------------------------------------------------------------------- sheet ---
    A modal sheet. Rises from slightly below and settles — the motion says it came
@@ -4421,48 +3846,6 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wm-workspace__name { color: var(--text-primary); }
 .wm-workspace__text > .meta { overflow-wrap: anywhere; }
 
-/* ---- The Performance window ------------------------------------------------------
-   One column at a reading width for the figures, the bankroll chart and the tables under it,
-   so they share a left and a right edge. At 1600px the chart sat small in the middle of the
-   window and each breakdown put Bets, Net and ROI at a different x along a 1584px row.
-
-   The tiles get a smaller floor here so six of them still make one line inside the column
-   rather than five and an orphan. The tiles sit in the column rather than straight in
-   .win__body, so the air beneath them is restated. */
-.perf { max-width: 720px; }
-.perf > .metrics { margin: 0 0 var(--space-4); grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
-
-/* The chart spans the column and keeps its own proportions. MudChart draws into a fixed
-   700×350 view box and was given a 200px box to fit it in, so it scaled itself down to 400px
-   wide, centred itself (Mud's margin:auto) and shrank its axis labels to about 7px. Given the
-   column's width and its own height it is drawn at roughly the scale it was written for, its
-   left edge on the section header's. The labels are footnote size in the secondary colour;
-   in a narrow window the view box scales down with the column, so the label size steps up to
-   keep what is rendered near the footnote size rather than under the 10px floor. */
-.perf-chart { container: perfchart / inline-size; }
-.perf-chart .mud-chart { width: 100%; }
-.perf-chart .mud-chart svg.mud-chart-line { display: block; width: 100%; height: auto; margin: 0; }
-.perf-chart .mud-chart text { font-size: var(--text-footnote); fill: var(--text-secondary); }
-@container perfchart (max-width: 620px) {
-    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.2); }
-}
-@container perfchart (max-width: 520px) {
-    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.45); }
-}
-@container perfchart (max-width: 420px) {
-    .perf-chart .mud-chart text { font-size: calc(var(--text-footnote) * 1.8); }
-}
-/* The placeholder holds the chart's shape, not a fixed height, so nothing jumps when it lands. */
-.perf-chart__skeleton .skel__block { height: auto; aspect-ratio: 2 / 1; }
-
-/* The tables share their column widths: the name takes what the figures leave, and every
-   figure column is one width, so a figure in one table sits under the same figure in the
-   next. Fixed layout reads the widths from the header row. */
-.perf-table .mud-table-root { width: 100%; table-layout: fixed; }
-.perf-table th.perf-col--num { width: 96px; }
-.perf-table th.perf-col--wide { width: 152px; }
-.perf-table td.perf-col--key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
 /* ---- The Parts window -----------------------------------------------------------
    The developer catalogue. Its parts keep the window's width, because "does this fit?" is
    answered at the width a panel has; its prose does not, because a paragraph run across a
@@ -4549,954 +3932,4 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --material-regular: var(--surface-2);
     --material-thick: var(--surface-2);
     --material-blur: none;
-}
-
-/* ---- The wager window, its advisory checks, and the slip ------------------------------
-
-   Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
-   (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
-   body — one step up the ramp — edged by one 1px hairline, the way macOS draws a grouped form.
-   Rows inside a group are divided by an inset hairline that starts where the text does, not at
-   the group's edge. Sections are spaced a full --space-6 apart and a
-   header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
-   then the next section — the distinction is in the rhythm, not in boxes around boxes.
-
-   State colour lands on marks, tags and the number it describes (ADR 0016); the one surface
-   that takes a state is a slip card that cannot be logged, as a wash, because that card IS a
-   status. Everything else stays neutral. */
-
-.wsections { display: flex; flex-direction: column; gap: var(--space-6); }
-.wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
-
-/* The house rule on groups. A group is a fill one level above the body with one hairline edge:
-   the HIG's grouped list (a secondary grouped background on the primary), drawn the way macOS
-   draws a grouped form and the package wizard draws its sections. Rows inside it are divided by
-   inset hairlines, from the label's leading edge, as grouped lists draw them. A group never sits
-   inside another edged thing — a box inside a box "feels busy and constrained"
-   (apple-hig-components, forms.md) — which is why a form has no frame of its own and the
-   wizard's card, which is the group, unborders the .wgroup inside it. */
-.wgroup {
-    background: var(--surface-2);
-    border: 1px solid var(--separator-strong);
-    border-radius: var(--radius-panel);
-    overflow: hidden;
-    /* Its rows ask how wide the group is, not the window: see the @container block after the
-       form-row rules, which must follow them to win the cascade. */
-    container-type: inline-size;
-}
-
-.wgroup__row {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    min-height: 36px;
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-body);
-    line-height: var(--leading-body);
-}
-
-/* The inset hairline: from the label's leading edge to the group's trailing edge. */
-.wgroup__row + .wgroup__row::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: var(--space-4);
-    border-top: 1px solid var(--separator);
-}
-
-.wgroup__row--pad { padding: var(--space-3); }
-
-/* A form row: the label leads in one column the whole group shares, so the controls line
-   up down the page; the control takes the rest. --form-label is the group's to set. */
-.wgroup__row--form {
-    display: grid;
-    grid-template-columns: var(--form-label, 88px) minmax(0, 1fr);
-    align-items: center;
-    column-gap: var(--space-3);
-    min-height: 40px;
-    padding: var(--space-1) var(--space-4);
-}
-.wgroup__label {
-    font-size: var(--text-body);
-    color: var(--text-primary);
-    white-space: nowrap;
-}
-
-/* A segmented control in a form row is as wide as its segments. A grid item stretches by
-   default, so "SF | ATL" ran the whole control column, two words 400px apart; the bet group's
-   selection controls opt back into the column's width (.selection-gate, below). */
-.wgroup__row--form > .gate {
-    justify-self: start;
-    /* Each segment at least 64px, as a macOS segment has a floor, so "PIT | NO" is two keys
-       and not two abbreviations touching; never wider than the row. */
-    min-width: min(100%, calc(var(--n, 2) * 64px));
-    max-width: 100%;
-}
-/* Footers explain, under the group, in the secondary colour: the sentence about what a group
-   will do is not a box of its own. */
-.wgroup__foot {
-    margin: var(--space-2) 0 0;
-    padding: 0 var(--space-4);
-    font-size: var(--text-subheadline);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.wgroup__foot strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
-/* Fields inside a form row: one short width shared by a group's short fields, or the rest
-   of the row for a note. */
-.wfield--short { width: 100%; max-width: 160px; }
-.wfield--fill { width: 100%; }
-/* A group's header: a quiet sentence-case name above it, not a tracked all-caps rule. */
-.wgroup__head {
-    margin: 0 0 var(--space-1);
-    padding: 0 var(--space-4);
-    font-size: var(--text-subheadline);
-    font-weight: var(--weight-regular);
-    color: var(--text-secondary);
-}
-.wsection > .wgroup__foot { margin-top: 0; }
-/* The whole slip is one reading column, not just its groups: the empty state centred itself
-   across a 1,600px window and the footnote ran to the far edge, so the window's three pieces
-   of text sat on three different left edges. The footnote takes the groups' text inset, and
-   so does an empty slip's sentence: centred in a 560px column above a left-aligned footnote,
-   it was two alignments in two lines. */
-.slip { max-width: 560px; }
-.slip > .wfoot { padding: 0 var(--space-4); }
-.slip > .empty--new { text-align: left; padding: var(--space-2) var(--space-4) 0; }
-/* Groups and the keys under them are separated by space, not a rule. */
-.slip .waction { border-top: 0; padding-top: 0; }
-.slip .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
-
-/* A narrow group (a window beside other windows) stacks each label above its control — HIG:
-   "horizontally adjacent views may need to stack vertically". Placed after the form-row rules
-   on purpose: same specificity, so it has to come later to win. */
-@container (max-width: 400px) {
-    .wgroup__row--form {
-        grid-template-columns: minmax(0, 1fr);
-        row-gap: var(--space-1);
-        padding-top: var(--space-2);
-        padding-bottom: var(--space-2);
-    }
-    .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
-    /* In the wizard the label above a control is 11px (wizards.md, bet-and-price rule 6). */
-    .wcard .wgroup__row--form > .wgroup__label { font-size: var(--text-footnote); }
-}
-
-/* ---- The offer: the one number this window is about, set as the window's title. */
-.wager-offer { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); }
-.wager-offer__top { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
-/* In a form the price is a value beside its label — title 2, the primary label colour,
-   tabular figures — not a hero figure, and not in the accent: the accent is for what can be
-   pressed, and the book menu beside it is that. */
-.wager-offer__price {
-    font-size: var(--text-title2);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-tight);
-    letter-spacing: -.01em;
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-}
-.wager-offer__book { font-size: var(--text-headline); font-weight: var(--weight-semibold); }
-.wager-offer__of { font-size: var(--text-subheadline); color: var(--text-secondary); }
-.wager-offer__age {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    margin-left: auto;
-    white-space: nowrap;
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-}
-/* Glyph is a bare 24-unit SVG with no size of its own; unsized it fills the line box. */
-.wager-offer__age svg { width: 12px; height: 12px; flex: 0 0 auto; }
-.wager-offer__value { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.wager-offer__ev { font-weight: var(--weight-semibold); }
-.wager-offer__ev--up { color: var(--state-positive-ink); }
-.wager-offer__ev--down { color: var(--state-warning-ink); }
-
-/* ---- The checks: a grouped list of facts, a mark leading each row. */
-/* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
-   right-aligned, instead of pinching the sentence into a column one word wide. */
-.check { align-items: flex-start; flex-wrap: wrap; row-gap: var(--space-2); }
-.check__mark {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    margin-top: 6px;             /* centred on the first line of a sentence that may wrap */
-    border-radius: 50%;
-    background: var(--text-tertiary);
-}
-.check--positive .check__mark { background: var(--state-positive); }
-.check--warning .check__mark { background: var(--state-warning); }
-.check--negative .check__mark { background: var(--state-negative); }
-.check__text { flex: 1 1 200px; min-width: 0; color: var(--text-primary); }
-.check .desk-btn { flex: none; margin-left: auto; }
-
-/* ---- The wager: stake, returns, note. */
-.stake-row { align-items: center; }
-.stake-row__returns {
-    margin-left: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    line-height: var(--leading-tight);
-    font-variant-numeric: tabular-nums;
-}
-.stake-row__returns-label {
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-}
-.stake-row__returns strong { font-size: var(--text-title3); font-weight: var(--weight-semibold); color: var(--text-primary); }
-.stake-row__profit { font-size: var(--text-footnote); color: var(--text-secondary); }
-
-/* ---- The action bar: the window's one Filled key and its companions, set off by a hairline
-   across the whole width — the one full-width rule in the window, because it is the boundary
-   between reading and committing. */
-.waction {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--separator);
-}
-.waction__keys { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.waction__keys > .waction__lead { margin-right: auto; }
-.wager-why, .slip-why { font-size: var(--text-footnote); text-align: right; }
-
-.wfoot { margin: 0; font-size: var(--text-footnote); line-height: var(--leading-body); color: var(--text-secondary); }
-
-/* ---- A section header with something of its own beside it: a key, or a count. */
-.wsection__head { display: flex; align-items: center; gap: var(--space-2); min-height: 24px; padding: 0 var(--space-1); }
-.wsection__head > .panel-h { margin: 0; }
-.wsection__head > .desk-btn { margin-left: auto; }
-.wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-
-.wager-typed .field-set { margin: 0; }
-
-/* ---- The books: a filter of chips, each with its price. The list to choose from is the book
-   pop-up's menu now (BookPicker on DeskPopover and DeskMenu, styled in controls.css). */
-.book-chips { flex-wrap: wrap; gap: var(--space-1); }
-.book-chip__price { margin-left: var(--space-1); opacity: .8; }
-
-/* ---- The game search: one field, its results directly beneath, newest first. */
-.game-search { display: flex; flex-direction: column; gap: var(--space-1); }
-.game-search__list { max-height: 280px; overflow-y: auto; }
-.game-search__opt {
-    width: 100%;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    justify-content: space-between;
-}
-.game-search__opt:hover, .game-search__opt--active { background: var(--accent-wash); }
-.game-search__opt:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
-.game-search__opt--none .game-search__match { color: var(--text-secondary); font-weight: normal; }
-.game-search__chosen { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); min-width: 0; }
-.game-search__text { display: flex; flex-direction: column; min-width: 0; }
-.game-search__match { font-weight: var(--weight-semibold); }
-.game-search__when, .game-search__empty { font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-
-/* ---- The game search's two halves, named so a played game never reads as this week's. */
-.game-search__group {
-    padding: var(--space-2) var(--space-3) var(--space-1);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-    background: var(--surface-2);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-}
-.game-search__group + .game-search__opt::before { display: none; }
-
-/* ---- The wager window's header: the game as a title from the Board, the search from the
-   Journal. The chosen game in the search reads at the title's size, so the two doors look the
-   same once a game is in hand. The stepper beneath is capped at a reading width: a form that
-   stretches across a 1900px window spaces its controls out of reach of one another, and a
-   window beside other windows is rarely that wide anyway. */
-/* ---- The wizard's two cards, after the package wizard (the reference the operator chose)
-   paired with the HIG: a header card with the subject, a 3px accent base and the tags on its
-   line; one main card holding the whole stepper, so the form is one object with one edge. A
-   card is a fill with a 1px hairline edge — the house rule is that a group is bordered — and
-   the groups inside it are a level lighter with their own edge; nothing is boxed a third time.
-   Both cards cap at a reading width and share it; wide windows get a second column (below). */
-.whead {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-3) var(--space-4);
-    /* Two sibling cards, 12px apart, one stroke level (wizards.md, reconciling rule 1). */
-    margin-bottom: var(--space-3);
-    max-width: var(--wizard-max, 760px);
-    padding: var(--space-4);
-    background: var(--surface-2);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-}
-.whead > .ptitle, .whead > .game-search { flex: 1 1 320px; min-width: 0; }
-.whead .ptitle { margin-bottom: 0; }
-/* Reconciling rule 2: the title at 17px semibold, the time 12px secondary beneath it. The
-   matchup is the compact scoreboard, raised from its title-3 default to the header's title. */
-.whead .ptitle__name { font-size: var(--text-title2); font-weight: var(--weight-semibold); }
-.whead .scoreboard--compact { --scoreboard-score: var(--text-title2); }
-.whead .scoreboard--compact .scoreboard__name { font-size: var(--text-title2); }
-/* Chips: 20px tall, 10px radius, 11px medium, a quiet fill with no stroke. */
-.whead .ptitle__row .tag { padding: 3px var(--space-2); line-height: 14px; border-radius: 10px; }
-/* Duplicate trails the header: in the title's meta line from the Board, after the search
-   from the Journal. */
-.whead__keys { margin-left: auto; display: flex; align-items: center; }
-.whead__keys:empty { display: none; }
-.whead .game-search__chosen .game-search__match { font-size: var(--text-title2); }
-/* Every name in the header is a link, as in the Game window's title: the teams open their
-   windows, the kickoff opens the game, the chosen game in the search changes it. A link set
-   in the title ramp keeps the ramp; the dotted rule and the shortcut are the only tell. */
-.whead .desklink { font: inherit; color: inherit; }
-.whead .ptitle__name .desklink__label { font-size: inherit; font-weight: inherit; }
-.whead .game-search__match .desklink__label { font-weight: var(--weight-semibold); }
-.whead .desklink:hover .desklink__label { border-bottom-color: var(--accent); }
-.wtabs { margin-bottom: var(--space-4); }
-.whead__hint { flex-basis: 100%; margin: 0; max-width: 68ch; font-size: var(--text-subheadline); line-height: var(--leading-body); color: var(--text-secondary); }
-.wfield--wide { width: 100%; max-width: 520px; }
-.wstep__summary .wager-offer__price { font-size: inherit; font-weight: var(--weight-semibold); color: var(--text-primary); }
-.wstep__summary .wager-offer__book { font-size: inherit; }
-
-/* The steps card (reconciling rules 1 and 3): the header card's fill, stroke and radius, 4px
-   above and below, and nothing inside it stroked — each step is a section of the card divided
-   from the next by a full-width hairline quieter than the card's edge. */
-.wcard {
-    --wsep: color-mix(in srgb, var(--text-primary) 9%, transparent);
-    max-width: var(--wizard-max, 760px);
-    padding: var(--space-1) 0;
-    background: var(--surface-2);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-panel);
-}
-
-/* ---- The receipt: the wizard's last page, in the steps card's place once a bet is logged.
-   The check in the positive ink, a title 3 saying what happened, the bet in one line and what
-   it pays beneath; the keys at the foot, trailing, New bet the one Filled key and last. Same
-   card, same edge: a result, not a new box. */
-.wreceipt {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-2) var(--space-3);
-    align-items: start;
-    padding: var(--space-4);
-}
-
-.wreceipt__mark { display: grid; place-items: center; color: var(--state-positive-ink); }
-.wreceipt__mark svg { width: 22px; height: 22px; }
-
-.wreceipt__main { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-
-.wreceipt__title {
-    margin: 0;
-    font-size: var(--text-title3);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-title);
-    color: var(--text-primary);
-}
-
-.wreceipt__bet { margin: 0; font-size: var(--text-body); color: var(--text-primary); }
-.wreceipt__foot { margin: 0; font-size: var(--text-subheadline); line-height: var(--leading-body); color: var(--text-secondary); }
-
-.wreceipt__keys {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
-}
-
-/* ---- The stepper inside the card (reconciling rules 4-6): a 40px marker column with a 16px
-   ring centred 20px from the card's edge, on a 2px rail that runs ring to ring behind the
-   folded lines. Waiting: a hollow 1.5px ring. Current: a 2px accent ring with a 6px dot.
-   Done: a filled accent disc with a check, and the rail below it in the accent. A folded
-   step is one 40px line; only an open step has a body, indented to the title's edge. */
-.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.wstep {
-    position: relative;
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    column-gap: 0;
-    padding: 10px var(--space-4) 10px 0;
-}
-.wstep + .wstep { border-top: 1px solid var(--wsep, var(--separator)); }
-.wstep::before {
-    content: "";
-    position: absolute;
-    left: 19px;
-    top: 30px; /* from under the marker: 10px padding, 4px margin, 16px ring */
-    bottom: -15px; /* into the next marker, which sits 2px lower than it did */
-    width: 2px;
-    border-radius: 1px;
-    background: color-mix(in srgb, var(--text-primary) 13%, transparent);
-    transition: background var(--dur-fast) var(--ease-standard);
-}
-.wstep:last-child::before { display: none; }
-.wstep--done::before { background: color-mix(in oklab, var(--accent) 70%, transparent); }
-.wstep__dot {
-    justify-self: center;
-    width: 16px;
-    height: 16px;
-    margin-top: 4px; /* centred on the 24px name capsule */
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-size: 0;
-    color: var(--on-accent);
-    background: transparent;
-    box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
-    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
-}
-.wstep__dot svg { width: 11px; height: 11px; }
-.wstep--current .wstep__dot { box-shadow: inset 0 0 0 2px var(--accent); }
-.wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-.wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
-.wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.wstep__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 24px; }
-
-/* Each step's name is a capsule on the rail, not a word floating beside it: the marker says
-   where the step stands, the capsule names it, and the two read as one object. The step being
-   worked carries the accent edge and wash — selection, the accent's own job; a finished step a
-   firm neutral edge; a waiting one a quiet edge and secondary ink. 24px tall, so the 16px
-   marker centres on it (.wstep__dot's margin). */
-.wstep__title {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-    height: 24px;
-    margin: 0;
-    padding: 0 var(--space-3);
-    border: 1px solid var(--separator-strong);
-    border-radius: 999px;
-    font-size: var(--text-headline);
-    font-weight: var(--weight-semibold);
-    line-height: 1;
-    color: var(--text-primary);
-}
-.wstep--current .wstep__title { border-color: var(--accent); background: var(--accent-wash); }
-.wstep--todo .wstep__title { border-color: var(--separator); color: var(--text-secondary); }
-.wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.wstep__summary:empty { display: none; }
-/* The folded choice is a DeskLink: the same dotted rule and "change" shortcut every linked
-   name on the desk shows under the pointer, so changing a step is the one link idiom and not
-   a second key. Its label takes the summary's size; the rule sits under the words, as it does
-   in a grid cell. Sits on the title's baseline, where the summary already did. */
-.wstep__change { font-size: var(--text-subheadline); align-self: baseline; }
-.wstep__change .desklink__label { font-size: inherit; }
-.wstep__change:hover .wstep__summary,
-.wstep__change:focus-visible .wstep__summary { color: var(--accent-ink); }
-/* A folded step's choice is the one link on its line, so the dotted rule shows on hover
-   without a row to carry it. */
-.wstep__change:hover .desklink__label { border-bottom-color: var(--accent); }
-.wstep__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
-.wstep__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
-.wstep__hint {
-    margin: calc(-1 * var(--space-1)) 0 0;
-    max-width: 68ch;
-    font-size: var(--text-subheadline);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.wstep__body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.wstep__body > .note { margin: 0; }
-
-/* ---- Your bet, as a grouped form: a row per market, the market's name leading, and a
-   two-segment control trailing — the HIG's "one of a few, all visible, setting a state".
-   It was a 3×2 grid of outlined cells, which reads as a table to look things up in. One side
-   across the three rows, so a row with no choice shows no cap: a value matching no segment
-   shows nothing rather than a wrong answer. */
-.selection-form { display: contents; }
-.selection-gate {
-    display: grid;
-    width: 100%;
-    max-width: 420px;
-}
-/* A segment wraps its words onto a second line in a narrow group rather than clipping the
-   team to two letters or running "no price" into the next segment; the cap follows its height. */
-.selection-gate .gate__opt {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: center;
-    gap: 0 var(--space-2);
-    min-width: 0;
-    height: auto;
-    min-height: 28px;
-    padding: 4px var(--space-2);
-    font-size: var(--text-body);
-    line-height: 20px;
-    color: var(--text-primary);
-    white-space: normal;
-}
-/* The chosen side is the window's one selection, so its cap takes the selection wash the
-   tab bar's does and its words the accent — selection is one of the accent's three jobs. */
-.selection-gate .gate__cap { background: var(--accent-wash); box-shadow: none; }
-.selection-chip__team { font-weight: var(--weight-medium); white-space: nowrap; }
-.selection-chip__nums { display: inline-flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; }
-/* Narrow: every segment is the same two lines, team over numbers, so the row reads evenly. */
-@container (max-width: 400px) {
-    .selection-gate .gate__opt { flex-direction: column; align-items: center; gap: 0; }
-}
-.selection-chip__side { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.selection-chip__price { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.selection-gate .gate__opt--on { color: var(--accent-ink); }
-.selection-chip--on .selection-chip__team, .selection-chip--on .selection-chip__side { font-weight: var(--weight-semibold); }
-.selection-chip--on .selection-chip__price { color: var(--accent-ink); }
-.selection-chip__price--none { font-size: var(--text-footnote); color: var(--text-tertiary); }
-/* The market's name explains itself on hover: the dotted rule is the desk's "there is help here". */
-.selection-group__label {
-    cursor: help;
-    text-decoration: underline dotted var(--text-tertiary);
-    text-underline-offset: 3px;
-}
-
-/* ---- The price row: the number, the line, the pencil that replaces the number, and the book
-   menu, in one run beside the label — nothing pinned to the far edge. What the number is
-   worth and where it came from is the group's footer. */
-.wager-offer { overflow: visible; }
-.wager-offer__top { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-.wager-offer__top > .wager-manual-key { color: var(--text-secondary); }
-.wager-offer__top > .wager-manual-key:hover { color: var(--text-primary); }
-.wager-offer__line { font-size: var(--text-title3); font-variant-numeric: tabular-nums; color: var(--text-secondary); }
-.wager-offer__meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
-.wager-offer__meta .wager-offer__age { margin-left: 0; }
-.wbet__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
-.wager-typed__cell { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-
-.book-picker { position: relative; margin-left: var(--space-2); }
-.book-picker__trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    height: 32px;
-    padding: 0 var(--space-2) 0 var(--space-3);
-    border: 0;
-    border-radius: var(--radius);
-    background: var(--surface-3);
-    box-shadow: inset 0 0 0 1px var(--separator);
-    color: var(--text-primary);
-    font: inherit;
-    cursor: pointer;
-    transition: box-shadow var(--dur-fast) var(--ease-standard);
-}
-.book-picker__trigger:hover { box-shadow: inset 0 0 0 1px var(--separator-strong); }
-.book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.book-picker__trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.book-picker__trigger svg { width: 16px; height: 16px; color: var(--text-secondary); }
-/* The menu is the shared popover panel, which stops at 360px; a book's row holds its name,
-   line, price and "Best price · Captured 3 min ago", and that needs the old picker's width
-   to stay on one line. */
-.book-picker .popover__panel { width: min(400px, 86vw); max-width: none; }
-
-/* ---- Stake and review inside the stepper. The stake's field and quick values run on one
-   line; the keys sit at the step's foot, trailing, 12px below the last row, the Filled key
-   rightmost and what it waits for beside it (wizards.md: Continue at the foot of the step);
-   a check's remedy follows its sentence. */
-.wsteps .wgroup { max-width: 560px; }
-.wsteps .stake-row, .wgroup__row--form .stake-row { flex-wrap: wrap; }
-.wsteps .stake-row__returns, .wgroup__row--form .stake-row__returns { margin-left: var(--space-2); flex-direction: row; align-items: baseline; gap: var(--space-2); }
-.wsteps .stake-row__returns-label, .wgroup__row--form .stake-row__returns-label { text-transform: none; letter-spacing: 0; font-size: var(--text-subheadline); font-weight: var(--weight-regular); }
-.wsteps .waction { border-top: 0; padding-top: 0; }
-.wsteps .waction__keys { justify-content: flex-end; flex-wrap: wrap; margin-top: var(--space-2); }
-.wsteps .wager-why { text-align: right; color: var(--text-secondary); }
-/* The slip's count on a Plain key is a neutral capsule: the accent is the Filled key's. */
-.waction__keys .desk-btn--plain .slip-badge { background: var(--surface-3); color: var(--text-secondary); }
-.wsteps .check .desk-btn { margin-left: var(--space-2); }
-/* The review sentence is the checks' footer, not a box of its own. */
-.wreview {
-    margin: 0;
-    padding: 0 var(--space-4);
-    font-size: var(--text-body);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.wreview strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
-/* Inside a form row the stake's field, quick values and returns run on one line. */
-.wsteps .wstake .stake-row { gap: var(--space-2); }
-.wsteps .wstake .stake-row .field-set { margin: 0; }
-/* The stake's chosen cap on a form row: the same control as the sides, one level down. */
-.wsteps .selection-gate .gate__opt:focus-visible { z-index: 2; }
-.journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
-/* The Journal's foot: what the window is, under everything it holds, a section's air below
-   the last list and at a reading width. */
-.journal-foot { margin-top: var(--space-6); max-width: 80ch; }
-
-/* The badge rides inside a key, whose --btn-gap already spaces it from the label; a margin of
-   its own doubled that to 10px. */
-.slip-badge {
-    display: inline-block;
-    min-width: 18px;
-    padding: 0 5px;
-    border-radius: 9px;
-    background: var(--accent-wash);
-    color: var(--accent-ink);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    line-height: 18px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
-/* ---- The slip: one grouped list, a row per wager. A row that cannot be logged dims its
-   words to the tertiary label (the HIG's "unavailable item"); its tag carries the state. */
-.slip-card { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); align-items: stretch; }
-.slip-card--blocked .slip-card__sel { color: var(--text-secondary); }
-.slip-card--blocked .slip-card__meta { color: var(--text-tertiary); }
-.slip-card__top { display: flex; align-items: flex-start; gap: var(--space-3); }
-.slip-card__top > div:first-child { flex: 1; min-width: 0; }
-.slip-card__sel { font-size: var(--text-headline); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
-.slip-card__meta { font-size: var(--text-footnote); color: var(--text-secondary); }
-.slip-card__stake { max-width: 96px; text-align: right; }
-.slip-card__state { display: flex; align-items: flex-start; gap: var(--space-2); font-size: var(--text-subheadline); color: var(--text-primary); }
-.slip-card__state .tag { flex: none; }
-.slip-card__remedy { font-size: var(--text-footnote); color: var(--text-secondary); }
-/* The stake field holds a number the slip refused: the one line here in a state colour,
-   because it is about the value typed, not the card. */
-.slip-card__zero { color: var(--state-warning-ink); }
-.slip-cards { display: block; }
-
-.slip-parlay__price {
-    font-size: var(--text-title2);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-tight);
-    font-variant-numeric: tabular-nums;
-}
-.slip-parlay__note { font-size: var(--text-footnote); color: var(--text-secondary); }
-
-/* The parlay's legs, one row each above Combined: the selection leading, its price and the
-   decimal multiplier it brings trailing in tabular figures, so the column reads down into the
-   product. The multiplier is secondary: the price is what the book printed. */
-.slip-leg { gap: var(--space-3); padding: var(--space-1) var(--space-4); min-height: 32px; }
-.slip-leg__sel { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slip-leg__price { flex: 0 0 auto; font-weight: var(--weight-semibold); }
-.slip-leg__x { flex: 0 0 auto; min-width: 5ch; text-align: right; color: var(--text-secondary); font-size: var(--text-subheadline); }
-.slip-parlay__combined { display: flex; align-items: baseline; gap: var(--space-3); }
-
-/* A card on a game that has started asks for the price that was taken: a label, the field
-   (starting from the closing number) and the key that takes it, on one line under the card's
-   sentence. */
-.slip-card__take { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.slip-card__take-label { font-size: var(--text-subheadline); color: var(--text-secondary); }
-.slip-card__price { width: 96px; }
-.slip-report .desk-btn { margin-left: var(--space-2); }
-.slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
-
-/* Not selectable: Shift-click banks a price as a parlay leg, and on selectable text the same
-   gesture extends the page's selection across every row between two clicks. */
-.price--take { cursor: pointer; user-select: none; }
-.price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent-ink); }
-.price--take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.take { all: unset; cursor: pointer; user-select: none; }
-.take:hover span { color: var(--accent-ink); }
-.take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-/* ---- The wizard at every width -------------------------------------------------------------
-   A group carries its hairline where .wgroup is defined (the house rule on groups, above).
-   Inside the wizard's card there is no group: the card is the group (wizards.md, reconciling
-   rules 1, 6 and 8, and "never a stroked group inside the steps card"). A step's rows sit bare
-   in the card at the title's edge, divided by the card's quiet hairline, and its footer and
-   review sentence align to the same edge. Notes that do not block logging lose their box. */
-.wcard .wgroup { background: none; border: 0; border-radius: 0; }
-.wcard .wgroup__row--form { padding: 6px 0; min-height: 36px; }
-.wcard .wgroup__row + .wgroup__row::before { left: 0; border-top-color: var(--wsep); }
-.wcard .wgroup__foot, .wcard .wreview { padding: 0; }
-.wcard .note:not(.note--warn) { padding: 0; background: none; }
-.wsteps .wgroup { max-width: none; }
-
-/* The segmented control as macOS draws it (wizards.md, the bet-and-price recipe, rule 2): a
-   recessed track and a raised neutral thumb, both rounded rectangles on the control radius, the
-   thumb 2px inside the track so the two curves are concentric. The pill track this replaces
-   never applied — .marble-row.gate out-ranks .selection-gate — so a 999px accent pill sat in a
-   7px track, and a solid accent slab was the loudest thing in the window, louder than Log. The
-   chosen side reads by its raised thumb and its semibold words; the accent stays for focus, the
-   current step and the one Filled key. Compound selectors, so they out-rank the base recipe.
-   Rule 2's values: a 24px track filled at 8% with no outline (a control never carries its own
-   outline at rest), 12px text, the side in primary and its price in secondary, and the thumb a
-   neutral grey (#636366 on the dark card: 30% primary ink over the card's surface) at 6px. */
-.selection-gate.marble-row.gate {
-    max-width: none;
-    /* The bet group's three controls share the control column's width so their segments line
-       up (rule 2); every other segmented control in a form row is as wide as its segments. */
-    justify-self: stretch;
-    padding: 2px;
-    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
-    border-radius: var(--radius);
-    box-shadow: none;
-}
-.selection-gate .marble.gate__cap {
-    top: 2px;
-    bottom: 2px;
-    left: 2px;
-    width: calc((100% - 4px) / var(--n));
-    border-radius: calc(var(--radius) - 1px);
-    background: color-mix(in srgb, var(--text-primary) 30%, var(--surface-2));
-    box-shadow: var(--shadow-1);
-}
-.selection-gate .gate__opt {
-    min-height: 20px;
-    padding: 2px var(--space-2);
-    border-radius: calc(var(--radius) - 1px);
-    font-size: var(--text-subheadline);
-    line-height: 16px;
-}
-.selection-gate .gate__opt--on { color: var(--text-primary); }
-.selection-gate .gate__opt--on .selection-chip__price { color: var(--text-secondary); }
-.selection-gate .gate__opt--on .selection-chip__price--none { color: var(--text-tertiary); }
-
-/* The price row closes the group and echoes the choice (recipe rule 3): the stronger
-   full-width hairline above it and a faint fill on the row alone, not a 3px accent bar down its
-   leading edge. The side leads in the label's place ("Spread · Broncos", semibold, one line);
-   the line, the price, the pencil and the book trail to the edge the segment tracks end at.
-   The rows above sit inside SelectionChips' display:contents wrapper, so the row-to-row
-   hairline (.wgroup__row + .wgroup__row) never reached this row: it draws its own. */
-.wbet > .wbet__price { min-height: 44px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
-.wbet > .wbet__price:not(:first-child)::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    border-top: 1px solid var(--separator-strong);
-}
-.wbet > .wbet__price--empty { background: none; }
-/* The book menu opens from this row, the group's last: a group that clips (.wgroup's
-   overflow: hidden) cut the menu off at the group's bottom edge, so it opened invisible. The
-   bet group lets it out, and rounds its last row's fill to the group's corners itself. The menu
-   itself is a DeskPopover, which positions itself against its trigger. */
-.wbet { overflow: visible; }
-.wbet > .wbet__price:last-child { border-radius: 0 0 calc(var(--radius-panel) - 1px) calc(var(--radius-panel) - 1px); }
-/* Rule 3's echo: the side and its line at 13px semibold over the market and matchup at 11px
-   secondary; it cross-fades in over 150ms when the choice changes (rule 4; keyed in Razor so a
-   new side is a new element). The price trails at title 2, then the pop-up, then the pencil. */
-.wbet__echo-pair { display: flex; flex-direction: column; min-width: 0; animation: wbet-echo-in var(--dur-fast) var(--ease-standard); }
-.wbet__side { font-size: var(--text-headline); font-weight: var(--weight-semibold); line-height: var(--leading-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wbet__detail { margin-top: 2px; font-size: var(--text-footnote); line-height: var(--leading-tight); color: var(--text-secondary); }
-@keyframes wbet-echo-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) {
-    .wbet__echo-pair { animation: none; }
-}
-@container (min-width: 401px) {
-    .wbet__price.wager-offer { grid-template-columns: minmax(0, 1fr) auto; }
-}
-.wbet__price .wager-offer__top { gap: var(--space-2); justify-content: flex-end; }
-.wbet__price .book-picker { margin-left: 0; }
-/* In the card the price row's faint fill reaches 12px past the rows' edge, so the echo and the
-   price keep their alignment with the rows above while the fill still reads as a row. */
-.wcard .wbet > .wbet__price { padding: 6px var(--space-3); margin: 0 calc(-1 * var(--space-3)); }
-.wcard .wbet > .wbet__price:last-child { border-radius: 0 0 var(--radius) var(--radius); }
-
-/* The book is a pop-up button, as macOS draws one (recipe rule 5): 22px, 6px corners, a 10%
-   fill with no stroke at rest, 12px text with the current book as its label, padding 0 6px 0
-   9px, and an up/down chevron in secondary at its end. It was an outlined pill holding a
-   filled capitals tag, which read as a chip to dismiss rather than a menu to open. "Best" is a
-   word in the positive colour, not a second badge. Disabled until a side is chosen. */
-.book-picker__trigger {
-    height: 22px;
-    gap: var(--space-1);
-    padding: 0 6px 0 9px;
-    border-radius: calc(var(--radius) - 1px);
-    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
-    box-shadow: none;
-}
-.book-picker__trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
-.book-picker__trigger:disabled { color: var(--text-tertiary); cursor: default; background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
-.book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.book-picker__trigger:focus-visible { box-shadow: var(--focus-ring); }
-.book-picker__trigger .wager-offer__book { font-size: var(--text-subheadline); font-weight: var(--weight-medium); }
-.book-picker__trigger svg { width: 12px; height: 12px; }
-.book-picker__trigger .tag {
-    padding: 0;
-    background: none;
-    box-shadow: none;
-    color: var(--state-positive-ink);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-medium);
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-/* Widths. The window body is a container; the wizard reads it, not the viewport. One column at
-   every width, the cards at 760px, the stepper drawn the same in a side window and maximised.
-   From 1000px it used to split in two, the review lifted out as a card of its own beside the
-   form, and that card dropped its marker and its piece of the rail: maximising the window took
-   the sequence apart, three numbered steps becoming two steps and a box. A wide window now
-   keeps the stepper whole and the rest of the body plain, as a centred assistant does. */
-
-.wtabs + .tabs__panel { container-type: inline-size; }
-/* The price row names the side it prices, under its label, so the row reads as that side's. */
-.wbet__echo { display: block; margin-top: 2px; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); white-space: normal; }
-.wbet__echo:empty { display: none; }
-
-/* ---- The wizard in a narrow window (beside two others, ~300-480px). The card's padding and
-   the rail's gutter took a third of the width, and the stake's quick values and its returns
-   broke wherever they ran out of room. Narrow, the card tightens, the rail's gutter halves, and
-   the returns take a line of their own under the amount, so every row breaks in one place. */
-@container (max-width: 480px) {
-    .whead { padding: var(--space-3); }
-    .wstep { padding-right: var(--space-3); }
-    .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
-    .wcard .wgroup__row--form { padding-left: 0; padding-right: 0; }
-    .wstep__hint { font-size: var(--text-footnote); }
-    .wgroup__row--form .stake-row { row-gap: var(--space-1); }
-    .wgroup__row--form .stake-row__returns { flex-basis: 100%; margin-left: 0; }
-    .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
-    .wcard .wgroup__foot { padding: 0; }
-    /* Stacked (wizards.md, layout a): the keys full width, the Filled key on top with what it
-       waits for directly under it, its Plain companions below. */
-    .wcard .waction__keys { flex-direction: column; align-items: stretch; }
-    .wcard .waction__keys > .desk-btn--filled { order: -2; }
-    .wcard .waction__keys > .wager-why { order: -1; text-align: center; }
-}
-/* In the narrowest groups (a window beside two others) a segment's numbers wrap onto their own
-   lines rather than running into the next segment: "-3 -109" beside "+3 -103" collided at ~65px. */
-@container (max-width: 300px) {
-    .selection-chip__nums { flex-wrap: wrap; justify-content: center; white-space: normal; column-gap: var(--space-1); }
-    .selection-gate .gate__opt { padding-left: var(--space-1); padding-right: var(--space-1); }
-}
-
-/* ---- The status note (reconciling rule 7): under the steps card, outside it, 8px below,
-   aligned to the card's content edge (the 40px marker column); a 13px symbol and a 12px
-   sentence. A warning takes the orange symbol and primary ink. No box: the review's red check
-   already marks the price, and this says what to do about it. */
-.wstatus {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    max-width: var(--wizard-max, 760px);
-    margin: var(--space-2) 0 0;
-    padding: 0 var(--space-4) 0 40px;
-    font-size: var(--text-subheadline);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.wstatus__mark { flex: none; display: inline-flex; margin-top: 2px; }
-.wstatus__mark svg { width: 13px; height: 13px; }
-.wstatus--warning .wstatus__mark { color: var(--state-warning-ink); }
-.wstatus--warning .wstatus__text { color: var(--text-primary); }
-
-/* ---- The stake field is a number without the browser's spinner: the quick keys beside it are
-   its steps (Task 13). The same for the typed price and line in the wager window. The chosen
-   quick key is Plain with a neutral pressed fill, not the accent tint. */
-.stake-row input[type="number"],
-.wcard input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
-.stake-row input[type="number"]::-webkit-inner-spin-button,
-.stake-row input[type="number"]::-webkit-outer-spin-button,
-.wcard input[type="number"]::-webkit-inner-spin-button,
-.wcard input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
-.stake-row__field { max-width: 130px; }
-/* The quick values stand beside a 28px field, so they are 28px too: a Small key's 24px is
-   for a 29px grid row, and here it left the keys sitting short of the field they set. */
-.stake-row .desk-btn--sm { height: 28px; }
-.stake-row .desk-btn--plain[aria-pressed="true"] { --btn-fill: var(--surface-3); --btn-ink: var(--text-primary); }
-.wstake__win { font-variant-numeric: tabular-nums; }
-
-/* ---- The operations windows: Ops, Incidents, Runs, History ----------------------------------
-   They report more than they ask, so most of what they draw is grids. What they do ask — the
-   scanning mode, the drill's faults, a timeline note, the backfill's keys — is a grouped form on
-   the wager window's .wgroup rows, capped at a form's width rather than run across a maximised
-   window. Their prose is a footer in the secondary colour at a reading width (apple-hig-
-   components, forms.md rules 5 and 8), not a filled note above the content or a body-size
-   paragraph 180 characters long. A success is said in words in the secondary colour; only a
-   state worth looking for wears a tag, so a column of them is not a wall of green. */
-
-/* A group here is a settings group: as wide as its rows need, never the window's width. */
-.opsgroup { max-width: 640px; --form-label: 112px; }
-/* Source names lead the drill's rows and History's sources ("ESPN (unofficial)"). */
-.opsgroup--wide { --form-label: 168px; }
-/* The incident timeline and RCA read-back: the stamp or the field's name is the label, and a
-   note may run to several lines, so a row aligns on its first line rather than its middle. */
-.opsgroup--log { max-width: 760px; --form-label: 152px; }
-.opsgroup--log .wgroup__row--form { align-items: baseline; }
-.opsstamp { color: var(--text-secondary); font-size: var(--text-subheadline); font-variant-numeric: tabular-nums; }
-/* A group after a grid or a footnote stands apart by space, never a rule. */
-.opsgroup:not(:first-child) { margin-top: var(--space-4); }
-/* A section that follows a grid or a metric row in the same body takes the same air a second
-   group did: the group inside it is the section's first child now, not the body's. */
-.psection__body > * + .wsection { margin-top: var(--space-4); }
-
-/* A row's control column: a key, a select, a tag and a sentence side by side, wrapping as one
-   rather than squeezing. A select is sized to its words, as it is in a toolbar. */
-.opsrow { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
-.opsrow > select.field { width: auto; max-width: 100%; }
-.opsrow__text { min-width: 0; overflow-wrap: anywhere; }
-.opsrow__fill { flex: 1 1 180px; min-width: 0; }
-
-/* A footnote: under a grid, under a row of tiles, or — inset to the rows' text by
-   .wgroup__foot — under a group. */
-.opsfoot {
-    max-width: 80ch;
-    margin: var(--space-2) 0 0;
-    font-size: var(--text-subheadline);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.opsfoot + .opsfoot { margin-top: var(--space-1); }
-.opsfoot strong { color: var(--text-primary); font-weight: var(--weight-semibold); }
-/* Under tiles it is theirs: the air the tiles keep beneath them is halved for it. */
-.metrics + .opsfoot { margin-top: calc(-1 * var(--space-2)); }
-
-/* A key that leads, with what it does beside it: Evaluate now under the tiles it recomputes,
-   the drill's key under its group. */
-.opsact { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-.opsact__why { max-width: 80ch; font-size: var(--text-subheadline); color: var(--text-secondary); }
-.metrics + .opsact { margin-top: calc(-1 * var(--space-1)); }
-.opsfoot + .opsact, .opsgroup + .opsact, .wsection + .opsact { margin-top: var(--space-4); }
-
-/* The question a setting asks before it spends, as a row of its group: the sentence, then its
-   keys, starting at the labels' edge. */
-.opsconfirm { flex-wrap: wrap; row-gap: var(--space-2); padding: var(--space-2) var(--space-4); }
-.opsconfirm__ask { flex: 1 1 240px; min-width: 0; }
-
-/* A section whose whole content is one sentence: "No open alerts." */
-.opsnone { margin: 0; color: var(--text-secondary); }
-
-/* A warning note after a group or its footer keeps the air a group would. */
-.opsgroup ~ .opsnote, .opsfoot + .opsnote { margin-top: var(--space-3); }
-
-/* The RCA is a form's width, so its keys sit under the fields they commit. */
-.opsrca { max-width: 720px; }
-
-
-/* ---- The Game window's lines --------------------------------------------------------------
-   One grouped row per market, the market's name leading as a form label, its two sides
-   trailing in two even columns: each the price a person can take and, beneath it, the book
-   that has it, by name. It was three inline clusters of tiny prices with unexplained book
-   codes (PN, DK, MG) crammed into the left third of the window. */
-.gamelines { max-width: 560px; --form-label: 96px; }
-.gamelines__sides {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--space-4);
-}
-.gamelines__cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-/* A live price in the Game window is a door to the wager window, as on the Board. */
-.gamelines__cell--take { cursor: pointer; border-radius: var(--radius-sm); margin: -2px -4px; padding: 2px 4px; }
-.gamelines__cell--take:hover { background: var(--surface-3); }
-.gamelines__cell--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.gamelines__price {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0 var(--space-1);
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-}
-.gamelines__side { font-weight: var(--weight-semibold); }
-.gamelines__book {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--text-footnote);
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
 }

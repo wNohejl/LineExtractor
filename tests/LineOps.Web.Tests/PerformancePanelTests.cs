@@ -95,7 +95,7 @@ public class PerformancePanelTests : DeskTestContext
         Assert.Contains("Class=\"perf-chart\"", source);
         Assert.Contains("Takeaway=\"@_takeaway\"", source);
 
-        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "wwwroot", "css", "lineops.css"));
         Assert.Contains(".perf-chart .mud-chart svg.mud-chart-line { display: block; width: 100%; height: auto; margin: 0; }", css);
         Assert.Contains(".perf-chart .mud-chart text { font-size: var(--text-footnote); fill: var(--text-secondary); }", css);
     }

@@ -7,7 +7,7 @@ namespace LineOps.Desk.Primitives;
 /// The mechanics every field shares, so the three call-site components stay thin.
 ///
 /// A field is the key's inverse — cut into the panel, unlit, not pressable (ADR 0008).
-/// The look is entirely <c>.field</c> in lineops.css and this class does not touch it;
+/// The look is entirely <c>.field</c> in desk.css and this class does not touch it;
 /// what it adds is the part the hand-authored markup never had: a real label bound to
 /// the control by id, a required mark, and a place for an error to sit next to the
 /// field rather than somewhere else on the panel.

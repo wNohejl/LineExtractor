@@ -17,10 +17,10 @@
 // Measuring the target rather than stepping by a fixed column is what lets the
 // toolbar hold tabs of different widths: a window called "Ops" has no business
 // being as wide as one called "Boston Red Sox at Miami Marlins". The CSS-variable
-// marble in lineops.css still drives the gate and the section tabs, where the
+// marble in desk.css still drives the gate and the section tabs, where the
 // positions genuinely are equal and no measuring is needed.
 //
-// Styling lives in lineops.css under "The glide".
+// Styling lives in desk.css under "The glide".
 
 (function () {
     'use strict';

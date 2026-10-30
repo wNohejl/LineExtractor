@@ -103,7 +103,7 @@ export function reportViewport() {
 
 // ------------------------------------------------------------------ scale (apply) ----
 
-// The Window manager's two scales, set where the stylesheet reads them (lineops.css, "Scale").
+// The Window manager's two scales, set where the stylesheet reads them (desk.css, "Scale").
 // The desk's width in layout pixels changes with the UI scale, so the viewport is reported again
 // straight away rather than waiting for a resize that is not coming. Anything else that measured
 // the page — desk-glide.js's marble — hears desk:rescaled, since no DOM changed for it to see.

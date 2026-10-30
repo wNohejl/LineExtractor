@@ -8,7 +8,7 @@ namespace LineOps.Desk.Theming;
 ///
 /// <para>
 /// There are two audiences for these values and they need different things.
-/// <c>wwwroot/css/lineops.css</c> owns the desk's own components and is the file a
+/// <c>wwwroot/css/desk.css</c> owns the desk's own components and is the file a
 /// designer reads. MudBlazor needs the same colours in C#, because it derives values
 /// CSS cannot: every palette entry becomes <c>--mud-palette-x</c> plus <c>-rgb</c>,
 /// <c>-darken</c>, <c>-lighten</c> and <c>-hover</c>, and its own stylesheet reaches
@@ -18,7 +18,7 @@ namespace LineOps.Desk.Theming;
 ///
 /// <para>
 /// So the constants below are the pairing seam, and they must match the <c>:root</c>
-/// block in lineops.css exactly. They are the Standard family; the other families' values
+/// block in desk.css exactly. They are the Standard family; the other families' values
 /// sit in <see cref="DeskPalettes"/> against their blocks in <c>themes.css</c>, and every
 /// family reaches MudBlazor through <see cref="For"/>. Everything that is <i>not</i> a colour — radii, type,
 /// elevation, z-index — is remapped in <c>wwwroot/css/mud-bridge.css</c> instead,
@@ -69,7 +69,7 @@ public static class DeskTheme
     // ---- The light desk -----------------------------------------------------
     //
     // The same roles against a pale ground, mirroring the [data-theme="apple-light"] block
-    // in lineops.css value for value. They are constants on the same class rather
+    // in desk.css value for value. They are constants on the same class rather
     // than a second class because the pairing is per-token, not per-theme: what has
     // to be kept honest is that LightSurface1 and --surface-1 agree, and a reader
     // checking that should not have to open a third file to do it.
@@ -156,7 +156,7 @@ public static class DeskTheme
     // Type and radii used to be mirrored here as C# constants. They are not any more, and
     // deliberately so: nothing outside a colour needs to cross into C#, because MudBlazor
     // derives nothing from a font size or a radius the way it derives -hover and -darken
-    // from a palette colour. Type and radius live once, in lineops.css, and reach Mud
+    // from a palette colour. Type and radius live once, in desk.css, and reach Mud
     // through mud-bridge.css. A second copy here only ever drifts — the copy this comment
     // replaces had gone stale in nine values and was read by nothing.
 
@@ -208,7 +208,7 @@ public static class DeskTheme
             // mud-bridge.css next to the rest of the type, so there is one file to read
             // when the type scale changes rather than two that can disagree.
             //
-            // This mirrors --face-ui in lineops.css, and it is not decoration: the bridge
+            // This mirrors --face-ui in desk.css, and it is not decoration: the bridge
             // re-points --mud-typography-*-family at --face-ui for every role it knows
             // about, but a role it misses falls through to whatever is named here. That
             // used to be Archivo, which no longer loads, so the fallback was silently

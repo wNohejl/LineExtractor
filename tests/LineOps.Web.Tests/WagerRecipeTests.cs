@@ -112,7 +112,7 @@ public class WagerRecipeTests : WagerTestContext
         Assert.All(quick, k => Assert.Contains("desk-btn--plain", k.ClassName));
         Assert.Equal("true", quick.Single(k => k.TextContent.Trim() == 50m.ToString("C0")).GetAttribute("aria-pressed"));
 
-        var css = Source("src", "LineOps.Desk", "wwwroot", "css", "lineops.css");
+        var css = Source("src", "LineOps.Web", "wwwroot", "css", "lineops.css");
         Assert.Contains("::-webkit-inner-spin-button", css);
         Assert.Matches(@"(?s)\.stake-row input\[type=""number""\][^{]*\{[^}]*appearance: textfield", css);
     }
@@ -188,7 +188,7 @@ public class WagerRecipeTests : WagerTestContext
     [Fact]
     public void The_stepper_is_one_column_at_every_width_and_each_step_name_is_a_capsule()
     {
-        var css = Source("src", "LineOps.Desk", "wwwroot", "css", "lineops.css");
+        var css = Source("src", "LineOps.Web", "wwwroot", "css", "lineops.css");
 
         Assert.DoesNotContain("@container (min-width: 1000px)", css);
         Assert.DoesNotContain(".wstep--review > .wstep__dot { display: none", css);

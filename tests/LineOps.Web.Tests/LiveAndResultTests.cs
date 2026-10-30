@@ -10,12 +10,12 @@ namespace LineOps.Web.Tests;
 /// Three small pieces of expression (Task 14): a live game's tag carries a pulsing dot, a
 /// result reads as one capsule wherever it is drawn, and a snippet arrives rather than appears.
 /// The motion itself is CSS, so the rules that hold it — including the reduced-motion ones —
-/// are pinned against lineops.css.
+/// are pinned against desk.css.
 /// </summary>
 public class LiveAndResultTests : DeskTestContext
 {
     private static readonly string Css =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/lineops.css"));
+        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/desk.css"));
 
     // ---- Live ----------------------------------------------------------------------------
 
@@ -172,7 +172,7 @@ public class LiveAndResultTests : DeskTestContext
     private static string Block(string css, string opener)
     {
         var m = Regex.Match(css, opener);
-        Assert.True(m.Success, $"no block matching {opener} in lineops.css");
+        Assert.True(m.Success, $"no block matching {opener} in desk.css");
 
         var depth = 1;
         var i = m.Index + m.Length;
@@ -233,7 +233,7 @@ public class WagerLiveTagTests : LineOps.Web.Tests.Support.WagerTestContext
 /// </summary>
 public class BoardMatchupCellTests
 {
-    private static readonly string Css = File.ReadAllText(Path.Combine(Root(), "src/LineOps.Desk/wwwroot/css/lineops.css"));
+    private static readonly string Css = File.ReadAllText(Path.Combine(Root(), "src/LineOps.Web/wwwroot/css/lineops.css"));
     private static readonly string Razor = File.ReadAllText(Path.Combine(Root(), "src/LineOps.Web/Components/Panels/BoardPanel.razor"));
 
     [Fact]

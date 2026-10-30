@@ -17,9 +17,9 @@ namespace LineOps.Web.Tests;
 public class DeskThemeTests
 {
     private static readonly string Css =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/lineops.css"));
+        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/desk.css"));
 
-    /// <summary>The other families' blocks, loaded after lineops.css. See the "Every desk" section below.</summary>
+    /// <summary>The other families' blocks, loaded after desk.css. See the "Every desk" section below.</summary>
     private static readonly string ThemesCss =
         File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/themes.css"));
 
@@ -444,7 +444,7 @@ public class DeskThemeTests
     }
 
     /// <summary>
-    /// The block for one desk, found where it lives: Standard's in lineops.css, the rest in
+    /// The block for one desk, found where it lives: Standard's in desk.css, the rest in
     /// themes.css. Found by the attribute ThemeService will stamp, so a block whose selector
     /// has drifted from <see cref="DeskThemeFamilies.Attribute"/> is a block this cannot find,
     /// and the desk it belonged to would have painted with no tokens at all.
@@ -673,7 +673,7 @@ public class DeskThemeTests
     {
         var match = Regex.Match(block, Regex.Escape(token) + @"\s*:\s*([^;]+);");
 
-        Assert.True(match.Success, $"{token} is not declared in {where} of lineops.css");
+        Assert.True(match.Success, $"{token} is not declared in {where} of desk.css");
 
         return match.Groups[1].Value.Trim();
     }
@@ -693,7 +693,7 @@ public class DeskThemeTests
     {
         var match = Regex.Match(css, selectorPattern + @"\s*\{([^}]*)\}");
 
-        Assert.True(match.Success, $"no token block matched {selectorPattern} in lineops.css");
+        Assert.True(match.Success, $"no token block matched {selectorPattern} in desk.css");
 
         var body = Regex.Replace(match.Groups[1].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 

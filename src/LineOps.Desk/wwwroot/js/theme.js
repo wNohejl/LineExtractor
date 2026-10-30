@@ -85,7 +85,7 @@ export function prefersReducedTransparency() {
 }
 
 // The whole switch, in one attribute: "<family>-<dark|light>", which names exactly one
-// token block in lineops.css or themes.css. Every block weighs (0,1,0) and each is written
+// token block in desk.css or themes.css. Every block weighs (0,1,0) and each is written
 // after :root, so stamping any of them hands the entire desk over; "apple-dark" is set
 // explicitly rather than by removing the attribute so that what is showing is always
 // readable in the DOM inspector.

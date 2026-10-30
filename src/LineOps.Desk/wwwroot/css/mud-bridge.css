@@ -460,15 +460,6 @@
     outline-offset: -2px;
 }
 
-/* The row the operator opened for its actions stays lit — an accent wash on the row, the
-   same treatment "selected" uses anywhere on the desk, never a border or a left-edge bar
-   (that was the retired dial's habit). Specificity has to clear the plain hover rule above
-   so an open row does not go dark the moment the pointer leaves it. */
-.deskgrid--clickable .mud-table-row.board__row--open > .mud-table-cell {
-    background: var(--accent-wash);
-    color: var(--text-primary);
-}
-
 /* Dialogs sit above the desk, so they take the window's own shell rather than a
    Material card's. */
 .mud-dialog {

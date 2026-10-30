@@ -58,7 +58,7 @@ public static class DeskThemeFamilies
 
     /// <summary>
     /// The first half of the <c>[data-theme]</c> value. Standard is <c>apple</c> because that is
-    /// what its blocks were already called in lineops.css, and renaming the default desk to
+    /// what its blocks were already called in desk.css, and renaming the default desk to
     /// satisfy a picker label would have been churn in the one file every component reads.
     /// </summary>
     public static string Slug(DeskThemeFamily family) => family switch

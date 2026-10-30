@@ -12,7 +12,7 @@ namespace LineOps.Web.Tests;
 /// seen as a dot or a wash, and as text on white they measure 2.2 to 3.6:1 — so every desk
 /// carries a second, darker (or on a dark desk, lighter) <c>-ink</c> for the same state, and
 /// text reads that. The accent is the same story. These tests parse every
-/// <c>[data-theme="…"]</c> block in lineops.css and themes.css and hold each ink to WCAG's
+/// <c>[data-theme="…"]</c> block in desk.css and themes.css and hold each ink to WCAG's
 /// 4.5:1 over that block's own panel, so an eleventh desk is checked the day it is written.
 /// </para>
 ///
@@ -24,7 +24,7 @@ namespace LineOps.Web.Tests;
 /// </summary>
 public class ThemeContrastTests
 {
-    private static readonly string Css = Strip(Read("src/LineOps.Desk/wwwroot/css/lineops.css"));
+    private static readonly string Css = Strip(Read("src/LineOps.Desk/wwwroot/css/desk.css"));
     private static readonly string ThemesCss = Strip(Read("src/LineOps.Desk/wwwroot/css/themes.css"));
 
     private static readonly string[] StateInks = ["--state-positive-ink", "--state-warning-ink", "--state-negative-ink"];

@@ -142,7 +142,7 @@ public class DeskSparklineTests : DeskTestContext
         Assert.Null(cut.Find("circle").GetAttribute("fill"));
 
         var css = Regex.Replace(
-            File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/lineops.css")),
+            File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/desk.css")),
             @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 
         var line = Rule(css, ".sparkline__line");
@@ -157,7 +157,7 @@ public class DeskSparklineTests : DeskTestContext
     {
         var match = Regex.Match(css, Regex.Escape(selector) + @"\s*\{([^}]*)\}");
 
-        Assert.True(match.Success, $"no {selector} rule in lineops.css");
+        Assert.True(match.Success, $"no {selector} rule in desk.css");
         return match.Groups[1].Value;
     }
 

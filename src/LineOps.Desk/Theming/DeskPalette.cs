@@ -76,7 +76,7 @@ public sealed record DeskPalette
 
 /// <summary>
 /// Every palette the desk ships, one per token block. The blocks themselves are in
-/// <c>wwwroot/css/lineops.css</c> (Standard) and <c>wwwroot/css/themes.css</c> (the rest), and the
+/// <c>wwwroot/css/desk.css</c> (Standard) and <c>wwwroot/css/themes.css</c> (the rest), and the
 /// values here are copied from them, formatted identically, so a reader can diff the two by eye.
 /// </summary>
 public static class DeskPalettes

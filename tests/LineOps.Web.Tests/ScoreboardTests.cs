@@ -149,7 +149,7 @@ public class ScoreboardTests : DeskTestContext
         Assert.Equal(2, cut.FindAll(".scoreboard__name .desklink .desklink__shortcut").Count);
 
         var css = File.ReadAllText(Path.Combine(LineOps.Web.Tests.Support.Repo.Root(),
-            "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+            "src", "LineOps.Web", "wwwroot", "css", "lineops.css"));
         Assert.Matches(@"\.scoreboard \.desklink \{\s*position: relative;", css);
         Assert.Matches(@"(?s)\.scoreboard \.desklink__shortcut \{[^}]*position: absolute;[^}]*left: 100%;", css);
     }

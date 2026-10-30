@@ -6,7 +6,7 @@ namespace LineOps.Desk.Primitives;
 /// One ramp, named steps, no pixels at the call site. The gaps in the numbering are
 /// deliberate: between 16px and 24px there is a decision to make, between 16px and
 /// 20px there is only a preference, and a scale that offers both collects both.
-/// Mirrors <c>--space-1</c> … <c>--space-16</c> in lineops.css.
+/// Mirrors <c>--space-1</c> … <c>--space-16</c> in desk.css.
 /// </summary>
 public enum DeskSpace
 {

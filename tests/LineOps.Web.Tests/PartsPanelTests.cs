@@ -70,7 +70,7 @@ public class PartsPanelTests : DeskTestContext
     public void Every_type_style_shown_is_defined()
     {
         var cut = RenderComponent<PartsPanel>();
-        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
 
         var tokens = cut.FindAll(".parts-key")
             .Select(k => k.TextContent.Trim())

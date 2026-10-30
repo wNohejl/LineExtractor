@@ -321,7 +321,7 @@ public class WindowBarTests : DeskTestContext
         Assert.Equal(["Minimise Notes", "Maximise Notes", "Close Notes"], keys.Select(k => k.GetAttribute("aria-label")));
         Assert.All(keys, k => Assert.Null(k.GetAttribute("data-glide-tone")));
 
-        var css = File.ReadAllText(Path.Combine(Support.Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "lineops.css"));
+        var css = File.ReadAllText(Path.Combine(Support.Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
         Assert.DoesNotContain(".win__ctl::before", css);
         Assert.DoesNotMatch(@"\.win__ctl[\w-]*:hover[^{]*\{[^}]*state-negative", css);
         Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*color:\s*var\(--text-secondary\)", css);
