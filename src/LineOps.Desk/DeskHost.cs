@@ -82,6 +82,7 @@ public static class DeskServiceCollectionExtensions
         services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();
         services.AddScoped<IDeskAlerts, DeskAlerts>();
+        services.AddScoped<IDeskSheets, DeskSheets>();
         services.AddScoped<DeskPopovers>();
         // The palette lists every provider; the desk's own commands are one of them.
         services.AddScoped<IDeskSearch, DeskCommands>();

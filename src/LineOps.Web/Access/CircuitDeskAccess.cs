@@ -13,11 +13,23 @@ namespace LineOps.Web.Access;
 /// because signing in or out is a page load that starts a new one — and fails closed: a state
 /// not yet known, or one that throws, reads as a visitor.
 /// </para>
+///
+/// <para>
+/// It also tells the desk where this application's gate is (<see cref="AccessEndpoints"/>), so
+/// the Window manager — the Desk's, which knows no gate of its own — can link to sign-in and
+/// sign-out.
+/// </para>
 /// </summary>
 public sealed class CircuitDeskAccess(AuthenticationStateProvider authentication, IOptions<AccessOptions> options)
     : IDeskAccess
 {
     public bool CanOperate => options.Value.Mode == AccessMode.Open || SignedInAsOperator();
+
+    public bool IsGated => options.Value.Mode == AccessMode.Gated;
+
+    public string? SignInPath => AccessEndpoints.SignInPath;
+
+    public string? SignOutPath => AccessEndpoints.SignOutPath;
 
     private bool SignedInAsOperator()
     {

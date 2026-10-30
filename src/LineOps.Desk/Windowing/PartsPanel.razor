@@ -1,10 +1,9 @@
 @using LineOps.Desk.Primitives
 @using LineOps.Desk.Windowing
-@using LineOps.Data.CrossReference
-@inherits PanelBase
+@inject WindowManager Manager
 @inject DeskToasts Toasts
 @inject IDeskAlerts Alerts
-@inject IDialogService Dialogs
+@inject IDeskSheets Sheets
 
 @*
     The parts bin: every reusable control the desk owns, in one window you can open
@@ -19,11 +18,15 @@
     Everything below teaches the shipped system, whose four load-bearing rules are:
     weight replaces hue, state lives on values, materials float, and comparison is
     never modal.
+
+    It is the Desk's own window, so everything in it is the Desk's: its sample copy names no
+    application's records, and its sheet opens through IDeskSheets as any caller's would. An
+    application lists it in its catalogue, and a fresh project that wires the Desk can open it.
 *@
 
 @* One wrapper, for one reason: the prose below runs at a reading width (HIG, Typography: 45-75
    characters a line) while the parts it describes keep the window's width, since "does this
-   fit?" is answered at the width a panel has. See "The Parts window" in lineops.css. *@
+   fit?" is answered at the width a panel has. See "The Parts window" in the Desk's stylesheet. *@
 <div class="parts">
 
 <Note>
@@ -44,27 +47,27 @@
     </p>
 
     <PanelTitle>
-        <ChildContent>Mets at Braves</ChildContent>
+        <ChildContent>Quarterly review</ChildContent>
         <Tags>
-            <Tag State="DeskState.Positive">Final</Tag>
-            <Tag State="DeskState.Info">2026 season</Tag>
+            <Tag State="DeskState.Positive">Complete</Tag>
+            <Tag State="DeskState.Info">2026</Tag>
         </Tags>
-        <Detail>Sat Oct 24 · 7:10 PM ET · <span class="ptitle__em">Senga</span> v <span class="ptitle__em">Sale</span></Detail>
+        <Detail>Sat Oct 24 · 7:10 PM · <span class="ptitle__em">Ames</span> and <span class="ptitle__em">Ruiz</span></Detail>
         <Keys>
-            <DeskSwitch Options="_anatomySeasons" Label="Season" Mono="true" @bind-Value="_anatomySeason" />
+            <DeskSwitch Options="_anatomyYears" Label="Year" Mono="true" @bind-Value="_anatomyYear" />
         </Keys>
     </PanelTitle>
 
     <PanelToolbar Message="3 updated">
         <ChildContent>
-            @* The toolbar every list window draws: a fixed set of leagues is a segment, and a filter
+            @* The toolbar every list window draws: a fixed set of kinds is a segment, and a filter
                that searches is a search field that names its scope. *@
-            <DeskSwitch Options="_anatomySports" Label="Sport" Size="DeskKeySize.Small" @bind-Value="_anatomySport" />
-            <DeskSearch Placeholder="Search players" Label="Players" @bind-Value="_anatomySearch" />
+            <DeskSwitch Options="_anatomyKinds" Label="Kind" Size="DeskKeySize.Small" @bind-Value="_anatomyKind" />
+            <DeskSearch Placeholder="Search items" Label="Items" @bind-Value="_anatomySearch" />
         </ChildContent>
         <Actions>
             <DeskButton Icon="@Icons.Material.Filled.Refresh">Refresh</DeskButton>
-            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync">Sync stats</DeskButton>
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Sync">Sync now</DeskButton>
         </Actions>
     </PanelToolbar>
 
@@ -73,41 +76,41 @@
         <Metric Label="Rows today" Value="16,835" />
     </MetricRow>
 
-    <PanelSection Title="Recent games">
+    <PanelSection Title="Recent items">
         <Keys>
-            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted">Home</DeskButton>
-            <DeskButton Size="DeskKeySize.Small">Away</DeskButton>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted">Mine</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">Shared</DeskButton>
         </Keys>
         <Detail>
             <span class="mono">12-9</span>
-            <span>8-10 ATS</span>
-            <span class="psection__aside">14 of 21 with a closing line</span>
+            <span>8 overdue</span>
+            <span class="psection__aside">14 of 21 reviewed</span>
         </Detail>
         <ChildContent>
-            <EmptyState Kind="EmptyStateKind.Filtered">No games match this split.</EmptyState>
+            <EmptyState Kind="EmptyStateKind.Filtered">No items match this filter.</EmptyState>
         </ChildContent>
     </PanelSection>
 
     @* A form in a window is the grouped form (apple-hig-components, forms.md): pform--grouped
        draws no card of its own, because the group is the fill and a frame around it would be a
        box inside a box. Each row's label leads in one column and its control trails; a field's
-       width matches what goes in it. The Journal's edit form is this, row for row. *@
+       width matches what goes in it. Every edit form on the desk is this, row for row. *@
     <PanelForm Title="Edit entry" Class="pform--grouped">
-        <Detail>Steelers -3 · placed Oct 26</Detail>
+        <Detail>Item 42 · added Oct 26</Detail>
         <ChildContent>
             <div class="wgroup">
                 <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Book</span>
-                    <DeskSelect TValue="string" Class="wfield--short" aria-label="Book" @bind-Value="_anatomyBook">
-                        <option value="pinnacle">Pinnacle</option>
-                        <option value="draftkings">DraftKings</option>
-                        <option value="fanduel">FanDuel</option>
+                    <span class="wgroup__label">Owner</span>
+                    <DeskSelect TValue="string" Class="wfield--short" aria-label="Owner" @bind-Value="_anatomyOwner">
+                        <option value="ames">Ames</option>
+                        <option value="ruiz">Ruiz</option>
+                        <option value="chen">Chen</option>
                     </DeskSelect>
                 </div>
                 <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Price</span>
+                    <span class="wgroup__label">Amount</span>
                     <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
-                               aria-label="Price taken" placeholder="-110" @bind-Value="_anatomyPrice" />
+                               aria-label="Amount" placeholder="120" @bind-Value="_anatomyAmount" />
                 </div>
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Note</span>
@@ -218,13 +221,13 @@
 </p>
 
 <DeskRow Gap="DeskSpace.Space2">
-    <DeskField TValue="string" placeholder="Book" aria-label="Book" style="max-width:150px" @bind-Value="_text" />
-    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Price" aria-label="Price"
+    <DeskField TValue="string" placeholder="Name" aria-label="Name" style="max-width:150px" @bind-Value="_text" />
+    <DeskField TValue="decimal?" Mono="true" type="number" placeholder="Amount" aria-label="Amount"
                style="max-width:100px" @bind-Value="_number" />
-    <DeskSelect TValue="string" aria-label="Market" @bind-Value="_choice">
-        <option value="spread">Spread</option>
-        <option value="total">Total</option>
-        <option value="moneyline">Moneyline</option>
+    <DeskSelect TValue="string" aria-label="Stage" @bind-Value="_choice">
+        <option value="draft">Draft</option>
+        <option value="review">Review</option>
+        <option value="final">Final</option>
     </DeskSelect>
     <DeskField TValue="string" placeholder="Disabled" aria-label="Disabled field" disabled style="max-width:120px" />
 </DeskRow>
@@ -234,20 +237,20 @@
     once there is text in the box, the required mark, and — the rule that matters — the error
     sitting under the control it is about rather than somewhere else on the panel. State lives
     on the value. <span class="mono">Mono</span> puts tabular figures under a number, so a
-    column of prices lines up on the digit rather than on the glyph.
+    column of amounts lines up on the digit rather than on the glyph.
 </p>
 
 <DeskStack Gap="DeskSpace.Space2">
 <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Start">
-    <DeskField TValue="string" Label="Book" Required="true" placeholder="Pinnacle"
+    <DeskField TValue="string" Label="Name" Required="true" placeholder="Ames"
                style="max-width:150px" @bind-Value="_text" />
-    <DeskField TValue="decimal?" Label="Price" Mono="true" type="number" placeholder="-110"
+    <DeskField TValue="decimal?" Label="Amount" Mono="true" type="number" placeholder="120"
                style="max-width:100px" @bind-Value="_number"
-               Error="@(_number is null ? "A price is required to grade this." : null)" />
-    <DeskSelect TValue="string" Label="Market" style="max-width:150px" @bind-Value="_choice">
-        <option value="spread">Spread</option>
-        <option value="total">Total</option>
-        <option value="moneyline">Moneyline</option>
+               Error="@(_number is null ? "An amount is required to file this." : null)" />
+    <DeskSelect TValue="string" Label="Stage" style="max-width:150px" @bind-Value="_choice">
+        <option value="draft">Draft</option>
+        <option value="review">Review</option>
+        <option value="final">Final</option>
     </DeskSelect>
 </DeskRow>
 
@@ -264,14 +267,14 @@
 
 <PanelSection Title="Gate">
 <p class="empty">
-    One visible choice among a few — a market, a lookback, a mode. The cap slides to the
+    One visible choice among a few — a view, a lookback, a mode. The cap slides to the
     position you press, and arrows move it from the keyboard. Two to five fixed positions;
     past that, a select is the honest control, because a segmented gate that scrolls is a
     select wearing a costume.
 </p>
 
 <DeskRow Gap="DeskSpace.Space3">
-    <DeskSwitch Options="_gateMarkets" Label="Demo market" @bind-Value="_gateMarket" />
+    <DeskSwitch Options="_gateViews" Label="Demo view" @bind-Value="_gateView" />
     <DeskSwitch Options="GateOptions.LookbackDays" Label="Demo lookback" Mono="true"
                 @bind-Value="_gateDays" />
 </DeskRow>
@@ -288,21 +291,21 @@
     <span class="mono">DeskSteps</span> is a vertical stepper for a form that is a sequence. Only
     the step to do is open, with a sentence of guidance; a done step folds to its title and what
     was chosen, which is the link that reopens it; a waiting step is one line saying what it waits for.
-    The Place wager window is built on it.
+    Reach for it wherever a form has to be done in order.
 </p>
 
 <DeskSteps Label="Example">
-    <DeskStep Number="1" Title="Your bet" State="DeskStepState.Done" OnOpen="() => { }">
-        <Summary>Spread · Steelers -3</Summary>
+    <DeskStep Number="1" Title="Your item" State="DeskStepState.Done" OnOpen="() => { }">
+        <Summary>Report · North region</Summary>
     </DeskStep>
-    <DeskStep Number="2" Title="Price and book" State="DeskStepState.Current"
-              Hint="The best price on your bet, and the book quoting it.">
+    <DeskStep Number="2" Title="Where it goes" State="DeskStepState.Current"
+              Hint="The folder your item is filed in, and who reviews it there.">
         <DeskRow Gap="DeskSpace.Space2">
-            <DeskButton Size="DeskKeySize.Small">-109 at Pinnacle</DeskButton>
-            <DeskButton Size="DeskKeySize.Small">-112 at BetMGM</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">Archive · Ames</DeskButton>
+            <DeskButton Size="DeskKeySize.Small">Shared · Ruiz</DeskButton>
         </DeskRow>
     </DeskStep>
-    <DeskStep Number="3" Title="Stake" State="DeskStepState.Todo" Waiting="Finish the price first." />
+    <DeskStep Number="3" Title="Schedule" State="DeskStepState.Todo" Waiting="Choose where it goes first." />
 </DeskSteps>
 </PanelSection>
 
@@ -370,37 +373,48 @@
 <MetricRow>
     <Metric Label="Uptime" Value="98.4%" Note="30-day rolling" State="DeskState.Positive" Numeric="true" />
     <Metric Label="Credits left" Value="412" State="DeskState.Warning" Numeric="true" />
-    <Metric Label="CLV" Value="-2.1%" State="DeskState.Negative" Numeric="true" />
+    <Metric Label="Change" Value="-2.1%" State="DeskState.Negative" Numeric="true" />
     <Metric Label="Sources" Value="6" State="DeskState.Info" Numeric="true" />
 </MetricRow>
 
 </PanelSection>
 
-<PanelSection Title="Display — price cell">
+<PanelSection Title="Display — linked cell">
 <p class="empty">
-    One market's best offer, and where the rest of the market stands. The rail is the point:
-    each tick is a book placed by implied probability between best and worst, so the width of
-    the group <em>is</em> the value of shopping. Books that agree collapse to one mark, which
-    is the correct picture of a market with nothing to shop for.
+    <span class="mono">DeskLink</span> is a cell that names something with a window of its
+    own. A cell cannot lift the way a key does without disturbing its row, so it says the same
+    thing the other way: highlight it and the shortcut appears, naming where the click goes.
+    The shortcut's width is reserved rather than revealed, so nothing reflows as the pointer
+    crosses a column of them.
 </p>
 <p class="empty">
-    The third cell is a <em>closing</em> price: the game has started, its scans are gone, and
-    one number per book survives (ADR 0010). It is muted rather than dropped — the close is
-    what the market concluded and what CLV is measured against — and it explains itself in a
-    tooltip instead of a legend.
+    Beside it, a <span class="mono">Tag</span> carries the row's state in a word. Live leads
+    the word with a pulsing dot for something happening now — a second channel, like the hue,
+    never a stand-in for the word.
 </p>
 
-<DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Start">
-    <PriceCell Offer="_spreadHome" Selection="SF" />
-    <PriceCell Offer="_spreadAway" Selection="COL" />
-    <PriceCell Offer="_spreadClosed" Selection="SF" StartsAt="_closedStart" />
+<DeskStack Gap="DeskSpace.Space2">
+<DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Center">
+    <DeskLink Destination="details" OnClick="@(() => _linkOpened = "North region")">North region</DeskLink>
+    <DeskLink Destination="history" Icon="@Icons.Material.Filled.History"
+              OnClick="@(() => _linkOpened = "Ames")">Ames</DeskLink>
+    <Tag State="DeskState.Positive" Live="true">Live</Tag>
+    <Tag State="DeskState.Info">Queued</Tag>
 </DeskRow>
+
+@if (_linkOpened is not null)
+{
+    <div class="meta">
+        Pressed <span class="mono">@_linkOpened</span> — a panel opens its window here.
+    </div>
+}
+</DeskStack>
 
 </PanelSection>
 
 <PanelSection Title="Display — progress">
 <p class="empty">
-    Prefer determinate whenever the denominator is knowable — if you are walking six books,
+    Prefer determinate whenever the denominator is knowable — if you are walking six sources,
     you know it. The label names the action, never the wait: "Loading…" describes the
     operator's experience, which they already have, rather than the system's work, which they
     do not. Mode is a parameter, chosen once and held; a bar that changes style mid-flight
@@ -408,8 +422,8 @@
 </p>
 
 <DeskStack Gap="DeskSpace.Space4">
-    <DeskProgress Label="Fetching odds from 6 books" Value="@_progress" Max="100" />
-    <DeskProgress Indeterminate="true" Label="Reconciling open wagers" />
+    <DeskProgress Label="Fetching from 6 sources" Value="@_progress" Max="100" />
+    <DeskProgress Indeterminate="true" Label="Reconciling open items" />
 
     <DeskRow Gap="DeskSpace.Space2">
         <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
@@ -460,10 +474,10 @@
 </DeskRow>
 
 <DeskGrid T="PartRow" Items="@(_gridLoading ? Array.Empty<PartRow>() : _rows)" Loading="@_gridLoading"
-          LoadingLabel="Fetching book prices" SkeletonRows="4" Sortable="false">
-    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Book" Title="Book" />
-    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Market" Title="Market" />
-    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Price" Title="Price" />
+          LoadingLabel="Fetching rows" SkeletonRows="4" Sortable="false">
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Source" Title="Source" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Stage" Title="Stage" />
+    <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Amount" Title="Amount" />
 </DeskGrid>
 </DeskStack>
 </PanelSection>
@@ -604,7 +618,7 @@
             Not modal, on purpose. There is no scrim, the panels behind still scroll and
             accept clicks, and several of these can be open at once — because the workflow
             this serves is comparing things, and a modal would force you to finish with one
-            board before looking at the next.
+            record before looking at the next.
         </p>
         <p class="empty">
             It borrows the window's own chrome — same title bar height, same controls, same
@@ -693,8 +707,8 @@
 <PanelSection Title="Pulse">
 <p class="empty">
     The window chrome's own state channel, and the one a busy button's sweep borrows from.
-    Set it from a panel with <span class="mono">Report(PulseState.Active)</span> rather than
-    drawing it yourself.
+    Set it from a panel with <span class="mono">WindowManager.SetPulse(id, PulseState.Active)</span>
+    rather than drawing it yourself.
 </p>
 
 <DeskStack Gap="DeskSpace.Space1">
@@ -723,7 +737,7 @@
 
 <DeskChart Series="@_movement" Labels="@_chartLabels" Height="180px"
            Family="DeskChartFamily.Movement"
-           Headline="Movement — prices over time"
+           Headline="Movement — values over time"
            Takeaway="Hue is identity here, not state: accent, positive, warning, negative, then neutrals."
            Description="Demonstration line chart with three series in the movement palette." />
 
@@ -779,7 +793,7 @@
     {
         <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Baseline">
             <span class="mono meta parts-key">@token</span>
-            <span style="font-size:var(@token); line-height:var(@leading); font-weight:var(@weight)">Line movement held</span>
+            <span style="font-size:var(@token); line-height:var(@leading); font-weight:var(@weight)">Every value in its place</span>
             <span class="meta">@size / @use</span>
         </DeskRow>
     }
@@ -851,19 +865,19 @@
 
     private bool _busy;
 
-    private int _anatomySeason = 2026;
+    private int _anatomyYear = 2026;
 
-    private static readonly IReadOnlyList<DeskSwitchOption<int>> _anatomySeasons =
+    private static readonly IReadOnlyList<DeskSwitchOption<int>> _anatomyYears =
         [new(2026, "2026"), new(2025, "2025")];
 
-    private string _anatomySport = "";
+    private string _anatomyKind = "";
     private string _anatomySearch = "";
 
-    private static readonly IReadOnlyList<DeskSwitchOption<string>> _anatomySports =
-        [new("", "All", "Every sport"), new("mlb", "MLB"), new("nfl", "NFL")];
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _anatomyKinds =
+        [new("", "All", "Every kind"), new("open", "Open"), new("closed", "Closed")];
 
-    private string _anatomyBook = "pinnacle";
-    private int? _anatomyPrice = -110;
+    private string _anatomyOwner = "ames";
+    private int? _anatomyAmount = 120;
     private string? _anatomyNote;
 
     // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
@@ -883,29 +897,29 @@
 
     private string? _text;
     private decimal? _number;
-    private string _choice = "spread";
+    private string _choice = "draft";
     private string? _prose;
 
     // ------------------------------------------------------------ gate and tabs ---
 
-    private static readonly IReadOnlyList<DeskSwitchOption<string>> _gateMarkets =
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _gateViews =
     [
-        new("moneyline", "Moneyline"),
-        new("spread", "Spread"),
-        new("total", "Total")
+        new("list", "List"),
+        new("grid", "Grid"),
+        new("chart", "Chart")
     ];
 
-    private string _gateMarket = "moneyline";
+    private string _gateView = "list";
     private int _gateDays = 30;
 
-    private string _demoTab = "Lines";
+    private string _demoTab = "Summary";
     private bool _thirdTab;
 
     private IReadOnlyList<DeskTab<string>> _demoTabs =>
     [
-        new("Lines", "Lines"),
-        new("Team data", "Team data"),
-        new("Box score", "Box score", _thirdTab)
+        new("Summary", "Summary"),
+        new("Details", "Details"),
+        new("History", "History", _thirdTab)
     ];
 
     // ------------------------------------------------------------------- tags ---
@@ -921,78 +935,20 @@
 
     // ---------------------------------------------------------------- display ---
 
-    private sealed record PartRow(string Book, string Market, string Price);
+    private sealed record PartRow(string Source, string Stage, string Amount);
 
     private static readonly PartRow[] _rows =
     [
-        new("Pinnacle", "Spread", "-110"),
-        new("Circa", "Total", "-105"),
-        new("DraftKings", "Moneyline", "+134"),
-        new("FanDuel", "Spread", "-112")
+        new("North", "Draft", "120"),
+        new("South", "Review", "85"),
+        new("East", "Final", "1,340"),
+        new("West", "Draft", "64")
     ];
 
     private bool _gridLoading = true;
 
-    // Two sides of one demonstration market. The home side's books disagree, so its rail
-    // spreads; the away side's agree, so its ticks collapse — which is the pair of pictures
-    // the control exists to draw.
-    private static readonly BestOffer _spreadHome = new(
-        Outcome: "home",
-        Book: "Pinnacle",
-        PriceAmerican: -105,
-        Line: -1.5m,
-        CapturedAt: DateTimeOffset.UtcNow,
-        // Derived, not invented: BoardService computes this as (worst - best) × 100 over the
-        // implied probabilities below, so 0.556 − 0.512 is 4.4. A fabricated number here would
-        // put a caption on the rail that disagrees with the rail.
-        EdgePoints: 4.4,
-        LinesVary: false,
-        IsClosing: false,
-        Rungs:
-        [
-            new("Pinnacle", -105, -1.5m, 0.512),
-            new("Circa", -110, -1.5m, 0.524),
-            new("DraftKings", -118, -1.5m, 0.541),
-            new("FanDuel", -125, -1.5m, 0.556)
-        ]);
-
-    private static readonly BestOffer _spreadAway = new(
-        Outcome: "away",
-        Book: "Circa",
-        PriceAmerican: -110,
-        Line: 1.5m,
-        CapturedAt: DateTimeOffset.UtcNow,
-        EdgePoints: 0.0,
-        LinesVary: false,
-        IsClosing: false,
-        Rungs:
-        [
-            new("Circa", -110, 1.5m, 0.524),
-            new("Pinnacle", -110, 1.5m, 0.524),
-            new("DraftKings", -110, 1.5m, 0.524)
-        ]);
-
-    // The third picture the control draws: a game that has started. Its scans are gone and one
-    // closing line per book survives (ADR 0010), so the cell steps back a tone, drops the
-    // accent it no longer earns, and says what the number is on hover.
-    private static readonly BestOffer _spreadClosed = new(
-        Outcome: "home",
-        Book: "Pinnacle",
-        PriceAmerican: -108,
-        Line: -1.5m,
-        CapturedAt: DateTimeOffset.UtcNow.AddHours(-3),
-        EdgePoints: 2.1,
-        LinesVary: false,
-        IsClosing: true,
-        Rungs:
-        [
-            new("Pinnacle", -108, -1.5m, 0.519),
-            new("Circa", -115, -1.5m, 0.535),
-            new("DraftKings", -120, -1.5m, 0.545)
-        ]);
-
-    /// <summary>The start the closing sample is measured against — three hours after capture.</summary>
-    private static readonly DateTimeOffset _closedStart = DateTimeOffset.UtcNow;
+    /// <summary>What the last linked cell pressed would have opened, so the demo says it was heard.</summary>
+    private string? _linkOpened;
 
     private double _progress = 34;
     private bool _stepping;
@@ -1026,10 +982,14 @@
     private bool _dialogOpen;
     private string? _sheetOutcome;
     private string? _alertOutcome;
-    private IDialogReference? _sheet;
+    private IDeskSheetHandle? _sheet;
+    private string? _noteTitle;
+    private string? _noteBody;
 
     /// <summary>
-    /// The sheet, opened the way every future call site should open one.
+    /// The sheet, opened the way every call site should open one: through
+    /// <see cref="IDeskSheets"/>, which holds the dialog options, so the caller states only the
+    /// sheet and what goes in it.
     ///
     /// <para>
     /// The outcome is read off the awaited <see cref="DialogResult"/>, never off
@@ -1043,23 +1003,18 @@
     private async Task OpenSheetAsync()
     {
         _sheetOutcome = null;
+        _noteTitle = null;
+        _noteBody = null;
 
         var parameters = new DialogParameters<DeskSheet>
         {
-            { x => x.Title, "New wager" },
+            { x => x.Title, "Add a note" },
             { x => x.Subtitle, "A demonstration — nothing is written" },
             { x => x.ChildContent, SheetBody },
             { x => x.Footer, SheetFooter }
         };
 
-        var options = new DialogOptions
-        {
-            MaxWidth = MaxWidth.Small,
-            CloseOnEscapeKey = true,
-            BackdropClick = true
-        };
-
-        _sheet = await Dialogs.ShowAsync<DeskSheet>(string.Empty, parameters, options);
+        _sheet = await Sheets.ShowAsync(parameters);
 
         var result = await _sheet.Result;
 
@@ -1070,22 +1025,36 @@
         StateHasChanged();
     }
 
+    // One grouped form, as every form in a window is (the Anatomy's, above): labels leading in
+    // one column, bare fields trailing, each named for a screen reader since the label beside
+    // it is not its <label>.
     private RenderFragment SheetBody => @<div>
         <p class="empty">
             Modal, on purpose. The scrim is the statement: this task is self-contained, and
             completing or cancelling it is the only thing on offer until it is done.
         </p>
-        <DeskField TValue="string" Label="Book" Required="true" placeholder="Pinnacle" />
+        <div class="wgroup">
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Title</span>
+                <DeskField TValue="string" Class="wfield--fill" aria-label="Title" placeholder="Required"
+                           @bind-Value="_noteTitle" />
+            </div>
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label">Note</span>
+                <DeskTextArea Class="wfield--fill" aria-label="Note" rows="3" placeholder="Optional"
+                              @bind-Value="_noteBody" />
+            </div>
+        </div>
     </div>;
 
     private RenderFragment SheetFooter => @<DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space2">
         <DeskButton Emphasis="DeskEmphasis.Plain"
-                    OnClick="@(() => _sheet?.Close(DialogResult.Cancel()))">
+                    OnClick="@(() => _sheet?.Close())">
             Cancel
         </DeskButton>
         <DeskButton Emphasis="DeskEmphasis.Filled"
-                    OnClick="@(() => _sheet?.Close(DialogResult.Ok("Pinnacle -110")))">
-            Place wager
+                    OnClick="@(() => _sheet?.Close(DialogResult.Ok(string.IsNullOrWhiteSpace(_noteTitle) ? "Untitled" : _noteTitle)))">
+            Add note
         </DeskButton>
     </DeskRow>;
 
@@ -1097,7 +1066,7 @@
     {
         var confirmed = await Alerts.ConfirmAsync(
             "Delete this run?",
-            message: "The ingested odds stay; only the run record goes.",
+            message: "The imported rows stay; only the run record goes.",
             confirmLabel: "Delete run",
             cancelLabel: "Keep it",
             destructive: true);
@@ -1124,9 +1093,9 @@
 
     private static readonly List<ChartSeries<double>> _movement =
     [
-        new() { Name = "Home · Pinnacle", Data = new double[] { -110, -115, -108, -120, -125, -118 } },
-        new() { Name = "Home · Circa", Data = new double[] { -112, -110, -105, -118, -122, -120 } },
-        new() { Name = "Away · Pinnacle", Data = new double[] { -102, -105, -112, -100, -96, -101 } }
+        new() { Name = "North · first", Data = new double[] { -110, -115, -108, -120, -125, -118 } },
+        new() { Name = "North · second", Data = new double[] { -112, -110, -105, -118, -122, -120 } },
+        new() { Name = "South · first", Data = new double[] { -102, -105, -112, -100, -96, -101 } }
     ];
 
     private static readonly List<ChartSeries<double>> _ledger =
@@ -1167,7 +1136,7 @@
         ["16"] = "any more wants a divider"
     };
 
-    // The ramp the desk actually ships (lineops.css, "The HIG text-style ramp"), at macOS's
+    // The ramp the desk actually ships (the Desk's stylesheet, "The HIG text-style ramp"), at macOS's
     // density. This list named four tokens, three of which no longer exist — --text-title,
     // --text-callout and their leadings — so its samples fell back to the body size and taught a
     // ladder nobody could use. Headline is Body's size and differs by weight, so the sample says so.
@@ -1175,7 +1144,7 @@
     [
         ("--text-title1", "22px", "--leading-title", "--weight-medium", "a figure that leads: a metric, a score"),
         ("--text-title2", "17px", "--leading-title", "--weight-semibold", "a window's title"),
-        ("--text-title3", "15px", "--leading-title", "--weight-semibold", "a form's title, a team's name"),
+        ("--text-title3", "15px", "--leading-title", "--weight-semibold", "a form's title, a person's name"),
         ("--text-headline", "13px semibold", "--leading-body", "--weight-semibold", "the part of a row that leads it"),
         ("--text-body", "13px", "--leading-body", "--weight-regular", "the reading size"),
         ("--text-subheadline", "12px", "--leading-body", "--weight-regular", "section headers, group footers, meta"),
@@ -1184,4 +1153,18 @@
     ];
 
     protected override void OnInitialized() => Report(PulseState.Idle, "reference");
+
+    // Not PanelBase: that is the application's, and carries its data plumbing — change signals,
+    // loads and retries, the formatting of its own records. The gallery needs one thing from it,
+    // the cascaded window id that puts its state on its own pulse, and holds that itself so the
+    // Desk can ship it.
+    [CascadingParameter(Name = "WindowId")]
+    private string? WindowId { get; set; }
+
+    /// <summary>Reports this window's state to its chrome. No-op when hosted outside a window.</summary>
+    private void Report(PulseState state, string? status = null)
+    {
+        if (WindowId is not null)
+            Manager.SetPulse(WindowId, state, status);
+    }
 }

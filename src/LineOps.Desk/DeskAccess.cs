@@ -19,11 +19,31 @@ namespace LineOps.Desk;
 /// Blazor Server only dispatches an event to a handler in the render tree it sent, so a control
 /// that was not drawn cannot be invoked — hiding it is the enforcement, not a veneer over one.
 /// </para>
+///
+/// <para>
+/// The gate itself — whether there is one, and the pages that sign in and out of it — is the
+/// application's too. The desk only links to it: the Window manager says who is at the desk and
+/// offers the way in or out when <see cref="IsGated"/> is true. The three answers default to "no
+/// gate", so an application with one person at the desk implements <see cref="CanOperate"/> and
+/// nothing else.
+/// </para>
 /// </summary>
 public interface IDeskAccess
 {
     /// <summary>True when this desk may change things: log, pull, switch, resolve, inject.</summary>
     bool CanOperate { get; }
+
+    /// <summary>
+    /// True when the desk can be reached by more than one person and a code decides who operates
+    /// it. Only then does the Window manager say who is at the desk.
+    /// </summary>
+    bool IsGated => false;
+
+    /// <summary>The page a visitor signs in on, as a path; a page load, since the cookie it sets needs an HTTP response.</summary>
+    string? SignInPath => null;
+
+    /// <summary>The page that signs the operator out, as a path.</summary>
+    string? SignOutPath => null;
 }
 
 /// <summary>A desk with one person at it, who may do everything. The default.</summary>

@@ -1,7 +1,6 @@
 using Bunit;
 using LineOps.Desk.Theming;
 using LineOps.Desk.Windowing;
-using LineOps.Web.Components.Panels;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -211,5 +210,88 @@ public class WindowManagerControlsTests : DeskTestContext
         var save = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save");
         Assert.True(save.HasAttribute("disabled"));
         Assert.Equal("Name the desk first.", save.GetAttribute("title"));
+    }
+
+    /// <summary>
+    /// On a desk others can reach, the Window manager says who is at it and offers the way in or
+    /// out. The Desk knows no gate of its own: whether there is one, and where its sign-in and
+    /// sign-out pages are, it reads from <see cref="LineOps.Desk.IDeskAccess"/>.
+    /// </summary>
+    [Fact]
+    public void A_gated_desk_offers_sign_out()
+    {
+        Services.AddSingleton<LineOps.Desk.IDeskAccess>(new GatedAccess(operate: true));
+
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Contains("Operator", cut.Find(".ptoolbar").TextContent);
+        var signOut = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Sign out");
+
+        signOut.Click();
+
+        Assert.EndsWith("/out", Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
+    /// <summary>A visitor on the gated desk is offered the operator's sign-in, at the path the access names.</summary>
+    [Fact]
+    public void A_visitor_on_a_gated_desk_is_offered_sign_in()
+    {
+        Services.AddSingleton<LineOps.Desk.IDeskAccess>(new GatedAccess(operate: false));
+
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Contains("Visitor", cut.Find(".ptoolbar").TextContent);
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Sign out");
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Operator sign-in").Click();
+
+        Assert.EndsWith("/in", Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
+    /// <summary>A desk with one person at it has no gate, so the panel draws no line about who is there.</summary>
+    [Fact]
+    public void An_open_desk_offers_no_sign_in_or_out()
+    {
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        Assert.Empty(cut.FindAll(".ptoolbar"));
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() is "Sign out" or "Operator sign-in");
+    }
+
+    /// <summary>The application's access answers the Desk's three questions from its own gate.</summary>
+    [Fact]
+    public void The_app_s_access_names_its_gate()
+    {
+        var gated = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
+            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions { Mode = LineOps.Web.Access.AccessMode.Gated }));
+        LineOps.Desk.IDeskAccess access = gated;
+
+        Assert.True(access.IsGated);
+        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignInPath, access.SignInPath);
+        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignOutPath, access.SignOutPath);
+
+        LineOps.Desk.IDeskAccess open = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
+            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions()));
+        Assert.False(open.IsGated);
+
+        // The Desk's own default has no gate and nowhere to sign in.
+        LineOps.Desk.IDeskAccess desk = LineOps.Desk.OpenDeskAccess.Instance;
+        Assert.False(desk.IsGated);
+        Assert.Null(desk.SignInPath);
+        Assert.Null(desk.SignOutPath);
+    }
+
+    private sealed class GatedAccess(bool operate) : LineOps.Desk.IDeskAccess
+    {
+        public bool CanOperate => operate;
+        public bool IsGated => true;
+        public string? SignInPath => "/in";
+        public string? SignOutPath => "/out";
+    }
+
+    private sealed class NobodySignedIn : Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider
+    {
+        public override Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> GetAuthenticationStateAsync()
+            => Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(new System.Security.Claims.ClaimsPrincipal()));
     }
 }

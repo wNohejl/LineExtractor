@@ -1,8 +1,7 @@
-@using LineOps.Desk.Windowing
-@using LineOps.Desk.Theming
-@inherits PanelBase
+@implements IDisposable
+@inject WindowManager Manager
 @inject ThemeService Theme
-@inject Microsoft.Extensions.Options.IOptions<LineOps.Web.Access.AccessOptions> AccessOptions
+@inject IDeskAccess Access
 @inject NavigationManager Navigation
 
 @*
@@ -19,12 +18,14 @@
 *@
 
 @* Who is at this desk, on a desk that can be reached by more than one person (ADR 0018). A
-   sign-in is a page load, not a window: the cookie it sets needs an HTTP response. *@
-@if (AccessOptions.Value.Mode == LineOps.Web.Access.AccessMode.Gated)
+   sign-in is a page load, not a window: the cookie it sets needs an HTTP response. Whether there
+   is a gate, and where its pages are, is the application's to say (IDeskAccess); the desk only
+   links to them. *@
+@if (Access.IsGated)
 {
     <PanelToolbar>
         <ChildContent>
-            @if (Manager.Access.CanOperate)
+            @if (Access.CanOperate)
             {
                 <Tag State="DeskState.Positive">Operator</Tag>
                 <span class="dim">Everything on this desk is yours to change.</span>
@@ -36,17 +37,17 @@
             }
         </ChildContent>
         <Actions>
-            @if (Manager.Access.CanOperate)
+            @if (Access.CanOperate)
             {
                 <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Logout"
-                            OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignOutPath, forceLoad: true))">
+                            OnClick="@(() => Navigation.NavigateTo(Access.SignOutPath!, forceLoad: true))">
                     Sign out
                 </DeskButton>
             }
             else
             {
                 <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Login"
-                            OnClick="@(() => Navigation.NavigateTo(LineOps.Web.Access.AccessEndpoints.SignInPath, forceLoad: true))">
+                            OnClick="@(() => Navigation.NavigateTo(Access.SignInPath!, forceLoad: true))">
                     Operator sign-in
                 </DeskButton>
             }
@@ -339,8 +340,8 @@
             }
 
             @* Saves what is open now, left to right, under a name; it then sits in the brand menu
-               beside the built-in ones. Windows opened on something — a game, a player — are left
-               out, since a workspace is a desk to start from, not a particular game's. A Save that
+               beside the built-in ones. Windows opened on a subject — one record, one person — are
+               left out, since a workspace is a desk to start from, not one subject's. A Save that
                cannot be pressed says what it waits for. *@
             <div class="wgroup__row wgroup__row--form">
                 <span class="wgroup__label">Save as</span>
@@ -362,13 +363,27 @@
                 @:as it was.
             }
             A workspace keeps the windows open now, left to right, and sits in the brand menu beside
-            the built-in ones. Windows opened on a game or a player are left out.
+            the built-in ones. Windows opened on a single subject are left out.
         </p>
     </section>
 
 </div>
 
 @code {
+    // Not PanelBase: that is the application's, and carries its data plumbing — change signals,
+    // loads and retries, the formatting of its own records. This window needs two things from it,
+    // the cascaded window id that puts its count on its own pulse and a disposal hook, and holds
+    // them itself so the Desk can ship it.
+    [CascadingParameter(Name = "WindowId")]
+    private string? WindowId { get; set; }
+
+    /// <summary>Reports this window's state to its chrome. No-op when hosted outside a window.</summary>
+    private void Report(PulseState state, string? status = null)
+    {
+        if (WindowId is not null)
+            Manager.SetPulse(WindowId, state, status);
+    }
+
     private DeskSettings S => Manager.Settings;
 
     /// <summary>The limit is set above what this desk fits at a readable width.</summary>
@@ -379,7 +394,7 @@
     /// <summary>Why Save cannot be pressed yet, or null when it can.</summary>
     private string? SaveWaitsFor =>
         string.IsNullOrWhiteSpace(_workspaceName) ? "Name the desk first."
-        : !Manager.Windows.Any(w => w.Parameters.Count == 0) ? "Open a window that is not about a game or a player first."
+        : !Manager.Windows.Any(w => w.Parameters.Count == 0) ? "Open a window that is not about a single subject first."
         : null;
 
     private void SaveWorkspace()
@@ -453,7 +468,7 @@
 
     private void OnManagerChanged() => InvokeAsync(StateHasChanged);
 
-    protected override void OnDispose()
+    public void Dispose()
     {
         Theme.Changed -= OnThemeChanged;
         Manager.Changed -= OnManagerChanged;

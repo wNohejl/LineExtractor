@@ -110,6 +110,64 @@ public class DeskSheetTests : DeskTestContext
     }
 
     /// <summary>
+    /// <see cref="IDeskSheets"/> is how a caller opens a sheet without holding MudBlazor's dialog
+    /// service: the sheet appears with its width floor, and the handle reads back how it ended.
+    /// </summary>
+    [Fact]
+    public async Task The_desk_s_sheets_open_one_and_read_its_result()
+    {
+        Services.AddScoped<IDeskSheets, DeskSheets>();
+        var provider = RenderComponent<MudDialogProvider>();
+        var sheets = Services.GetRequiredService<IDeskSheets>();
+
+        IDeskSheetHandle? handle = null;
+        await provider.InvokeAsync(async () => handle = await sheets.ShowAsync(
+            new DialogParameters<DeskSheet> { { x => x.Title, "Add a note" } }, width: "400px"));
+
+        provider.WaitForAssertion(() => Assert.Contains("Add a note", provider.Markup));
+        Assert.Contains("min-width:400px", provider.Find(".desk-sheet__body").GetAttribute("style"));
+
+        await provider.InvokeAsync(() => handle!.Close(DialogResult.Ok("done")));
+        var result = await handle!.Result;
+
+        Assert.False(result.Canceled);
+        Assert.Equal("done", result.Data);
+        provider.WaitForAssertion(() => Assert.DoesNotContain("desk-sheet__close", provider.Markup));
+    }
+
+    /// <summary>A width the caller already put in the parameters is the caller's, and wins.</summary>
+    [Fact]
+    public async Task A_width_in_the_parameters_wins()
+    {
+        Services.AddScoped<IDeskSheets, DeskSheets>();
+        var provider = RenderComponent<MudDialogProvider>();
+        var sheets = Services.GetRequiredService<IDeskSheets>();
+
+        await provider.InvokeAsync(() => sheets.ShowAsync(
+            new DialogParameters<DeskSheet> { { x => x.Title, "Add a note" }, { x => x.Width, "300px" } }));
+
+        provider.WaitForAssertion(() =>
+            Assert.Contains("min-width:300px", provider.Find(".desk-sheet__body").GetAttribute("style")));
+    }
+
+    /// <summary>Closing without a result is the way out: it reads as cancelled.</summary>
+    [Fact]
+    public async Task Closing_without_a_result_reads_as_cancelled()
+    {
+        Services.AddScoped<IDeskSheets, DeskSheets>();
+        var provider = RenderComponent<MudDialogProvider>();
+        var sheets = Services.GetRequiredService<IDeskSheets>();
+
+        IDeskSheetHandle? handle = null;
+        await provider.InvokeAsync(async () => handle = await sheets.ShowAsync(
+            new DialogParameters<DeskSheet> { { x => x.Title, "Add a note" } }));
+
+        await provider.InvokeAsync(() => handle!.Close());
+
+        Assert.True((await handle!.Result).Canceled);
+    }
+
+    /// <summary>
     /// Renders a real <see cref="DeskSheet"/> through <see cref="IDialogService"/> inside a live
     /// <c>MudDialogProvider</c>, which is the only way to get the genuine cascaded dialog instance
     /// rather than a stand-in. The provider is what is returned, so assertions read the whole
