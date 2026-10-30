@@ -1,8 +1,8 @@
 using Bunit;
 using LineOps.Core.Analytics;
 using LineOps.Data.CrossReference;
+using LineOps.Desk.Primitives;
 using LineOps.Web.Components.Desk;
-using MudBlazor;
 
 namespace LineOps.Web.Tests;
 
@@ -339,8 +339,8 @@ public class PriceCellTests : DeskTestContext
     }
 
     /// <summary>
-    /// Mud only puts a tooltip's body in the DOM once it is shown, so the assertion is against
-    /// the component's own text rather than rendered markup. That is the thing under test
+    /// A tooltip's body reaches the DOM only once it is shown, so the assertion is against
+    /// the DeskTooltip's own text rather than rendered markup. That is the thing under test
     /// anyway: what the reader is told when they hover a number they cannot take.
     /// </summary>
     [Fact]
@@ -350,7 +350,7 @@ public class PriceCellTests : DeskTestContext
             .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
             .Add(x => x.StartsAt, Start));
 
-        var why = cut.FindComponent<MudTooltip>().Instance.Text;
+        var why = cut.FindComponent<DeskTooltip>().Instance.Text;
 
         Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("3.0h before start", why);
@@ -366,7 +366,7 @@ public class PriceCellTests : DeskTestContext
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
             Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
 
-        var why = cut.FindComponent<MudTooltip>().Instance.Text;
+        var why = cut.FindComponent<DeskTooltip>().Instance.Text;
 
         Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("before start", why);
@@ -384,7 +384,7 @@ public class PriceCellTests : DeskTestContext
             Offer(rungs: Rung("draftkings", -110, 0.524))));
 
         Assert.NotNull(cut.Find(".price").GetAttribute("title"));
-        Assert.Empty(cut.FindComponents<MudTooltip>());
+        Assert.Empty(cut.FindComponents<DeskTooltip>());
     }
 
     /// <summary>The muted cell must not also carry the native tooltip, or the two compete.</summary>
@@ -395,6 +395,24 @@ public class PriceCellTests : DeskTestContext
             Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
 
         Assert.Null(cut.Find(".price").GetAttribute("title"));
+    }
+
+    /// <summary>
+    /// The tooltip describes the closing cell and does not rename it: the cell is still read by
+    /// its own figures, with no label laid over them by the wrapper.
+    /// </summary>
+    [Fact]
+    public void The_tooltip_wraps_the_closing_cell_without_renaming_it()
+    {
+        var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
+            Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524))));
+
+        var tip = cut.FindComponent<DeskTooltip>();
+        var cell = tip.Find(".price");
+
+        Assert.Contains("-110", cell.TextContent);
+        Assert.Null(cell.GetAttribute("aria-label"));
+        Assert.Null(cell.ParentElement?.GetAttribute("aria-label"));
     }
 
     // ---- Value against the fair price ---------------------------------------------------

@@ -16,15 +16,25 @@
 
     The halves are plain buttons rather than DeskButtons: a DeskButton is a whole key with its
     own edge and radius, and two of them side by side is exactly the shape this replaces.
+
+    The keyboard reaches it as one control, as it reaches the HIG's stepper: the capsule is the
+    single Tab stop, arrows nudge the value (up and right for more, down and left for fewer),
+    and Home and End reach the bounds. The halves stay buttons, for the pointer and for a screen
+    reader's own navigation, but leave the Tab order — had they kept it, the half under focus
+    would disable itself at a bound and drop the keyboard on the page. A key that would cross a
+    bound lands on it, as a press does; a key at the bound already says nothing.
 *@
 
 <div class="stepper @DeskLayout.ExtraClass(Extra) @Class"
      style="@DeskLayout.MergeStyle(null, Extra)"
      role="group"
      aria-label="@Label"
+     tabindex="@(Disabled ? null : "0")"
+     @onkeydown="OnKeyDown"
      @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
     <button type="button"
             class="stepper__half"
+            tabindex="-1"
             aria-label="@($"{Label}: one fewer")"
             title="@($"{Label}: one fewer")"
             disabled="@(Disabled || Value <= Min)"
@@ -33,6 +43,7 @@
     </button>
     <button type="button"
             class="stepper__half"
+            tabindex="-1"
             aria-label="@($"{Label}: one more")"
             title="@($"{Label}: one more")"
             disabled="@(Disabled || Value >= Max)"
@@ -70,5 +81,29 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
 
-    private Task SetAsync(int value) => ValueChanged.InvokeAsync(Math.Clamp(value, Min, Math.Max(Min, Max)));
+    private Task SetAsync(int value) => ValueChanged.InvokeAsync(Clamp(value));
+
+    private int Clamp(int value) => Math.Clamp(value, Min, Math.Max(Min, Max));
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled)
+            return;
+
+        int? next = e.Key switch
+        {
+            "ArrowUp" or "ArrowRight" => Value + Step,
+            "ArrowDown" or "ArrowLeft" => Value - Step,
+            "Home" => Min,
+            "End" => Max,
+            _ => null
+        };
+
+        // At the bound already, the key has nowhere to go and says nothing — as the disabled
+        // half would not.
+        if (next is not { } target || Clamp(target) == Value)
+            return;
+
+        await SetAsync(target);
+    }
 }

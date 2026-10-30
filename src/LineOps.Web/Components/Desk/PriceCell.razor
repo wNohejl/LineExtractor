@@ -24,14 +24,12 @@
 }
 else if (Offer.IsClosing)
 {
-    @* MudTooltip rather than the title attribute the live cell uses. The bridge already themes
-       .mud-tooltip, and it gives the explanation a measure and honours the line break — which
-       a native tooltip does not, so a provenance sentence and a book breakdown would arrive as
-       one unreadable ribbon. Text rather than a TooltipContent fragment: this is two lines of
-       prose, and a string is what the styling and the tests can both reach. *@
-    <MudTooltip Text="@Why" Placement="Placement.Top" Arrow="true">
-        @Body(true)
-    </MudTooltip>
+    @* DeskTooltip rather than the title attribute the live cell uses. The bridge themes the
+       .mud-tooltip it draws, and it gives the explanation a measure and honours the line
+       break — which a native tooltip does not, so a provenance sentence and a book breakdown
+       would arrive as one unreadable ribbon. Its Text is a string rather than a fragment: this
+       is two lines of prose, and a string is what the styling and the tests can both reach. *@
+    <DeskTooltip Text="@Why">@Body(true)</DeskTooltip>
 }
 else
 {

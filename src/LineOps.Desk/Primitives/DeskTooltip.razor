@@ -1,0 +1,53 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A tooltip: a sentence of explanation that appears beside the thing it explains.
+
+    For the explanation a native title attribute cannot carry — more than a line, a line break
+    that matters, a measure that keeps a sentence readable. Everywhere one short phrase will do,
+    title stays: it costs nothing, and a component per cell of a large grid would cost a great
+    deal for the same words.
+
+    It wraps MudTooltip rather than drawing its own, the way DeskButton wraps MudButton, and for
+    the same kind of reason. css/mud-bridge.css already themes .mud-tooltip in the desk's tokens,
+    and the behaviour the HIG asks of a tooltip — raised by hover and by keyboard focus alike,
+    after a short pause so a passing pointer does not flash it, held to a measure, placed so it
+    stays on screen — is exactly what MudBlazor supplies. Drawing it again would be a second
+    copy of that behaviour to keep right.
+
+    The tooltip describes its trigger and never renames it: whatever the wrapped control is
+    called (its text, its aria-label) is still what a screen reader announces. Text is a plain
+    string and the only content API, so what the reader will be told is reachable by a test and
+    by the stylesheet alike, and a tooltip cannot quietly grow controls of its own.
+*@
+
+<MudTooltip Text="@Text"
+            Placement="@Mapped"
+            Arrow="true"
+            Delay="300"
+            ShowOnFocus="true"
+            ShowOnHover="true">
+    @ChildContent
+</MudTooltip>
+
+@code {
+    /// <summary>
+    /// What the reader is told, in sentences. A line break in it is kept: two short lines read
+    /// better than one long one.
+    /// </summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+
+    /// <summary>The trigger — the control or the text the tooltip explains.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Which side of the trigger it opens on. Above unless that would be clipped.</summary>
+    [Parameter] public DeskTooltipPlacement Placement { get; set; } = DeskTooltipPlacement.Top;
+
+    private MudBlazor.Placement Mapped => Placement switch
+    {
+        DeskTooltipPlacement.Bottom => MudBlazor.Placement.Bottom,
+        DeskTooltipPlacement.Start => MudBlazor.Placement.Start,
+        DeskTooltipPlacement.End => MudBlazor.Placement.End,
+        _ => MudBlazor.Placement.Top
+    };
+}

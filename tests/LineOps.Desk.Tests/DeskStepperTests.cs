@@ -1,5 +1,6 @@
 using Bunit;
 using LineOps.Desk.Primitives;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace LineOps.Desk.Tests;
 
@@ -98,5 +99,81 @@ public class DeskStepperTests : DeskTestContext
         var capsule = cut.Find(".stepper");
         Assert.Contains("extra", capsule.ClassList);
         Assert.Equal("s1", capsule.GetAttribute("data-test"));
+    }
+
+    /// <summary>
+    /// The keyboard's way in: the capsule is one Tab stop of its own, and arrows nudge the value
+    /// as the halves do — up and right for more, down and left for fewer — while Home and End
+    /// reach the bounds.
+    /// </summary>
+    [Theory]
+    [InlineData("ArrowUp", 6)]
+    [InlineData("ArrowRight", 6)]
+    [InlineData("ArrowDown", 4)]
+    [InlineData("ArrowLeft", 4)]
+    [InlineData("Home", 1)]
+    [InlineData("End", 12)]
+    public void Keys_nudge_the_value(string key, int expected)
+    {
+        var seen = new List<int>();
+        var cut = Stepper(5, seen.Add);
+
+        cut.Find(".stepper").KeyDown(new KeyboardEventArgs { Key = key });
+
+        Assert.Equal([expected], seen);
+    }
+
+    /// <summary>
+    /// One stop, not three: the halves leave the Tab order, so the half under focus cannot
+    /// disable itself at a bound and drop the keyboard on the page.
+    /// </summary>
+    [Fact]
+    public void The_capsule_is_the_one_tab_stop()
+    {
+        var capsule = Stepper(5).Find(".stepper");
+
+        Assert.Equal("0", capsule.GetAttribute("tabindex"));
+        Assert.All(capsule.QuerySelectorAll("button.stepper__half"), h => Assert.Equal("-1", h.GetAttribute("tabindex")));
+    }
+
+    [Fact]
+    public void A_key_past_a_bound_stops_at_the_bound_and_one_at_the_bound_says_nothing()
+    {
+        var seen = new List<int>();
+
+        Stepper(11, seen.Add, step: 5).Find(".stepper").KeyDown(new KeyboardEventArgs { Key = "ArrowUp" });
+        Stepper(12, seen.Add).Find(".stepper").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+        Stepper(1, seen.Add).Find(".stepper").KeyDown(new KeyboardEventArgs { Key = "Home" });
+
+        Assert.Equal([12], seen);
+    }
+
+    [Fact]
+    public void A_disabled_stepper_ignores_its_keys_and_leaves_the_tab_order()
+    {
+        var seen = new List<int>();
+
+        var cut = RenderComponent<DeskStepper>(p => p
+            .Add(x => x.Label, "Count")
+            .Add(x => x.Value, 5)
+            .Add(x => x.Min, 1)
+            .Add(x => x.Max, 9)
+            .Add(x => x.Disabled, true)
+            .Add(x => x.ValueChanged, (int n) => seen.Add(n)));
+
+        cut.Find(".stepper").KeyDown(new KeyboardEventArgs { Key = "ArrowUp" });
+
+        Assert.Empty(seen);
+        Assert.Null(cut.Find(".stepper").GetAttribute("tabindex"));
+    }
+
+    [Fact]
+    public void An_unhandled_key_is_left_alone()
+    {
+        var seen = new List<int>();
+
+        Stepper(5, seen.Add).Find(".stepper").KeyDown(new KeyboardEventArgs { Key = "a" });
+
+        Assert.Empty(seen);
     }
 }
