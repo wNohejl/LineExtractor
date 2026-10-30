@@ -419,7 +419,7 @@ else
                       : "Check anything flagged, then log it. LineOps records the bet; nothing is sent to a sportsbook.")">
             @if (_offer is not null)
             {
-                <CheckList Items="Strip" ShowTitle="false" />
+                <CheckList Items="Strip" Title="Before you log" ShowTitle="false" />
             }
 
             @if (BuildParlay && _offer is { } leg)

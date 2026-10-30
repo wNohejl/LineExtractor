@@ -21,8 +21,10 @@
     const matches = (query, otherwise) => window.matchMedia ? window.matchMedia(query).matches : otherwise;
 
     try {
-        const mode = stored('lineops.theme');
-        const family = stored('lineops.theme.family');
+        // The Desk's own keys first, then the ones they replaced — theme.js copies an old choice
+        // forward when the circuit opens, but this runs before it ever has on the first load.
+        const mode = stored('desk.theme') || stored('lineops.theme');
+        const family = stored('desk.theme.family') || stored('lineops.theme.family');
         const isDark = mode === 'dark' || (mode !== 'light' && matches('(prefers-color-scheme: dark)', true));
         const slug = Object.prototype.hasOwnProperty.call(SLUGS, family) ? SLUGS[family]
             : matches('(prefers-contrast: more)', false) ? 'contrast' : 'apple';

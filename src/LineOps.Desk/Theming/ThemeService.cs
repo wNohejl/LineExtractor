@@ -29,7 +29,7 @@ namespace LineOps.Desk.Theming;
 /// </summary>
 public sealed class ThemeService : IAsyncDisposable
 {
-    private const string ModulePath = "./_content/LineOps.Desk/js/theme.js";
+    private const string ModulePath = $"./{DeskAssets.Root}/js/theme.js";
 
     private readonly IJSRuntime _js;
 

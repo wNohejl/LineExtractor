@@ -73,7 +73,7 @@
         if (!firstRender)
             return;
 
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/dialogs.js");
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("dialogs.js"));
         _self = DotNetObjectReference.Create(this);
 
         await _module.InvokeVoidAsync("place", _element, Index);

@@ -1,6 +1,6 @@
 using Bunit;
 using LineOps.Data.CrossReference;
-using LineOps.Web.Components.Desk;
+using LineOps.Desk.Primitives;
 using LineOps.Web.Components.Snippets;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;

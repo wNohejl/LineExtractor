@@ -7,17 +7,35 @@
 // holds no policy, because a policy living in two languages is a policy that disagrees with
 // itself.
 
-const KEY = 'lineops.theme';
+const KEY = 'desk.theme';
+
+// The key the choice lived under before the Desk carried its own name. Read when the new one is
+// empty and copied onto it, so a browser that chose its theme before the rename comes up in it
+// once and is on the new key from then on; never written to, and left where it was.
+const OLD_KEY = 'lineops.theme';
 
 // Every localStorage touch is guarded. It throws outright — not returns null — in a
 // Safari private window and under a "block all cookies" setting, and a theme
 // preference is not worth taking the circuit down for. The desk simply forgets.
-export function read() {
+function readKey(key, old) {
     try {
-        return localStorage.getItem(KEY);
+        const value = localStorage.getItem(key);
+        if (value !== null) {
+            return value;
+        }
+
+        const before = localStorage.getItem(old);
+        if (before !== null) {
+            localStorage.setItem(key, before);
+        }
+        return before;
     } catch {
         return null;
     }
+}
+
+export function read() {
+    return readKey(KEY, OLD_KEY);
 }
 
 export function store(mode) {
@@ -31,14 +49,11 @@ export function store(mode) {
 // The family — which palette — kept under its own key rather than folded into the mode's.
 // The two are independent choices, and a browser that stored "Light" before families existed
 // must go on reading it as a mode without having to be migrated.
-const FAMILY_KEY = 'lineops.theme.family';
+const FAMILY_KEY = 'desk.theme.family';
+const OLD_FAMILY_KEY = 'lineops.theme.family';
 
 export function readFamily() {
-    try {
-        return localStorage.getItem(FAMILY_KEY);
-    } catch {
-        return null;
-    }
+    return readKey(FAMILY_KEY, OLD_FAMILY_KEY);
 }
 
 export function storeFamily(family) {

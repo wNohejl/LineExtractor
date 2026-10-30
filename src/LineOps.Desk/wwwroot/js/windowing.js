@@ -106,13 +106,13 @@ export function reportViewport() {
 // The Window manager's two scales, set where the stylesheet reads them (lineops.css, "Scale").
 // The desk's width in layout pixels changes with the UI scale, so the viewport is reported again
 // straight away rather than waiting for a resize that is not coming. Anything else that measured
-// the page — desk-glide.js's marble — hears lineops:rescaled, since no DOM changed for it to see.
+// the page — desk-glide.js's marble — hears desk:rescaled, since no DOM changed for it to see.
 export function applyScale(ui, text) {
     const root = document.documentElement.style;
     root.setProperty('--ui-scale', String(ui));
     root.setProperty('--text-scale', String(text));
     reportViewport();
-    window.dispatchEvent(new Event('lineops:rescaled'));
+    window.dispatchEvent(new Event('desk:rescaled'));
 }
 
 // ---------------------------------------------------------------- layout (persist) ----
@@ -147,14 +147,14 @@ export function attachDivider(handle, leftId, rightId) {
 
     const onDown = (e) => beginSplit(e, handle, leftId, rightId);
     handle.addEventListener('pointerdown', onDown);
-    handle.__lineopsSplit = onDown;
+    handle.__deskSplit = onDown;
 }
 
 export function detachDivider(handle) {
-    if (!handle || !handle.__lineopsSplit) return;
+    if (!handle || !handle.__deskSplit) return;
 
-    handle.removeEventListener('pointerdown', handle.__lineopsSplit);
-    handle.__lineopsSplit = null;
+    handle.removeEventListener('pointerdown', handle.__deskSplit);
+    handle.__deskSplit = null;
 }
 
 function beginSplit(event, handle, leftId, rightId) {
@@ -234,9 +234,9 @@ export function attachAllTabs(containerSelector) {
 
     container.querySelectorAll('.win').forEach((win) => {
         const handle = win.querySelector('[data-tab-handle]');
-        if (!handle || handle.__lineopsTabWired) return;
+        if (!handle || handle.__deskTabWired) return;
 
-        handle.__lineopsTabWired = true;
+        handle.__deskTabWired = true;
         handle.addEventListener('pointerdown', (e) => beginTabDrag(e, win, handle));
     });
 }

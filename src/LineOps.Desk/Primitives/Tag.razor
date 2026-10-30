@@ -16,7 +16,7 @@
     Unmatched attributes splat *before* class, so a stray class= from a call site cannot
     quietly erase .tag and take the badge's whole appearance with it.
 
-    Live leads the word with a small pulsing dot: a game in progress is the one state on the
+    Live leads the word with a small pulsing dot: something happening now is the one state on the
     desk still changing while the operator looks at it. The dot is a second channel, like the
     hue — hidden from assistive tech, and never a stand-in for the word, which is what is read.
 *@
@@ -36,7 +36,7 @@
     /// <summary>Tooltip, for the detail that does not fit in a badge (an error message, a timestamp).</summary>
     [Parameter] public string? Title { get; set; }
 
-    /// <summary>The game is in progress: a pulsing dot leads the word the caller still writes.</summary>
+    /// <summary>Something is happening now: a pulsing dot leads the word the caller still writes.</summary>
     [Parameter] public bool Live { get; set; }
 
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>

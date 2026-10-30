@@ -1,5 +1,7 @@
+@namespace LineOps.Desk.Primitives
+
 @*
-    The advisory checks as a grouped section: a quiet header over a filled group, one row per
+    Advisory checks as a grouped section: a quiet header over a filled group, one row per
     fact — a mark, one sentence, and the remedy key where there is one. The mark's hue is the
     second channel; the sentence carries the meaning.
 *@
@@ -11,7 +13,7 @@
     }
     else
     {
-        @* The host already names the list (the wager stepper's Review step); the name stays
+        @* The host already names the list (a stepper's Review step, say); the name stays
            for the screen reader, out of sight. *@
         <span id="@_headerId" class="sr-only">@Title</span>
     }
@@ -35,7 +37,11 @@
 
     [Parameter, EditorRequired] public IReadOnlyList<Check> Items { get; set; } = [];
 
-    [Parameter] public string Title { get; set; } = "Before you log";
+    /// <summary>
+    /// The list's name: its heading, or the screen reader's name for it where the heading is off.
+    /// Say what the checks stand before ("Before you send").
+    /// </summary>
+    [Parameter] public string Title { get; set; } = "Before you continue";
 
     /// <summary>Draw the heading. Off where the host already titles the list.</summary>
     [Parameter] public bool ShowTitle { get; set; } = true;

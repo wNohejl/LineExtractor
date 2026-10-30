@@ -2,9 +2,9 @@ using Bunit;
 using LineOps.Core.Analytics;
 using LineOps.Data.CrossReference;
 using LineOps.Desk;
-using LineOps.Desk.Primitives;
 using LineOps.Desk.Windowing;
 using LineOps.Web.Access;
+using LineOps.Web.Components.Desk;
 using LineOps.Web.Windowing;
 using Microsoft.Extensions.DependencyInjection;
 

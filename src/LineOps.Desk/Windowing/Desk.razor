@@ -141,7 +141,7 @@
     {
         if (firstRender)
         {
-            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/windowing.js");
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("windowing.js"));
             _self = DotNetObjectReference.Create(this);
 
             // Before initialise: the first viewport report sets a default window ceiling unless

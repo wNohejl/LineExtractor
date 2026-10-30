@@ -89,7 +89,7 @@
         if (!firstRender)
             return;
 
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/popover.js");
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("popover.js"));
 
         // The script stops arrow keys scrolling the panel, and drives a menu of foreign items
         // outright — including moving focus into it.

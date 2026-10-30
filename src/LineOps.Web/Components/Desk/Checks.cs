@@ -6,9 +6,6 @@ using LineOps.Web.Services;
 
 namespace LineOps.Web.Components.Desk;
 
-/// <summary>One advisory row: a state, one sentence, and optionally a remedy key on the same row.</summary>
-public sealed record Check(DeskState State, string Text, string? Remedy = null, Func<Task>? Act = null);
-
 /// <summary>
 /// What a remedy key does, supplied by the window that renders the strip. The builder is pure; it
 /// cannot run a pull or open a window, only say which key belongs on which row.

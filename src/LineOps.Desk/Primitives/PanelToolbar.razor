@@ -223,7 +223,7 @@
         if (!ForceNarrow && Steps != _observedSteps)
         {
             _observedSteps = Steps;
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/toolbar.js");
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("toolbar.js"));
             _self ??= DotNetObjectReference.Create(this);
 
             if (_module is not null)
@@ -234,7 +234,7 @@
         if (_moreOpen && !_moreFocused)
         {
             _moreFocused = true;
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/LineOps.Desk/js/toolbar.js");
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", DeskAssets.Module("toolbar.js"));
 
             if (_module is not null)
                 await _module.InvokeVoidAsync("focusFirst", _more);

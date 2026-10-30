@@ -221,9 +221,9 @@
     // The observer above only hears the DOM change. A resting child can also change
     // size with no mutation at all — the Window manager's scale moving, or the browser
     // being resized — and the marble would keep the old tab's measurements. Both are
-    // announced, so both reseat; windowing.js raises lineops:rescaled after it has set
+    // announced, so both reseat; windowing.js raises desk:rescaled after it has set
     // the new scale, when getBoundingClientRect already reports the new layout.
-    window.addEventListener('lineops:rescaled', seatAll);
+    window.addEventListener('desk:rescaled', seatAll);
     window.addEventListener('resize', seatAll, { passive: true });
 
     // Blazor renders the toolbar after the script runs, and a resting child that
