@@ -261,7 +261,7 @@ else
                             @* Typed: a row per field, label leading, fields one width (HIG: fields in
                                a group share widths and stack). *@
                             <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
-                                <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : Side?.Label)</span></span>
+                                <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : TypedEcho)</span></span>
                                 <div class="wager-typed__cell">
                                     <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
                                                aria-label="Price" placeholder="-110" Class="wfield--short"
@@ -1329,9 +1329,38 @@ else
         }
         else
         {
-            <span>No fair price on this number</span>
+            <span>@NoFairWhy(offer)</span>
         }
     </text>;
+
+    /// <summary>
+    /// The echo under a typed price: the side at the line typed, not the line fetched. It read the
+    /// fetched side's label, so a -6.5 typed over a -4.5 board still said -4.5 under the price,
+    /// and the number being logged looked as if it had not taken.
+    /// </summary>
+    private string? TypedEcho
+        => Side is { } side
+            ? SelectionText.Of(side.Market, side.Outcome, HasLine ? _typedLine ?? side.Offer?.Line : null)
+            : null;
+
+    /// <summary>
+    /// Why a price has no value read, said rather than left as a bare "no fair price": a line
+    /// typed off the fetched one has nothing to be measured against, since the fair price is the
+    /// books' consensus on the fetched number only.
+    /// </summary>
+    private string NoFairWhy(WagerOffer offer)
+    {
+        var fetched = Side?.Offer;
+
+        if (offer.Manual && fetched?.Line is { } at && offer.Line is { } typed && typed != at)
+            return $"No fair price on {OddsMath.FormatLine(typed, offer.Outcome)}: the books' fair price is for "
+                   + $"{OddsMath.FormatLine(at, offer.Outcome)}, so value at your line is unread, not zero.";
+
+        if (offer.Manual && fetched is null)
+            return "No fair price: no book the desk scans prices this side, so value is unread, not zero.";
+
+        return "No fair price on this number: fewer than two books quote it, so value is unread, not zero.";
+    }
 
     private static string Captured(WagerOffer offer)
     {
