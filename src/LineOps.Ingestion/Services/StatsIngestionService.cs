@@ -129,7 +129,8 @@ public class StatsIngestionService(
     /// </para>
     /// </summary>
     public async Task<IngestionOutcome> RefillClosingLinesAsync(
-        IClosingLineSource source, string sportKey, string jobKey, int limit, CancellationToken ct)
+        IClosingLineSource source, string sportKey, string jobKey, int limit, CancellationToken ct,
+        DateTimeOffset? from = null, DateTimeOffset? to = null)
     {
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
             ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
@@ -145,7 +146,14 @@ public class StatsIngestionService(
         db.IngestionRuns.Add(run);
         await db.SaveChangesAsync(ct);
 
-        var owed = await ClosingLinesOwed(sportKey)
+        // A backfill range asks only for its own games; the scheduled job asks for every final.
+        var owedQuery = ClosingLinesOwed(sportKey);
+        if (from is { } since)
+            owedQuery = owedQuery.Where(g => g.StartsAt >= since);
+        if (to is { } until)
+            owedQuery = owedQuery.Where(g => g.StartsAt < until);
+
+        var owed = await owedQuery
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
             .OrderByDescending(g => g.StartsAt)

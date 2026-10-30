@@ -230,7 +230,8 @@ public class HistoryBackfillService(
 
     public async Task<BackfillReport> RunAsync(
         IProgress<BackfillProgress>? progress,
-        CancellationToken ct)
+        CancellationToken ct,
+        BackfillRange? range = null)
     {
         var settings = _options.Backfill;
         var eligibility = await GetEligibilityAsync(ct);
@@ -251,11 +252,18 @@ public class HistoryBackfillService(
             await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>()
                 .EnsurePartitionsAsync(ct);
 
-        var sports = EffectiveSports();
-        var days = EffectiveDays();
         var today = LeagueClock.Today();
+        var sports = range is null
+            ? EffectiveSports()
+            : EffectiveSports().Where(s => range.Sports.Contains(s, StringComparer.OrdinalIgnoreCase)).ToList();
+        var dates = range is null
+            ? Enumerable.Range(1, EffectiveDays()).Select(back => today.AddDays(-back)).ToList()
+            : RangeDates(range, today);
 
-        if (days == 0)
+        if (sports.Count == 0)
+            return new BackfillReport(0, 0, 0, 0, 0, "None of the chosen sports is configured for backfill.");
+
+        if (dates.Count == 0)
         {
             logger.LogInformation("Backfill target is not in the past; nothing to walk");
             return new BackfillReport(0, 0, 0, 0, 0, "Nothing older than the configured target.");
@@ -272,9 +280,10 @@ public class HistoryBackfillService(
         {
             var consecutiveFailures = 0;
 
-            for (var back = 1; back <= days && abortReason is null; back++)
+            foreach (var date in dates)
             {
-                var date = today.AddDays(-back);
+                if (abortReason is not null)
+                    break;
 
                 foreach (var sportKey in sports)
                 {
@@ -284,7 +293,7 @@ public class HistoryBackfillService(
                     // Each sport walks from its own season start (Backfill:Seasons). A day before
                     // that start is not this sport's to fetch, and skipping it is what keeps a
                     // football walk from spending the baseball spring on an empty scoreboard.
-                    if (date < StartFor(sportKey, today))
+                    if (range is null && date < StartFor(sportKey, today))
                         continue;
 
                     // One scope per day: the change tracker never outlives the day it wrote.
@@ -304,7 +313,9 @@ public class HistoryBackfillService(
                     // Already walked. A failed day counts as walked unless a retry was asked
                     // for, so an endpoint that is permanently 404 for one sport does not stall
                     // the whole window every time the backfill runs.
-                    if (existing is not null && (existing.Error is null || !settings.RetryFailedDays))
+                    // A range is asked for by name, so its held days are walked again: that is how a
+                    // season stored before its finals, or by older code, is finalized.
+                    if (range is null && existing is not null && (existing.Error is null || !settings.RetryFailedDays))
                     {
                         skipped++;
                         continue;
@@ -351,6 +362,35 @@ public class HistoryBackfillService(
             }
         }
 
+        // A range's closes next: the walk has just finalized its games, and a final ESPN holds a
+        // line for is a close the desk can grade CLV against. Asked per game, only for games in
+        // the range that still have none; where ESPN has none, nothing is fabricated.
+        if (range is not null && abortReason is null)
+        {
+            var from = new DateTimeOffset(range.From.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            var to = new DateTimeOffset(dates.Max().AddDays(2).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+            foreach (var sportKey in sports)
+            {
+                if (ct.IsCancellationRequested)
+                    return Report("Stopped.");
+
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+
+                foreach (var source in scope.ServiceProvider.GetRequiredService<SourceRegistry>()
+                             .StatsSources.OfType<IClosingLineSource>())
+                {
+                    progress?.Report(new BackfillProgress(
+                        source.Key, $"{sportKey} closing lines", range.To, walked, skipped, failed, games, rows));
+
+                    var outcome = await stats.RefillClosingLinesAsync(
+                        source, sportKey, ClosingLinesJobKey, RangeClosingLineLimit, ct, from, to);
+                    rows += outcome.RowsIngested;
+                }
+            }
+        }
+
         // Fighters last (ADR 0021). The walk has just met every bout since the season start, and a
         // fighter's profile is a career rather than a day, so it is taken once per fighter rather
         // than once per fight — in batches, each in its own scope for the same reason a day has
@@ -387,6 +427,33 @@ public class HistoryBackfillService(
 
     /// <summary>Fighters per scope in the backfill's fighter pass.</summary>
     private const int FighterBatch = 50;
+
+    /// <summary>The run key a range's closing-line pass records under.</summary>
+    public const string ClosingLinesJobKey = "stats:backfill:closing";
+
+    /// <summary>Games asked for a close per sport in a range: a full MLB season is ~2,430.</summary>
+    private const int RangeClosingLineLimit = 3000;
+
+    /// <summary>The sports a walk may take: the backfill's own list, else every ingested sport.</summary>
+    public IReadOnlyList<string> Sports => EffectiveSports();
+
+    /// <summary>Where a sport's season walk starts — the From a range defaults to.</summary>
+    public DateOnly SeasonStart(string sportKey) => StartFor(sportKey, LeagueClock.Today());
+
+    /// <summary>
+    /// A range's days, newest first, as the season walk orders them. Today is allowed — a
+    /// season's last slate is finalized on the day it is played — and a day after it is not.
+    /// </summary>
+    internal static List<DateOnly> RangeDates(BackfillRange range, DateOnly today)
+    {
+        var last = range.To > today ? today : range.To;
+        var days = new List<DateOnly>();
+
+        for (var date = last; date >= range.From; date = date.AddDays(-1))
+            days.Add(date);
+
+        return days;
+    }
 
     private static async Task<DayOutcome> WalkDayAsync(
         LineOpsDbContext db,
@@ -453,6 +520,12 @@ public class HistoryBackfillService(
 }
 
 public record SourceEligibility(string Key, bool Eligible, string Reason);
+
+/// <summary>
+/// A walk the operator named: these sports, these days, inclusive. Held days in it are walked
+/// again, and its finals are asked of ESPN for a close afterwards.
+/// </summary>
+public record BackfillRange(IReadOnlyList<string> Sports, DateOnly From, DateOnly To);
 
 public record BackfillProgress(
     string SourceKey,

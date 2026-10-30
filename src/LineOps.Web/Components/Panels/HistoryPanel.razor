@@ -1,3 +1,4 @@
+@using LineOps.Core.Analytics
 @using LineOps.Core.Entities
 @using LineOps.Data
 @using LineOps.Ingestion.Services
@@ -191,6 +192,47 @@ else if (!Loaded && !Failed)
                                 Re-walk…
                             </DeskButton>
                         }
+                    </div>
+                </div>
+
+                @* A range, named: the sports and the days to walk again — how a season stored before its
+                   finals is finalized, and how its finals get ESPN's closing line, without re-walking
+                   every held day of every league. *@
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Sports</span>
+                    <div class="opsrow">
+                        @foreach (var sport in Backfill.Sports)
+                        {
+                            var key = sport;
+                            <DeskCheckbox Label="@League(key)" Checked="@_rangeSports.Contains(key)"
+                                          CheckedChanged="@((bool on) => ToggleRangeSport(key, on))" />
+                        }
+                    </div>
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Dates</span>
+                    <div class="opsrow">
+                        <DeskField TValue="string" type="date" aria-label="From" Class="wfield--short"
+                                   Value="@_rangeFrom" ValueChanged="@((string v) => _rangeFrom = v)" />
+                        <span class="opsrow__text quiet">to</span>
+                        <DeskField TValue="string" type="date" aria-label="To" Class="wfield--short"
+                                   Value="@_rangeTo" ValueChanged="@((string v) => _rangeTo = v)" />
+                        <DeskButton Size="DeskKeySize.Small" OnClick="SeasonToDate"
+                                    Title="From the earliest chosen sport's season start to today">
+                            Season to date
+                        </DeskButton>
+                    </div>
+                </div>
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Range</span>
+                    <div class="opsrow">
+                        <span class="opsrow__text">@RangeSummary</span>
+                        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Restore"
+                                    Disabled="@(RangeAsked is null || !_eligibility.Any(s => s.Eligible))"
+                                    Title="@(RangeAsked is null ? "Choose a sport and a From no later than To." : "Walk these days again, then ask ESPN for their closing lines.")"
+                                    OnClick="BackportRange">
+                            Backport range
+                        </DeskButton>
                     </div>
                 </div>
             }
@@ -509,6 +551,61 @@ else if (!Loaded && !Failed)
     }
 
     private const string WalkDidNotStart = "The walk did not start. Try again.";
+
+    // The range a Backport walks: every backfill sport and the last week, until changed.
+    private HashSet<string>? _rangeSportsSet;
+    private HashSet<string> _rangeSports => _rangeSportsSet ??= new HashSet<string>(Backfill.Sports, StringComparer.OrdinalIgnoreCase);
+    private string _rangeFrom = LeagueClock.Today().AddDays(-7).ToString("yyyy-MM-dd");
+    private string _rangeTo = LeagueClock.Today().ToString("yyyy-MM-dd");
+
+    private void ToggleRangeSport(string sport, bool on)
+    {
+        if (on)
+            _rangeSports.Add(sport);
+        else
+            _rangeSports.Remove(sport);
+    }
+
+    /// <summary>From the earliest chosen sport's season start (Backfill:Seasons) to today.</summary>
+    private void SeasonToDate()
+    {
+        var chosen = _rangeSports.Count > 0 ? _rangeSports : Backfill.Sports.ToHashSet();
+        _rangeFrom = chosen.Select(Backfill.SeasonStart).Min().ToString("yyyy-MM-dd");
+        _rangeTo = LeagueClock.Today().ToString("yyyy-MM-dd");
+    }
+
+    private static DateOnly? Day(string? text)
+        => DateOnly.TryParseExact(text, "yyyy-MM-dd", out var day) ? day : null;
+
+    /// <summary>The range as asked, or null while it is not one: no sport, a missing day, or From after To.</summary>
+    private BackfillRange? RangeAsked
+        => _rangeSports.Count > 0 && Day(_rangeFrom) is { } from && Day(_rangeTo) is { } to && from <= to
+            ? new BackfillRange(Backfill.Sports.Where(_rangeSports.Contains).ToList(), from, to)
+            : null;
+
+    /// <summary>What the range will walk, in words: "MLB, NFL · 34 days".</summary>
+    private string RangeSummary => RangeAsked is { } r
+        ? $"{string.Join(", ", r.Sports.Select(League))} · {r.To.DayNumber - r.From.DayNumber + 1:N0} {(r.From == r.To ? "day" : "days")}, held days included"
+        : "Choose a sport and dates";
+
+    private void BackportRange()
+    {
+        _runError = null;
+
+        if (RangeAsked is not { } range)
+            return;
+
+        try
+        {
+            if (!Coordinator.TryStart(range: range))
+                _runError = "A walk is already running. Stop it first, or wait for it to finish.";
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The range walk did not start");
+            _runError = WalkDidNotStart;
+        }
+    }
 
     /// <summary>Why the last press of Gather history or Re-walk did nothing, until the next press.</summary>
     private string? _runError;

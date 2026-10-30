@@ -42,11 +42,15 @@ public class BackfillCoordinator(
     public DateTimeOffset? StartedAt { get; private set; }
     public DateTimeOffset? FinishedAt { get; private set; }
 
+    /// <summary>The range the walk in flight, or the last one, was asked for; null for the season walk.</summary>
+    public BackfillRange? Range { get; private set; }
+
     /// <summary>
-    /// Starts a walk unless one is already running.
+    /// Starts a walk unless one is already running: the season walk, or with a range, those
+    /// sports over those days, held days included.
     /// </summary>
     /// <returns>false when a backfill is already in flight.</returns>
-    public bool TryStart(CancellationToken hostToken = default)
+    public bool TryStart(CancellationToken hostToken = default, BackfillRange? range = null)
     {
         lock (_gate)
         {
@@ -59,7 +63,8 @@ public class BackfillCoordinator(
             FinishedAt = null;
             Progress = null;
             LastReport = null;
-            _run = Task.Run(() => WalkAsync(_cts.Token));
+            Range = range;
+            _run = Task.Run(() => WalkAsync(range, _cts.Token));
         }
 
         Changed?.Invoke();
@@ -73,7 +78,7 @@ public class BackfillCoordinator(
             _cts?.Cancel();
     }
 
-    private async Task WalkAsync(CancellationToken ct)
+    private async Task WalkAsync(BackfillRange? range, CancellationToken ct)
     {
         try
         {
@@ -86,7 +91,7 @@ public class BackfillCoordinator(
                 Changed?.Invoke();
             });
 
-            LastReport = await service.RunAsync(progress, ct);
+            LastReport = await service.RunAsync(progress, ct, range);
 
             logger.LogInformation(
                 "Backfill finished: {Walked} days walked, {Skipped} already held, {Failed} failed, " +

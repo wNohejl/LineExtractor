@@ -409,7 +409,7 @@ public class OperationsWindowsTests : DeskTestContext
 
         var run = panel.Find("section.wsection[aria-label=Run]");
         var labels = run.QuerySelectorAll(".wgroup__label").Select(l => l.TextContent.Trim()).ToList();
-        Assert.Equal(["Past days", "Held days"], labels);
+        Assert.Equal(["Past days", "Held days", "Sports", "Dates", "Range"], labels);
         Assert.Contains("re-resolved onto themselves", run.QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
 
         panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk…").Click();
