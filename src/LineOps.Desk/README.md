@@ -100,6 +100,7 @@ family slugs.
 | --- | --- | --- |
 | `CheckList` | Advisory checks as a grouped section: a mark, one sentence and a remedy per row. | — |
 | `DeskAlert` | A decision that must be made before anything else happens; confirms and destructive gates only. | `MudDialog`, through `IDeskAlerts` |
+| `DeskBadge` | A count beside the name of what it counts, heard with its noun; nothing to count, no badge. | — |
 | `DeskButton` | The key: the caller states how loud (`Emphasis`) and whether it destroys. | `MudButton` |
 | `DeskChart` | A chart that names the kind of number it shows and headlines its takeaway. | `MudChart` |
 | `DeskCheckbox` | One setting that is on or off. | — |
@@ -113,19 +114,24 @@ family slugs.
 | `DeskPopover` | A panel anchored to the control that opened it, one at a time. | — |
 | `DeskProgress` | A slim bar for named work that takes long enough to report. | — |
 | `DeskPullDown` | A key that opens a menu of related commands. | — |
+| `DeskRadioGroup` | One choice among options that need room: a sentence each, or a picture of what choosing it does. | — |
 | `DeskRow` | A horizontal group with its gap named from the spacing ramp. | — |
 | `DeskSearch` | A search field with a magnifier, a clear key and a scoped placeholder. | — |
 | `DeskSelect` | A field that picks from a list. | — |
 | `DeskSheet` | A modal sheet for one self-contained task. | `MudDialog`, through `IDeskSheets` |
 | `DeskSkeleton` | A placeholder in the shape of content that has not arrived. | — |
+| `DeskSlider` | A value chosen by dragging, when its place between two ends matters more than its figure. | — |
 | `DeskSparkline` | A word-sized line chart of one series, inside a table row. | — |
+| `DeskSpinner` | Work under way with no denominator, where there is no room for a bar. | — |
 | `DeskStack` | A vertical group with its gap named. | — |
 | `DeskStep` | One step of a `DeskSteps`: marker, title, guidance and controls. | — |
 | `DeskStepper` | One capsule control that nudges a value by a step. | — |
 | `DeskSteps` | A vertical sequence of steps joined by a rail. | — |
 | `DeskSwitch` | A gate switch: one visible choice among two to five. | — |
-| `DeskTabs` | A window's sections, with the selection sliding between them. | — |
+| `DeskTabs` | A window's sections, with the selection sliding between them; a `DeskTab`'s `Count` draws a badge after its name. | — |
 | `DeskTextArea` | A field with room for a paragraph. | — |
+| `DeskToggle` | A setting that takes effect the moment it flips; announced as a switch. | — |
+| `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry. | `MudTooltip` |
 | `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure. | — |
 | `FollowUpLayer` | The floating follow-ups a panel has open, drawn once per panel. | — |
 | `Metric` | One number, its label, and the qualifier that stops it being misread. | — |

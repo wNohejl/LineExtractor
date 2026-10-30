@@ -260,6 +260,89 @@
 </DeskStack>
 
 @* ==========================================================================
+   Settings
+   ========================================================================== *@
+
+</PanelSection>
+
+<PanelSection Title="Checkbox">
+<p class="empty">
+    One setting that is on or off, said by the shape of a tick rather than by a key changing
+    weight. It often waits for something else to be applied — a filter, a form — and is
+    announced as a box that is checked; Space and a press on its words both flip it.
+</p>
+
+<DeskRow Gap="DeskSpace.Space4">
+    <DeskCheckbox Label="Only overdue" @bind-Checked="_onlyOverdue" />
+    <DeskCheckbox Label="Include archived" @bind-Checked="_includeArchived" />
+    <DeskCheckbox Label="Disabled" Disabled="true" />
+</DeskRow>
+
+</PanelSection>
+
+<PanelSection Title="Toggle">
+<p class="empty">
+    The checkbox's sibling, for a setting that takes effect the moment it flips — nothing else
+    has to be pressed. The words lead and the switch trails, as in a settings row, and a reader
+    hears a switch that is on or off. A choice that waits for Apply is a checkbox.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    <DeskToggle Label="Show hidden items" @bind-Checked="_showHidden" />
+    <DeskToggle Label="Notify when done" @bind-Checked="_notify" />
+    <DeskToggle Label="Sync on open" Checked="true" Disabled="true" Title="Set by the host, not here" />
+</DeskStack>
+
+</PanelSection>
+
+<PanelSection Title="Stepper">
+<p class="empty">
+    One capsule that nudges a value by a step, always beside the field that shows it: the field
+    is where the number is read and a large change typed, the stepper is for the nudge of one.
+    It is one Tab stop the arrows drive, and a half that would cross a bound dims.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+        <DeskField TValue="int?" Mono="true" type="number" min="1" max="8" aria-label="Copies"
+                   style="max-width:64px" Value="_copies"
+                   ValueChanged="@((int? n) => _copies = Math.Clamp(n ?? 1, 1, 8))" />
+        <DeskStepper Label="Copies" Min="1" Max="8" @bind-Value="_copies" />
+        <span class="meta">Copies, from 1 to 8</span>
+    </DeskRow>
+    <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+        <DeskStepper Label="At its lowest" Min="0" Max="8" Value="0" />
+        <span class="meta">At its lowest bound — the half that would cross it dims.</span>
+    </DeskRow>
+</DeskStack>
+
+</PanelSection>
+
+<PanelSection Title="Slider">
+<p class="empty">
+    A value whose place between two ends matters more than its exact figure — a share, a level —
+    chosen by dragging, with whatever it governs following the thumb.
+    <span class="mono">Format</span> puts the value in the caller's words for the readout and the
+    reader alike: "45%", not 45. A typed figure is a field; a few fixed steps are a gate.
+</p>
+
+<div class="wgroup">
+    <div class="wgroup__row wgroup__row--form">
+        <span class="wgroup__label">Share</span>
+        <DeskSlider Label="Share of the row" Min="20" Max="80" Step="5" @bind-Value="_share"
+                    Format="@(v => $"{v:0}%")" />
+    </div>
+    <div class="wgroup__row wgroup__row--form">
+        <span class="wgroup__label">Level</span>
+        <DeskSlider Label="Level" @bind-Value="_level" />
+    </div>
+    <div class="wgroup__row wgroup__row--form">
+        <span class="wgroup__label">Disabled</span>
+        <DeskSlider Label="Disabled slider" Value="40" Disabled="true" Format="@(v => $"{v:0}%")" />
+    </div>
+</div>
+
+@* ==========================================================================
    Gate
    ========================================================================== *@
 
@@ -283,6 +366,37 @@
     <span class="mono">GateOptions.LookbackDays</span> is shared — a lookback window reads
     "14d / 30d / 90d" in every window, not two spellings of the same question.
 </p>
+
+</PanelSection>
+
+<PanelSection Title="Radio group">
+<p class="empty">
+    The gate's question, for options that need room: a sentence each, or a picture of what
+    choosing it does. Every option is on the panel at once; the group is one Tab stop, arrows
+    move the choice, and Home and End reach the ends. Where the options are short words, the
+    gate is the better control.
+</p>
+
+<DeskRadioGroup TValue="string" Options="_cadences" Label="Reminder" @bind-Value="_cadence" />
+
+<p class="empty">
+    Given an <span class="mono">ItemTemplate</span>, the template paints the whole option and
+    the group keeps the semantics — the role, the state, the Tab stop — so a tile never restates
+    them. Here each tile is a picture of the rhythm it would set.
+</p>
+
+<DeskRadioGroup TValue="string" Options="_densities" Label="Density" Class="swatches" @bind-Value="_density">
+    <ItemTemplate Context="option">
+        <span class="swatch @(option.Value == _density ? "swatch--on" : null)">
+            <span class="swatch__panel" aria-hidden="true" style="gap:@DensityGap(option.Value)">
+                <span class="swatch__ink"></span>
+                <span class="swatch__ink swatch__ink--secondary"></span>
+                <span class="swatch__ink"></span>
+            </span>
+            <span class="swatch__name">@option.Label</span>
+        </span>
+    </ItemTemplate>
+</DeskRadioGroup>
 
 </PanelSection>
 
@@ -332,6 +446,35 @@
 </DeskRow>
 </DeskStack>
 
+</PanelSection>
+
+<PanelSection Title="Badge">
+<p class="empty">
+    A count beside the name of what it counts, never written into it: "Queue · 2" changes the
+    label every time the count moves, so the name a reader or a test finds it by is never the
+    same twice. Nothing to count is no badge. Past the cap the pill says "99+", and a reader
+    still hears the true figure with its noun.
+</p>
+
+<DeskStack Gap="DeskSpace.Space3">
+<DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+    <DeskButton Size="DeskKeySize.Small">
+        Queue <DeskBadge Count="3" Label="items in the queue" One="item in the queue" />
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small">
+        Drafts <DeskBadge Count="0" Label="drafts" One="draft" />
+    </DeskButton>
+    <span class="meta">Drafts has nothing to count, so no badge.</span>
+</DeskRow>
+
+<DeskTabs TValue="string" Tabs="_badgeTabs" Label="Counted sections" @bind-Value="_badgeTab">
+    <Note>
+        On a tab the count is the tab's <span class="mono">Count</span>, so its name stays
+        <span class="mono">@context</span> however the count moves.
+    </Note>
+</DeskTabs>
+</DeskStack>
+
 @* ==========================================================================
    Tags
    ========================================================================== *@
@@ -357,6 +500,92 @@
     breached SLO, never "the red one". The day the wash changes, every call site that named
     the outcome still reads correctly.
 </p>
+
+@* ==========================================================================
+   Menus and disclosure
+   ========================================================================== *@
+
+</PanelSection>
+
+<PanelSection Title="Menu">
+<p class="empty">
+    A pull-down is a key that opens commands related to its purpose. Pressing the key does not
+    act — the row chosen from it does — so it stays Tinted and never claims the Filled key. A row
+    that cannot run stays in the menu, dimmed, with its reason where its description would be;
+    a destructive row is red, and still asks before it acts.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskPullDown Label="Export">
+        <DeskMenuItem Label="Copy as text" Description="Every visible row, tab-separated"
+                      OnClick="@(() => _menuChose = "Copy as text")" />
+        <DeskMenuItem Label="Save as CSV" Detail="4 rows"
+                      OnClick="@(() => _menuChose = "Save as CSV")" />
+        <DeskMenuItem Label="Send to the archive" Disabled="true"
+                      DisabledReason="The archive is read-only until Monday." />
+        <DeskMenuItem Label="Clear the list" Destructive="true" OnClick="ClearAsync" />
+    </DeskPullDown>
+</DeskRow>
+
+@if (_menuChose is not null)
+{
+    <div class="meta">
+        Chose <span class="mono">@_menuChose</span> — the menu closed before it ran.
+    </div>
+}
+</DeskStack>
+
+</PanelSection>
+
+<PanelSection Title="Popover">
+<p class="empty">
+    A panel anchored to the key that opened it, and one at a time: opening another puts this
+    one away, a press outside or Escape closes it, and focus goes back to the key. The owner
+    binds <span class="mono">Open</span>; the key names itself with
+    <span class="mono">data-popover-return</span> and says it opens something. Holding a radio
+    menu, it is the pop-up — the pull-down's sibling, for choosing a value rather than a command.
+</p>
+
+<DeskPopover Open="_popoverOpen" OpenChanged="@((bool open) => _popoverOpen = open)">
+    <Anchor>
+        <DeskButton Emphasis="DeskEmphasis.Tinted" OnClick="@(() => _popoverOpen = !_popoverOpen)"
+                    aria-haspopup="menu" aria-expanded="@(_popoverOpen ? "true" : "false")"
+                    data-popover-return="true">
+            Sort: @_sort
+            <Glyph Icon="@Icons.Material.Filled.ExpandMore" />
+        </DeskButton>
+    </Anchor>
+    <ChildContent>
+        <DeskMenu Label="Sort by" Radio="true">
+            @foreach (var sort in _sorts)
+            {
+                <DeskMenuItem Label="@sort" Checked="@(sort == _sort)" OnClick="@(() => _sort = sort)" />
+            }
+        </DeskMenu>
+    </ChildContent>
+</DeskPopover>
+
+</PanelSection>
+
+<PanelSection Title="Disclosure">
+<p class="empty">
+    Details behind a label until they are wanted. The triangle leads, pointing at the label
+    while the details are hidden and turning down once they show; the label says what is
+    inside, and the details indent to it, so the two read as one column.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    <DeskDisclosure Label="Why this item is overdue">
+        <p class="empty">It was due Friday, and nobody has reviewed it since it was filed.</p>
+    </DeskDisclosure>
+    <DeskDisclosure Label="Open from the start" Open="true">
+        <p class="empty">
+            Unbound, <span class="mono">Open</span> is where it starts; bind it with
+            <span class="mono">OpenChanged</span> to own the state.
+        </p>
+    </DeskDisclosure>
+</DeskStack>
 
 @* ==========================================================================
    Display
@@ -412,6 +641,28 @@
 
 </PanelSection>
 
+<PanelSection Title="Display — sparkline">
+<p class="empty">
+    A line chart the size of a word, for a row per thing: which way the number went, beside the
+    numbers themselves. Each is its own scale, so rows compare by shape and by their figures,
+    never by height, and no hue says rise or fall. <span class="mono">Step</span> holds each
+    value until the next, for a series written only when it changes; one value is a reading,
+    not a trend, and draws a dash.
+</p>
+
+<DeskStack Gap="DeskSpace.Space1">
+    @foreach (var (name, values, step) in _sparks)
+    {
+        <DeskRow Gap="DeskSpace.Space3" Align="DeskAlign.Center">
+            <span class="meta parts-key">@name@(step ? " — Step" : null)</span>
+            <DeskSparkline Values="values" Step="step" Label="@SparkLabel(name, values)" />
+            <span class="mono meta">@values[^1]</span>
+        </DeskRow>
+    }
+</DeskStack>
+
+</PanelSection>
+
 <PanelSection Title="Display — progress">
 <p class="empty">
     Prefer determinate whenever the denominator is knowable — if you are walking six sources,
@@ -430,6 +681,26 @@
                     Busy="@_stepping" OnClick="StepAsync">
             Advance the bar
         </DeskButton>
+    </DeskRow>
+</DeskStack>
+
+</PanelSection>
+
+<PanelSection Title="Display — spinner">
+<p class="empty">
+    For work with no denominator and no room for a bar: beside a field checking what was typed,
+    or in a small empty state while its first read arrives. Small sits in a line of text; Medium
+    stands on its own. Its label is what a reader hears, so name the work rather than the wait.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+        <DeskSpinner Size="DeskKeySize.Small" Label="Checking the name" />
+        <span class="meta">Checking the name is free</span>
+    </DeskRow>
+    <DeskRow Gap="DeskSpace.Space2" Align="DeskAlign.Center">
+        <DeskSpinner Label="Fetching items" />
+        <span>Fetching items</span>
     </DeskRow>
 </DeskStack>
 
@@ -480,6 +751,28 @@
     <PropertyColumn T="PartRow" TProperty="string" Property="x => x.Amount" Title="Amount" />
 </DeskGrid>
 </DeskStack>
+
+<p class="empty">
+    Open a row and <span class="mono">RowActions</span> shows what can be done with it. A view
+    answers on the row, in a snippet, and offers a window only if the snippet is not enough; a
+    command that only opens a window goes straight there. One snippet at a time, and Escape
+    puts it away.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <div class="meta"><span class="mono">North · Draft · 120</span> — the row, opened</div>
+    <RowActions Actions="_rowActions" />
+</DeskStack>
+
+<p class="empty">
+    Every snippet sits in a <span class="mono">SnippetShell</span>: the same header, a note on
+    what it is missing, and the one way out, so no snippet builds its own.
+</p>
+
+<SnippetShell Title="Last five" Icon="@Icons.Material.Filled.History" Note="5 of 12"
+              OpenLabel="Full history" OnOpen="@(() => Task.CompletedTask)">
+    <div class="meta">Draft · Review · Review · Final · Final</div>
+</SnippetShell>
 </PanelSection>
 
 </PanelSection>
@@ -663,6 +956,41 @@
         <Note Inline State="DeskState.Warning">62%</Note>
     </span>
 </DeskRow>
+
+</PanelSection>
+
+<PanelSection Title="Tooltip">
+<p class="empty">
+    A sentence of explanation beside the thing it explains, raised by hover and by keyboard focus
+    alike after a short pause — for what a <code>title</code> cannot carry, such as two lines.
+    Where one short phrase will do, <code>title</code> stays. It describes its trigger and never
+    renames it: the link below is still announced by its own name.
+</p>
+
+<DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Center">
+    <DeskTooltip Text="@_linkTip">
+        <DeskLink Destination="details" OnClick="@(() => { })">North region</DeskLink>
+    </DeskTooltip>
+    <DeskTooltip Text="@_textTip" Placement="DeskTooltipPlacement.Bottom">
+        <span class="meta">14 of 21 reviewed</span>
+    </DeskTooltip>
+</DeskRow>
+
+<p class="empty">
+    On plain text it is the pointer's alone — text takes no focus — so it may add to what the
+    text says, never be the only place a thing is said.
+</p>
+
+</PanelSection>
+
+<PanelSection Title="Checks">
+<p class="empty">
+    Advisory facts before a step is taken, as a grouped section: a mark, one sentence, and the
+    remedy key on the row where there is one. The mark's hue is the second channel; the
+    sentence carries the meaning, so the list still reads with the colour taken away.
+</p>
+
+<CheckList Items="_checks" Title="Before you send" />
 
 </PanelSection>
 
@@ -900,6 +1228,44 @@
     private string _choice = "draft";
     private string? _prose;
 
+    // --------------------------------------------------------------- settings ---
+
+    private bool _onlyOverdue = true;
+    private bool _includeArchived;
+    private bool _showHidden = true;
+    private bool _notify;
+    private int _copies = 3;
+    private double _share = 45;
+    private double _level = 60;
+
+    // ------------------------------------------------------------ radio group ---
+
+    private string _cadence = "before";
+
+    private static readonly IReadOnlyList<DeskRadioOption<string>> _cadences =
+    [
+        new("never", "Never"),
+        new("before", "Once, the day before"),
+        new("daily", "Daily until it is done")
+    ];
+
+    private string _density = "regular";
+
+    private static readonly IReadOnlyList<DeskRadioOption<string>> _densities =
+    [
+        new("compact", "Compact", "Tighter rows, more of them in a window"),
+        new("regular", "Regular", "The desk's own rhythm"),
+        new("roomy", "Roomy", "More air between rows")
+    ];
+
+    // The tile's picture is the rhythm itself: the same three lines, closer or further apart.
+    private static string DensityGap(string density) => density switch
+    {
+        "compact" => "2px",
+        "roomy" => "9px",
+        _ => "5px"
+    };
+
     // ------------------------------------------------------------ gate and tabs ---
 
     private static readonly IReadOnlyList<DeskSwitchOption<string>> _gateViews =
@@ -920,6 +1286,57 @@
         new("Summary", "Summary"),
         new("Details", "Details"),
         new("History", "History", _thirdTab)
+    ];
+
+    // ------------------------------------------------------------------ badge ---
+
+    private string _badgeTab = "Open";
+
+    private static readonly IReadOnlyList<DeskTab<string>> _badgeTabs =
+    [
+        new("Open", "Open", Count: 3),
+        new("Later", "Later", Count: 120),
+        new("Done", "Done")
+    ];
+
+    // ------------------------------------------------------ menus and popovers ---
+
+    /// <summary>The last row chosen from the pull-down, so the demo says it was heard.</summary>
+    private string? _menuChose;
+
+    private bool _popoverOpen;
+    private string _sort = "Newest";
+    private static readonly string[] _sorts = ["Newest", "Oldest", "Owner"];
+
+    /// <summary>A destructive row still confirms: the menu closes, then the alert asks.</summary>
+    private async Task ClearAsync()
+    {
+        var confirmed = await Alerts.ConfirmAsync(
+            "Clear the list?",
+            message: "A demonstration — nothing is removed.",
+            confirmLabel: "Clear the list",
+            cancelLabel: "Keep it",
+            destructive: true);
+
+        _menuChose = confirmed ? "Clear the list — confirmed" : "Clear the list — kept";
+    }
+
+    // ---------------------------------------------------------------- tooltip ---
+
+    private const string _linkTip = "Opens the region's details.\nIts history is one tab over.";
+    private const string _textTip = "Reviewed means someone other than the owner has read it.";
+
+    // ----------------------------------------------------------------- checks ---
+
+    private IReadOnlyList<Check> _checks =>
+    [
+        new(DeskState.Positive, "Every item has an owner."),
+        new(DeskState.Warning, "Two items have no due date.", "Set dates", () =>
+        {
+            Toasts.Info("A remedy opens where the fix is made.");
+            return Task.CompletedTask;
+        }),
+        new(DeskState.Negative, "One item is over its limit, so it cannot be sent as it is.")
     ];
 
     // ------------------------------------------------------------------- tags ---
@@ -946,6 +1363,45 @@
     ];
 
     private bool _gridLoading = true;
+
+    // Two views that answer on the row and one command that only opens a window, so the strip
+    // shows both of its halves: the segmented views, then the key.
+    private IReadOnlyList<RowAction> _rowActions =>
+    [
+        new()
+        {
+            Key = "history", Label = "History", Icon = Icons.Material.Filled.History,
+            Snippet = HistorySnippet, OpenLabel = "Full history", OpenWindow = () => Task.CompletedTask
+        },
+        new() { Key = "notes", Label = "Notes", Icon = Icons.Material.Filled.Notes, Snippet = NotesSnippet },
+        new()
+        {
+            Key = "open", Label = "Open item", Icon = Icons.Material.Filled.OpenInNew,
+            Emphasis = DeskEmphasis.Tinted,
+            OpenWindow = () =>
+            {
+                Toasts.Info("A command opens its window directly.");
+                return Task.CompletedTask;
+            }
+        }
+    ];
+
+    private static RenderFragment HistorySnippet => @<div class="meta">Draft · Review · Final — filed Oct 12, final Oct 26</div>;
+
+    private static RenderFragment NotesSnippet => @<div class="meta">No notes on this item yet.</div>;
+
+    // Deliberately fake and shaped: one that rises, one written only when it changes, and one
+    // with a single reading, which draws a dash.
+    private static readonly (string Name, double[] Values, bool Step)[] _sparks =
+    [
+        ("North", new double[] { 120, 132, 128, 150, 164 }, false),
+        ("South", new double[] { 85, 85, 92, 92, 78 }, true),
+        ("East", new double[] { 1340 }, false)
+    ];
+
+    private static string SparkLabel(string name, double[] values) => values.Length < 2
+        ? $"{name}, one reading: {values[^1]}"
+        : $"{name}, from {values[0]} to {values[^1]} over {values.Length} readings";
 
     /// <summary>What the last linked cell pressed would have opened, so the demo says it was heard.</summary>
     private string? _linkOpened;
