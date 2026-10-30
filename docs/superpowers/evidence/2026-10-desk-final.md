@@ -51,3 +51,29 @@ fail; `AccessibleNameTests` now holds the first for every Razor file.
 
 **Not reachable in this walk.** An open incident's RCA form (none open); a failed save (the
 database was healthy) — both covered by tests in the Phase A commits.
+
+## Phase D — rendering cost, 30 October 2026
+
+Measured in the browser pane on port 5271 at 1280×800, dark, before (ed469eb) and after
+(ed8a656) the four Phase D commits; the render counts are what `WindowRenderCountTests`
+observed on the bUnit bench with two windows open.
+
+| Measure | Before | After |
+|---|---|---|
+| Desk's own renders on one window's status change | 1 (plus every window, the header, the bar, the footer) | 0 (that window and the bar only) |
+| Renders per window on `Relayout()` that moves nothing | 1 each | 0 each |
+| Resize handlers | one measure and one `.NET` call per `resize` event, in three files | one `requestAnimationFrame` pass per burst, trailing edge |
+| Glide observer on a grid of N rows | N subtree queries | 1 sweep per frame |
+| Head CSS excluding MudBlazor (uncompressed) | 330 KB | 330 KB (desk 156, app 80, bridge 40, controls 24, themes 21) — under the 350 KB target before and after; the split moved bytes, it did not add them |
+| Regular Inter face requested | 116 ms after the first stylesheet (after parse) | with the first stylesheet (preloaded) |
+| `wwwroot/lib` (Bootstrap) | 8.5 MB published, 0 requests | gone |
+| `DeskGrid` renders on mount / on a same-items parameter set | 2 / +1 | 2 / +1, now pinned by a test |
+| Performance window reads per load | 2 | 1 |
+| Tale of the tape reads per Game render | 1 per render | 1 per bout |
+| History reloads per backfill day walked | 1 per day, unbounded | at most 1 per second |
+| Incident list | every incident, tracked | every open one plus the newest 200 resolved, untracked |
+
+Console after the rebuild: no errors from the new page (the buffer still held the
+connection-refused lines from the server restart). The resize burst (1200 → 1300 → 1280)
+produced no error and the layout settled at the last size. Not measured: SignalR message
+counts per resize — the shape is held by `DeskScriptsTests` instead.
