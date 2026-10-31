@@ -186,7 +186,7 @@ else
     <PanelSection Title="Timeline">
         @if (_timeline.Count == 0 && !Manager.Access.CanOperate)
         {
-            <p class="opsnone">Nothing on the timeline yet.</p>
+            <EmptyState Kind="EmptyStateKind.New">Nothing on the timeline yet.</EmptyState>
         }
         else
         {
@@ -209,11 +209,18 @@ else
                             <DeskField TValue="string" Immediate="true" Class="opsrow__fill"
                                        aria-label="New timeline note"
                                        placeholder="What was seen, or what was tried" @bind-Value="_newNote" />
-                            <DeskButton OnClick="AddNoteAsync"
-                                        Disabled="@string.IsNullOrWhiteSpace(_newNote)"
-                                        Title="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
-                                Add
-                            </DeskButton>
+                            @* The Add key waits for text, and says so on the row: a disabled key's
+                               title never shows. *@
+                            <KeyRow Justify="DeskJustify.Start"
+                                    Reason="@(string.IsNullOrWhiteSpace(_newNote) ? "Type the note first." : null)">
+                                <Primary Context="why">
+                                    <DeskButton OnClick="AddNoteAsync"
+                                                Disabled="@string.IsNullOrWhiteSpace(_newNote)"
+                                                aria-describedby="@why">
+                                        Add
+                                    </DeskButton>
+                                </Primary>
+                            </KeyRow>
                         </div>
                     </div>
                 }
@@ -291,21 +298,27 @@ else
                 </ChildContent>
                 <Footer>
                     @* Mark mitigated takes Cancel's place: the way out of the form that is not
-                       the primary. *@
-                    @if (_selected.Status == IncidentStatus.Open)
-                    {
-                        <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
-                    }
+                       the primary.
 
-                    @* Two different reasons this key is grey, and the operator cannot tell them
+                       Two different reasons Resolve is grey, and the operator cannot tell them
                        apart by looking: the RCA is short of a field, or the incident is already
                        resolved and there is nothing left to do. The group's footer states the rule;
-                       the title states which of the two is true right now. *@
-                    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
-                                OnClick="ResolveAsync" Disabled="@(!CanResolve)"
-                                Title="@ResolveHint">
-                        Resolve incident
-                    </DeskButton>
+                       the sentence before the key states which of the two is true right now. *@
+                    <KeyRow Reason="@ResolveHint">
+                        <Secondary>
+                            @if (_selected.Status == IncidentStatus.Open)
+                            {
+                                <DeskButton OnClick="MitigateAsync">Mark mitigated</DeskButton>
+                            }
+                        </Secondary>
+                        <Primary Context="why">
+                            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.TaskAlt"
+                                        OnClick="ResolveAsync" Disabled="@(!CanResolve)"
+                                        aria-describedby="@why">
+                                Resolve incident
+                            </DeskButton>
+                        </Primary>
+                    </KeyRow>
                 </Footer>
             </PanelForm>
         </PanelSection>

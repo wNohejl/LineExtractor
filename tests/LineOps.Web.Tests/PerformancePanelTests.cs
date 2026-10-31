@@ -160,6 +160,31 @@ public class PerformancePanelTests : DeskTestContext
         Assert.Empty(panel.FindAll(".psection__keys .perf-bankroll"));
     }
 
+    /// <summary>
+    /// A Set that cannot be pressed says why in text on its row — a disabled key's title never
+    /// shows — and the key is described by that sentence. A different figure clears both.
+    /// </summary>
+    [Fact]
+    public void The_set_key_says_why_it_waits()
+    {
+        var panel = RenderSettled();
+        Set(panel.Instance, "_bankrollInput", (decimal?)0m);
+        panel.Render();
+
+        var row = panel.Find("section.wsection[aria-label='Bankroll'] .keyrow");
+        var reason = row.QuerySelector(".keyrow__reason")!;
+        Assert.Equal("Type a different figure to set it.", reason.TextContent.Trim());
+
+        var set = row.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Set");
+        Assert.Equal(reason.Id, set.GetAttribute("aria-describedby"));
+        Assert.Null(set.GetAttribute("title"));
+
+        panel.Find("input[aria-label='Starting bankroll']").Change("500");
+
+        Assert.Empty(panel.FindAll(".keyrow__reason"));
+        Assert.Null(panel.FindAll("button").Single(b => b.TextContent.Trim() == "Set").GetAttribute("aria-describedby"));
+    }
+
     /// <summary>A figure the journal would not store is said under the row, and stays in the field.</summary>
     [Fact]
     public void A_bankroll_that_fails_to_save_says_so()

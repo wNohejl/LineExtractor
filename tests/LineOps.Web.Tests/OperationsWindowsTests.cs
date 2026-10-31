@@ -121,8 +121,8 @@ public class OperationsWindowsTests : DeskTestContext
 
         panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "Automatic").Click();
 
-        var keys = panel.FindAll(".opsconfirm button").Select(b => b.TextContent.Trim()).ToList();
-        Assert.Equal(["Scan automatically", "Cancel"], keys);
+        var keys = panel.FindAll(".confirm button").Select(b => b.TextContent.Trim()).ToList();
+        Assert.Equal(["Cancel", "Scan automatically"], keys);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class OperationsWindowsTests : DeskTestContext
         var panel = RenderOps(LiveFeed());
 
         panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "Automatic").Click();
-        panel.FindAll(".opsconfirm button").Single(b => b.TextContent.Trim() == "Scan automatically").Click();
+        panel.FindAll(".confirm button").Single(b => b.TextContent.Trim() == "Scan automatically").Click();
 
         panel.WaitForAssertion(() =>
         {
@@ -171,12 +171,12 @@ public class OperationsWindowsTests : DeskTestContext
 
         panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "Automatic").Click();
 
-        var ask = panel.Find(".opsconfirm");
+        var ask = panel.Find(".confirm");
         Assert.Contains("Scan at this price until switched back", ask.TextContent);
 
-        panel.FindAll(".opsconfirm button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+        panel.FindAll(".confirm button").Single(b => b.TextContent.Trim() == "Cancel").Click();
 
-        Assert.Empty(panel.FindAll(".opsconfirm"));
+        Assert.Empty(panel.FindAll(".confirm"));
         Assert.Equal("true", panel.FindAll("[role=radio]").Single(b => b.TextContent.Trim() == "On request")
             .GetAttribute("aria-checked"));
     }
@@ -414,7 +414,8 @@ public class OperationsWindowsTests : DeskTestContext
 
         panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk…").Click();
 
-        var ask = panel.FindAll(".opsrow__text").Single(t => t.TextContent.Contains("again?")).TextContent;
+        var ask = panel.Find(".confirm .confirm__ask").TextContent;
+        Assert.Equal(["Cancel", "Re-walk"], panel.FindAll(".confirm button").Select(b => b.TextContent.Trim()).ToList());
         Assert.Equal("Walk 3,054 held days again?", string.Join(' ', ask.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
         Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Re-walk");
         Assert.DoesNotContain(panel.FindAll("button"), b => b.TextContent.Contains("Yes,"));

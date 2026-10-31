@@ -1469,20 +1469,14 @@ button.gamelines__cell { align-items: stretch; }
 /* Under tiles it is theirs: the air the tiles keep beneath them is halved for it. */
 .metrics + .opsfoot { margin-top: calc(-1 * var(--space-2)); }
 
-/* A key that leads, with what it does beside it: Evaluate now under the tiles it recomputes,
-   the drill's key under its group. */
-.opsact { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
-.opsact__why { max-width: 80ch; font-size: var(--text-subheadline); color: var(--text-secondary); }
+/* A key row that leads (the Desk's KeyRow lays it out): Evaluate now under the tiles it
+   recomputes, the drill's key under its group. Only the air around it is the window's. */
 .metrics + .opsact { margin-top: calc(-1 * var(--space-1)); }
 .opsfoot + .opsact, .opsgroup + .opsact, .wsection + .opsact { margin-top: var(--space-4); }
 
-/* The question a setting asks before it spends, as a row of its group: the sentence, then its
-   keys, starting at the labels' edge. */
-.opsconfirm { flex-wrap: wrap; row-gap: var(--space-2); padding: var(--space-2) var(--space-4); }
-.opsconfirm__ask { flex: 1 1 240px; min-width: 0; }
-
-/* A section whose whole content is one sentence: "No open alerts." */
-.opsnone { margin: 0; color: var(--text-secondary); }
+/* The question a setting asks before it spends (the Desk's InlineConfirm), as a row of its
+   group: it starts at the labels' edge, as the rows above it do. */
+.opsgroup > .confirm { padding: var(--space-2) var(--space-4); }
 
 /* A warning note after a group or its footer keeps the air a group would. */
 .opsgroup ~ .opsnote, .opsfoot + .opsnote { margin-top: var(--space-3); }

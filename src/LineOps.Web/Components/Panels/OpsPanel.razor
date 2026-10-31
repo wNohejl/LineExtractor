@@ -57,16 +57,19 @@ else
    used to be the only thing in a toolbar of its own, pinned to the right edge: in a maximised
    window that was a 40px band above the tiles that read as empty, with the key a screen's width
    from anything it acts on (HIG: the primary action aligns with the content; nothing pinned to
-   a far edge away from what it belongs to). *@
+   a far edge away from what it belongs to). A KeyRow lays it as every key row on the desk
+   reads: the sentence, then the Filled key last, and the key described by the sentence. *@
 @if (Manager.Access.CanOperate)
 {
-    <div class="opsact">
-        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
-                    OnClick="EvaluateAsync" Busy="@_busy">
-            Evaluate now
-        </DeskButton>
-        <span class="opsact__why">Rolls today's figures up and runs the alert rules again.</span>
-    </div>
+    <KeyRow Class="opsact" Justify="DeskJustify.Start"
+            Reason="Rolls today's figures up and runs the alert rules again.">
+        <Primary Context="why">
+            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Refresh"
+                        OnClick="EvaluateAsync" Busy="@_busy" aria-describedby="@why">
+                Evaluate now
+            </DeskButton>
+        </Primary>
+    </KeyRow>
 }
 
 @*
@@ -130,17 +133,12 @@ else
             </div>
             @if (_confirmAutomatic)
             {
-                <div class="wgroup__row opsconfirm">
-                    <span class="opsconfirm__ask">
-                        Scan at this price until switched back, from this host and the worker alike?
-                    </span>
-                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                                Icon="@Icons.Material.Filled.Schedule"
-                                OnClick="() => SetPollingAsync(automatic: true)">
-                        Scan automatically
-                    </DeskButton>
-                    <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmAutomatic = false">Cancel</DeskButton>
-                </div>
+                <InlineConfirm Class="wgroup__row" ConfirmLabel="Scan automatically"
+                               ConfirmIcon="@Icons.Material.Filled.Schedule"
+                               OnConfirm="() => SetPollingAsync(automatic: true)"
+                               OnCancel="() => _confirmAutomatic = false">
+                    Scan at this price until switched back, from this host and the worker alike?
+                </InlineConfirm>
             }
         </div>
         @ScanningCost()
@@ -230,7 +228,7 @@ else
    table that failed to fill, and this is the all-clear the window exists to give. *@
 @if (_alerts.Count == 0)
 {
-    <p class="opsnone">No open alerts. Every source is inside its SLO.</p>
+    <EmptyState>No open alerts. Every source is inside its SLO.</EmptyState>
 }
 else
 {
@@ -336,12 +334,14 @@ else
             <p class="opsfoot">@WhatTheDrillDoes()</p>
         }
 
-        <div class="opsact">
-            <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
-                        OnClick="DrillAsync" Busy="@_busy">
-                Run ingest &amp; evaluate
-            </DeskButton>
-        </div>
+        <KeyRow Class="opsact" Justify="DeskJustify.Start">
+            <Primary>
+                <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.PlayArrow"
+                            OnClick="DrillAsync" Busy="@_busy">
+                    Run the drill
+                </DeskButton>
+            </Primary>
+        </KeyRow>
     </PanelSection>
 }
 

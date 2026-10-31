@@ -169,7 +169,7 @@ You do not have to wait for a real outage to practise this.
    - **Upstream 503** — hard failure, exercises retry and the breaker.
    - **Request timeout** — slow failure.
    - **Empty payload** — the silent one; returns `HTTP 200` and no rows.
-2. **Run ingest & evaluate**.
+2. **Run ingest and evaluate**.
 3. Watch the alert appear, promote it to an incident, work the timeline, then write the RCA
    and resolve it.
 4. Set the source back to **Healthy** and confirm the alert auto-resolves on the next

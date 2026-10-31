@@ -147,17 +147,17 @@ else if (!Loaded && !Failed)
                    nothing else can have changed is a key that only ever repaints the same numbers. *@
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Past days</span>
-                    <div class="opsrow">
-                        <DeskButton Emphasis="DeskEmphasis.Filled"
-                                    Icon="@Icons.Material.Filled.History"
-                                    Disabled="@(!_eligibility.Any(s => s.Eligible))"
-                                    Title="@(_eligibility.Any(s => s.Eligible)
-                                        ? null
-                                        : "No unmetered provider is available to walk — see Sources above.")"
-                                    OnClick="Start">
-                            Gather history
-                        </DeskButton>
-                    </div>
+                    <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@GatherWaits">
+                        <Primary Context="why">
+                            <DeskButton Emphasis="DeskEmphasis.Filled"
+                                        Icon="@Icons.Material.Filled.History"
+                                        Disabled="@(GatherWaits is not null)"
+                                        aria-describedby="@why"
+                                        OnClick="Start">
+                                Gather history
+                            </DeskButton>
+                        </Primary>
+                    </KeyRow>
                 </div>
 
                 @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
@@ -165,34 +165,31 @@ else if (!Loaded && !Failed)
                    not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Held days</span>
-                    <div class="opsrow">
-                        @if (_confirmRewalk)
-                        {
-                            <span class="opsrow__text">
-                                Walk <span class="num">@HeldDays.ToString("N0")</span> held @(HeldDays == 1 ? "day" : "days") again?
-                            </span>
-                            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                                        Icon="@Icons.Material.Filled.Restore" OnClick="RewalkAsync">
-                                Re-walk
-                            </DeskButton>
-                            <DeskButton Size="DeskKeySize.Small" OnClick="() => _confirmRewalk = false">
-                                Cancel
-                            </DeskButton>
-                        }
-                        else
-                        {
-                            @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
-                               is a fact about the desk worth reading, and a key that vanishes teaches nothing. *@
-                            <DeskButton Icon="@Icons.Material.Filled.Restore"
-                                        Disabled="@(HeldDays == 0)"
-                                        Title="@(HeldDays == 0
-                                            ? "No day is held yet, so there is nothing to walk again."
-                                            : "Walk every held day again.")"
-                                        OnClick="() => _confirmRewalk = true">
-                                Re-walk…
-                            </DeskButton>
-                        }
-                    </div>
+                    @if (_confirmRewalk)
+                    {
+                        <InlineConfirm Class="opsrow" ConfirmLabel="Re-walk"
+                                       ConfirmIcon="@Icons.Material.Filled.Restore"
+                                       OnConfirm="RewalkAsync" OnCancel="() => _confirmRewalk = false">
+                            Walk <span class="num">@HeldDays.ToString("N0")</span> held @(HeldDays == 1 ? "day" : "days") again?
+                        </InlineConfirm>
+                    }
+                    else
+                    {
+                        @* Disabled with the reason rather than hidden: "there is nothing held to re-walk"
+                           is a fact about the desk worth reading, and a key that vanishes teaches nothing.
+                           The reason is text on the row; a disabled key's title never shows. *@
+                        <KeyRow Class="opsrow" Justify="DeskJustify.Start"
+                                Reason="@(HeldDays == 0 ? "No day is held yet, so there is nothing to walk again." : null)">
+                            <Primary Context="why">
+                                <DeskButton Icon="@Icons.Material.Filled.Restore"
+                                            Disabled="@(HeldDays == 0)"
+                                            aria-describedby="@why"
+                                            OnClick="() => _confirmRewalk = true">
+                                    Re-walk…
+                                </DeskButton>
+                            </Primary>
+                        </KeyRow>
+                    }
                 </div>
 
                 @* A range, named: the sports and the days to walk again — how a season stored before its
@@ -225,15 +222,23 @@ else if (!Loaded && !Failed)
                 </div>
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Range</span>
-                    <div class="opsrow">
-                        <span class="opsrow__text">@RangeSummary</span>
-                        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Restore"
-                                    Disabled="@(RangeAsked is null || !_eligibility.Any(s => s.Eligible))"
-                                    Title="@(RangeAsked is null ? "Choose a sport and a From no later than To." : "Walk these days again, then ask ESPN for their closing lines.")"
-                                    OnClick="BackportRange">
-                            Backport range
-                        </DeskButton>
-                    </div>
+                    @* What the range will walk while it is a range; why its key waits while it is not. *@
+                    <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@RangeWaits">
+                        <Secondary>
+                            @if (RangeAsked is not null)
+                            {
+                                <span class="opsrow__text">@RangeSummary</span>
+                            }
+                        </Secondary>
+                        <Primary Context="why">
+                            <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Restore"
+                                        Disabled="@(RangeWaits is not null)"
+                                        aria-describedby="@why"
+                                        OnClick="BackportRange">
+                                Backport range
+                            </DeskButton>
+                        </Primary>
+                    </KeyRow>
                 </div>
             }
         </div>
@@ -340,7 +345,7 @@ else if (!Loaded && !Failed)
             <span class="num">@context.Item.Final.ToString("N0")</span>
             @if (context.Item.Postponed > 0)
             {
-                <span class="dim num" title="Postponed, cancelled or suspended."> · @context.Item.Postponed.ToString("N0") pp</span>
+                <span class="dim num"> · @context.Item.Postponed.ToString("N0") postponed</span>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -574,6 +579,16 @@ else if (!Loaded && !Failed)
 
     private static DateOnly? Day(string? text)
         => DateOnly.TryParseExact(text, "yyyy-MM-dd", out var day) ? day : null;
+
+    /// <summary>Why Gather history waits, or null when a provider can walk.</summary>
+    private string? GatherWaits => _eligibility.Any(s => s.Eligible)
+        ? null
+        : "No unmetered provider is available to walk — see Sources above.";
+
+    /// <summary>Why Backport range waits: no range named yet, or nothing to walk it with.</summary>
+    private string? RangeWaits => RangeAsked is null
+        ? "Choose a sport and a From no later than To."
+        : GatherWaits;
 
     /// <summary>The range as asked, or null while it is not one: no sport, a missing day, or From after To.</summary>
     private BackfillRange? RangeAsked
