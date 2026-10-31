@@ -115,11 +115,14 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskCheckbox` | One setting that is on or off. | — |
 | `DeskDialog` | A floating, non-modal panel for comparing things beside the desk. | — |
 | `DeskDisclosure` | Details hidden behind a label until they are wanted. | — |
+| `DeskErrorPage` | The page a host shows when a request failed: what happened, its reference, and the way back. | — |
 | `DeskField` | A text or number field, with a real label and its error beneath it. | — |
 | `DeskGrid` | The table: sortable columns and actionable rows in the Desk's dense rhythm. | `MudDataGrid` |
+| `DeskJobMenu` | A key that opens a menu of named runs, each saying what it costs before it is chosen. | — |
 | `DeskLink` | A grid cell that opens a window of its own, naming where the click goes. | — |
 | `DeskMenu` | A column of commands the keyboard can drive. | — |
 | `DeskMenuItem` | One row of a menu: a label, a trailing detail, and why it is dimmed. | — |
+| `DeskNotFound` | The page a host shows for an address that opens nothing, with the way back. | — |
 | `DeskPopover` | A panel anchored to the control that opened it, one at a time. | — |
 | `DeskProgress` | A slim bar for named work that takes long enough to report. | — |
 | `DeskPullDown` | A key that opens a menu of related commands. | — |

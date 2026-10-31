@@ -1069,3 +1069,32 @@
     gap: var(--space-2);
     margin-left: auto;
 }
+
+
+/* ---- Pages ------------------------------------------------------------------
+   DeskErrorPage and DeskNotFound: a heading, the EmptyState sentence and its one
+   key, centred in an otherwise empty page. The heading sits above the EmptyState
+   (a paragraph cannot hold one); the reference is a footnote. */
+.deskpage {
+    min-height: 60vh;
+    display: grid;
+    place-items: center;
+    padding: var(--space-8) var(--space-4);
+}
+
+.deskpage__body {
+    max-width: 52ch;
+}
+
+.deskpage__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-title2);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.deskpage__ref {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-footnote);
+    color: var(--text-tertiary);
+}

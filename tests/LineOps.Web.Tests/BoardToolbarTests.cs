@@ -80,7 +80,7 @@ public class BoardToolbarTests : DeskTestContext
         Assert.Contains("Options=\"_phaseOptions\"", overflow);
         Assert.Contains("<BoardValueFilter", overflow);
         Assert.DoesNotContain("<DeskSearch", overflow);
-        Assert.DoesNotContain("PullMenu", overflow);
+        Assert.DoesNotContain("DeskJobMenu", overflow);
 
         // Each folded control carries the label it shows as a row of the More panel.
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Sport<", overflow);

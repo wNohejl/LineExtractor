@@ -42,9 +42,20 @@ else if (_form is null)
 }
 else if (_form.IsEmpty)
 {
+    @* The way to the fix is a key where the gap is stated (HIG 16), as the Line movement
+       window's is, not a sentence naming a window somewhere else. *@
     <EmptyState Kind="EmptyStateKind.Filtered">
-        No appearances on record for either roster in the last @_windowDays days. History is
-        gathered separately — open the History window to backfill it.
+        <ChildContent>
+            No appearances on record for either roster in the last @_windowDays days. History is
+            gathered separately, by the walk that reaches back over past days.
+        </ChildContent>
+        <Action>
+            <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                        Icon="@Icons.Material.Filled.History"
+                        OnClick="() => Manager.OpenHistory()">
+                Open History
+            </DeskButton>
+        </Action>
     </EmptyState>
 }
 else

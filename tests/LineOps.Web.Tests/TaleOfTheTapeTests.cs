@@ -28,7 +28,13 @@ public class TaleOfTheTapeTests : DeskTestContext
 
     private readonly CountedFights _fights = new();
 
-    public TaleOfTheTapeTests() => Services.AddSingleton<FightService>(_fights);
+    public TaleOfTheTapeTests()
+    {
+        Services.AddSingleton<FightService>(_fights);
+        // A missing profile offers its read in place, through the desk's job runner.
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
+        Services.AddScoped<LineOps.Desk.DeskJobRunner>();
+    }
 
     /// <summary>What the Game window passes on each render: a fresh delegate for the same link.</summary>
     private EventCallback<(int TeamId, string Name)> FreshLink()

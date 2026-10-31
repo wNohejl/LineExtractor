@@ -118,6 +118,9 @@ public static class DeskServiceCollectionExtensions
         services.AddScoped<DeskFollowUps>();
         services.AddSingleton<DeskSignals>();
         services.AddScoped<DeskToasts>();
+        // The application's named runs (IDeskJobs) are its own to register; the runner that
+        // reports them is the desk's.
+        services.AddScoped<DeskJobRunner>();
         services.AddScoped<IDeskAlerts, DeskAlerts>();
         services.AddScoped<IDeskSheets, DeskSheets>();
         services.AddScoped<DeskPopovers>();

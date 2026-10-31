@@ -1,7 +1,10 @@
 @namespace LineOps.Web.Components.Snippets
 @using LineOps.Core.Contracts
 @using LineOps.Data.CrossReference
+@using LineOps.Ingestion.Services
 @inject IServiceScopeFactory ScopeFactory
+@inject DeskJobRunner Runner
+@inject IDeskAccess Access
 
 @*
     Two fighters side by side (ADR 0021): the red corner on the left, the blue on the right, what
@@ -40,8 +43,28 @@ else
 
         @if (tape.Home.Profile is null || tape.Away.Profile is null)
         {
+            var missing = tape.Home.Profile is null && tape.Away.Profile is null
+                ? "Neither fighter has a profile yet"
+                : $"{(tape.Home.Profile is null ? tape.Home.Team.Name : tape.Away.Team.Name)} has no profile yet";
+
+            @* The fix sits where the gap is stated (HIG 16): an operator reads the profiles from
+               here, through the job the Board's Pull data menu runs; a visitor is told whose pull
+               fills it, since there is nothing here for them to press. *@
             <p class="tape__footer">
-                @(tape.Home.Profile is null && tape.Away.Profile is null ? "Neither fighter has a profile yet" : $"{(tape.Home.Profile is null ? tape.Home.Team.Name : tape.Away.Team.Name)} has no profile yet") — Pull data → Fighter profiles owed reads it from ESPN.
+                @if (Access.CanOperate)
+                {
+                    @(missing + ". ")
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                Icon="@Icons.Material.Filled.PersonSearch"
+                                Busy="_reading"
+                                OnClick="ReadProfilesAsync">
+                        Read fighter profiles
+                    </DeskButton>
+                }
+                else
+                {
+                    @(missing + " — the operator's pull reads it from ESPN.")
+                }
             </p>
         }
 
@@ -107,6 +130,29 @@ else
         if (GameId == _loadedGameId)
             return;
 
+        await LoadAsync();
+    }
+
+    private bool _reading;
+
+    /// <summary>Runs the profile read the Pull data menu offers, then reads this bout again.</summary>
+    private async Task ReadProfilesAsync()
+    {
+        _reading = true;
+
+        try
+        {
+            if (await Runner.RunAsync(IngestionJobs.EspnFighters))
+                await LoadAsync();
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
         var gameId = GameId;
         _loadedGameId = gameId;
 

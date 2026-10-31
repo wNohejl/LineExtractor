@@ -1,0 +1,142 @@
+@namespace LineOps.Desk.Primitives
+@inject DeskJobRunner Runner
+@inject IDeskAccess Access
+
+@*
+    A key that opens a menu of named runs, each saying what it costs before it is chosen.
+
+    It stands in for a single "Run now" key that did everything and said nothing: a menu of named
+    runs says what each one does and what it will spend, so the operator can start the one they
+    mean and know the price first. Every entry is the application's own job — the one its
+    scheduler runs, through IDeskJobs — so nothing here is a second implementation.
+*@
+
+@* A visitor spends nothing: no menu is drawn, so there is nothing to press. *@
+@if (Access.CanOperate && Source is not null)
+{
+    @* A pull-down, not Filled: pressing the key opens a menu, it does not act — the action is
+       the entry chosen from it (HIG: a pull-down's key says it opens something). *@
+    <DeskPullDown Label="@(_running is null ? Label : _runningLabel)"
+                  Icon="@Icon"
+                  Busy="@(_running is not null)"
+                  Align="Align"
+                  Open="_open"
+                  OpenChanged="OnOpenChanged">
+        @foreach (var job in _jobs)
+        {
+            @* What it costs is the trailing detail, so it is read before the row is chosen. An
+               unavailable run stays in the menu with its reason, so the menu explains itself. *@
+            <DeskMenuItem Label="@job.Label"
+                          Detail="@job.Cost"
+                          Description="@job.Description"
+                          Disabled="@(!job.Available)"
+                          DisabledReason="@job.Unavailable"
+                          OnClick="() => RunJobAsync(job)" />
+        }
+    </DeskPullDown>
+}
+
+@* A run's outcome is a toast, not a Note. A Note is the ambient tier — it sits beside the thing
+   it describes and stays as long as that thing is true. "14 rows arrived" stops being true the
+   moment it is read, and the rows themselves are the durable record. *@
+
+@code {
+    /// <summary>The key's text, and the menu's accessible name: "Refresh data".</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>The runs to offer. Left null, the application's registered <see cref="IDeskJobs"/>.</summary>
+    [Parameter] public IDeskJobs? Jobs { get; set; }
+
+    /// <summary>Which edge of the key the menu lines up with; End for a key at the right of a toolbar.</summary>
+    [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.End;
+
+    /// <summary>Raised after a run so the hosting window can reload what it shows.</summary>
+    [Parameter] public EventCallback OnRan { get; set; }
+
+    /// <summary>Lets the hosting window drive its own pulse from the run.</summary>
+    [Parameter] public EventCallback<bool> OnBusyChanged { get; set; }
+
+    private IReadOnlyList<DeskJob> _jobs = [];
+    private bool _open;
+    private string? _running;
+    private string _runningLabel = "Running";
+
+    private IDeskJobs? Source => Jobs ?? Runner.Jobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Access.CanOperate && Source is { } jobs)
+            _jobs = await jobs.DescribeAsync();
+    }
+
+    private async Task OnOpenChanged(bool open)
+    {
+        _open = open;
+
+        // What a run costs can move between one opening and the next, so the menu re-reads the
+        // runs on open rather than trusting what it loaded once.
+        if (_open && Source is { } jobs)
+            _jobs = await jobs.DescribeAsync();
+    }
+
+    /// <summary>
+    /// Runs one named job as if it had been chosen from the menu.
+    ///
+    /// <para>
+    /// This is how an empty state can offer the fix where the problem is stated, instead of
+    /// describing a control somewhere else on the screen. It presses this menu rather than
+    /// reimplementing it, so the busy key, the toast and the reload all behave exactly as they do
+    /// when the entry is chosen by hand.
+    /// </para>
+    ///
+    /// <para>
+    /// A job that is unavailable, or that the application does not offer, opens the menu instead
+    /// of failing silently, because the menu is where the reason is written.
+    /// </para>
+    /// </summary>
+    public async Task RunAsync(string key)
+    {
+        if (!Access.CanOperate || _running is not null || Source is not { } jobs)
+            return;
+
+        // This can be pressed long after the menu was last opened, so the runs are re-read.
+        _jobs = await jobs.DescribeAsync();
+
+        var job = _jobs.FirstOrDefault(j => j.Key == key);
+
+        if (job is null || !job.Available)
+        {
+            _open = true;
+            StateHasChanged();
+            return;
+        }
+
+        await RunJobAsync(job);
+        StateHasChanged();
+    }
+
+    private async Task RunJobAsync(DeskJob job)
+    {
+        if (!Access.CanOperate || Source is not { } jobs)
+            return;
+
+        _open = false;
+        _running = job.Key;
+        _runningLabel = job.Label;
+
+        await OnBusyChanged.InvokeAsync(true);
+
+        try
+        {
+            if (await Runner.RunAsync(jobs, job))
+                await OnRan.InvokeAsync();
+        }
+        finally
+        {
+            _running = null;
+            await OnBusyChanged.InvokeAsync(false);
+        }
+    }
+}

@@ -21,6 +21,7 @@ public class PartsPanelTests : DeskTestContext
     public PartsPanelTests()
     {
         Services.AddScoped<DeskToasts>();
+        Services.AddScoped<DeskJobRunner>();
         Services.AddSingleton<IDeskAlerts>(new FakeAlerts());
         Services.AddSingleton<IDeskSheets>(_sheets);
     }

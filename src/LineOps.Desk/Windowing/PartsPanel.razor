@@ -557,6 +557,20 @@
 
 </PanelSection>
 
+<PanelSection Title="Job menu">
+<p class="empty">
+    A pull-down over the application's named runs (<span class="mono">IDeskJobs</span>). Each row
+    says what it costs before it is chosen; one that cannot run here stays, dimmed, with its
+    reason. The key shimmers while a run is under way, and how it went is a toast — green when
+    something arrived, blue when there was nothing to do, amber when part of it failed.
+</p>
+
+<DeskRow Gap="DeskSpace.Space2">
+    <DeskJobMenu Label="Refresh data" Icon="@Icons.Material.Filled.CloudDownload"
+                 Jobs="_demoJobs" Align="DeskPopoverAlign.Start" />
+</DeskRow>
+</PanelSection>
+
 <PanelSection Title="Popover">
 <p class="empty">
     A panel anchored to the key that opened it, and one at a time: opening another puts this
@@ -920,6 +934,24 @@
 
 <PanelLoadFailure Message="The list did not load."
                   OnRetry="@(() => Toasts.Info("A retry loads the window again."))" />
+</PanelSection>
+
+<PanelSection Title="Display — pages">
+<p class="empty">
+    What a host shows when the desk cannot: a request that failed, or an address that opens
+    nothing. Each is an empty state set in an empty page — a heading that says what happened,
+    the sentence that says what to do, and one key back to the desk, loaded fresh. The error
+    page shows the request's reference when the host knows it, and never the exception.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <div style="height: 22rem; overflow: hidden;">
+        <DeskErrorPage RequestId="00-4bf92f3577b34da6-01" style="min-height: 0; height: 100%;" />
+    </div>
+    <div style="height: 18rem; overflow: hidden;">
+        <DeskNotFound style="min-height: 0; height: 100%;" />
+    </div>
+</DeskStack>
 
 @* ==========================================================================
    Modality
@@ -1407,6 +1439,40 @@
 
     /// <summary>The last row chosen from the pull-down, so the demo says it was heard.</summary>
     private string? _menuChose;
+
+    // ---------------------------------------------------------------- job menu ---
+
+    private readonly DemoJobs _demoJobs = new();
+
+    /// <summary>
+    /// The gallery's runs: two that can run, one that cannot and says why, and one that finds
+    /// nothing to do. Each takes a moment so the busy key can be seen.
+    /// </summary>
+    private sealed class DemoJobs : IDeskJobs
+    {
+        private static readonly IReadOnlyList<DeskJob> All =
+        [
+            new("index", "Refresh the index", "Reads every record again", "4 credits", true, null),
+            new("recent", "Fetch what is new", "Only the records changed since the last run", "~2 req", true, null),
+            new("archive", "Copy to the archive", "Keeps a copy somewhere else", "1 credit", false,
+                "No archive is configured on this desk."),
+            new("tidy", "Tidy up", "Clears what has expired", "no requests", true, null)
+        ];
+
+        public Task<IReadOnlyList<DeskJob>> DescribeAsync(CancellationToken ct = default) => Task.FromResult(All);
+
+        public async Task<DeskJobOutcome> RunAsync(string key, CancellationToken ct = default)
+        {
+            await Task.Delay(900, ct);
+
+            return key switch
+            {
+                "index" => new(DeskJobResult.Done, "Refresh the index: 1,204 records."),
+                "recent" => new(DeskJobResult.Done, "Fetch what is new: 12 records."),
+                _ => new(DeskJobResult.Nothing, "Tidy up: nothing had expired.")
+            };
+        }
+    }
 
     private bool _popoverOpen;
     private string _sort = "Newest";

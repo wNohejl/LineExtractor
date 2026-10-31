@@ -1,7 +1,10 @@
 @namespace LineOps.Web.Components.Snippets
 @using LineOps.Core.Contracts
 @using LineOps.Data.CrossReference
+@using LineOps.Ingestion.Services
 @inject IServiceScopeFactory ScopeFactory
+@inject DeskJobRunner Runner
+@inject IDeskAccess Access
 
 @*
     One fighter on their own (ADR 0021) — what the Team window shows when the side is a fighter.
@@ -22,10 +25,30 @@ else
     <div class="fighter">
         @if (card.Profile is null)
         {
-            <Note State="DeskState.Info" Style="margin:0">
-                No profile yet. Pull data → Fighter profiles owed reads this fighter's bio, career rates and
-                every recorded fight from ESPN.
-            </Note>
+            @* The fix sits where the gap is stated (HIG 16): an operator reads the profiles from
+               here, through the same job the Board's Pull data menu runs; a visitor is told
+               whose pull fills it, since there is nothing here for them to press. *@
+            @if (Access.CanOperate)
+            {
+                <EmptyState Kind="EmptyStateKind.New">
+                    <ChildContent>No profile yet.</ChildContent>
+                    <Action>
+                        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                    Icon="@Icons.Material.Filled.PersonSearch"
+                                    Busy="_reading"
+                                    OnClick="ReadProfilesAsync">
+                            Read fighter profiles
+                        </DeskButton>
+                    </Action>
+                </EmptyState>
+            }
+            else
+            {
+                <Note State="DeskState.Info" Style="margin:0">
+                    No profile yet. The operator's pull reads this fighter's bio, career rates and
+                    every recorded fight from ESPN.
+                </Note>
+            }
         }
         else
         {
@@ -124,10 +147,30 @@ else
     private FighterCard? _card;
     private string? _open;
 
-    protected override async Task OnParametersSetAsync()
+    private bool _reading;
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
     {
         await using var scope = ScopeFactory.CreateAsyncScope();
         _card = await scope.ServiceProvider.GetRequiredService<FightService>().FighterAsync(TeamId);
+    }
+
+    /// <summary>Runs the profile read the Pull data menu offers, then reads this fighter again.</summary>
+    private async Task ReadProfilesAsync()
+    {
+        _reading = true;
+
+        try
+        {
+            if (await Runner.RunAsync(IngestionJobs.EspnFighters))
+                await LoadAsync();
+        }
+        finally
+        {
+            _reading = false;
+        }
     }
 
     private static RenderFragment Fact(string label, string? value) => __builder =>
