@@ -1,14 +1,15 @@
 name: Desk packages
 
-# Packs the Desk, its Hosting companion and the deskapp template, and publishes them to GitHub
-# Packages, the NuGet feed a second application restores them from (docs/desk/nuget.config is the
-# consumer's half).
+# Packs the Desk, its Hosting and Testing companions and the deskapp template, and publishes them
+# to GitHub Packages, the NuGet feed a second application restores them from (docs/desk/nuget.config
+# is the consumer's half).
 #
 # A `desk-v*` tag publishes: the tag names the Desk's version, and the job refuses a tag that
 # disagrees with LineOps.Desk.csproj, so a package can never claim a version its source does not.
-# Hosting and the template keep their own versions; when one has not moved, the feed already holds
-# it and the push skips it rather than failing. A push to main packs the same way and publishes
-# nothing, so a change that breaks packing is seen on the commit that made it, not on release day.
+# Hosting, Testing and the template keep their own versions; when one has not moved, the feed
+# already holds it and the push skips it rather than failing. A push to main packs the same way and
+# publishes nothing, so a change that breaks packing is seen on the commit that made it, not on
+# release day.
 
 on:
   push:
@@ -47,7 +48,7 @@ jobs:
       # own token push it and gives the package the repository's visibility.
       - name: Pack
         run: |
-          for project in src/LineOps.Desk src/LineOps.Desk.Hosting src/LineOps.Desk.Templates; do
+          for project in src/LineOps.Desk src/LineOps.Desk.Hosting src/LineOps.Desk.Testing src/LineOps.Desk.Templates; do
             dotnet pack "$project" --configuration Release --output out \
               -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }} \
               -p:RepositoryType=git \
