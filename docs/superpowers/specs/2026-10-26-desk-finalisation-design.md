@@ -251,6 +251,16 @@ Each item has a measurement before and after, kept in the plan's evidence folder
   reloading per `BackfillCoordinator.Changed`. Read-only queries in Runs, Line movement,
   Incidents and History use `AsNoTracking`, and `IncidentService.GetAllAsync` takes a limit.
 
+### Phase E — the shared desk
+
+Added after Phases A–D landed: everything generic `LineOps.Web` still held — the step, tab and
+grid-child styles, `DeskPanelBase`, `PanelLoadFailure`, `DeskTime`, the job menu and the error
+and not-found pages — moves into the Desk, the access gate and edge headers into a new
+`LineOps.Desk.Hosting` package, and `KeyRow` and `InlineConfirm` close the HIG review's first
+and third findings at every site it cited. The design is
+`docs/superpowers/specs/2026-10-30-desk-shared-phase-e-design.md` and the task plan
+`docs/superpowers/plans/2026-10-30-desk-final-e-shared.md`.
+
 ## What is left to the builder
 
 - Exact mechanics of the chrome re-render fix and the glide observer, within the measures above.
@@ -262,8 +272,10 @@ Each item has a measurement before and after, kept in the plan's evidence folder
 
 ## Verification, whole project
 
-`dotnet build` on `src/LineOps.Web`, `src/LineOps.Worker` and all three test projects;
+`dotnet build` on `src/LineOps.Web`, `src/LineOps.Worker` and all four test projects
+(`LineOps.Tests`, `LineOps.Web.Tests`, `LineOps.Desk.Tests`, `LineOps.Desk.Hosting.Tests`);
 `dotnet test` green; the Worker starts; `dotnet format --verify-no-changes` clean in the Linux
-container; `dotnet pack src/LineOps.Desk` succeeds; the browser walk of Phase A repeated with
+container; `dotnet pack src/LineOps.Desk` and `dotnet pack src/LineOps.Desk.Hosting` succeed;
+the browser walk of Phase A repeated with
 the screenshots refreshed; the Phase D numbers recorded. Each task commits on
 `LineX_Development` and pushes.

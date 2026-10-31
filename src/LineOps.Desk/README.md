@@ -18,8 +18,14 @@ defaults.
 ```csharp
 // Program.cs
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
-builder.Services.AddDesk(new DeskBrand("ACME", "DESK", "what the product does", "Go to a customer or window"));
+builder.Services.AddDesk(
+    new DeskBrand("ACME", "DESK", "what the product does", "Go to a customer or window"),
+    new DeskClock(TimeZoneInfo.FindSystemTimeZoneById("Europe/London"), "UK"));
 builder.Services.AddSingleton<IWindowCatalog, AcmeWindowCatalog>();
+builder.Services.AddScoped<IDeskJobs, AcmeJobs>();   // optional: the runs the job menu offers
+// ...
+app.UseExceptionHandler("/Error", createScopeForErrors: true);
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 // ...
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 ```
@@ -41,6 +47,26 @@ app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 </body>
 ```
 
+```razor
+@* Pages/Error.razor: the page the exception handler re-executes *@
+@page "/Error"
+@using System.Diagnostics
+
+<PageTitle>Error</PageTitle>
+<DeskErrorPage RequestId="@(Activity.Current?.Id ?? HttpContext?.TraceIdentifier)" />
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+}
+
+@* Pages/NotFound.razor: the page the status-code pages re-execute *@
+@page "/not-found"
+@layout MainLayout
+
+<PageTitle>Not found</PageTitle>
+<DeskNotFound />
+```
+
 - `<DeskHead />` emits the theme boot script and the Desk's stylesheets in their load-bearing
   order. The application's own sheet goes after it, so it wins a tie with any Desk rule.
 - `<DeskScripts />` goes after `blazor.web.js`: MudBlazor's script and the Desk's one classic
@@ -58,9 +84,114 @@ app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
   the palette's placeholder. `DeskClock` (optional) is the zone the Desk tells time in; left
   out, it is UTC and says so. `IDeskAccess` (optional) says who is at the desk; left out, one
   person who may do everything.
+- `DeskTime` is how a window writes a moment on that clock, so the zone is the one the
+  application named rather than the host's: `clock.Stamp(at)` for a date and time with the
+  clock's label ("Sep 23 18:40 UK"), `clock.Day(at)` for the day alone, and
+  `clock.Format(at, "HH:mm")` for any other shape, unlabelled, where the caller names the zone
+  once — a chart's axis, say. Inject `DeskClock` and read it; never `DateTime.Now`.
+- `IDeskJobs` (optional) is the named runs the operator may start by hand: `DescribeAsync` lists
+  each `DeskJob` with what it costs and, when it cannot run here, why; `RunAsync` runs one and
+  returns a `DeskJobOutcome`. Register it scoped. A `DeskJobMenu` with no `Jobs` of its own reads
+  it, and `DeskJobRunner` runs it the one way the Desk reports a run — refused for a visitor, a
+  toast in the outcome's own state, an exception logged and told as "did not finish" — so a
+  run started from an empty state's key toasts like one chosen from the menu. Left out, a menu
+  with no `Jobs` has nothing to offer.
+- `DeskErrorPage` and `DeskNotFound` are the two pages a host shows outside the desk: what went
+  wrong with the request's reference, and an address that opens nothing, each with the way back.
+  Each takes a `Title`, a `ChildContent` sentence and a `HomeHref`/`HomeLabel` when the defaults
+  do not fit.
 
 Add `@using LineOps.Desk`, `LineOps.Desk.Layout`, `LineOps.Desk.Primitives` and
 `LineOps.Desk.Windowing` to the application's `_Imports.razor`.
+
+### A window's base class
+
+A window's component inherits `DeskPanelBase` (in `LineOps.Desk.Windowing`), which is its one
+coupling to the window it is shown in:
+
+- `WithActivityAsync(work, settle, status)` runs a load with the window's pulse busy, then
+  settles it on what `settle` says. A failure is logged, the pulse goes critical and `LoadError`
+  holds a sentence built from `LoadSubject` ("The list did not load."); it is not rethrown,
+  because an exception out of a lifecycle method ends the circuit. Reads only — a write whose
+  caller must know it failed handles its own failure. Only the latest load started may settle
+  the window, so an older one landing late is ignored.
+- `RetryAsync()` repeats the last load exactly, filters and all; it is what
+  `PanelLoadFailure`'s key calls. `Loaded` is true once a load has completed, so an empty
+  result means "nothing here" only after there has been a result.
+- `Watches` names the topics the window draws from. When `DeskSignals` publishes one of them,
+  the window waits a second for the burst to finish and calls `RefreshAsync()` once.
+  `RequestRefresh()` asks for the same from any other source of change.
+- `MarkUnsaved(dirty, label)` says the window holds input not yet saved — "this draft". While it
+  does, its close key asks before discarding it and eviction passes it by. Call it with false
+  once the input is saved or cleared.
+- `Report(state, status)` sets the pulse and status by hand, for anything that is not a load.
+
+```razor
+@inherits DeskPanelBase
+@inject IItemStore Store
+
+@if (Failed)
+{
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+}
+else if (!Loaded)
+{
+    <DeskSkeleton Lines="3" />
+}
+else
+{
+    @foreach (var item in _items)
+    {
+        <p>@item.Name</p>
+    }
+}
+
+@code {
+    private IReadOnlyList<Item> _items = [];
+
+    protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { "items" };
+    protected override string LoadSubject => "The list";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task RefreshAsync() => LoadAsync();
+
+    private Task LoadAsync() => WithActivityAsync(
+        async () => _items = await Store.ListAsync(),
+        () => PulseState.Healthy,
+        () => $"{_items.Count} items");
+}
+```
+
+## Hosting
+
+`LineOps.Desk.Hosting` is the companion package for what a Desk needs from the ASP.NET Core
+host it runs in, kept out of the Desk so the component library has no opinion about how it is
+exposed: an access gate (a code in, a cookie out; an optional guest code opens a desk that
+reads and changes nothing) and the edge (six security headers on every response, and trust in a
+reverse proxy's forwarded headers when there is one). It references `LineOps.Desk` and nothing
+else; its sign-in page takes its wordmark and tagline from the `DeskBrand` given to `AddDesk`.
+
+```csharp
+using LineOps.Desk.Hosting;
+
+builder.Services.AddDeskAccess(builder.Configuration);   // optionally: o => o.CookieName = "acme.access"
+builder.Services.AddDeskEdge(builder.Configuration);
+// ...
+app.UseDeskEdge();          // first in the pipeline
+// ... exception handler, status-code pages, HTTPS redirect unless configuration.IsBehindProxy()
+app.UseDeskAccess();        // before UseAntiforgery
+app.UseAntiforgery();
+app.MapDeskAccess();        // the sign-in page, its form, and sign-out
+```
+
+`AddDeskAccess` binds `DeskAccessOptions` from the `Access` section: `Mode` (`Open`, the
+default, registers nothing but the options, so one person on their own machine runs as before;
+`Gated` lets a code decide), `OperatorCodeHash` (required when gated — the host refuses to start
+without it), `GuestCodeHash`, `AllowAnonymousVisitors`, `SessionLifetime`, `CookieName`,
+`SignInPath` and `SignOutPath`. `AddDeskEdge` reads `DeskEdgeOptions` (`ContentSecurityPolicy`,
+`ExtraImageSources`) and `Hosting:BehindProxy`. The hash format, every default and the two pure
+functions it tests by (`DeskEdge.Headers`, `DeskSignInPage.Render`) are in the package's own
+[README](../LineOps.Desk.Hosting/README.md).
 
 ## Tokens
 
@@ -196,6 +327,7 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 | Edges | A control or group has one edge. A form is not boxed around a bordered group, and a group carries its hairline where it is defined. | `DeskCssConventionTests` (`A_form_is_not_boxed`, `A_group_carries_its_hairline_where_it_is_defined`) |
 | One Filled key | A context has at most one Filled key, last in its row; everything else is Tinted or Plain. | `PanelToolbarTests.Keeps_every_key_in_one_actions_item_after_the_pickers` (the Filled key last); the count is held in review |
 | Sentence case | Titles, headers, keys and tags read in sentence case. | `PanelHeader` and `PanelSection` set the rule's type; no test reads copy yet |
+| Keys explain themselves | A key that waits says why in text on its row, not in a title a disabled key never shows, and the key is described by that text; secondary keys come first and the Filled key last, and a confirm asks Cancel first. | `KeyRowTests`, `KeyRowAdoptionTests` (in the host's tests), `InlineConfirmTests` |
 | Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `AccessibleNameTests`, `DeskAlertTests.Every_caller_must_name_the_confirm` |
 | No literal colours | A colour is a token. Only the token blocks write one. | `DeskCssConventionTests.No_literal_colour_outside_the_token_blocks` |
 | No domain | The Desk's code and its documentation name no application's records. | `DeskVocabularyTests` |
