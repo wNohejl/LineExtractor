@@ -331,3 +331,27 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 | Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `AccessibleNameTests`, `DeskAlertTests.Every_caller_must_name_the_confirm` |
 | No literal colours | A colour is a token. Only the token blocks write one. | `DeskCssConventionTests.No_literal_colour_outside_the_token_blocks` |
 | No domain | The Desk's code and its documentation name no application's records. | `DeskVocabularyTests` |
+
+## Releasing
+
+The packages are published to GitHub Packages by `.github/workflows/desk-packages.yml`. Every
+push to `main` packs them as a dry run (the `.nupkg` files are the run's artifact); a tag
+publishes them.
+
+1. Raise `<Version>` in `LineOps.Desk.csproj`, and in `LineOps.Desk.Hosting.csproj` if Hosting
+   changed. Commit on `LineX_Development`, merge to `main`, and push.
+2. Tag the merge with the Desk's version and push the tag:
+
+   ```bash
+   git tag desk-v0.3.0 main
+   git push origin desk-v0.3.0
+   ```
+
+3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs both projects,
+   and pushes each with `--skip-duplicate`: a package whose version is already on the feed — an
+   unchanged Hosting — is passed over, not failed on. A version once published is never
+   replaced; a fix is a new version and a new tag.
+
+A consumer restores from the feed with [`docs/desk/nuget.config`](../../docs/desk/nuget.config)
+beside its solution, and `DESK_FEED_USER` and `DESK_FEED_TOKEN` (a token with `read:packages`) in
+its environment.

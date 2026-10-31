@@ -1,0 +1,69 @@
+name: Desk packages
+
+# Packs the Desk and its Hosting companion and publishes them to GitHub Packages, the NuGet feed
+# a second application restores them from (docs/desk/nuget.config is the consumer's half).
+#
+# A `desk-v*` tag publishes: the tag names the Desk's version, and the job refuses a tag that
+# disagrees with LineOps.Desk.csproj, so a package can never claim a version its source does not.
+# Hosting keeps its own version; when it has not moved, the feed already holds it and the push
+# skips it rather than failing. A push to main packs the same way and publishes nothing, so a
+# change that breaks packing is seen on the commit that made it, not on release day.
+
+on:
+  push:
+    branches: [main]
+    tags: ['desk-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The tag is desk-v<version>; the csproj is the version's one home.
+      - name: Check the tag names the Desk's version
+        if: startsWith(github.ref, 'refs/tags/desk-v')
+        run: |
+          declared=$(dotnet msbuild src/LineOps.Desk/LineOps.Desk.csproj -getProperty:Version)
+          tagged="${GITHUB_REF_NAME#desk-v}"
+          if [ "$declared" != "$tagged" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME names $tagged; LineOps.Desk.csproj declares $declared."
+            exit 1
+          fi
+
+      # RepositoryUrl links each package to this repository, which is what lets the workflow's
+      # own token push it and gives the package the repository's visibility.
+      - name: Pack
+        run: |
+          for project in src/LineOps.Desk src/LineOps.Desk.Hosting; do
+            dotnet pack "$project" --configuration Release --output out \
+              -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }} \
+              -p:RepositoryType=git \
+              -p:RepositoryCommit=${{ github.sha }}
+          done
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desk-packages
+          path: out/*.nupkg
+          retention-days: 14
+
+      - name: Publish to GitHub Packages
+        if: startsWith(github.ref, 'refs/tags/desk-v')
+        run: >
+          dotnet nuget push "out/*.nupkg"
+          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --skip-duplicate
