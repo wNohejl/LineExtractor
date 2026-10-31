@@ -1,0 +1,56 @@
+@namespace LineOps.Desk.Primitives
+@inject NavigationManager Nav
+
+@*
+    The page a host shows for an address that opens nothing: a heading, a sentence and the
+    one way back. The same shape as DeskErrorPage — and the same reason the heading sits
+    above the EmptyState rather than inside its paragraph — but the Filtered kind, because
+    nothing failed: the address simply matched nothing, and the way out is the desk's home.
+
+    The key loads home fresh (forceLoad), so a stale bookmark lands on a clean desk.
+*@
+
+<main class="deskpage @DeskLayout.ExtraClass(Extra) @Class"
+      style="@DeskLayout.MergeStyle(null, Extra)"
+      @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <div class="deskpage__body">
+        <h1 class="deskpage__title">@Title</h1>
+        <EmptyState Kind="EmptyStateKind.Filtered">
+            <ChildContent>
+                @if (ChildContent is not null)
+                {
+                    @ChildContent
+                }
+                else
+                {
+                    @:That address does not open anything on this desk.
+                }
+            </ChildContent>
+            <Action>
+                <DeskButton Emphasis="DeskEmphasis.Tinted" OnClick="GoHome">@HomeLabel</DeskButton>
+            </Action>
+        </EmptyState>
+    </div>
+</main>
+
+@code {
+    /// <summary>What happened, as a heading. Sentence case.</summary>
+    [Parameter] public string Title { get; set; } = "Nothing here";
+
+    /// <summary>The sentence under it. Null → the default.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Where the way back goes. Loaded fresh.</summary>
+    [Parameter] public string HomeHref { get; set; } = "/";
+
+    /// <summary>The key's label.</summary>
+    [Parameter] public string HomeLabel { get; set; } = "Back to the desk";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private void GoHome() => Nav.NavigateTo(HomeHref, forceLoad: true);
+}

@@ -1,0 +1,70 @@
+@namespace LineOps.Desk.Primitives
+@inject NavigationManager Nav
+
+@*
+    The page a host shows when a request failed: what happened, in a heading and a sentence,
+    and the one way back. It replaces the template's error page, which apologised in red,
+    lectured about hosting environments and did not look like the desk at all.
+
+    It is the Error kind of EmptyState, because that is what it is — a load that failed, with
+    the retry as its action — set in the middle of an otherwise empty page. The heading sits
+    above the EmptyState rather than inside it: EmptyState is a paragraph, and a heading in a
+    paragraph is markup the browser takes apart when the page is rendered on the server.
+
+    The key loads the desk's home fresh (forceLoad), because a request that failed may have
+    taken the connection with it; navigating inside a broken circuit would go nowhere. The
+    reference is the request's trace id, small and last, for whoever reads the log; the page
+    never shows the exception itself.
+*@
+
+<main class="deskpage @DeskLayout.ExtraClass(Extra) @Class"
+      style="@DeskLayout.MergeStyle(null, Extra)"
+      @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
+    <div class="deskpage__body">
+        <h1 class="deskpage__title">@Title</h1>
+        <EmptyState Kind="EmptyStateKind.Error">
+            <ChildContent>
+                @if (ChildContent is not null)
+                {
+                    @ChildContent
+                }
+                else
+                {
+                    @:The desk could not finish that request. Going back to it usually works.
+                }
+            </ChildContent>
+            <Action>
+                <DeskButton Emphasis="DeskEmphasis.Tinted" OnClick="GoHome">@HomeLabel</DeskButton>
+            </Action>
+        </EmptyState>
+        @if (!string.IsNullOrEmpty(RequestId))
+        {
+            <p class="deskpage__ref">Reference <code>@RequestId</code></p>
+        }
+    </div>
+</main>
+
+@code {
+    /// <summary>What happened, as a heading. Sentence case, no blame.</summary>
+    [Parameter] public string Title { get; set; } = "Something went wrong";
+
+    /// <summary>The sentence under it: what happened and what to do next. Null → the default.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The request's trace id. Shown as a small reference only when known.</summary>
+    [Parameter] public string? RequestId { get; set; }
+
+    /// <summary>Where the way back goes. Loaded fresh.</summary>
+    [Parameter] public string HomeHref { get; set; } = "/";
+
+    /// <summary>The key's label.</summary>
+    [Parameter] public string HomeLabel { get; set; } = "Back to the desk";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private void GoHome() => Nav.NavigateTo(HomeHref, forceLoad: true);
+}
