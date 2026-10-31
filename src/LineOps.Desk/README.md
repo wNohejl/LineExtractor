@@ -143,11 +143,14 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry. | `MudTooltip` |
 | `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure. | — |
 | `FollowUpLayer` | The floating follow-ups a panel has open, drawn once per panel. | — |
+| `InlineConfirm` | A question asked in place, with Cancel first and the confirm last; Escape answers Cancel. | — |
+| `KeyRow` | Secondary keys, the reason the primary waits, then the one Filled key, which the reason describes. | — |
 | `Metric` | One number, its label, and the qualifier that stops it being misread. | — |
 | `MetricRow` | The shelf a row of metrics sits on. | — |
 | `Note` | Passive feedback beside the thing it describes, for as long as it is true. | — |
 | `PanelForm` | The inset card for a task completed in place, with its footer pinned. | — |
 | `PanelHeader` | The sentence-case rule that names a stretch of a panel. | — |
+| `PanelLoadFailure` | What a window shows when its load failed: the sentence and the key that loads it again. | — |
 | `PanelSection` | A stretch of a panel under one rule, spacing itself from the next. | — |
 | `PanelTitle` | The title block a subject window opens with. | — |
 | `PanelToolbar` | The one row of controls that scope or act on a whole panel. | — |

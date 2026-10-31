@@ -1,0 +1,78 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A row of keys that reads the same way in every window: the secondary keys, then the
+    sentence saying why the primary waits (or what it will do), then the one Filled key, last,
+    as the HIG places it. Windows used to lay these by hand, and the order drifted — the reason
+    after the key in one, the Filled key in the middle in another.
+
+    The reason is text, not a title on the key. A disabled key's title never shows: a disabled
+    MudButton takes no pointer events, so the hover that would raise the tooltip never reaches
+    it. So the sentence sits on the row, and the primary is pointed at it — Primary's context
+    is the sentence's element id, which the caller writes as aria-describedby on its
+    DeskButton. With no reason there is no sentence and no id, and the context is null, so the
+    attribute is not written at all rather than pointing at nothing.
+
+    The id is made once per instance and kept for its life, so two rows on one desk — the same
+    window open twice — never share one, and a reason that changes does not move it.
+
+    Class and unmatched attributes are folded in as DeskRow folds them: a splatted class adds
+    to the row's own rather than replacing it.
+*@
+
+<div class="@Classes" role="group" @attributes="Rest">
+    @Secondary
+    @if (Reason is not null)
+    {
+        <span class="keyrow__reason" id="@_reasonId">@Reason</span>
+    }
+    @Primary?.Invoke(Reason is null ? null : _reasonId)
+</div>
+
+@code {
+    /// <summary>The Plain and Tinted keys, Cancel first.</summary>
+    [Parameter] public RenderFragment? Secondary { get; set; }
+
+    /// <summary>Why the primary waits, or what it will do. Null draws no sentence.</summary>
+    [Parameter] public string? Reason { get; set; }
+
+    /// <summary>
+    /// The one Filled key. Its context is the reason's element id, or null when there is no
+    /// reason: write it as <c>aria-describedby="@context"</c> on the <c>DeskButton</c>.
+    /// </summary>
+    [Parameter] public RenderFragment<string?>? Primary { get; set; }
+
+    /// <summary>Where the row sits. Keys close a form at its trailing edge, so End is the default.</summary>
+    [Parameter] public DeskJustify Justify { get; set; } = DeskJustify.End;
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private readonly string _reasonId = "keyrow-" + Guid.NewGuid().ToString("N")[..10];
+
+    private string Classes => string.Join(' ', Parts().Where(p => p is { Length: > 0 }));
+
+    private IReadOnlyDictionary<string, object>? Rest => Extra is null
+        ? null
+        : Extra.Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+    private IEnumerable<string?> Parts()
+    {
+        yield return "keyrow";
+
+        yield return Justify switch
+        {
+            DeskJustify.Start => "keyrow--start",
+            DeskJustify.Center => "keyrow--center",
+            DeskJustify.Between => "keyrow--between",
+            _ => "keyrow--end"
+        };
+
+        yield return Class;
+        yield return DeskLayout.ExtraClass(Extra);
+    }
+}

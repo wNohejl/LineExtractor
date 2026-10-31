@@ -605,6 +605,76 @@
         </p>
     </DeskDisclosure>
 </DeskStack>
+</PanelSection>
+
+<PanelSection Title="Key row">
+<p class="empty">
+    The keys that close a form, in the one order every window uses: the secondary keys, then
+    the sentence saying why the primary waits, then the one Filled key, last. The sentence is
+    text on the row because a disabled key's tooltip never shows — it takes no pointer — and
+    the primary is pointed at it, so a screen reader hears it with the key.
+    <span class="mono">Primary</span>'s context is the sentence's id; write it as
+    <span class="mono">aria-describedby</span>. With no reason it is null, and nothing is written.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <KeyRow Reason="@(_keyOwner is null ? "Pick an owner to file this item." : null)">
+        <Secondary>
+            <DeskButton>Cancel</DeskButton>
+            <DeskButton Emphasis="DeskEmphasis.Tinted" OnClick="@(() => _keyOwner = _keyOwner is null ? "ames" : null)">
+                @(_keyOwner is null ? "Pick an owner" : "Clear the owner")
+            </DeskButton>
+        </Secondary>
+        <Primary Context="described">
+            <DeskButton Emphasis="DeskEmphasis.Filled" Disabled="@(_keyOwner is null)"
+                        aria-describedby="@described">File item</DeskButton>
+        </Primary>
+    </KeyRow>
+
+    <KeyRow>
+        <Secondary>
+            <DeskButton>Cancel</DeskButton>
+        </Secondary>
+        <Primary Context="described">
+            <DeskButton Emphasis="DeskEmphasis.Filled" aria-describedby="@described">Save</DeskButton>
+        </Primary>
+    </KeyRow>
+
+    <KeyRow Justify="DeskJustify.Start" Reason="Runs every item in the list again.">
+        <Primary Context="described">
+            <DeskButton Emphasis="DeskEmphasis.Tinted" aria-describedby="@described">Run again</DeskButton>
+        </Primary>
+    </KeyRow>
+</DeskStack>
+</PanelSection>
+
+<PanelSection Title="Inline confirm">
+<p class="empty">
+    A question asked where the thing it is about already is, for a step cheap enough that an
+    alert would be too much. Cancel first, the confirm last; the confirm is Tinted, and a
+    destructive one takes the destructive role, never Filled. The group is named by its
+    question, and Escape answers Cancel.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+    <InlineConfirm ConfirmLabel="Archive"
+                   OnConfirm="@(() => _confirmOutcome = "Archived")"
+                   OnCancel="@(() => _confirmOutcome = "Kept")">
+        Archive the three reviewed items?
+    </InlineConfirm>
+
+    <InlineConfirm ConfirmLabel="Delete" Destructive="true"
+                   ConfirmIcon="@Icons.Material.Filled.DeleteOutline"
+                   OnConfirm="@(() => _confirmOutcome = "Deleted")"
+                   OnCancel="@(() => _confirmOutcome = "Kept")">
+        Delete this draft? It cannot be brought back.
+    </InlineConfirm>
+
+    @if (_confirmOutcome is not null)
+    {
+        <p class="empty">Last answer: @_confirmOutcome</p>
+    }
+</DeskStack>
 
 @* ==========================================================================
    Display
@@ -839,6 +909,17 @@
         </Action>
     </EmptyState>
 </DeskStack>
+</PanelSection>
+
+<PanelSection Title="Load failure">
+<p class="empty">
+    What a window shows when its load failed: the sentence naming what did not load, as the
+    Error kind of the empty state, and the one key that loads it again. The exception went to
+    the log; the window never shows it.
+</p>
+
+<PanelLoadFailure Message="The list did not load."
+                  OnRetry="@(() => Toasts.Info("A retry loads the window again."))" />
 
 @* ==========================================================================
    Modality
@@ -1460,6 +1541,8 @@
 
     private bool _dialogOpen;
     private string? _sheetOutcome;
+    private string? _confirmOutcome;
+    private string? _keyOwner;
     private string? _alertOutcome;
     private IDeskSheetHandle? _sheet;
     private string? _noteTitle;

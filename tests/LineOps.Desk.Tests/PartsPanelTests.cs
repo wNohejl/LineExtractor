@@ -134,7 +134,7 @@ public class PartsPanelTests : DeskTestContext
     /// </summary>
     private static readonly string[] NamedForWhatTheyAre =
         ["Metric", "MetricRow", "Note", "Tag", "EmptyState", "RowActions", "SnippetShell", "CheckList",
-         "PanelForm", "PanelSection", "PanelTitle", "PanelToolbar"];
+         "PanelForm", "PanelSection", "PanelTitle", "PanelToolbar", "KeyRow", "InlineConfirm", "PanelLoadFailure"];
 
     private static IReadOnlyList<string> Primitives() =>
         Directory.EnumerateFiles(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Primitives"), "*.razor")

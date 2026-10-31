@@ -8,8 +8,8 @@
    The file exists so the primitives have a home of their own rather than another
    few hundred lines in desk.css. DeskPopover, DeskMenu, DeskMenuItem,
    DeskPullDown, DeskStepper, DeskDisclosure, DeskSearch, DeskToggle, DeskSpinner
-   and DeskBadge live here; the hand-built menus they replaced are gone from
-   desk.css.
+   and DeskBadge live here, and KeyRow and InlineConfirm; the hand-built menus
+   they replaced are gone from desk.css.
    ============================================================================= */
 
 /* ---- Popover ----------------------------------------------------------------
@@ -1024,4 +1024,48 @@
 @media (prefers-reduced-motion: reduce) {
     .accent-swatch,
     .accent-swatch::after { transition: none; }
+}
+/* ---- Key row ----------------------------------------------------------------
+   Secondary keys, the reason, the one Filled key: the order is the source's, so
+   the row only lays it out. It wraps rather than squeezing the sentence, which is
+   held to a readable measure. */
+.keyrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.keyrow--start { justify-content: flex-start; }
+.keyrow--end { justify-content: flex-end; }
+.keyrow--center { justify-content: center; }
+.keyrow--between { justify-content: space-between; }
+
+.keyrow__reason {
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+    max-width: 52ch;
+}
+
+/* ---- Inline confirm ---------------------------------------------------------
+   The question takes the room and the two keys keep to the trailing edge; in a
+   narrow window the keys drop under the question rather than crushing it. */
+.confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+.confirm__ask {
+    flex: 1 1 24ch;
+    font-size: var(--text-body);
+    color: var(--text-primary);
+}
+
+.confirm__keys {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: auto;
 }

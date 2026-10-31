@@ -1,0 +1,79 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A question asked in place, where the thing it is about already is, with its two answers.
+    For a step that is easy to take back, or cheap to repeat, a modal alert is too much: the
+    row that holds the key turns into the sentence and the keys, and turns back once answered.
+    Windows wrote this shape by hand twice, both with the confirm before Cancel.
+
+    Cancel comes first and the confirm last, as every confirm on the desk orders them. The
+    confirm is Tinted by default — the question is already the loud thing on the row — and a
+    destructive one is marked by its role, never by Filled: the one prominent key is never
+    the one that destroys. Escape anywhere inside answers Cancel.
+
+    The group is named by its question (aria-labelledby), so focus landing on either key is
+    heard with what it answers. The id is made once per instance, so two open on one desk
+    never share one.
+*@
+
+<div class="@Classes" role="group" aria-labelledby="@_askId" @onkeydown="OnKey" @attributes="Rest">
+    <span class="confirm__ask" id="@_askId">@ChildContent</span>
+    <span class="confirm__keys">
+        <DeskButton Size="DeskKeySize.Small" OnClick="Cancel">@CancelLabel</DeskButton>
+        <DeskButton Size="DeskKeySize.Small"
+                    Emphasis="@ConfirmEmphasis"
+                    Role="@(Destructive ? DeskRole.Destructive : DeskRole.Normal)"
+                    Icon="@ConfirmIcon"
+                    Busy="@Busy"
+                    OnClick="Confirm">@ConfirmLabel</DeskButton>
+    </span>
+</div>
+
+@code {
+    /// <summary>The question: a sentence ending with a question mark.</summary>
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+
+    /// <summary>The confirm's label. A verb, sentence case.</summary>
+    [Parameter, EditorRequired] public string ConfirmLabel { get; set; } = "";
+
+    /// <summary>An icon before the confirm's label, if it has one.</summary>
+    [Parameter] public string? ConfirmIcon { get; set; }
+
+    /// <summary>How loud the confirm is. Tinted unless this question is the context's one commit.</summary>
+    [Parameter] public DeskEmphasis ConfirmEmphasis { get; set; } = DeskEmphasis.Tinted;
+
+    /// <summary>The confirm destroys something; it takes the destructive role.</summary>
+    [Parameter] public bool Destructive { get; set; }
+
+    /// <summary>The confirmed work is running: the confirm shimmers and takes no further press.</summary>
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    /// <summary>Cancel's press, and Escape inside the group.</summary>
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    [Parameter] public string CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private readonly string _askId = "confirm-" + Guid.NewGuid().ToString("N")[..10];
+
+    private string Classes => string.Join(' ', new[] { "confirm", Class, DeskLayout.ExtraClass(Extra) }
+        .Where(p => p is { Length: > 0 }));
+
+    private IReadOnlyDictionary<string, object>? Rest => Extra is null
+        ? null
+        : Extra.Where(kv => !string.Equals(kv.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+    private Task Confirm() => OnConfirm.InvokeAsync();
+
+    private Task Cancel() => OnCancel.InvokeAsync();
+
+    private Task OnKey(KeyboardEventArgs e) => e.Key == "Escape" ? OnCancel.InvokeAsync() : Task.CompletedTask;
+}
