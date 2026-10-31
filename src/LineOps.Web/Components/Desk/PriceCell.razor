@@ -86,24 +86,35 @@ else
             : Takeable ? OnTake.InvokeAsync()
             : Task.CompletedTask;
 
+    // Enter and Space need nothing here: a focused button is pressed by the browser with a click
+    // that carries the Shift key, and Space presses it without scrolling the Board (HIG 2).
     private Task ClickAsync(Microsoft.AspNetCore.Components.Web.MouseEventArgs e) => TakeAsync(e.ShiftKey);
-
-    private Task KeyAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
-        => e.Key is "Enter" or " " ? TakeAsync(e.ShiftKey) : Task.CompletedTask;
 
     /// <summary>
     /// The cell itself, held apart from its wrapper so the live and closing paths render the
-    /// same thing rather than two copies that drift.
+    /// same thing rather than two copies that drift. A price that can be taken is a real
+    /// <c>&lt;button type="button"&gt;</c>; any other is the plain reading it always was — a
+    /// visitor's price is not a button at all. The inside is <see cref="Inside"/> either way,
+    /// and one reset rule in lineops.css makes the two look the same.
     /// </summary>
     private RenderFragment Body(bool closing) => @<text>
-        <div class="price @(closing ? "price--closing" : null) @(Takeable ? "price--take" : null)"
-             title="@(closing ? null : Tooltip)"
-             role="@(Takeable ? "button" : null)"
-             tabindex="@(Takeable ? "0" : null)"
-             @onclick="ClickAsync"
-             @onclick:stopPropagation="Takeable"
-             @onkeydown="KeyAsync">
-            <div class="price__top">
+        @if (Takeable)
+        {
+            <button type="button" class="price price--take" title="@Tooltip"
+                    @onclick="ClickAsync" @onclick:stopPropagation="true">@Inside(closing)</button>
+        }
+        else
+        {
+            <div class="price @(closing ? "price--closing" : null)" title="@(closing ? null : Tooltip)">@Inside(closing)</div>
+        }
+    </text>;
+
+    /// <summary>
+    /// What the cell shows. Spans throughout, because a button may hold phrasing content only;
+    /// <c>.price__top</c> and <c>.rail</c> set their own display.
+    /// </summary>
+    private RenderFragment Inside(bool closing) => @<text>
+            <span class="price__top">
                 @if (Selection is { Length: > 0 } selection)
                 {
                     <span class="price__sel">@selection</span>
@@ -114,18 +125,18 @@ else
                 }
                 <span class="price__odds">@FormatPrice(Offer.PriceAmerican)</span>
                 <span class="price__book">@Monogram(Offer.Book)</span>
-            </div>
+            </span>
 
             @if (Offer.Rungs.Count > 1)
             {
-                <div class="rail">
+                <span class="rail">
                     @foreach (var rung in Offer.Rungs)
                     {
                         <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
                               style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
                               title="@Monogram(rung.Book): @FormatPrice(rung.PriceAmerican)"></span>
                     }
-                </div>
+                </span>
 
                 @* The line varying outranks the price gap: books quoting -110 on totals of 7, 8
                    and 9 have a price spread of zero and the largest real difference on the board. *@
@@ -145,7 +156,6 @@ else
             {
                 <span class="price__ev @(ev > 0 ? "price__ev--plus" : null)">@EvLabel(ev)</span>
             }
-        </div>
     </text>;
 
     /// <summary>

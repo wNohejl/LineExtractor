@@ -58,7 +58,7 @@ else
        beside a record says nothing about whether the market data is missing or the games were
        never priced. *@
     <PanelTitle>
-        <ChildContent>@_awayName v @_homeName</ChildContent>
+        <ChildContent>@_awayName vs @_homeName</ChildContent>
         <Detail>
             <span>
                 @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "meeting" : "meetings") ·
@@ -139,7 +139,7 @@ else
                     @if (context.Item.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
                     {
                         <ResultTag Result="@cover" Title="@($"{_homeName} against the closing spread")">
-                            @(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")
+                            @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Missed" : "Push")
                         </ResultTag>
                     }
                     else

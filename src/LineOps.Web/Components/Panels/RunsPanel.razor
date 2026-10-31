@@ -81,7 +81,7 @@
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
-                    Title="Started (ET)" Align="Align.Right" InitialDirection="SortDirection.Descending">
+                    Title="@($"Started ({DisplayTime.Label})")" Align="Align.Right" InitialDirection="SortDirection.Descending">
         <CellTemplate>
             <span class="quiet">@DisplayTime.Format(context.Item.StartedAt, "MMM d HH:mm:ss")</span>
         </CellTemplate>

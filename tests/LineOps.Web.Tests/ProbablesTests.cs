@@ -12,10 +12,10 @@ public class ProbablesTests
     }
 
     [Theory]
-    [InlineData("Max Scherzer", "Chris Bassitt", "Scherzer v Bassitt")]
-    [InlineData("CJ Van Eyk", "Trey Gibson", "Van Eyk v Gibson")]           // live: was "Eyk"
-    [InlineData("Vladimir Guerrero Jr.", null, "Guerrero Jr. v TBD")]
-    [InlineData(null, "Aaron Nola", "TBD v Nola")]
+    [InlineData("Max Scherzer", "Chris Bassitt", "Scherzer vs Bassitt")]
+    [InlineData("CJ Van Eyk", "Trey Gibson", "Van Eyk vs Gibson")]           // live: was "Eyk"
+    [InlineData("Vladimir Guerrero Jr.", null, "Guerrero Jr. vs TBD")]
+    [InlineData(null, "Aaron Nola", "TBD vs Nola")]
     public void A_starter_is_named_by_everything_after_the_first_name(string? away, string? home, string expected)
         => Assert.Equal(expected, Probe.Of(new Game { AwayProbablePitcher = away, HomeProbablePitcher = home }));
 

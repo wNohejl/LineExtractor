@@ -487,8 +487,7 @@ public class PriceCellTests : DeskTestContext
             .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
             .Add(x => x.OnTake, () => taken++));
 
-        var cell = cut.Find(".price");
-        Assert.Equal("button", cell.GetAttribute("role"));
+        var cell = cut.Find("button.price");
         Assert.EndsWith("Click to log this price.", cell.GetAttribute("title"));
 
         cell.Click();
@@ -503,10 +502,11 @@ public class PriceCellTests : DeskTestContext
             .Add(x => x.Offer, Offer(isClosing: true, rungs: Rung("draftkings", -110, 0.524)))
             .Add(x => x.OnTake, () => taken++));
 
+        // Not a button, and nothing listening: a click on the reading has nothing to reach.
         var cell = cut.Find(".price");
-        Assert.Null(cell.GetAttribute("role"));
+        Assert.Empty(cut.FindAll("button"));
 
-        cell.Click();
+        Assert.Throws<MissingEventHandlerException>(() => cell.Click());
         Assert.Equal(0, taken);
     }
 
@@ -521,11 +521,13 @@ public class PriceCellTests : DeskTestContext
             .Add(x => x.OnTake, () => taken++)
             .Add(x => x.OnBank, () => banked++));
 
-        var cell = cut.Find(".price");
+        var cell = cut.Find("button.price");
         Assert.EndsWith("Shift-click adds it to the slip as a parlay leg.", cell.GetAttribute("title"));
 
+        // Shift+Enter needs no handler of its own: a focused button pressed with Enter is
+        // clicked by the browser, and that click carries the Shift key like a mouse's does.
         cell.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
-        cell.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter", ShiftKey = true });
+        cell.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
         Assert.Equal((0, 2), (taken, banked));
 
         cell.Click();
@@ -541,7 +543,8 @@ public class PriceCellTests : DeskTestContext
             .Add(x => x.OnTake, () => { })
             .Add(x => x.OnBank, () => banked++));
 
-        cut.Find(".price").Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true });
+        Assert.Throws<MissingEventHandlerException>(() =>
+            cut.Find(".price").Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ShiftKey = true }));
         Assert.Equal(0, banked);
     }
 
@@ -550,7 +553,68 @@ public class PriceCellTests : DeskTestContext
     {
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524))));
 
-        Assert.Null(cut.Find(".price").GetAttribute("role"));
+        Assert.Empty(cut.FindAll("button"));
         Assert.DoesNotContain("Click to log", cut.Find(".price").GetAttribute("title") ?? "");
+    }
+
+    // ---- HIG 2: a door is a real button --------------------------------------------------
+    //
+    // A div with role=button and a keydown handler is a button the browser does not know about:
+    // Space scrolled the Board before the handler saw it. A <button type="button"> presses on
+    // Enter and Space natively and scrolls nothing.
+
+    [Fact]
+    public void A_takeable_price_is_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(edgePoints: 1.0, rungs:
+            [
+                Rung("draftkings", -110, 0.524),
+                Rung("fanduel", -105, 0.512)
+            ]))
+            .Add(x => x.OnTake, () => { }));
+
+        var cell = cut.Find("button[type=button].price");
+
+        Assert.Contains("price--take", cell.ClassName);
+        Assert.Null(cell.GetAttribute("role"));
+        Assert.Null(cell.GetAttribute("tabindex"));
+
+        // A button holds phrasing content only, so its inside is spans — the rail included.
+        Assert.Empty(cell.QuerySelectorAll("div"));
+        Assert.NotNull(cell.QuerySelector("span.rail"));
+
+        // Named by its own figures, as the reading is: no label laid over them.
+        Assert.Contains("-110", cell.TextContent);
+        Assert.Null(cell.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public void Pressing_it_takes_the_price()
+    {
+        var taken = 0;
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => taken++));
+
+        cut.Find("button.price").Click();
+
+        Assert.Equal(1, taken);
+    }
+
+    [Fact]
+    public void A_closing_price_is_not_a_button()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(isClosing: true, edgePoints: 1.0, rungs:
+            [
+                Rung("draftkings", -115, 0.535),
+                Rung("fanduel", -105, 0.512)
+            ]))
+            .Add(x => x.OnTake, () => { }));
+
+        Assert.Empty(cut.FindAll("button"));
+        Assert.Empty(cut.FindAll("[role=button]"));
+        Assert.Equal("DIV", cut.Find(".price").TagName);
     }
 }

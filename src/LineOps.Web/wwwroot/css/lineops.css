@@ -76,6 +76,8 @@
    the chrome rail above. It lives inside a window body — a reading, not chrome — so it
    gets no material and no blur, only the same token repointing as everything else. */
 .rail {
+    /* A span, so a takeable price's button holds phrasing content only; it draws as a block. */
+    display: block;
     position: relative;
     width: 72px;
     height: 7px;
@@ -1233,6 +1235,26 @@
 .price--take { cursor: pointer; user-select: none; }
 .price--take:hover .price__odds, .price--take:focus-visible .price__odds { color: var(--accent-ink); }
 .price--take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* A price that can be taken is a real <button> (HIG 2): it presses on Enter and Space and
+   Space no longer scrolls the Board. This undoes the browser's button so it draws exactly as
+   the reading beside it; display, gap and align-items stay .price's and .gamelines__cell's. A
+   min-height of 28px is the target floor; justify-content keeps the content at the top, where a
+   button would otherwise centre it in the extra height and the cell would not match the reading. */
+button.price, button.gamelines__cell {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+    text-align: inherit;
+    min-height: 28px;
+    justify-content: flex-start;
+}
+button.price { margin: 0; padding: 0; }
+/* .price names its own align-items; .gamelines__cell leaves the default, which a div stretches
+   and a button centres, so the button says it. Its padding and margin are --take's. */
+button.gamelines__cell { align-items: stretch; }
 .take { all: unset; cursor: pointer; user-select: none; }
 .take:hover span { color: var(--accent-ink); }
 .take:focus-visible { outline: none; box-shadow: var(--focus-ring); }

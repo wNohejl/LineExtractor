@@ -45,7 +45,7 @@ public abstract class PanelBase : DeskPanelBase
     protected static string? Probables(Game game)
         => game.AwayProbablePitcher is null && game.HomeProbablePitcher is null
             ? null
-            : $"{Surname(game.AwayProbablePitcher)} v {Surname(game.HomeProbablePitcher)}";
+            : $"{Surname(game.AwayProbablePitcher)} vs {Surname(game.HomeProbablePitcher)}";
 
     /// <summary>
     /// Everything after the first name, not the last word: the last word of "CJ Van Eyk" is

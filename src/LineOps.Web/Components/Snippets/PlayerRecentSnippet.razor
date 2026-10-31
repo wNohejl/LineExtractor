@@ -17,7 +17,7 @@
 
 @if (_loading)
 {
-    <EmptyState Style="padding:6px 0">Reading recent games…</EmptyState>
+    <DeskSkeleton Lines="3" />
 }
 else if (_error is not null)
 {

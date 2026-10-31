@@ -17,7 +17,7 @@
 
 @if (_loading)
 {
-    <EmptyState Style="padding:6px 0">Reading the market…</EmptyState>
+    <DeskSkeleton Lines="2" />
 }
 else if (_error is not null)
 {
@@ -40,7 +40,7 @@ else
        tell which they are looking at unless it is said. "Unmoved" rather than "old": prices are
        stored on change (ADR 0001), so an old timestamp means a still market, not a stale feed. *@
     <p class="snippet__coverage">
-        best of @_row.BookCount @(_row.BookCount == 1 ? "book" : "books")
+        Best of @_row.BookCount @(_row.BookCount == 1 ? "book" : "books")
         @if (_row.Age is { } age)
         {
             <text> · last move @Age(age.TotalMinutes) ago</text>

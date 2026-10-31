@@ -61,10 +61,25 @@ else
             (@_visible.Count @(_visible.Count == 1 ? "game" : "games")@(_split == GameLogSplits.Split.All && _opponent is null ? "" : ", filtered"))
         </Detail>
         @* The season gate. One position per season this team has played in, newest first;
-           it hides itself when there is only one, because one season is not a choice. *@
+           it hides itself when there is only one, because one season is not a choice. Past five
+           a switch is a row of years wider than the title (HIG 7), so it becomes a select of the
+           same options, still newest first. *@
         <Keys>
-            <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
-                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            @if (_seasonOptions.Count > 5)
+            {
+                <DeskSelect TValue="int" aria-label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
+                    @foreach (var option in _seasonOptions)
+                    {
+                        <option value="@option.Value" title="@option.Title">@option.Label</option>
+                    }
+                </DeskSelect>
+            }
+            else
+            {
+                <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            }
         </Keys>
     </PanelTitle>
 
@@ -138,7 +153,7 @@ else
                             {
                                 <ResultTag Result="@cover"
                                            Title="@($"Against a closing spread of {row.ClosingSpread}")">
-                                    @(ats == EntryResult.Win ? "ATS" : ats == EntryResult.Loss ? "ATS ✗" : "ATS P")
+                                    @(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Missed" : "Push")
                                 </ResultTag>
                             }
                         </Summary>

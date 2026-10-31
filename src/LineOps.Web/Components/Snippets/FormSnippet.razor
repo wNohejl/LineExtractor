@@ -17,7 +17,7 @@
 
 @if (_loading)
 {
-    <EmptyState Style="padding:6px 0">Reading recent form…</EmptyState>
+    <DeskSkeleton Lines="3" />
 }
 else if (_error is not null)
 {
@@ -115,13 +115,13 @@ else
 
             @if (log.Count == 0)
             {
-                <span class="dim" style="font-size:calc(11.5px * var(--text-scale))">No games in the last @WindowDays days.</span>
+                <span class="dim snippet__note">No games in the last @WindowDays days.</span>
             }
             else
             {
                 var (covers, fails, pushes) = GameLogSplits.AtsRecord(log);
 
-                <span class="dim mono" style="font-size:calc(11.5px * var(--text-scale))">@GameLogSplits.FormatRecord(log)</span>
+                <span class="dim mono snippet__note">@GameLogSplits.FormatRecord(log)</span>
 
                 <FormRun Log="@FormResult.From(log)" />
 
@@ -129,7 +129,7 @@ else
                    would read as "never covered" rather than "never priced". *@
                 @if (covers + fails + pushes > 0)
                 {
-                    <span class="dim" style="font-size:calc(11px * var(--text-scale))">
+                    <span class="dim snippet__note">
                         @covers-@fails@(pushes > 0 ? $"-{pushes}" : "") ATS
                     </span>
                 }

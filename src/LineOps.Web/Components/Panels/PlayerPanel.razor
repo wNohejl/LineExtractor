@@ -67,10 +67,24 @@ else
             }
         </Detail>
         @* One position per season the player has appeared in, newest first. A player with a
-           single season sees no gate — one season is not a choice. *@
+           single season sees no gate — one season is not a choice. Past five it is a select of
+           the same options, still newest first: a switch that long outgrows the title (HIG 7). *@
         <Keys>
-            <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
-                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            @if (_seasonOptions.Count > 5)
+            {
+                <DeskSelect TValue="int" aria-label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
+                    @foreach (var option in _seasonOptions)
+                    {
+                        <option value="@option.Value" title="@option.Title">@option.Label</option>
+                    }
+                </DeskSelect>
+            }
+            else
+            {
+                <DeskSwitch Options="_seasonOptions" Label="Season" Mono="true"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            }
         </Keys>
     </PanelTitle>
 

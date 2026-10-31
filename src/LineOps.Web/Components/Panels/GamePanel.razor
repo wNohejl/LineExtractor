@@ -91,7 +91,7 @@ else
                 @* In full here, where there is room: the Board shortens them to surnames. *@
                 <span>
                     Starters
-                    <span class="ptitle__em">@(game.AwayProbablePitcher ?? "TBD")</span> v
+                    <span class="ptitle__em">@(game.AwayProbablePitcher ?? "TBD")</span> vs
                     <span class="ptitle__em">@(game.HomeProbablePitcher ?? "TBD")</span>
                 </span>
             }
@@ -474,12 +474,28 @@ else
     /// A side's best number and the book holding it: "Cowboys +3.5 −110" over "DraftKings". A
     /// total names its number bare ("Over 47.5"), since the side already says which way. Value
     /// against the fair price follows the book on a live price; a close says it is one.
+    ///
+    /// <para>
+    /// A live price the operator can take is a real <c>&lt;button type="button"&gt;</c>, which
+    /// presses on Enter and Space without scrolling the window (HIG 2); any other is a plain
+    /// reading. One reset rule in lineops.css makes the two look the same.
+    /// </para>
     /// </summary>
-    private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market) => @<div class="gamelines__cell @(CanTake(offer) ? "gamelines__cell--take" : null)"
-        title="@(offer is null ? null : EveryBook(offer) + (CanTake(offer) ? "\nPress to place a wager on this side." : ""))"
-        role="@(CanTake(offer) ? "button" : null)" tabindex="@(CanTake(offer) ? "0" : null)"
-        @onclick="() => Take(market, offer)"
-        @onkeydown="@(e => { if (e.Key is "Enter" or " ") Take(market, offer); })">
+    private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market) => @<text>
+        @if (CanTake(offer))
+        {
+            <button type="button" class="gamelines__cell gamelines__cell--take"
+                    title="@(EveryBook(offer!) + "\nPress to place a wager on this side.")"
+                    @onclick="() => Take(market, offer)">@LineInside(offer, side, total)</button>
+        }
+        else
+        {
+            <div class="gamelines__cell" title="@(offer is null ? null : EveryBook(offer))">@LineInside(offer, side, total)</div>
+        }
+    </text>;
+
+    /// <summary>What a side's cell shows: spans only, since a button holds phrasing content.</summary>
+    private RenderFragment LineInside(BestOffer? offer, string side, bool total) => @<text>
         <span class="gamelines__price">
             <span class="gamelines__side">@side</span>
             @if (offer is null)
@@ -509,7 +525,7 @@ else
                 }
             }
         </span>
-    </div>;
+    </text>;
 
     /// <summary>A row's market, as the wager window names it.</summary>
     private static string MarketKey(string row) => row switch

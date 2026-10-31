@@ -107,7 +107,8 @@ public class DeskAccessTests : DeskTestContext
             .Add(x => x.OnTake, () => taken++));
 
         Assert.Empty(cut.FindAll("[role=button]"));
-        cut.Find(".price").Click();
+        Assert.Empty(cut.FindAll("button.price"));
+        Assert.Throws<MissingEventHandlerException>(() => cut.Find(".price").Click());
         Assert.Equal(0, taken);
     }
 }

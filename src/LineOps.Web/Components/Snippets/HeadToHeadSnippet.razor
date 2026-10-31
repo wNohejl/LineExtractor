@@ -19,7 +19,7 @@
 
 @if (_loading)
 {
-    <EmptyState Style="padding:6px 0">Reading previous meetings…</EmptyState>
+    <DeskSkeleton Lines="3" />
 }
 else if (_error is not null)
 {
@@ -58,7 +58,7 @@ else
                     <td class="r">
                         @if (row.AtsResult is { } ats && ResultTag.Of(ats) is { } cover)
                         {
-                            <ResultTag Result="@cover">@(ats == EntryResult.Win ? "Cover" : ats == EntryResult.Loss ? "No" : "Push")</ResultTag>
+                            <ResultTag Result="@cover">@(ats == EntryResult.Win ? "Covered" : ats == EntryResult.Loss ? "Missed" : "Push")</ResultTag>
                         }
                         else
                         {
