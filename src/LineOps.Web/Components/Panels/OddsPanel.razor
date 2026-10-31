@@ -58,7 +58,7 @@
    nothing on record while the window was still asking, and a load that failed said it too. *@
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 else if (!Loaded)
 {

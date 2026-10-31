@@ -16,7 +16,7 @@
 
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
 @* Until the first read, the figures and tables below would all say zero and "no alerts" —

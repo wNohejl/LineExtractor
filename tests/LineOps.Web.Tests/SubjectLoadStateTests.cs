@@ -31,13 +31,13 @@ public class SubjectLoadStateTests
 
     /// <summary>The failure block, and whether an <c>else</c> hangs off it.</summary>
     private static readonly Regex FailureThenElse = new(
-        @"@if \(Failed\)\s*\{\s*<LoadFailure[^}]*\}\s*else", RegexOptions.Singleline);
+        @"@if \(Failed\)\s*\{\s*<PanelLoadFailure[^}]*\}\s*else", RegexOptions.Singleline);
 
     private static void AssertTheFailureSitsAboveTheBody(string panel)
     {
         var source = Panel(panel);
 
-        Assert.Contains("<LoadFailure", source);
+        Assert.Contains("<PanelLoadFailure", source);
         Assert.DoesNotMatch(FailureThenElse, source);
 
         // The placeholder is for a window with nothing yet, not one whose load just failed.

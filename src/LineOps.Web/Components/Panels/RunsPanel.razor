@@ -41,7 +41,7 @@
    secondary colour, rather than a filled note between the toolbar and the rows. *@
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
 @if (Loaded || !Failed)

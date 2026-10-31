@@ -21,7 +21,7 @@
    keyed on the row, and a row that never came looked exactly like one still coming. *@
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
 @if (!Loaded)

@@ -6,7 +6,7 @@
 
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
 @if (!Loaded)
@@ -482,7 +482,7 @@ else
             return;
         }
 
-        // The read reports its own failure as the window's LoadFailure, so it sits outside the catch.
+        // The read reports its own failure as the window's PanelLoadFailure, so it sits outside the catch.
         await LoadAsync();
     }
 

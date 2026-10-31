@@ -55,9 +55,9 @@ public class OperationsWindowsTests : DeskTestContext
     /// <summary>Marks the panel as having read what the test has placed on it.</summary>
     private static void Loaded(object panel)
     {
-        typeof(PanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
+        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(panel, null);
-        typeof(PanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
+        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(panel, true);
     }
 

@@ -16,7 +16,7 @@
    read that threw left the skeleton up for as long as the window stayed open. *@
 @if (Failed)
 {
-    <LoadFailure Message="@LoadError" OnRetry="RetryAsync" />
+    <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
 @if (_fight)

@@ -1,5 +1,7 @@
+@namespace LineOps.Desk.Primitives
+
 @*
-    What a panel shows when its load failed: the sentence PanelBase built ("The board did not
+    What a panel shows when its load failed: the sentence DeskPanelBase built ("The list did not
     load.") and the one thing to do about it. One component so every panel says it the same
     way — the Error kind of EmptyState, with the retry as its action — and so no panel is
     tempted to show the exception it caught; that went to the log.
@@ -7,13 +9,16 @@
     Shown in place of the panel's body before anything has loaded, and above the rows it
     already holds after, so a refresh that failed does not take numbers the operator was
     reading off the screen.
+
+    Class and unmatched attributes go to the EmptyState, which merges class and style into its
+    own rather than replacing them.
 *@
 
-<EmptyState Kind="EmptyStateKind.Error">
+<EmptyState Kind="EmptyStateKind.Error" Class="@Class" @attributes="Extra">
     <ChildContent>@Message</ChildContent>
     <Action>
         <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Refresh" OnClick="Retry">
-            Try again
+            @RetryLabel
         </DeskButton>
     </Action>
 </EmptyState>
@@ -24,6 +29,15 @@
 
     /// <summary>The panel's <c>RetryAsync</c>. A callback, so the panel re-renders when it settles.</summary>
     [Parameter, EditorRequired] public EventCallback OnRetry { get; set; }
+
+    /// <summary>The key's label. A verb, sentence case.</summary>
+    [Parameter] public string RetryLabel { get; set; } = "Try again";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
 
     private Task Retry() => OnRetry.InvokeAsync();
 }
