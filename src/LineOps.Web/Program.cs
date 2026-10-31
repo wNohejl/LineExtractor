@@ -1,11 +1,10 @@
 using LineOps.Data;
 using LineOps.Desk;
+using LineOps.Desk.Hosting;
 using LineOps.Ingestion;
 using LineOps.Observability;
 using LineOps.Reliability;
-using LineOps.Web.Access;
 using LineOps.Web.Components;
-using LineOps.Web.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -54,9 +53,10 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 
 // Who may reach the desk and what they may do there (ADR 0018), and what changes when a reverse
 // proxy stands in front of it (ADR 0019). Both register nothing in their defaults — open access,
-// no proxy — so a laptop runs exactly as it always has.
-builder.Services.AddLineOpsAccess(builder.Configuration);
-builder.Services.AddEdgeHardening(builder.Configuration);
+// no proxy — so a laptop runs exactly as it always has. Both live in LineOps.Desk.Hosting. The
+// cookie keeps the name it had before the gate moved there, so every existing sign-in survives.
+builder.Services.AddDeskAccess(builder.Configuration, o => o.CookieName = "lineops.access");
+builder.Services.AddDeskEdge(builder.Configuration);
 
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
@@ -83,7 +83,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     await initialiser.InitialiseAsync();
 }
 
-app.UseEdgeHardening();
+app.UseDeskEdge();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -95,21 +95,15 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 
 // Behind a proxy, the proxy owns port 80 and the redirect; the host has no HTTPS port to send
 // anyone to.
-if (!app.Configuration.BehindProxy())
+if (!app.Configuration.IsBehindProxy())
     app.UseHttpsRedirection();
 
-var gated = app.Configuration.IsGated();
-if (gated)
-{
-    app.UseAuthentication();
-    app.UseAuthorization();
-    app.UseRateLimiter();
-}
+// Gated only: authentication, authorization and the sign-in rate limit, then the sign-in page.
+app.UseDeskAccess();
 
 app.UseAntiforgery();
 
-if (gated)
-    app.MapLineOpsAccess();
+app.MapDeskAccess();
 
 // Liveness answers for the process only, so a database outage never gets the container killed
 // and restarted into the same outage. Readiness is what compose and any orchestrator gate on.

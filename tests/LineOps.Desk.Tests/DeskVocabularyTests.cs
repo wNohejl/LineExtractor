@@ -14,13 +14,14 @@ namespace LineOps.Desk.Tests;
 /// </summary>
 public class DeskVocabularyTests
 {
-    private static readonly string[] Words = ["game", "book", "odds", "wager", "journal", "team", "player", "fight", "bout", "stake", "parlay", "slip", "league", "bet"];
+    private static readonly string[] Words = ["game", "book", "odds", "wager", "journal", "team", "player", "fight", "bout", "stake", "parlay", "slip", "league", "bet", "espn", "mlb", "nfl", "ufc"];
 
-
-    [Fact]
-    public void The_desk_s_code_knows_no_sport()
+    [Theory]
+    [InlineData("LineOps.Desk")]
+    [InlineData("LineOps.Desk.Hosting")]
+    public void The_desk_s_code_knows_no_sport(string project)
     {
-        var root = Path.Combine(Repo.Root(), "src", "LineOps.Desk");
+        var root = Path.Combine(Repo.Root(), "src", project);
         var offenders = new List<string>();
 
         foreach (var file in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
@@ -51,10 +52,12 @@ public class DeskVocabularyTests
     /// explains a list by "a wager on the slip" teaches the next reader that the Desk is about
     /// wagers; a generic example teaches the same idea and ships anywhere.
     /// </summary>
-    [Fact]
-    public void The_desk_s_docs_know_no_sport()
+    [Theory]
+    [InlineData("LineOps.Desk")]
+    [InlineData("LineOps.Desk.Hosting")]
+    public void The_desk_s_docs_know_no_sport(string project)
     {
-        var root = Path.Combine(Repo.Root(), "src", "LineOps.Desk");
+        var root = Path.Combine(Repo.Root(), "src", project);
         var offenders = new List<string>();
 
         foreach (var file in Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)

@@ -8,7 +8,7 @@
     holds a code, only its PBKDF2 hash, so this prints the code once - keep it somewhere safe,
     because nothing can recover it - and the line to put in the server's .env.
 
-    The hash is the format LineOps.Web.Access.AccessCode checks:
+    The hash is the format LineOps.Desk.Hosting.DeskAccessCode checks:
     pbkdf2-sha256.<iterations>.<salt>.<hash>, salt and hash in base64.
 
 .EXAMPLE

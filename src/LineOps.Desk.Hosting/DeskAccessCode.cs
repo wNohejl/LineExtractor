@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace LineOps.Web.Access;
+namespace LineOps.Desk.Hosting;
 
 /// <summary>
 /// Hashing and checking an access code.
@@ -15,7 +15,7 @@ namespace LineOps.Web.Access;
 /// is kept nowhere.
 /// </para>
 /// </summary>
-public static class AccessCode
+public static class DeskAccessCode
 {
     private const string Scheme = "pbkdf2-sha256";
     private const int Iterations = 600_000;

@@ -3,6 +3,7 @@
     <Project Path="src/LineOps.Core/LineOps.Core.csproj" />
     <Project Path="src/LineOps.Data/LineOps.Data.csproj" />
     <Project Path="src/LineOps.Desk/LineOps.Desk.csproj" />
+    <Project Path="src/LineOps.Desk.Hosting/LineOps.Desk.Hosting.csproj" />
     <Project Path="src/LineOps.Ingestion/LineOps.Ingestion.csproj" />
     <Project Path="src/LineOps.Observability/LineOps.Observability.csproj" />
     <Project Path="src/LineOps.Reliability/LineOps.Reliability.csproj" />
@@ -10,6 +11,7 @@
     <Project Path="src/LineOps.Worker/LineOps.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LineOps.Desk.Hosting.Tests/LineOps.Desk.Hosting.Tests.csproj" />
     <Project Path="tests/LineOps.Desk.Tests/LineOps.Desk.Tests.csproj" />
     <Project Path="tests/LineOps.Tests/LineOps.Tests.csproj" />
     <Project Path="tests/LineOps.Web.Tests/LineOps.Web.Tests.csproj" />

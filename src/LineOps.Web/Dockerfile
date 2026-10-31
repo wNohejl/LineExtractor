@@ -8,6 +8,7 @@ WORKDIR /src
 COPY Directory.Packages.props ./
 COPY src/LineOps.Core/LineOps.Core.csproj               src/LineOps.Core/
 COPY src/LineOps.Desk/LineOps.Desk.csproj               src/LineOps.Desk/
+COPY src/LineOps.Desk.Hosting/LineOps.Desk.Hosting.csproj src/LineOps.Desk.Hosting/
 COPY src/LineOps.Data/LineOps.Data.csproj               src/LineOps.Data/
 COPY src/LineOps.Reliability/LineOps.Reliability.csproj src/LineOps.Reliability/
 COPY src/LineOps.Ingestion/LineOps.Ingestion.csproj     src/LineOps.Ingestion/

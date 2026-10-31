@@ -3,7 +3,6 @@ using LineOps.Core.Analytics;
 using LineOps.Data.CrossReference;
 using LineOps.Desk;
 using LineOps.Desk.Windowing;
-using LineOps.Web.Access;
 using LineOps.Web.Components.Desk;
 using LineOps.Web.Windowing;
 using Microsoft.Extensions.DependencyInjection;
@@ -110,76 +109,5 @@ public class DeskAccessTests : DeskTestContext
         Assert.Empty(cut.FindAll("[role=button]"));
         cut.Find(".price").Click();
         Assert.Equal(0, taken);
-    }
-
-    // The code itself: made once, stored hashed, checked in constant time.
-
-    [Fact]
-    public void A_code_matches_the_hash_made_from_it_and_nothing_else()
-    {
-        var stored = AccessCode.Hash("open-sesame");
-
-        Assert.True(AccessCode.IsWellFormed(stored));
-        Assert.True(AccessCode.Matches("open-sesame", stored));
-        Assert.False(AccessCode.Matches("open-sesame ", stored));
-        Assert.False(AccessCode.Matches("", stored));
-        Assert.False(AccessCode.Matches(null, stored));
-    }
-
-    [Fact]
-    public void Two_hashes_of_one_code_differ_because_each_is_salted()
-        => Assert.NotEqual(AccessCode.Hash("same"), AccessCode.Hash("same"));
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("open-sesame")]
-    [InlineData("pbkdf2-sha256.0.AAAA.AAAA")]
-    [InlineData("pbkdf2-sha256.600000.not base64.AAAA")]
-    [InlineData("md5.1.AAAA.AAAA")]
-    public void A_missing_or_malformed_hash_matches_nothing(string? stored)
-        => Assert.False(AccessCode.Matches("open-sesame", stored));
-
-    /// <summary>
-    /// Made by <c>scripts/new-access-code.ps1 -Code 'test-code-1'</c>. The script and this class
-    /// are two implementations of one format; this is what keeps them one.
-    /// </summary>
-    [Fact]
-    public void A_hash_made_by_the_setup_script_is_one_the_desk_accepts()
-    {
-        const string fromScript =
-            "pbkdf2-sha256.600000.WS+gSSSb5yllgWZUr3o8XA==.E3SPAqf5NZGklCRLyeVnTXgvfy9d0DhRC8ZzXFUquHQ=";
-
-        Assert.True(AccessCode.Matches("test-code-1", fromScript));
-        Assert.False(AccessCode.Matches("test-code-2", fromScript));
-    }
-
-    /// <summary>The application's access answers the Desk's three questions from its own gate.</summary>
-    [Fact]
-    public void The_app_s_access_names_its_gate()
-    {
-        var gated = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
-            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions { Mode = LineOps.Web.Access.AccessMode.Gated }));
-        LineOps.Desk.IDeskAccess access = gated;
-
-        Assert.True(access.IsGated);
-        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignInPath, access.SignInPath);
-        Assert.Equal(LineOps.Web.Access.AccessEndpoints.SignOutPath, access.SignOutPath);
-
-        LineOps.Desk.IDeskAccess open = new LineOps.Web.Access.CircuitDeskAccess(new NobodySignedIn(),
-            Microsoft.Extensions.Options.Options.Create(new LineOps.Web.Access.AccessOptions()));
-        Assert.False(open.IsGated);
-
-        // The Desk's own default has no gate and nowhere to sign in.
-        LineOps.Desk.IDeskAccess desk = LineOps.Desk.OpenDeskAccess.Instance;
-        Assert.False(desk.IsGated);
-        Assert.Null(desk.SignInPath);
-        Assert.Null(desk.SignOutPath);
-    }
-
-    private sealed class NobodySignedIn : Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider
-    {
-        public override Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> GetAuthenticationStateAsync()
-            => Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(new System.Security.Claims.ClaimsPrincipal()));
     }
 }
