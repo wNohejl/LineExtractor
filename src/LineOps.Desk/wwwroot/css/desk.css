@@ -3502,6 +3502,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    bar, which was the retired dial's habit. */
 .deskgrid--clickable .mud-table-row { cursor: pointer; }
 
+/* An open row's child (ChildContent) is a row of its own beneath it. Its cell spans the row and
+   wraps rather than widening the table, and it carries the open row's wash, so the row and what
+   it opened read as one selection rather than as the next row along. The cell is named with its
+   row so it outranks a host's `.x td { width: 1%; white-space: nowrap }` sizing rule. */
+.deskgrid__child > td { background: var(--accent-wash); }
+.deskgrid__child > .deskgrid__child-cell { width: auto; white-space: normal; }
+
 /* Keyboard focus is visible on every new control. The desk answers a press with
    travel, which a keyboard user never sees — so focus gets its own ring rather
    than relying on the hover treatment. */

@@ -4,8 +4,9 @@ using LineOps.Desk.Tests.Support;
 namespace LineOps.Desk.Tests;
 
 /// <summary>
-/// Two stylesheets, one line between them. The Desk's sheets (desk.css and the three loaded
-/// after it) hold the system: tokens, windows, controls, panel anatomy, the grouped form. This
+/// Two stylesheets, one line between them. The Desk's sheets hold the system: desk.css its
+/// tokens, windows, panel anatomy and grouped form, controls.css the components' own rules (the
+/// steps and the tab body among them), themes.css and mud-bridge.css loaded after them. This
 /// app's lineops.css holds its windows: anything named after a window or a domain. Read from
 /// the source, comments left out, because a comment may name a selector the other side owns.
 /// </summary>
@@ -38,7 +39,6 @@ public class StylesheetOwnershipTests
     [InlineData(".splits")]
     [InlineData(".snippet__market")]
     [InlineData(".wcard")]
-    [InlineData(".wstep")]
     [InlineData(".stake-row")]
     [InlineData(".book-picker")]
     [InlineData(".selection-")]
@@ -49,6 +49,22 @@ public class StylesheetOwnershipTests
         Assert.DoesNotContain(selector, Desk("themes.css"));
         Assert.DoesNotContain(selector, Desk("mud-bridge.css"));
         Assert.Contains(selector, App());
+    }
+
+    // A component the Desk ships is styled by the Desk: DeskSteps, DeskTabs and DeskGrid emit
+    // these names, so the rules that draw them travel with the package, not with one app.
+    [Theory]
+    [InlineData(".wsteps {")]
+    [InlineData(".wstep__dot")]
+    [InlineData(".wstep__title")]
+    [InlineData(".wstep__change")]
+    [InlineData(".wstep__hint")]
+    [InlineData(".tabs__panel")]
+    [InlineData(".deskgrid__child")]
+    public void A_desk_component_s_selector_lives_in_a_desk_sheet(string selector)
+    {
+        Assert.Contains(selector, Desk("controls.css") + Desk("desk.css"));
+        Assert.DoesNotContain(selector, App());
     }
 
     [Theory]

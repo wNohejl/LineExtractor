@@ -35,8 +35,40 @@ public class DeskCssConventionTests
         // This app's sheet declares no token block at all: every colour in it is the Desk's.
         Assert.DoesNotMatch(LiteralColour, WithoutComments(AppCss()));
 
+        // controls.css has no token block either: a component spends the tokens desk.css declares.
+        Assert.DoesNotMatch(LiteralColour, WithoutComments(Css("controls.css")));
+
         var reconnect = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Layout", "ReconnectModal.razor.css"));
         Assert.DoesNotMatch(LiteralColour + @"|\bwhite\b", WithoutComments(reconnect));
+    }
+
+    // Rules that draw a target smaller than the floor on purpose, by selector exactly as the
+    // sheet writes it, each with its reason. Empty: nothing on the desk is small on purpose yet.
+    private static readonly Dictionary<string, string> SmallOnPurpose = new();
+
+    [Fact]
+    public void Targets_are_at_least_28px_in_the_app_sheet()
+    {
+        // A trigger, a segment or a takeable cell is something the pointer has to land on: 28px
+        // standing alone, 24px for a segment inside a gate, so nothing under 24px at all. Only the
+        // target itself is read, the last compound of each selector; an icon or a capsule inside
+        // one (".book-picker__trigger svg") is decoration, not the target.
+        var small = new List<string>();
+        foreach (Match rule in Regex.Matches(WithoutComments(AppCss()), @"(?<sel>[^{}]+)\{(?<body>[^{}]*)\}"))
+        {
+            var selector = rule.Groups["sel"].Value.Trim();
+            if (SmallOnPurpose.ContainsKey(selector)) continue;
+            var targets = selector.Split(',')
+                .Select(part => Regex.Split(part.Trim(), @"\s*[\s>+~]\s*").Last())
+                .Any(last => Regex.IsMatch(last, @"__trigger|__opt|--take"));
+            if (!targets) continue;
+            foreach (Match height in Regex.Matches(rule.Groups["body"].Value, @"(?<![-\w])(?:min-)?height:\s*(?<px>\d+(?:\.\d+)?)px"))
+            {
+                if (double.Parse(height.Groups["px"].Value, System.Globalization.CultureInfo.InvariantCulture) < 24)
+                    small.Add($"{selector} {{ {height.Value} }}");
+            }
+        }
+        Assert.Empty(small);
     }
 
     [Fact]

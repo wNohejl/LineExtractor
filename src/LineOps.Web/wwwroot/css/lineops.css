@@ -116,7 +116,7 @@
     font-size: var(--text-caption);
     color: var(--text-tertiary);
     opacity: 0;
-    transition: opacity .1s ease;
+    transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
 .mud-table-row:hover .price__edge,
@@ -133,7 +133,7 @@
     font-size: var(--text-caption);
     color: var(--text-tertiary);
     opacity: 0;
-    transition: opacity .1s ease;
+    transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
 /* The board's value column: the row's best bet against the fair price, the figure on top
@@ -479,7 +479,7 @@
    and no accent edge: the group is read, and only its disclosure summary is pressed. */
 
 .runbook {
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--surface-2);
     margin: var(--space-3) 0;
 }
@@ -713,12 +713,9 @@
     white-space: normal;
 }
 
-/* The open row's snippet, in a row of its own beneath it (DeskGrid's child row). Its cell
-   starts under the matchup, the lead cell holding the start time's column, and it wraps rather
-   than widening the table. It keeps the open row's wash, so the row and what it opened read as
-   one selection rather than as the next game along. */
-.deskgrid--board .deskgrid__child-cell { width: auto; white-space: normal; }
-.deskgrid--board .deskgrid__child > td { background: var(--accent-wash); }
+/* The open row's snippet sits in DeskGrid's child row, styled by desk.css: its cell starts
+   under the matchup (the lead cell holds the start time's column), wraps rather than widening
+   the table, and keeps the open row's wash. */
 
 /* Each market is two columns that belong together — home and away, over and
    under. Extra space before the first of each pair groups them, so the eye reads
@@ -899,11 +896,6 @@
 
 .wager-typed .field-set { margin: 0; }
 
-/* ---- The books: a filter of chips, each with its price. The list to choose from is the book
-   pop-up's menu now (BookPicker on DeskPopover and DeskMenu, styled in controls.css). */
-.book-chips { flex-wrap: wrap; gap: var(--space-1); }
-.book-chip__price { margin-left: var(--space-1); opacity: .8; }
-
 /* ---- The game search: one field, its results directly beneath, newest first. */
 .game-search { display: flex; flex-direction: column; gap: var(--space-1); }
 .game-search__list { max-height: 280px; overflow-y: auto; }
@@ -969,8 +961,6 @@
 .whead .ptitle__name { font-size: var(--text-title2); font-weight: var(--weight-semibold); }
 .whead .scoreboard--compact { --scoreboard-score: var(--text-title2); }
 .whead .scoreboard--compact .scoreboard__name { font-size: var(--text-title2); }
-/* Chips: 20px tall, 10px radius, 11px medium, a quiet fill with no stroke. */
-.whead .ptitle__row .tag { padding: 3px var(--space-2); line-height: 14px; border-radius: 10px; }
 /* Duplicate trails the header: in the title's meta line from the Board, after the search
    from the Journal. */
 .whead__keys { margin-left: auto; display: flex; align-items: center; }
@@ -1038,100 +1028,6 @@
     padding-top: var(--space-2);
 }
 
-/* ---- The stepper inside the card (reconciling rules 4-6): a 40px marker column with a 16px
-   ring centred 20px from the card's edge, on a 2px rail that runs ring to ring behind the
-   folded lines. Waiting: a hollow 1.5px ring. Current: a 2px accent ring with a 6px dot.
-   Done: a filled accent disc with a check, and the rail below it in the accent. A folded
-   step is one 40px line; only an open step has a body, indented to the title's edge. */
-.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.wstep {
-    position: relative;
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    column-gap: 0;
-    padding: 10px var(--space-4) 10px 0;
-}
-.wstep + .wstep { border-top: 1px solid var(--wsep, var(--separator)); }
-.wstep::before {
-    content: "";
-    position: absolute;
-    left: 19px;
-    top: 30px; /* from under the marker: 10px padding, 4px margin, 16px ring */
-    bottom: -15px; /* into the next marker, which sits 2px lower than it did */
-    width: 2px;
-    border-radius: 1px;
-    background: color-mix(in srgb, var(--text-primary) 13%, transparent);
-    transition: background var(--dur-fast) var(--ease-standard);
-}
-.wstep:last-child::before { display: none; }
-.wstep--done::before { background: color-mix(in oklab, var(--accent) 70%, transparent); }
-.wstep__dot {
-    justify-self: center;
-    width: 16px;
-    height: 16px;
-    margin-top: 4px; /* centred on the 24px name capsule */
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-size: 0;
-    color: var(--on-accent);
-    background: transparent;
-    box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
-    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
-}
-.wstep__dot svg { width: 11px; height: 11px; }
-.wstep--current .wstep__dot { box-shadow: inset 0 0 0 2px var(--accent); }
-.wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-.wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
-.wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.wstep__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 24px; }
-
-/* Each step's name is a capsule on the rail, not a word floating beside it: the marker says
-   where the step stands, the capsule names it, and the two read as one object. The step being
-   worked carries the accent edge and wash — selection, the accent's own job; a finished step a
-   firm neutral edge; a waiting one a quiet edge and secondary ink. 24px tall, so the 16px
-   marker centres on it (.wstep__dot's margin). */
-.wstep__title {
-    display: inline-flex;
-    align-items: center;
-    flex: none;
-    height: 24px;
-    margin: 0;
-    padding: 0 var(--space-3);
-    border: 1px solid var(--separator-strong);
-    border-radius: 999px;
-    font-size: var(--text-headline);
-    font-weight: var(--weight-semibold);
-    line-height: 1;
-    color: var(--text-primary);
-}
-.wstep--current .wstep__title { border-color: var(--accent); background: var(--accent-wash); }
-.wstep--todo .wstep__title { border-color: var(--separator); color: var(--text-secondary); }
-.wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.wstep__summary:empty { display: none; }
-/* The folded choice is a DeskLink: the same dotted rule and "change" shortcut every linked
-   name on the desk shows under the pointer, so changing a step is the one link idiom and not
-   a second key. Its label takes the summary's size; the rule sits under the words, as it does
-   in a grid cell. Sits on the title's baseline, where the summary already did. */
-.wstep__change { font-size: var(--text-subheadline); align-self: baseline; }
-.wstep__change .desklink__label { font-size: inherit; }
-.wstep__change:hover .wstep__summary,
-.wstep__change:focus-visible .wstep__summary { color: var(--accent-ink); }
-/* A folded step's choice is the one link on its line, so the dotted rule shows on hover
-   without a row to carry it. */
-.wstep__change:hover .desklink__label { border-bottom-color: var(--accent); }
-.wstep__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
-.wstep__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
-.wstep__hint {
-    margin: calc(-1 * var(--space-1)) 0 0;
-    max-width: 68ch;
-    font-size: var(--text-subheadline);
-    line-height: var(--leading-body);
-    color: var(--text-secondary);
-}
-.wstep__body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.wstep__body > .note { margin: 0; }
-
 /* ---- Your bet, as a grouped form: a row per market, the market's name leading, and a
    two-segment control trailing — the HIG's "one of a few, all visible, setting a state".
    It was a 3×2 grid of outlined cells, which reads as a table to look things up in. One side
@@ -1196,25 +1092,44 @@
 .wager-typed__cell { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 
 .book-picker { position: relative; margin-left: var(--space-2); }
+/* The book is a pop-up button, as macOS draws one (recipe rule 5): 6px corners, a 10% fill
+   with no stroke at rest, 12px text with the current book as its label, padding 0 6px 0 9px,
+   and an up/down chevron in secondary at its end. 28px tall, the desk's smallest standalone
+   target (it was 22px, and 32px in a rule the 22px one overrode). It was an outlined pill
+   holding a filled capitals tag, which read as a chip to dismiss rather than a menu to open.
+   "Best" is a word in the positive colour, not a second badge. Disabled until a side is
+   chosen. */
 .book-picker__trigger {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    height: 32px;
-    padding: 0 var(--space-2) 0 var(--space-3);
+    gap: var(--space-1);
+    height: 28px;
+    padding: 0 6px 0 9px;
     border: 0;
-    border-radius: var(--radius);
-    background: var(--surface-3);
-    box-shadow: inset 0 0 0 1px var(--separator);
+    border-radius: calc(var(--radius) - 1px);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    box-shadow: none;
     color: var(--text-primary);
     font: inherit;
     cursor: pointer;
     transition: box-shadow var(--dur-fast) var(--ease-standard);
 }
-.book-picker__trigger:hover { box-shadow: inset 0 0 0 1px var(--separator-strong); }
+.book-picker__trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
+.book-picker__trigger:disabled { color: var(--text-tertiary); cursor: default; background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
 .book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .book-picker__trigger:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.book-picker__trigger svg { width: 16px; height: 16px; color: var(--text-secondary); }
+.book-picker__trigger .wager-offer__book { font-size: var(--text-subheadline); font-weight: var(--weight-medium); }
+.book-picker__trigger svg { width: 12px; height: 12px; color: var(--text-secondary); }
+.book-picker__trigger .tag {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--state-positive-ink);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+}
 /* The menu is the shared popover panel, which stops at 360px; a book's row holds its name,
    line, price and "Best price · Captured 3 min ago", and that needs the old picker's width
    to stay on one line. */
@@ -1259,7 +1174,7 @@
     display: inline-block;
     min-width: 18px;
     padding: 0 5px;
-    border-radius: 9px;
+    border-radius: 999px;
     background: var(--accent-wash);
     color: var(--accent-ink);
     font-size: var(--text-footnote);
@@ -1365,7 +1280,7 @@
     box-shadow: var(--shadow-1);
 }
 .selection-gate .gate__opt {
-    min-height: 20px;
+    min-height: 24px;
     padding: 2px var(--space-2);
     border-radius: calc(var(--radius) - 1px);
     font-size: var(--text-subheadline);
@@ -1417,36 +1332,6 @@
 .wcard .wbet > .wbet__price { padding: 6px var(--space-3); margin: 0 calc(-1 * var(--space-3)); }
 .wcard .wbet > .wbet__price:last-child { border-radius: 0 0 var(--radius) var(--radius); }
 
-/* The book is a pop-up button, as macOS draws one (recipe rule 5): 22px, 6px corners, a 10%
-   fill with no stroke at rest, 12px text with the current book as its label, padding 0 6px 0
-   9px, and an up/down chevron in secondary at its end. It was an outlined pill holding a
-   filled capitals tag, which read as a chip to dismiss rather than a menu to open. "Best" is a
-   word in the positive colour, not a second badge. Disabled until a side is chosen. */
-.book-picker__trigger {
-    height: 22px;
-    gap: var(--space-1);
-    padding: 0 6px 0 9px;
-    border-radius: calc(var(--radius) - 1px);
-    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
-    box-shadow: none;
-}
-.book-picker__trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 15%, transparent); box-shadow: none; }
-.book-picker__trigger:disabled { color: var(--text-tertiary); cursor: default; background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
-.book-picker__trigger[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.book-picker__trigger:focus-visible { box-shadow: var(--focus-ring); }
-.book-picker__trigger .wager-offer__book { font-size: var(--text-subheadline); font-weight: var(--weight-medium); }
-.book-picker__trigger svg { width: 12px; height: 12px; }
-.book-picker__trigger .tag {
-    padding: 0;
-    background: none;
-    box-shadow: none;
-    color: var(--state-positive-ink);
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-medium);
-    letter-spacing: 0;
-    text-transform: none;
-}
-
 /* Widths. The window body is a container; the wizard reads it, not the viewport. One column at
    every width, the cards at 760px, the stepper drawn the same in a side window and maximised.
    From 1000px it used to split in two, the review lifted out as a card of its own beside the
@@ -1454,7 +1339,6 @@
    the sequence apart, three numbered steps becoming two steps and a box. A wide window now
    keeps the stepper whole and the rest of the body plain, as a centred assistant does. */
 
-.wtabs + .tabs__panel { container-type: inline-size; }
 /* The price row names the side it prices, under its label, so the row reads as that side's. */
 .wbet__echo { display: block; margin-top: 2px; font-size: var(--text-footnote); font-weight: var(--weight-regular); color: var(--text-secondary); white-space: normal; }
 .wbet__echo:empty { display: none; }
@@ -1465,9 +1349,7 @@
    the returns take a line of their own under the amount, so every row breaks in one place. */
 @container (max-width: 480px) {
     .whead { padding: var(--space-3); }
-    .wstep { padding-right: var(--space-3); }
     .wcard .wgroup__row--form { padding-left: 0; padding-right: 0; }
-    .wstep__hint { font-size: var(--text-footnote); }
     .wgroup__row--form .stake-row { row-gap: var(--space-1); }
     .wgroup__row--form .stake-row__returns { flex-basis: 100%; margin-left: 0; }
     .wcard .wgroup__foot { padding: 0; }
@@ -1602,7 +1484,7 @@
 /* A live price in the Game window is a door to the wager window, as on the Board. */
 .gamelines__cell--take { cursor: pointer; border-radius: var(--radius-sm); margin: -2px -4px; padding: 2px 4px; }
 .gamelines__cell--take:hover { background: var(--surface-3); }
-.gamelines__cell--take:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gamelines__cell--take:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .gamelines__price {
     display: flex;
     flex-wrap: wrap;

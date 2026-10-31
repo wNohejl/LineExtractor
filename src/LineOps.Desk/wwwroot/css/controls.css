@@ -723,6 +723,9 @@
     margin-left: var(--space-1);
 }
 
+/* A tab's body is a container, so what it holds can answer to the window's width. */
+.tabs__panel { container-type: inline-size; }
+
 
 /* ---- Slider -----------------------------------------------------------------
    DeskSlider: the native range input with its value read out beside it. The
@@ -856,6 +859,109 @@
 .radio:disabled {
     opacity: .40;
     cursor: not-allowed;
+}
+
+/* ---- Steps ------------------------------------------------------------------
+   DeskSteps and DeskStep: a sequence of steps on a rail. A 40px marker column holds a
+   16px ring centred 20px from the edge, on a 2px rail that runs ring to ring behind
+   the folded lines. Waiting: a hollow 1.5px ring. Current: a 2px accent ring with a
+   6px dot. Done: a filled accent disc with a check, and the rail below it in the
+   accent. A folded step is one line; only an open step has a body, indented to the
+   title's edge. A host may set --wsep to tint the hairline between steps. */
+.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.wstep {
+    position: relative;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 0;
+    padding: 10px var(--space-4) 10px 0;
+}
+.wstep + .wstep { border-top: 1px solid var(--wsep, var(--separator)); }
+.wstep::before {
+    content: "";
+    position: absolute;
+    left: 19px;
+    top: 30px; /* from under the marker: 10px padding, 4px margin, 16px ring */
+    bottom: -15px; /* into the next marker, which sits 2px lower than it did */
+    width: 2px;
+    border-radius: 1px;
+    background: color-mix(in srgb, var(--text-primary) 13%, transparent);
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+.wstep:last-child::before { display: none; }
+.wstep--done::before { background: color-mix(in oklab, var(--accent) 70%, transparent); }
+.wstep__dot {
+    justify-self: center;
+    width: 16px;
+    height: 16px;
+    margin-top: 4px; /* centred on the 24px name capsule */
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0;
+    color: var(--on-accent);
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--text-tertiary);
+    transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+.wstep__dot svg { width: 11px; height: 11px; }
+.wstep--current .wstep__dot { box-shadow: inset 0 0 0 2px var(--accent); }
+.wstep--current .wstep__dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.wstep--done .wstep__dot { background: var(--accent); box-shadow: none; }
+.wstep__main { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.wstep__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-3); min-height: 24px; }
+
+/* Each step's name is a capsule on the rail, not a word floating beside it: the marker says
+   where the step stands, the capsule names it, and the two read as one object. A capsule is
+   a fill, never an edge. The step being worked carries the accent wash and ink — selection,
+   the accent's own job; a finished step a quiet neutral fill; a waiting one no fill and
+   secondary ink. 24px tall, so the 16px marker centres on it (.wstep__dot's margin). */
+.wstep__title {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    height: 24px;
+    margin: 0;
+    padding: 0 var(--space-3);
+    border-radius: 999px;
+    background: var(--surface-3);
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    line-height: 1;
+    color: var(--text-primary);
+}
+.wstep--current .wstep__title { background: var(--accent-wash); color: var(--accent-ink); }
+.wstep--todo .wstep__title { background: none; color: var(--text-secondary); }
+.wstep__summary { font-size: var(--text-subheadline); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.wstep__summary:empty { display: none; }
+/* The folded choice is a DeskLink: the same dotted rule and "change" shortcut every linked
+   name on the desk shows under the pointer, so changing a step is the one link idiom and not
+   a second key. Its label takes the summary's size; the rule sits under the words, as it does
+   in a grid cell. Sits on the title's baseline, where the summary already did. */
+.wstep__change { font-size: var(--text-subheadline); align-self: baseline; }
+.wstep__change .desklink__label { font-size: inherit; }
+.wstep__change:hover .wstep__summary,
+.wstep__change:focus-visible .wstep__summary { color: var(--accent-ink); }
+/* A folded step's choice is the one link on its line, so the dotted rule shows on hover
+   without a row to carry it. */
+.wstep__change:hover .desklink__label { border-bottom-color: var(--accent); }
+.wstep__wait { font-size: var(--text-subheadline); color: var(--text-tertiary); }
+.wstep__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); }
+.wstep__hint {
+    margin: calc(-1 * var(--space-1)) 0 0;
+    max-width: 68ch;
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+.wstep__body { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.wstep__body > .note { margin: 0; }
+
+/* In a narrow window (beside two others, ~300-480px) the rail's trailing gutter halves and
+   the hint drops a size, so the step's controls keep the width. */
+@container (max-width: 480px) {
+    .wstep { padding-right: var(--space-3); }
+    .wstep__hint { font-size: var(--text-footnote); }
 }
 
 /* ---- Accent picker ----------------------------------------------------------

@@ -182,8 +182,9 @@ public class WagerRecipeTests : WagerTestContext
     /// <summary>
     /// Maximised, the window split the review out as a card of its own beside the form and
     /// dropped its marker and its piece of the rail, so the sequence fell apart. The stepper is
-    /// one column at every width now, and each step's name is a bordered capsule on the rail
-    /// rather than a word beside it, the step being worked on the accent edge.
+    /// one column at every width now, and each step's name is a filled capsule on the rail
+    /// rather than a word beside it, the step being worked on the accent wash. The capsule is
+    /// the Desk's (controls.css); this app only places it.
     /// </summary>
     [Fact]
     public void The_stepper_is_one_column_at_every_width_and_each_step_name_is_a_capsule()
@@ -193,8 +194,13 @@ public class WagerRecipeTests : WagerTestContext
         Assert.DoesNotContain("@container (min-width: 1000px)", css);
         Assert.DoesNotContain(".wstep--review > .wstep__dot { display: none", css);
 
-        Assert.Matches(@"\.wstep__title\s*\{[^}]*border:\s*1px solid var\(--separator-strong\);[^}]*border-radius:\s*999px;", css);
-        Assert.Matches(@"\.wstep--current \.wstep__title\s*\{[^}]*border-color:\s*var\(--accent\);", css);
+        var controls = Source("src", "LineOps.Desk", "wwwroot", "css", "controls.css");
+        var title = Regex.Match(controls, @"\.wstep__title\s*\{[^}]*\}").Value;
+        Assert.Contains("border-radius: 999px;", title);
+        Assert.Contains("background: var(--surface-3);", title);
+        Assert.DoesNotMatch(@"\bborder(-color)?:", title);
+        Assert.Matches(@"\.wstep--current \.wstep__title\s*\{[^}]*background:\s*var\(--accent-wash\);", controls);
+        Assert.DoesNotMatch(@"\.wstep--\w+ \.wstep__title\s*\{[^}]*border-color", controls);
     }
 
     [Fact]
