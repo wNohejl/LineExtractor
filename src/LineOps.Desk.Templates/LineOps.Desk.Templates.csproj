@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    `dotnet new deskapp`: a Blazor Server application on the Desk, wired the way the Desk's README
+    says, with one example window. The package holds templates and nothing else, so it builds no
+    assembly and compiles none of the files it carries.
+
+    Two things are taken from elsewhere in this repository when it packs, so each has one source:
+    the HIG skills from .claude/skills, which a new application's agent reads before it draws a
+    window, and the consumer nuget.config from docs/desk, which sends the Desk's packages to the
+    feed the Desk packages workflow publishes to.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageType>Template</PackageType>
+    <PackageId>LineOps.Desk.Templates</PackageId>
+    <Version>0.1.0</Version>
+    <Title>Desk application templates</Title>
+    <Description>dotnet new deskapp: a Blazor Server application on LineOps.Desk and LineOps.Desk.Hosting, with one example window, the error and not-found pages, and the HIG skills for its agent.</Description>
+    <PackageTags>dotnet-new;templates;blazor;desk</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- NuGet leaves out files and folders that start with a dot unless told otherwise, and the
+         template's .editorconfig, .gitattributes, .gitignore and .claude are the point. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- NU5128: a template package has no lib folder to match its dependencies against. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- A PackagePath that ends in a separator is a folder; NuGet adds each file's own subfolder. -->
+    <None Include="content\**\*" Exclude="content\**\bin\**;content\**\obj\**" Pack="true" PackagePath="content\" />
+    <None Include="..\..\docs\desk\nuget.config" Pack="true" PackagePath="content\deskapp\nuget.config" />
+    <None Include="..\..\.claude\skills\apple-hig-components\**\*" Pack="true" PackagePath="content\deskapp\.claude\skills\apple-hig-components\" />
+    <None Include="..\..\.claude\skills\apple-mudblazor\**\*" Pack="true" PackagePath="content\deskapp\.claude\skills\apple-mudblazor\" />
+  </ItemGroup>
+
+</Project>

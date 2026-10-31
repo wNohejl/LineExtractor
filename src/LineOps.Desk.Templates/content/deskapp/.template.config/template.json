@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Wade Nohejl",
+  "classifications": ["Web", "Blazor", "Desk"],
+  "identity": "LineOps.Desk.Templates.DeskApp",
+  "name": "Desk application",
+  "description": "A Blazor Server application on the Desk: one example window, the access gate and edge headers, the error and not-found pages, and the HIG skills for its agent.",
+  "shortName": "deskapp",
+  "sourceName": "DeskApp",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "product": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "The product's name, as the wordmark writes it. Defaults to the project's name.",
+      "displayName": "Product name"
+    },
+    "productName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "product",
+        "fallbackVariableName": "name"
+      },
+      "replaces": "ACME"
+    },
+    "emphasis": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "DESK",
+      "description": "The part of the wordmark the accent falls on, after the product's name.",
+      "displayName": "Wordmark emphasis",
+      "replaces": "EMPHASIS"
+    },
+    "cookie": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "The access gate's sign-in cookie. Defaults to the project's name in lower case, then .access.",
+      "displayName": "Cookie name"
+    },
+    "nameLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": {
+        "source": "name",
+        "toLower": true
+      }
+    },
+    "cookieDefault": {
+      "type": "generated",
+      "generator": "join",
+      "parameters": {
+        "symbols": [
+          { "type": "ref", "value": "nameLower" },
+          { "type": "const", "value": ".access" }
+        ],
+        "separator": ""
+      }
+    },
+    "cookieName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "cookie",
+        "fallbackVariableName": "cookieDefault"
+      },
+      "replaces": "COOKIE_NAME"
+    },
+    "httpPort": {
+      "type": "parameter",
+      "datatype": "integer",
+      "description": "The port the http launch profile listens on. Chosen at random when left out.",
+      "displayName": "HTTP port"
+    },
+    "httpPortGenerated": {
+      "type": "generated",
+      "generator": "port",
+      "parameters": {
+        "low": 5100,
+        "high": 5999
+      }
+    },
+    "httpPortReplacer": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "httpPort",
+        "fallbackVariableName": "httpPortGenerated"
+      },
+      "replaces": "5180"
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "copyOnly": [".claude/skills/**"]
+        }
+      ]
+    }
+  ],
+  "primaryOutputs": [
+    { "path": "DeskApp.csproj" }
+  ]
+}

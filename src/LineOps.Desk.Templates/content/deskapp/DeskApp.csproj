@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <!-- Versions are in Directory.Packages.props. MudBlazor comes with the Desk. -->
+  <ItemGroup>
+    <PackageReference Include="LineOps.Desk" />
+    <PackageReference Include="LineOps.Desk.Hosting" />
+  </ItemGroup>
+
+</Project>

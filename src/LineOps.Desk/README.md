@@ -339,7 +339,10 @@ push to `main` packs them as a dry run (the `.nupkg` files are the run's artifac
 publishes them.
 
 1. Raise `<Version>` in `LineOps.Desk.csproj`, and in `LineOps.Desk.Hosting.csproj` if Hosting
-   changed. Commit on `LineX_Development`, merge to `main`, and push.
+   changed. Raise the same versions in the template's
+   `src/LineOps.Desk.Templates/content/deskapp/Directory.Packages.props`, and the template's own
+   `<Version>` with them (`DeskTemplateTests` fails until the two agree). Commit on
+   `LineX_Development`, merge to `main`, and push.
 2. Tag the merge with the Desk's version and push the tag:
 
    ```bash
@@ -347,11 +350,13 @@ publishes them.
    git push origin desk-v0.3.0
    ```
 
-3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs both projects,
-   and pushes each with `--skip-duplicate`: a package whose version is already on the feed — an
-   unchanged Hosting — is passed over, not failed on. A version once published is never
-   replaced; a fix is a new version and a new tag.
+3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs the Desk, Hosting
+   and `LineOps.Desk.Templates`, and pushes each with `--skip-duplicate`: a package whose version
+   is already on the feed — an unchanged Hosting — is passed over, not failed on. A version once
+   published is never replaced; a fix is a new version and a new tag.
 
 A consumer restores from the feed with [`docs/desk/nuget.config`](../../docs/desk/nuget.config)
 beside its solution, and `DESK_FEED_USER` and `DESK_FEED_TOKEN` (a token with `read:packages`) in
-its environment.
+its environment. A new application starts from the template, which brings that file with it:
+`dotnet new install LineOps.Desk.Templates`, then `dotnet new deskapp` (its
+[README](../LineOps.Desk.Templates/README.md) lists the options).

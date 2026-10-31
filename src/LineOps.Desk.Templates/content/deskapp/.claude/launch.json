@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "deskapp",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--launch-profile", "http"],
+      "port": 5180
+    }
+  ]
+}

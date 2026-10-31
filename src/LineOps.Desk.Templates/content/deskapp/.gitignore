@@ -1,0 +1,6 @@
+bin/
+obj/
+*.user
+.vs/
+# Keys and codes live here, never in a committed appsettings file.
+appsettings.Local.json

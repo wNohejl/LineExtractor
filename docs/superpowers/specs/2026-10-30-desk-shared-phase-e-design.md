@@ -121,10 +121,14 @@ shows `BookNames.Display` and the placeholder "Book"; 21 copy (`TeamPanel:141`, 
 
 - `LineOps.Desk.Testing` (audit #9): convention scans and `DeskTestContext`/fakes as a package.
 - Moving the ~2,000 lines of desk-behaviour tests out of `LineOps.Web.Tests` (audit #10).
-- The `dotnet new deskapp` template, repo scaffolding and launch profile (#11 rest, #12, #15).
+- ~~The `dotnet new deskapp` template, repo scaffolding and launch profile (#11 rest, #12, #15).~~
+  Done: `src/LineOps.Desk.Templates`, with `.editorconfig`, `.gitattributes`, `.claude/launch.json`
+  and the two HIG skills, which also closes the distribution half of #13.
 - `PostgresDeskSignalSource` from `DataChangeListener` (#6).
 - Distributing the HIG skills (#13) and packaging the ADRs with the packages (#14).
-- A NuGet publish workflow (pack on a `desk-v*` tag, push to GitHub Packages, `nuget.config`).
+- ~~A NuGet publish workflow (pack on a `desk-v*` tag, push to GitHub Packages, `nuget.config`).~~
+  Done: `.github/workflows/desk-packages.yml` and `docs/desk/nuget.config`; the Desk README's
+  Releasing section says how to cut one.
 - `FormGroup`/`FormRow` and its ~130-site adoption.
 - HIG findings 6 (game search as a popover listbox), 8 (Board sport filter as a switch), 9
   (actions into `PanelToolbar`), 15 (Slip's hand-rolled disclosure), the razor half of 18

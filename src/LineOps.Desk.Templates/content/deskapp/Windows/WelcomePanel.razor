@@ -1,0 +1,40 @@
+@inherits DeskPanelBase
+@inject DeskClock Clock
+@inject IWindowCatalog Catalog
+
+<div class="welcome">
+    <PanelTitle>
+        <ChildContent>ACME</ChildContent>
+        <Detail>Opened @Clock.Stamp(_opened)</Detail>
+    </PanelTitle>
+
+    <MetricRow>
+        <Metric Label="Windows" Value="@Catalog.All.Count.ToString()" Note="in the catalogue" Numeric />
+        <Metric Label="Workspaces" Value="@Catalog.Workspaces.Count.ToString()" Note="named arrangements" Numeric />
+    </MetricRow>
+
+    <PanelSection Title="Add a window">
+        <p class="welcome__text">
+            A window is a component that inherits <code>DeskPanelBase</code> and one entry in
+            <code>AppWindowCatalog</code>. The strip, the palette and the manager read the
+            catalogue, so nothing else changes.
+        </p>
+        <KeyRow Justify="DeskJustify.Start">
+            <Primary>
+                <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="OpenParts">Open the Parts bin</DeskButton>
+            </Primary>
+        </KeyRow>
+    </PanelSection>
+</div>
+
+@code {
+    private readonly DateTimeOffset _opened = DateTimeOffset.UtcNow;
+
+    protected override void OnInitialized() => Report(PulseState.Healthy, "Ready");
+
+    private void OpenParts()
+    {
+        if (Catalog.Find(AppWindowCatalog.Parts) is { } parts)
+            Manager.Open(parts);
+    }
+}

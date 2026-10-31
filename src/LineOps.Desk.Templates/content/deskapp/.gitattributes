@@ -1,0 +1,14 @@
+# Line endings are normalised to LF in the repository and checked out native, so a Windows clone
+# with core.autocrlf and a Linux CI agree on what `dotnet format --verify-no-changes` sees.
+* text=auto
+
+# Shell scripts keep LF wherever they are checked out; CRLF breaks the shebang.
+*.sh text eol=lf
+
+# Windows-only scripts are the mirror case.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.ico binary
