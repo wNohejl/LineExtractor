@@ -193,6 +193,33 @@ without it), `GuestCodeHash`, `AllowAnonymousVisitors`, `SessionLifetime`, `Cook
 functions it tests by (`DeskEdge.Headers`, `DeskSignInPage.Render`) are in the package's own
 [README](../LineOps.Desk.Hosting/README.md).
 
+## Testing
+
+`LineOps.Desk.Testing` is what an application's tests take from the Desk: the Desk's source
+conventions as calls, a bUnit bench, and fakes for the seams the Desk asks its host for.
+Reference it beside xunit, and the conventions are one fact:
+
+```csharp
+[Fact]
+public void The_desk_conventions_hold() => DeskConventions.All(
+    Path.Combine(DeskConventions.FindAbove("Acme.sln"), "src"), "Acme.Web/Components/App.razor", "Acme.Web/wwwroot/css/acme.css");
+```
+
+`All` reads the source under the first path and reports every broken rule at once: a Desk field
+with no accessible name, a `TemplateColumn` with a sort key that cannot sort, Bootstrap shipped,
+a literal colour or an undersized target in the application's sheet, a second toolbar fold, a
+Desk component restyled by the application, and a stylesheet linked above `<DeskHead />`. Each is
+a method of its own as well, and `SelectorLivesInAppSheet` checks the other side of ownership —
+that a window's selector is in the application's sheet and in none of the Desk's, which the
+package carries inside it.
+
+`DeskTestContext` registers MudBlazor, the theme, a brand, a UTC clock, an open desk, the window
+manager, the follow-ups and the popovers, with JS interop loose. An application's bench derives
+from it and registers its own brand, clock and catalogue; the last registration wins.
+`FakeWindowCatalog` (three windows, or the definitions you pass), `FakeAlerts` and `FakeSheets`
+stand in for the rest. The Desk's own tests run on the same bench, so what ships is what they
+prove; the package's [README](../LineOps.Desk.Testing/README.md) has the whole list.
+
 ## Tokens
 
 Every rule in the Desk spends a token named for a role, never a colour. The families, all
@@ -328,8 +355,8 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 | One Filled key | A context has at most one Filled key, last in its row; everything else is Tinted or Plain. | `PanelToolbarTests.Keeps_every_key_in_one_actions_item_after_the_pickers` (the Filled key last); the count is held in review |
 | Sentence case | Titles, headers, keys and tags read in sentence case. | `PanelHeader` and `PanelSection` set the rule's type; no test reads copy yet |
 | Keys explain themselves | A key that waits says why in text on its row, not in a title a disabled key never shows, and the key is described by that text; secondary keys come first and the Filled key last, and a confirm asks Cancel first. | `KeyRowTests`, `KeyRowAdoptionTests` (in the host's tests), `InlineConfirmTests` |
-| Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `AccessibleNameTests`, `DeskAlertTests.Every_caller_must_name_the_confirm` |
-| No literal colours | A colour is a token. Only the token blocks write one. | `DeskCssConventionTests.No_literal_colour_outside_the_token_blocks` |
+| Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `DeskConventions.EveryFieldHasAName` (run by the host's `DeskConventionTests`), `DeskAlertTests.Every_caller_must_name_the_confirm` |
+| No literal colours | A colour is a token. Only the token blocks write one. | `DeskCssConventionTests.No_literal_colour_outside_the_token_blocks`; an application's sheet, `DeskConventions.AppSheetSpendsTokens` |
 | No domain | The Desk's code and its documentation name no application's records. | `DeskVocabularyTests` |
 
 ## Releasing
@@ -350,8 +377,8 @@ publishes them.
    git push origin desk-v0.3.0
    ```
 
-3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs the Desk, Hosting
-   and `LineOps.Desk.Templates`, and pushes each with `--skip-duplicate`: a package whose version
+3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs the Desk, Hosting,
+   `LineOps.Desk.Testing` and `LineOps.Desk.Templates`, and pushes each with `--skip-duplicate`: a package whose version
    is already on the feed — an unchanged Hosting — is passed over, not failed on. A version once
    published is never replaced; a fix is a new version and a new tag.
 

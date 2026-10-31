@@ -119,8 +119,15 @@ shows `BookNames.Display` and the placeholder "Book"; 21 copy (`TeamPanel:141`, 
 
 ## Deferred to Phase F
 
-- `LineOps.Desk.Testing` (audit #9): convention scans and `DeskTestContext`/fakes as a package.
-- Moving the ~2,000 lines of desk-behaviour tests out of `LineOps.Web.Tests` (audit #10).
+- ~~`LineOps.Desk.Testing` (audit #9): convention scans and `DeskTestContext`/fakes as a package.~~
+  Done: `src/LineOps.Desk.Testing` — `DeskConventions` (the scans, parameterised by a source
+  root, an app razor and an app sheet, with `All`), `DeskTestContext` and the fakes. Both test
+  projects run on it; the Desk README's Testing section shows a consumer's fact.
+- ~~Moving the ~2,000 lines of desk-behaviour tests out of `LineOps.Web.Tests` (audit #10).~~
+  Done: keyboard, layout, capacity, history, palette, strip, navigation, unsaved input and
+  follow-up tests (105) run in `LineOps.Desk.Tests` on a neutral `SampleCatalog`; `DeskSmokeTests`
+  keeps seven on the real catalogue. The one test dropped, a late-load race in
+  `PanelLoadStateTests`, duplicated `DeskPanelBaseTests`.
 - ~~The `dotnet new deskapp` template, repo scaffolding and launch profile (#11 rest, #12, #15).~~
   Done: `src/LineOps.Desk.Templates`, with `.editorconfig`, `.gitattributes`, `.claude/launch.json`
   and the two HIG skills, which also closes the distribution half of #13.

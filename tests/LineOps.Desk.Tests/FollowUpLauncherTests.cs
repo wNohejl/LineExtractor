@@ -2,13 +2,12 @@ using Bunit;
 using LineOps.Desk;
 using LineOps.Desk.Primitives;
 using LineOps.Desk.Windowing;
-using LineOps.Web.Components.Panels;
-using LineOps.Web.Windowing;
+using LineOps.Desk.Tests.Support;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LineOps.Web.Tests;
+namespace LineOps.Desk.Tests;
 
 /// <summary>
 /// Follow-ups opened from a row: a desk window while there is room, a floating dialog once
@@ -27,9 +26,9 @@ public class FollowUpLauncherTests : DeskTestContext
     // ------------------------------------------------------------- whose status ----
 
     /// <summary>A hosted view that says how it stands the moment it is drawn, as every panel does.</summary>
-    public sealed class ReportingPanel : PanelBase
+    public sealed class ReportingPanel : DeskPanelBase
     {
-        [Parameter] public int GameId { get; set; }
+        [Parameter] public int ItemId { get; set; }
 
         protected override void OnInitialized() => Report(PulseState.Warn, "no moves");
 
@@ -41,35 +40,35 @@ public class FollowUpLauncherTests : DeskTestContext
         }
     }
 
-    /// <summary>The application's catalogue with the reporting view added as Line movement.</summary>
+    /// <summary>The sample catalogue with the reporting view added as a chart.</summary>
     private sealed class ProbeCatalog : IWindowCatalog
     {
-        private readonly AppWindowCatalog _app = new();
+        private readonly SampleCatalog _app = new();
 
-        public static readonly WindowDefinition Movement = new()
+        public static readonly WindowDefinition Probe = new()
         {
-            Key = "probe-movement",
-            Title = "Line movement",
+            Key = "probe-chart",
+            Title = "Chart",
             Icon = "",
             ComponentType = typeof(ReportingPanel)
         };
 
-        public IReadOnlyList<WindowDefinition> All => [.. _app.All, Movement];
+        public IReadOnlyList<WindowDefinition> All => [.. _app.All, Probe];
 
         public IReadOnlyList<Workspace> Workspaces => _app.Workspaces;
 
         public string DefaultPrimary => _app.DefaultPrimary;
 
-        /// <summary>A view to stand under the probe key in place of <see cref="Movement"/>.</summary>
+        /// <summary>A view to stand under the probe key in place of <see cref="Probe"/>.</summary>
         public WindowDefinition? Override { get; set; }
 
-        public WindowDefinition? Find(string key) => key == Movement.Key ? Override ?? Movement : _app.Find(key);
+        public WindowDefinition? Find(string key) => key == Probe.Key ? Override ?? Probe : ((IWindowCatalog)_app).Find(key);
     }
 
     /// <summary>
-    /// Board row → Odds → Movement on a full desk opens Line movement as a floating dialog drawn
-    /// inside the Board's window. The Board's window id cascaded straight through to it, so the
-    /// dialog's "no moves" landed in the Board's title bar. The dialog is not a window and has
+    /// List row → Chart on a full desk opens the chart as a floating dialog drawn inside the
+    /// List's window. The List's window id cascaded straight through to it, so the
+    /// dialog's "no moves" landed in the List's title bar. The dialog is not a window and has
     /// no bar of its own; what it reports goes nowhere rather than to its host.
     /// </summary>
     [Fact]
@@ -77,43 +76,43 @@ public class FollowUpLauncherTests : DeskTestContext
     {
         var desk = new WindowManager(new ProbeCatalog());
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 1);
-        var board = desk.Open(WindowCatalog.Find(WindowCatalog.Board)!);
-        desk.SetPulse(board.Id, PulseState.Healthy, "12 games");
+        var list = desk.Open(SampleCatalog.Find(SampleCatalog.List));
+        desk.SetPulse(list.Id, PulseState.Healthy, "12 rows");
         Services.AddSingleton(desk);
 
         var launcher = new FollowUpLauncher();
-        launcher.Launch(desk, ProbeCatalog.Movement.Key, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, ProbeCatalog.Probe.Key, "ItemId", 7, "Home v Away");
         Assert.Single(launcher.Open);
 
-        // The layer as the Board draws it: inside the cascade its window gives every panel.
+        // The layer as the List draws it: inside the cascade its window gives every panel.
         var host = RenderComponent<CascadingValue<string>>(p => p
             .Add(x => x.Name, "WindowId")
-            .Add(x => x.Value, board.Id)
+            .Add(x => x.Value, list.Id)
             .AddChildContent<FollowUpLayer>(layer => layer.Add(x => x.Launcher, launcher)));
 
         Assert.NotNull(host.Find(".reporting"));
-        Assert.Equal(PulseState.Healthy, board.Pulse);
-        Assert.Equal("12 games", board.StatusText);
+        Assert.Equal(PulseState.Healthy, list.Pulse);
+        Assert.Equal("12 rows", list.StatusText);
     }
 
-    /// <summary>A hosted view with a draft key, as the wager dialog has.</summary>
-    public sealed class DraftingPanel : PanelBase
+    /// <summary>A hosted view with a draft key, as an order dialog has.</summary>
+    public sealed class DraftingPanel : DeskPanelBase
     {
-        [Parameter] public int GameId { get; set; }
+        [Parameter] public int ItemId { get; set; }
 
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {
             builder.OpenElement(0, "button");
             builder.AddAttribute(1, "class", "draft");
-            builder.AddAttribute(2, "onclick", EventCallback.Factory.Create(this, () => MarkUnsaved(true, "this bet")));
+            builder.AddAttribute(2, "onclick", EventCallback.Factory.Create(this, () => MarkUnsaved(true, "this order")));
             builder.CloseElement();
         }
     }
 
     /// <summary>
-    /// Status stays out of the host's bar, but unsaved input does not: closing the Board takes the
-    /// wager dialog floating over it, and what was typed in it. So the dialog's draft marks the
-    /// Board, whose close key then asks; and once the dialog closes, the mark goes with it.
+    /// Status stays out of the host's bar, but unsaved input does not: closing the List takes the
+    /// order dialog floating over it, and what was typed in it. So the dialog's draft marks the
+    /// List, whose close key then asks; and once the dialog closes, the mark goes with it.
     /// </summary>
     [Fact]
     public void A_follow_up_dialog_still_marks_its_host_unsaved()
@@ -121,36 +120,36 @@ public class FollowUpLauncherTests : DeskTestContext
         var catalog = new ProbeCatalog();
         var desk = new WindowManager(catalog);
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 1);
-        var board = desk.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        var list = desk.Open(SampleCatalog.Find(SampleCatalog.List));
         Services.AddSingleton(desk);
 
-        var wager = new WindowDefinition
+        var order = new WindowDefinition
         {
-            Key = ProbeCatalog.Movement.Key,
-            Title = "Wager",
+            Key = ProbeCatalog.Probe.Key,
+            Title = "Order",
             Icon = "",
             ComponentType = typeof(DraftingPanel)
         };
         var launcher = new FollowUpLauncher();
-        catalog.Override = wager;
-        launcher.Launch(desk, wager.Key, "GameId", 7, "Home v Away");
+        catalog.Override = order;
+        launcher.Launch(desk, order.Key, "ItemId", 7, "Home v Away");
         var followUp = Assert.Single(launcher.Open);
 
         var host = RenderComponent<CascadingValue<string>>(p => p
             .Add(x => x.Name, "WindowId")
-            .Add(x => x.Value, board.Id)
+            .Add(x => x.Value, list.Id)
             .AddChildContent<FollowUpLayer>(layer => layer.Add(x => x.Launcher, launcher)));
 
         host.Find(".draft").Click();
 
-        Assert.True(board.HasUnsavedInput);
-        Assert.Equal("this bet", board.UnsavedInputLabel);
-        Assert.False(desk.TryClose(board.Id));
+        Assert.True(list.HasUnsavedInput);
+        Assert.Equal("this order", list.UnsavedInputLabel);
+        Assert.False(desk.TryClose(list.Id));
 
         host.InvokeAsync(() => launcher.Close(followUp));
         host.WaitForAssertion(() => Assert.Empty(host.FindAll(".draft")));
 
-        Assert.False(board.HasUnsavedInput);
+        Assert.False(list.HasUnsavedInput);
     }
 
     // ------------------------------------------------------------- the switch ----
@@ -158,17 +157,17 @@ public class FollowUpLauncherTests : DeskTestContext
     /// <summary>A desk with no room left, so follow-ups take the floating path.</summary>
     private static WindowManager FullDesk()
     {
-        var manager = new WindowManager(new AppWindowCatalog());
+        var manager = new WindowManager(new SampleCatalog());
 
         manager.UpdateSettings(s => s.MaxConcurrentWindows = 1);
-        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        manager.Open(SampleCatalog.Find(SampleCatalog.List));
 
         Assert.True(manager.AtCapacity);
 
         return manager;
     }
 
-    private static WindowManager EmptyDesk() => new(new AppWindowCatalog());
+    private static WindowManager EmptyDesk() => new(new SampleCatalog());
 
     /// <summary>
     /// The bug this suite exists for: the dialog must announce itself the moment it is added.
@@ -180,7 +179,7 @@ public class FollowUpLauncherTests : DeskTestContext
         var changes = 0;
         launcher.Changed += () => changes++;
 
-        launcher.Launch(FullDesk(), WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(FullDesk(), SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         Assert.Single(launcher.Open);
         Assert.Equal(1, changes);
@@ -198,7 +197,7 @@ public class FollowUpLauncherTests : DeskTestContext
         var changes = 0;
         launcher.Changed += () => changes++;
 
-        launcher.Launch(EmptyDesk(), WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(EmptyDesk(), SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         Assert.Empty(launcher.Open);
         Assert.Equal(0, changes);
@@ -214,19 +213,19 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
-        launcher.Launch(desk, WindowCatalog.Bets, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Details, "ItemId", 7, "Home v Away");
 
         var changes = 0;
         launcher.Changed += () => changes++;
 
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         Assert.Equal(2, launcher.Open.Count);
         Assert.Equal(1, changes);
 
         // The re-launched one is now nearest the front.
-        Assert.Equal(WindowCatalog.Odds, launcher.Open.MaxBy(f => f.Order)!.Key);
+        Assert.Equal(SampleCatalog.Chart, launcher.Open.MaxBy(f => f.Order)!.Key);
     }
 
     /// <summary>The same view against a different subject is a second dialog, not a raise.</summary>
@@ -236,8 +235,8 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 8, "Other v Team");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 8, "Other v Team");
 
         Assert.Equal(2, launcher.Open.Count);
     }
@@ -248,7 +247,7 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         var changes = 0;
         launcher.Changed += () => changes++;
@@ -264,7 +263,7 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         var changes = 0;
         launcher.Changed += () => changes++;
@@ -285,18 +284,18 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Wager, "GameId", 7, "Home v Away");
-        launcher.Launch(desk, WindowCatalog.Odds, "GameId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Order, "ItemId", 7, "Home v Away");
+        launcher.Launch(desk, SampleCatalog.Chart, "ItemId", 7, "Home v Away");
 
         var changes = 0;
         launcher.Changed += () => changes++;
 
-        launcher.CloseAll(WindowCatalog.Wager);
+        launcher.CloseAll(SampleCatalog.Order);
 
         Assert.Single(launcher.Open);
         Assert.Equal(1, changes);
 
-        launcher.CloseAll(WindowCatalog.Wager);
+        launcher.CloseAll(SampleCatalog.Order);
 
         Assert.Equal(1, changes);
     }
@@ -309,26 +308,26 @@ public class FollowUpLauncherTests : DeskTestContext
         var changes = 0;
         launcher.Changed += () => changes++;
 
-        launcher.Launch(FullDesk(), "not-a-window", "GameId", 7, "Home v Away");
+        launcher.Launch(FullDesk(), "not-a-window", "ItemId", 7, "Home v Away");
 
         Assert.Empty(launcher.Open);
         Assert.Equal(0, changes);
     }
 
-    /// <summary>A door names more than the game: the side and the book travel with it.</summary>
+    /// <summary>A door names more than the item: the size and the store travel with it.</summary>
     [Fact]
     public void A_follow_up_can_carry_several_parameters()
     {
         var manager = EmptyDesk();
         var launcher = new FollowUpLauncher();
 
-        launcher.Launch(manager, WindowCatalog.Wager,
-            new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h", ["Outcome"] = "Kansas City Chiefs", ["Book"] = "fanduel" },
-            7, "Bills at Chiefs");
+        launcher.Launch(manager, SampleCatalog.Order,
+            new Dictionary<string, object> { ["ItemId"] = 7, ["Size"] = "small", ["Colour"] = "red", ["Store"] = "north" },
+            7, "First item");
 
         var window = Assert.Single(manager.Windows);
-        Assert.Equal("fanduel", window.Parameters["Book"]);
-        Assert.Equal(7, window.Parameters["GameId"]);
+        Assert.Equal("north", window.Parameters["Store"]);
+        Assert.Equal(7, window.Parameters["ItemId"]);
     }
 
     [Fact]
@@ -337,17 +336,17 @@ public class FollowUpLauncherTests : DeskTestContext
         var launcher = new FollowUpLauncher();
         var desk = FullDesk();
 
-        launcher.Launch(desk, WindowCatalog.Wager, new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h" }, 7, "x");
-        launcher.Launch(desk, WindowCatalog.Wager, new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "spread" }, 7, "x");
+        launcher.Launch(desk, SampleCatalog.Order, new Dictionary<string, object> { ["ItemId"] = 7, ["Size"] = "small" }, 7, "x");
+        launcher.Launch(desk, SampleCatalog.Order, new Dictionary<string, object> { ["ItemId"] = 7, ["Size"] = "large" }, 7, "x");
 
         var only = Assert.Single(launcher.Open);
-        Assert.Equal("spread", only.Parameters["Market"]);
+        Assert.Equal("large", only.Parameters["Size"]);
     }
 
     /// <summary>
-    /// The wager window is a singleton: opening it again focuses the one on the desk rather than
-    /// adding a second. So a door that names another game or side must re-aim that window, or the
-    /// press lands on the wager it was already showing.
+    /// The order window is a singleton: opening it again focuses the one on the desk rather than
+    /// adding a second. So a door that names another item or size must re-aim that window, or the
+    /// press lands on the order it was already showing.
     /// </summary>
     [Fact]
     public void Relaunching_a_singleton_window_re_aims_it_rather_than_showing_the_old_subject()
@@ -355,17 +354,17 @@ public class FollowUpLauncherTests : DeskTestContext
         var manager = EmptyDesk();
         var launcher = new FollowUpLauncher();
 
-        launcher.Launch(manager, WindowCatalog.Wager,
-            new Dictionary<string, object> { ["GameId"] = 7, ["Market"] = "h2h", ["Book"] = "fanduel" }, 7, "Bills at Chiefs");
-        launcher.Launch(manager, WindowCatalog.Wager,
-            new Dictionary<string, object> { ["GameId"] = 8, ["Market"] = "spread" }, 8, "Jets at Dolphins");
+        launcher.Launch(manager, SampleCatalog.Order,
+            new Dictionary<string, object> { ["ItemId"] = 7, ["Size"] = "small", ["Store"] = "north" }, 7, "First item");
+        launcher.Launch(manager, SampleCatalog.Order,
+            new Dictionary<string, object> { ["ItemId"] = 8, ["Size"] = "large" }, 8, "Second item");
 
         var window = Assert.Single(manager.Windows);
-        Assert.Equal(8, window.Parameters["GameId"]);
-        Assert.Equal("spread", window.Parameters["Market"]);
-        Assert.Equal("Place wager · Jets at Dolphins", window.Title);
-        // Not named by the second press, so not left at the first press's book.
-        Assert.Null(window.Parameters["Book"]);
+        Assert.Equal(8, window.Parameters["ItemId"]);
+        Assert.Equal("large", window.Parameters["Size"]);
+        Assert.Equal("Order · Second item", window.Title);
+        // Not named by the second press, so not left at the first press's store.
+        Assert.Null(window.Parameters["Store"]);
         Assert.Empty(launcher.Open);
     }
 }

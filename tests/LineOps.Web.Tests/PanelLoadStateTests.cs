@@ -78,42 +78,9 @@ public class PanelLoadStateTests : DeskTestContext
         Assert.NotNull(panel.Find(".deskgrid__skeleton"));
     }
 
-    /// <summary>A bare panel whose loads the test starts and finishes by hand.</summary>
-    private sealed class RacingPanel : PanelBase
-    {
-        public Task Load(Func<Task> work) => WithActivityAsync(work, () => LineOps.Desk.Windowing.PulseState.Healthy);
-
-        public bool IsFailed => Failed;
-
-        public bool IsLoaded => Loaded;
-
-        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
-        {
-        }
-    }
-
-    [Fact]
-    public async Task A_slow_load_that_fails_after_a_newer_one_succeeded_does_not_mark_the_panel_failed()
-    {
-        var panel = RenderComponent<RacingPanel>();
-        var slow = new TaskCompletionSource();
-        Task older = Task.CompletedTask;
-        Task newer = Task.CompletedTask;
-
-        // A starts and is still out; B starts after it and succeeds; then A fails.
-        await panel.InvokeAsync(() =>
-        {
-            older = panel.Instance.Load(() => slow.Task);
-            newer = panel.Instance.Load(() => Task.CompletedTask);
-        });
-        await newer;
-
-        slow.SetException(new InvalidOperationException("stale read"));
-        await older;
-
-        Assert.False(panel.Instance.IsFailed);
-        Assert.True(panel.Instance.IsLoaded);
-    }
+    // A load that lands after a newer one is the Desk's to settle, and DeskPanelBaseTests proves
+    // it (An_older_load_landing_late_does_not_overwrite_the_newer); what is left here is how this
+    // app's panels draw a load that is still out or has failed.
 
     [Fact]
     public void A_head_to_head_that_failed_to_load_does_not_say_there_were_no_meetings()

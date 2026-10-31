@@ -1,10 +1,10 @@
 using Bunit;
+using LineOps.Desk.Tests.Support;
 using LineOps.Desk.Windowing;
-using LineOps.Web.Windowing;
 using Microsoft.Extensions.DependencyInjection;
 using TheDesk = LineOps.Desk.Windowing.Desk;
 
-namespace LineOps.Web.Tests;
+namespace LineOps.Desk.Tests;
 
 /// <summary>
 /// The desk from the keyboard.
@@ -17,16 +17,16 @@ namespace LineOps.Web.Tests;
 /// all decided here, where a test can reach them.
 /// </para>
 /// </summary>
-public class DeskKeyboardTests : DeskTestContext
+public class DeskKeyboardTests : SampleDeskTestContext
 {
     private static WindowManager Manager(int capacity = 4)
     {
-        var manager = new WindowManager(new AppWindowCatalog());
+        var manager = new WindowManager(new SampleCatalog());
         manager.UpdateSettings(s => s.MaxConcurrentWindows = capacity);
         return manager;
     }
 
-    private static WindowDefinition Window(string key) => WindowCatalog.Find(key)!;
+    private static WindowDefinition Window(string key) => SampleCatalog.Find(key);
 
     private static string[] Row(WindowManager desk)
         => desk.Windows.OrderBy(w => w.Sequence).Select(w => w.Definition.Key).ToArray();
@@ -60,15 +60,15 @@ public class DeskKeyboardTests : DeskTestContext
     public void Moving_shifts_the_focused_window_and_only_it()
     {
         var desk = Manager();
-        desk.Open(Window(WindowCatalog.Ops));
-        desk.Open(Window(WindowCatalog.Incidents));
-        var runs = desk.Open(Window(WindowCatalog.Runs));
-        desk.Focus(runs.Id);
+        desk.Open(Window(SampleCatalog.Health));
+        desk.Open(Window(SampleCatalog.Alerts));
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+        desk.Focus(jobs.Id);
 
         TheDesk.MoveFocused(desk, -1);
 
-        Assert.Equal([WindowCatalog.Ops, WindowCatalog.Runs, WindowCatalog.Incidents], Row(desk));
-        Assert.Equal(runs.Id, desk.FocusedId);
+        Assert.Equal([SampleCatalog.Health, SampleCatalog.Jobs, SampleCatalog.Alerts], Row(desk));
+        Assert.Equal(jobs.Id, desk.FocusedId);
     }
 
     /// <summary>A move that cannot happen is not a step: Back must not have a no-op to walk through.</summary>
@@ -76,14 +76,14 @@ public class DeskKeyboardTests : DeskTestContext
     public void A_move_past_the_end_leaves_no_history()
     {
         var desk = Manager();
-        desk.Open(Window(WindowCatalog.Ops));
-        var incidents = desk.Open(Window(WindowCatalog.Incidents));
-        desk.Focus(incidents.Id);
+        desk.Open(Window(SampleCatalog.Health));
+        var alerts = desk.Open(Window(SampleCatalog.Alerts));
+        desk.Focus(alerts.Id);
         var depth = desk.HistoryDepth;
 
         TheDesk.MoveFocused(desk, +1);
 
-        Assert.Equal([WindowCatalog.Ops, WindowCatalog.Incidents], Row(desk));
+        Assert.Equal([SampleCatalog.Health, SampleCatalog.Alerts], Row(desk));
         Assert.Equal(depth, desk.HistoryDepth);
     }
 
@@ -97,15 +97,15 @@ public class DeskKeyboardTests : DeskTestContext
     public void The_page_chords_turn_the_focused_window()
     {
         var desk = Manager();
-        var game = desk.Open(Window(WindowCatalog.Game), new Dictionary<string, object> { ["GameId"] = 1 }, "Mets at Braves");
-        desk.Follow(game.Id, Window(WindowCatalog.Team), new Dictionary<string, object> { ["TeamId"] = 7 }, "Atlanta Braves");
-        Assert.Equal(WindowCatalog.Team, game.Definition.Key);
+        var item = desk.Open(Window(SampleCatalog.Item), new Dictionary<string, object> { ["ItemId"] = 1 }, "First item");
+        desk.Follow(item.Id, Window(SampleCatalog.Company), new Dictionary<string, object> { ["CompanyId"] = 7 }, "Seventh company");
+        Assert.Equal(SampleCatalog.Company, item.Definition.Key);
 
         Assert.True(TheDesk.PageFocused(desk, -1));
-        Assert.Equal(WindowCatalog.Game, game.Definition.Key);
+        Assert.Equal(SampleCatalog.Item, item.Definition.Key);
 
         Assert.True(TheDesk.PageFocused(desk, +1));
-        Assert.Equal(WindowCatalog.Team, game.Definition.Key);
+        Assert.Equal(SampleCatalog.Company, item.Definition.Key);
 
         Assert.False(TheDesk.PageFocused(desk, +1));
     }
@@ -119,7 +119,7 @@ public class DeskKeyboardTests : DeskTestContext
 
         TheDesk.OpenSettings(desk);
 
-        Assert.Equal([WindowCatalog.Desk], Row(desk));
+        Assert.Equal([SampleCatalog.Settings], Row(desk));
     }
 
     // ---- The palette's commands ------------------------------------------------
@@ -143,21 +143,21 @@ public class DeskKeyboardTests : DeskTestContext
     public async Task Choosing_move_window_left_moves_the_focused_window()
     {
         var desk = Manager();
-        desk.Open(Window(WindowCatalog.Ops));
-        var incidents = desk.Open(Window(WindowCatalog.Incidents));
-        desk.Focus(incidents.Id);
+        desk.Open(Window(SampleCatalog.Health));
+        var alerts = desk.Open(Window(SampleCatalog.Alerts));
+        desk.Focus(alerts.Id);
 
         var left = (await new DeskCommands(desk).SearchAsync("left", CancellationToken.None)).Single();
         left.Open();
 
-        Assert.Equal([WindowCatalog.Incidents, WindowCatalog.Ops], Row(desk));
+        Assert.Equal([SampleCatalog.Alerts, SampleCatalog.Health], Row(desk));
     }
 
     // ---- Undo, labelled --------------------------------------------------------
 
     /// <summary>
     /// "Undo" said nothing about what would come back. The key names the window it reopens, the
-    /// way a Mac's Edit menu says "Undo Close Board" rather than "Undo".
+    /// way a Mac's Edit menu says "Undo Close Notes" rather than "Undo".
     /// </summary>
     [Fact]
     public void Reopen_key_names_the_window_it_reopens()
@@ -165,22 +165,22 @@ public class DeskKeyboardTests : DeskTestContext
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
         var desk = Services.GetRequiredService<WindowManager>();
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
-        desk.Open(Window(WindowCatalog.Journal));
-        desk.Open(Window(WindowCatalog.Ops));
-        desk.Open(Window(WindowCatalog.Runs));
+        desk.Open(Window(SampleCatalog.Notes));
+        desk.Open(Window(SampleCatalog.Health));
+        desk.Open(Window(SampleCatalog.Jobs));
         Assert.NotNull(desk.LastEviction);
 
         // The notice and its key moved from the footer to the header, beside the window count.
         var header = RenderComponent<DeskHeader>();
 
         var undo = header.Find(".hdr__notice-undo");
-        Assert.Equal("Reopen Journal", undo.TextContent.Trim());
+        Assert.Equal("Reopen Notes", undo.TextContent.Trim());
         Assert.Equal("Ctrl+Z", undo.GetAttribute("title"));
     }
 
     [Theory]
-    [InlineData(new[] { "Journal" }, "Reopen Journal")]
-    [InlineData(new[] { "Journal", "Board" }, "Reopen 2 windows")]
+    [InlineData(new[] { "Notes" }, "Reopen Notes")]
+    [InlineData(new[] { "Notes", "List" }, "Reopen 2 windows")]
     [InlineData(new string[0], "Undo")]
     public void The_undo_label_names_the_evicted_windows(string[] titles, string label)
         => Assert.Equal(label, DeskHeader.UndoLabel(titles));

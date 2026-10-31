@@ -1,7 +1,7 @@
 using LineOps.Desk.Windowing;
-using LineOps.Web.Windowing;
+using LineOps.Desk.Tests.Support;
 
-namespace LineOps.Web.Tests;
+namespace LineOps.Desk.Tests;
 
 /// <summary>
 /// What the desk claims will fit, against what its own layout does.
@@ -22,9 +22,9 @@ namespace LineOps.Web.Tests;
 /// </summary>
 public class DeskCapacityTests
 {
-    private static WindowManager Desk(double width, double primaryShare = 0.45, string? primary = "ops")
+    private static WindowManager Desk(double width, double primaryShare = 0.45, string? primary = SampleCatalog.Health)
     {
-        var manager = new WindowManager(new AppWindowCatalog());
+        var manager = new WindowManager(new SampleCatalog());
         manager.SetViewport(width, 900);
         manager.Settings.PrimaryWindowKey = primary;
         manager.Settings.PrimaryShare = primaryShare;
@@ -73,13 +73,13 @@ public class DeskCapacityTests
                     < Desk(1920, primaryShare: 0.3).RecommendedCapacity);
     }
 
-    private static WindowManager JournalAndBoard(double width)
+    private static WindowManager NotesAndList(double width)
     {
-        var manager = new WindowManager(new AppWindowCatalog());
+        var manager = new WindowManager(new SampleCatalog());
         manager.SetViewport(width, 900);
         manager.UpdateSettings(s => s.MaxConcurrentWindows = 4);
-        manager.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
-        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        manager.Open(SampleCatalog.Find(SampleCatalog.Notes));
+        manager.Open(SampleCatalog.Find(SampleCatalog.List));
         return manager;
     }
 
@@ -91,9 +91,9 @@ public class DeskCapacityTests
     [InlineData(600)]
     public void The_row_never_runs_past_the_desk(double width)
     {
-        // At 800 the Board's 680 minimum used to clamp it back up, leaving it at left 476 and
-        // running to 1156 — the desk scrolled sideways and the Pull data key was off-screen.
-        var desk = JournalAndBoard(width);
+        // At 800 the List's 680 minimum used to clamp it back up, leaving it at left 476 and
+        // running to 1156 — the desk scrolled sideways and its right-hand keys were off-screen.
+        var desk = NotesAndList(width);
 
         Assert.All(desk.Windows, w => Assert.True(w.X + w.Width <= width + 0.5,
             $"{w.Definition.Key} ends at {w.X + w.Width}, past a {width}px desk"));
@@ -102,7 +102,7 @@ public class DeskCapacityTests
     [Fact]
     public void Where_the_minimums_fit_every_column_keeps_its_minimum()
     {
-        var desk = JournalAndBoard(1280);
+        var desk = NotesAndList(1280);
 
         Assert.All(desk.Windows, w => Assert.True(w.Width >= w.Definition.MinWidth - 0.5,
             $"{w.Definition.Key} is {w.Width}, under its {w.Definition.MinWidth} minimum"));
@@ -111,7 +111,7 @@ public class DeskCapacityTests
     [Fact]
     public void Where_they_do_not_the_columns_share_the_desk_and_scroll_inside()
     {
-        var desk = JournalAndBoard(800);
+        var desk = NotesAndList(800);
         var widths = desk.Windows.Sum(w => w.Width);
 
         // 800 less three 8px gaps: the row fills the desk exactly, nothing past it.

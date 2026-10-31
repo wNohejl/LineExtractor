@@ -1,10 +1,10 @@
 using AngleSharp.Dom;
 using Bunit;
 using LineOps.Desk.Windowing;
-using LineOps.Web.Windowing;
+using LineOps.Desk.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace LineOps.Web.Tests;
+namespace LineOps.Desk.Tests;
 
 /// <summary>
 /// The toolbar's one rule: it does not move.
@@ -18,16 +18,16 @@ namespace LineOps.Web.Tests;
 /// </para>
 ///
 /// <para>
-/// Subject windows — a game, a team, a player, a head-to-head — appear nowhere in the strip.
+/// Subject windows — an item, a company, a person — appear nowhere in the strip.
 /// They are about a subject rather than a destination, several can exist at once, and their
 /// names are long. They are reachable as columns on the desk, which is where they already are.
 /// </para>
 /// </summary>
-public class WindowBarTests : DeskTestContext
+public class WindowBarTests : SampleDeskTestContext
 {
     private WindowManager NewDesk()
     {
-        var manager = new WindowManager(new AppWindowCatalog());
+        var manager = new WindowManager(new SampleCatalog());
         Services.AddSingleton(manager);
         return manager;
     }
@@ -52,7 +52,7 @@ public class WindowBarTests : DeskTestContext
         NewDesk();
 
         var bar = RenderComponent<WindowBar>();
-        var openable = WindowCatalog.All.Count(d => !d.RequiresSubject);
+        var openable = SampleCatalog.Windows.Count(d => !d.RequiresSubject);
 
         Assert.Equal(openable, Keys(bar).Length);
     }
@@ -68,7 +68,7 @@ public class WindowBarTests : DeskTestContext
         var bar = RenderComponent<WindowBar>();
         var before = Names(bar);
 
-        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        manager.Open(SampleCatalog.Find(SampleCatalog.List));
         bar.Render();
 
         Assert.Equal(before, Names(bar));
@@ -78,13 +78,13 @@ public class WindowBarTests : DeskTestContext
     public void An_open_window_is_marked_on_its_own_key_rather_than_given_a_second_one()
     {
         var manager = NewDesk();
-        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        manager.Open(SampleCatalog.Find(SampleCatalog.List));
 
         var bar = RenderComponent<WindowBar>();
 
         // One key, wearing the open marking — not a key plus a tab.
         Assert.Single(bar.FindAll(".bar__key--open"));
-        Assert.Contains("bar__key--open", KeyFor(bar, "Board").ClassName);
+        Assert.Contains("bar__key--open", KeyFor(bar, "List").ClassName);
     }
 
     [Fact]
@@ -92,20 +92,20 @@ public class WindowBarTests : DeskTestContext
     {
         var manager = NewDesk();
 
-        manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
-        var ops = manager.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
-        manager.Focus(ops.Id);
+        manager.Open(SampleCatalog.Find(SampleCatalog.List));
+        var health = manager.Open(SampleCatalog.Find(SampleCatalog.Health));
+        manager.Focus(health.Id);
 
         var bar = RenderComponent<WindowBar>();
         var current = bar.FindAll(".bar__key--current");
 
         Assert.Single(current);
-        Assert.Equal("Ops", current[0].QuerySelector(".bar__key-name")!.TextContent.Trim());
+        Assert.Equal("Health", current[0].QuerySelector(".bar__key-name")!.TextContent.Trim());
 
         Assert.Equal("true", current[0].GetAttribute("aria-current"));
 
         // The marble travels across the group keys, so it rests on the group that holds the
-        // window you are actually in — Operations for Ops — and on no other.
+        // window you are actually in — Operations for Health — and on no other.
         var resting = Assert.Single(bar.FindAll("[data-glide-rest]"));
 
         Assert.Contains("bar__group--current", resting.ClassName);
@@ -114,16 +114,16 @@ public class WindowBarTests : DeskTestContext
 
     /// <summary>
     /// The strip is folded: one key per catalogue group, and the window keys hang under it
-    /// in a drawer. A drawer's key sums the state of what it holds, so a critical Ops shows
+    /// in a drawer. A drawer's key sums the state of what it holds, so a critical Health shows
     /// on the Operations key even while the drawer is shut.
     /// </summary>
     [Fact]
     public void A_group_key_wears_the_state_of_the_windows_in_its_drawer()
     {
         var manager = NewDesk();
-        var ops = manager.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
+        var health = manager.Open(SampleCatalog.Find(SampleCatalog.Health));
 
-        manager.SetPulse(ops.Id, PulseState.Critical, "breached");
+        manager.SetPulse(health.Id, PulseState.Critical, "breached");
 
         var bar = RenderComponent<WindowBar>();
 
@@ -139,7 +139,7 @@ public class WindowBarTests : DeskTestContext
         foreach (var panel in bar.FindAll(".bar__menu-panel"))
         {
             var group = panel.GetAttribute("aria-label");
-            var expected = WindowCatalog.All.Where(d => !d.RequiresSubject && d.Group == group).Select(d => d.Title).ToArray();
+            var expected = SampleCatalog.Windows.Where(d => !d.RequiresSubject && d.Group == group).Select(d => d.Title).ToArray();
             var actual = panel.QuerySelectorAll(".bar__key-name").Select(n => n.TextContent.Trim()).ToArray();
 
             Assert.Equal(expected, actual);
@@ -150,17 +150,17 @@ public class WindowBarTests : DeskTestContext
     public void Closing_a_window_clears_its_marking_without_moving_the_key()
     {
         var manager = NewDesk();
-        var board = manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        var list = manager.Open(SampleCatalog.Find(SampleCatalog.List));
 
         var bar = RenderComponent<WindowBar>();
         var before = Names(bar);
 
-        manager.Close(board.Id);
+        manager.Close(list.Id);
         bar.Render();
 
         Assert.Equal(before, Names(bar));
         Assert.Empty(bar.FindAll(".bar__key--open"));
-        Assert.Contains("Open Board", Keys(bar));
+        Assert.Contains("Open List", Keys(bar));
     }
 
     /// <summary>
@@ -171,12 +171,12 @@ public class WindowBarTests : DeskTestContext
     public void An_open_key_carries_its_windows_pulse()
     {
         var manager = NewDesk();
-        var board = manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        var list = manager.Open(SampleCatalog.Find(SampleCatalog.List));
 
-        manager.SetPulse(board.Id, PulseState.Critical, "breached");
+        manager.SetPulse(list.Id, PulseState.Critical, "breached");
 
         var bar = RenderComponent<WindowBar>();
-        var pulse = KeyFor(bar, "Board").QuerySelector(".bar__pulse");
+        var pulse = KeyFor(bar, "List").QuerySelector(".bar__pulse");
 
         Assert.NotNull(pulse);
         Assert.Contains("pulse--critical", pulse!.ClassName);
@@ -196,14 +196,14 @@ public class WindowBarTests : DeskTestContext
     public void A_collapsed_window_says_so_rather_than_reading_as_another_column()
     {
         var manager = NewDesk();
-        var board = manager.Open(WindowCatalog.Find(WindowCatalog.Board)!);
+        var list = manager.Open(SampleCatalog.Find(SampleCatalog.List));
 
-        manager.ToggleMinimise(board.Id);
+        manager.ToggleMinimise(list.Id);
 
         var bar = RenderComponent<WindowBar>();
 
-        Assert.Contains("bar__key--collapsed", KeyFor(bar, "Board").ClassName);
-        Assert.Contains("Restore Board", Keys(bar));
+        Assert.Contains("bar__key--collapsed", KeyFor(bar, "List").ClassName);
+        Assert.Contains("Restore List", Keys(bar));
     }
 
     /// <summary>
@@ -214,18 +214,18 @@ public class WindowBarTests : DeskTestContext
     public void A_destination_never_appears_in_the_strip()
     {
         var manager = NewDesk();
-        var subjects = WindowCatalog.All.Where(d => d.RequiresSubject).ToList();
+        var subjects = SampleCatalog.Windows.Where(d => d.RequiresSubject).ToList();
 
         Assert.NotEmpty(subjects);
 
         foreach (var subject in subjects)
-            manager.Open(subject, titleOverride: "Boston Red Sox at New York Yankees");
+            manager.Open(subject, titleOverride: "A long title about one thing");
 
         var bar = RenderComponent<WindowBar>();
         var names = Names(bar);
 
-        Assert.DoesNotContain("Boston Red Sox at New York Yankees", names);
-        Assert.Equal(WindowCatalog.All.Count(d => !d.RequiresSubject), names.Length);
+        Assert.DoesNotContain("A long title about one thing", names);
+        Assert.Equal(SampleCatalog.Windows.Count(d => !d.RequiresSubject), names.Length);
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class WindowBarTests : DeskTestContext
             .Select(g => g.TextContent.Trim())
             .ToArray();
 
-        var expected = WindowCatalog.All
+        var expected = SampleCatalog.Windows
             .Where(d => !d.RequiresSubject)
             .Select(d => d.Group)
             .Distinct()
@@ -262,9 +262,9 @@ public class WindowBarTests : DeskTestContext
         var desk = NewDesk();
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
-        desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
-        desk.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
-        desk.Open(WindowCatalog.Find(WindowCatalog.Runs)!);
+        desk.Open(SampleCatalog.Find(SampleCatalog.Notes));
+        desk.Open(SampleCatalog.Find(SampleCatalog.Health));
+        desk.Open(SampleCatalog.Find(SampleCatalog.Jobs));
         Assert.NotNull(desk.LastEviction);
 
         var header = RenderComponent<DeskHeader>();
@@ -273,7 +273,7 @@ public class WindowBarTests : DeskTestContext
         var notice = header.Find(".hdr__notice");
         Assert.Equal("status", notice.GetAttribute("role"));
         Assert.Equal(desk.LastEviction, notice.QuerySelector(".hdr__notice-text")!.GetAttribute("title"));
-        Assert.Equal("Reopen Journal", notice.QuerySelector(".hdr__notice-undo")!.TextContent.Trim());
+        Assert.Equal("Reopen Notes", notice.QuerySelector(".hdr__notice-undo")!.TextContent.Trim());
         Assert.Equal("Dismiss", notice.QuerySelector(".hdr__notice-dismiss")!.GetAttribute("aria-label"));
 
         // Beside the count, inside the desk's own controls.
@@ -305,7 +305,7 @@ public class WindowBarTests : DeskTestContext
         // The chrome is what is under test, so the window hosts a panel with no services to find.
         var notes = desk.Open(new WindowDefinition
         {
-            Key = "notes",
+            Key = "scratch",
             Title = "Notes",
             Icon = "",
             ComponentType = typeof(UnsavedInputTests.DraftPanel)
@@ -321,7 +321,7 @@ public class WindowBarTests : DeskTestContext
         Assert.Equal(["Minimise Notes", "Maximise Notes", "Close Notes"], keys.Select(k => k.GetAttribute("aria-label")));
         Assert.All(keys, k => Assert.Null(k.GetAttribute("data-glide-tone")));
 
-        var css = File.ReadAllText(Path.Combine(Support.Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
         Assert.DoesNotContain(".win__ctl::before", css);
         Assert.DoesNotMatch(@"\.win__ctl[\w-]*:hover[^{]*\{[^}]*state-negative", css);
         Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*color:\s*var\(--text-secondary\)", css);
@@ -342,7 +342,7 @@ public class WindowBarTests : DeskTestContext
 
         var notes = desk.Open(new WindowDefinition
         {
-            Key = "notes",
+            Key = "scratch",
             Title = "Notes",
             Icon = "",
             ComponentType = typeof(UnsavedInputTests.DraftPanel)
@@ -374,18 +374,18 @@ public class WindowBarTests : DeskTestContext
     {
         var desk = NewDesk();
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
-        var journal = desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var notes = desk.Open(SampleCatalog.Find(SampleCatalog.Notes));
 
-        desk.Close(journal.Id);
+        desk.Close(notes.Id);
 
-        Assert.Equal("Closed Journal.", desk.LastEviction);
-        Assert.Equal(["Journal"], desk.LastEvictedTitles);
+        Assert.Equal("Closed Notes.", desk.LastEviction);
+        Assert.Equal(["Notes"], desk.LastEvictedTitles);
 
         var header = RenderComponent<DeskHeader>();
-        Assert.Equal("Reopen Journal", header.Find(".hdr__notice-undo").TextContent.Trim());
+        Assert.Equal("Reopen Notes", header.Find(".hdr__notice-undo").TextContent.Trim());
 
         Assert.True(desk.Back());
-        Assert.Contains(desk.Windows, w => w.Definition.Key == WindowCatalog.Journal);
+        Assert.Contains(desk.Windows, w => w.Definition.Key == SampleCatalog.Notes);
         Assert.Null(desk.LastEviction);
     }
 }
