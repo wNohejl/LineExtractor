@@ -189,7 +189,7 @@ public class WagerWindowBooksTests : WagerTestContext
 
         // A bet at another book is another bet: the amount and the note were the old one's.
         Assert.True(Log(cut).HasAttribute("disabled"));
-        Assert.Equal("Needs a stake above zero.", cut.Find(".wager-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", cut.Find(".keyrow__reason").TextContent.Trim());
         Assert.Empty(cut.Find("input[aria-label='Note']").GetAttribute("value") ?? string.Empty);
     }
 

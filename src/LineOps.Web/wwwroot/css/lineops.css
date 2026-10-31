@@ -824,7 +824,6 @@
 .slip > .empty--new { text-align: left; padding: var(--space-2) var(--space-4) 0; }
 /* Groups and the keys under them are separated by space, not a rule. */
 .slip .waction { border-top: 0; padding-top: 0; }
-.slip .waction__keys { justify-content: flex-start; flex-wrap: wrap; }
 
 /* A narrow group stacks each label above its control (desk.css, "The grouped form"). */
 @container (max-width: 400px) {
@@ -892,9 +891,6 @@
     padding-top: var(--space-3);
     border-top: 1px solid var(--separator);
 }
-.waction__keys { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); }
-.waction__keys > .waction__lead { margin-right: auto; }
-.wager-why, .slip-why { font-size: var(--text-footnote); text-align: right; }
 
 .wager-typed .field-set { margin: 0; }
 
@@ -1146,10 +1142,10 @@
 .wsteps .stake-row__returns, .wgroup__row--form .stake-row__returns { margin-left: var(--space-2); flex-direction: row; align-items: baseline; gap: var(--space-2); }
 .wsteps .stake-row__returns-label, .wgroup__row--form .stake-row__returns-label { text-transform: none; letter-spacing: 0; font-size: var(--text-subheadline); font-weight: var(--weight-regular); }
 .wsteps .waction { border-top: 0; padding-top: 0; }
-.wsteps .waction__keys { justify-content: flex-end; flex-wrap: wrap; margin-top: var(--space-2); }
-.wsteps .wager-why { text-align: right; color: var(--text-secondary); }
+.wsteps .keyrow { margin-top: var(--space-2); }
+.wsteps .keyrow__reason { text-align: right; }
 /* The slip's count on a Plain key is a neutral capsule: the accent is the Filled key's. */
-.waction__keys .desk-btn--plain .slip-badge { background: var(--surface-3); color: var(--text-secondary); }
+.keyrow .desk-btn--plain .slip-badge { background: var(--surface-3); color: var(--text-secondary); }
 .wsteps .check .desk-btn { margin-left: var(--space-2); }
 /* The review sentence is the checks' footer, not a box of its own. */
 .wreview {
@@ -1227,7 +1223,6 @@
 .slip-card__take { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .slip-card__take-label { font-size: var(--text-subheadline); color: var(--text-secondary); }
 .slip-card__price { width: 96px; }
-.slip-report .desk-btn { margin-left: var(--space-2); }
 .slip-steps { margin: var(--space-2) 0 0; padding-left: 18px; font-size: var(--text-subheadline); }
 
 /* Not selectable: Shift-click banks a price as a parlay leg, and on selectable text the same
@@ -1377,9 +1372,9 @@ button.gamelines__cell { align-items: stretch; }
     .wcard .wgroup__foot { padding: 0; }
     /* Stacked (wizards.md, layout a): the keys full width, the Filled key on top with what it
        waits for directly under it, its Plain companions below. */
-    .wcard .waction__keys { flex-direction: column; align-items: stretch; }
-    .wcard .waction__keys > .desk-btn--filled { order: -2; }
-    .wcard .waction__keys > .wager-why { order: -1; text-align: center; }
+    .wcard .keyrow { flex-direction: column; align-items: stretch; }
+    .wcard .keyrow > .desk-btn--filled { order: -2; }
+    .wcard .keyrow > .keyrow__reason { order: -1; text-align: center; }
 }
 /* In the narrowest groups (a window beside two others) a segment's numbers wrap onto their own
    lines rather than running into the next segment: "-3 -109" beside "+3 -103" collided at ~65px. */

@@ -40,18 +40,16 @@
     {
         <Note State="DeskState.Positive" Class="slip-report">
             <strong>@report.Headline</strong>
-            <DeskButton Size="DeskKeySize.Small" OnClick="() => _showSteps = !_showSteps">
-                @(_showSteps ? "Hide steps" : "Show steps")
-            </DeskButton>
-            @if (_showSteps)
-            {
+            @* The steps are details behind a disclosure triangle (HIG 15), not a key that
+               swapped its own label between Show and Hide. *@
+            <DeskDisclosure Label="Steps" @bind-Open="_showSteps">
                 <ol class="slip-steps">
                     @foreach (var step in report.Steps)
                     {
                         <li>@step</li>
                     }
                 </ol>
-            }
+            </DeskDisclosure>
         </Note>
     }
 
@@ -163,7 +161,9 @@
                         <div class="wgroup__row slip-leg" @key="leg.Id">
                             <span class="slip-leg__sel">@SelectionText.Of(leg.Market, leg.Outcome, leg.Line)</span>
                             <span class="slip-leg__price num">@Price(leg.PriceAmerican)</span>
-                            <span class="slip-leg__x num" title="Decimal odds: what one unit returns if this leg wins">×@Decimal(leg.PriceAmerican)</span>
+                            <DeskTooltip Text="Decimal odds: what one unit returns if this leg wins">
+                                <span class="slip-leg__x num" tabindex="0">×@Decimal(leg.PriceAmerican)</span>
+                            </DeskTooltip>
                         </div>
                     }
                     <div class="wgroup__row wgroup__row--form slip-parlay__head">
@@ -195,10 +195,10 @@
                         <DeskSelect TValue="string" Class="wfield--short" Value="Slip.ParlayBook"
                                     aria-label="Book the parlay was placed at"
                                     ValueChanged="@((string? b) => Slip.SetParlay(Slip.ParlayStake, Slip.ParlayPriceQuoted, b))">
-                            <option value="">Choose…</option>
+                            <option value="">Book</option>
                             @foreach (var book in Books)
                             {
-                                <option value="@book">@book</option>
+                                <option value="@book">@BookNames.Display(book)</option>
                             }
                         </DeskSelect>
                     </div>
@@ -233,20 +233,22 @@
             </section>
         }
 
-        @* The one filled key leads, aligned with the groups; Start over is plain beside it,
-           and what Log waits for follows on the same line. *@
+        @* The keys read as every window's do (KeyRow, HIG 3): Start over, then what Log waits
+           for, then Log — the one Filled key last. Log used to lead with its reason trailing it.
+           The row starts at the groups' leading edge, as the groups above it do. *@
         <div class="waction">
-            <div class="waction__keys slip-footer">
-                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Bolt"
-                            Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync">
-                    @LogLabel
-                </DeskButton>
-                <DeskButton OnClick="StartOverAsync">Start over</DeskButton>
-                @if (Waiting is { } why)
-                {
-                    <span class="warnc slip-why">@why</span>
-                }
-            </div>
+            <KeyRow Justify="DeskJustify.Start" Reason="@Waiting">
+                <Secondary>
+                    <DeskButton OnClick="StartOverAsync">Start over</DeskButton>
+                </Secondary>
+                <Primary Context="why">
+                    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Bolt"
+                                Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync"
+                                aria-describedby="@why">
+                        @LogLabel
+                    </DeskButton>
+                </Primary>
+            </KeyRow>
         </div>
     }
 

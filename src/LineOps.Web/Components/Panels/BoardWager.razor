@@ -454,61 +454,64 @@ else
 
                 @* The step's foot, trailing, as an assistant's Continue sits (wizards.md): the one
                    Filled key last and rightmost, its Plain companions to its left, and — while it
-                   cannot be pressed — one line saying what it waits for, leading. Nothing on
-                   screen that cannot be used yet: Add to slip appears with a stake, Add as leg
-                   with a price that can be taken. The Filled key stays, disabled, because its
-                   reason is the next instruction; a closing line's reason is the status note
-                   under the card, said once. The count on the Slip tab is the acknowledgment
-                   (the key's badge leaves with the key once the stake clears); the slip does
-                   not open (spec §11.3) — it is a tab here, a link away. A bet on no game has
-                   no slip card. *@
-                <div class="waction__keys">
-                    @if (Waiting is { } why)
-                    {
-                        <span class="wager-why">@why</span>
-                    }
-
-                    @if (BuildParlay)
-                    {
-                        @* Building a parlay, the one Filled key adds the leg: nothing is logged
-                           here, and the parlay is logged from the Slip tab once it is whole. *@
-                        <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Add"
-                                    Disabled="@(!CanBankLeg)" OnClick="AddLegAsync"
-                                    Title="@LegTitle">
-                            Add leg
-                            <span class="slip-badge num" aria-label="@($"{LegCount} legs on the slip")">@LegCount</span>
-                        </DeskButton>
-                    }
-                    else
-                    {
-                        @* A leg needs no stake — the parlay holds it — so this key does not wait
-                           for one the way Add to slip does. *@
-                        @if (CanBankLeg)
+                   cannot be pressed — one line saying what it waits for, between them, as every
+                   window's KeyRow reads (HIG 3). The reason is text, and the Filled key is
+                   described by it; a title on a disabled key never shows. Nothing on screen that
+                   cannot be used yet: Add to slip appears with a stake, Add as leg with a price
+                   that can be taken. The Filled key stays, disabled, because its reason is the
+                   next instruction; a closing line's reason is the status note under the card,
+                   said once. The count on the Slip tab is the acknowledgment (the key's badge
+                   leaves with the key once the stake clears); the slip does not open (spec
+                   §11.3) — it is a tab here, a link away. A bet on no game has no slip card. *@
+                <KeyRow Reason="@KeyReason">
+                    <Secondary>
+                        @if (!BuildParlay)
                         {
-                            <DeskButton Icon="@Icons.Material.Filled.Link" OnClick="AddLegAsync" Title="@LegTitle">
-                                Add as leg
+                            @* A leg needs no stake — the parlay holds it — so this key does not wait
+                               for one the way Add to slip does. *@
+                            @if (CanBankLeg)
+                            {
+                                <DeskButton Icon="@Icons.Material.Filled.Link" OnClick="AddLegAsync" Title="@LegTitle">
+                                    Add as leg
+                                </DeskButton>
+                            }
+
+                            @if (CanBank)
+                            {
+                                <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
+                                            Title="Bank this wager on the desk's slip, to log later or build a parlay">
+                                    Add to slip
+                                    <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
+                                </DeskButton>
+                            }
+                        }
+                    </Secondary>
+                    <Primary Context="why">
+                        @if (BuildParlay)
+                        {
+                            @* Building a parlay, the one Filled key adds the leg: nothing is logged
+                               here, and the parlay is logged from the Slip tab once it is whole. *@
+                            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Add"
+                                        Disabled="@(!CanBankLeg)" OnClick="AddLegAsync"
+                                        Title="@(CanBankLeg ? LegTitle : null)" aria-describedby="@why">
+                                Add leg
+                                <span class="slip-badge num" aria-label="@($"{LegCount} legs on the slip")">@LegCount</span>
                             </DeskButton>
                         }
-
-                        @if (CanBank)
+                        else
                         {
-                            <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
-                                        Title="Bank this wager on the desk's slip, to log later or build a parlay">
-                                Add to slip
-                                <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
+                            <DeskButton Emphasis="DeskEmphasis.Filled"
+                                        Icon="@Icons.Material.Filled.Bolt"
+                                        Busy="@_saving"
+                                        Disabled="@(!CanLog)"
+                                        Title="Record this bet in the Journal"
+                                        aria-describedby="@why"
+                                        OnClick="PlaceAsync">
+                                Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
                             </DeskButton>
                         }
-
-                        <DeskButton Emphasis="DeskEmphasis.Filled"
-                                    Icon="@Icons.Material.Filled.Bolt"
-                                    Busy="@_saving"
-                                    Disabled="@(!CanLog)"
-                                    Title="Record this bet in the Journal"
-                                    OnClick="PlaceAsync">
-                            Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
-                        </DeskButton>
-                    }
-                </div>
+                    </Primary>
+                </KeyRow>
             </div>
         </DeskStep>
     </DeskSteps>
@@ -1207,10 +1210,17 @@ else
 
     private int LegCount => Slip.Mode == SlipMode.Parlay ? Slip.Legs.Count : Slip.Items.Count(i => i.AsLeg);
 
-    private string LegTitle
-        => _offer is null ? "The bet and its price come first."
-           : _offer.IsClosing ? "A closing line cannot be a leg: enter the price you got with the pencil."
-           : "Bank this bet on the slip as a parlay leg, with no stake of its own";
+    /// <summary>What a leg key does, on the key only while it can be pressed.</summary>
+    private const string LegTitle = "Bank this bet on the slip as a parlay leg, with no stake of its own";
+
+    /// <summary>
+    /// The sentence on the key row. Building a parlay, Add leg waits for the bet when there is
+    /// none yet: that used to be its title, which a disabled key never shows. A closing line is
+    /// still the status note's to say.
+    /// </summary>
+    private string? KeyReason
+        => !BuildParlay || CanBankLeg ? Waiting
+           : Waiting ?? (_offer is null ? "The bet and its price come first." : null);
 
     private IReadOnlyList<Check> Strip
     {

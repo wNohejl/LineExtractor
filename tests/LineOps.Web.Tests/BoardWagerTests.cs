@@ -81,7 +81,26 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render();
 
         Assert.True(Log(cut).HasAttribute("disabled"));
-        Assert.Equal("Needs a stake above zero.", cut.Find(".wager-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", cut.Find(".keyrow__reason").TextContent.Trim());
+    }
+
+    /// <summary>
+    /// The reason is the Filled key's description as well as text on the row (KeyRow), so a
+    /// screen reader hears why Log waits; with nothing to wait for, Log points at nothing.
+    /// </summary>
+    [Fact]
+    public void Log_names_what_it_waits_for()
+    {
+        var cut = Render();
+
+        var id = Log(cut).GetAttribute("aria-describedby");
+        Assert.False(string.IsNullOrEmpty(id));
+        Assert.Equal("Needs a stake above zero.", cut.Find($"#{id}").TextContent.Trim());
+
+        Key(cut, 50m.ToString("C0")).Click();
+
+        Assert.Null(Log(cut).GetAttribute("aria-describedby"));
+        Assert.Empty(cut.FindAll(".keyrow__reason"));
     }
 
     [Fact]
@@ -226,7 +245,7 @@ public class BoardWagerTests : WagerTestContext
 
         Assert.True(Log(cut).HasAttribute("disabled"));
         Assert.Contains("This is the closing line, so it cannot be logged", cut.Find(".wstatus__text").TextContent);
-        Assert.Empty(cut.FindAll(".wager-why"));
+        Assert.Empty(cut.FindAll(".keyrow__reason"));
         Assert.Contains("Closing line: the game started 42 min ago", cut.Find(".check--negative").TextContent);
 
         Key(cut, "Add to slip").Click();

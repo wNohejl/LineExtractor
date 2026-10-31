@@ -131,18 +131,22 @@ else
 
     </ChildContent>
     <Footer>
-        <DeskButton OnClick="CloseForm">Cancel</DeskButton>
         @* A disabled key that does not say what it is waiting for is a key the operator
            has to guess at — and a tooltip only tells the one who hovers. The reason is text
-           beside the key, and the key points a screen reader at it. *@
-        @if (!EntryValid(_entry, true))
-        {
-            <span class="meta" id="save-why">Needs a selection, a stake above zero, a price and a book.</span>
-        }
-        <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
-                    aria-describedby="@(EntryValid(_entry, true) ? null : "save-why")">
-            Save changes
-        </DeskButton>
+           on the row, and the key points a screen reader at it. The row is a KeyRow: Cancel,
+           the reason, Save last, and an id of its own, so two Journals never share one. *@
+        <KeyRow Justify="DeskJustify.Start"
+                Reason="@(EntryValid(_entry, true) ? null : "Needs a selection, a stake above zero, a price and a book.")">
+            <Secondary>
+                <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+            </Secondary>
+            <Primary Context="why">
+                <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveEntryAsync" Disabled="@(!EntryValid(_entry, true))"
+                            aria-describedby="@why">
+                    Save changes
+                </DeskButton>
+            </Primary>
+        </KeyRow>
     </Footer>
     </PanelForm>
 }
@@ -233,15 +237,17 @@ else
 
     </ChildContent>
     <Footer>
-        <DeskButton OnClick="CloseForm">Cancel</DeskButton>
-        @if (ParlayWaiting(edited) is { } why)
-        {
-            <span class="meta" id="parlay-save-why">@why</span>
-        }
-        <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayChangesAsync" Disabled="@(ParlayWaiting(edited) is not null)"
-                    aria-describedby="@(ParlayWaiting(edited) is null ? null : "parlay-save-why")">
-            Save changes
-        </DeskButton>
+        <KeyRow Justify="DeskJustify.Start" Reason="@ParlayWaiting(edited)">
+            <Secondary>
+                <DeskButton OnClick="CloseForm">Cancel</DeskButton>
+            </Secondary>
+            <Primary Context="why">
+                <DeskButton Emphasis="DeskEmphasis.Filled" OnClick="SaveParlayChangesAsync" Disabled="@(ParlayWaiting(edited) is not null)"
+                            aria-describedby="@why">
+                    Save changes
+                </DeskButton>
+            </Primary>
+        </KeyRow>
     </Footer>
     </PanelForm>
 }
@@ -299,7 +305,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 @* Said where the number is: a typed price is the operator's word, not an observation. *@
                 @if (context.Item.ManualPrice)
                 {
-                    <span class="dim journal-manual" title="Entered by hand, not fetched">manual</span>
+                    <DeskTooltip Text="Entered by hand, not fetched">
+                        <span class="dim journal-manual" tabindex="0">manual</span>
+                    </DeskTooltip>
                 }
                 @Price(context.Item.PriceTaken)
             </CellTemplate>
@@ -346,14 +354,18 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                             <DeskMenuItem Label="Void" OnClick="@(() => SetResultAsync(context.Item.Id, EntryResult.Void))" />
                         </DeskPullDown>
                     }
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Edit"
-                                Title="Edit this entry" OnClick="() => EditEntry(context.Item)" />
-                    @* The same door the wager window's own Duplicate uses: a new wager window on
-                       this bet, ready to log at today's price — or at the typed one, if it was. *@
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy"
-                                Title="Duplicate this entry in the wager window" OnClick="() => Duplicate(context.Item)" />
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
-                                Title="Delete this entry" OnClick="() => DeleteEntryAsync(context.Item)" />
+                    @* Edit, Duplicate and Delete are one Actions menu (HIG 14): three icon keys a
+                       row, named only by titles, read as a toolbar on every row. Delete is the
+                       destructive item, and its alert still confirms. Duplicate is the same door
+                       the wager window's own uses: a new wager window on this bet, ready to log
+                       at today's price — or at the typed one, if it was. *@
+                    <DeskPullDown Label="Actions" Icon="@Icons.Material.Filled.MoreHoriz" Emphasis="DeskEmphasis.Plain"
+                                  Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                        <DeskMenuItem Label="Edit" OnClick="() => EditEntry(context.Item)" />
+                        <DeskMenuItem Label="Duplicate" Description="In a wager window, to log again"
+                                      OnClick="() => Duplicate(context.Item)" />
+                        <DeskMenuItem Label="Delete…" Destructive="true" OnClick="() => DeleteEntryAsync(context.Item)" />
+                    </DeskPullDown>
                 </DeskRow>
             </CellTemplate>
         </TemplateColumn>
@@ -441,15 +453,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                             <DeskMenuItem Label="Void" OnClick="@(() => SetParlayResultAsync(context.Item, EntryResult.Void))" />
                         </DeskPullDown>
                     }
-                    @* The keys an entry's row carries, in its order. Duplicate puts the legs back on
-                       the slip as a parlay at the prices taken, to log again — the slip is where a
-                       parlay is logged, as the wager window is where an entry is. *@
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Edit"
-                                Title="Edit this parlay" OnClick="() => EditParlay(context.Item)" />
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy"
-                                Title="Duplicate this parlay on the slip" OnClick="() => DuplicateParlayAsync(context.Item)" />
-                    <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.Delete"
-                                Title="Delete this parlay and its legs" OnClick="() => DeleteParlayAsync(context.Item)" />
+                    @* The menu an entry's row carries, in its order. Duplicate puts the legs back
+                       on the slip as a parlay at the prices taken, to log again — the slip is where
+                       a parlay is logged, as the wager window is where an entry is. *@
+                    <DeskPullDown Label="Actions" Icon="@Icons.Material.Filled.MoreHoriz" Emphasis="DeskEmphasis.Plain"
+                                  Size="DeskKeySize.Small" Align="DeskPopoverAlign.End">
+                        <DeskMenuItem Label="Edit" OnClick="() => EditParlay(context.Item)" />
+                        <DeskMenuItem Label="Duplicate" Description="On the slip, as a parlay to log again"
+                                      OnClick="() => DuplicateParlayAsync(context.Item)" />
+                        <DeskMenuItem Label="Delete…" Description="The parlay and its legs" Destructive="true"
+                                      OnClick="() => DeleteParlayAsync(context.Item)" />
+                    </DeskPullDown>
                 </DeskRow>
             </CellTemplate>
         </TemplateColumn>

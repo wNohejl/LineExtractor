@@ -145,10 +145,27 @@ public class JournalParlayTests : WagerTestContext
 
         var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
         var cut = RenderComponent<JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[title='Edit this parlay']")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(ActionsKeys(cut)));
 
         return (cut, window);
     }
+
+    /// <summary>Each row's Actions pull-down (HIG 14): Edit, Duplicate and Delete live in it.</summary>
+    internal static IReadOnlyList<IElement> ActionsKeys(IRenderedFragment cut)
+        => cut.FindAll("button[aria-haspopup=menu]").Where(b => b.TextContent.Trim() == "Actions").ToList();
+
+    /// <summary>Opens row <paramref name="row"/>'s Actions menu and presses the item labelled so.</summary>
+    internal static void RowAction(IRenderedFragment cut, string label, int row = 0)
+    {
+        ActionsKeys(cut)[row].Click();
+        cut.FindAll("[role=menu] .menu__item")
+            .First(i => i.QuerySelector(".menu__label")!.TextContent.Trim() == label)
+            .Click();
+    }
+
+    /// <summary>The sentence Save changes is described by: the KeyRow's reason, by its own id.</summary>
+    private static IElement SaveReason(IRenderedFragment cut)
+        => cut.Find("#" + Key(cut, "Save changes").GetAttribute("aria-describedby"));
 
     private static IElement Key(IRenderedFragment cut, string text)
         => cut.FindAll("button").First(b => b.TextContent.Trim() == text);
@@ -165,20 +182,22 @@ public class JournalParlayTests : WagerTestContext
 
     // ------------------------------------------------------------------ the row ----
 
-    /// <summary>The keys an entry's row carries, in the same order: Edit, Duplicate, then Delete.</summary>
+    /// <summary>
+    /// The keys an entry's row carries, in the same order: Settle, then one Actions menu of Edit,
+    /// Duplicate and Delete, Delete marked destructive (HIG 14).
+    /// </summary>
     [Fact]
     public void A_parlay_row_carries_edit_duplicate_and_delete_in_the_entries_order()
     {
         var (cut, _) = Render();
 
-        // The legs' games are links too; the row's own keys are the ones that name the parlay.
-        var titles = cut.FindAll("tbody button[title]").Select(b => b.GetAttribute("title"))
-            .Where(t => t!.Contains("parlay", StringComparison.Ordinal)).ToList();
+        ActionsKeys(cut)[0].Click();
 
-        Assert.Equal(
-            ["Edit this parlay", "Duplicate this parlay on the slip", "Delete this parlay and its legs"],
-            titles);
+        var items = cut.FindAll("[role=menu] .menu__item");
+        Assert.Equal(["Edit", "Duplicate", "Delete…"], items.Select(i => i.QuerySelector(".menu__label")!.TextContent.Trim()));
+        Assert.Contains("menu__item--destructive", items[2].ClassList);
     }
+
 
     // ------------------------------------------------------------------ edit ----
 
@@ -188,7 +207,7 @@ public class JournalParlayTests : WagerTestContext
         using var dollars = new UsDollars();
         var (cut, _) = Render();
 
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         var form = cut.Find(".pform--grouped");
         Assert.Equal("Edit parlay", form.QuerySelector(".panel-h")!.TextContent.Trim());
@@ -211,7 +230,7 @@ public class JournalParlayTests : WagerTestContext
         Assert.Contains("$325", Row(cut, "Stake").QuerySelector(".stake-row__returns")!.TextContent);
 
         // Open, the form holds nothing the journal lacks, so Save waits on nothing.
-        Assert.Empty(cut.FindAll("#parlay-save-why"));
+        Assert.Empty(cut.FindAll(".pform .keyrow__reason"));
         Assert.False(Key(cut, "Save changes").HasAttribute("disabled"));
     }
 
@@ -224,7 +243,7 @@ public class JournalParlayTests : WagerTestContext
     {
         var (cut, _) = Render();
 
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         var sections = cut.FindAll(".pform--grouped section.wsection");
         Assert.True(sections.Count >= 2, $"Expected at least two sections, found {sections.Count}.");
@@ -246,7 +265,7 @@ public class JournalParlayTests : WagerTestContext
     {
         var (cut, _) = Render(FourLegs(EntryResult.Win));
 
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         var note = cut.Find(".pform--grouped .note").TextContent;
         Assert.Contains("This parlay is graded.", note);
@@ -258,7 +277,7 @@ public class JournalParlayTests : WagerTestContext
     {
         var (cut, _) = Render();
 
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         Assert.DoesNotContain("This parlay is graded.", cut.Find(".pform--grouped").TextContent);
     }
@@ -268,7 +287,7 @@ public class JournalParlayTests : WagerTestContext
     public void An_edit_marks_the_window_unsaved_and_cancel_clears_it()
     {
         var (cut, window) = Render();
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
         Assert.False(window.HasUnsavedInput);
 
         Row(cut, "Stake").QuerySelector(".stake-row__field")!.Input("50");
@@ -293,7 +312,7 @@ public class JournalParlayTests : WagerTestContext
     {
         var parlay = FourLegs();
         var (cut, window) = Render(parlay);
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         Row(cut, "Stake").QuerySelector(".stake-row__field")!.Input("40");
         Row(cut, "Book").QuerySelector("select")!.Change("fanduel");
@@ -321,22 +340,22 @@ public class JournalParlayTests : WagerTestContext
     public void A_price_that_is_not_a_price_says_so_and_save_says_what_it_waits_for()
     {
         var (cut, _) = Render();
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         Row(cut, "Book's price").QuerySelector("input")!.Change("50");
 
         Assert.Equal("A price is −100 or lower, or +100 or higher.", Row(cut, "Book's price").QuerySelector(".field-err")!.TextContent.Trim());
-        Assert.Equal("The book's price is −100 or lower, or +100 or higher.", cut.Find("#parlay-save-why").TextContent.Trim());
+        Assert.Equal("The book's price is −100 or lower, or +100 or higher.", SaveReason(cut).TextContent.Trim());
         var save = Key(cut, "Save changes");
         Assert.True(save.HasAttribute("disabled"));
-        Assert.Equal("parlay-save-why", save.GetAttribute("aria-describedby"));
+        Assert.Equal(cut.Find(".pform .keyrow__reason").Id, save.GetAttribute("aria-describedby"));
 
         // Emptied, the book's price is optional again; a leg's emptied price is not.
         Row(cut, "Book's price").QuerySelector("input")!.Change("");
         LegPrice(cut, 1).Change("");
 
         Assert.Equal("Enter the price this leg was taken at.", Row(cut, "Leg 1").QuerySelector(".field-err")!.TextContent.Trim());
-        Assert.StartsWith("Each leg needs the price it was taken at", cut.Find("#parlay-save-why").TextContent.Trim());
+        Assert.StartsWith("Each leg needs the price it was taken at", SaveReason(cut).TextContent.Trim());
 
         Key(cut, "Save changes").Click();
         Assert.Empty(_journal.Writes);
@@ -346,12 +365,12 @@ public class JournalParlayTests : WagerTestContext
     public void A_stake_of_nothing_holds_save()
     {
         var (cut, _) = Render();
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
 
         Row(cut, "Stake").QuerySelector(".stake-row__field")!.Input("0");
 
         Assert.Equal("Enter a stake above zero.", cut.Find(".pform--grouped .field-err").TextContent.Trim());
-        Assert.Equal("Needs a stake above zero.", cut.Find("#parlay-save-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", SaveReason(cut).TextContent.Trim());
     }
 
     [Fact]
@@ -359,7 +378,7 @@ public class JournalParlayTests : WagerTestContext
     {
         var (cut, window) = Render();
         _journal.FailWith = new InvalidOperationException("connection refused");
-        cut.Find("button[title='Edit this parlay']").Click();
+        RowAction(cut, "Edit");
         Row(cut, "Stake").QuerySelector(".stake-row__field")!.Input("40");
 
         Key(cut, "Save changes").Click();
@@ -388,7 +407,7 @@ public class JournalParlayTests : WagerTestContext
         var parlay = FourLegs();
         var (cut, _) = Render(parlay);
 
-        cut.Find("button[title='Duplicate this parlay on the slip']").Click();
+        RowAction(cut, "Duplicate");
 
         Assert.Empty(Alerts.Asked);
         Assert.Equal(SlipMode.Parlay, Slip.Mode);
@@ -430,7 +449,7 @@ public class JournalParlayTests : WagerTestContext
         Alerts.Answer = true;
         var (cut, _) = Render();
 
-        cut.Find("button[title='Duplicate this parlay on the slip']").Click();
+        RowAction(cut, "Duplicate");
 
         Assert.Equal(new[] { "Replace the slip?" }, Alerts.Asked);
         Assert.Equal(new[] { "Replace" }, Alerts.ConfirmLabels);
@@ -447,7 +466,7 @@ public class JournalParlayTests : WagerTestContext
         Alerts.Answer = false;
         var (cut, _) = Render();
 
-        cut.Find("button[title='Duplicate this parlay on the slip']").Click();
+        RowAction(cut, "Duplicate");
 
         Assert.Single(Alerts.Asked);
         Assert.Equal(banked.Id, Assert.Single(Slip.Items).Id);
@@ -477,7 +496,7 @@ public class JournalParlayTests : WagerTestContext
         });
         var (cut, _) = Render(parlay);
 
-        cut.Find("button[title='Duplicate this parlay on the slip']").Click();
+        RowAction(cut, "Duplicate");
 
         Assert.Empty(Slip.Items);
         Assert.Empty(Toasts());

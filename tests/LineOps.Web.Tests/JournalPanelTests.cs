@@ -27,6 +27,9 @@ public class JournalPanelTests : WagerTestContext
         Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new JournalParlayTests.NoDatabase());
     }
 
+    private static AngleSharp.Dom.IElement Save(IRenderedFragment cut)
+        => cut.FindAll("button").First(b => b.TextContent.Trim() == "Save changes");
+
     private static string Source()
         => File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "JournalPanel.razor"));
 
@@ -71,9 +74,10 @@ public class JournalPanelTests : WagerTestContext
 
         var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
         var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[title='Edit this entry']")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
 
-        cut.Find("button[title='Edit this entry']").Click();
+        // Edit is in the row's Actions menu now (HIG 14), not a key of its own.
+        JournalParlayTests.RowAction(cut, "Edit");
         cut.Find(".pform--grouped .stake-row__field").Input("40");
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Save changes").Click();
 
@@ -144,7 +148,7 @@ public class JournalPanelTests : WagerTestContext
     {
         var source = Source();
 
-        Assert.Contains("Duplicate this entry", source);
+        Assert.Contains("<DeskMenuItem Label=\"Duplicate\"", source);
         Assert.Contains("Manager.OpenWagerCopy(WagerPrefill.From(", source);
     }
 
@@ -191,17 +195,58 @@ public class JournalPanelTests : WagerTestContext
 
     /// <summary>
     /// A disabled key's reason is text beside it, not a tooltip: a tooltip waits for a hover the
-    /// operator has no reason to make, and a screen reader is told through aria-describedby.
+    /// operator has no reason to make, and a screen reader is told through aria-describedby. The
+    /// row is a KeyRow, so the id is its own: a fixed "save-why" collided with a second Journal.
     /// </summary>
     [Fact]
-    public void Disabled_save_states_its_reason_in_text()
+    public void Save_names_what_it_waits_for()
     {
-        var source = Source();
+        Assert.DoesNotContain("save-why", Source());
 
-        Assert.Contains("<span class=\"meta\" id=\"save-why\">Needs a selection, a stake above zero, a price and a book.</span>", source);
-        // Pointed at only while the reason is on screen: a describedby naming a missing id says nothing.
-        Assert.Contains("aria-describedby=\"@(EntryValid(_entry, true) ? null : \"save-why\")\"", source);
-        Assert.DoesNotContain("Title=\"@(EntryValid", source);
+        _journal.Entries.Add(Pending());
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+
+        JournalParlayTests.RowAction(cut, "Edit");
+        Assert.Null(Save(cut).GetAttribute("aria-describedby"));
+
+        cut.Find(".pform--grouped .stake-row__field").Input("0");
+
+        var save = Save(cut);
+        Assert.True(save.HasAttribute("disabled"));
+        var id = save.GetAttribute("aria-describedby");
+        Assert.False(string.IsNullOrEmpty(id));
+        Assert.Equal("Needs a selection, a stake above zero, a price and a book.", cut.Find($"#{id}").TextContent.Trim());
+
+        // Cancel, the reason, then Save: the one Filled key last.
+        var order = cut.Find(".pform--grouped .keyrow").Children
+            .Select(c => c.ClassList.Contains("keyrow__reason") ? "reason" : c.TextContent.Trim()).ToList();
+        Assert.Equal(["Cancel", "reason", "Save changes"], order);
+    }
+
+    /// <summary>
+    /// A row carries two keys: Settle, and one Actions menu holding Edit, Duplicate and Delete,
+    /// with Delete marked destructive (HIG 14). Three icon keys a row, each named only by a
+    /// title, read as a toolbar in every row of the grid.
+    /// </summary>
+    [Fact]
+    public void A_row_has_settle_and_one_actions_menu()
+    {
+        _journal.Entries.Add(Pending());
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+
+        var keys = cut.FindAll("tbody tr td:last-child button").Select(b => b.TextContent.Trim()).ToList();
+        Assert.Equal(["Settle", "Actions"], keys);
+
+        JournalParlayTests.ActionsKeys(cut)[0].Click();
+
+        var items = cut.FindAll("[role=menu] .menu__item");
+        Assert.Equal(["Edit", "Duplicate", "Delete…"], items.Select(i => i.QuerySelector(".menu__label")!.TextContent.Trim()));
+        Assert.Contains("menu__item--destructive", items[2].ClassList);
+        Assert.DoesNotContain("menu__item--destructive", items[0].ClassList);
     }
 
     [Fact]

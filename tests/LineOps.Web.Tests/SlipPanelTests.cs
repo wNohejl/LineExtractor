@@ -81,7 +81,7 @@ public class SlipPanelTests : WagerTestContext
 
         var cut = RenderComponent<SlipPanel>();
         Assert.Empty(cut.FindAll(".slip-leg"));
-        Assert.Contains("Enter the price you got", cut.Find(".slip-why").TextContent);
+        Assert.Contains("Enter the price you got", cut.Find(".keyrow__reason").TextContent);
 
         // The first at the close as printed, the second typed.
         cut.FindAll(".slip-card__take button")[0].Click();
@@ -92,6 +92,8 @@ public class SlipPanelTests : WagerTestContext
         Assert.Equal(2, legs.Count);
         Assert.Equal(["-132", "-170"], legs.Select(l => l.QuerySelector(".slip-leg__price")!.TextContent.Trim()));
         Assert.Equal(["×1.76", "×1.59"], legs.Select(l => l.QuerySelector(".slip-leg__x")!.TextContent.Trim()));
+        // What the multiplier means is a tooltip that keyboard focus raises too, not a title (HIG 12).
+        Assert.All(cut.FindAll(".slip-leg .slip-leg__x"), x => { Assert.Null(x.GetAttribute("title")); Assert.Equal("0", x.GetAttribute("tabindex")); });
 
         var combined = OddsMath.CombinedAmerican([-132, -170]);
         Assert.Equal(OddsMath.FormatPrice(combined), cut.Find(".slip-parlay__price").TextContent.Trim());
@@ -170,7 +172,8 @@ public class SlipPanelTests : WagerTestContext
         Assert.True(Assert.Single(Slip.Items).IsClosing);
         Assert.Contains("2 logged · 1 left on the slip", cut.Find(".slip-report").TextContent);
 
-        Key(cut, "Show steps").Click();
+        // The steps are a disclosure now (HIG 15): its summary opens them.
+        cut.Find(".slip-report summary").Click();
         Assert.Equal(3, cut.FindAll(".slip-steps li").Count);
     }
 
@@ -204,7 +207,7 @@ public class SlipPanelTests : WagerTestContext
         Assert.Contains("Not a leg", blocked.TextContent);
         Assert.Contains("one leg per market on a game", blocked.TextContent);
         Assert.True(cut.Find("button.desk-btn--filled").HasAttribute("disabled"));
-        Assert.Contains("needs two legs", cut.Find(".slip-why").TextContent);
+        Assert.Contains("needs two legs", cut.Find(".keyrow__reason").TextContent);
     }
 
     [Fact]
@@ -218,7 +221,7 @@ public class SlipPanelTests : WagerTestContext
         Assert.Empty(cut.FindAll(".slip-card--blocked"));
         Assert.Contains("do not multiply", cut.Find(".slip-parlay__note").TextContent);
         Assert.Equal("—", cut.Find(".slip-parlay__price").TextContent.Trim());
-        Assert.Contains("book's own parlay price", cut.Find(".slip-why").TextContent);
+        Assert.Contains("book's own parlay price", cut.Find(".keyrow__reason").TextContent);
 
         Slip.SetParlay(20m, 240, "draftkings");
         cut.Render();
@@ -288,7 +291,88 @@ public class SlipPanelTests : WagerTestContext
         var cut = RenderComponent<SlipPanel>();
 
         Assert.True(cut.Find("button.desk-btn--filled").HasAttribute("disabled"));
-        Assert.Equal("Nothing on the slip can be logged as it stands.", cut.Find(".slip-why").TextContent.Trim());
+        Assert.Equal("Nothing on the slip can be logged as it stands.", cut.Find(".keyrow__reason").TextContent.Trim());
+    }
+
+    /// <summary>
+    /// The keys read one way (KeyRow, HIG 3): Start over, then what Log waits for, then Log —
+    /// the one Filled key last. Log led the row before, with its reason after it.
+    /// </summary>
+    [Fact]
+    public void Start_over_comes_before_log()
+    {
+        Slip.Add(Item(closing: true));
+        var cut = RenderComponent<SlipPanel>();
+
+        var order = cut.Find(".slip .keyrow").Children
+            .Select(c => c.ClassList.Contains("keyrow__reason") ? "reason" : c.TextContent.Trim())
+            .ToList();
+
+        Assert.Equal(3, order.Count);
+        Assert.Equal("Start over", order[0]);
+        Assert.Equal("reason", order[1]);
+        Assert.StartsWith("Log", order[2]);
+    }
+
+    [Fact]
+    public void The_log_key_names_what_it_waits_for()
+    {
+        Slip.Add(Item(closing: true));
+        var cut = RenderComponent<SlipPanel>();
+
+        var id = cut.Find("button.desk-btn--filled").GetAttribute("aria-describedby");
+        Assert.False(string.IsNullOrEmpty(id));
+        Assert.Equal("Nothing on the slip can be logged as it stands.", cut.Find($"#{id}").TextContent.Trim());
+        Assert.Empty(cut.FindAll(".slip-why"));
+    }
+
+    [Fact]
+    public void A_log_key_with_nothing_to_wait_for_points_at_nothing()
+    {
+        Slip.Add(Item());
+        var cut = RenderComponent<SlipPanel>();
+
+        Assert.Null(cut.Find("button.desk-btn--filled").GetAttribute("aria-describedby"));
+        Assert.Empty(cut.FindAll(".keyrow__reason"));
+    }
+
+    /// <summary>
+    /// The parlay's book reads as the book's name, as every other window names it (HIG 17), and
+    /// the empty choice says what the field is rather than "Choose…".
+    /// </summary>
+    [Fact]
+    public void The_book_select_shows_book_names()
+    {
+        Slip.AddLeg(Item(-110, gameId: 1));
+        Slip.AddLeg(Item(-120, gameId: 2));
+        var cut = RenderComponent<SlipPanel>();
+
+        var options = cut.FindAll("select[aria-label='Book the parlay was placed at'] option");
+
+        Assert.Equal("", options[0].GetAttribute("value"));
+        Assert.Equal("Book", options[0].TextContent.Trim());
+        var draftkings = options.Single(o => o.GetAttribute("value") == "draftkings");
+        Assert.Equal("DraftKings", draftkings.TextContent.Trim());
+    }
+
+    /// <summary>A report's steps are a disclosure (HIG 15), not a key that swaps its own label.</summary>
+    [Fact]
+    public void The_reports_steps_are_a_disclosure()
+    {
+        Slip.Add(Item(stake: 50m));
+        Slip.Add(Item(closing: true, gameId: 9));
+        var cut = RenderComponent<SlipPanel>();
+
+        cut.Find("button.desk-btn--filled").Click();
+
+        var steps = cut.Find(".slip-report details.disclosure");
+        Assert.Equal("Steps", steps.QuerySelector(".disclosure__label")!.TextContent.Trim());
+        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("steps", StringComparison.Ordinal));
+        Assert.Empty(cut.FindAll(".slip-steps li"));
+
+        cut.Find(".slip-report summary").Click();
+
+        Assert.Equal(2, cut.FindAll(".slip-steps li").Count);
     }
 
     [Fact]

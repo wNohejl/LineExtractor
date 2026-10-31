@@ -127,14 +127,14 @@ public class WagerRecipeTests : WagerTestContext
         Assert.Null(Key(cut, "Add to slip"));
         var log = cut.Find("button.desk-btn--filled");
         Assert.True(log.HasAttribute("disabled"));
-        Assert.Equal("Needs a stake above zero.", cut.Find(".waction__keys .wager-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", cut.Find(".waction .keyrow__reason").TextContent.Trim());
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == 50m.ToString("C0")).Click();
 
         Assert.NotNull(Key(cut, "Add to slip"));
-        Assert.Empty(cut.FindAll(".wager-why"));
+        Assert.Empty(cut.FindAll(".keyrow__reason"));
         // One Filled key, and it is Log, the last of the keys: Continue is rightmost.
-        var keys = cut.FindAll(".waction__keys > button");
+        var keys = cut.FindAll(".waction .keyrow > button");
         Assert.Single(keys, k => k.ClassList.Contains("desk-btn--filled"));
         Assert.StartsWith("Log", keys[^1].TextContent.Trim());
         Assert.All(keys.Take(keys.Count - 1), k => Assert.Contains("desk-btn--plain", k.ClassName));
@@ -171,12 +171,12 @@ public class WagerRecipeTests : WagerTestContext
 
         Assert.NotNull(cut.Find(".wcard + .wstatus"));
         Assert.Null(Key(cut, "Add to slip"));
-        Assert.Equal("Needs a stake above zero.", cut.Find(".waction__keys .wager-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", cut.Find(".waction .keyrow__reason").TextContent.Trim());
 
         cut.FindAll("button").First(b => b.TextContent.Trim() == 50m.ToString("C0")).Click();
 
         Assert.NotNull(Key(cut, "Add to slip"));
-        Assert.Empty(cut.FindAll(".wager-why"));
+        Assert.Empty(cut.FindAll(".keyrow__reason"));
     }
 
     /// <summary>

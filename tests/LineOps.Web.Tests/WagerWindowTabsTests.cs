@@ -102,7 +102,7 @@ public class WagerWindowTabsTests : WagerTestContext
 
         // A key that cannot be used yet is not on screen; the Filled key's reason says what to do.
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
-        Assert.Equal("Needs a stake above zero.", cut.Find(".wager-why").TextContent.Trim());
+        Assert.Equal("Needs a stake above zero.", cut.Find(".keyrow__reason").TextContent.Trim());
         Assert.Empty(Slip.Items);
     }
 }
