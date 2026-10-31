@@ -2,7 +2,7 @@ using LineOps.Desk.Primitives;
 using Microsoft.AspNetCore.Components;
 using MudBlazor;
 
-namespace LineOps.Desk.Tests.Support;
+namespace LineOps.Desk.Testing;
 
 /// <summary>
 /// Sheets that are recorded rather than drawn: which sheet was asked for, with what, and a handle

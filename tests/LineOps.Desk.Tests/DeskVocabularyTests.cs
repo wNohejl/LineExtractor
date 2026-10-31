@@ -19,6 +19,7 @@ public class DeskVocabularyTests
     [Theory]
     [InlineData("LineOps.Desk")]
     [InlineData("LineOps.Desk.Hosting")]
+    [InlineData("LineOps.Desk.Testing")]
     public void The_desk_s_code_knows_no_sport(string project)
     {
         var root = Path.Combine(Repo.Root(), "src", project);
@@ -55,6 +56,7 @@ public class DeskVocabularyTests
     [Theory]
     [InlineData("LineOps.Desk")]
     [InlineData("LineOps.Desk.Hosting")]
+    [InlineData("LineOps.Desk.Testing")]
     public void The_desk_s_docs_know_no_sport(string project)
     {
         var root = Path.Combine(Repo.Root(), "src", project);

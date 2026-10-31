@@ -1,6 +1,6 @@
 using LineOps.Desk.Primitives;
 
-namespace LineOps.Desk.Tests.Support;
+namespace LineOps.Desk.Testing;
 
 /// <summary>A confirm that answers as told and counts the questions.</summary>
 public sealed class FakeAlerts : IDeskAlerts

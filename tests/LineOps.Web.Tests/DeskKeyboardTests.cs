@@ -162,7 +162,7 @@ public class DeskKeyboardTests : DeskTestContext
     [Fact]
     public void Reopen_key_names_the_window_it_reopens()
     {
-        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
         var desk = Services.GetRequiredService<WindowManager>();
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
         desk.Open(Window(WindowCatalog.Journal));

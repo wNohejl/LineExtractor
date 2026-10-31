@@ -1,12 +1,11 @@
 using Bunit;
-using LineOps.Desk.Tests.Support;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 
-namespace LineOps.Desk.Tests;
+namespace LineOps.Desk.Testing;
 
 /// <summary>
-/// The bench every Desk render test sits on.
+/// The bench every Desk render test sits on — the Desk's own, and an application's.
 ///
 /// Desk primitives wrap MudBlazor, and MudBlazor components resolve services out of the
 /// container and reach for JS the moment they render. Registering both here means a test
@@ -16,6 +15,10 @@ namespace LineOps.Desk.Tests;
 /// JSInterop is loose on purpose: the desk's own modules (desk-glide and friends) are
 /// browser behaviour, not markup semantics, and a test that had to stub each import would
 /// break every time a component picked up an animation.
+///
+/// An application's bench derives from this one and registers its own brand, clock and
+/// catalogue in its constructor: the container answers with the last registration, so the
+/// application's win and everything else here stays.
 /// </summary>
 public abstract class DeskTestContext : TestContext
 {

@@ -68,7 +68,7 @@ public class WindowErrorBoundaryTests : DeskTestContext
     private (IRenderedComponent<AppWindow> Window, WindowManager Manager, WindowInstance Instance) Render()
     {
         Services.AddSingleton(new Fuse());
-        Services.AddSingleton<IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<IDeskAlerts>(new FakeAlerts());
 
         var manager = Services.GetRequiredService<WindowManager>();
         var instance = manager.Open(Volatile, new Dictionary<string, object> { ["Subject"] = "first" });

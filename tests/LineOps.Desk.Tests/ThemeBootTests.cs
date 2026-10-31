@@ -1,13 +1,14 @@
 using System.Text.RegularExpressions;
 using LineOps.Desk.Theming;
-using LineOps.Web.Tests.Support;
+using LineOps.Desk.Tests.Support;
 
-namespace LineOps.Web.Tests;
+namespace LineOps.Desk.Tests;
 
 /// <summary>
 /// The boot script that stamps the stored theme on <c>&lt;html&gt;</c> before the first paint.
 /// ThemeService owns the policy; the script is a copy of it in another language, so these tests
-/// are what keep the copy reading the same keys and naming the same token blocks.
+/// are what keep the copy reading the same keys and naming the same token blocks. That an
+/// application loads it first, through DeskHead, is DeskConventions.AppHeadLoadsDeskFirst.
 /// </summary>
 public class ThemeBootTests
 {

@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    What a desk application's tests need from the Desk: the bench a render test sits on, the
+    fakes for the seams the Desk asks its host for, and the Desk's conventions as checks an
+    application runs against its own source. A test project references this beside xunit; the
+    Desk's own tests run on the same fixtures, so what ships here is what they prove.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LineOps.Desk.Testing</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    The package. As with the Desk, the XML documentation ships with it and CS1591 is off: the
+    documentation is written where a seam needs explaining, not on every public member.
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>LineOps.Desk.Testing</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Test fixtures and convention checks for an application built on LineOps.Desk: a bUnit bench, fakes for the Desk's seams, and the Desk's source conventions as calls from your own facts.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <!-- bUnit 1.x brings AngleSharp 1.2.0, under an mXSS advisory fixed in 1.5.0. The fix is not
+       reachable: AngleSharp 1.5 changed IHtmlCollection's indexer and bUnit 1.40, the last 1.x,
+       fails at runtime against it. The parser only ever reads markup a test rendered itself, in
+       a test process, so the advisory has nothing to act on. Revisit with the move to bUnit 2. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    The Desk's stylesheets, carried inside the assembly. An ownership check asks whether a
+    selector is the Desk's or the application's, and an application referencing the package has
+    no Desk source on disk to read; these are the sheets of the Desk this package was built with.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\LineOps.Desk\wwwroot\css\*.css"
+                      LogicalName="LineOps.Desk.Testing.css.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="bunit" />
+    <PackageReference Include="xunit.assert" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LineOps.Desk\LineOps.Desk.csproj" />
+  </ItemGroup>
+
+</Project>

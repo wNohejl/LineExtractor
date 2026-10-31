@@ -14,19 +14,28 @@ public class ProjectShapeTests
 {
     private static string ProjectDirectory() => Path.Combine(Repo.Root(), "tests", "LineOps.Desk.Tests");
 
-    /// <summary>One reference, and it is the Desk.</summary>
+    private static List<string> References(string csproj) => XDocument.Load(csproj)
+        .Descendants("ProjectReference")
+        .Select(r => Path.GetFileName(((string?)r.Attribute("Include") ?? string.Empty).Replace('\\', '/')))
+        .Order(StringComparer.Ordinal)
+        .ToList();
+
+    /// <summary>
+    /// Two references: the Desk, and the testing package an application's tests use — the Desk's
+    /// own tests sit on the same bench and the same fakes, so the package is proven by them.
+    /// </summary>
     [Fact]
     public void The_desk_tests_reference_only_the_desk()
-    {
-        var csproj = XDocument.Load(Path.Combine(ProjectDirectory(), "LineOps.Desk.Tests.csproj"));
+        => Assert.Equal(
+            ["LineOps.Desk.Testing.csproj", "LineOps.Desk.csproj"],
+            References(Path.Combine(ProjectDirectory(), "LineOps.Desk.Tests.csproj")));
 
-        var references = csproj.Descendants("ProjectReference")
-            .Select(r => (string?)r.Attribute("Include") ?? string.Empty)
-            .ToList();
-
-        var only = Assert.Single(references);
-        Assert.EndsWith("LineOps.Desk.csproj", only);
-    }
+    /// <summary>The testing package stands on the Desk alone, as the Desk stands without the app.</summary>
+    [Fact]
+    public void The_testing_package_references_only_the_desk()
+        => Assert.Equal(
+            ["LineOps.Desk.csproj"],
+            References(Path.Combine(Repo.Root(), "src", "LineOps.Desk.Testing", "LineOps.Desk.Testing.csproj")));
 
     /// <summary>
     /// No test names an application namespace. A quoted name is a path segment or the text an

@@ -260,7 +260,7 @@ public class WindowBarTests : DeskTestContext
     public void Eviction_notice_renders_in_the_header()
     {
         var desk = NewDesk();
-        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
         desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
         desk.Open(WindowCatalog.Find(WindowCatalog.Ops)!);
@@ -300,7 +300,7 @@ public class WindowBarTests : DeskTestContext
     public void Window_controls_are_labelled_keys()
     {
         var desk = NewDesk();
-        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
 
         // The chrome is what is under test, so the window hosts a panel with no services to find.
         var notes = desk.Open(new WindowDefinition
@@ -338,7 +338,7 @@ public class WindowBarTests : DeskTestContext
     public void Every_window_carries_its_own_back_and_forward()
     {
         var desk = NewDesk();
-        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
 
         var notes = desk.Open(new WindowDefinition
         {
@@ -373,7 +373,7 @@ public class WindowBarTests : DeskTestContext
     public void Closing_a_window_offers_to_reopen_it()
     {
         var desk = NewDesk();
-        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new Support.FakeAlerts());
+        Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
         var journal = desk.Open(WindowCatalog.Find(WindowCatalog.Journal)!);
 
         desk.Close(journal.Id);

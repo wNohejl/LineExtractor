@@ -27,10 +27,12 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Bunit" />
+    <Using Include="LineOps.Desk.Testing" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LineOps.Web\LineOps.Web.csproj" />
+    <ProjectReference Include="..\..\src\LineOps.Desk.Testing\LineOps.Desk.Testing.csproj" />
   </ItemGroup>
 
 </Project>
