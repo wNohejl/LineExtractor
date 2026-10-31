@@ -1,4 +1,5 @@
 using LineOps.Core.Analytics;
+using LineOps.Desk;
 
 namespace LineOps.Web.Components;
 
@@ -18,22 +19,30 @@ namespace LineOps.Web.Components;
 /// A reading that names a clock time says so with <see cref="Label"/>. A bare day does not: it
 /// is already the league's day, which is the one the schedule, the slate and the board count.
 /// </para>
+///
+/// <para>
+/// The formats themselves are the Desk's (<see cref="DeskTime"/>); this class is LineOps's zone
+/// for them.
+/// </para>
 /// </summary>
 public static class DisplayTime
 {
     /// <summary>The zone's short name, for any reading that shows a clock time.</summary>
     public const string Label = "ET";
 
+    /// <summary>The desk's clock in the league's zone; every reading below is taken on it.</summary>
+    public static readonly DeskClock Clock = new(LeagueClock.Zone, Label);
+
     /// <summary>A date and time, labelled: "Sep 23 18:40 ET".</summary>
-    public static string Stamp(DateTimeOffset at) => $"{Format(at, "MMM d HH:mm")} {Label}";
+    public static string Stamp(DateTimeOffset at) => Clock.Stamp(at);
 
     /// <summary>Just the day: "Sep 23".</summary>
-    public static string Day(DateTimeOffset at) => Format(at, "MMM d");
+    public static string Day(DateTimeOffset at) => Clock.Day(at);
 
     /// <summary>
     /// Any other shape, unlabelled — for chart axes and the like, where the caller names
     /// <see cref="Label"/> once rather than on every tick.
     /// </summary>
     public static string Format(DateTimeOffset at, string format)
-        => LeagueClock.LocalTime(at).ToString(format);
+        => Clock.Format(at, format);
 }
