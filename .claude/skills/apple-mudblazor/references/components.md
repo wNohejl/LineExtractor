@@ -4,7 +4,7 @@
 
 ## The affordance hierarchy
 
-Two questions, two enums. **`AppleEmphasis` says how loud. `AppleRole` says
+Two questions, two enums. **`DeskEmphasis` says how loud. `DeskRole` says
 whether it destroys.** Those are the two things a call site can actually answer.
 
 | Emphasis | Looks like | For |
@@ -60,10 +60,10 @@ asked"*. Those are different sentences and the operator needs the second one.
 
 ### Why the CSS says `.app-btn, .btn`
 
-`apple-components.css` writes the button recipe against both class names. `.btn` is
+`controls.css` writes the button recipe against both class names. `.btn` is
 a dead-cheap forward-compatibility co-selector: any hand-written `.btn` markup
 picks up the same recipe instead of reappearing with a second button language.
-Nothing in the shipped system uses it — every button goes through `AppleButton` —
+Nothing in the shipped system uses it — every button goes through `DeskButton` —
 so it costs one selector and buys insurance against a stray `.btn` drifting in.
 Delete it if you would rather such markup break loudly.
 
@@ -76,13 +76,13 @@ then requires `Title`, which is both the tooltip and the accessible name.
 
 ---
 
-## `AppleState` — for the things that report
+## `DeskState` — for the things that report
 
-`AppleState` (`Neutral` / `Positive` / `Negative` / `Warning` / `Info`) is the half
+`DeskState` (`Neutral` / `Positive` / `Negative` / `Warning` / `Info`) is the half
 of the retired tone enum that was never about buttons. It belongs on a figure, a
 tag, a toast, a status strip — anything that *reports* rather than *acts*.
 
-**Buttons do not take an `AppleState`.** If you find yourself wanting one on a
+**Buttons do not take an `DeskState`.** If you find yourself wanting one on a
 button, the question you are actually answering is emphasis or role.
 
 Hue is always the second channel. A tag carries its word, a metric carries its
@@ -95,7 +95,7 @@ label, a toast carries its sentence — remove the colour and the meaning surviv
 **There is no field wrapper component, on purpose.** A field is a plain `<input>`,
 `<select>` or `<textarea>` carrying `.field`. That keeps `@bind`, validation
 attributes, `aria-*` and every native attribute working without a parameter to
-forward each one. The CSS is in `apple-components.css`.
+forward each one. The CSS is in `controls.css`.
 
 **A field is cut into the surface, not raised off it**: a darker well
 (`--surface-0`), a hairline, and no fill of its own. A field is a *place to put

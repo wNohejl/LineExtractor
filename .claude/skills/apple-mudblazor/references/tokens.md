@@ -4,7 +4,7 @@ Every token names a **role**, never a colour. That is the whole reason a second
 theme can be a second `:root` block instead of a component rewrite. If you find
 yourself writing `--blue-500`, stop: the name has to survive being re-themed.
 
-The values live in `templates/apple-tokens.css`. This file is the *why*.
+The values live in the token block of `src/LineOps.Desk/wwwroot/css/desk.css` and the theme blocks of `themes.css`. This file is the *why*.
 
 ---
 
@@ -177,7 +177,7 @@ most easily-shipped bug in the system.
 where it exists, self-hosted Inter (SIL OFL 1.1) everywhere else — the closest
 legal match on metrics. Without the Inter fallback, Windows drops to Segoe UI and
 the product looks like a different product on half your machines. See
-`templates/fonts/README.md`.
+`src/LineOps.Desk/wwwroot/fonts/`.
 
 **One family for everything.** Apple sets numbers in SF too, so there is no second
 "data" or "mono" face. A column of figures is this face plus
@@ -288,7 +288,7 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 ## The second theme
 
-A light mode is one more block. `templates/apple-tokens.css` ships it, keyed on
+A light mode is one more block. the token block of `src/LineOps.Desk/wwwroot/css/desk.css` and the theme blocks of `themes.css` ships it, keyed on
 `[data-theme="light"]`, and no component, selector or C# call site knows there are
 two themes. If adding one requires touching anything below the token blocks, the
 token that made it necessary was named for a colour.

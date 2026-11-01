@@ -9,11 +9,11 @@ page, not by reading a stylesheet.
 
 | File | Job | Loads |
 |---|---|---|
-| `apple-tokens.css` | Defines every custom property. Names roles, never colours. | after MudBlazor's sheet |
-| `apple-components.css` | The recipes that spend those tokens — buttons, fields, gate, tags, sheet, alert. Ends with the `@supports` material fallbacks. | after tokens |
-| `apple-bridge.css` | Re-points MudBlazor's own variables at your tokens, then removes the Material tells that survive that. | **last** |
+| `desk.css` (tokens) + `themes.css` | Defines every custom property. Names roles, never colours. | after MudBlazor's sheet |
+| `controls.css` | The recipes that spend those tokens — buttons, fields, gate, tags, sheet, alert. Ends with the `@supports` material fallbacks. | after tokens |
+| `mud-bridge.css` | Re-points MudBlazor's own variables at your tokens, then removes the Material tells that survive that. | **last** |
 
-Plus a fourth file that is not CSS: **`AppleTheme.cs`**, the C# palette.
+Plus a fourth file that is not CSS: **`DeskTheme.cs` and `DeskPalette.cs`**, the C# palette.
 
 The load order is not a preference. Several rules in this system win only because
 of it, and each of those rules carries a comment saying so. If you change the
@@ -48,15 +48,15 @@ The stronger reason, and the one that makes the C# palette non-optional:
 
 That is the one MudBlazor rule you cannot out-specify from a stylesheet at any
 specificity. The answer is not to escalate — it is to make the two sides **agree**.
-`AppleTheme.cs` sets `ActionDisabled` to the system's dim text token, so when
+`DeskTheme.cs` and `DeskPalette.cs` sets `ActionDisabled` to the system's dim text token, so when
 MudBlazor forces the disabled colour it forces *your* colour.
 
-**The constants in `AppleTheme.cs` must equal the custom properties in
-`apple-tokens.css` character for character.** That duplication is the price of the
+**The constants in `DeskTheme.cs` and `DeskPalette.cs` must equal the custom properties in
+`desk.css` (tokens) + `themes.css` character for character.** That duplication is the price of the
 C# palette. Keep them adjacent in review.
 
 Everything that is *not* a colour — radii, type, elevation, z-index — is remapped
-in `apple-bridge.css` instead, because CSS can express it and one place beats two.
+in `mud-bridge.css` instead, because CSS can express it and one place beats two.
 
 ---
 
@@ -158,7 +158,7 @@ them at three classes, which clears Mud's two:
 .mud-dialog.app-sheet .mud-dialog-actions { padding: 0; letter-spacing: normal; }
 ```
 
-This is also why `AppleAlert` renders **bare content** rather than a `MudDialog`:
+This is also why `DeskAlert` renders **bare content** rather than a `MudDialog`:
 an alert has no title bar, no scroll body and no action tray to fill, so wrapping
 it in one buys nothing but padding to undo.
 

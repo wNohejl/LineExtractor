@@ -1,6 +1,6 @@
 ---
 name: apple-hig-components
-description: Use when designing, building or reviewing any screen, window, form, wizard or control so it follows Apple's Human Interface Guidelines for components — which component the job calls for, how it is grouped, labelled, sized and coloured, and the tells that make a screen read as blocky or generated. Distilled from developer.apple.com/design/human-interface-guidelines (components, layout, color, typography, dark mode) in October 2026. Pairs with apple-mudblazor, which supplies the tokens and MudBlazor seam; this skill supplies the component judgment.
+description: Use when designing, building or reviewing any screen, window, form, wizard or control so it follows Apple's Human Interface Guidelines for components — which component the job calls for, how it is grouped, labelled, sized and coloured, and the tells that make a screen read as blocky or generated. Distilled from developer.apple.com/design/human-interface-guidelines (components, layout, color, typography, dark mode) in October 2026. Pairs with apple-mudblazor (the Desk's tokens, primitives and MudBlazor seam) and anthropic-skills:apple-hig-web (patterns, live HIG pages, review checklist); this skill supplies the component judgment.
 ---
 
 # Apple HIG components, applied
@@ -25,11 +25,13 @@ and colours, and run `references/audit.md` before calling a screen done.
 
 2. **Group by the weakest device that works.** The HIG's order is: negative space, then a
    container shape (a fill), then a separator line. Reach for the next device only when the
-   one before fails. A **box with a border is the strongest device and the last resort**;
-   the HIG says to keep a box small relative to its view and never nest boxes — "adding
-   nested boxes to define subgroups can make the interface feel busy and constrained".
-   Grouped lists on iOS use **fill levels** (secondary grouped background on primary) and
-   **inset separators**, not outlines, and that is the look to reach for in a form.
+   one before fails. The house rule (October 2026, after a borderless pass was rejected) is
+   that **a group or card is a fill with one 1px hairline edge** — macOS System Settings
+   draws its grouped forms this way, and the HIG's Boxes page allows "a visible border or
+   background color". What it forbids is the box inside the box: "adding nested boxes to
+   define subgroups can make the interface feel busy and constrained". Rows inside a group
+   are divided by **inset separators** and padding, never framed again; a card may hold
+   groups and a group holds rows, and nothing below that carries an edge.
 
 3. **One prominent action per view.** Prominence is style, not size. At most one or two
    prominent buttons; the rest are plain. The primary role goes to the likely, non-destructive
@@ -50,14 +52,27 @@ and colours, and run `references/audit.md` before calling a screen done.
 7. **Progressive disclosure.** Show the step being worked; fold what is done to one line
    and what is waiting to one line. Never a control that cannot be used yet.
 
+## Three skills, three jobs
+
+- **This skill** decides *what is drawn*: which control the job calls for, how it is
+  grouped and labelled, and the audit before "done".
+- **apple-mudblazor** is *how it is drawn here*: the Desk's tokens (`--surface-*`,
+  `--text-*`, `--space-*`), the `Desk*` primitives, Plain/Tinted/Filled, and the MudBlazor
+  seam. Build with it; never import a second token sheet beside it.
+- **anthropic-skills:apple-hig-web** (plugin) is the *patterns* layer this skill does not
+  carry — navigation, loading, feedback, searching, settings, undo — plus reading any HIG
+  page as Markdown by appending `.md` to its URL, and a review checklist worth running on a
+  whole window. Its `hig-tokens.css`, `hig-components.css` and `hig.js` are **not** used in
+  this repository and its `--color-*` names are not the Desk's. Take its judgment, not its
+  files.
+
 ## Where this applies in LineOps
 
-The desk's tokens, surfaces and button emphases are the apple-mudblazor skill's
-(`--surface-*`, `--text-*`, `--space-*`, Plain/Tinted/Filled). This skill decides what is
-drawn with them. The wager window (`BoardWager.razor`) is the reference implementation of
-`references/forms.md`: a grouped form in three steps, no outlines, a segmented control per
-market, label column leading and controls trailing, footers under groups. Any new form or
-wizard in this repository or a sibling copies that shape rather than inventing one.
+The wager window (`BoardWager.razor`) is the reference implementation of
+`references/forms.md` and `references/wizards.md`: a grouped form in three steps, each group
+a fill with one hairline, a segmented control per market, label column leading and controls
+trailing, footers under groups. Any new form or wizard in this repository or a sibling copies
+that shape rather than inventing one.
 
 ## When not to bend it
 

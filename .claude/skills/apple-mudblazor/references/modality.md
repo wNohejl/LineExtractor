@@ -6,7 +6,7 @@ Read this **before** adding any dialog, sheet, or alert.
 
 ## The decision rule
 
-Verbatim, as it is written into `AppleSheet.razor` where anyone adding a sheet
+Verbatim, as it is written into `DeskSheet.razor` where anyone adding a sheet
 will read it:
 
 > Use a sheet when the task is self-contained and completing it is the only goal.
@@ -24,8 +24,8 @@ answered. That claim is true far less often than dialogs are built.
 | Tier | Modal? | For | Template |
 |---|---|---|---|
 | **Floating panel** | no | anything the operator compares, references, or works alongside | your own; not shipped here |
-| **Sheet** | yes | one self-contained task — a form that must complete or cancel, a multi-step configuration | `AppleSheet.razor` |
-| **Alert** | yes | the operator must decide *before anything else happens* | `AppleAlert.razor` + `AppleAlerts.cs` |
+| **Sheet** | yes | one self-contained task — a form that must complete or cancel, a multi-step configuration | `DeskSheet.razor` |
+| **Alert** | yes | the operator must decide *before anything else happens* | `DeskAlert.razor` + `DeskAlerts.cs` |
 
 The modal tier sits **beside** a floating layer; it does not replace it. An
 application whose core workflow is comparing two things has no business making
@@ -62,7 +62,7 @@ var result = await dialog.Result;
 if (result is { Canceled: false, Data: true }) { /* committed */ }
 ```
 
-Inside, `AppleSheet` gives you `Title`, `Subtitle`, body content and a `Footer`.
+Inside, `DeskSheet` gives you `Title`, `Subtitle`, body content and a `Footer`.
 
 - **Exactly one `Filled` button in the footer** — the one that completes the task.
   Cancel is `Plain` beside it.
@@ -119,7 +119,7 @@ sits somewhere else entirely and Enter activates nothing, is indistinguishable
 from a real ring to a keyboard operator. That is **worse than no marking at all**,
 and it shipped once before it was caught.
 
-So `AppleAlert` focuses the default button in `OnAfterRenderAsync(firstRender)`.
+So `DeskAlert` focuses the default button in `OnAfterRenderAsync(firstRender)`.
 Enter then activates it *because it is focused*, and the ring that appears is the
 browser's own `:focus-visible` — earned rather than drawn. It appears when a
 keyboard opened the alert and stays away when a pointer did.
@@ -133,7 +133,7 @@ Two mechanics behind this:
 - MudBlazor's dialog traps the tab ring but **does not choose a starting point**,
   and the HTML `autofocus` attribute is not honoured for content the renderer
   inserts after load. So focus must be set in code.
-- **`AppleButton` exposes a `FocusAsync()` forwarder** for this. `@ref` on a
+- **`DeskButton` exposes a `FocusAsync()` forwarder** for this. `@ref` on a
   component hands back the *component*, not an element, so a parent has no other
   route through the boundary. MudBlazor already holds the underlying
   `ElementReference`; the forwarder just passes it along, and is a safe no-op
@@ -171,7 +171,7 @@ return result is { Canceled: false, Data: true };
 
 An unanswered question is a **no**. Only an explicit confirm reads as true.
 
-`OnCancel` on `AppleSheet` is still useful — for cleanup the sheet itself owns. It
+`OnCancel` on `DeskSheet` is still useful — for cleanup the sheet itself owns. It
 is not useful for knowing what happened.
 
 ---
@@ -185,7 +185,7 @@ is not useful for knowing what happened.
 | **Use for** | alerts, and any sheet holding unsaved input | sheets that are read-mostly or trivially reopened |
 | **Why** | a decision is not dismissed by missing the alert; a mis-click must not discard a half-filled form | trapping an operator behind a panel they only wanted to glance past is its own hostility |
 
-`AppleAlerts` sets `BackdropClick = false` and `CloseOnEscapeKey = true`. That
+`DeskAlerts` sets `BackdropClick = false` and `CloseOnEscapeKey = true`. That
 pairing is deliberate: Escape is a **deliberate** dismissal and reads as "no";
 a stray click near the edge of a modal is not a decision at all.
 
