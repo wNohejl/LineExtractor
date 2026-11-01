@@ -389,7 +389,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 {
                     @* One line per leg: wrapped, the tag, the team and the price each took a line
                        of their own and the legs could not be told apart. *@
-                    <DeskRow NoWrap style="white-space:nowrap">
+                    <DeskRow NoWrap Class="legline">
                         <Tag State="@ResultState(leg.Result)">@leg.Result</Tag>
                         @Selection(leg)
                         @if (leg.PriceTaken != 0)

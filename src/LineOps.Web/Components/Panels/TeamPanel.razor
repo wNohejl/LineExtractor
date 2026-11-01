@@ -161,7 +161,7 @@ else
                             <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"game-{row.GameId}")">
                                 <GameResultSnippet Row="row" />
 
-                                <div class="row">
+                                <DeskRow>
                                     <DeskButton Size="DeskKeySize.Small"
                                                 Icon="@Icons.Material.Filled.SportsScore"
                                                 OnClick="() => OpenGameAsync(row.GameId)">
@@ -173,7 +173,7 @@ else
                                                 OnClick="() => LaunchMovement(row)">
                                         Movement
                                     </DeskButton>
-                                </div>
+                                </DeskRow>
                             </DeskStack>
                         </ChildContent>
                     </DeskDisclosure>
@@ -213,13 +213,13 @@ else
                         <DeskStack Gap="DeskSpace.Space3" Class="logrow__body" id="@($"player-{player.PlayerId}")">
                             <PlayerRecentSnippet PlayerId="player.PlayerId" />
 
-                            <div class="row">
+                            <DeskRow>
                                 <DeskButton Size="DeskKeySize.Small"
                                             Icon="@Icons.Material.Filled.Person"
                                             OnClick="() => LaunchPlayer(player)">
                                     Full game log
                                 </DeskButton>
-                            </div>
+                            </DeskRow>
                         </DeskStack>
                     </ChildContent>
                 </DeskDisclosure>

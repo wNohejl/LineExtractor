@@ -35,7 +35,7 @@
        matchup trailing a stray dash and never showed the date that tells a series apart. It
        now takes the width its longest option asks, up to the toolbar's; a window narrower than
        that still clips, but at the end of the home club's name rather than mid-separator. *@
-    <DeskSelect TValue="int?" aria-label="Game" style="max-width:min(440px, 100%)"
+    <DeskSelect TValue="int?" aria-label="Game" Class="odds-game"
                 disabled="@(_games.Count == 0 && _picked is null)"
                 Value="@(Listed(_gameId) ? _gameId : null)" ValueChanged="OnGameChanged">
         <option value="">@(_games.Count == 0 ? "No game has moves on record" : "Games with moves…")</option>
