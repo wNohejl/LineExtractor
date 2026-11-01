@@ -1,0 +1,1013 @@
+{
+  "//": "Trimmed ESPN NFL /summary?event=401873032 (LAC @ LAR), captured live in Q2 on 1 Nov 2026. Four of the ten previous drives with two or three plays each; drives.current is the last of them, repeated, exactly as ESPN sends it while a drive is the latest one. One scoring play, the winprobability rows for the kept plays (plus the game-start row 4018730321, which pairs with no play), and the header status.",
+  "drives": {
+    "current": {
+      "id": "40187303210",
+      "description": "3 plays, 8 yards, 1:40",
+      "start": {
+        "period": {
+          "type": "quarter",
+          "number": 2
+        },
+        "clock": {
+          "displayValue": "10:06"
+        },
+        "yardLine": 28,
+        "text": "LAR 28"
+      },
+      "end": {
+        "period": {
+          "type": "quarter",
+          "number": 2
+        },
+        "clock": {
+          "displayValue": "8:26"
+        },
+        "yardLine": 36,
+        "text": "LAR 36"
+      },
+      "timeElapsed": {
+        "displayValue": "1:40"
+      },
+      "yards": 8,
+      "isScore": false,
+      "offensivePlays": 3,
+      "result": "PUNT",
+      "shortDisplayResult": "PUNT",
+      "displayResult": "Punt",
+      "team": {
+        "id": "14",
+        "abbreviation": "LAR",
+        "displayName": "Los Angeles Rams"
+      },
+      "plays": [
+        {
+          "id": "4018730321318",
+          "sequenceNumber": "131800",
+          "type": {
+            "id": "53",
+            "text": "Kickoff",
+            "abbreviation": "K"
+          },
+          "text": "C.Dicker kicks 59 yards from LAC 35 to LA 6. A.Bachman to LA 28 for 22 yards (J.Eboigbe).",
+          "awayScore": 6,
+          "homeScore": 3,
+          "period": {
+            "number": 2
+          },
+          "clock": {
+            "displayValue": "10:06"
+          },
+          "scoringPlay": false,
+          "priority": false,
+          "modified": "2026-11-01T21:59Z",
+          "wallclock": "2026-11-01T21:56:56Z",
+          "isPenalty": false,
+          "statYardage": 22,
+          "start": {
+            "down": 0,
+            "distance": 0,
+            "yardLine": 65,
+            "yardsToEndzone": 65,
+            "team": {
+              "id": "24"
+            }
+          },
+          "end": {
+            "down": 1,
+            "distance": 10,
+            "yardLine": 28,
+            "yardsToEndzone": 72,
+            "downDistanceText": "1st & 10 at LAR 28",
+            "shortDownDistanceText": "1st & 10",
+            "possessionText": "LAR 28",
+            "team": {
+              "id": "14"
+            }
+          },
+          "isTurnover": false,
+          "teamParticipants": [
+            {
+              "id": "14",
+              "order": 1,
+              "type": "offense"
+            },
+            {
+              "id": "24",
+              "order": 2,
+              "type": "defense"
+            }
+          ]
+        },
+        {
+          "id": "4018730321348",
+          "sequenceNumber": "134800",
+          "type": {
+            "id": "24",
+            "text": "Pass Reception",
+            "abbreviation": "REC"
+          },
+          "text": "(Shotgun) M.Stafford pass short right to D.Allen to LA 30 for 2 yards (I.Waxter).",
+          "awayScore": 6,
+          "homeScore": 3,
+          "period": {
+            "number": 2
+          },
+          "clock": {
+            "displayValue": "10:01"
+          },
+          "scoringPlay": false,
+          "priority": false,
+          "modified": "2026-11-01T21:59Z",
+          "wallclock": "2026-11-01T21:57:37Z",
+          "isPenalty": false,
+          "statYardage": 2,
+          "start": {
+            "down": 1,
+            "distance": 10,
+            "yardLine": 28,
+            "yardsToEndzone": 72,
+            "downDistanceText": "1st & 10 at LAR 28",
+            "shortDownDistanceText": "1st & 10",
+            "possessionText": "LAR 28",
+            "team": {
+              "id": "14"
+            }
+          },
+          "end": {
+            "down": 2,
+            "distance": 8,
+            "yardLine": 30,
+            "yardsToEndzone": 70,
+            "downDistanceText": "2nd & 8 at LAR 30",
+            "shortDownDistanceText": "2nd & 8",
+            "possessionText": "LAR 30",
+            "team": {
+              "id": "14"
+            }
+          },
+          "yardsAfterCatch": 1,
+          "isTurnover": false,
+          "teamParticipants": [
+            {
+              "id": "14",
+              "order": 1,
+              "type": "offense"
+            },
+            {
+              "id": "24",
+              "order": 2,
+              "type": "defense"
+            }
+          ]
+        }
+      ]
+    },
+    "previous": [
+      {
+        "id": "4018730321",
+        "description": "3 plays, 3 yards, 1:08",
+        "start": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "15:00"
+          },
+          "yardLine": 77,
+          "text": "LAC 23"
+        },
+        "end": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "13:52"
+          },
+          "yardLine": 74,
+          "text": "LAC 26"
+        },
+        "timeElapsed": {
+          "displayValue": "1:08"
+        },
+        "yards": 3,
+        "isScore": false,
+        "offensivePlays": 3,
+        "result": "PUNT",
+        "shortDisplayResult": "PUNT",
+        "displayResult": "Punt",
+        "team": {
+          "id": "24",
+          "abbreviation": "LAC",
+          "displayName": "Los Angeles Chargers"
+        },
+        "plays": [
+          {
+            "id": "40187303240",
+            "sequenceNumber": "4000",
+            "type": {
+              "id": "53",
+              "text": "Kickoff",
+              "abbreviation": "K"
+            },
+            "text": "J.Karty kicks 51 yards from LA 35 to LAC 14. D.Davis to LAC 23 for 9 yards (D.Peterson).",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "15:00"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:09Z",
+            "wallclock": "2026-11-01T21:05:33Z",
+            "isPenalty": false,
+            "statYardage": 9,
+            "start": {
+              "down": 0,
+              "distance": 0,
+              "yardLine": 35,
+              "yardsToEndzone": 65,
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": 1,
+              "distance": 10,
+              "yardLine": 77,
+              "yardsToEndzone": 77,
+              "downDistanceText": "1st & 10 at LAC 23",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "LAC 23",
+              "team": {
+                "id": "24"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "24",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "14",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          },
+          {
+            "id": "40187303263",
+            "sequenceNumber": "6300",
+            "type": {
+              "id": "3",
+              "text": "Pass Incompletion"
+            },
+            "text": "(Shotgun) J.Herbert pass incomplete short middle to O.Hampton.",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "14:54"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:10Z",
+            "wallclock": "2026-11-01T21:06:17Z",
+            "isPenalty": false,
+            "statYardage": 0,
+            "start": {
+              "down": 1,
+              "distance": 10,
+              "yardLine": 77,
+              "yardsToEndzone": 77,
+              "downDistanceText": "1st & 10 at LAC 23",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "LAC 23",
+              "team": {
+                "id": "24"
+              }
+            },
+            "end": {
+              "down": 2,
+              "distance": 10,
+              "yardLine": 77,
+              "yardsToEndzone": 77,
+              "downDistanceText": "2nd & 10 at LAC 23",
+              "shortDownDistanceText": "2nd & 10",
+              "possessionText": "LAC 23",
+              "team": {
+                "id": "24"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "24",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "14",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          },
+          {
+            "id": "40187303286",
+            "sequenceNumber": "8600",
+            "type": {
+              "id": "24",
+              "text": "Pass Reception",
+              "abbreviation": "REC"
+            },
+            "text": "(Shotgun) J.Herbert pass short left to L.McConkey to LAC 26 for 3 yards (T.McDuffie; N.Landman).",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "14:48"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:10Z",
+            "wallclock": "2026-11-01T21:06:49Z",
+            "isPenalty": false,
+            "statYardage": 3,
+            "start": {
+              "down": 2,
+              "distance": 10,
+              "yardLine": 77,
+              "yardsToEndzone": 77,
+              "downDistanceText": "2nd & 10 at LAC 23",
+              "shortDownDistanceText": "2nd & 10",
+              "possessionText": "LAC 23",
+              "team": {
+                "id": "24"
+              }
+            },
+            "end": {
+              "down": 3,
+              "distance": 7,
+              "yardLine": 74,
+              "yardsToEndzone": 74,
+              "downDistanceText": "3rd & 7 at LAC 26",
+              "shortDownDistanceText": "3rd & 7",
+              "possessionText": "LAC 26",
+              "team": {
+                "id": "24"
+              }
+            },
+            "yardsAfterCatch": 6,
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "24",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "14",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "4018730322",
+        "description": "3 plays, 4 yards, 1:46",
+        "start": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "13:52"
+          },
+          "yardLine": 33,
+          "text": "LAR 33"
+        },
+        "end": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "12:06"
+          },
+          "yardLine": 37,
+          "text": "LAR 37"
+        },
+        "timeElapsed": {
+          "displayValue": "1:46"
+        },
+        "yards": 4,
+        "isScore": false,
+        "offensivePlays": 3,
+        "result": "INT",
+        "shortDisplayResult": "INT",
+        "displayResult": "Interception",
+        "team": {
+          "id": "14",
+          "abbreviation": "LAR",
+          "displayName": "Los Angeles Rams"
+        },
+        "plays": [
+          {
+            "id": "401873032207",
+            "sequenceNumber": "20700",
+            "type": {
+              "id": "8",
+              "text": "Penalty",
+              "abbreviation": "PEN"
+            },
+            "text": "D.Quessenberry reported in as eligible.  PENALTY on LA-T.Higbee, False Start, 5 yards, enforced at LA 42 - No Play.",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "12:34"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:17Z",
+            "wallclock": "2026-11-01T21:10:15Z",
+            "isPenalty": true,
+            "statYardage": -5,
+            "start": {
+              "down": 3,
+              "distance": 1,
+              "yardLine": 42,
+              "yardsToEndzone": 58,
+              "downDistanceText": "3rd & 1 at LAR 42",
+              "shortDownDistanceText": "3rd & 1",
+              "possessionText": "LAR 42",
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": 3,
+              "distance": 6,
+              "yardLine": 37,
+              "yardsToEndzone": 63,
+              "downDistanceText": "3rd & 6 at LAR 37",
+              "shortDownDistanceText": "3rd & 6",
+              "possessionText": "LAR 37",
+              "team": {
+                "id": "14"
+              }
+            },
+            "penalty": {
+              "yards": 5,
+              "type": {
+                "slug": "false-start",
+                "text": "False Start"
+              },
+              "status": {
+                "slug": "accepted",
+                "text": "Accepted"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "14",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "24",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          },
+          {
+            "id": "401873032242",
+            "sequenceNumber": "24200",
+            "type": {
+              "id": "26",
+              "text": "Pass Interception Return",
+              "abbreviation": "INTR"
+            },
+            "text": "(Shotgun) M.Stafford pass short left intended for K.Mumpfield INTERCEPTED by T.Still at LA 47. T.Still pushed ob at LA 47 for no gain (K.Mumpfield).",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "12:12"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:14Z",
+            "wallclock": "2026-11-01T21:11:01Z",
+            "isPenalty": false,
+            "statYardage": 0,
+            "start": {
+              "down": 3,
+              "distance": 6,
+              "yardLine": 37,
+              "yardsToEndzone": 63,
+              "downDistanceText": "3rd & 6 at LAR 37",
+              "shortDownDistanceText": "3rd & 6",
+              "possessionText": "LAR 37",
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": 1,
+              "distance": 10,
+              "yardLine": 47,
+              "yardsToEndzone": 47,
+              "downDistanceText": "1st & 10 at LAR 47",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "LAR 47",
+              "team": {
+                "id": "24"
+              }
+            },
+            "isTurnover": true,
+            "teamParticipants": [
+              {
+                "id": "24",
+                "order": 1,
+                "type": "defense"
+              },
+              {
+                "id": "14",
+                "order": 2,
+                "type": "offense"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "4018730326",
+        "description": "4 plays, 8 yards, 1:29",
+        "start": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "7:11"
+          },
+          "yardLine": 81,
+          "text": "LAC 19"
+        },
+        "end": {
+          "period": {
+            "type": "quarter",
+            "number": 1
+          },
+          "clock": {
+            "displayValue": "5:42"
+          },
+          "yardLine": 89,
+          "text": "LAC 11"
+        },
+        "timeElapsed": {
+          "displayValue": "1:29"
+        },
+        "yards": 8,
+        "isScore": true,
+        "offensivePlays": 4,
+        "result": "FG",
+        "shortDisplayResult": "FG",
+        "displayResult": "Field Goal",
+        "team": {
+          "id": "14",
+          "abbreviation": "LAR",
+          "displayName": "Los Angeles Rams"
+        },
+        "plays": [
+          {
+            "id": "401873032666",
+            "sequenceNumber": "66600",
+            "type": {
+              "id": "3",
+              "text": "Pass Incompletion"
+            },
+            "text": "(Shotgun) M.Stafford pass incomplete short middle to K.Mumpfield.",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "5:49"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:37Z",
+            "wallclock": "2026-11-01T21:29:47Z",
+            "isPenalty": false,
+            "statYardage": 0,
+            "start": {
+              "down": 3,
+              "distance": 2,
+              "yardLine": 89,
+              "yardsToEndzone": 89,
+              "downDistanceText": "3rd & 2 at LAC 11",
+              "shortDownDistanceText": "3rd & 2",
+              "possessionText": "LAC 11",
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": 4,
+              "distance": 2,
+              "yardLine": 89,
+              "yardsToEndzone": 89,
+              "downDistanceText": "4th & 2 at LAC 11",
+              "shortDownDistanceText": "4th & 2",
+              "possessionText": "LAC 11",
+              "team": {
+                "id": "14"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "14",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "24",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          },
+          {
+            "id": "401873032689",
+            "sequenceNumber": "68900",
+            "type": {
+              "id": "59",
+              "text": "Field Goal Good",
+              "abbreviation": "FG"
+            },
+            "text": "B.McManus 30 yard field goal is GOOD, Center-J.McQuaide, Holder-E.Evans.",
+            "awayScore": 0,
+            "homeScore": 3,
+            "period": {
+              "number": 1
+            },
+            "clock": {
+              "displayValue": "5:42"
+            },
+            "scoringPlay": true,
+            "priority": false,
+            "modified": "2026-11-01T21:32Z",
+            "wallclock": "2026-11-01T21:30:27Z",
+            "isPenalty": false,
+            "statYardage": 30,
+            "start": {
+              "down": 4,
+              "distance": 2,
+              "yardLine": 89,
+              "yardsToEndzone": 89,
+              "downDistanceText": "4th & 2 at LAC 11",
+              "shortDownDistanceText": "4th & 2",
+              "possessionText": "LAC 11",
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": -1,
+              "distance": 10,
+              "yardLine": 100,
+              "yardsToEndzone": 100,
+              "team": {
+                "id": "14"
+              }
+            },
+            "scoringType": {
+              "name": "field-goal",
+              "displayName": "Field Goal",
+              "abbreviation": "FG"
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "14",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "24",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "40187303210",
+        "description": "3 plays, 8 yards, 1:40",
+        "start": {
+          "period": {
+            "type": "quarter",
+            "number": 2
+          },
+          "clock": {
+            "displayValue": "10:06"
+          },
+          "yardLine": 28,
+          "text": "LAR 28"
+        },
+        "end": {
+          "period": {
+            "type": "quarter",
+            "number": 2
+          },
+          "clock": {
+            "displayValue": "8:26"
+          },
+          "yardLine": 36,
+          "text": "LAR 36"
+        },
+        "timeElapsed": {
+          "displayValue": "1:40"
+        },
+        "yards": 8,
+        "isScore": false,
+        "offensivePlays": 3,
+        "result": "PUNT",
+        "shortDisplayResult": "PUNT",
+        "displayResult": "Punt",
+        "team": {
+          "id": "14",
+          "abbreviation": "LAR",
+          "displayName": "Los Angeles Rams"
+        },
+        "plays": [
+          {
+            "id": "4018730321318",
+            "sequenceNumber": "131800",
+            "type": {
+              "id": "53",
+              "text": "Kickoff",
+              "abbreviation": "K"
+            },
+            "text": "C.Dicker kicks 59 yards from LAC 35 to LA 6. A.Bachman to LA 28 for 22 yards (J.Eboigbe).",
+            "awayScore": 6,
+            "homeScore": 3,
+            "period": {
+              "number": 2
+            },
+            "clock": {
+              "displayValue": "10:06"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:59Z",
+            "wallclock": "2026-11-01T21:56:56Z",
+            "isPenalty": false,
+            "statYardage": 22,
+            "start": {
+              "down": 0,
+              "distance": 0,
+              "yardLine": 65,
+              "yardsToEndzone": 65,
+              "team": {
+                "id": "24"
+              }
+            },
+            "end": {
+              "down": 1,
+              "distance": 10,
+              "yardLine": 28,
+              "yardsToEndzone": 72,
+              "downDistanceText": "1st & 10 at LAR 28",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "LAR 28",
+              "team": {
+                "id": "14"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "14",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "24",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          },
+          {
+            "id": "4018730321348",
+            "sequenceNumber": "134800",
+            "type": {
+              "id": "24",
+              "text": "Pass Reception",
+              "abbreviation": "REC"
+            },
+            "text": "(Shotgun) M.Stafford pass short right to D.Allen to LA 30 for 2 yards (I.Waxter).",
+            "awayScore": 6,
+            "homeScore": 3,
+            "period": {
+              "number": 2
+            },
+            "clock": {
+              "displayValue": "10:01"
+            },
+            "scoringPlay": false,
+            "priority": false,
+            "modified": "2026-11-01T21:59Z",
+            "wallclock": "2026-11-01T21:57:37Z",
+            "isPenalty": false,
+            "statYardage": 2,
+            "start": {
+              "down": 1,
+              "distance": 10,
+              "yardLine": 28,
+              "yardsToEndzone": 72,
+              "downDistanceText": "1st & 10 at LAR 28",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "LAR 28",
+              "team": {
+                "id": "14"
+              }
+            },
+            "end": {
+              "down": 2,
+              "distance": 8,
+              "yardLine": 30,
+              "yardsToEndzone": 70,
+              "downDistanceText": "2nd & 8 at LAR 30",
+              "shortDownDistanceText": "2nd & 8",
+              "possessionText": "LAR 30",
+              "team": {
+                "id": "14"
+              }
+            },
+            "yardsAfterCatch": 1,
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "14",
+                "order": 1,
+                "type": "offense"
+              },
+              {
+                "id": "24",
+                "order": 2,
+                "type": "defense"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scoringPlays": [
+    {
+      "id": "401873032689",
+      "type": {
+        "id": "59",
+        "text": "Field Goal Good",
+        "abbreviation": "FG"
+      },
+      "text": "Brandon McManus 30 Yd Field Goal",
+      "awayScore": 0,
+      "homeScore": 3,
+      "period": {
+        "number": 1
+      },
+      "clock": {
+        "value": 342.0,
+        "displayValue": "5:42"
+      },
+      "scoringType": {
+        "name": "field-goal",
+        "displayName": "Field Goal",
+        "abbreviation": "FG"
+      },
+      "team": {
+        "id": "14",
+        "abbreviation": "LAR"
+      }
+    }
+  ],
+  "winprobability": [
+    {
+      "homeWinPercentage": 0.7454,
+      "tiePercentage": 0.0,
+      "playId": "4018730321"
+    },
+    {
+      "homeWinPercentage": 0.7331,
+      "tiePercentage": 0.0,
+      "playId": "40187303240"
+    },
+    {
+      "homeWinPercentage": 0.7481,
+      "tiePercentage": 0.0,
+      "playId": "40187303263"
+    },
+    {
+      "homeWinPercentage": 0.7487,
+      "tiePercentage": 0.0,
+      "playId": "40187303286"
+    },
+    {
+      "homeWinPercentage": 0.749,
+      "tiePercentage": 0.0,
+      "playId": "401873032207"
+    },
+    {
+      "homeWinPercentage": 0.6946,
+      "tiePercentage": 0.0,
+      "playId": "401873032242"
+    },
+    {
+      "homeWinPercentage": 0.7658,
+      "tiePercentage": 0.0,
+      "playId": "401873032666"
+    },
+    {
+      "homeWinPercentage": 0.7787,
+      "tiePercentage": 0.0,
+      "playId": "401873032689"
+    },
+    {
+      "homeWinPercentage": 0.6527,
+      "tiePercentage": 0.0,
+      "playId": "4018730321318"
+    },
+    {
+      "homeWinPercentage": 0.6398,
+      "tiePercentage": 0.0,
+      "playId": "4018730321348"
+    }
+  ],
+  "header": {
+    "id": "401873032",
+    "competitions": [
+      {
+        "id": "401873032",
+        "liveAvailable": true,
+        "playByPlaySource": "full",
+        "competitors": [
+          {
+            "id": "14",
+            "homeAway": "home",
+            "score": "3"
+          },
+          {
+            "id": "24",
+            "homeAway": "away",
+            "score": "6"
+          }
+        ],
+        "status": {
+          "displayClock": "8:26",
+          "period": 2,
+          "type": {
+            "id": "2",
+            "name": "STATUS_IN_PROGRESS",
+            "state": "in",
+            "completed": false,
+            "description": "In Progress",
+            "detail": "8:26 - 2nd Quarter",
+            "shortDetail": "8:26 - 2nd",
+            "statusPrimary": "8:26",
+            "statusSecondary": "2nd"
+          },
+          "isTBDFlex": false,
+          "displayPeriod": "2nd"
+        }
+      }
+    ]
+  }
+}

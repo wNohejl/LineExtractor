@@ -29,6 +29,9 @@ public static class DataTopics
     public const string Alerts = "alerts";
     public const string Runs = "runs";
 
+    /// <summary>A game's play-by-play and drives — what the Gamecast window watches, addressed <c>plays:4123</c>.</summary>
+    public const string Plays = "plays";
+
     /// <summary>
     /// The most ids one topic lists in one notice; past it the notice names the bare topic.
     /// <c>pg_notify</c> refuses a payload over 8000 bytes, and a backfill touches thousands of
@@ -42,7 +45,7 @@ public static class DataTopics
     /// that watch only their own game.
     /// </summary>
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string> { Games, Odds, Journal, Alerts, Runs };
+        new HashSet<string> { Games, Odds, Journal, Alerts, Runs, Plays };
 
     /// <summary>
     /// The token for a change to one game's rows under a topic: <c>games:4123</c>. The same shape
@@ -58,6 +61,7 @@ public static class DataTopics
         nameof(JournalEntry) or nameof(Parlay) or nameof(AppSetting) => Journal,
         nameof(Alert) or nameof(Incident) => Alerts,
         nameof(IngestionRun) or nameof(BackfillCheckpoint) => Runs,
+        nameof(GamePlay) or nameof(GameDrive) => Plays,
         _ => null
     };
 
@@ -73,6 +77,8 @@ public static class DataTopics
         StatSnapshot s => s.GameId,
         OddsSnapshot o => o.GameId,
         ClosingLine c => c.GameId,
+        GamePlay p => p.GameId,
+        GameDrive d => d.GameId,
         _ => 0
     } is var id and > 0 ? id : null;
 }

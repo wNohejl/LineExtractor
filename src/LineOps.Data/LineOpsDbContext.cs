@@ -18,6 +18,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<ClosingLine> ClosingLines => Set<ClosingLine>();
     public DbSet<StatSnapshot> StatSnapshots => Set<StatSnapshot>();
     public DbSet<PlayerGameStat> PlayerGameStats => Set<PlayerGameStat>();
+    public DbSet<GamePlay> GamePlays => Set<GamePlay>();
+    public DbSet<GameDrive> GameDrives => Set<GameDrive>();
 
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Parlay> Parlays => Set<Parlay>();
@@ -232,6 +234,55 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
 
             e.HasOne(x => x.Player).WithMany().HasForeignKey(x => x.PlayerId);
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // The gamecast's play store (spec §6.2). Upserted by the provider's id, so the natural key
+        // is unique; the window reads a game's plays in order and asks for those after the last it
+        // holds, which is the second index. Deleting the game takes its plays and drives.
+        b.Entity<GamePlay>(e =>
+        {
+            e.Property(x => x.SourcePlayId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Clock).HasMaxLength(16);
+            e.Property(x => x.TypeId).HasMaxLength(16);
+            e.Property(x => x.Type).HasMaxLength(64);
+            e.Property(x => x.StartSituation).HasColumnType("jsonb");
+            e.Property(x => x.EndSituation).HasColumnType("jsonb");
+
+            // Fractions of one, to four places: the provider sends more than a window can show,
+            // and the writer rounds to this before it compares, or every poll would read as a change.
+            e.Property(x => x.HomeWinPct).HasPrecision(6, 4);
+            e.Property(x => x.SpreadCoverPctHome).HasPrecision(6, 4);
+            e.Property(x => x.TotalOverPct).HasPrecision(6, 4);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.SourcePlayId })
+                .IsUnique()
+                .HasDatabaseName("ux_game_play");
+            e.HasIndex(x => new { x.GameId, x.Sequence }).HasDatabaseName("ix_game_play_game_sequence");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+            e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<GameDrive>(e =>
+        {
+            e.Property(x => x.SourceDriveId).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Result).HasMaxLength(64);
+            e.Property(x => x.TimeElapsed).HasMaxLength(16);
+            e.Property(x => x.StartClock).HasMaxLength(16);
+            e.Property(x => x.EndClock).HasMaxLength(16);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.SourceDriveId })
+                .IsUnique()
+                .HasDatabaseName("ux_game_drive");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
             e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
                 .OnDelete(DeleteBehavior.SetNull);
         });

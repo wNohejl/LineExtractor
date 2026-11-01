@@ -55,6 +55,55 @@ public class IngestionOptions
     /// <summary>When to ask ESPN for schedules and results — distinct from <see cref="Espn"/>,
     /// which is the adapter's own connection settings.</summary>
     public EspnScheduleOptions GamePasses { get; set; } = new();
+
+    /// <summary>The feed that follows games in play play by play — see <c>GamecastFeed</c>.</summary>
+    public GamecastOptions Gamecast { get; set; } = new();
+}
+
+/// <summary>
+/// How the gamecast feed follows games in play (spec 2026-10-24 §6.3).
+///
+/// <para>
+/// Only ESPN is spent, and ESPN is unmetered — which is a reason for a ceiling rather than an
+/// excuse to go without one. The summary is up to half a megabyte, one per followed game every
+/// <see cref="Poll"/>; a full NFL Sunday afternoon is a dozen games at once, and one address
+/// asking for all of them every fifteen seconds for hours is the profile that gets blocked
+/// (spec §7). So the feed follows the earliest <see cref="MaxFollowedGames"/> and says when the
+/// ceiling bites.
+/// </para>
+/// </summary>
+public class GamecastOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gap between summaries for each followed game. Fifteen seconds, the live scoreboard's own
+    /// cadence: ESPN caches both for about ten, so faster reads the same document twice.
+    /// </summary>
+    public TimeSpan Poll { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Gap between the core API's per-play probabilities for each followed game. Slower than
+    /// <see cref="Poll"/> because it is a second request for context — spread cover, total over —
+    /// that moves with the plays rather than ahead of them; the last rows fetched are laid onto
+    /// every write in between, so a play keeps its numbers between asks.
+    /// </summary>
+    public TimeSpan ProbabilityPoll { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>The most games followed at once, earliest start first.</summary>
+    public int MaxFollowedGames { get; set; } = 4;
+
+    /// <summary>
+    /// Leagues followed, by <see cref="Core.Entities.Sport.Key"/>. Empty by default and read
+    /// through <see cref="EffectiveSports"/>, for the binder-append reason on
+    /// <see cref="IngestionOptions.Sports"/>.
+    /// </summary>
+    public string[] Sports { get; set; } = [];
+
+    /// <summary>The leagues to follow, falling back to football — the one ESPN narrates in drives.</summary>
+    public string[] EffectiveSports => Sports.Length > 0 ? Sports : DefaultSports;
+
+    public static readonly string[] DefaultSports = ["nfl"];
 }
 
 /// <summary>Who decides when lines are fetched.</summary>

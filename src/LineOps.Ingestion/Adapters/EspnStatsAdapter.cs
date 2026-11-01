@@ -113,48 +113,91 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         foreach (var game in finals)
         {
             ct.ThrowIfCancellationRequested();
-
-            try
-            {
-                using var doc = await GetJsonAsync($"{path}/summary?event={game.SourceGameId}", ct);
-                requests++;
-
-                ParseBoxScore(doc.RootElement, sportKey, game.SourceGameId, players, stats);
-
-                // The same response carries what the line closed at, so the historical
-                // reference is free — no second request, no second walk.
-                var closed = ParseClosingLines(
-                    doc.RootElement, game.SourceGameId,
-                    game.HomeTeamName, game.AwayTeamName, game.StartsAt).ToList();
-
-                // Except where the summary has dropped its odds block, which it does for older
-                // games. The odds endpoint still has the close; one request buys it back.
-                if (closed.Count == 0)
-                {
-                    try
-                    {
-                        closed.AddRange(await FetchClosingLinesAsync(sportKey,
-                            new ClosingLineRequest(game.SourceGameId, game.HomeTeamName, game.AwayTeamName, game.StartsAt), ct));
-                        requests++;
-                    }
-                    catch (Exception ex) when (ex is not OperationCanceledException)
-                    {
-                        // A line is a reference; its absence must not cost the box score.
-                        logger.LogDebug(ex, "{Source}: no closing odds for {GameId}", SourceKey, game.SourceGameId);
-                    }
-                }
-
-                lines.AddRange(closed);
-            }
-            catch (Exception ex)
-            {
-                // One unavailable box score must not cost us the rest of the slate.
-                logger.LogWarning(ex, "{Source}: box score unavailable for {GameId}",
-                    SourceKey, game.SourceGameId);
-            }
+            requests += await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, ct);
         }
 
         return new StatsFetchResult(scoreboard.Games, players, stats, new FetchCost(requests), lines);
+    }
+
+    /// <summary>
+    /// One game's box score: its row from the day's scoreboard, then its summary, read exactly as
+    /// <see cref="FetchBoxScoresAsync"/> reads every final on the day. Two requests where the
+    /// day's walk is one per final — the price of the gamecast feed landing the box the moment the
+    /// game it follows ends (spec 2026-10-24 §6.3.4) rather than on the next results sweep.
+    /// </summary>
+    public async Task<StatsFetchResult> FetchBoxScoreAsync(
+        string sportKey, DateOnly date, string sourceGameId, CancellationToken ct)
+    {
+        if (FightSports.IsFight(sportKey) || MapPath(sportKey) is not { } path)
+            return Empty;
+
+        var scoreboard = await FetchScheduleAsync(sportKey, date, ct);
+        var game = scoreboard.Games.FirstOrDefault(g => g.SourceGameId == sourceGameId && g.Status == "final");
+
+        if (game is null)
+            return Empty with { Cost = scoreboard.Cost };
+
+        var players = new List<CanonicalPlayer>();
+        var stats = new List<CanonicalPlayerStat>();
+        var lines = new List<CanonicalOdds>();
+        var requests = scoreboard.Cost.Requests
+                       + await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, ct);
+
+        return new StatsFetchResult([game], players, stats, new FetchCost(requests), lines);
+    }
+
+    /// <summary>
+    /// One final's summary into the players, stat lines and closing lines being gathered. A box
+    /// score that will not come is logged and skipped, so one game cannot cost a slate.
+    /// </summary>
+    /// <returns>The requests it made.</returns>
+    private async Task<int> FetchSummaryBoxAsync(
+        string path, string sportKey, CanonicalGame game,
+        List<CanonicalPlayer> players, List<CanonicalPlayerStat> stats, List<CanonicalOdds> lines,
+        CancellationToken ct)
+    {
+        var requests = 0;
+
+        try
+        {
+            using var doc = await GetJsonAsync($"{path}/summary?event={game.SourceGameId}", ct);
+            requests++;
+
+            ParseBoxScore(doc.RootElement, sportKey, game.SourceGameId, players, stats);
+
+            // The same response carries what the line closed at, so the historical
+            // reference is free — no second request, no second walk.
+            var closed = ParseClosingLines(
+                doc.RootElement, game.SourceGameId,
+                game.HomeTeamName, game.AwayTeamName, game.StartsAt).ToList();
+
+            // Except where the summary has dropped its odds block, which it does for older
+            // games. The odds endpoint still has the close; one request buys it back.
+            if (closed.Count == 0)
+            {
+                try
+                {
+                    closed.AddRange(await FetchClosingLinesAsync(sportKey,
+                        new ClosingLineRequest(game.SourceGameId, game.HomeTeamName, game.AwayTeamName, game.StartsAt), ct));
+                    requests++;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // A line is a reference; its absence must not cost the box score.
+                    logger.LogDebug(ex, "{Source}: no closing odds for {GameId}", SourceKey, game.SourceGameId);
+                }
+            }
+
+            lines.AddRange(closed);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            // One unavailable box score must not cost us the rest of the slate.
+            logger.LogWarning(ex, "{Source}: box score unavailable for {GameId}",
+                SourceKey, game.SourceGameId);
+        }
+
+        return requests;
     }
 
     /// <summary>

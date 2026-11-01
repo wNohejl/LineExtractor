@@ -2,6 +2,7 @@ using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
+using LineOps.Ingestion.Adapters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -111,7 +112,18 @@ public class StatsIngestionService(
         return kept;
     }
 
-    private async Task<IngestionOutcome> IngestAsync(
+    /// <summary>
+    /// One game's box score, written exactly as a day's is (<see cref="IngestAsync(IStatsSource, string, string, DateOnly, CancellationToken)"/>):
+    /// the same run row, budget guard and persist, so the final score, every player's line and
+    /// the close land as the results sweep would land them. The gamecast feed's, for the game it
+    /// was following, the moment that game is final (spec 2026-10-24 §6.3.4).
+    /// </summary>
+    public Task<IngestionOutcome> IngestBoxScoreAsync(
+        IGamecastSource source, string sportKey, string jobKey, DateOnly date, string sourceGameId, CancellationToken ct)
+        => IngestAsync(source.Key, source, sportKey, jobKey,
+            c => source.FetchBoxScoreAsync(sportKey, date, sourceGameId, c), ct);
+
+    private Task<IngestionOutcome> IngestAsync(
         IStatsSource source,
         string sportKey,
         string jobKey,
@@ -119,9 +131,23 @@ public class StatsIngestionService(
         bool schedulesOnly,
         CancellationToken ct,
         Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null)
+        => IngestAsync(source.Key, source, sportKey, jobKey,
+            c => schedulesOnly
+                ? source.FetchScheduleAsync(sportKey, date, c)
+                : source.FetchBoxScoresAsync(sportKey, date, c),
+            ct, narrow);
+
+    private async Task<IngestionOutcome> IngestAsync(
+        string sourceKey,
+        object adapter,
+        string sportKey,
+        string jobKey,
+        Func<CancellationToken, Task<StatsFetchResult>> fetch,
+        CancellationToken ct,
+        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null)
     {
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
-            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
+            ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
 
         var run = new IngestionRun
         {
@@ -156,12 +182,10 @@ public class StatsIngestionService(
                 return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
             }
 
-            if (source is IFailureInjectable injectable)
+            if (adapter is IFailureInjectable injectable)
                 injectable.FailureMode = sourceRow.FailureMode;
 
-            var result = schedulesOnly
-                ? await source.FetchScheduleAsync(sportKey, date, ct)
-                : await source.FetchBoxScoresAsync(sportKey, date, ct);
+            var result = await fetch(ct);
 
             if (narrow is not null)
                 result = await narrow(result, sourceRow.Key, ct);
@@ -189,7 +213,7 @@ public class StatsIngestionService(
 
             if (quiet && run.Id == 0 && saved == 0 && !db.ChangeTracker.HasChanges())
             {
-                logger.LogDebug("{Source}/{Sport}: live poll, nothing moved", source.Key, sportKey);
+                logger.LogDebug("{Source}/{Sport}: live poll, nothing moved", sourceKey, sportKey);
                 return new IngestionOutcome(0, RunStatus.Success, 0, null);
             }
 
@@ -199,7 +223,7 @@ public class StatsIngestionService(
 
             await RecordAsync(run, ct);
 
-            logger.LogInformation("{Source}/{Sport}: {Rows} stat rows", source.Key, sportKey, rows);
+            logger.LogInformation("{Source}/{Sport}: {Rows} stat rows", sourceKey, sportKey, rows);
             return new IngestionOutcome(run.Id, run.Status, rows, null);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
@@ -226,7 +250,7 @@ public class StatsIngestionService(
                 await RecordAsync(failed, ct);
             }
 
-            logger.LogError(ex, "{Source}/{Sport}: stats ingestion failed", source.Key, sportKey);
+            logger.LogError(ex, "{Source}/{Sport}: stats ingestion failed", sourceKey, sportKey);
             return new IngestionOutcome(failed?.Id ?? run.Id, RunStatus.Failed, 0, error);
         }
     }

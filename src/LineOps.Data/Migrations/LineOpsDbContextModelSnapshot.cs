@@ -437,6 +437,200 @@ namespace LineOps.Data.Migrations
                     b.ToTable("Games");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.GameDrive", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EndClock")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("EndPeriod")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EndYardLine")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsScore")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("OffensivePlays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Result")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceDriveId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StartClock")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("StartPeriod")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StartYardLine")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TimeElapsed")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Yards")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceId");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("GameId", "SourceId", "SourceDriveId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_game_drive");
+
+                    b.ToTable("GameDrives");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GamePlay", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AwayScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Clock")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("ClockSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DriveSeq")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EndSituation")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("HomeScore")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("HomeWinPct")
+                        .HasPrecision(6, 4)
+                        .HasColumnType("numeric(6,4)");
+
+                    b.Property<bool>("IsPenalty")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsScoring")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTurnover")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("Modified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Period")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourcePlayId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<decimal?>("SpreadCoverPctHome")
+                        .HasPrecision(6, 4)
+                        .HasColumnType("numeric(6,4)");
+
+                    b.Property<string>("StartSituation")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("TeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("TotalOverPct")
+                        .HasPrecision(6, 4)
+                        .HasColumnType("numeric(6,4)");
+
+                    b.Property<string>("Type")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TypeId")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("Wallclock")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Yardage")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceId");
+
+                    b.HasIndex("TeamId");
+
+                    b.HasIndex("GameId", "Sequence")
+                        .HasDatabaseName("ix_game_play_game_sequence");
+
+                    b.HasIndex("GameId", "SourceId", "SourcePlayId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_game_play");
+
+                    b.ToTable("GamePlays");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.Incident", b =>
                 {
                     b.Property<int>("Id")
@@ -1121,6 +1315,58 @@ namespace LineOps.Data.Migrations
                     b.Navigation("HomeTeam");
 
                     b.Navigation("Sport");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GameDrive", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Source");
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GamePlay", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Source");
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.IngestionRun", b =>

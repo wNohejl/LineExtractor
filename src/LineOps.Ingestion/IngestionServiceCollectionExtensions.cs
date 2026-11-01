@@ -40,6 +40,7 @@ public static class IngestionServiceCollectionExtensions
                 reliability.OddsOnDemand = !ingestion.Value.LinePolling.RunsUnattended);
 
         services.AddScoped<EntityResolver>();
+        services.AddScoped<GamecastWriter>();
         services.AddScoped<CreditBudgetGuard>();
         services.AddScoped<OddsIngestionService>();
         services.AddScoped<StatsIngestionService>();
@@ -106,6 +107,14 @@ public static class IngestionServiceCollectionExtensions
                 adapter.RequestDelay = options.Espn.RequestDelay;
                 return adapter;
             });
+
+            // And narrates a game in play, for the gamecast feed (spec 2026-10-24 §6.3).
+            services.AddScoped<IGamecastSource>(sp =>
+            {
+                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
+                adapter.RequestDelay = options.Espn.RequestDelay;
+                return adapter;
+            });
         }
 
         // The entity spine. Registered as itself rather than as an IStatsSource: it issues
@@ -154,11 +163,6 @@ public static class IngestionServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Adds the unattended scheduler. Separate from <see cref="AddLineOpsIngestion"/> so the
-    /// web app can trigger ingestion manually without also owning the schedule — which is what
-    /// lets the worker be split into its own process later without touching either codebase.
-    /// </summary>
-    /// <summary>
     /// Sets a client's identification, correcting an unusable override rather than obeying it.
     ///
     /// <para>
@@ -187,9 +191,22 @@ public static class IngestionServiceCollectionExtensions
         client.DefaultRequestHeaders.UserAgent.ParseAdd(SourceOptions.DefaultUserAgent);
     }
 
+    /// <summary>
+    /// Adds the unattended scheduler. Separate from <see cref="AddLineOpsIngestion"/> so the
+    /// web app can trigger ingestion manually without also owning the schedule — which is what
+    /// lets the worker be split into its own process later without touching either codebase.
+    ///
+    /// <para>
+    /// The gamecast feed comes with it. It is the scheduler's question again — which host polls
+    /// unattended — answered the same way: the Worker, or the web host when it hosts the schedule
+    /// (<c>Ingestion:HostScheduler</c>), never both. Two feeds would write every play twice over
+    /// and spend ESPN's patience doubly, as two schedulers would spend the odds credits.
+    /// </para>
+    /// </summary>
     public static IServiceCollection AddLineOpsIngestionScheduler(this IServiceCollection services)
     {
         services.AddHostedService<IngestionScheduler>();
+        services.AddHostedService<GamecastFeed>();
         return services;
     }
 
@@ -208,6 +225,7 @@ public static class IngestionServiceCollectionExtensions
         options.Sports = Unique(options.Sports);
         options.Backfill.Sports = Unique(options.Backfill.Sports);
         options.Backfill.Sources = Unique(options.Backfill.Sources);
+        options.Gamecast.Sports = Unique(options.Gamecast.Sports);
 
         foreach (var source in new[] { options.OddsApiIo, options.TheOddsApi, options.BallDontLie, options.Espn })
             source.Bookmakers = Unique(source.Bookmakers);

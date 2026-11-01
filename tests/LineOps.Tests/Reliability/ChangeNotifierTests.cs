@@ -239,6 +239,7 @@ public class ChangeNotifierTests(PostgresFixture fixture)
     [Theory]
     [InlineData(DataTopics.Games, "4123", "games:4123")]
     [InlineData(DataTopics.Odds, "7", "odds:7")]
+    [InlineData(DataTopics.Plays, "4123", "plays:4123")]
     public void An_address_is_the_topic_and_the_id(string topic, string id, string token)
         => Assert.Equal(token, DataTopics.Address(topic, id));
 
@@ -250,6 +251,8 @@ public class ChangeNotifierTests(PostgresFixture fixture)
     [InlineData(typeof(JournalEntry), DataTopics.Journal)]
     [InlineData(typeof(Alert), DataTopics.Alerts)]
     [InlineData(typeof(IngestionRun), DataTopics.Runs)]
+    [InlineData(typeof(GamePlay), DataTopics.Plays)]
+    [InlineData(typeof(GameDrive), DataTopics.Plays)]
     [InlineData(typeof(Sport), null)]
     public void Each_entity_belongs_to_the_topic_a_window_would_watch(Type entity, string? topic)
         => Assert.Equal(topic, DataTopics.For(entity));

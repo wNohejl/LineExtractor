@@ -1,0 +1,114 @@
+{
+  "//": "Trimmed ESPN core probabilities for event 401873032, captured live on 1 Nov 2026 (limit=5, so the first page of 64). Probabilities are 0-1 fractions. The play is named only by play.$ref; its id is the last path segment.",
+  "count": 64,
+  "pageIndex": 1,
+  "pageSize": 5,
+  "pageCount": 13,
+  "items": [
+    {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/probabilities/4018730321?lang=en&region=us",
+      "play": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/plays/4018730321?lang=en&region=us"
+      },
+      "tiePercentage": 0.0,
+      "homeWinPercentage": 0.7454,
+      "awayWinPercentage": 0.25460000000000005,
+      "lastModified": "2026-11-02T00:05Z",
+      "sequenceNumber": "100",
+      "source": {
+        "id": "2",
+        "description": "feed",
+        "state": "full"
+      },
+      "secondsLeft": 0,
+      "spreadCoverProbHome": 0.5,
+      "spreadPushProb": 0.0,
+      "totalOverProb": 0.5,
+      "totalPushProb": 0.0
+    },
+    {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/probabilities/40187303240?lang=en&region=us",
+      "play": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/plays/40187303240?lang=en&region=us"
+      },
+      "tiePercentage": 0.0,
+      "homeWinPercentage": 0.7331,
+      "awayWinPercentage": 0.2669,
+      "lastModified": "2026-11-02T00:09Z",
+      "sequenceNumber": "4000",
+      "source": {
+        "id": "2",
+        "description": "feed",
+        "state": "full"
+      },
+      "secondsLeft": 0,
+      "spreadCoverProbHome": 0.5211,
+      "spreadPushProb": 0.0,
+      "totalOverProb": 0.4998,
+      "totalPushProb": 0.0
+    },
+    {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/probabilities/40187303263?lang=en&region=us",
+      "play": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/plays/40187303263?lang=en&region=us"
+      },
+      "tiePercentage": 0.0,
+      "homeWinPercentage": 0.7481,
+      "awayWinPercentage": 0.2519,
+      "lastModified": "2026-11-02T00:10Z",
+      "sequenceNumber": "6300",
+      "source": {
+        "id": "2",
+        "description": "feed",
+        "state": "full"
+      },
+      "secondsLeft": 0,
+      "spreadCoverProbHome": 0.5119,
+      "spreadPushProb": 0.0,
+      "totalOverProb": 0.5051,
+      "totalPushProb": 0.0
+    },
+    {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/probabilities/40187303286?lang=en&region=us",
+      "play": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/plays/40187303286?lang=en&region=us"
+      },
+      "tiePercentage": 0.0,
+      "homeWinPercentage": 0.7487,
+      "awayWinPercentage": 0.25129999999999997,
+      "lastModified": "2026-11-02T00:10Z",
+      "sequenceNumber": "8600",
+      "source": {
+        "id": "2",
+        "description": "feed",
+        "state": "full"
+      },
+      "secondsLeft": 0,
+      "spreadCoverProbHome": 0.5101,
+      "spreadPushProb": 0.0,
+      "totalOverProb": 0.5042,
+      "totalPushProb": 0.0
+    },
+    {
+      "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/probabilities/401873032111?lang=en&region=us",
+      "play": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873032/competitions/401873032/plays/401873032111?lang=en&region=us"
+      },
+      "tiePercentage": 0.0,
+      "homeWinPercentage": 0.7656,
+      "awayWinPercentage": 0.23440000000000005,
+      "lastModified": "2026-11-02T00:11Z",
+      "sequenceNumber": "11100",
+      "source": {
+        "id": "2",
+        "description": "feed",
+        "state": "full"
+      },
+      "secondsLeft": 0,
+      "spreadCoverProbHome": 0.5089,
+      "spreadPushProb": 0.0,
+      "totalOverProb": 0.5046,
+      "totalPushProb": 0.0
+    }
+  ]
+}
