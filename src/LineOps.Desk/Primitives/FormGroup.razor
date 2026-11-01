@@ -1,0 +1,65 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    A grouped form: the house shape for asking the operator for something.
+
+    A quiet sentence-case name above, one filled group with one hairline edge, rows inside it
+    divided by inset hairlines, and the sentence that explains the group as its footer — the
+    HIG's grouped list, drawn the way macOS draws a grouped form (apple-hig-components,
+    forms.md). Every window used to spell it as four class names, and the spelling drifted:
+    a head that was an h4 here and a div there, a footer inside the group instead of under
+    it, a group framed again by the card around it. The primitive is the spelling.
+
+    The rows are FormRows, or any .wgroup__row the caller draws for a row that is not label
+    and control (a card, a leg). The group is a container query root, so its rows stack
+    their labels above their controls from the group's own width, not the window's.
+
+    The label column is the group's to set: --form-label, as a CSS length, so every row in
+    the group lines its controls up on the same edge.
+*@
+
+<section class="wsection @Class"
+         aria-labelledby="@(Title is null ? null : _headId)"
+         style="@Style"
+         @attributes="Rest">
+    @if (Title is not null)
+    {
+        <h3 class="wgroup__head" id="@_headId">@Title</h3>
+    }
+
+    <div class="wgroup @GroupClass" style="@(LabelWidth is null ? null : $"--form-label: {LabelWidth}")">
+        @ChildContent
+    </div>
+
+    @if (Footer is not null)
+    {
+        <p class="wgroup__foot">@Footer</p>
+    }
+</section>
+
+@code {
+    /// <summary>The rows.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The group's name, in sentence case, above it. Leave it off for a group the section already names.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>The sentence that explains the group, under it: what it will do, what it returns.</summary>
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>The label column's width as a CSS length ("120px"), shared by every row; unset, the group's default.</summary>
+    [Parameter] public string? LabelWidth { get; set; }
+
+    /// <summary>Extra classes on the section.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Extra classes on the group itself, for a window's own rows.</summary>
+    [Parameter] public string? GroupClass { get; set; }
+
+    [Parameter] public string? Style { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Rest { get; set; }
+
+    private readonly string _headId = "fg-" + Guid.NewGuid().ToString("N")[..8];
+}

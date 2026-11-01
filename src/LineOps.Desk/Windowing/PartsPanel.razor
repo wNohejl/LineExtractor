@@ -101,24 +101,21 @@
         <Detail>Item 42 · added Oct 26</Detail>
         <ChildContent>
             <div class="wgroup">
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Owner</span>
+                <FormRow Label="Owner">
                     <DeskSelect TValue="string" Class="wfield--short" aria-label="Owner" @bind-Value="_anatomyOwner">
                         <option value="ames">Ames</option>
                         <option value="ruiz">Ruiz</option>
                         <option value="chen">Chen</option>
                     </DeskSelect>
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Amount</span>
+                </FormRow>
+                <FormRow Label="Amount">
                     <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
                                aria-label="Amount" placeholder="120" @bind-Value="_anatomyAmount" />
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Note</span>
+                </FormRow>
+                <FormRow Label="Note">
                     <DeskField TValue="string" Class="wfield--fill" aria-label="Note" placeholder="Optional"
                                @bind-Value="_anatomyNote" />
-                </div>
+                </FormRow>
             </div>
         </ChildContent>
         <Destructive>
@@ -265,6 +262,37 @@
    Settings
    ========================================================================== *@
 
+</PanelSection>
+
+<PanelSection Title="Form group">
+<p class="empty">
+    The grouped form as one spelling. A quiet sentence-case name above, one filled group with
+    one hairline edge, rows divided inside it by inset hairlines from the label's edge, and the
+    sentence that explains the group under it as its footer — never a box of its own. Each
+    <span class="mono">FormRow</span> leads with its label in the column the whole group shares,
+    so the controls line up down the page; a narrow group stacks each label above its control.
+    A window that still spells the four class names by hand is the old spelling.
+</p>
+
+<FormGroup Title="Delivery" LabelWidth="104px">
+    <ChildContent>
+        <FormRow Label="Carrier">
+            <DeskSelect TValue="string" Class="wfield--short" aria-label="Carrier" @bind-Value="_formCarrier">
+                <option value="post">Post</option>
+                <option value="courier">Courier</option>
+                <option value="collect">Collect</option>
+            </DeskSelect>
+        </FormRow>
+        <FormRow Label="Quantity">
+            <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                       aria-label="Quantity" placeholder="1" @bind-Value="_formQuantity" />
+        </FormRow>
+        <FormRow Label="Signature">
+            <DeskSwitch Options="_formSignature" Label="Signature" Size="DeskKeySize.Small" @bind-Value="_formSigned" />
+        </FormRow>
+    </ChildContent>
+    <Footer>Arrives in two working days; a courier needs someone in to sign.</Footer>
+</FormGroup>
 </PanelSection>
 
 <PanelSection Title="Checkbox">
@@ -1339,6 +1367,12 @@
     private string _anatomyOwner = "ames";
     private int? _anatomyAmount = 120;
     private string? _anatomyNote;
+
+    private string _formCarrier = "post";
+    private int? _formQuantity = 1;
+    private bool _formSigned;
+    private static readonly IReadOnlyList<DeskSwitchOption<bool>> _formSignature =
+        [new(false, "Not needed"), new(true, "Required")];
 
     // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
     // you otherwise have to catch mid-request to see.

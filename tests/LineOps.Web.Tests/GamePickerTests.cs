@@ -127,13 +127,14 @@ public class GamePickerTests : WagerTestContext
     }
 
     [Fact]
-    public void A_click_on_an_option_picks_it()
+    public async Task A_click_on_an_option_picks_it()
     {
         var picked = new List<int?>();
         var cut = Picker(picked);
         Type(cut, "ste");
 
-        cut.FindAll("[role=option]")[1].Click();
+        await cut.FindAll("[role=option]")[1].ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Assert.Equal([2], picked), TimeSpan.FromSeconds(3));
 
         Assert.Equal([2], picked);
     }

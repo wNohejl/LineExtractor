@@ -1,0 +1,29 @@
+@namespace LineOps.Desk.Primitives
+
+@*
+    One row of a FormGroup: the label leading in the group's shared column, the control taking
+    the rest. The label is the row's text, not a <label for>: the control inside names itself
+    (a DeskField with a Label, a DeskSwitch with its Label, a bare field with an aria-label),
+    and a row whose control is a sentence or a figure has nothing to point a label at.
+
+    A row that is not label-and-control — a card in a list, one line of a receipt — is a plain
+    .wgroup__row the caller draws; this is the form row only.
+*@
+
+<div class="wgroup__row wgroup__row--form @Class" @attributes="Rest">
+    <span class="wgroup__label">@Label</span>
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>The row's label, in sentence case.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>The control, the value, or the sentence the row holds.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Rest { get; set; }
+}

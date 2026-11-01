@@ -23,17 +23,15 @@
        (audit.md: nothing on screen that cannot be used yet). Add as leg sets it anyway. *@
     @if (Slip.Items.Count > 0)
     {
-        <section class="wsection" aria-labelledby="slip-mode-h">
-            <h3 class="wgroup__head" id="slip-mode-h">Logged as</h3>
-            <div class="wgroup">
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Log</span>
+        <FormGroup Title="Logged as">
+            <ChildContent>
+                <FormRow Label="Log">
                     <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
                                 Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
-                </div>
-            </div>
-            <p class="wgroup__foot">Belongs to this desk session, not to a game.</p>
-        </section>
+                </FormRow>
+            </ChildContent>
+            <Footer>Belongs to this desk session, not to a game.</Footer>
+        </FormGroup>
     }
 
     @if (_report is { } report)
@@ -166,8 +164,7 @@
                             </DeskTooltip>
                         </div>
                     }
-                    <div class="wgroup__row wgroup__row--form slip-parlay__head">
-                        <span class="wgroup__label">Combined</span>
+                    <FormRow Label="Combined" Class="slip-parlay__head">
                         <span class="slip-parlay__combined">
                             <span class="num slip-parlay__price">@(Slip.CombinedPrice is { } combined ? Price(combined) : "—")</span>
                             @if (Slip.CombinedPrice is { } shown)
@@ -175,23 +172,20 @@
                                 <span class="num slip-leg__x">×@Decimal(shown)</span>
                             }
                         </span>
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Stake</span>
+                    </FormRow>
+                    <FormRow Label="Stake">
                         <StakeRow Stake="Slip.ParlayStake"
                                   StakeChanged="@(s => Slip.SetParlay(s, Slip.ParlayPriceQuoted, Slip.ParlayBook))"
                                   PriceAmerican="Slip.CombinedPrice" />
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Book's price</span>
+                    </FormRow>
+                    <FormRow Label="Book's price">
                         @* The book's own price for the parlay, when it gave one: it is what a clean
                            win pays. Without it the legs are multiplied, which is also how a push reprices. *@
                         <DeskField TValue="int?" Mono="true" type="number" Class="wfield--short"
                                    placeholder="Optional" aria-label="Parlay price" Value="Slip.ParlayPriceQuoted"
                                    ValueChanged="@((int? p) => Slip.SetParlay(Slip.ParlayStake, p, Slip.ParlayBook))" />
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Book</span>
+                    </FormRow>
+                    <FormRow Label="Book">
                         <DeskSelect TValue="string" Class="wfield--short" Value="Slip.ParlayBook"
                                     aria-label="Book the parlay was placed at"
                                     ValueChanged="@((string? b) => Slip.SetParlay(Slip.ParlayStake, Slip.ParlayPriceQuoted, b))">
@@ -201,7 +195,7 @@
                                 <option value="@book">@BookNames.Display(book)</option>
                             }
                         </DeskSelect>
-                    </div>
+                    </FormRow>
                 </div>
                         <p class="wgroup__foot slip-parlay__note">
                             @if (Slip.IsSameGame)
