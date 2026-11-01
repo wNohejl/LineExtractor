@@ -14,7 +14,7 @@ namespace LineOps.Desk.Windowing;
 /// <para>
 /// A panel that names the data it draws from (<see cref="Watches"/>) is refreshed when that data
 /// changes, whichever process wrote it: <see cref="DeskSignals"/> carries the host's change
-/// notices, and the panel reloads through <see cref="RefreshAsync"/>. That is what makes a
+/// notices, and the panel reloads through <see cref="RefreshAsync(IReadOnlySet{string})"/>. That is what makes a
 /// minimised window's pulse mean something — before it, every window showed the data as of the
 /// last click.
 /// </para>
@@ -32,6 +32,10 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
     private bool _subscribed;
     private bool _refreshQueued;
     private bool _disposed;
+
+    // What the queued refresh will be told it heard; null once a tokenless request has asked for
+    // everything, until that refresh runs.
+    private HashSet<string>? _heard = [];
 
     [CascadingParameter(Name = "WindowId")]
     protected string? WindowId { get; set; }
@@ -89,15 +93,42 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
 
     /// <summary>
     /// The topics this panel draws from, as published to <see cref="DeskSignals"/>. Empty: never
-    /// refreshed.
+    /// refreshed. A topic watched here hears its bare notice (<c>orders</c>) and every addressed
+    /// one (<c>orders:4123</c>), unless <see cref="WatchesIds"/> narrows it.
     /// </summary>
     protected virtual IReadOnlySet<string> Watches { get; } = new HashSet<string>();
+
+    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> NoIds =
+        new Dictionary<string, IReadOnlySet<string>>();
+
+    /// <summary>
+    /// For a topic in <see cref="Watches"/>, the ids this panel is about — the one order an
+    /// order's window shows. A topic named here hears its bare notice and its own ids only, so a
+    /// change to some other order does not reload the window; a topic not named here hears all of its ids. Empty
+    /// by default: every panel hears everything under the topics it watches.
+    ///
+    /// <para>
+    /// Read each time a notice arrives, on the publisher's thread rather than the renderer, so a
+    /// panel can follow whichever thing it is showing now; it should return a value it has
+    /// already built rather than work one out.
+    /// </para>
+    /// </summary>
+    protected virtual IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => NoIds;
 
     /// <summary>
     /// Reloads the panel's data after a change it watches, or one it asked for with
     /// <see cref="RequestRefresh"/>. The re-render is done for it.
     /// </summary>
     protected virtual Task RefreshAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// Reloads after the settle, told which of the tokens it watches arrived during it —
+    /// <c>{ "orders:4123" }</c>, <c>{ "prices", "orders" }</c> — so a panel can reload only the
+    /// part a change touched. Empty when the panel asked for the refresh itself with
+    /// <see cref="RequestRefresh"/>: it did not say what changed, so take it as everything.
+    /// The default ignores what was heard and calls <see cref="RefreshAsync()"/>.
+    /// </summary>
+    protected virtual Task RefreshAsync(IReadOnlySet<string> heard) => RefreshAsync();
 
     /// <summary>For a panel with its own subscriptions to release. Called once, on disposal.</summary>
     protected virtual void OnDispose()
@@ -117,27 +148,65 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
         return base.SetParametersAsync(parameters);
     }
 
-    private void OnSignal(IReadOnlySet<string> topics)
+    private void OnSignal(IReadOnlySet<string> tokens)
     {
-        if (!topics.Overlaps(Watches))
-            return;
+        var watches = Watches;
+        var ids = WatchesIds;
+        List<string>? heard = null;
 
-        RequestRefresh();
+        foreach (var token in tokens)
+        {
+            if (Hears(token, watches, ids))
+                (heard ??= []).Add(token);
+        }
+
+        if (heard is not null)
+            Queue(heard);
     }
 
     /// <summary>
-    /// Asks for a <see cref="RefreshAsync"/> after the settle, as a database change notice does.
-    /// For a panel that hears of changes some other way — a service's own event — and would
-    /// otherwise reload once per notice in a burst. Safe from any thread: requests inside the
-    /// settle fold into the one reload already queued, and the reload runs on the renderer.
+    /// A bare topic reaches every panel watching it; <c>topic:id</c> reaches those that watch the
+    /// topic without naming ids, and those that name this one.
     /// </summary>
-    protected void RequestRefresh()
+    private static bool Hears(
+        string token, IReadOnlySet<string> watches, IReadOnlyDictionary<string, IReadOnlySet<string>> ids)
+    {
+        if (watches.Contains(token))
+            return true;
+
+        var at = token.IndexOf(DeskSignals.AddressSeparator);
+        if (at <= 0)
+            return false;
+
+        var topic = token[..at];
+        if (!watches.Contains(topic))
+            return false;
+
+        return !ids.TryGetValue(topic, out var mine) || mine.Contains(token[(at + 1)..]);
+    }
+
+    /// <summary>
+    /// Asks for a <see cref="RefreshAsync(IReadOnlySet{string})"/> after the settle, as a database
+    /// change notice does. For a panel that hears of changes some other way — a service's own
+    /// event — and would otherwise reload once per notice in a burst. Safe from any thread:
+    /// requests inside the settle fold into the one reload already queued, and the reload runs on
+    /// the renderer. It does not say what changed, so the refresh it joins is told nothing was
+    /// heard — everything.
+    /// </summary>
+    protected void RequestRefresh() => Queue(null);
+
+    private void Queue(IEnumerable<string>? tokens)
     {
         if (_disposed)
             return;
 
         lock (_gate)
         {
+            if (tokens is null)
+                _heard = null;
+            else
+                _heard?.UnionWith(tokens);
+
             if (_refreshQueued)
                 return;
 
@@ -151,8 +220,14 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
     {
         await Task.Delay(RefreshSettle);
 
+        IReadOnlySet<string> heard;
+
         lock (_gate)
+        {
             _refreshQueued = false;
+            heard = _heard ?? new HashSet<string>();
+            _heard = [];
+        }
 
         if (_disposed)
             return;
@@ -164,7 +239,7 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
                 if (_disposed)
                     return;
 
-                await RefreshAsync();
+                await RefreshAsync(heard);
                 StateHasChanged();
             });
         }

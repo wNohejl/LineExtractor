@@ -58,7 +58,56 @@ public record CanonicalGame(
     int? SeasonYear = null,
     SeasonType? SeasonType = null,
     /// <summary>The card and result, when the game is a fight.</summary>
-    CanonicalBout? Bout = null);
+    CanonicalBout? Bout = null,
+    /// <summary>
+    /// The state of play as the provider last stated it. Null from a provider that says nothing
+    /// about it — a book — which the resolver reads as "no news", never as a reset.
+    /// </summary>
+    CanonicalLive? Live = null);
+
+/// <summary>
+/// A game's state of play, as ESPN's scoreboard states it (spec 2026-10-24 §4.1): the clock and
+/// period, the score by period, and — while the game is in play — the situation.
+///
+/// <para>
+/// The scoreboard has always carried all of this; the parser threw it away and the desk showed a
+/// score and the word "Live". Every field is optional, because ESPN's are: a situation is present
+/// only while the game is in play, a linescore only once a period has started, and a field ESPN
+/// sends in a shape we do not expect reads as null rather than failing the slate.
+/// </para>
+///
+/// <para>
+/// Football's situation has columns of its own. What is sport-specific beyond that — baseball's
+/// count, outs, runners and matchup — travels as <paramref name="SituationJson"/>, a small jsonb
+/// bag the way <c>PlayerGameStat.StatLine</c> holds a box score no column set fits.
+/// </para>
+/// </summary>
+/// <param name="Period">Quarter, inning or round. Null before the game starts (ESPN sends 0).</param>
+/// <param name="DisplayClock">The game clock as ESPN prints it ("8:26"). Null before the start.</param>
+/// <param name="ClockSeconds">The same clock in seconds remaining in the period.</param>
+/// <param name="StatusDetail">ESPN's <c>status.type.shortDetail</c>: "8:26 - 2nd", "Halftime", "Final/OT".</param>
+/// <param name="HomeLinescore">Points by period, first period first. Null until one has been played.</param>
+/// <param name="AwayLinescore">The same, for the away side.</param>
+/// <param name="PossessionSourceTeamId">ESPN's own id for the team with the ball.</param>
+/// <param name="YardLine">ESPN's <c>situation.yardLine</c> as given; see <c>Game.YardLine</c> for its frame.</param>
+public record CanonicalLive(
+    int? Period,
+    string? DisplayClock,
+    int? ClockSeconds,
+    string? StatusDetail,
+    IReadOnlyList<int>? HomeLinescore,
+    IReadOnlyList<int>? AwayLinescore,
+    string? PossessionSourceTeamId = null,
+    int? Down = null,
+    int? Distance = null,
+    int? YardLine = null,
+    string? DownDistanceText = null,
+    string? PossessionText = null,
+    bool? IsRedZone = null,
+    int? HomeTimeouts = null,
+    int? AwayTimeouts = null,
+    string? LastPlay = null,
+    string? SituationJson = null);
 
 /// <summary>Canonical priced outcome as normalised at the adapter boundary.</summary>
 public record CanonicalOdds(

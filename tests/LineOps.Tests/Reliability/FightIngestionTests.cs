@@ -46,7 +46,7 @@ public class FightIngestionTests(PostgresFixture fixture)
         var games = EspnStatsAdapter.ParseFightCenter(Load("espn.ufc.fightcenter.json"), "ufc", rounds, players, stats).ToList();
 
         string Id(string id) => $"{id}-{tag}";
-        string Name(string name) => $"{tag}{name}";
+        string Name(string name) => Tagged(tag, name);
 
         return new StatsFetchResult(
             games.Select(g => g with
@@ -100,6 +100,18 @@ public class FightIngestionTests(PostgresFixture fixture)
 
     private static string Tag() => Guid.NewGuid().ToString("N")[..8];
 
+    /// <summary>
+    /// A fighter's name made this test's own, the tag on the surname: "Alex 1a2b3c4dPereira". On the
+    /// first name it was the initial, and <see cref="FighterNames.Same"/> reads a shared surname and
+    /// initial as one fighter — so one test's book attached to another test's bout whenever two tags
+    /// began with the same hex digit.
+    /// </summary>
+    private static string Tagged(string tag, string name)
+    {
+        var space = name.LastIndexOf(' ');
+        return space < 0 ? $"{tag}{name}" : $"{name[..(space + 1)]}{tag}{name[(space + 1)..]}";
+    }
+
     [Fact]
     public async Task ACardIsStoredAsBoutsBetweenFightersAndReWalksIdempotently()
     {
@@ -118,7 +130,7 @@ public class FightIngestionTests(PostgresFixture fixture)
         Assert.Equal(13, bouts.Count);
 
         var main = bouts.Single(b => b.MatchNumber == 1);
-        Assert.Equal($"{tag}Alex Pereira", main.Game!.HomeTeam!.Name);
+        Assert.Equal($"Alex {tag}Pereira", main.Game!.HomeTeam!.Name);
         Assert.Equal((1, 0), (main.Game.HomeScore, main.Game.AwayScore));
         Assert.Equal(GameStatus.Final, main.Game.Status);
         Assert.Equal((BoutOutcome.Win, "KO/TKO", 1, 194), (main.Outcome!.Value, main.Method, main.EndRound!.Value, main.EndSeconds!.Value));
@@ -131,7 +143,7 @@ public class FightIngestionTests(PostgresFixture fixture)
         Assert.Equal(26, lines.Count);
         Assert.All(lines, l => Assert.Equal(l.Player!.TeamId, l.TeamId));
 
-        Assert.Equal(26, await db.Teams.CountAsync(t => t.SportId == sport.Id && t.Name.StartsWith(tag)));
+        Assert.Equal(26, await db.Teams.CountAsync(t => t.SportId == sport.Id && t.Name.Contains(tag)));
         Assert.Equal(13, await db.Games.CountAsync(g => gameIds.Contains(g.Id)));
     }
 
@@ -150,16 +162,16 @@ public class FightIngestionTests(PostgresFixture fixture)
         // another promotion that the desk does not hold.
         var slate = new OddsFetchResult(
             [
-                new CanonicalGame($"bk-1-{tag}", "ufc", $"{tag}Jamahal Hill", $"{tag}Alex Pereira", at),
-                new CanonicalGame($"bk-2-{tag}", "ufc", $"{tag}Jiri Prochazka", $"{tag}Aleksandar Rakic", at),
-                new CanonicalGame($"bk-3-{tag}", "ufc", $"{tag}Patricio Freire", $"{tag}Somebody Else", at)
+                new CanonicalGame($"bk-1-{tag}", "ufc", $"Jamahal {tag}Hill", $"Alex {tag}Pereira", at),
+                new CanonicalGame($"bk-2-{tag}", "ufc", $"Jiri {tag}Prochazka", $"Aleksandar {tag}Rakic", at),
+                new CanonicalGame($"bk-3-{tag}", "ufc", $"Patricio {tag}Freire", $"Somebody {tag}Else", at)
             ],
             [
-                new CanonicalOdds($"bk-1-{tag}", "draftkings", Markets.Moneyline, $"{tag}Jamahal Hill", null, 110, now),
-                new CanonicalOdds($"bk-1-{tag}", "draftkings", Markets.Moneyline, $"{tag}Alex Pereira", null, -138, now),
+                new CanonicalOdds($"bk-1-{tag}", "draftkings", Markets.Moneyline, $"Jamahal {tag}Hill", null, 110, now),
+                new CanonicalOdds($"bk-1-{tag}", "draftkings", Markets.Moneyline, $"Alex {tag}Pereira", null, -138, now),
                 new CanonicalOdds($"bk-1-{tag}", "draftkings", Markets.Total, "over", 1.5m, -175, now),
-                new CanonicalOdds($"bk-2-{tag}", "draftkings", Markets.Moneyline, $"{tag}Jiri Prochazka", null, -250, now),
-                new CanonicalOdds($"bk-3-{tag}", "draftkings", Markets.Moneyline, $"{tag}Patricio Freire", null, -300, now)
+                new CanonicalOdds($"bk-2-{tag}", "draftkings", Markets.Moneyline, $"Jiri {tag}Prochazka", null, -250, now),
+                new CanonicalOdds($"bk-3-{tag}", "draftkings", Markets.Moneyline, $"Patricio {tag}Freire", null, -300, now)
             ],
             new FetchCost(1));
 
@@ -170,16 +182,16 @@ public class FightIngestionTests(PostgresFixture fixture)
 
         Assert.Equal(games, await db.Games.CountAsync(g => g.SportId == sport.Id));
 
-        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"{tag}Alex Pereira");
+        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"Alex {tag}Pereira");
         Assert.Equal($"bk-1-{tag}", main.ExternalIds[odds]);
 
         var prices = await db.OddsSnapshots.Where(s => s.GameId == main.Id).ToListAsync();
-        Assert.Equal(-138, prices.Single(p => p.Outcome == $"{tag}Alex Pereira").PriceAmerican);
-        Assert.Equal(110, prices.Single(p => p.Outcome == $"{tag}Jamahal Hill").PriceAmerican);
+        Assert.Equal(-138, prices.Single(p => p.Outcome == $"Alex {tag}Pereira").PriceAmerican);
+        Assert.Equal(110, prices.Single(p => p.Outcome == $"Jamahal {tag}Hill").PriceAmerican);
         Assert.Equal(1.5m, prices.Single(p => p.Outcome == "over").Line);
 
         // The accent-free name lands under the bout's own spelling.
-        Assert.True(await db.OddsSnapshots.AnyAsync(s => s.Outcome == $"{tag}Jiří Procházka" && s.PriceAmerican == -250));
+        Assert.True(await db.OddsSnapshots.AnyAsync(s => s.Outcome == $"Jiří {tag}Procházka" && s.PriceAmerican == -250));
         Assert.False(await db.OddsSnapshots.AnyAsync(s => s.Outcome.StartsWith("Patricio Freire")));
     }
 
@@ -209,7 +221,7 @@ public class FightIngestionTests(PostgresFixture fixture)
         var (_, source, _) = await SeedAsync(db, tag);
         await IngestCard(db, source, Ufc300(tag));
 
-        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"{tag}Alex Pereira");
+        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"Alex {tag}Pereira");
         var fighterIds = new[] { main.HomeTeamId, main.AwayTeamId };
 
         var stub = new StubFighters(source);
@@ -246,15 +258,15 @@ public class FightIngestionTests(PostgresFixture fixture)
         var resolver = new EntityResolver(db);
 
         var middleweight = await resolver.ResolveTeamAsync(sport, source,
-            new CanonicalTeamRef($"{tag}Bruno Silva", "4333158", "Silva") { Qualifier = "Middleweight" }, CancellationToken.None);
+            new CanonicalTeamRef($"Bruno {tag}Silva", "4333158", "Silva") { Qualifier = "Middleweight" }, CancellationToken.None);
         var flyweight = await resolver.ResolveTeamAsync(sport, source,
-            new CanonicalTeamRef($"{tag}Bruno Silva", "4428001", "Silva") { Qualifier = "Flyweight" }, CancellationToken.None);
+            new CanonicalTeamRef($"Bruno {tag}Silva", "4428001", "Silva") { Qualifier = "Flyweight" }, CancellationToken.None);
         var again = await resolver.ResolveTeamAsync(sport, source,
-            new CanonicalTeamRef($"{tag}Bruno Silva", "4428001", "Silva") { Qualifier = "Flyweight" }, CancellationToken.None);
+            new CanonicalTeamRef($"Bruno {tag}Silva", "4428001", "Silva") { Qualifier = "Flyweight" }, CancellationToken.None);
 
         Assert.NotEqual(middleweight.Id, flyweight.Id);
         Assert.Equal(flyweight.Id, again.Id);
-        Assert.Equal($"{tag}Bruno Silva (Flyweight)", flyweight.Name);
+        Assert.Equal($"Bruno {tag}Silva (Flyweight)", flyweight.Name);
     }
 
     [Fact]
@@ -265,8 +277,8 @@ public class FightIngestionTests(PostgresFixture fixture)
         var (_, source, _) = await SeedAsync(db, tag);
         await IngestCard(db, source, Ufc300(tag));
 
-        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"{tag}Alex Pereira");
-        var bmf = await db.Games.Include(g => g.AwayTeam).SingleAsync(g => g.AwayTeam!.Name == $"{tag}Max Holloway");
+        var main = await db.Games.Include(g => g.HomeTeam).SingleAsync(g => g.HomeTeam!.Name == $"Alex {tag}Pereira");
+        var bmf = await db.Games.Include(g => g.AwayTeam).SingleAsync(g => g.AwayTeam!.Name == $"Max {tag}Holloway");
 
         JournalEntry Bet(Game game, string market, string outcome, decimal? line = null) => new()
         {
@@ -280,16 +292,16 @@ public class FightIngestionTests(PostgresFixture fixture)
             PlacedAt = game.StartsAt.AddHours(-1)
         };
 
-        var pereira = Bet(main, Markets.Moneyline, $"{tag}Alex Pereira");
+        var pereira = Bet(main, Markets.Moneyline, $"Alex {tag}Pereira");
         var under = Bet(main, Markets.Total, "under", 1.5m);
-        var holloway = Bet(bmf, Markets.Moneyline, $"{tag}Max Holloway");
+        var holloway = Bet(bmf, Markets.Moneyline, $"Max {tag}Holloway");
         var over = Bet(bmf, Markets.Total, "over", 4.5m);
         db.JournalEntries.AddRange(pereira, under, holloway, over);
 
         // A no contest: the ruling arrives, and every bet on it is void.
         var noContest = await db.Games.Include(g => g.HomeTeam)
-            .SingleAsync(g => g.HomeTeam!.Name == $"{tag}Charles Oliveira");
-        var oliveira = Bet(noContest, Markets.Moneyline, $"{tag}Charles Oliveira");
+            .SingleAsync(g => g.HomeTeam!.Name == $"Charles {tag}Oliveira");
+        var oliveira = Bet(noContest, Markets.Moneyline, $"Charles {tag}Oliveira");
         db.JournalEntries.Add(oliveira);
 
         var ruling = await db.Bouts.SingleAsync(b => b.GameId == noContest.Id);

@@ -121,6 +121,12 @@ coupling to the window it is shown in:
 - `Watches` names the topics the window draws from. When `DeskSignals` publishes one of them,
   the window waits a second for the burst to finish and calls `RefreshAsync()` once.
   `RequestRefresh()` asks for the same from any other source of change.
+- A notice can be addressed: `orders:4123` (`DeskSignals.Address(topic, id)`) is a change to one
+  thing under `orders`. Watching `orders` hears it and the bare `orders`; a window that also
+  returns ids from `WatchesIds` (`{ ["orders"] = { "4123" } }`) hears the bare topic and its own
+  ids only. Override `RefreshAsync(IReadOnlySet<string> heard)` to be told which tokens arrived
+  in the settle, and reload only what they touched; it is empty after a bare `RequestRefresh()`,
+  meaning everything. A test bench publishes one with `Signal("orders", "4123")`.
 - `MarkUnsaved(dirty, label)` says the window holds input not yet saved — "this draft". While it
   does, its close key asks before discarding it and eviction passes it by. Call it with false
   once the input is saved or cleared.

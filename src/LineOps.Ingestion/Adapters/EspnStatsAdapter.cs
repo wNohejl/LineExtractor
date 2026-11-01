@@ -470,6 +470,7 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
 
             CanonicalTeamRef? home = null, away = null;
             int? homeScore = null, awayScore = null;
+            IReadOnlyList<int>? homeLines = null, awayLines = null;
 
             foreach (var c in competitors.EnumerateArray())
             {
@@ -489,11 +490,13 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                 {
                     home = reference;
                     homeScore = score;
+                    homeLines = ReadLinescore(c);
                 }
                 else
                 {
                     away = reference;
                     awayScore = score;
+                    awayLines = ReadLinescore(c);
                 }
             }
 
@@ -519,9 +522,158 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                 Home: home,
                 Away: away,
                 SeasonYear: ReadSeasonYear(e),
-                SeasonType: ReadSeasonType(e));
+                SeasonType: ReadSeasonType(e),
+                Live: ReadLive(comp, homeLines, awayLines));
         }
     }
+
+    /// <summary>
+    /// The state of play the scoreboard carries beside the score (spec 2026-10-24 §4.1): clock,
+    /// period, ESPN's short status line and — while the game is in play — the situation.
+    ///
+    /// <para>
+    /// This used to be fetched every poll and thrown away, which is why the desk showed a score and
+    /// the word "Live" while ESPN's own page showed the down and the last play. Every field is read
+    /// defensively: ESPN documents none of them, a situation is present only while a game is in
+    /// play, and a field in a shape we did not expect reads as null rather than costing the slate.
+    /// </para>
+    ///
+    /// <para>
+    /// Before the start ESPN still sends period 0 and a "0:00" clock. Those are placeholders, not a
+    /// state of play, so a game that has not begun carries only its status line ("11/1 - 8:20 PM").
+    /// </para>
+    /// </summary>
+    internal static CanonicalLive? ReadLive(
+        JsonElement competition, IReadOnlyList<int>? homeLines, IReadOnlyList<int>? awayLines)
+    {
+        if (!competition.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.Object)
+            return null;
+
+        var type = status.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.Object ? t : default;
+        var state = type.ValueKind == JsonValueKind.Object ? JsonString(type, "state") : null;
+        var detail = Fit(type.ValueKind == JsonValueKind.Object ? JsonString(type, "shortDetail") : null, Game.StatusDetailLength);
+
+        if (state == "pre")
+            return new CanonicalLive(null, null, null, detail, null, null);
+
+        var clock = status.TryGetProperty("clock", out var cl) && cl.ValueKind == JsonValueKind.Number
+                    && cl.TryGetDouble(out var seconds)
+            ? (int?)Math.Round(seconds)
+            : null;
+
+        var live = new CanonicalLive(
+            Period: JsonInt(status, "period"),
+            DisplayClock: Fit(JsonString(status, "displayClock"), Game.DisplayClockLength),
+            ClockSeconds: clock,
+            StatusDetail: detail,
+            HomeLinescore: homeLines,
+            AwayLinescore: awayLines);
+
+        // ESPN sends a situation only while the game is in play — measured null on the final.
+        if (!competition.TryGetProperty("situation", out var s) || s.ValueKind != JsonValueKind.Object)
+            return live;
+
+        return live with
+        {
+            PossessionSourceTeamId = s.TryGetProperty("possession", out var p)
+                ? p.ValueKind switch
+                {
+                    JsonValueKind.String => p.GetString(),
+                    JsonValueKind.Number => p.GetRawText(),
+                    _ => null
+                }
+                : null,
+            Down = JsonInt(s, "down"),
+            Distance = JsonInt(s, "distance"),
+            YardLine = JsonInt(s, "yardLine"),
+            DownDistanceText = Fit(JsonString(s, "downDistanceText"), Game.DownDistanceTextLength),
+            PossessionText = Fit(JsonString(s, "possessionText"), Game.PossessionTextLength),
+            IsRedZone = JsonBool(s, "isRedZone"),
+            HomeTimeouts = JsonInt(s, "homeTimeouts"),
+            AwayTimeouts = JsonInt(s, "awayTimeouts"),
+            LastPlay = s.TryGetProperty("lastPlay", out var lp) && lp.ValueKind == JsonValueKind.Object
+                ? JsonString(lp, "text")
+                : null,
+            SituationJson = ReadDiamond(s)
+        };
+    }
+
+    /// <summary>
+    /// Baseball's situation — the count, the outs, the runners and the matchup — as a small json
+    /// bag, since none of it has a column. Only the keys ESPN sent in the shape expected are kept;
+    /// null when none were, which is every football game.
+    /// </summary>
+    private static string? ReadDiamond(JsonElement situation)
+    {
+        var bag = new System.Text.Json.Nodes.JsonObject();
+
+        foreach (var key in (string[])["balls", "strikes", "outs"])
+            if (JsonInt(situation, key) is { } n)
+                bag[key] = n;
+
+        foreach (var key in (string[])["onFirst", "onSecond", "onThird"])
+            if (JsonBool(situation, key) is { } b)
+                bag[key] = b;
+
+        foreach (var key in (string[])["batter", "pitcher"])
+            if (situation.TryGetProperty(key, out var who) && who.ValueKind == JsonValueKind.Object
+                && who.TryGetProperty("athlete", out var athlete) && athlete.ValueKind == JsonValueKind.Object
+                && JsonString(athlete, "displayName") is { } name)
+                bag[key] = name;
+
+        return bag.Count == 0 ? null : bag.ToJsonString();
+    }
+
+    /// <summary>
+    /// A competitor's points by period, first period first. Null when ESPN sent none — before the
+    /// start — or any entry is unreadable: a linescore with a hole in it would put the third
+    /// quarter's points under the second.
+    /// </summary>
+    private static IReadOnlyList<int>? ReadLinescore(JsonElement competitor)
+    {
+        if (!competitor.TryGetProperty("linescores", out var lines)
+            || lines.ValueKind != JsonValueKind.Array
+            || lines.GetArrayLength() == 0)
+            return null;
+
+        var points = new List<int>(lines.GetArrayLength());
+
+        foreach (var line in lines.EnumerateArray())
+        {
+            if (line.ValueKind != JsonValueKind.Object
+                || !line.TryGetProperty("value", out var v)
+                || v.ValueKind != JsonValueKind.Number
+                || !v.TryGetDouble(out var value))
+                return null;
+
+            points.Add((int)Math.Round(value));
+        }
+
+        return points;
+    }
+
+    private static int? JsonInt(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)
+            ? n
+            : null;
+
+    private static bool? JsonBool(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? v.GetBoolean()
+            : null;
+
+    /// <summary>
+    /// A string cut to its column's length. ESPN documents none of the state-of-play strings, and
+    /// one longer than its column would fail the save that carries the whole slate. A cut never
+    /// splits a surrogate pair.
+    /// </summary>
+    private static string? Fit(string? value, int length)
+        => value is { Length: var n } && n > length
+            ? value[..(char.IsHighSurrogate(value[length - 1]) ? length - 1 : length)]
+            : value;
+
+    private static string? JsonString(JsonElement parent, string name)
+        => parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
     /// <summary>
     /// The season ESPN stamps on the event itself — year and type — read from the event rather

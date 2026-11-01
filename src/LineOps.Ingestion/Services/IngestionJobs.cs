@@ -36,6 +36,53 @@ public class IngestionJobs(
     ILogger<IngestionJobs> logger)
 {
     public const string EspnSlate = "espn:slate";
+
+    /// <summary>
+    /// The scoreboard for games being played (spec 2026-10-24 §5.2). Its own job rather than the
+    /// slate run more often: the slate resolves every event on the day, refreshes every team's
+    /// identity and syncs MLB's spine, which is right twice an hour and wasteful every fifteen
+    /// seconds.
+    /// </summary>
+    public const string EspnLive = "espn:live";
+
+    /// <summary>
+    /// Games in play: started within the last day and neither final nor postponed here, in a
+    /// configured league. The one definition of "a game is on", shared by the live job (which
+    /// league-days to fetch) and the scheduler (whether it is due, and how fast to tick).
+    ///
+    /// <para>
+    /// Keyed on start time having passed rather than on <see cref="GameStatus.Live"/>, because a
+    /// game that just started is not yet marked live here — finding that out is what the next
+    /// poll is for. Bounded to the last day so a stuck fixture cannot pin the fast cadence on for
+    /// ever, and to configured leagues because a league nobody polls cannot be refreshed by it.
+    /// </para>
+    /// </summary>
+    public static IQueryable<Game> InPlay(LineOpsDbContext db, DateTimeOffset now, IReadOnlyList<string> sports)
+        => db.Games.Where(g => g.StartsAt <= now
+                               && g.StartsAt >= now.AddDays(-1)
+                               && g.Status != GameStatus.Final
+                               && g.Status != GameStatus.Postponed
+                               && sports.Contains(g.Sport!.Key));
+
+    /// <summary>The league-days with a game in play, each one scoreboard request per stats source.</summary>
+    private async Task<IReadOnlyList<(string Sport, DateOnly Day)>> LeagueDaysInPlayAsync(
+        LineOpsDbContext db, DateTimeOffset now, CancellationToken ct)
+    {
+        var sports = _options.EffectiveSports;
+
+        var inPlay = await InPlay(db, now, sports)
+            .Select(g => new { Sport = g.Sport!.Key, g.StartsAt })
+            .ToListAsync(ct);
+
+        // The configured spelling, so the key handed to the adapter is the one config named.
+        return inPlay
+            .Select(g => (Sport: sports.First(s => string.Equals(s, g.Sport, StringComparison.OrdinalIgnoreCase)),
+                          Day: LeagueClock.DateOf(g.StartsAt)))
+            .Distinct()
+            .OrderBy(x => x.Sport, StringComparer.Ordinal)
+            .ThenBy(x => x.Day)
+            .ToList();
+    }
     public const string EspnResults = "espn:results";
     public const string OddsLines = "odds:lines";
     public const string Settle = "settle";
@@ -158,6 +205,16 @@ public class IngestionJobs(
                 Unavailable: stats > 0 ? null : "No stats source registered."),
 
             new IngestionJob(
+                Key: EspnLive,
+                Label: "Games in play",
+                Description: "Live scores and status for games under way, and the final for any that have just finished. "
+                             + "Nothing is fetched when no game is on.",
+                EstimatedRequests: stats * (await LeagueDaysInPlayAsync(
+                    scope.ServiceProvider.GetRequiredService<LineOpsDbContext>(), DateTimeOffset.UtcNow, ct)).Count,
+                Available: stats > 0,
+                Unavailable: stats > 0 ? null : "No stats source registered."),
+
+            new IngestionJob(
                 Key: EspnResults,
                 Label: "Results owed",
                 Description: "Final scores and box scores for every day still missing them.",
@@ -238,6 +295,7 @@ public class IngestionJobs(
             var outcome = key switch
             {
                 EspnSlate => await RunSlateAsync(ct),
+                EspnLive => await RunLiveAsync(ct),
                 EspnResults => await RunResultsAsync(ct),
                 EspnClosingLines => await RunClosingLinesAsync(ct),
                 EspnFighters => await RunFightersAsync(FightersPerRun, ct),
@@ -266,10 +324,10 @@ public class IngestionJobs(
     /// Today's scoreboard, and the day of any game still in play from before midnight.
     ///
     /// <para>
-    /// The live poll runs this pass. A game that starts at 10:10pm Eastern is still being played
-    /// at half past midnight, and it is listed on the scoreboard of the day it started, not the
-    /// day it is now — so asking only for today would poll every ninety seconds for a board that
-    /// no longer holds it, and its score would stop at the seventh inning until the results sweep.
+    /// A game that starts at 10:10pm Eastern is still being played at half past midnight, and it
+    /// is listed on the scoreboard of the day it started, not the day it is now — so a slate
+    /// pressed after midnight reads that day too. The live poll used to run this pass; it is
+    /// <see cref="RunLiveAsync"/> now, and this one is the pre-game refresh it was built as.
     /// </para>
     /// </summary>
     private async Task<JobOutcome> RunSlateAsync(CancellationToken ct)
@@ -305,8 +363,57 @@ public class IngestionJobs(
         return new JobOutcome(EspnSlate, failures == 0, rows, failures, null);
     }
 
-    /// <summary>When MLB's schedule was last read. The live poll runs the slate every 90 seconds;
-    /// probable pitchers do not change that often, and one call per half hour is plenty.</summary>
+    /// <summary>
+    /// The scoreboard for each league-day with a game in play, written only for the events being
+    /// played or just finished (<see cref="StatsIngestionService.IngestLiveAsync"/>).
+    ///
+    /// <para>
+    /// Only the leagues and days that have a game on: a Sunday of NFL with no MLB game live is
+    /// one request, not one per league. No team-identity refresh and no MLB spine — both are
+    /// the slate's, and neither changes between one pitch and the next. A desk with nothing in
+    /// play makes no request at all.
+    /// </para>
+    /// </summary>
+    private async Task<JobOutcome> RunLiveAsync(CancellationToken ct)
+    {
+        IReadOnlyList<(string Sport, DateOnly Day)> leagueDays;
+
+        await using (var scope = scopeFactory.CreateAsyncScope())
+            leagueDays = await LeagueDaysInPlayAsync(
+                scope.ServiceProvider.GetRequiredService<LineOpsDbContext>(), DateTimeOffset.UtcNow, ct);
+
+        if (leagueDays.Count == 0)
+            return new JobOutcome(EspnLive, true, 0, 0, "No game in play.");
+
+        var rows = 0;
+        var failures = 0;
+
+        foreach (var (sportKey, day) in leagueDays)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            // A scope per league-day, as the slate does per sport: the change tracker stays small.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+
+            foreach (var source in registry.StatsSources)
+            {
+                var outcome = await stats.IngestLiveAsync(source, sportKey, EspnLive, day, ct);
+                rows += outcome.RowsIngested;
+
+                if (outcome.Status == RunStatus.Failed)
+                    failures++;
+            }
+        }
+
+        return new JobOutcome(EspnLive, failures == 0, rows, failures,
+            $"{leagueDays.Count} {(leagueDays.Count == 1 ? "league-day" : "league-days")} in play, {rows:N0} rows.");
+    }
+
+    /// <summary>When MLB's schedule was last read. Probable pitchers do not change often, and one
+    /// call per half hour is plenty however often the slate is pressed.</summary>
     private DateTimeOffset _spineSyncedAt = DateTimeOffset.MinValue;
 
     private static readonly TimeSpan SpineInterval = TimeSpan.FromMinutes(30);

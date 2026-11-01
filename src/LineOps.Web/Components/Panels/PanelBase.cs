@@ -67,15 +67,20 @@ public abstract class PanelBase : DeskPanelBase
     /// <summary>
     /// What a game's window says after its title: where the game stands. The title is already
     /// the matchup, so repeating it here read as the same name twice. "Final · NYM 4–2 ATL"
-    /// once there is a result, the start for a game not yet played.
+    /// once there is a result, the start for a game not yet played, and "Q3 4:12 · CHI 20–17 NE"
+    /// while it is on.
     /// </summary>
     protected static string StateStatus(Game game)
         => Scoreline.Has(game) ? $"{Phase(game)} · {Scoreline.Format(game)}" : Phase(game);
 
-    /// <summary>Where a game stands in a word, or when it starts if it has not.</summary>
+    /// <summary>
+    /// Where a game stands in a word, or when it starts if it has not. A game in play says its
+    /// period and clock — "Q3 4:12", "Top 7th", "R2 3:14" — where ESPN has sent them
+    /// (<see cref="PlayState.Clock"/>): "Live" alone says nothing a pulsing dot does not.
+    /// </summary>
     protected static string Phase(Game game) => game.Status switch
     {
-        GameStatus.Live => "Live",
+        GameStatus.Live => PlayState.Clock(game) ?? "Live",
         GameStatus.Final => "Final",
         GameStatus.Postponed => "Postponed",
         _ => Starts(game.StartsAt)

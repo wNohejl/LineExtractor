@@ -1,0 +1,69 @@
+{
+  "//": "Hand-written: no MLB game was live when the NFL capture was taken (the season was over). The shape follows ESPN's MLB scoreboard field names — situation.balls, strikes, outs, onFirst/onSecond/onThird, batter/pitcher with an athlete each, lastPlay.text.",
+  "events": [
+    {
+      "id": "401816900",
+      "date": "2026-07-25T23:05Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "type": { "id": "1", "abbreviation": "STD" },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "2",
+              "team": { "id": "6", "abbreviation": "DET", "displayName": "Detroit Tigers" },
+              "linescores": [
+                { "value": 0.0, "displayValue": "0", "period": 1 },
+                { "value": 2.0, "displayValue": "2", "period": 2 },
+                { "value": 0.0, "displayValue": "0", "period": 3 },
+                { "value": 0.0, "displayValue": "0", "period": 4 },
+                { "value": 0.0, "displayValue": "0", "period": 5 },
+                { "value": 0.0, "displayValue": "0", "period": 6 }
+              ]
+            },
+            {
+              "homeAway": "away",
+              "score": "3",
+              "team": { "id": "7", "abbreviation": "KC", "displayName": "Kansas City Royals" },
+              "linescores": [
+                { "value": 1.0, "displayValue": "1", "period": 1 },
+                { "value": 0.0, "displayValue": "0", "period": 2 },
+                { "value": 0.0, "displayValue": "0", "period": 3 },
+                { "value": 2.0, "displayValue": "2", "period": 4 },
+                { "value": 0.0, "displayValue": "0", "period": 5 },
+                { "value": 0.0, "displayValue": "0", "period": 6 },
+                { "value": 0.0, "displayValue": "0", "period": 7 }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 7,
+            "type": {
+              "id": "2",
+              "name": "STATUS_IN_PROGRESS",
+              "state": "in",
+              "completed": false,
+              "description": "In Progress",
+              "detail": "Top 7th",
+              "shortDetail": "Top 7th"
+            }
+          },
+          "situation": {
+            "balls": 2,
+            "strikes": 1,
+            "outs": 1,
+            "onFirst": true,
+            "onSecond": false,
+            "onThird": true,
+            "batter": { "playerId": 33039, "athlete": { "id": "33039", "displayName": "Bobby Witt Jr." } },
+            "pitcher": { "playerId": 32685, "athlete": { "id": "32685", "displayName": "Tarik Skubal" } },
+            "lastPlay": { "id": "40181690070", "type": { "type": "single" }, "text": "Pasquantino singled to right, Garcia to third." }
+          }
+        }
+      ]
+    }
+  ]
+}

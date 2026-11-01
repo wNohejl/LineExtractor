@@ -101,6 +101,18 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.AwayProbablePitcher).HasMaxLength(128);
             e.Property(x => x.ExternalIds).HasColumnType("jsonb")
                 .HasConversion(dictConverter, dictComparer);
+
+            // The state of play. The possession is one of this game's two teams; deleting a team
+            // never deletes a game, it only forgets who had the ball.
+            e.Property(x => x.DisplayClock).HasMaxLength(Game.DisplayClockLength);
+            e.Property(x => x.StatusDetail).HasMaxLength(Game.StatusDetailLength);
+            e.Property(x => x.DownDistanceText).HasMaxLength(Game.DownDistanceTextLength);
+            e.Property(x => x.PossessionText).HasMaxLength(Game.PossessionTextLength);
+            e.Property(x => x.Linescore).HasColumnType("jsonb");
+            e.Property(x => x.Situation).HasColumnType("jsonb");
+            e.HasOne<Team>().WithMany().HasForeignKey(x => x.PossessionTeamId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             e.HasOne(x => x.HomeTeam).WithMany().HasForeignKey(x => x.HomeTeamId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.AwayTeam).WithMany().HasForeignKey(x => x.AwayTeamId)

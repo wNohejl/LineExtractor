@@ -4,7 +4,7 @@
 @using LineOps.Web.Components.Snippets
 @using LineOps.Desk.Windowing
 @inherits PanelBase
-@inject IServiceScopeFactory ScopeFactory
+@inject LineOps.Web.Services.IGameWindowData Data
 
 @*
     The consolidated game view: lines, team data and players, in the order that matters right
@@ -22,7 +22,7 @@
 *@
 
 @* The failure line sits above whatever the window already holds, as the Board's does. The
-   window refreshes on every game, odds and journal signal, and one refresh that failed used to
+   window refreshes on its own game's notices and every journal signal, and one refresh that failed used to
    replace a loaded scoreboard, its lines and its players with the sentence. *@
 @if (Failed)
 {
@@ -43,6 +43,8 @@ else
 {
     var game = _row.Game;
     var isLive = game.Status == GameStatus.Live;
+    var situation = PlayState.Situation(game);
+    var lastPlay = PlayState.LastPlay(game);
 
     <PanelTitle>
         <ChildContent>
@@ -52,7 +54,8 @@ else
         </ChildContent>
         <Tags>
             @* A scheduled game's phase is its start time, which the detail line already says;
-               the Board gives it no status tag, and neither does its window. *@
+               the Board gives it no status tag, and neither does its window. While it is on, the
+               tag is the period and clock rather than the word "Live" (PlayState). *@
             @if (game.Status != GameStatus.Scheduled)
             {
                 <Tag State="@StatusState(game.Status)" Live="@isLive">@Phase(game)</Tag>
@@ -77,7 +80,23 @@ else
            February game that is the prior year's postseason still says so: "2025 postseason". A
            fight belongs to a card, not a season (ADR 0021), so it keeps its card tag above. *@
         <Detail>
-            <span>@Starts(game.StartsAt)@(_bout is null ? $" · {SeasonWords(game)}" : "")</span>
+            @*  While a game is on, the line is the state of play — "CHI ball, 2nd & 6 at NE 34 ·
+                Last: D.Maye pass incomplete…" — in place of a start time that has passed. With
+                only a score to move the title could only jump between scores (spec 2026-10-24 §3);
+                the down and the last play change every play. Nothing is drawn for a field ESPN
+                did not send, and the start comes back when there is no state of play to give. *@
+            @if (situation is not null)
+            {
+                <span class="gamelive__situation">@situation</span>
+            }
+            @if (lastPlay is not null)
+            {
+                <span class="gamelive__last" title="@game.LastPlay">Last: @lastPlay</span>
+            }
+            @if (situation is null && lastPlay is null)
+            {
+                <span>@Starts(game.StartsAt)@(_bout is null ? $" · {SeasonWords(game)}" : "")</span>
+            }
             @if (_bout is { } bout)
             {
                 <span>@BoutFrame(bout)</span>
@@ -86,7 +105,7 @@ else
                     <span class="ptitle__em">@result</span>
                 }
             }
-            @if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)
+            @if (!isLive && (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null))
             {
                 @* In full here, where there is room: the Board shortens them to surnames. *@
                 <span>
@@ -215,7 +234,71 @@ else
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Journal };
 
-    protected override Task RefreshAsync() => LoadAsync();
+    /// <summary>
+    /// <c>games</c> and <c>odds</c> for this game only: a score moving in one of the other
+    /// thirteen games on a Sunday is not this window's business (spec 2026-10-24 §5 item 4). The
+    /// journal stays bare — a bet saved anywhere may be on this game. Built when the game is set,
+    /// since the Desk reads it on the publisher's thread for every notice.
+    /// </summary>
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _ids;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _ids = new Dictionary<string, IReadOnlySet<string>>();
+
+    /// <summary>This game's id as a notice addresses it.</summary>
+    private string _gameKey = string.Empty;
+
+    /// <summary>
+    /// Reloads what the notice touched, and only that (spec 2026-10-24 §5 item 5).
+    ///
+    /// <para>
+    /// The window used to reload all of itself on every notice — ten queries, the pulse going
+    /// active and the grids repainting, to move two digits — and that reload was most of why a
+    /// live game read as blocky. Now <c>games:{id}</c> reads the game alone (one query) and
+    /// re-renders the title; <c>odds:{id}</c>, or a bare <c>odds</c>, reads the row with its
+    /// prices. The bets, the form, the rosters and the box score are read again only on a
+    /// <c>journal</c> notice, on a bare <c>games</c> — a box-score write or the fallback poll,
+    /// which do not say which game — when the game has just gone final, when a final's box score
+    /// is still owed, or when the refresh does not say what changed. The live box score is the gamecast's job (§6), not this one's.
+    /// </para>
+    ///
+    /// <para>
+    /// The row reload does not raise the pulse: the window is not loading, it is keeping up. A
+    /// failure leaves the loaded game where it is, and the pulse says the refresh failed.
+    /// </para>
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        if (_row is null || Failed || heard.Count == 0
+            || heard.Contains(DataTopics.Games) || heard.Contains(DataTopics.Journal))
+        {
+            await LoadAsync();
+            return;
+        }
+
+        var wasFinal = _row.Game.Status == GameStatus.Final;
+        var prices = heard.Contains(DataTopics.Odds)
+                     || heard.Contains(DataTopics.Address(DataTopics.Odds, _gameKey));
+
+        var row = prices
+            ? await Data.RowAsync(GameId)
+            : await Data.GameAsync(GameId) is { } game ? _row with { Game = game } : null;
+
+        // A final with no box score yet is waiting on the results sweep, whose box-score write is
+        // addressed to this game hours after the live pass landed the final. Read the detail
+        // again on it, or the box never appears in a window left open; a live game stays on the
+        // row alone.
+        var boxOwed = row?.Game.Status == GameStatus.Final && !HasBox
+                      && heard.Contains(DataTopics.Address(DataTopics.Games, _gameKey));
+
+        if (row is null || (!wasFinal && row.Game.Status == GameStatus.Final) || boxOwed)
+        {
+            await LoadAsync();
+            return;
+        }
+
+        _row = row;
+        Report(PulseState.Healthy, StateStatus(row.Game));
+    }
 
     /// <summary>
     /// The game this view is about. Taken as an id rather than an object so the view can be
@@ -306,9 +389,6 @@ else
     private IReadOnlyList<int> _seasons = [];
     private IReadOnlyList<DeskSwitchOption<int>> _seasonOptions = [];
 
-    /// <summary>Wide on purpose: only reached when there is no season to bound by.</summary>
-    private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
-
     /// <summary>The roster row showing its recent games. One at a time, like every other row.</summary>
     private int? _openPlayer;
 
@@ -348,7 +428,18 @@ else
         ];
     }
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = GameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (key != _gameKey)
+        {
+            var mine = new HashSet<string> { key };
+            _ids = new Dictionary<string, IReadOnlySet<string>> { [DataTopics.Games] = mine, [DataTopics.Odds] = mine };
+            _gameKey = key;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task SetSeasonAsync(int year)
     {
@@ -360,54 +451,31 @@ else
     {
         await WithActivityAsync(async () =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-
-            _row = await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(GameId);
+            _row = await Data.RowAsync(GameId);
 
             if (_row is null)
                 return;
 
-            var fights = scope.ServiceProvider.GetRequiredService<FightService>();
-            _bout = FightSports.IsFight(_row.Game.Sport?.Key)
-                ? (await fights.BoutsAsync([GameId])).GetValueOrDefault(GameId)
-                : null;
+            // The operator's own bets come with the rest. A visitor's desk never reads the
+            // journal, so there is nothing personal to leak into a window it may see (ADR 0018).
+            // The season switched to is kept while either side has played in it; otherwise the
+            // game's own, or for a preview of an unplayed season the one before.
+            var detail = await Data.DetailAsync(_row.Game, _seasonYear, withBets: Manager.Access.CanOperate);
 
-            // The operator's own bets. A visitor's desk never reads the journal, so there is nothing
-            // personal to leak into a window it may see (ADR 0018).
-            _bets = Manager.Access.CanOperate
-                ? await scope.ServiceProvider.GetRequiredService<LineOps.Ingestion.Services.JournalService>().OnGameAsync(GameId)
-                : [];
-
-            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
-            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
-
-            // The seasons either side has played in. The game's own season leads if it has
-            // games behind it; a preview of an unplayed season draws on the one before.
-            var home = await log.SeasonsForTeamAsync(_row.Game.HomeTeamId);
-            var away = await log.SeasonsForTeamAsync(_row.Game.AwayTeamId);
-            _seasons = home.Concat(away).Distinct().OrderByDescending(y => y).Take(3).ToList();
-
-            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
-                _seasonYear = _seasons.Contains(_row.Game.SeasonYear) ? _row.Game.SeasonYear
-                    : _seasons.Count > 0 ? _seasons[0] : null;
+            _bout = detail.Bout;
+            _bets = detail.Bets;
+            _seasons = detail.Seasons;
+            _seasonYear = detail.SeasonYear;
+            _box = detail.Box;
+            _matchup = detail.Matchup;
+            _homeTeam = detail.HomeTeam;
+            _awayTeam = detail.AwayTeam;
 
             var sport = _row.Game.Sport?.Key ?? string.Empty;
             _seasonOptions = _seasons
                 .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
                     $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
                 .ToList();
-
-            // The box score is the answer once there is one; the season aggregate is the
-            // fallback for a game that has not been played. Both are loaded because the
-            // fallback has to be ready the moment the box score turns out to be empty.
-            _box = await log.BoxScoreAsync(GameId);
-
-            _matchup = await lookup.GetAsync(GameId, FallbackWindow, maxPlayersPerTeam: 8, seasonYear: _seasonYear);
-
-            // Only the recent record is wanted here — the roster comes from the matchup lookup
-            // above, which resolves both sides in one query rather than two.
-            _homeTeam = await lookup.GetTeamAsync(_row.Game.HomeTeamId, FallbackWindow, maxPlayers: 0, seasonYear: _seasonYear);
-            _awayTeam = await lookup.GetTeamAsync(_row.Game.AwayTeamId, FallbackWindow, maxPlayers: 0, seasonYear: _seasonYear);
         },
         settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _row is null ? "not found" : StateStatus(_row.Game));

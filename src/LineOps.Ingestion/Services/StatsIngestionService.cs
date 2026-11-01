@@ -37,13 +37,88 @@ public class StatsIngestionService(
         IStatsSource source, string sportKey, string jobKey, DateOnly date, CancellationToken ct)
         => IngestAsync(source, sportKey, jobKey, date, schedulesOnly: true, ct);
 
+    /// <summary>
+    /// The scoreboard for a day, written only for the events being played or just finished.
+    ///
+    /// <para>
+    /// Same request as <see cref="IngestScheduleAsync"/> — the scoreboard already carries every
+    /// live score — but run every few seconds while a game is on, so it does none of the slate's
+    /// other work. An event is kept when the provider says it is live, or says it is over while
+    /// our row still has it in play: that last poll is what lands the final score and status.
+    /// Everything else on the board — tonight's games, last night's finals — is the slate's and
+    /// the results sweep's, and resolving it here would repeat their writes on every poll.
+    /// </para>
+    ///
+    /// <para>
+    /// A game we already hold is resolved without its team references, so the resolver does
+    /// not re-read both sides' identity for it: names, ids and abbreviations do not change
+    /// mid-game, and the slate keeps them current. A live event we have never seen keeps its
+    /// references, because creating its teams from names alone would lose the provider's ids.
+    /// </para>
+    /// </summary>
+    public Task<IngestionOutcome> IngestLiveAsync(
+        IStatsSource source, string sportKey, string jobKey, DateOnly date, CancellationToken ct)
+        => IngestAsync(source, sportKey, jobKey, date, schedulesOnly: true, ct,
+            narrow: (result, sourceKey, c) => InPlayAsync(result, sportKey, sourceKey, c));
+
+    private async Task<StatsFetchResult> InPlayAsync(
+        StatsFetchResult result, string sportKey, string sourceKey, CancellationToken ct)
+    {
+        if (result.Games.Count == 0)
+            return result;
+
+        var from = result.Games.Min(g => g.StartsAt).AddDays(-2);
+        var to = result.Games.Max(g => g.StartsAt).AddDays(2);
+
+        var ours = (await db.Games
+                .Where(g => g.Sport!.Key == sportKey && g.StartsAt > from && g.StartsAt < to)
+                .Select(g => new { g.ExternalIds, g.Status })
+                .ToListAsync(ct))
+            .Where(g => g.ExternalIds.ContainsKey(sourceKey))
+            .GroupBy(g => g.ExternalIds[sourceKey])
+            .ToDictionary(g => g.Key, g => g.First().Status);
+
+        return result with { Games = SelectInPlay(result.Games, ours) };
+    }
+
+    /// <summary>
+    /// The events a live pass writes, from a scoreboard and our status for each event we hold
+    /// (keyed by the provider's event id). See <see cref="IngestLiveAsync"/>.
+    /// </summary>
+    internal static IReadOnlyList<CanonicalGame> SelectInPlay(
+        IReadOnlyList<CanonicalGame> scoreboard, IReadOnlyDictionary<string, GameStatus> ours)
+    {
+        var kept = new List<CanonicalGame>();
+
+        foreach (var game in scoreboard)
+        {
+            var held = ours.TryGetValue(game.SourceGameId, out var status);
+            var stillInPlayHere = held && status is not (GameStatus.Final or GameStatus.Postponed);
+
+            var keep = EntityResolver.MapStatus(game.Status) switch
+            {
+                GameStatus.Live => true,
+                // Just finished: over on the provider, still in play here. A final we already
+                // hold is the results sweep's, corrections included.
+                GameStatus.Final or GameStatus.Postponed => stillInPlayHere,
+                _ => false
+            };
+
+            if (keep)
+                kept.Add(held ? game with { Home = null, Away = null } : game);
+        }
+
+        return kept;
+    }
+
     private async Task<IngestionOutcome> IngestAsync(
         IStatsSource source,
         string sportKey,
         string jobKey,
         DateOnly date,
         bool schedulesOnly,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null)
     {
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
             ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
@@ -56,8 +131,19 @@ public class StatsIngestionService(
             Status = RunStatus.Running
         };
 
-        db.IngestionRuns.Add(run);
-        await db.SaveChangesAsync(ct);
+        // A live poll runs every fifteen seconds all game, and most see the board the last one
+        // saw. Its run is written only once there is something to say — a change, a failure, a
+        // refusal — so a poll that moved nothing leaves no row and raises no notice: a run row is
+        // a `runs` notice, and every open Ops, Runs and History window reloaded on each one. A
+        // metered source keeps its row every time, because the budget guard counts requests from
+        // the runs and a request with no row would be spent without being counted.
+        var quiet = narrow is not null && IsUnmetered(sourceRow);
+
+        if (!quiet)
+            await RecordAsync(run, ct);
+
+        var saved = 0;
+        void Count(object? sender, SavedChangesEventArgs e) => saved += e.EntitiesSavedCount;
 
         try
         {
@@ -66,7 +152,7 @@ public class StatsIngestionService(
                 run.Status = RunStatus.Partial;
                 run.Error = "Skipped: source is at its configured rate/credit budget.";
                 run.FinishedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(ct);
+                await RecordAsync(run, ct);
                 return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
             }
 
@@ -77,16 +163,41 @@ public class StatsIngestionService(
                 ? await source.FetchScheduleAsync(sportKey, date, ct)
                 : await source.FetchBoxScoresAsync(sportKey, date, ct);
 
+            if (narrow is not null)
+                result = await narrow(result, sourceRow.Key, ct);
+
             run.RequestsMade = result.Cost.Requests;
             run.CreditsSpent = result.Cost.Credits;
 
-            var rows = await PersistAsync(sourceRow, result, sportKey, run.Id, ct);
+            // Stat lines carry the run's id, so a pass that has any needs its row first.
+            if (result.PlayerStats.Count > 0 && run.Id == 0)
+                await RecordAsync(run, ct);
+
+            // Every save in the pass, the resolver's own included: what tells a poll that changed
+            // something from one that only read.
+            db.SavedChanges += Count;
+            int rows;
+
+            try
+            {
+                rows = await PersistAsync(sourceRow, result, sportKey, run.Id, ct);
+            }
+            finally
+            {
+                db.SavedChanges -= Count;
+            }
+
+            if (quiet && run.Id == 0 && saved == 0 && !db.ChangeTracker.HasChanges())
+            {
+                logger.LogDebug("{Source}/{Sport}: live poll, nothing moved", source.Key, sportKey);
+                return new IngestionOutcome(0, RunStatus.Success, 0, null);
+            }
 
             run.RowsIngested = rows;
             run.FinishedAt = DateTimeOffset.UtcNow;
             run.Status = RunStatus.Success;
 
-            await db.SaveChangesAsync(ct);
+            await RecordAsync(run, ct);
 
             logger.LogInformation("{Source}/{Sport}: {Rows} stat rows", source.Key, sportKey, rows);
             return new IngestionOutcome(run.Id, run.Status, rows, null);
@@ -100,21 +211,38 @@ public class StatsIngestionService(
             // the pending work first, then re-read the run to carry the outcome.
             db.ChangeTracker.Clear();
 
-            var failed = await db.IngestionRuns.FirstOrDefaultAsync(r => r.Id == run.Id, ct);
             var error = $"{ex.GetType().Name}: {ex.Message}";
+
+            // A live poll's run not written yet is written now: a failure is always recorded.
+            var failed = run.Id == 0
+                ? run
+                : await db.IngestionRuns.FirstOrDefaultAsync(r => r.Id == run.Id, ct);
 
             if (failed is not null)
             {
                 failed.Status = RunStatus.Failed;
                 failed.Error = error;
                 failed.FinishedAt = DateTimeOffset.UtcNow;
-                await db.SaveChangesAsync(ct);
+                await RecordAsync(failed, ct);
             }
 
             logger.LogError(ex, "{Source}/{Sport}: stats ingestion failed", source.Key, sportKey);
-            return new IngestionOutcome(run.Id, RunStatus.Failed, 0, error);
+            return new IngestionOutcome(failed?.Id ?? run.Id, RunStatus.Failed, 0, error);
         }
     }
+
+    /// <summary>Saves the run, adding it first if it has no row yet.</summary>
+    private async Task RecordAsync(IngestionRun run, CancellationToken ct)
+    {
+        if (run.Id == 0)
+            db.IngestionRuns.Add(run);
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>A source with no request or credit ceiling, whose spend the budget guard never reads.</summary>
+    private static bool IsUnmetered(Source source)
+        => source.RateLimitPerHour is null && source.RateLimitPerDay is null && source.MonthlyCreditBudget is null;
 
     /// <summary>
     /// Finished games in one sport with no closing total from any source, asked of a provider

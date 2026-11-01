@@ -410,10 +410,128 @@ public class EntityResolver(LineOpsDbContext db)
             changed = true;
         }
 
+        if (canonical.Live is { } live && await ApplyLiveAsync(game, sourceKey, live, ct))
+        {
+            game.LiveUpdatedAt = DateTimeOffset.UtcNow;
+            changed = true;
+        }
+
         if (changed)
             await db.SaveChangesAsync(ct);
 
         return game;
+    }
+
+    /// <summary>
+    /// Writes the state of play onto the game, change-only, and says whether anything moved.
+    ///
+    /// <para>
+    /// The live poll runs every few seconds while a game is on, and a saved row is what raises the
+    /// desk's change notice. So a property is assigned only when its value differs — exactly as the
+    /// score and status are above — and a poll that saw nothing new leaves the row unmodified and
+    /// fires nothing. The two jsonb columns are compared as json, not as text: Postgres hands jsonb
+    /// back re-spaced and with its keys reordered, and a string comparison called the linescore
+    /// changed on every poll.
+    /// </para>
+    ///
+    /// <para>
+    /// A canonical game with no live state (a book's) never reaches here: silence is not a reset.
+    /// One that is no longer in play clears the situation whatever the provider left on it — a
+    /// final has no down and distance — and keeps the period, clock, status line and linescore,
+    /// which are still true of it.
+    /// </para>
+    /// </summary>
+    private async Task<bool> ApplyLiveAsync(Game game, string sourceKey, CanonicalLive live, CancellationToken ct)
+    {
+        var moved = false;
+
+        void Set<T>(T current, T value, Action<T> assign)
+        {
+            if (EqualityComparer<T>.Default.Equals(current, value))
+                return;
+
+            assign(value);
+            moved = true;
+        }
+
+        void SetJson(string? current, string? value, Action<string?> assign)
+        {
+            if (SameJson(current, value))
+                return;
+
+            assign(value);
+            moved = true;
+        }
+
+        Set(game.Period, live.Period, v => game.Period = v);
+        Set(game.DisplayClock, live.DisplayClock, v => game.DisplayClock = v);
+        Set(game.ClockSeconds, live.ClockSeconds, v => game.ClockSeconds = v);
+        Set(game.StatusDetail, live.StatusDetail, v => game.StatusDetail = v);
+        SetJson(game.Linescore, Linescore(live), v => game.Linescore = v);
+
+        var inPlay = game.Status == GameStatus.Live;
+
+        var possession = inPlay && live.PossessionSourceTeamId is { } espnTeam
+            ? await PossessionAsync(game, sourceKey, espnTeam, ct)
+            : null;
+
+        Set(game.PossessionTeamId, possession, v => game.PossessionTeamId = v);
+        Set(game.Down, inPlay ? live.Down : null, v => game.Down = v);
+        Set(game.Distance, inPlay ? live.Distance : null, v => game.Distance = v);
+        Set(game.YardLine, inPlay ? live.YardLine : null, v => game.YardLine = v);
+        Set(game.DownDistanceText, inPlay ? live.DownDistanceText : null, v => game.DownDistanceText = v);
+        Set(game.PossessionText, inPlay ? live.PossessionText : null, v => game.PossessionText = v);
+        Set(game.IsRedZone, inPlay ? live.IsRedZone : null, v => game.IsRedZone = v);
+        Set(game.HomeTimeouts, inPlay ? live.HomeTimeouts : null, v => game.HomeTimeouts = v);
+        Set(game.AwayTimeouts, inPlay ? live.AwayTimeouts : null, v => game.AwayTimeouts = v);
+        Set(game.LastPlay, inPlay ? live.LastPlay : null, v => game.LastPlay = v);
+        SetJson(game.Situation, inPlay ? live.SituationJson : null, v => game.Situation = v);
+
+        return moved;
+    }
+
+    /// <summary>
+    /// Our team for ESPN's possession id — this game's home or away, by the id the provider gave
+    /// each when they were resolved. Never a lookup across the league and never a new team: a
+    /// possession naming neither side is a payload we do not understand, and reads as no one.
+    /// </summary>
+    private async Task<int?> PossessionAsync(Game game, string sourceKey, string sourceTeamId, CancellationToken ct)
+    {
+        foreach (var teamId in (int[])[game.HomeTeamId, game.AwayTeamId])
+        {
+            var team = await db.Teams.FindAsync([teamId], ct);
+
+            if (team is not null && team.ExternalIds.TryGetValue(sourceKey, out var id) && id == sourceTeamId)
+                return team.Id;
+        }
+
+        return null;
+    }
+
+    /// <summary>The linescore column's json — <c>{"home":[10,7],"away":[3,0]}</c> — or null when ESPN sent neither side.</summary>
+    private static string? Linescore(CanonicalLive live)
+        => live.HomeLinescore is null && live.AwayLinescore is null
+            ? null
+            : System.Text.Json.JsonSerializer.Serialize(new { home = live.HomeLinescore ?? [], away = live.AwayLinescore ?? [] });
+
+    /// <summary>Whether two jsonb values say the same thing, whatever their spacing and key order.</summary>
+    private static bool SameJson(string? a, string? b)
+    {
+        if (a is null || b is null)
+            return a == b;
+
+        if (a == b)
+            return true;
+
+        try
+        {
+            return System.Text.Json.Nodes.JsonNode.DeepEquals(
+                System.Text.Json.Nodes.JsonNode.Parse(a), System.Text.Json.Nodes.JsonNode.Parse(b));
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -446,7 +564,8 @@ public class EntityResolver(LineOpsDbContext db)
         return kind != SourceKind.Odds;
     }
 
-    private static GameStatus MapStatus(string? raw) => raw?.ToLowerInvariant() switch
+    /// <summary>A provider's status word as our status. The live pass reads it here too, to pick the games it writes.</summary>
+    internal static GameStatus MapStatus(string? raw) => raw?.ToLowerInvariant() switch
     {
         "live" or "in_progress" or "inprogress" or "status_in_progress" => GameStatus.Live,
         "final" or "settled" or "complete" or "status_final" => GameStatus.Final,

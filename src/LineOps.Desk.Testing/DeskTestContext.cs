@@ -51,4 +51,15 @@ public abstract class DeskTestContext : TestContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
+
+    /// <summary>
+    /// Publishes a change notice the way the application's listener would: the bare topic, or
+    /// the topic addressed to each of <paramref name="ids"/> (<c>orders:7</c>) when there are any.
+    /// The panel under test hears it after its settle.
+    /// </summary>
+    protected void Signal(string topic, params string[] ids) =>
+        Services.GetRequiredService<LineOps.Desk.Windowing.DeskSignals>().Publish(
+            ids.Length == 0
+                ? new HashSet<string> { topic }
+                : ids.Select(id => LineOps.Desk.Windowing.DeskSignals.Address(topic, id)).ToHashSet());
 }

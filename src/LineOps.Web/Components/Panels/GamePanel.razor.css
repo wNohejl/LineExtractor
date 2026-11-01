@@ -1,0 +1,24 @@
+/* The state of play on the title's meta line (spec 2026-10-24 §5). The situation is what the
+   line is about while a game is on, so it takes primary ink, as .ptitle__em does; the last play
+   is its context and stays in the line's secondary ink. Tabular figures, so the down and the
+   spot do not shuffle the words after them each time they change. A long last play gives way
+   to the window's width with an ellipsis rather than wrapping the title onto a third line —
+   the full text is its tooltip. */
+
+.gamelive__situation {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gamelive__last {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gamelive__situation + .gamelive__last::before {
+    content: "·";
+    margin-right: var(--space-2);
+}

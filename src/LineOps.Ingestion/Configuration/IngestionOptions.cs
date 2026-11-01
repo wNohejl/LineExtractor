@@ -190,8 +190,16 @@ public class EspnScheduleOptions
     /// because a live score is stale in minutes, not hours — and separate from it because "a
     /// game is in progress" is a different reason to poll than "a game is about to start", with
     /// its own cadence.
+    ///
+    /// <para>
+    /// Fifteen seconds: ESPN serves the scoreboard with <c>max-age=10</c>, so anything faster
+    /// reads the same cached board twice. It was ninety, which left a score change waiting
+    /// forty-five seconds on average before the desk saw it. The scheduler ticks at this
+    /// interval while a game is in play and at <see cref="IngestionOptions.TickInterval"/>
+    /// otherwise, so the cost — one request per league-day in play — is paid only during games.
+    /// </para>
     /// </summary>
-    public TimeSpan LivePoll { get; set; } = TimeSpan.FromSeconds(90);
+    public TimeSpan LivePoll { get; set; } = TimeSpan.FromSeconds(15);
 }
 
 /// <summary>

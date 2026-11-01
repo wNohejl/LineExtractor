@@ -1,0 +1,152 @@
+{
+  "//": "Trimmed from ESPN's NFL /scoreboard captured 1 Nov 2026 during the afternoon games: one event in play (LAC @ LAR, Q2), one final that went to overtime (TEN @ CIN) and one still to come (PHI @ WSH). Field-for-field as the real payload, with everything this desk does not read cut away. Kept apart from espn.scoreboard.json, which is MLB and whose tests count its events.",
+  "events": [
+    {
+      "id": "401873032",
+      "date": "2026-11-01T21:05Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "3",
+              "team": { "id": "14", "abbreviation": "LAR", "displayName": "Los Angeles Rams" },
+              "linescores": [
+                { "value": 3.0, "displayValue": "3", "period": 1 },
+                { "value": 0.0, "displayValue": "0", "period": 2 }
+              ]
+            },
+            {
+              "homeAway": "away",
+              "score": "6",
+              "team": { "id": "24", "abbreviation": "LAC", "displayName": "Los Angeles Chargers" },
+              "linescores": [
+                { "value": 3.0, "displayValue": "3", "period": 1 },
+                { "value": 3.0, "displayValue": "3", "period": 2 }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 506.0,
+            "displayClock": "8:26",
+            "period": 2,
+            "type": {
+              "id": "2",
+              "name": "STATUS_IN_PROGRESS",
+              "state": "in",
+              "completed": false,
+              "description": "In Progress",
+              "detail": "8:26 - 2nd Quarter",
+              "shortDetail": "8:26 - 2nd"
+            }
+          },
+          "situation": {
+            "lastPlay": {
+              "id": "4018730321430",
+              "type": { "id": "74", "text": "Official Timeout", "abbreviation": "Off TO" },
+              "text": "Official Timeout at 08:26.",
+              "team": { "id": "24" },
+              "start": { "yardLine": 80, "team": { "id": "24" } },
+              "end": { "yardLine": 80, "team": { "id": "24" } }
+            },
+            "down": 1,
+            "yardLine": 80,
+            "distance": 10,
+            "downDistanceText": "1st & 10 at LAC 20",
+            "shortDownDistanceText": "1st & 10",
+            "possessionText": "LAC 20",
+            "isRedZone": false,
+            "homeTimeouts": 3,
+            "awayTimeouts": 2,
+            "possession": "24"
+          }
+        }
+      ]
+    },
+    {
+      "id": "401873031",
+      "date": "2026-11-01T18:00Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "43",
+              "team": { "id": "4", "abbreviation": "CIN", "displayName": "Cincinnati Bengals" },
+              "linescores": [
+                { "value": 0.0, "displayValue": "0", "period": 1 },
+                { "value": 14.0, "displayValue": "14", "period": 2 },
+                { "value": 9.0, "displayValue": "9", "period": 3 },
+                { "value": 13.0, "displayValue": "13", "period": 4 },
+                { "value": 7.0, "displayValue": "7", "period": 5 }
+              ]
+            },
+            {
+              "homeAway": "away",
+              "score": "36",
+              "team": { "id": "10", "abbreviation": "TEN", "displayName": "Tennessee Titans" },
+              "linescores": [
+                { "value": 13.0, "displayValue": "13", "period": 1 },
+                { "value": 0.0, "displayValue": "0", "period": 2 },
+                { "value": 8.0, "displayValue": "8", "period": 3 },
+                { "value": 15.0, "displayValue": "15", "period": 4 },
+                { "value": 0.0, "displayValue": "0", "period": 5 }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 5,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final/OT",
+              "shortDetail": "Final/OT"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "401873035",
+      "date": "2026-11-02T01:20Z",
+      "season": { "year": 2026, "type": 2, "slug": "regular-season" },
+      "competitions": [
+        {
+          "competitors": [
+            {
+              "homeAway": "home",
+              "score": "0",
+              "team": { "id": "28", "abbreviation": "WSH", "displayName": "Washington Commanders" }
+            },
+            {
+              "homeAway": "away",
+              "score": "0",
+              "team": { "id": "21", "abbreviation": "PHI", "displayName": "Philadelphia Eagles" }
+            }
+          ],
+          "status": {
+            "clock": 0.0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sun, November 1st at 8:20 PM EST",
+              "shortDetail": "11/1 - 8:20 PM EST"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

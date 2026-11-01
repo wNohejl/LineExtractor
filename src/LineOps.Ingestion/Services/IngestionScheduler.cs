@@ -26,11 +26,12 @@ namespace LineOps.Ingestion.Services;
 ///   Start times move, games get postponed, and a schedule fetched at 09:00 is stale by first
 ///   pitch.</item>
 ///
-///   <item><b>ESPN while a game is live</b> — the same scoreboard call is repeated on a tight
-///   interval for any game whose start time has passed but is not yet final, so a score moves
-///   on the desk while the game is actually being played rather than jumping straight from
-///   nothing to the final. Distinct from the pre-game refresh, which stops the moment a game
-///   has no future start left to protect.</item>
+///   <item><b>ESPN while a game is live</b> — the live job reads the scoreboard every
+///   <c>LivePoll</c> for any game whose start time has passed but is not yet final, and the loop
+///   ticks that fast only while there is one, so a score moves on the desk while the game is
+///   actually being played rather than jumping straight from nothing to the final. Its own job,
+///   distinct from the pre-game refresh, which stops the moment a game has no future start left
+///   to protect.</item>
 ///
 ///   <item><b>ESPN after a game</b> — results are fetched once a started game is old enough to
 ///   have finished, and retried until it is final here. Waiting for the next morning meant a
@@ -81,13 +82,11 @@ public class IngestionScheduler(
         if (_options.RunOnStartup)
             await RunJobAsync(IngestionJobs.EspnSlate, stoppingToken);
 
-        using var timer = new PeriodicTimer(_options.TickInterval);
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await timer.WaitForNextTickAsync(stoppingToken);
+                await Task.Delay(await NextDelayAsync(DateTimeOffset.UtcNow, stoppingToken), stoppingToken);
                 await TickAsync(stoppingToken);
             }
             catch (OperationCanceledException)
@@ -102,6 +101,56 @@ public class IngestionScheduler(
 
         logger.LogInformation("Ingestion scheduler stopped");
     }
+
+    /// <summary>
+    /// How long to sleep before the next tick: <see cref="EspnScheduleOptions.LivePoll"/> while a
+    /// game is in play, <see cref="IngestionOptions.TickInterval"/> otherwise.
+    ///
+    /// <para>
+    /// The live pass can only run on a tick, so a fifteen-second poll on a one-minute tick is a
+    /// one-minute poll. Ticking fast all the time would buy nothing on a quiet desk but queries,
+    /// so the tick drops to the live poll only while there is something live to poll, and comes
+    /// back up the tick after the last game goes final. Every other job keeps its own
+    /// <c>Due</c> gate, so a faster tick asks them more often and runs them no more often.
+    /// </para>
+    ///
+    /// <para>
+    /// A failure to ask — the database restarting — falls back to the ordinary tick rather than
+    /// throwing: the loop's catch would otherwise go straight round again and spin.
+    /// </para>
+    /// </summary>
+    public async Task<TimeSpan> NextDelayAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        if (!_options.GamePasses.Enabled)
+            return TickInterval;
+
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+            return await IngestionJobs.InPlay(db, now, _options.EffectiveSports).AnyAsync(ct)
+                ? TimeSpan.FromTicks(Math.Min(TickInterval.Ticks, LivePoll.Ticks))
+                : TickInterval;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not ask whether a game is in play; ticking at the ordinary interval");
+            return TickInterval;
+        }
+    }
+
+    /// <summary>
+    /// The configured tick and live poll, or their defaults when configuration gives zero or less:
+    /// <c>Task.Delay</c> throws on a negative delay, and the loop's catch would go straight round
+    /// again on every tick, spinning on error logs.
+    /// </summary>
+    private TimeSpan TickInterval => Positive(_options.TickInterval, new IngestionOptions().TickInterval);
+
+    private TimeSpan LivePoll => Positive(_options.GamePasses.LivePoll, new EspnScheduleOptions().LivePoll);
+
+    private static TimeSpan Positive(TimeSpan configured, TimeSpan fallback)
+        => configured > TimeSpan.Zero ? configured : fallback;
 
     private async Task TickAsync(CancellationToken ct)
     {
@@ -126,7 +175,7 @@ public class IngestionScheduler(
 
             if (await LivePollIsDueAsync(now, ct))
             {
-                await RunJobAsync(IngestionJobs.EspnSlate, ct);
+                await RunJobAsync(IngestionJobs.EspnLive, ct);
                 _lastLivePoll = now;
             }
 
@@ -199,33 +248,26 @@ public class IngestionScheduler(
         return await db.Games.AnyAsync(g => g.StartsAt > now && g.StartsAt <= horizon, ct);
     }
 
-    /// <summary>
-    /// Live is due when a game that should already be under way is neither final nor postponed
-    /// here, and the last live poll is stale.
-    ///
-    /// Keyed on start time having passed rather than on <see cref="GameStatus.Live"/>, because a
-    /// game that just started is not yet marked live in our data — that is exactly what the next
-    /// poll is for. Bounded to the last day so a stuck fixture cannot pin this pass on forever.
-    /// </summary>
     /// <summary>How often a desk holding a fought sport re-reads the week's cards when nothing else asks it to.</summary>
     private static readonly TimeSpan FightCardRefresh = TimeSpan.FromHours(6);
 
     /// <summary>How often fighter profiles are checked for fighters owed one.</summary>
     private static readonly TimeSpan FighterPass = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// Live is due when a game is in play (<see cref="IngestionJobs.InPlay"/>) and the last live
+    /// poll is stale. The same predicate sets the tick (<see cref="NextDelayAsync"/>), so the
+    /// scheduler never ticks fast for a game the live job would not fetch.
+    /// </summary>
     private async Task<bool> LivePollIsDueAsync(DateTimeOffset now, CancellationToken ct)
     {
-        if (!Due(_lastLivePoll, _options.GamePasses.LivePoll, now))
+        if (!Due(_lastLivePoll, LivePoll, now))
             return false;
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
-        return await db.Games.AnyAsync(g =>
-            g.StartsAt <= now
-            && g.StartsAt >= now.AddDays(-1)
-            && g.Status != GameStatus.Final
-            && g.Status != GameStatus.Postponed, ct);
+        return await IngestionJobs.InPlay(db, now, _options.EffectiveSports).AnyAsync(ct);
     }
 
     /// <summary>True when a game has started long enough ago to be final and is not final here.</summary>

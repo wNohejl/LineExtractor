@@ -136,6 +136,121 @@ public class DeskPanelBaseTests : DeskTestContext
         Assert.Equal(1, panel.Instance.Refreshes);
     }
 
+    /// <summary>
+    /// A panel that watches "games", optionally for some ids only, and keeps what each refresh
+    /// was told it heard.
+    /// </summary>
+    private sealed class AddressedBench : DeskPanelBase
+    {
+        public HashSet<string>? Ids { get; set; }
+
+        public List<IReadOnlySet<string>> Heard { get; } = [];
+
+        public int PlainRefreshes { get; private set; }
+
+        protected override TimeSpan RefreshSettle => TimeSpan.FromMilliseconds(30);
+
+        protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { "games" };
+
+        protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds =>
+            Ids is null
+                ? base.WatchesIds
+                : new Dictionary<string, IReadOnlySet<string>> { ["games"] = Ids };
+
+        protected override Task RefreshAsync(IReadOnlySet<string> heard)
+        {
+            lock (Heard)
+                Heard.Add(heard);
+
+            return base.RefreshAsync(heard);
+        }
+
+        protected override Task RefreshAsync()
+        {
+            PlainRefreshes++;
+            return Task.CompletedTask;
+        }
+
+        public void Ask() => RequestRefresh();
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+        }
+    }
+
+    private DeskSignals Signals => Services.GetRequiredService<DeskSignals>();
+
+    [Fact]
+    public void A_panel_with_no_ids_hears_every_addressed_notice_of_its_topic()
+    {
+        var panel = RenderComponent<AddressedBench>();
+
+        Signal("games", "7");
+
+        panel.WaitForAssertion(() => Assert.Equal(1, panel.Instance.PlainRefreshes));
+        Assert.Equal(["games:7"], Assert.Single(panel.Instance.Heard));
+    }
+
+    [Fact]
+    public void A_panel_watching_ids_hears_its_own_and_the_bare_topic_only()
+    {
+        var panel = RenderComponent<AddressedBench>();
+        panel.Instance.Ids = ["7"];
+
+        Signal("games", "8");
+        Thread.Sleep(100);
+        Assert.Empty(panel.Instance.Heard);
+
+        Signal("games", "7");
+        panel.WaitForAssertion(() => Assert.Single(panel.Instance.Heard));
+        Assert.Equal(["games:7"], panel.Instance.Heard[0]);
+
+        Signals.Publish(new HashSet<string> { "games" });
+        panel.WaitForAssertion(() => Assert.Equal(2, panel.Instance.Heard.Count));
+        Assert.Equal(["games"], panel.Instance.Heard[1]);
+    }
+
+    [Fact]
+    public void Only_the_tokens_the_panel_hears_reach_its_refresh()
+    {
+        var panel = RenderComponent<AddressedBench>();
+        panel.Instance.Ids = ["7"];
+
+        Signals.Publish(new HashSet<string> { "games:7", "games:8", "odds:7", "journal" });
+
+        panel.WaitForAssertion(() => Assert.Single(panel.Instance.Heard));
+        Assert.Equal(["games:7"], panel.Instance.Heard[0]);
+    }
+
+    [Fact]
+    public void Notices_inside_the_settle_fold_into_one_refresh_that_names_them_all()
+    {
+        var panel = RenderComponent<AddressedBench>();
+
+        Signal("games", "1");
+        Signal("games", "2");
+
+        panel.WaitForAssertion(() => Assert.Single(panel.Instance.Heard));
+        Thread.Sleep(100);
+        Assert.Single(panel.Instance.Heard);
+        Assert.Equal(new HashSet<string> { "games:1", "games:2" }, panel.Instance.Heard[0]);
+    }
+
+    [Fact]
+    public void A_refresh_the_panel_asked_for_itself_names_nothing()
+    {
+        var panel = RenderComponent<AddressedBench>();
+
+        // Asked for without saying what changed, so the refresh means "everything" — even when a
+        // notice lands in the same settle.
+        panel.Instance.Ask();
+        Signal("games", "7");
+
+        panel.WaitForAssertion(() => Assert.Single(panel.Instance.Heard));
+        Assert.Empty(panel.Instance.Heard[0]);
+        Assert.Equal(1, panel.Instance.PlainRefreshes);
+    }
+
     [Fact]
     public void Unsaved_input_marks_the_host_and_clears_on_disposal()
     {

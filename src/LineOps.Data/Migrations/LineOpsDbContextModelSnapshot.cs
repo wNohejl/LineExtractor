@@ -331,8 +331,28 @@ namespace LineOps.Data.Migrations
                     b.Property<int>("AwayTeamId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("AwayTimeouts")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ClockSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DisplayClock")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("Distance")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("DoubleHeaderGame")
                         .HasColumnType("integer");
+
+                    b.Property<int?>("Down")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DownDistanceText")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("ExternalIds")
                         .IsRequired()
@@ -348,6 +368,31 @@ namespace LineOps.Data.Migrations
                     b.Property<int>("HomeTeamId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("HomeTimeouts")
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("IsRedZone")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastPlay")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Linescore")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset?>("LiveUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Period")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PossessionTeamId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PossessionText")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("SeasonType")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -355,6 +400,9 @@ namespace LineOps.Data.Migrations
 
                     b.Property<int>("SeasonYear")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Situation")
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("SportId")
                         .HasColumnType("integer");
@@ -367,11 +415,20 @@ namespace LineOps.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("StatusDetail")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("YardLine")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AwayTeamId");
 
                     b.HasIndex("HomeTeamId");
+
+                    b.HasIndex("PossessionTeamId");
 
                     b.HasIndex("SportId", "StartsAt");
 
@@ -1047,6 +1104,11 @@ namespace LineOps.Data.Migrations
                         .HasForeignKey("HomeTeamId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Team", null)
+                        .WithMany()
+                        .HasForeignKey("PossessionTeamId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("LineOps.Core.Entities.Sport", "Sport")
                         .WithMany("Games")

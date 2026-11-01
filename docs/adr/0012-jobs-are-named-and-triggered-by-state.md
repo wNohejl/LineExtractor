@@ -111,3 +111,20 @@ were manual actions, so nothing failed and no test covered them: the button simp
 times and reported success. A default changed for good reasons in one layer went silently wrong
 in another, which is the argument for reviewing the whole path after a change of that kind
 rather than only the code that changed.
+
+## Amendment — the live pass is its own job
+
+The fourth pass above reused `EspnSlate`, which was right while it ran every ninety seconds and
+wrong once a gamecast wanted the score within seconds (spec 2026-10-24 §2, §5): every poll
+resolved every event on the day's board, refreshed both sides' identity for each, and checked
+the MLB spine gate. `espn:live` now carries it. It fetches the scoreboard only for the
+league-days with a game in play (`IngestionJobs.InPlay`, the predicate `LivePollIsDueAsync`
+already used, narrowed to configured leagues), and writes only the events ESPN calls live, or
+calls final or postponed while our row still has them in play. Games we already hold are
+resolved without their team references, so no identity refresh; no spine sync. `espn:slate` is
+the pre-game refresh again, and both are in the catalogue the Pull menu reads.
+
+`LivePoll` is 15 s — ESPN's scoreboard is cached for ten, so faster buys nothing — and the
+scheduler's loop sleeps `min(TickInterval, LivePoll)` while a game is in play and `TickInterval`
+otherwise, so the fast tick is paid for only during games. Every other job keeps its own due
+gate, so a faster tick asks them more often and runs them no more often.

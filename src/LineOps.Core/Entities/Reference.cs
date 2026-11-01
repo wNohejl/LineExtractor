@@ -137,5 +137,86 @@ public class Game
     /// </summary>
     public int? DoubleHeaderGame { get; set; }
 
+    // ---- The state of play (spec 2026-10-24 §5) ------------------------------------------------
+    //
+    // What ESPN's scoreboard says about a game while it is on, kept so the desk can show the clock,
+    // the down and the last play rather than a score and the word "Live". Written change-only by
+    // the resolver: the live poll runs every few seconds and a write is what raises the desk's
+    // change notice, so a poll that saw nothing new must write nothing. The situation fields —
+    // possession through Situation — clear once the game is no longer in play; the period, clock,
+    // detail and linescore stay, because "Final/OT" and the score by quarter are still true.
+
+    /// <summary>
+    /// The column lengths of the state of play's short strings. The context maps the columns from
+    /// these and the adapter cuts ESPN's strings to them, so an over-long status line is trimmed
+    /// rather than failing the save it rides in.
+    /// </summary>
+    public const int DisplayClockLength = 16;
+    public const int StatusDetailLength = 64;
+    public const int DownDistanceTextLength = 64;
+    public const int PossessionTextLength = 32;
+
+    /// <summary>Quarter, inning or round. Null before the start.</summary>
+    public int? Period { get; set; }
+
+    /// <summary>The game clock as ESPN prints it — "4:12".</summary>
+    public string? DisplayClock { get; set; }
+
+    /// <summary>The same clock as seconds remaining in the period, for anything that counts down.</summary>
+    public int? ClockSeconds { get; set; }
+
+    /// <summary>ESPN's <c>status.type.shortDetail</c>: "Q3 4:12", "Halftime", "Final/OT".</summary>
+    public string? StatusDetail { get; set; }
+
+    /// <summary>
+    /// Our <see cref="Team.Id"/> for the side with the ball — always this game's home or away,
+    /// resolved from ESPN's team id; null when ESPN names neither.
+    /// </summary>
+    public int? PossessionTeamId { get; set; }
+
+    public int? Down { get; set; }
+    public int? Distance { get; set; }
+
+    /// <summary>
+    /// ESPN's <c>situation.yardLine</c>, as given: yards from the <b>home</b> team's goal line, on
+    /// one fixed frame for the whole field — not yards to go, and not relative to the side with the
+    /// ball. Checked against <c>possessionText</c> across the three games live on 1 Nov 2026: LAC
+    /// (away) with the ball at "LAC 20" in LAC @ LAR read 80; DEN (home) at "KC 33" in KC @ DEN read
+    /// 67; MIA (home) at "MIA 29" in NE @ MIA read 29. The drive's start in the same payload agrees
+    /// ("LAR 28" is 28). Yards to the end zone is therefore <c>100 - YardLine</c> when the home side
+    /// has the ball and <c>YardLine</c> when the away side does.
+    /// </summary>
+    public int? YardLine { get; set; }
+
+    /// <summary>"2nd &amp; 6 at NE 34".</summary>
+    public string? DownDistanceText { get; set; }
+
+    /// <summary>Where the ball is, in ESPN's own words — "NE 34".</summary>
+    public string? PossessionText { get; set; }
+
+    public bool? IsRedZone { get; set; }
+    public int? HomeTimeouts { get; set; }
+    public int? AwayTimeouts { get; set; }
+
+    /// <summary>ESPN's text for the last play — "D.Maye pass incomplete short left…".</summary>
+    public string? LastPlay { get; set; }
+
+    /// <summary>
+    /// Points by period as jsonb — <c>{"home":[10,7],"away":[3,0]}</c>, first period first. A
+    /// string rather than a typed column for the reason <c>PlayerGameStat.StatLine</c> is one:
+    /// the shape is small, read whole and never queried into.
+    /// </summary>
+    public string? Linescore { get; set; }
+
+    /// <summary>
+    /// What is sport-specific about the situation, as jsonb: baseball's <c>balls</c>,
+    /// <c>strikes</c>, <c>outs</c>, <c>onFirst</c>/<c>onSecond</c>/<c>onThird</c>, <c>batter</c>
+    /// and <c>pitcher</c>. Null for football, whose situation is the columns above.
+    /// </summary>
+    public string? Situation { get; set; }
+
+    /// <summary>When any of the state of play last changed. Not touched by a poll that saw nothing new.</summary>
+    public DateTimeOffset? LiveUpdatedAt { get; set; }
+
     public Dictionary<string, string> ExternalIds { get; set; } = [];
 }
