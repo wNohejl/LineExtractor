@@ -32,12 +32,21 @@
         <Glyph Icon="@Icons.Material.Filled.Search" />
     </span>
 
+    @* A search that heads a list of matches is a combobox (ARIA): the list is named, says
+       whether it is open, and the option the arrows rest on is announced while focus stays in
+       the field. It also names itself as the popover's return point, so closing the list puts
+       focus back here rather than on the page. *@
     <input @ref="_input"
            type="search"
-           role="searchbox"
+           role="@(ListId is null ? "searchbox" : "combobox")"
            class="field search__field"
            placeholder="@Placeholder"
            aria-label="@(Label ?? Placeholder)"
+           aria-autocomplete="@(ListId is null ? null : "list")"
+           aria-expanded="@(ListId is null ? null : Expanded ? "true" : "false")"
+           aria-controls="@ListId"
+           aria-activedescendant="@(Expanded ? ActiveDescendant : null)"
+           data-popover-return="@(ListId is null ? null : "true")"
            autocomplete="off"
            spellcheck="false"
            value="@_text"
@@ -74,6 +83,26 @@
     /// Commit on every keystroke (the default: search as people type) rather than on blur.
     /// </summary>
     [Parameter] public bool Immediate { get; set; } = true;
+
+    /// <summary>
+    /// The id of the listbox this search heads, when it has one. Set, the field is a combobox:
+    /// it names the list, reports <see cref="Expanded"/> and <see cref="ActiveDescendant"/>, and
+    /// Escape while the list is open is left to the owner (to close the list) rather than
+    /// clearing the text — the platform's two Escapes, in that order.
+    /// </summary>
+    [Parameter] public string? ListId { get; set; }
+
+    /// <summary>Whether the list this search heads is showing.</summary>
+    [Parameter] public bool Expanded { get; set; }
+
+    /// <summary>The id of the option the arrows rest on, announced while focus stays in the field.</summary>
+    [Parameter] public string? ActiveDescendant { get; set; }
+
+    /// <summary>
+    /// Every key pressed in the field, before the search acts on it: an owner with a list drives
+    /// the arrows and Enter from here.
+    /// </summary>
+    [Parameter] public EventCallback<KeyboardEventArgs> OnKeyDown { get; set; }
 
     /// <summary>Extra classes on the search wrapper, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
@@ -112,8 +141,15 @@
         return Immediate ? Task.CompletedTask : ValueChanged.InvokeAsync(_text);
     }
 
-    private Task OnKeyDownAsync(KeyboardEventArgs e)
-        => e.Key == "Escape" && HasText ? ClearAsync() : Task.CompletedTask;
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        await OnKeyDown.InvokeAsync(e);
+
+        // With a list open, Escape is the owner's: it closes the list and the text stays for
+        // the next Escape to clear.
+        if (e.Key == "Escape" && HasText && !(ListId is not null && Expanded))
+            await ClearAsync();
+    }
 
     // The key leaves the tree as the field empties, which would drop focus on the page; it
     // goes back to the field, where the next search is typed.

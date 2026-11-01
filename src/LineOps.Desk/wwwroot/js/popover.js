@@ -31,7 +31,7 @@ function opener(root) {
 function teardown(state) {
     document.removeEventListener('pointerdown', state.onPointerDown, true);
     document.removeEventListener('keydown', state.onKeyDown);
-    opener(state.root)?.removeAttribute('aria-controls');
+    if (state.named) opener(state.root)?.removeAttribute('aria-controls');
 
     if (current === state) current = null;
 }
@@ -116,7 +116,9 @@ export function open(panel, root, dotNetRef) {
     document.addEventListener('pointerdown', state.onPointerDown, true);
     document.addEventListener('keydown', state.onKeyDown);
 
-    if (panel.id) opener(root)?.setAttribute('aria-controls', panel.id);
+    // An opener that already names what it controls (a combobox naming its listbox) keeps it.
+    const who = opener(root);
+    if (panel.id && who && !who.hasAttribute('aria-controls')) { who.setAttribute('aria-controls', panel.id); state.named = true; }
 
     flip(panel, root);
     current = state;

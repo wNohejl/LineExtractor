@@ -136,4 +136,75 @@ public class DeskSearchTests : DeskTestContext
         Assert.Contains("Placeholder=\"Search players", source);
         Assert.DoesNotContain("<DeskField", source);
     }
+
+    /// <summary>
+    /// A search that heads a list is a combobox: it names the list, says whether it is open,
+    /// announces the option the arrows rest on while focus stays in the field, and is where
+    /// the popover returns focus when the list goes.
+    /// </summary>
+    [Fact]
+    public void A_search_that_heads_a_list_is_a_combobox()
+    {
+        var cut = RenderComponent<DeskSearch>(p => p
+            .Add(x => x.Placeholder, "Find a game")
+            .Add(x => x.Value, "ste")
+            .Add(x => x.ListId, "games-1")
+            .Add(x => x.Expanded, true)
+            .Add(x => x.ActiveDescendant, "games-1-2"));
+
+        var input = cut.Find("input");
+        Assert.Equal("combobox", input.GetAttribute("role"));
+        Assert.Equal("list", input.GetAttribute("aria-autocomplete"));
+        Assert.Equal("true", input.GetAttribute("aria-expanded"));
+        Assert.Equal("games-1", input.GetAttribute("aria-controls"));
+        Assert.Equal("games-1-2", input.GetAttribute("aria-activedescendant"));
+        Assert.Equal("true", input.GetAttribute("data-popover-return"));
+    }
+
+    [Fact]
+    public void A_plain_search_is_a_searchbox_and_names_no_list()
+    {
+        var input = Search("ste").Find("input");
+
+        Assert.Equal("searchbox", input.GetAttribute("role"));
+        Assert.Null(input.GetAttribute("aria-expanded"));
+        Assert.Null(input.GetAttribute("aria-controls"));
+        Assert.Null(input.GetAttribute("data-popover-return"));
+    }
+
+    /// <summary>With the list open, Escape is the owner's to close it; the text stays for the next Escape.</summary>
+    [Fact]
+    public void Escape_with_the_list_open_reaches_the_owner_and_keeps_the_text()
+    {
+        var seen = new List<string>();
+        var keys = new List<string>();
+        var cut = RenderComponent<DeskSearch>(p => p
+            .Add(x => x.Placeholder, "Find a game")
+            .Add(x => x.Value, "ste")
+            .Add(x => x.ValueChanged, (string s) => seen.Add(s))
+            .Add(x => x.ListId, "games-1")
+            .Add(x => x.Expanded, true)
+            .Add(x => x.OnKeyDown, (KeyboardEventArgs e) => keys.Add(e.Key)));
+
+        cut.Find("input").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Equal(["Escape"], keys);
+        Assert.Empty(seen);
+    }
+
+    [Fact]
+    public void Escape_with_the_list_closed_clears_the_text()
+    {
+        var seen = new List<string>();
+        var cut = RenderComponent<DeskSearch>(p => p
+            .Add(x => x.Placeholder, "Find a game")
+            .Add(x => x.Value, "ste")
+            .Add(x => x.ValueChanged, (string s) => seen.Add(s))
+            .Add(x => x.ListId, "games-1")
+            .Add(x => x.Expanded, false));
+
+        cut.Find("input").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Equal([""], seen);
+    }
 }

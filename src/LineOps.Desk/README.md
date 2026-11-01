@@ -286,7 +286,7 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskPullDown` | A key that opens a menu of related commands. | — |
 | `DeskRadioGroup` | One choice among options that need room: a sentence each, or a picture of what choosing it does. | — |
 | `DeskRow` | A horizontal group with its gap named from the spacing ramp. | — |
-| `DeskSearch` | A search field with a magnifier, a clear key and a scoped placeholder. | — |
+| `DeskSearch` | A search field with a magnifier, a clear key and a scoped placeholder; given a `ListId` it heads a popover list as a combobox. | — |
 | `DeskSelect` | A field that picks from a list. | — |
 | `DeskSheet` | A modal sheet for one self-contained task. | `MudDialog`, through `IDeskSheets` |
 | `DeskSkeleton` | A placeholder in the shape of content that has not arrived. | — |

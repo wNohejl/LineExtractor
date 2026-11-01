@@ -290,20 +290,26 @@ Landed since this plan was written:
 - Skills distribution (#13): `apple-mudblazor` points at `src/LineOps.Desk` instead of
   copyable templates, and `apple-hig-components` names the three skills' jobs (bb6e098).
 
-Still open, in the order worth doing:
+Landed on 1 November 2026, after the status above was written:
 
-1. **HIG 6** — the Game picker's search as a popover listbox (`GamePicker.razor` is a
-   `DeskField` with an inline `style="width:100%"`).
-2. **HIG 9** — body actions into `PanelToolbar` where a window still draws its own row.
-3. **HIG 18, razor half** — six inline `style=""` attributes in `src/LineOps.Web/Components`
-   (`PriceCell`, `SelectionChips`, `TeamMark` set CSS variables and may stay; `GamePicker`,
-   `JournalPanel`, `OddsPanel` set widths and nowrap and should be classes).
-4. **"Board" in the Desk** — nineteen mentions in `src/LineOps.Desk` comments name an
-   application's window; reword to "a list window" and add `board` to `DeskVocabularyTests`.
-5. `FormGroup`/`FormRow` and its ~130-site adoption — still judged L; `PanelForm` covers the
+- **HIG 6** — the Game picker is a `DeskSearch` heading a `DeskPopover` listbox: a combobox
+  (`ListId`, `Expanded`, `ActiveDescendant`, `OnKeyDown` on `DeskSearch`), focus in the field,
+  arrows and Enter, the first Escape closing the list and the second clearing it. The list was a
+  bordered group inside the form; it floats now. `GamePickerTests`, dark and light at 1280×800.
+- **HIG 9** — surveyed: every window without a `PanelToolbar` puts its scoping control in
+  `PanelTitle.Keys` or its keys in a `KeyRow`, which is the anatomy; the only hand-laid rows were
+  Team's two `<div class="row">` of row keys, now `DeskRow`. `GamePanel` was another session's.
+- **HIG 18, razor half** — the three width/nowrap inline styles (`GamePicker`, `JournalPanel`,
+  `OddsPanel`) are classes; `PriceCell`, `SelectionChips` and `TeamMark` set CSS variables and stay.
+- **"Board" in the Desk** — the nineteen mentions say "a list" or "a list window", and `board` is
+  in `DeskVocabularyTests`' words.
+
+Still open:
+
+1. `FormGroup`/`FormRow` and its ~130-site adoption — still judged L; `PanelForm` covers the
    inset card, not the row.
-6. `PostgresDeskSignalSource` from `DataChangeListener` (#6).
-7. ADRs 0007, 0008, 0013, 0016, 0018–0020 packaged with the Desk and Hosting (#14).
+2. `PostgresDeskSignalSource` from `DataChangeListener` (#6).
+3. ADRs 0007, 0008, 0013, 0016, 0018–0020 packaged with the Desk and Hosting (#14).
 
 Not defects, recorded so nobody re-greps them: the eight `Title="GP|ATS|RCA|CLV|ROI"` column
 headers are initialisms, not shouting labels; the three `text-transform: uppercase` rules are

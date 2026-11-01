@@ -1625,3 +1625,16 @@ button.gamelines__toggle:hover { background: var(--surface-3); }
     background: var(--accent-wash);
     color: var(--text-primary);
 }
+
+/* ---- The game search's list floats (HIG 6): a popover under the field, as wide as the field,
+   rather than a bordered group drawn in the form. The popover's own min and max widths are for
+   menus; a game line needs the field's width. */
+.game-search__pop { display: flex; width: 100%; min-width: 0; }
+.game-search__pop > .search { flex: 1 1 auto; min-width: 0; }
+.game-search__pop .popover__panel { width: 100%; min-width: 240px; max-width: none; }
+.game-search__empty { padding: var(--space-2) var(--space-3); }
+
+/* ---- Two rules that were inline styles (HIG 18): a parlay leg on one line, and the Odds
+   window's game pick capped at the longest option, not the toolbar. */
+.legline { white-space: nowrap; }
+.odds-game { max-width: min(440px, 100%); }
