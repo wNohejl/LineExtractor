@@ -97,31 +97,10 @@ else
             }
         </Detail>
         <Keys>
-            @* Which season the team data and rosters below are drawn from. Defaults to the
-               game's own season; for a game that season has not yet produced games for, the
-               one before. Hides itself when there is only one season to draw on. *@
-            @if (_bout is null)
-            {
-            <DeskSwitch Options="_seasonOptions" Label="Season for team and player data" Mono="true"
-                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
-            }
-
-            @* The two views this game opens onto, kept together as one cluster: they are the
-               same kind of thing — a related window, one click away — and the glide plate
-               slides between them rather than each lighting itself. *@
+            @* Only what applies whichever tab is showing. Movement opens under each market's row
+               and Head to head under the title, in place rather than in windows of their own;
+               the season switch heads the two panes it chooses for (Team data, Players). *@
             <DeskRow Gap="DeskSpace.Space1" data-glide="">
-                <DeskButton Icon="@Icons.Material.Filled.ShowChart"
-                            OnClick="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(game))">
-                    Movement
-                </DeskButton>
-
-                @* How these two have gone against each other, which is a different question from
-                   how either has been playing — and the one the team blocks cannot answer. *@
-                <DeskButton Icon="@Icons.Material.Filled.CompareArrows"
-                            OnClick="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)">
-                    Head to head
-                </DeskButton>
-
                 @* The wager wizard preloaded from this game: its form opens on this matchup
                    rather than on a game search. A visitor has no wager to log (ADR 0018). *@
                 @if (Manager.Access.CanOperate)
@@ -136,8 +115,17 @@ else
         </Keys>
     </PanelTitle>
 
+    @* The matchup's history, about the game rather than any one tab of it, so it sits under the
+       title and stays put while the tabs switch below. Closed it is one line carrying the
+       record; open, the last meetings, with the full record one key further. *@
+    <GameHeadToHead GameId="GameId" HomeName="@SideName(true)" AwayName="@SideName(false)"
+                    IsFight="@(_bout is not null)"
+                    OnOpenWindow="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)" />
+
     @* The journal wired into the desk: what you have riding on this game, where you are
-       looking at it, rather than in a list in another window. *@
+       looking at it, rather than in a list in another window. Up to two bets show as rows;
+       from three they fold behind one line that says what is riding, so a busy game's bets
+       do not push its lines below the fold. *@
     @if (_bets.Count > 0)
     {
         <PanelSection>
@@ -146,6 +134,46 @@ else
             <DeskLink Destination="journal" OnClick="() => Manager.OpenJournal()">Journal</DeskLink>
         </TitleContent>
         <ChildContent>
+        @if (_bets.Count >= FoldBetsAt)
+        {
+            <DeskDisclosure Label="@BetsSummary(_bets)" @bind-Open="_betsOpen">
+                @RenderBets()
+            </DeskDisclosure>
+        }
+        else
+        {
+            @RenderBets()
+        }
+        </ChildContent>
+        </PanelSection>
+    }
+
+    <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
+              @bind-Value="_section">
+        @if (context == Section.Markets)
+        {
+            @RenderMarkets()
+        }
+        else if (context == Section.Tape)
+        {
+            <TaleOfTheTape GameId="GameId" OnFighter="@(((int TeamId, string Name) f) => Manager.OpenTeam(f.TeamId, f.Name, WindowId))" />
+        }
+        else if (context == Section.TeamData)
+        {
+            @RenderSeason()
+            @RenderTeamData()
+        }
+        else
+        {
+            @RenderSeason()
+            @RenderPlayers()
+        }
+    </DeskTabs>
+}
+
+@code {
+    /// <summary>The bet rows, folded or not.</summary>
+    private RenderFragment RenderBets() => @<text>
         <DeskStack Gap="DeskSpace.Space1">
             @foreach (var bet in _bets)
             {
@@ -181,32 +209,8 @@ else
                 </DeskRow>
             }
         </DeskStack>
-        </ChildContent>
-        </PanelSection>
-    }
+    </text>;
 
-    <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
-              @bind-Value="_section">
-        @if (context == Section.Markets)
-        {
-            @RenderMarkets()
-        }
-        else if (context == Section.Tape)
-        {
-            <TaleOfTheTape GameId="GameId" OnFighter="@(((int TeamId, string Name) f) => Manager.OpenTeam(f.TeamId, f.Name, WindowId))" />
-        }
-        else if (context == Section.TeamData)
-        {
-            @RenderTeamData()
-        }
-        else
-        {
-            @RenderPlayers()
-        }
-    </DeskTabs>
-}
-
-@code {
     protected override string LoadSubject => "The game";
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Journal };
@@ -434,7 +438,7 @@ else
                 how to read, and a rail of ticks under each. The cell is built for a dense grid
                 where the same books repeat down a column; here there are six numbers and room
                 to name them. The rest of the market — every book's price — is the cell's
-                tooltip, and Every book's window. A live price is a door: pressed, it opens the wager
+                disclosure under its row, and the Line movement window. A live price is a door: pressed, it opens the wager
                 window on that side at that book, as the Board's prices do.
             *@
             <section class="wsection gamelines">
@@ -461,14 +465,94 @@ else
         }
     </text>;
 
-    /// <summary>One market: its name leading, then the two sides, each a cell of <see cref="LineCell"/>.</summary>
-    private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total) => @<div class="wgroup__row wgroup__row--form">
-        <span class="wgroup__label">@market</span>
-        <div class="gamelines__sides">
-            @LineCell(first, firstSide, total, MarketKey(market))
-            @LineCell(second, secondSide, total, MarketKey(market))
+    /// <summary>
+    /// One market: its name leading, then the two sides, each a cell of <see cref="LineCell"/>.
+    ///
+    /// <para>
+    /// The name is a disclosure (HIG, disclosure triangles): pressed, the market opens under its
+    /// row — how each book moved it before the start, every book's close after — where the
+    /// Movement key used to open a window that, once the game started, had nothing to show. The
+    /// side cells keep their own press, the wager door. One market open at a time, as one row is
+    /// on every other list on the desk.
+    /// </para>
+    /// </summary>
+    private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total) => @<text>
+        @{
+            var key = MarketKey(market);
+            var open = _openMarket == key;
+            var region = $"gamemove-{WindowId}-{key}";
+        }
+        <div class="wgroup__row wgroup__row--form @(open ? "gamelines__row--open" : null)">
+            <button type="button" class="wgroup__label gamelines__toggle disclosure__summary"
+                    aria-expanded="@(open ? "true" : "false")" aria-controls="@region"
+                    @onclick="() => ToggleMarket(key)">
+                <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
+                <span>@market</span>
+            </button>
+            <div class="gamelines__sides">
+                @LineCell(first, firstSide, total, key)
+                @LineCell(second, secondSide, total, key)
+            </div>
         </div>
-    </div>;
+        @if (open)
+        {
+            <div class="wgroup__row gamelines__detail">
+                <MarketMovement Id="@region" GameId="GameId" Market="@key" MarketName="@market"
+                                First="first" Second="second" FirstSide="@firstSide" SecondSide="@secondSide"
+                                Closing="@_row!.PricesAreClosing" PricedAt="@_row.PricedAt"
+                                OnOpenWindow="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(_row.Game))" />
+            </div>
+        }
+    </text>;
+
+    /// <summary>The market open under its row, by key; null when every row is closed.</summary>
+    private string? _openMarket;
+
+    private void ToggleMarket(string market) => _openMarket = _openMarket == market ? null : market;
+
+    /// <summary>From this many bets the rows fold behind one line; two rows fold to nothing smaller.</summary>
+    private const int FoldBetsAt = 3;
+
+    private bool _betsOpen;
+
+    /// <summary>
+    /// The folded bets' one line: what is open and what is riding, then what has settled —
+    /// "3 pending · $335 at risk · 1 won".
+    /// </summary>
+    public static string BetsSummary(IReadOnlyList<JournalEntry> bets)
+    {
+        var pending = bets.Where(b => b.Result == EntryResult.Pending).ToList();
+        var parts = new List<string>();
+
+        if (pending.Count > 0)
+            parts.Add($"{pending.Count} pending · {pending.Sum(b => b.IsParlayLeg ? 0 : b.Stake):C0} at risk");
+
+        foreach (var (result, word) in new[] { (EntryResult.Win, "won"), (EntryResult.Loss, "lost"), (EntryResult.Push, "pushed"), (EntryResult.Void, "void") })
+        {
+            var n = bets.Count(b => b.Result == result);
+            if (n > 0)
+                parts.Add($"{n} {word}");
+        }
+
+        return parts.Count == 0 ? $"{bets.Count} bets" : string.Join(" · ", parts);
+    }
+
+    /// <summary>
+    /// Which season the team data and rosters are drawn from, heading the two panes it chooses
+    /// for. It sat on the title's row, four controls wide on every tab, while the lines never
+    /// read it. Hides itself for a fight, which has no season (ADR 0021), and when there is one
+    /// season to draw on.
+    /// </summary>
+    private RenderFragment RenderSeason() => @<text>
+        @if (_bout is null && _seasonOptions.Count > 1)
+        {
+            <div class="gamepane__switches">
+                <DeskSwitch Options="_seasonOptions" Label="Season for team and player data" Mono="true"
+                            Size="DeskKeySize.Small"
+                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
+            </div>
+        }
+    </text>;
 
     /// <summary>
     /// A side's best number and the book holding it: "Cowboys +3.5 −110" over "DraftKings". A
@@ -565,8 +649,8 @@ else
     /// <summary>The group's footer: what the numbers are, and when a close, what that means.</summary>
     private string LinesFoot
         => _row!.PricesAreClosing
-            ? "Closing prices: the last number each book showed before the start. Hover a price for every book's."
-            : $"The best price on each side across {_row.BookCount:N0} {(_row.BookCount == 1 ? "book" : "books")}. Hover a price for every book's.";
+            ? "Closing prices: the last number each book showed before the start. Open a market for every book's."
+            : $"The best price on each side across {_row.BookCount:N0} {(_row.BookCount == 1 ? "book" : "books")}. Open a market for every book's, and how each moved.";
 
     /// <summary>"2026 season", or "2025 postseason" for a February game that closes the prior year.</summary>
     private static string SeasonWords(Game game)
@@ -641,7 +725,7 @@ else
             var columns = GameBoxScore.ColumnsFor(side);
 
             <PanelSection Title="@teamName">
-                <div class="gridwrap">
+                <div class="gridwrap gameplayers">
                     <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
                         <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
                                         Title="Player" CellClass="trunc">
@@ -718,7 +802,7 @@ else
                     That is the row-drilldown spec's "one interaction to learn, and it holds all the
                     way down" being cashed in rather than restated.
                 *@
-                <div class="gridwrap">
+                <div class="gridwrap gameplayers">
                     <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
                               RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
                               OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"

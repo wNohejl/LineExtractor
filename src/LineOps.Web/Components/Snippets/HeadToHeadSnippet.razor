@@ -104,7 +104,23 @@ else
     private bool _loading = true;
     private string? _error;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    /// <summary>
+    /// Meetings already read by the host — the Game window's head to head reads them once for
+    /// its label and hands them on, so the label and the rows are one query. Null to read here.
+    /// </summary>
+    [Parameter] public IReadOnlyList<HeadToHeadRow>? Rows { get; set; }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (Rows is null)
+            return LoadAsync();
+
+        _rows = Rows;
+        _covered = _rows.Count(r => r.HasClosingLine);
+        _loading = false;
+        _error = null;
+        return Task.CompletedTask;
+    }
 
     /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
     private async Task LoadAsync()

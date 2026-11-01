@@ -1,0 +1,140 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Data.CrossReference
+@inject IServiceScopeFactory ScopeFactory
+@inject ILogger<GameHeadToHead> Logger
+
+@*
+    How these two have gone against each other, opened in place under the game's title.
+
+    It was a key that opened a third window, beside the Game window and Line movement, to say
+    five rows. The HIG's disclosure button is the control for this: one per view, beside what it
+    shows, pointing down while the content is hidden and up once it shows. Closed, its label is
+    the answer people open it for ("Chiefs 4–1"), so most of the time it never needs opening.
+
+    The meetings are read once, here, for the label, and handed to the snippet that draws them,
+    so the label and the rows are one query and cannot disagree.
+*@
+
+<div class="gameh2h">
+    <button type="button" class="gameh2h__toggle"
+            aria-expanded="@(_open ? "true" : "false")" aria-controls="@_regionId"
+            @onclick="Toggle">
+        <span class="gameh2h__label">
+            @(IsFight ? "Previous fights" : "Head to head")
+            @if (!_loading && _error is null)
+            {
+                <span class="gameh2h__summary"> · @Summary(_rows, HomeName, AwayName, IsFight)</span>
+            }
+        </span>
+        <span class="gameh2h__chevron" aria-hidden="true">
+            <Glyph Icon="@(_open ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" />
+        </span>
+    </button>
+
+    @if (_open)
+    {
+        <div class="gameh2h__region" id="@_regionId" role="region" aria-label="Previous meetings">
+            @if (_loading)
+            {
+                <DeskSkeleton Lines="3" />
+            }
+            else if (_error is not null)
+            {
+                <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+            }
+            else
+            {
+                <HeadToHeadSnippet GameId="GameId" Rows="_rows" Take="Take" />
+                @if (_rows.Count > 0 && OnOpenWindow.HasDelegate)
+                {
+                    <div class="gameh2h__more">
+                        <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.CompareArrows"
+                                    OnClick="() => OnOpenWindow.InvokeAsync()">
+                            Every meeting…
+                        </DeskButton>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int GameId { get; set; }
+
+    /// <summary>The home side's short name: the meetings are read from its side.</summary>
+    [Parameter, EditorRequired] public string HomeName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string AwayName { get; set; } = string.Empty;
+
+    /// <summary>A bout (ADR 0021): "Previous fights", which is usually none.</summary>
+    [Parameter] public bool IsFight { get; set; }
+
+    /// <summary>Opens the Head to head window, for the sortable record beyond the last few.</summary>
+    [Parameter] public EventCallback OnOpenWindow { get; set; }
+
+    /// <summary>How many meetings open in place before the window is the better place.</summary>
+    public const int Take = 5;
+
+    private readonly string _regionId = $"h2h-{Guid.NewGuid():N}";
+    private IReadOnlyList<HeadToHeadRow> _rows = [];
+    private bool _open;
+    private bool _loading = true;
+    private string? _error;
+    private int? _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // History does not change while the game is on, so a re-render of the window on an odds
+        // or score signal is not a reason to read it again.
+        if (_loadedFor == GameId)
+            return;
+
+        _loadedFor = GameId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            _rows = await scope.ServiceProvider.GetRequiredService<GameLogService>().HeadToHeadAsync(GameId, Take);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Previous meetings did not load");
+            _error = "Previous meetings did not load.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Toggle() => _open = !_open;
+
+    /// <summary>
+    /// The label's answer, leader first: "Chiefs 4–1", "Level 2–2", "no meetings on record".
+    /// The record is straight up and read from the home side, as the rows are; a meeting with
+    /// no result yet counts for neither side.
+    /// </summary>
+    public static string Summary(IReadOnlyList<HeadToHeadRow> rows, string home, string away, bool isFight = false)
+    {
+        if (rows.Count == 0)
+            return isFight ? "none on record" : "no meetings on record";
+
+        var homeWins = rows.Count(r => r.SubjectWon == true);
+        var awayWins = rows.Count(r => r.SubjectWon == false);
+
+        if (homeWins == 0 && awayWins == 0)
+            return rows.Count == 1 ? "1 meeting, no result" : $"{rows.Count} meetings, no result";
+
+        return homeWins == awayWins ? $"Level {homeWins}–{awayWins}"
+            : homeWins > awayWins ? $"{home} {homeWins}–{awayWins}"
+            : $"{away} {awayWins}–{homeWins}";
+    }
+}

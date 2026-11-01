@@ -1485,7 +1485,7 @@ button.gamelines__cell { align-items: stretch; }
    trailing in two even columns: each the price a person can take and, beneath it, the book
    that has it, by name. It was three inline clusters of tiny prices with unexplained book
    codes (PN, DK, MG) crammed into the left third of the window. */
-.gamelines { max-width: 560px; --form-label: 96px; }
+.gamelines { max-width: 560px; --form-label: 120px; }
 .gamelines__sides {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1505,6 +1505,106 @@ button.gamelines__cell { align-items: stretch; }
     font-variant-numeric: tabular-nums;
 }
 .gamelines__side { font-weight: var(--weight-semibold); }
+
+/* The market's name is its disclosure: the triangle leads, the name follows, and the pair is one
+   press (HIG, disclosure triangles). Wide enough for "Total rounds" and its triangle. It is a
+   <button>, so the browser's is undone and the label's own type kept. */
+button.gamelines__toggle {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: var(--text-primary);
+    text-align: inherit;
+    justify-self: start;
+    margin: 0 0 0 -4px;
+    padding: 2px 6px 2px 4px;
+}
+button.gamelines__toggle:hover { background: var(--surface-3); }
+/* The opened market's detail reads as the row's own continuation: no hairline between a row and
+   what it discloses, indented to the name's leading edge as a disclosure's content is. */
+.gamelines__detail { display: block; padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + 12px + var(--space-2)); }
+.gamelines__detail::before { display: none; }
+
+/* ---- A market opened in place (MarketMovement) -------------------------------------------
+   Line movement's reading at the size of a row: the finding and the side switch on one line,
+   a table of books, then the span and the way to the window. Footnote type, because it sits
+   under the price it explains and must not outweigh it. */
+.gamemove__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+}
+.gamemove__headline {
+    margin: 0;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-body);
+    color: var(--text-primary);
+}
+.gamemove__table { width: 100%; max-width: 480px; }
+.gamemove__table td, .gamemove__table th { padding-top: 3px; padding-bottom: 3px; }
+.gamemove__quote { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The best number on a side: heavier, and a dot beside it, so it is not marked by colour alone. */
+.gamemove__best { font-weight: var(--weight-semibold); color: var(--text-primary); }
+.gamemove__dot { margin-left: var(--space-1); font-size: 0.6em; vertical-align: 0.2em; color: var(--accent-ink); }
+.gamemove__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-footnote);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- Head to head, under the title (GameHeadToHead) --------------------------------------
+   A disclosure button (HIG): the label leads with the answer, the chevron trails and points
+   down while the meetings are hidden, up once they show. One line closed; the meetings and the
+   way to the full record open beneath it, at the lines' reading width. */
+.gameh2h { margin: 0 0 var(--space-3); max-width: 560px; }
+.gameh2h__toggle {
+    appearance: none;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 28px;
+    margin: 0 0 0 -6px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--text-body);
+    cursor: pointer;
+}
+.gameh2h__toggle:hover { background: var(--surface-3); }
+.gameh2h__toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.gameh2h__label { font-weight: var(--weight-semibold); }
+.gameh2h__summary { font-weight: var(--weight-regular); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.gameh2h__chevron { display: inline-flex; color: var(--text-secondary); }
+.gameh2h__chevron svg { width: 18px; height: 18px; }
+.gameh2h__region { padding: var(--space-2) 0 0; }
+/* A score and a date are each one reading: in a narrow window the meeting's names give way (they
+   truncate), never "10-" over "31". */
+.gameh2h__region .grid td:not(.trunc), .gameh2h__region .grid th { white-space: nowrap; }
+.gameh2h__more { margin: var(--space-2) 0 0; }
+
+/* The season switch heading Team data and Players, the two panes it chooses for. */
+.gamepane__switches { margin: 0 0 var(--space-3); }
+
+/* A player's name is the row's subject; the stat columns scroll before it is cut to "Alo…". */
+.gameplayers .deskgrid .mud-table-body .mud-table-cell.trunc { min-width: 9.5rem; }
 .gamelines__book {
     overflow: hidden;
     text-overflow: ellipsis;
