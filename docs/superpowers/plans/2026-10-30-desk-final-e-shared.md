@@ -277,14 +277,35 @@
 - [ ] Browser pass on port 5271 (scheduler and evaluator off), 1280×800, dark and light: wager window (side and maximised), Slip, Journal (row menu, Save reason), Ops (Evaluate reason, Scan confirm), History (Gather reason, Re-walk confirm), Incidents (Add, Resolve), Performance (Set), Board (Space on a price; Pull data), Team (season select), Parts bin new sections, `/not-found`; gated sign-in with `test-code-1` and the `lineops.access` cookie.
 - [ ] `git worktree list` shows one entry; `git branch -a` shows `main` and `LineX_Development` only; no stashes.
 
-## Deferred to Phase F
+## Deferred to Phase F — status on 1 November 2026
 
-- `LineOps.Desk.Testing` — convention scans (`AccessibleNameTests`, `GridConventionTests`, `StaticAssetsTests`, `DeskCssConventionTests`, `StylesheetOwnershipTests`) parameterised by source root, and `DeskTestContext`/fakes for consumers (audit #9).
-- Moving the ~2,000 lines of desk-behaviour tests from `LineOps.Web.Tests` onto `FakeWindowCatalog` (#10).
-- `dotnet new deskapp` template: App/Routes/Home/_Imports/Program wiring, then repo scaffolding with `--with-infra`, and a minimal launch profile (#11 rest, #12, #15).
-- `PostgresDeskSignalSource` from `DataChangeListener` (#6).
-- Skills distribution for apple-hig-components and apple-mudblazor (#13).
-- ADRs 0007, 0008, 0013, 0016, 0018–0020 packaged with the Desk and Hosting (#14).
-- The NuGet publish workflow (pack on a `desk-v*` tag, GitHub Packages, `nuget.config`).
-- `FormGroup`/`FormRow` and its ~130-site adoption (judged L with adoption; a primitive without it is on paper).
-- HIG 6 (game search as a popover listbox), 8 (Board sport filter as a switch), 9 (body actions into `PanelToolbar`), 15 (Slip's hand-rolled disclosure), the razor half of 18 (`Note Flush`, inline styles), the rest of 12; and the "board" mentions left in Desk comments (then add "board" to `DeskVocabularyTests`).
+Landed since this plan was written:
+
+- `LineOps.Desk.Testing` with the bench, the fakes and the convention scans (61fe4bb); the
+  desk-behaviour tests run in `Desk.Tests` on a neutral catalogue (13be650).
+- `dotnet new deskapp` from the packed packages (0a89c5f); the `desk-v*` publish workflow and
+  the dry pack on `main` (5238525, e8b7a48).
+- HIG 8 (the Board's sport and state filters are `DeskSwitch`), HIG 15 (the Slip's steps are a
+  `DeskDisclosure`).
+- Skills distribution (#13): `apple-mudblazor` points at `src/LineOps.Desk` instead of
+  copyable templates, and `apple-hig-components` names the three skills' jobs (bb6e098).
+
+Still open, in the order worth doing:
+
+1. **HIG 6** — the Game picker's search as a popover listbox (`GamePicker.razor` is a
+   `DeskField` with an inline `style="width:100%"`).
+2. **HIG 9** — body actions into `PanelToolbar` where a window still draws its own row.
+3. **HIG 18, razor half** — six inline `style=""` attributes in `src/LineOps.Web/Components`
+   (`PriceCell`, `SelectionChips`, `TeamMark` set CSS variables and may stay; `GamePicker`,
+   `JournalPanel`, `OddsPanel` set widths and nowrap and should be classes).
+4. **"Board" in the Desk** — nineteen mentions in `src/LineOps.Desk` comments name an
+   application's window; reword to "a list window" and add `board` to `DeskVocabularyTests`.
+5. `FormGroup`/`FormRow` and its ~130-site adoption — still judged L; `PanelForm` covers the
+   inset card, not the row.
+6. `PostgresDeskSignalSource` from `DataChangeListener` (#6).
+7. ADRs 0007, 0008, 0013, 0016, 0018–0020 packaged with the Desk and Hosting (#14).
+
+Not defects, recorded so nobody re-greps them: the eight `Title="GP|ATS|RCA|CLV|ROI"` column
+headers are initialisms, not shouting labels; the three `text-transform: uppercase` rules are
+the wordmark and the empty-state mark; the `.mud-tooltip` and snackbar `.01–.02em` tracking is
+at footnote size and reads as the system's.

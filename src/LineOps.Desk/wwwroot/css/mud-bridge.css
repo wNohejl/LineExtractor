@@ -470,7 +470,7 @@
     box-shadow: var(--shadow-sheet);
 }
 
-.mud-dialog-title { font-size: var(--text-headline); font-weight: var(--weight-semibold); letter-spacing: .05em; }
+.mud-dialog-title { font-size: var(--text-headline); font-weight: var(--weight-semibold); letter-spacing: 0; } /* a sheet title is sentence case on the ladder; Material tracked it */
 
 /* DeskAlert puts focus on its own panel when it has no default button (a destructive
    alert), so Return answers nothing until the operator tabs to a choice. The panel is

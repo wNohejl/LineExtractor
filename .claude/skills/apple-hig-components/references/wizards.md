@@ -7,6 +7,28 @@ forbids is nesting them. Everything else in `forms.md` stands. Values are CSS px
 desk's dark tokens (body `#232326`, surfaces `#1C1C1E/#232326/#2C2C2E/#38383A`,
 separators `rgba(255,255,255,.10)` / `.16`, accent `#0A84FF`, radii 7/12, body 13px).
 
+## Read the values as tokens
+
+The px and hex values below are the desk's **dark Standard** values, kept so the brief can be
+checked against a screenshot. In code, every one is a token from `desk.css`; a literal colour
+outside the token blocks fails `DeskCssConventionTests`.
+
+| In this brief | Token |
+|---|---|
+| `#1C1C1E` (field well, void) | `--surface-0` |
+| `#232326` (body) | `--surface-1` |
+| `#2C2C2E` (group fill) | `--surface-2` |
+| `#38383A` (hover, pressed) | `--surface-3` |
+| `rgba(255,255,255,.10)` (group stroke, row hairline) | `--separator` |
+| `rgba(255,255,255,.16)` (strong, full-width hairline) | `--separator-strong` |
+| `rgba(255,255,255,.08)` / `.03` / `.045` (tracks, washes) | `--surface-2` or `--surface-3` over the body; never a new alpha |
+| `rgba(235,235,245,.60)` (header, footer text) | `--text-secondary` |
+| `#0A84FF`, `rgba(10,132,255,…)` | `--accent`, `--accent-wash`, `--accent-wash-strong`, `--focus-ring` |
+| `#636366` (chosen segment) | `--chart-neutral-dim` is the same grey; a segment uses `--surface-3` |
+| radii 6–7 / 10–12 | `--radius-sm` / `--radius` / `--radius-panel` |
+| 11 / 12 / 13 px text | `--text-subheadline` / `--text-callout` / `--text-body` |
+
+
 ## Bordered groups (values)
 
 How macOS draws it (from memory: System Settings in macOS 13–15 and 26, SwiftUI
