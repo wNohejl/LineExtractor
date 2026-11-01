@@ -32,6 +32,9 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- The decisions the Desk embodies travel with it, so a consumer can read why. -->
+    <None Include="..\..\docs\adr\0007-window-manager-ui.md;..\..\docs\adr\0008-gloss-as-affordance-and-the-mudblazor-seam.md;..\..\docs\adr\0013-the-board-and-the-floating-layer.md;..\..\docs\adr\0016-apple-feel-design-system.md;..\..\docs\adr\0020-one-anatomy-for-every-window.md"
+          Pack="true" PackagePath="docs\adr\" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

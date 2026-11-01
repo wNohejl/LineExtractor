@@ -31,6 +31,9 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
+    <!-- The decisions the gate and the edge embody travel with them, so a consumer can read why. -->
+    <None Include="..\..\docs\adr\0018-an-operator-and-visitors.md;..\..\docs\adr\0019-one-vm-caddy-in-front-the-worker-schedules.md"
+          Pack="true" PackagePath="docs\adr\" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>

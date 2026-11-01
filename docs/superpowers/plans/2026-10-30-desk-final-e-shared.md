@@ -304,12 +304,20 @@ Landed on 1 November 2026, after the status above was written:
 - **"Board" in the Desk** — the nineteen mentions say "a list" or "a list window", and `board` is
   in `DeskVocabularyTests`' words.
 
-Still open:
+And the last three, the same day:
 
-1. `FormGroup`/`FormRow` and its ~130-site adoption — still judged L; `PanelForm` covers the
-   inset card, not the row.
-2. `PostgresDeskSignalSource` from `DataChangeListener` (#6).
-3. ADRs 0007, 0008, 0013, 0016, 0018–0020 packaged with the Desk and Hosting (#14).
+- **`FormGroup` / `FormRow`** exist in the Desk, are the Anatomy and Form group sections of the
+  Parts bin, and the Slip is the first window on them. The ~130-site sweep is not one commit: the
+  class names still render, so `FormRowAdoptionTests` ratchets — the count of hand-spelled rows
+  (40) and labels (35) may only go down, and a window that is touched converts its rows.
+- **ADRs packaged.** The Desk nupkg carries 0007, 0008, 0013, 0016 and 0020 under `docs/adr/`;
+  Hosting carries 0018 and 0019. `dotnet pack` lists them.
+- **`PostgresDeskSignalSource` — retired.** `DeskSignals.Publish` is the package boundary; the
+  Postgres listener is one consumer's (`DataChangeListener` in LineOps.Web), and shipping it would
+  put Npgsql into a window system. A second consumer that wants it writes forty lines against
+  `DeskSignals`, as this one did. Not a design goal.
+
+Nothing on this list is open.
 
 Not defects, recorded so nobody re-greps them: the eight `Title="GP|ATS|RCA|CLV|ROI"` column
 headers are initialisms, not shouting labels; the three `text-transform: uppercase` rules are
