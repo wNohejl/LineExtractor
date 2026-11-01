@@ -185,7 +185,7 @@ public class WindowInstance
     /// <para>
     /// Only subject windows do — an order, a customer, a product, a comparison. They are about one
     /// thing, so going from that thing to the next is reading on. A catalogue window is a place
-    /// the operator works from: a board turned into an order would lose the list the order was
+    /// the operator works from: a list turned into an order would lose the list the order was
     /// picked from, so its links still open beside it.
     /// </para>
     /// </summary>

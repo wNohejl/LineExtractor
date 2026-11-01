@@ -3278,7 +3278,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    commands after it (keys that open a window), so the two read as different kinds of thing. */
 .rowacts__gap { flex: none; width: var(--space-2); }
 
-/* A snippet its strip handed to the host — on a board, the row under the open one. It spans
+/* A snippet its strip handed to the host — on a list, the row under the open one. It spans
    that row from the first cell's edge, up to a measure a list can be read across. */
 .rowacts__snippet { max-width: 720px; }
 .rowacts__snippet > .snippet { margin: 0; }

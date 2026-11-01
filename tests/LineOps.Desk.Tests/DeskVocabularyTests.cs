@@ -14,7 +14,7 @@ namespace LineOps.Desk.Tests;
 /// </summary>
 public class DeskVocabularyTests
 {
-    private static readonly string[] Words = ["game", "book", "odds", "wager", "journal", "team", "player", "fight", "bout", "stake", "parlay", "slip", "league", "bet", "espn", "mlb", "nfl", "ufc"];
+    private static readonly string[] Words = ["game", "book", "odds", "wager", "journal", "team", "player", "fight", "bout", "stake", "parlay", "slip", "league", "bet", "board", "espn", "mlb", "nfl", "ufc"];
 
     [Theory]
     [InlineData("LineOps.Desk")]

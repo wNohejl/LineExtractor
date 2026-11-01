@@ -7,12 +7,12 @@
 
     Two-stage disclosure: opening a row shows what you can do with it, and pressing one of
     those answers the question in place. Only if the answer is not enough does a window get
-    spent. The strip started life inside the Board, which meant the Board was the only surface
+    spent. The strip started life inside one list window, which meant that list was the only surface
     where a row led anywhere; it is a control so a list, a detail window and a subject window
     behave identically — one interaction to learn, and it holds all the way down.
 
     One snippet at a time. Selecting another swaps it, rather than stacking, for the same reason
-    the Board only opens one row: a row that grows without bound pushes the rest of the list off
+    a list only opens one row: a row that grows without bound pushes the rest of the list off
     screen and the snippet stops reading as attached to its row.
 
     Which snippet is open is this control's own business, not the host panel's. It was a bound
@@ -104,7 +104,7 @@
     /// <summary>
     /// Where the open snippet is drawn, when not in the strip. Given, the strip draws only its
     /// keys and hands the snippet to the host each time it changes — null when it closes — and
-    /// the host draws it where it reads best: a board, in a row of its own under the open one, so
+    /// the host draws it where it reads best: a list, in a row of its own under the open one, so
     /// a list spans the row rather than wrapping inside one narrow column. Not given (a detail
     /// window's rows), the snippet opens under the keys as before.
     /// </summary>
@@ -159,7 +159,7 @@
     private bool _hosting;
 
     /// <summary>
-    /// A strip can go while its snippet is still out: the Board's filter drops the open row, a
+    /// A strip can go while its snippet is still out: the list's filter drops the open row, a
     /// reload replaces it. The snippet in the host's row is this strip's, and nothing else can
     /// close it, so the strip takes it back. Only one it handed out and has not taken back since:
     /// a strip with nothing out says nothing, so it cannot clear a snippet a newer strip owns.

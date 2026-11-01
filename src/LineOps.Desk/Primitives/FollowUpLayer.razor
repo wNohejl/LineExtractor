@@ -14,7 +14,7 @@
 
     A dialog is not a window, so the view inside it is given no window id. The layer is drawn
     inside its host panel, and the host's id cascaded straight through: Line movement floated
-    over the Board reported "no moves", and the Board's title bar said it. With the id cascaded
+    over the list reported nothing new, and the list's title bar said it. With the id cascaded
     as null, a view here reports to nobody — the panel base skips a report with no window — and
     the dialog's own body is where its state shows. Unsaved input is the exception: the host's
     id goes down as HostWindowId, and the panel base marks the host with it.

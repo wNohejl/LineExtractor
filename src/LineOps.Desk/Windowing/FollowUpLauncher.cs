@@ -29,14 +29,14 @@ public sealed class FollowUp
 /// <para>
 /// A window is the better home: it tiles, it keeps its place in the row, and it survives being
 /// scrolled past. But the desk enforces its ceiling by <i>evicting</i> the least-recently-used
-/// window (ADR 0007), and silently closing the board an operator is working from to make room
+/// window (ADR 0007), and silently closing the list an operator is working from to make room
 /// for a price table is exactly the wrong trade. So the ceiling becomes the switch: while there
 /// is room, follow-ups are windows; once there is not, they float above the desk instead of
 /// pushing something off it.
 /// </para>
 ///
 /// <para>
-/// This used to live inside <c>BoardPanel</c>, which meant the Board was the only surface where
+/// This used to live inside one list window, which meant that list was the only surface where
 /// following something up behaved correctly. It is a launcher rather than a component so the
 /// panel keeps ownership of the floating list — dialogs outlive the row that opened them, and a
 /// row that owned its own dialogs would take them down the moment the grid re-sorted.

@@ -685,7 +685,7 @@ public class WindowManager
     /// <para>
     /// A column whose share falls under its minimum is lifted to the minimum and the rest
     /// divide what is left, so a minimum costs its neighbours rather than the desk's edge.
-    /// When the minimums together do not fit — two columns at 800px, one of them the Board's
+    /// When the minimums together do not fit — two columns at 800px, one of them the list's
     /// 680 — they cannot all be honoured, and every column takes its plain share instead and
     /// scrolls inside itself. Overflowing the row instead put the last window's right half
     /// off-screen behind a sideways scroll, which is the arrangement capacity exists to avoid.
