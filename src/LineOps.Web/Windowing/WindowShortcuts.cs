@@ -103,6 +103,22 @@ public static class WindowShortcuts
             name is null ? null : $"H2H · {name}");
     }
 
+    /// <summary>
+    /// One game play by play. A window of its own rather than one followed in place: the Game
+    /// window it is opened from stays beside it, its lines next to the drive they are moving on.
+    /// The title is the matchup, as the Game window's is, prefixed so the two chips can be told apart.
+    /// </summary>
+    public static void OpenGamecast(this WindowManager manager, int gameId, string? name = null)
+    {
+        if (manager.Catalog.Find(WindowCatalog.Gamecast) is not { } definition)
+            return;
+
+        manager.Open(
+            definition,
+            new Dictionary<string, object> { ["GameId"] = gameId },
+            name is null ? null : $"Gamecast · {name}");
+    }
+
     /// <summary>Ingestion runs, narrowed to one source.</summary>
     public static void OpenRuns(this WindowManager manager, int sourceId, string? sourceName = null)
     {

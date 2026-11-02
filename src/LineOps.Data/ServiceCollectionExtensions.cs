@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CrossReference.MatchupCrossReference>();
         services.AddScoped<CrossReference.GameLogService>();
         services.AddScoped<CrossReference.BoardService>();
+        services.AddScoped<Gamecast.GamecastService>();
         services.AddScoped<CrossReference.SearchService>();
         services.AddScoped<CrossReference.FightService>();
 

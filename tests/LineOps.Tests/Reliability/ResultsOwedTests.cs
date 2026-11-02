@@ -133,6 +133,58 @@ public class ResultsOwedTests(PostgresFixture fixture)
         Assert.Contains(day, owed);
     }
 
+    /// <summary>A final in a fresh sport holding one stat line, written under a run of <paramref name="jobKey"/>.</summary>
+    private static async Task<Game> FinalWithLineAsync(LineOpsDbContext db, string jobKey)
+    {
+        await SeedGameAsync(db, daysAgo: 4, GameStatus.Final);
+        var game = await db.Games.Include(g => g.Sport).OrderByDescending(g => g.Id).FirstAsync();
+
+        var source = new Source { Key = $"owed-src-{Guid.NewGuid():N}", Name = "Test stats", Kind = SourceKind.Stats, BaseUrl = "local://test" };
+        var player = new Player { SportId = game.SportId, FullName = $"Player {Guid.NewGuid():N}" };
+        db.Sources.Add(source);
+        db.Players.Add(player);
+        await db.SaveChangesAsync();
+
+        // Dated now: a source whose last success is days old is a freshness alert in every other test.
+        var run = new IngestionRun
+        {
+            SourceId = source.Id, JobKey = jobKey, Status = RunStatus.Success,
+            StartedAt = DateTimeOffset.UtcNow, FinishedAt = DateTimeOffset.UtcNow
+        };
+        db.IngestionRuns.Add(run);
+        await db.SaveChangesAsync();
+
+        db.PlayerGameStats.Add(new PlayerGameStat
+        {
+            GameId = game.Id, PlayerId = player.Id, SourceId = source.Id,
+            CapturedAt = game.StartsAt, IngestionRunId = run.Id
+        });
+        await db.SaveChangesAsync();
+        return game;
+    }
+
+    [Fact]
+    public async Task A_final_holding_only_live_box_lines_is_owed()
+    {
+        await using var db = fixture.CreateContext();
+        var game = await FinalWithLineAsync(db, IngestionJobs.EspnGamecastLive);
+
+        Assert.True(await IngestionJobs.StatsOwed(db, [game.Sport!.Key]).AnyAsync(g => g.Id == game.Id));
+
+        var owed = await Jobs(new IngestionOptions { Sports = [game.Sport!.Key] })
+            .DatesAwaitingResultsAsync(TimeSpan.FromHours(4));
+        Assert.Contains(LeagueClock.DateOf(game.StartsAt), owed);
+    }
+
+    [Fact]
+    public async Task A_final_holding_the_results_sweeps_lines_is_not_owed()
+    {
+        await using var db = fixture.CreateContext();
+        var game = await FinalWithLineAsync(db, IngestionJobs.EspnResults);
+
+        Assert.False(await IngestionJobs.StatsOwed(db, [game.Sport!.Key]).AnyAsync(g => g.Id == game.Id));
+    }
+
     [Fact]
     public async Task A_final_game_is_never_owed()
     {

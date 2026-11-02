@@ -90,6 +90,14 @@ public class GamecastOptions
     /// </summary>
     public TimeSpan ProbabilityPoll { get; set; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// Gap between live box-score writes for each followed game. The box rides on the summary
+    /// <see cref="Poll"/> already reads, so it costs no request; it is slower because a write is
+    /// a run row and a notice to every open Game window, and a player's line moves by the drive,
+    /// not by the play. Zero or less reads as the default, as <see cref="Poll"/> does.
+    /// </summary>
+    public TimeSpan BoxPoll { get; set; } = TimeSpan.FromSeconds(60);
+
     /// <summary>The most games followed at once, earliest start first.</summary>
     public int MaxFollowedGames { get; set; } = 4;
 

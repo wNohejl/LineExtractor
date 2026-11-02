@@ -84,6 +84,16 @@ public class IngestionJobs(
             .ToList();
     }
     public const string EspnResults = "espn:results";
+
+    /// <summary>
+    /// A game in play's box score as it stands, written by the gamecast feed every
+    /// <see cref="GamecastOptions.BoxPoll"/> (spec 2026-10-24 §6.1). Its own job, apart from the
+    /// feed's final box (<see cref="GamecastFeed.JobKey"/>), because a line from it is not a
+    /// final's stats: a final holding nothing newer is still owed (<see cref="StatsOwed"/>), or a
+    /// final box that never came would leave the last mid-game box standing for good. The
+    /// reliability layer's data rule names the same key (<c>DataQuality.LiveBoxJobKey</c>).
+    /// </summary>
+    public const string EspnGamecastLive = "espn:gamecast:live";
     public const string OddsLines = "odds:lines";
     public const string Settle = "settle";
 
@@ -750,13 +760,13 @@ public class IngestionJobs(
         var cutoff = DateTimeOffset.UtcNow - settleAfter;
         var sports = _options.EffectiveSports;
 
+        var statsOwed = StatsOwed(db, sports);
+
         var starts = await db.Games
             .Where(g => g.StartsAt <= cutoff
                         && g.StartsAt >= cutoff - _options.GamePasses.ResultsLookback
                         && g.Status != GameStatus.Postponed
-                        && (g.Status != GameStatus.Final
-                            || (sports.Contains(g.Sport!.Key)
-                                && !db.PlayerGameStats.Any(s => s.GameId == g.Id))))
+                        && (g.Status != GameStatus.Final || statsOwed.Any(o => o.Id == g.Id)))
             .Select(g => g.StartsAt)
             .ToListAsync(ct);
 
@@ -766,6 +776,20 @@ public class IngestionJobs(
             .OrderBy(d => d)
             .ToList();
     }
+
+    /// <summary>
+    /// Finals in a configured league still owed their stats: no stat line from a run other than
+    /// the live box's (<see cref="EspnGamecastLive"/>). A mid-game box is not a final's, so a game
+    /// whose final box never came stays owed until the sweep's or the feed's final write lands —
+    /// and that write re-stamps every line it touches, unchanged ones included, so it settles the
+    /// debt (<see cref="StatsIngestionService"/>). Any window is the caller's.
+    /// </summary>
+    public static IQueryable<Game> StatsOwed(LineOpsDbContext db, IReadOnlyList<string> sports)
+        => db.Games.Where(g => g.Status == GameStatus.Final
+                               && sports.Contains(g.Sport!.Key)
+                               && !db.PlayerGameStats.Any(s => s.GameId == g.Id
+                                   && !db.IngestionRuns.Any(r => r.Id == s.IngestionRunId
+                                                                 && r.JobKey == EspnGamecastLive)));
 }
 
 /// <summary>One named pull, and what it would cost.</summary>

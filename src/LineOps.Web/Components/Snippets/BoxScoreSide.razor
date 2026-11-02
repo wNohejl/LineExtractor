@@ -1,0 +1,61 @@
+@namespace LineOps.Web.Components.Snippets
+@using LineOps.Data.CrossReference
+
+@*
+    One side of a box score: a section under the side's name, a row per player, the columns
+    derived from the lines themselves (GameBoxScore.ColumnsFor).
+
+    The box score both the Game window and the Gamecast draw — the same section, grid, columns,
+    labels and player links — so the two cannot drift apart.
+
+    Values arrive as strings straight off the line, so they sort as strings — coercing them to
+    numbers here would invent a reading the source did not give.
+*@
+
+@if (Side.Count > 0)
+{
+    var columns = GameBoxScore.ColumnsFor(Side);
+
+    <PanelSection Title="@Team">
+        <div class="gridwrap gameplayers boxside">
+            <DeskGrid T="BoxScoreLine" Items="Side" EmptyText="No box score lines for this side.">
+                <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
+                                Title="Player" CellClass="trunc">
+                    <CellTemplate>
+                        <span title="@context.Item.Name">
+                            <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                      OnClick="() => OnPlayer.InvokeAsync((context.Item.PlayerId, context.Item.Name))">@context.Item.Name</DeskLink>
+                        </span>
+                    </CellTemplate>
+                </PropertyColumn>
+
+                <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
+                    <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
+                </PropertyColumn>
+
+                @foreach (var c in columns)
+                {
+                    var key = c;
+
+                    <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@StatLabels.StatLabel(key)" HeaderClass="boxside__num" CellClass="boxside__num"
+                                    SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
+                        <CellTemplate>
+                            <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
+                        </CellTemplate>
+                    </TemplateColumn>
+                }
+            </DeskGrid>
+        </div>
+    </PanelSection>
+}
+
+@code {
+    /// <summary>The side's lines.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<BoxScoreLine> Side { get; set; } = [];
+
+    /// <summary>The side's name, as the section's rule.</summary>
+    [Parameter, EditorRequired] public string Team { get; set; } = string.Empty;
+
+    /// <summary>A player's name followed: their id and name, for the host to open the Player window.</summary>
+    [Parameter] public EventCallback<(int PlayerId, string Name)> OnPlayer { get; set; }
+}

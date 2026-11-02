@@ -112,6 +112,49 @@ public class DataQualityTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task A_final_holding_only_live_box_lines_is_counted_and_one_with_the_sweeps_is_not()
+    {
+        await using var db = fixture.CreateContext();
+        var seeded = await NewSportAsync(db);
+        var source = await SourceAsync(db);
+
+        foreach (var jobKey in new[] { DataQuality.LiveBoxJobKey, "espn:results" })
+        {
+            var game = await seeded.Add(30, GameStatus.Final);
+            var player = new Player { SportId = seeded.Sport.Id, FullName = $"Player {Guid.NewGuid():N}" };
+            // Dated now: a source whose last success is a day old is a freshness alert in every other test.
+            var run = new IngestionRun
+            {
+                SourceId = source.Id, JobKey = jobKey, Status = RunStatus.Success,
+                StartedAt = DateTimeOffset.UtcNow, FinishedAt = DateTimeOffset.UtcNow
+            };
+            db.Players.Add(player);
+            db.IngestionRuns.Add(run);
+            await db.SaveChangesAsync();
+
+            db.PlayerGameStats.Add(new PlayerGameStat
+            {
+                GameId = game.Id, PlayerId = player.Id, SourceId = source.Id,
+                CapturedAt = game.StartsAt, IngestionRunId = run.Id
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var quality = new DataQuality(db);
+
+        var noStats = Assert.Single(await quality.FinalsWithoutStatsAsync(Grace, Lookback),
+            c => c.SportKey == seeded.Sport.Key);
+        Assert.Equal(1, noStats.Games);
+
+        var season = Assert.Single(await quality.SeasonsAsync(), c => c.SportKey == seeded.Sport.Key);
+        Assert.Equal(1, season.FinalsWithoutStats);
+    }
+
+    [Fact]
+    public void The_live_box_job_is_the_one_the_feed_writes_under()
+        => Assert.Equal(LineOps.Ingestion.Services.IngestionJobs.EspnGamecastLive, DataQuality.LiveBoxJobKey);
+
+    [Fact]
     public async Task A_disabled_sport_is_not_watched()
     {
         await using var db = fixture.CreateContext();

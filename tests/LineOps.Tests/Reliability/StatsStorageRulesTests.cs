@@ -65,6 +65,21 @@ public class StatsStorageRulesTests(PostgresFixture fixture)
     private static string Line(params (string Key, string Value)[] pairs)
         => JsonSerializer.Serialize(pairs.ToDictionary(p => p.Key, p => p.Value));
 
+    /// <summary>
+    /// A stat line is jsonb, and Postgres hands it back re-spaced and with its keys in its own
+    /// order. Read as a string, every stored line differed from the one just parsed, so every
+    /// re-walk rewrote every line — and a live box that had not moved wrote a run all the same.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"YDS":"76","C/ATT":"8/13"}""", """{"YDS": "76", "C/ATT": "8/13"}""", true)]
+    [InlineData("""{"C/ATT":"8/13","YDS":"76"}""", """{"YDS": "76", "C/ATT": "8/13"}""", true)]
+    [InlineData("""{"YDS":"76"}""", """{"YDS": "90"}""", false)]
+    [InlineData("""{"YDS":"76"}""", """{"YDS": "76", "TD": "1"}""", false)]
+    [InlineData("not json", "not json", true)]
+    [InlineData("not json", "{}", false)]
+    public void SameStatLine_ReadsTheLineNotItsSpelling(string parsed, string stored, bool same)
+        => Assert.Equal(same, StatsIngestionService.SameStatLine(stored, parsed));
+
     [Fact]
     public async Task PlayersReportedWithoutAResolvableGameAreNotStored()
     {

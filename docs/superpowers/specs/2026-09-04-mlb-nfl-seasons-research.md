@@ -46,6 +46,8 @@ code on this branch, and every claim about ESPN was checked against ESPN itself 
 | NBA 2026 | 163 final (playoffs, Apr–Jun) | 163 games | none | out of scope; residue |
 | NHL 2026 | 173 final (playoffs, Apr–Jun) | 173 games | none | out of scope; residue |
 
+Since the gamecast's live box score (2026-10-24 spec §6.1), a stat line written by a run with `JobKey = 'espn:gamecast:live'` does not count toward "with stats": a final holding only those lines is still a final without stats.
+
 Sources: `espn` (unmetered), `the-odds-api` (500 credits/month), `odds-api-io` (100/h), and
 `balldontlie` (300/h) — which has a `Sources` row, an options block and a key in `.env`, and
 **no adapter**: dead configuration. Database size: 44 MB.

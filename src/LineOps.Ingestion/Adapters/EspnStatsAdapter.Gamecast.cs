@@ -26,6 +26,15 @@ public interface IGamecastSource
     Task<CanonicalGamecast?> FetchGamecastAsync(string sportKey, string sourceGameId, CancellationToken ct);
 
     /// <summary>
+    /// The gamecast and the game's live box score, both from the one document — the request
+    /// <see cref="FetchGamecastAsync"/> makes, and no other. The box is the players and their
+    /// lines only: it states no game, because a live summary's status and score are the
+    /// scoreboard pass's to write, and no closing line, because the game has not closed. Null
+    /// when this source cannot address the league.
+    /// </summary>
+    Task<GamecastRead?> FetchGamecastWithBoxAsync(string sportKey, string sourceGameId, CancellationToken ct);
+
+    /// <summary>
     /// Every per-play probability row the provider holds for the game, keyed by play id —
     /// what <see cref="EspnStatsAdapter.MergeProbabilities"/> lays onto a gamecast. Empty when
     /// this source cannot address the league.
@@ -42,6 +51,14 @@ public interface IGamecastSource
     Task<StatsFetchResult> FetchBoxScoreAsync(
         string sportKey, DateOnly date, string sourceGameId, CancellationToken ct);
 }
+
+/// <summary>
+/// One summary read two ways: the drives and plays, and the box score as the results pass parses
+/// it — players and their lines, with no game rows and no lines (see
+/// <see cref="IGamecastSource.FetchGamecastWithBoxAsync"/>). The box's cost is nought: its one
+/// request is the gamecast's.
+/// </summary>
+public record GamecastRead(CanonicalGamecast Gamecast, StatsFetchResult Box);
 
 /// <summary>
 /// One play's probabilities from ESPN's core API.
@@ -89,6 +106,24 @@ public partial class EspnStatsAdapter : IGamecastSource
         using var doc = await GetJsonAsync($"{path}/summary?event={sourceGameId}", ct);
 
         return ParseGamecast(doc.RootElement, sourceGameId);
+    }
+
+    public async Task<GamecastRead?> FetchGamecastWithBoxAsync(
+        string sportKey, string sourceGameId, CancellationToken ct)
+    {
+        if (FightSports.IsFight(sportKey) || MapPath(sportKey) is not { } path)
+            return null;
+
+        using var doc = await GetJsonAsync($"{path}/summary?event={sourceGameId}", ct);
+
+        // The results pass's own parse, on the same document it would read at the final.
+        var players = new List<CanonicalPlayer>();
+        var stats = new List<CanonicalPlayerStat>();
+        ParseBoxScore(doc.RootElement, sportKey, sourceGameId, players, stats);
+
+        return new GamecastRead(
+            ParseGamecast(doc.RootElement, sourceGameId),
+            new StatsFetchResult([], players, stats, new FetchCost(0)));
     }
 
     public async Task<IReadOnlyDictionary<string, CanonicalPlayProbability>> FetchProbabilitiesAsync(

@@ -1,5 +1,5 @@
 {
-  "//": "Trimmed ESPN NFL /summary?event=401873032 (LAC @ LAR), captured live in Q2 on 1 Nov 2026. Four of the ten previous drives with two or three plays each; drives.current is the last of them, repeated, exactly as ESPN sends it while a drive is the latest one. One scoring play, the winprobability rows for the kept plays (plus the game-start row 4018730321, which pairs with no play), and the header status.",
+  "//": "Trimmed ESPN NFL /summary?event=401873032 (LAC @ LAR), captured live in Q2 on 1 Nov 2026. Four of the ten previous drives with two or three plays each; drives.current is the last of them, repeated, exactly as ESPN sends it while a drive is the latest one. One scoring play, the winprobability rows for the kept plays (plus the game-start row 4018730321, which pairs with no play), the header status, and the box score's passing and rushing groups with each side's leader in each (boxscore.players).",
   "drives": {
     "current": {
       "id": "40187303210",
@@ -1007,6 +1007,136 @@
           "isTBDFlex": false,
           "displayPeriod": "2nd"
         }
+      }
+    ]
+  },
+  "boxscore": {
+    "players": [
+      {
+        "team": {
+          "id": "24",
+          "abbreviation": "LAC",
+          "displayName": "Los Angeles Chargers"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "labels": [
+              "C/ATT",
+              "YDS",
+              "AVG",
+              "TD",
+              "INT",
+              "SACKS",
+              "RTG"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4038941",
+                  "displayName": "Justin Herbert"
+                },
+                "stats": [
+                  "8/13",
+                  "76",
+                  "5.8",
+                  "0",
+                  "1",
+                  "0-0",
+                  "45.7"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "labels": [
+              "CAR",
+              "YDS",
+              "AVG",
+              "TD",
+              "LONG"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4685382",
+                  "displayName": "Omarion Hampton"
+                },
+                "stats": [
+                  "5",
+                  "15",
+                  "3.0",
+                  "0",
+                  "6"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "team": {
+          "id": "14",
+          "abbreviation": "LAR",
+          "displayName": "Los Angeles Rams"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "labels": [
+              "C/ATT",
+              "YDS",
+              "AVG",
+              "TD",
+              "INT",
+              "SACKS",
+              "RTG"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "12483",
+                  "displayName": "Matthew Stafford"
+                },
+                "stats": [
+                  "6/10",
+                  "20",
+                  "2.0",
+                  "0",
+                  "1",
+                  "1-5",
+                  "25.0"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "labels": [
+              "CAR",
+              "YDS",
+              "AVG",
+              "TD",
+              "LONG"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4429096",
+                  "displayName": "Blake Corum"
+                },
+                "stats": [
+                  "3",
+                  "8",
+                  "2.7",
+                  "0",
+                  "4"
+                ]
+              }
+            ]
+          }
+        ]
       }
     ]
   }

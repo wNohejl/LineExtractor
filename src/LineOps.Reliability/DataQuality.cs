@@ -53,6 +53,11 @@ public record SeasonCoverage(
 /// </summary>
 public class DataQuality(LineOpsDbContext db)
 {
+    /// <summary>
+    /// The gamecast feed's live box-score job, <c>IngestionJobs.EspnGamecastLive</c>, named here
+    /// because this layer does not reference ingestion; a test pins the two together.
+    /// </summary>
+    public const string LiveBoxJobKey = "espn:gamecast:live";
     /// <summary>Games that started long enough ago to be over and are neither final nor postponed.</summary>
     public Task<IReadOnlyList<DataQualityCount>> UnfinishedAsync(
         TimeSpan stuckAfter, TimeSpan lookback, CancellationToken ct = default)
@@ -63,16 +68,26 @@ public class DataQuality(LineOpsDbContext db)
             .Where(g => g.Status != GameStatus.Final && g.Status != GameStatus.Postponed), ct);
     }
 
-    /// <summary>Final games with no player stat lines — a box score that never arrived.</summary>
+    /// <summary>
+    /// Final games with no player stat lines — a box score that never arrived. A line from the
+    /// live box (<see cref="LiveBoxJobKey"/>) does not count: it is the game as it stood mid-play,
+    /// and a final holding nothing newer is a final box that never came.
+    /// </summary>
     public Task<IReadOnlyList<DataQualityCount>> FinalsWithoutStatsAsync(
         TimeSpan grace, TimeSpan lookback, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
+        var finalStats = FinalStats;
 
         return CountAsync(InWindow(now - lookback, now - grace)
             .Where(g => g.Status == GameStatus.Final
-                        && !db.PlayerGameStats.Any(s => s.GameId == g.Id)), ct);
+                        && !finalStats.Any(s => s.GameId == g.Id)), ct);
     }
+
+    /// <summary>Stat lines from a run other than the live box's: the ones that make a final's stats.</summary>
+    private IQueryable<PlayerGameStat> FinalStats
+        => db.PlayerGameStats.Where(s => !db.IngestionRuns.Any(r => r.Id == s.IngestionRunId
+                                                                    && r.JobKey == LiveBoxJobKey));
 
     /// <summary>
     /// Final games with no closing line from any source. Informational: ESPN occasionally
@@ -125,6 +140,8 @@ public class DataQuality(LineOpsDbContext db)
     /// </summary>
     public async Task<IReadOnlyList<SeasonCoverage>> SeasonsAsync(CancellationToken ct = default)
     {
+        var finalStats = FinalStats;
+
         var rows = await db.Games.AsNoTracking()
             .Where(g => g.Sport!.Enabled)
             .GroupBy(g => new { g.Sport!.Key, g.SeasonYear, g.SeasonType })
@@ -137,7 +154,7 @@ public class DataQuality(LineOpsDbContext db)
                 Final = x.Count(g => g.Status == GameStatus.Final),
                 Postponed = x.Count(g => g.Status == GameStatus.Postponed),
                 WithStats = x.Count(g => g.Status == GameStatus.Final
-                                         && db.PlayerGameStats.Any(s => s.GameId == g.Id)),
+                                         && finalStats.Any(s => s.GameId == g.Id)),
                 WithMarketClose = x.Count(g => g.Status == GameStatus.Final
                                                && db.ClosingLines.Any(c => c.GameId == g.Id
                                                                            && c.Source!.Kind == SourceKind.Odds)),

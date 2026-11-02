@@ -34,6 +34,12 @@ public class GamecastFeedTests(PostgresFixture fixture)
         public Dictionary<string, int> ProbabilityCalls { get; } = [];
         public Dictionary<string, int> BoxScoreCalls { get; } = [];
 
+        /// <summary>The box score each live summary carries; none stated is an empty box.</summary>
+        public Dictionary<string, Func<StatsFetchResult>> LiveBoxes { get; } = [];
+
+        /// <summary>Summaries read with their box score parsed too — the same one request.</summary>
+        public Dictionary<string, int> LiveBoxReads { get; } = [];
+
         public Task<CanonicalGamecast?> FetchGamecastAsync(string sportKey, string sourceGameId, CancellationToken ct)
         {
             Count(GamecastCalls, sourceGameId);
@@ -42,6 +48,17 @@ public class GamecastFeedTests(PostgresFixture fixture)
                 throw new HttpRequestException("ESPN said no.");
 
             return Task.FromResult(Games.TryGetValue(sourceGameId, out var game) ? game() : null);
+        }
+
+        public async Task<GamecastRead?> FetchGamecastWithBoxAsync(string sportKey, string sourceGameId, CancellationToken ct)
+        {
+            Count(LiveBoxReads, sourceGameId);
+
+            if (await FetchGamecastAsync(sportKey, sourceGameId, ct) is not { } gamecast)
+                return null;
+
+            return new GamecastRead(gamecast,
+                LiveBoxes.TryGetValue(sourceGameId, out var box) ? box() : new StatsFetchResult([], [], [], new FetchCost(0)));
         }
 
         public Task<IReadOnlyDictionary<string, CanonicalPlayProbability>> FetchProbabilitiesAsync(
@@ -143,6 +160,12 @@ public class GamecastFeedTests(PostgresFixture fixture)
         {
             lock (log) log.Add((instance, $"summary {sourceGameId}"));
             return inner.FetchGamecastAsync(sportKey, sourceGameId, ct);
+        }
+
+        public Task<GamecastRead?> FetchGamecastWithBoxAsync(string sportKey, string sourceGameId, CancellationToken ct)
+        {
+            lock (log) log.Add((instance, $"summary {sourceGameId}"));
+            return inner.FetchGamecastWithBoxAsync(sportKey, sourceGameId, ct);
         }
 
         public Task<IReadOnlyDictionary<string, CanonicalPlayProbability>> FetchProbabilitiesAsync(
@@ -613,5 +636,239 @@ public class GamecastFeedTests(PostgresFixture fixture)
         {
             await feed.StopAsync(CancellationToken.None);
         }
+    }
+
+    /// <summary>A live summary's box score: one line a side, the quarterback's yards as given.</summary>
+    private static StatsFetchResult LiveBox(Scaffold s, string eventId, int passingYards = 76)
+        => new(
+            Games: [],
+            Players:
+            [
+                new CanonicalPlayer($"{eventId}-qb", s.Sport.Key, $"Quinn Passer {eventId}", "QB", "1", s.Home.Name),
+                new CanonicalPlayer($"{eventId}-rb", s.Sport.Key, $"Rory Runner {eventId}", "RB", "2", s.Away.Name)
+            ],
+            PlayerStats:
+            [
+                new CanonicalPlayerStat($"{eventId}-qb", eventId, $$"""{"YDS":"{{passingYards}}"}""", "1", s.Home.Name),
+                new CanonicalPlayerStat($"{eventId}-rb", eventId, """{"CAR":"5","YDS":"15"}""", "2", s.Away.Name)
+            ],
+            Cost: new FetchCost(0));
+
+    private async Task<int> StatLinesAsync(int gameId)
+    {
+        await using var db = fixture.CreateContext();
+        return await db.PlayerGameStats.CountAsync(st => st.GameId == gameId);
+    }
+
+    private async Task<int> GamecastRunsAsync(Scaffold s)
+    {
+        await using var db = fixture.CreateContext();
+        return await db.IngestionRuns.CountAsync(r => r.Source!.Key == s.SourceKey && r.JobKey == IngestionJobs.EspnGamecastLive);
+    }
+
+    [Fact]
+    public async Task A_live_game_gets_its_box_score_from_the_summary_it_already_read()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-box", Now.AddHours(-1), GameStatus.Live);
+        source.Games["e-box"] = () => Live("e-box");
+        source.LiveBoxes["e-box"] = () => LiveBox(s, "e-box");
+
+        await Feed(s, source).PollAsync(Now, CancellationToken.None);
+
+        Assert.Equal(1, source.GamecastCalls["e-box"]);
+        Assert.Equal(1, source.LiveBoxReads["e-box"]);
+        Assert.False(source.BoxScoreCalls.ContainsKey("e-box"));
+        Assert.Equal(2, await StatLinesAsync(game.Id));
+
+        // Written under the live box's own run, apart from the final box's: a line from it is not
+        // a final's stats, and the results sweep still owes the game until one lands.
+        await using var db = fixture.CreateContext();
+        var run = await db.IngestionRuns.SingleAsync(r => r.Source!.Key == s.SourceKey && r.JobKey == IngestionJobs.EspnGamecastLive);
+        Assert.Equal(RunStatus.Success, run.Status);
+        Assert.All(await db.PlayerGameStats.Where(st => st.GameId == game.Id).ToListAsync(),
+            st => Assert.Equal(run.Id, st.IngestionRunId));
+    }
+
+    [Fact]
+    public async Task A_poll_inside_the_box_cadence_parses_no_box_and_writes_none()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-cad", Now.AddHours(-1), GameStatus.Live);
+        source.Games["e-cad"] = () => Live("e-cad");
+
+        var yards = 76;
+        source.LiveBoxes["e-cad"] = () => LiveBox(s, "e-cad", yards);
+
+        var feed = Feed(s, source);
+        await feed.PollAsync(Now, CancellationToken.None);
+
+        yards = 90;
+        await feed.PollAsync(Now.AddSeconds(15), CancellationToken.None);
+        await feed.PollAsync(Now.AddSeconds(45), CancellationToken.None);
+
+        Assert.Equal(3, source.GamecastCalls["e-cad"]);
+        Assert.Equal(1, source.LiveBoxReads["e-cad"]);
+        Assert.Equal(1, await GamecastRunsAsync(s));
+
+        await using var db = fixture.CreateContext();
+        Assert.All(await db.PlayerGameStats.Where(st => st.GameId == game.Id).Select(st => st.StatLine).ToListAsync(),
+            line => Assert.DoesNotContain("90", line));
+    }
+
+    [Fact]
+    public async Task A_box_poll_that_finds_nothing_changed_writes_no_run()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-same", Now.AddHours(-1), GameStatus.Live);
+        source.Games["e-same"] = () => Live("e-same");
+
+        var yards = 76;
+        source.LiveBoxes["e-same"] = () => LiveBox(s, "e-same", yards);
+
+        var feed = Feed(s, source);
+        await feed.PollAsync(Now, CancellationToken.None);
+        await feed.PollAsync(Now.AddSeconds(60), CancellationToken.None);
+
+        Assert.Equal(2, source.LiveBoxReads["e-same"]);
+        Assert.Equal(1, await GamecastRunsAsync(s));
+
+        // And a line that moved is written, under a run of its own.
+        yards = 104;
+        await feed.PollAsync(Now.AddSeconds(120), CancellationToken.None);
+
+        Assert.Equal(2, await GamecastRunsAsync(s));
+        Assert.Equal(2, await StatLinesAsync(game.Id));
+
+        await using var db = fixture.CreateContext();
+        Assert.Contains(await db.PlayerGameStats.Where(st => st.GameId == game.Id).Select(st => st.StatLine).ToListAsync(),
+            line => line.Contains("104"));
+    }
+
+    [Fact]
+    public async Task A_live_box_write_leaves_the_games_status_and_score_alone()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-keep", Now.AddHours(-1), GameStatus.Live);
+
+        await using (var db = fixture.CreateContext())
+        {
+            var row = await db.Games.SingleAsync(g => g.Id == game.Id);
+            row.HomeScore = 14;
+            row.AwayScore = 10;
+            await db.SaveChangesAsync();
+        }
+
+        source.Games["e-keep"] = () => Live("e-keep");
+
+        // A box that also states the game, as a final box does — final and scoreless. Live, that
+        // row is not the box's to write: the scoreboard pass owns the status and the score.
+        source.LiveBoxes["e-keep"] = () => LiveBox(s, "e-keep") with
+        {
+            Games = [new CanonicalGame("e-keep", s.Sport.Key, s.Home.Name, s.Away.Name, game.StartsAt, "final", 0, 0)]
+        };
+
+        await Feed(s, source).PollAsync(Now, CancellationToken.None);
+
+        Assert.Equal(2, await StatLinesAsync(game.Id));
+
+        await using var check = fixture.CreateContext();
+        var stored = await check.Games.SingleAsync(g => g.Id == game.Id);
+        Assert.Equal(GameStatus.Live, stored.Status);
+        Assert.Equal((14, 10), (stored.HomeScore, stored.AwayScore));
+    }
+
+    [Fact]
+    public async Task A_box_cadence_of_zero_or_less_reads_as_the_default()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        await GameAsync(s, "e-bz", Now.AddHours(-1), GameStatus.Live);
+        source.Games["e-bz"] = () => Live("e-bz");
+
+        var feed = Feed(s, source, configure: o => o.BoxPoll = TimeSpan.Zero);
+
+        for (var t = 0; t < 4; t++)
+            await feed.PollAsync(Now.AddSeconds(15 * t), CancellationToken.None);
+
+        Assert.Equal(1, source.LiveBoxReads["e-bz"]);
+        Assert.Equal(4, source.GamecastCalls["e-bz"]);
+    }
+
+    /// <summary>Whether the results sweep and the data rule both owe this final its stats.</summary>
+    private async Task<(bool Sweep, int Rule)> OwedAsync(Scaffold s, int gameId)
+    {
+        await using var db = fixture.CreateContext();
+        var sweep = await IngestionJobs.StatsOwed(db, [s.Sport.Key]).AnyAsync(g => g.Id == gameId);
+        var rule = (await new DataQuality(db).FinalsWithoutStatsAsync(TimeSpan.Zero, TimeSpan.FromDays(2)))
+            .SingleOrDefault(c => c.SportKey == s.Sport.Key)?.Games ?? 0;
+        return (sweep, rule);
+    }
+
+    [Fact]
+    public async Task A_final_whose_box_never_came_is_owed_though_it_holds_the_live_lines()
+    {
+        // The summary never said final, so the final box came back empty: the game keeps its last
+        // mid-game box, and nothing but the owed rule will ever re-walk it.
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-stale", Now.AddHours(-3), GameStatus.Live);
+        source.Games["e-stale"] = () => Live("e-stale");
+        source.LiveBoxes["e-stale"] = () => LiveBox(s, "e-stale");
+        source.BoxScores["e-stale"] = () => NoBoxScore;
+
+        var feed = Feed(s, source);
+        await feed.PollAsync(Now, CancellationToken.None);
+
+        await MarkAsync(game, GameStatus.Final);
+
+        for (var t = 1; t <= GamecastFeed.LeavingReads + 1; t++)
+            await feed.PollAsync(Now.AddSeconds(15 * t), CancellationToken.None);
+
+        Assert.Equal(1, source.BoxScoreCalls["e-stale"]);
+        Assert.Equal(2, await StatLinesAsync(game.Id));
+        Assert.Equal((true, 1), await OwedAsync(s, game.Id));
+    }
+
+    [Theory]
+    [InlineData(76)]    // the final box says what the last live one did: no line moves
+    [InlineData(212)]   // the final box moved every line it carries
+    public async Task A_final_box_settles_what_is_owed_whether_or_not_its_lines_moved(int finalYards)
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var game = await GameAsync(s, "e-set", Now.AddHours(-3), GameStatus.Live);
+
+        var final = false;
+        source.Games["e-set"] = () => final
+            ? new CanonicalGamecast("e-set", "final", [Drive("e-set", 1, current: false)], [Play("e-set", 1, 1)])
+            : Live("e-set");
+        source.LiveBoxes["e-set"] = () => LiveBox(s, "e-set", passingYards: 76);
+        source.BoxScores["e-set"] = () => LiveBox(s, "e-set", finalYards) with
+        {
+            Games = [new CanonicalGame("e-set", s.Sport.Key, s.Home.Name, s.Away.Name, game.StartsAt, "final", 17, 10)]
+        };
+
+        var feed = Feed(s, source);
+        await feed.PollAsync(Now, CancellationToken.None);
+
+        final = true;
+        await feed.PollAsync(Now.AddSeconds(15), CancellationToken.None);
+
+        Assert.Equal(1, source.BoxScoreCalls["e-set"]);
+        Assert.Equal((false, 0), await OwedAsync(s, game.Id));
+
+        // Every line carries the final box's run now, the unchanged ones too: a line left on the
+        // live run would leave the game owed again on every sweep.
+        await using var db = fixture.CreateContext();
+        var jobs = await db.PlayerGameStats.Where(st => st.GameId == game.Id)
+            .Select(st => db.IngestionRuns.Single(r => r.Id == st.IngestionRunId).JobKey)
+            .ToListAsync();
+        Assert.Equal(2, jobs.Count);
+        Assert.All(jobs, job => Assert.Equal(GamecastFeed.JobKey, job));
     }
 }

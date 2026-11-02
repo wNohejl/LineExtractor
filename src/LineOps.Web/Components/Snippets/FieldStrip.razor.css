@@ -1,0 +1,64 @@
+/* The field strip (FieldStrip.razor). Every fill and stroke is a token, so the strip re-themes
+   with the desk; nothing here names a hue. The field is the content fill, the end zones a tier
+   deeper, the yard lines hairlines. The line of gain takes the warning state, as a broadcast's
+   first-down line is the one coloured mark on the field; the red zone is the negative state's
+   wash, drawn only once the ball is inside it. The ball and its arrow are primary ink: they are
+   the reading, and the accent is kept for what can be pressed. No edge on the strip: it sits in
+   the window's own group, and the field and end-zone fills already define it — an outline here
+   would be the box inside the box. */
+
+.fieldstrip {
+    display: block;
+    width: 100%;
+    height: auto;
+    /* At a reading width, as the chart under it: drawn to scale, a strip as wide as a maximised
+       window would stand taller than the title. */
+    max-width: 720px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+}
+
+.fieldstrip__field {
+    fill: var(--surface-1);
+}
+
+.fieldstrip__zone {
+    fill: var(--surface-3);
+}
+
+.fieldstrip__red {
+    fill: var(--state-negative-wash);
+}
+
+.fieldstrip__yard {
+    stroke: var(--separator);
+    stroke-width: 0.25;
+}
+
+.fieldstrip__yard--mid {
+    stroke: var(--separator-strong);
+}
+
+.fieldstrip__mark {
+    fill: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 2.8px;
+    font-weight: var(--weight-semibold);
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+.fieldstrip__gain {
+    stroke: var(--state-warning);
+    stroke-width: 0.6;
+}
+
+.fieldstrip__scrim {
+    stroke: var(--text-tertiary);
+    stroke-width: 0.35;
+}
+
+.fieldstrip__arrow,
+.fieldstrip__spot {
+    fill: var(--text-primary);
+}

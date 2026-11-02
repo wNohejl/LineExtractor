@@ -1,0 +1,173 @@
+/* The Gamecast window (GamecastPanel.razor). Groups are the desk's .wgroup — a fill with one
+   hairline — and rows inside them are divided by its inset hairlines, so nothing here draws an
+   edge. Every figure is tabular, so a clock or a yardage changing does not shuffle the words
+   after it. */
+
+.gc__clock {
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__situation {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__last {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gc__situation + .gc__last::before {
+    content: "·";
+    margin-right: var(--space-2);
+}
+
+/* The strip owns the air beneath it, as a slot does (ADR 0020). */
+.gc__field {
+    margin-bottom: var(--space-4);
+}
+
+/* A drive's line is its disclosure: the triangle, the side and the result, one press. A
+   <button>, so the browser's look is undone and the row's type kept. */
+.gc__drive {
+    justify-content: space-between;
+}
+
+button.gc__toggle {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    min-height: 28px;
+    margin: 0 0 0 calc(-1 * var(--space-1));
+    padding: 0 var(--space-2) 0 var(--space-1);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    color: var(--text-primary);
+    text-align: start;
+    cursor: pointer;
+}
+
+button.gc__toggle:hover {
+    background: var(--surface-3);
+}
+
+.gc__team {
+    flex: 0 0 auto;
+    min-width: 3ch;
+    font-weight: var(--weight-semibold);
+}
+
+.gc__result {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__drive--open .gc__result {
+    color: var(--text-primary);
+}
+
+/* An open drive's plays read as its row's continuation: no hairline between them, indented to
+   the side's leading edge as a disclosure's content is. */
+.gc__plays {
+    display: block;
+    padding-top: 0;
+    padding-left: calc(var(--space-3) + 12px + var(--space-2));
+}
+
+.gc__plays::before {
+    display: none;
+}
+
+.gc__log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.gc__play {
+    display: grid;
+    grid-template-columns: 7ch minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+    padding: var(--space-1) 0;
+    font-size: var(--text-subheadline);
+}
+
+.gc__play + .gc__play {
+    border-top: 1px solid var(--separator);
+}
+
+.gc__when {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gc__body {
+    min-width: 0;
+}
+
+.gc__dd {
+    margin-right: var(--space-2);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__trail {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.gc__yards {
+    min-width: 4ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__score {
+    display: grid;
+    grid-template-columns: 7ch 4ch minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+}
+
+.gc__tally {
+    white-space: nowrap;
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+/* The probability chart spans the section at a reading width and keeps its own proportions.
+   MudChart draws into a fixed view box and, given a height, scales itself down and centres
+   itself; given the width instead its axis labels stay near the footnote size. The Performance
+   window's chart solves the same thing the same way (lineops.css). */
+.gc__chart {
+    max-width: 720px;
+}
+
+.gc__chart ::deep .mud-chart {
+    width: 100%;
+}
+
+.gc__chart ::deep svg.mud-chart-line {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0;
+}
+
+.gc__chart ::deep .mud-chart text {
+    font-size: var(--text-footnote);
+    fill: var(--text-secondary);
+}

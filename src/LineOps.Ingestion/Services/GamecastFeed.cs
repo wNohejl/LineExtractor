@@ -27,6 +27,16 @@ namespace LineOps.Ingestion.Services;
 /// </para>
 ///
 /// <para>
+/// The box score is live too (§6.1), and costs no request: every
+/// <see cref="GamecastOptions.BoxPoll"/> the summary being read anyway is also parsed for its box,
+/// by the results pass's own parse, and the players' lines are written through the results
+/// pass's path under <see cref="IngestionJobs.EspnGamecastLive"/>, a job apart from the final
+/// box's, because a mid-game line is not a final's stats. Only the lines and the players they need — never the
+/// game, whose status and score are the scoreboard pass's — and a box that moved no line writes
+/// no run and raises no notice.
+/// </para>
+///
+/// <para>
 /// One port for the whole poll. ESPN's adapter spaces its requests by its own
 /// <c>RequestDelay</c>, measured from its own last request, so a port per game would start each
 /// game's clock afresh and send every summary — half a megabyte each — back to back.
@@ -93,6 +103,9 @@ public class GamecastFeed(
         public IReadOnlyDictionary<string, CanonicalPlayProbability> Probabilities { get; set; }
             = new Dictionary<string, CanonicalPlayProbability>();
 
+        /// <summary>When the live box score was last written from the summary, if it has been.</summary>
+        public DateTimeOffset? BoxAt { get; set; }
+
         /// <summary>Reads since the game left play here, its summary not yet final.</summary>
         public int ReadsSinceLeaving { get; set; }
     }
@@ -130,6 +143,8 @@ public class GamecastFeed(
     private TimeSpan Poll => Positive(_options.Poll, new GamecastOptions().Poll);
 
     private TimeSpan ProbabilityPoll => Positive(_options.ProbabilityPoll, new GamecastOptions().ProbabilityPoll);
+
+    private TimeSpan BoxPoll => Positive(_options.BoxPoll, new GamecastOptions().BoxPoll);
 
     private static TimeSpan Positive(TimeSpan configured, TimeSpan fallback)
         => configured > TimeSpan.Zero ? configured : fallback;
@@ -276,10 +291,21 @@ public class GamecastFeed(
         IGamecastSource source, int gameId, Followed game, bool leaving, DateTimeOffset now, CancellationToken ct)
     {
         CanonicalGamecast? gamecast = null;
+        StatsFetchResult? box = null;
 
         try
         {
-            gamecast = await source.FetchGamecastAsync(game.Sport, game.EventId, ct);
+            // The box score rides on the summary read anyway, parsed when its cadence is due.
+            if (game.BoxAt is not { } boxed || now - boxed >= BoxPoll)
+            {
+                var read = await source.FetchGamecastWithBoxAsync(game.Sport, game.EventId, ct);
+                gamecast = read?.Gamecast;
+                box = read?.Box;
+            }
+            else
+            {
+                gamecast = await source.FetchGamecastAsync(game.Sport, game.EventId, ct);
+            }
 
             if (gamecast is null)
             {
@@ -307,6 +333,10 @@ public class GamecastFeed(
                         gameId, written.PlaysInserted, written.PlaysUpdated, written.DrivesInserted + written.DrivesUpdated);
                 }
             }
+
+            // Live only: a final summary's box is the final path's, written whole with the game.
+            if (gamecast.State == "live" && box is not null)
+                await WriteLiveBoxAsync(source, gameId, game, box, now, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -420,6 +450,37 @@ public class GamecastFeed(
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             logger.LogWarning(ex, "Gamecast {EventId}: probabilities unavailable; keeping the last", game.EventId);
+        }
+    }
+
+    /// <summary>
+    /// The box score as it stands, from the summary just read, written through the results pass's
+    /// path under <see cref="IngestionJobs.EspnGamecastLive"/> — its own job, so a final holding
+    /// only these lines is still owed its stats. The players and their lines only — the game's status and
+    /// score stay the scoreboard pass's — and quietly: a box that moved no line writes no run. A
+    /// failure is logged and waits the cadence out; it does not cost the game its plays.
+    /// </summary>
+    private async Task WriteLiveBoxAsync(
+        IGamecastSource source, int gameId, Followed game, StatsFetchResult box, DateTimeOffset now, CancellationToken ct)
+    {
+        game.BoxAt = now;
+
+        if (box.PlayerStats.Count == 0)
+            return;
+
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
+            var outcome = await stats.IngestLiveBoxScoreAsync(source.Key, game.Sport, IngestionJobs.EspnGamecastLive, box, ct);
+
+            if (outcome.RunId != 0)
+                logger.LogDebug("Gamecast {GameId}: live box score {Status}, {Rows} rows", gameId, outcome.Status, outcome.RowsIngested);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "Gamecast {GameId} ({EventId}): live box score failed; asked again next cadence",
+                gameId, game.EventId);
         }
     }
 

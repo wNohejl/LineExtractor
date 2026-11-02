@@ -58,6 +58,9 @@ public static class WindowCatalog
     public const string Player = "player";
     public const string HeadToHead = "h2h";
 
+    /// <summary>One game play by play while it is on (spec 2026-10-24 §6.1). NFL only for now.</summary>
+    public const string Gamecast = "gamecast";
+
     public static readonly IReadOnlyList<WindowDefinition> All =
     [
         new()
@@ -142,6 +145,22 @@ public static class WindowCatalog
             DefaultWeight = 1.6,
             MinWidth = 560,
             // Comparing two games — or a game against the one that follows it — is normal.
+            Singleton = false
+        },
+        new()
+        {
+            Key = Gamecast,
+            RequiresSubject = true,
+            ReachedBy = "Press Gamecast on an NFL game, or on a live NFL row on the Board.",
+            Title = "Gamecast",
+            Icon = Icons.Material.Filled.SportsFootball,
+            Group = "Data",
+            ComponentType = typeof(GamecastPanel),
+            Description = "One NFL game play by play: the field, the drives, the win probability and the scoring.",
+            // A drive log and a chart read at a little under the Game window's width.
+            DefaultWeight = 1.4,
+            MinWidth = 480,
+            // Two games at once on a Sunday is the normal case.
             Singleton = false
         },
         new()

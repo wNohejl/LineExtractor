@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using LineOps.Core.Analytics;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
@@ -123,6 +125,29 @@ public class StatsIngestionService(
         => IngestAsync(source.Key, source, sportKey, jobKey,
             c => source.FetchBoxScoreAsync(sportKey, date, sourceGameId, c), ct);
 
+    /// <summary>
+    /// A game in play's box score as it stands, from a summary the gamecast feed has already read
+    /// (<see cref="IGamecastSource.FetchGamecastWithBoxAsync"/>): the players and their lines,
+    /// through the same run row, budget guard and persist as the final box.
+    ///
+    /// <para>
+    /// Only the players and their lines. Whatever games or lines the box states are dropped
+    /// here, so a live write cannot move the game: its status and score are the scoreboard
+    /// pass's, and a box that called it final, or scoreless, would undo them. The lines resolve
+    /// to the game we already hold by its event id, as a stat line for a game the payload does
+    /// not carry always does.
+    /// </para>
+    ///
+    /// <para>
+    /// Quiet the way a live scoreboard poll is: on an unmetered source, a box that changed
+    /// nothing — every line as stored, no player new — writes no run row and raises no notice.
+    /// </para>
+    /// </summary>
+    public Task<IngestionOutcome> IngestLiveBoxScoreAsync(
+        string sourceKey, string sportKey, string jobKey, StatsFetchResult box, CancellationToken ct)
+        => IngestAsync(sourceKey, adapter: null, sportKey, jobKey,
+            _ => Task.FromResult(box with { Games = [], ClosingLines = null }), ct, live: true);
+
     private Task<IngestionOutcome> IngestAsync(
         IStatsSource source,
         string sportKey,
@@ -139,12 +164,13 @@ public class StatsIngestionService(
 
     private async Task<IngestionOutcome> IngestAsync(
         string sourceKey,
-        object adapter,
+        object? adapter,
         string sportKey,
         string jobKey,
         Func<CancellationToken, Task<StatsFetchResult>> fetch,
         CancellationToken ct,
-        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null)
+        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null,
+        bool live = false)
     {
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
             ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
@@ -162,8 +188,9 @@ public class StatsIngestionService(
         // refusal — so a poll that moved nothing leaves no row and raises no notice: a run row is
         // a `runs` notice, and every open Ops, Runs and History window reloaded on each one. A
         // metered source keeps its row every time, because the budget guard counts requests from
-        // the runs and a request with no row would be spent without being counted.
-        var quiet = narrow is not null && IsUnmetered(sourceRow);
+        // the runs and a request with no row would be spent without being counted. A live box
+        // score is quiet on the same terms.
+        var quiet = (narrow is not null || live) && IsUnmetered(sourceRow);
 
         if (!quiet)
             await RecordAsync(run, ct);
@@ -193,10 +220,6 @@ public class StatsIngestionService(
             run.RequestsMade = result.Cost.Requests;
             run.CreditsSpent = result.Cost.Credits;
 
-            // Stat lines carry the run's id, so a pass that has any needs its row first.
-            if (result.PlayerStats.Count > 0 && run.Id == 0)
-                await RecordAsync(run, ct);
-
             // Every save in the pass, the resolver's own included: what tells a poll that changed
             // something from one that only read.
             db.SavedChanges += Count;
@@ -204,7 +227,15 @@ public class StatsIngestionService(
 
             try
             {
-                rows = await PersistAsync(sourceRow, result, sportKey, run.Id, ct);
+                // Stat lines carry the run's id, so the first line written or changed records a
+                // quiet pass's run; a pass whose lines all stand as stored needs none.
+                rows = await PersistAsync(sourceRow, result, sportKey, async c =>
+                {
+                    if (run.Id == 0)
+                        await RecordAsync(run, c);
+
+                    return run.Id;
+                }, live, ct);
             }
             finally
             {
@@ -255,6 +286,17 @@ public class StatsIngestionService(
         }
     }
 
+    /// <summary>The live box's runs (<see cref="IngestionJobs.EspnGamecastLive"/>) behind this source's lines for these games.</summary>
+    private async Task<HashSet<long>> LiveRunsAsync(Source sourceRow, List<int> gameIds, CancellationToken ct)
+        => (await db.PlayerGameStats
+                .Where(s => gameIds.Contains(s.GameId) && s.SourceId == sourceRow.Id
+                            && db.IngestionRuns.Any(r => r.Id == s.IngestionRunId
+                                                         && r.JobKey == IngestionJobs.EspnGamecastLive))
+                .Select(s => s.IngestionRunId)
+                .Distinct()
+                .ToListAsync(ct))
+            .ToHashSet();
+
     /// <summary>Saves the run, adding it first if it has no row yet.</summary>
     private async Task RecordAsync(IngestionRun run, CancellationToken ct)
     {
@@ -262,6 +304,28 @@ public class StatsIngestionService(
             db.IngestionRuns.Add(run);
 
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Whether a stored stat line says what a parsed one says. The column is jsonb, which Postgres
+    /// hands back re-spaced and with its keys in its own order, so the stored string is never the
+    /// parsed one; compared as strings every re-walk rewrote every line, and a live box that had
+    /// not moved wrote a run regardless. Compared as JSON, falling back to the strings for a line
+    /// that is not JSON.
+    /// </summary>
+    public static bool SameStatLine(string stored, string parsed)
+    {
+        if (stored == parsed)
+            return true;
+
+        try
+        {
+            return JsonNode.DeepEquals(JsonNode.Parse(stored), JsonNode.Parse(parsed));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>A source with no request or credit ceiling, whose spend the budget guard never reads.</summary>
@@ -376,7 +440,8 @@ public class StatsIngestionService(
                                && !db.ClosingLines.Any(c => c.GameId == g.Id && c.Market == Markets.Total));
 
     private async Task<int> PersistAsync(
-        Source sourceRow, StatsFetchResult result, string sportKey, long runId, CancellationToken ct)
+        Source sourceRow, StatsFetchResult result, string sportKey, Func<CancellationToken, Task<long>> runId,
+        bool live, CancellationToken ct)
     {
         var sport = await resolver.ResolveSportAsync(sportKey, ct);
         var rows = 0;
@@ -457,6 +522,14 @@ public class StatsIngestionService(
         var written = new Dictionary<(int PlayerId, int GameId), PlayerGameStat>();
         var collisions = 0;
 
+        // The live box's runs behind lines this write is about to meet. A line from the live box
+        // is not a final's stats (IngestionJobs.StatsOwed), so a final write takes every such
+        // line onto its own run even where the numbers have not moved — a final box that says
+        // what the last live one said would otherwise leave the game owed on every sweep.
+        var liveRuns = live || resolved.Count == 0
+            ? []
+            : await LiveRunsAsync(sourceRow, resolved.Select(r => r.Game.Id).Distinct().ToList(), ct);
+
         foreach (var (stat, game) in resolved)
         {
             if (!playerMap.TryGetValue(stat.SourcePlayerId, out var player))
@@ -473,7 +546,7 @@ public class StatsIngestionService(
                 {
                     pending.StatLine = stat.StatLineJson;
                     pending.CapturedAt = DateTimeOffset.UtcNow;
-                    pending.IngestionRunId = runId;
+                    pending.IngestionRunId = await runId(ct);
                 }
 
                 continue;
@@ -495,21 +568,22 @@ public class StatsIngestionService(
                     TeamId = side,
                     StatLine = stat.StatLineJson,
                     CapturedAt = DateTimeOffset.UtcNow,
-                    IngestionRunId = runId
+                    IngestionRunId = await runId(ct)
                 };
 
                 db.PlayerGameStats.Add(existing);
                 rows++;
             }
-            else if (existing.StatLine != stat.StatLineJson
-                     || (side is not null && existing.TeamId != side))
+            else if (!SameStatLine(existing.StatLine, stat.StatLineJson)
+                     || (side is not null && existing.TeamId != side)
+                     || liveRuns.Contains(existing.IngestionRunId))
             {
                 // A re-walk is also how a line stored before sides were recorded gets one, so
                 // a line whose numbers have not moved is still refreshed when its side has.
                 existing.StatLine = stat.StatLineJson;
                 existing.TeamId = side ?? existing.TeamId;
                 existing.CapturedAt = DateTimeOffset.UtcNow;
-                existing.IngestionRunId = runId;
+                existing.IngestionRunId = await runId(ct);
                 rows++;
             }
 

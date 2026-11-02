@@ -231,6 +231,34 @@ public class EspnGamecastTests
         Assert.Equal(9, cast.Plays.Count);
     }
 
+    /// <summary>
+    /// One summary, read once, for both the plays and the live box score — the box parsed by the
+    /// results pass's own parse, and stating no game: a live summary's status and score are the
+    /// scoreboard pass's, not the box's.
+    /// </summary>
+    [Fact]
+    public async Task FetchGamecastWithBoxAsync_ReadsOneSummaryForThePlaysAndTheBox()
+    {
+        var (source, handler) = Adapter();
+
+        var read = await source.FetchGamecastWithBoxAsync("nfl", GameId, CancellationToken.None);
+
+        Assert.Equal(["https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873032"], handler.Urls);
+        Assert.NotNull(read);
+        Assert.Equal(9, read.Gamecast.Plays.Count);
+
+        Assert.Empty(read.Box.Games);
+        Assert.Empty(read.Box.Lines);
+        Assert.Equal(0, read.Box.Cost.Requests);
+        Assert.Equal(4, read.Box.Players.Count);
+        Assert.Equal(4, read.Box.PlayerStats.Count);
+        Assert.All(read.Box.PlayerStats, st => Assert.Equal(GameId, st.SourceGameId));
+
+        var herbert = read.Box.PlayerStats.Single(st => st.SourcePlayerId == "4038941");
+        Assert.Equal("24", herbert.SourceTeamId);
+        Assert.Contains("\"YDS\":\"76\"", herbert.StatLineJson);
+    }
+
     [Fact]
     public async Task FetchProbabilitiesAsync_ReadsTheCorePageWhole()
     {

@@ -1069,6 +1069,24 @@ else
             }
         };
 
+        // A live NFL game can be followed play by play. A destination, not a glance: the drive
+        // log and the field are somewhere to watch from for a whole half, so it opens a desk
+        // window, as the matchup's own link opens the Game window, rather than a follow-up dialog.
+        if (row.Game.Status == GameStatus.Live && GamecastPanel.Offered(row.Game))
+        {
+            actions.Add(new RowAction
+            {
+                Key = "gamecast",
+                Label = "Gamecast",
+                Icon = Icons.Material.Filled.SportsFootball,
+                OpenWindow = () =>
+                {
+                    Manager.OpenGamecast(id, WindowShortcuts.Describe(row.Game));
+                    return Task.CompletedTask;
+                }
+            });
+        }
+
         // A visitor reads the board — every book's number — but has no wager to log and no
         // lines to pull (ADR 0018).
         var operate = Manager.Access.CanOperate;

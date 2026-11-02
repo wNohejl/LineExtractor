@@ -1,0 +1,82 @@
+@using System.Globalization
+
+@*
+    The field, flat: a hundred yards between two end zones, the away side's on the left and the
+    home side's on the right, with the ball where it is, the line it has to reach, the way it is
+    going and, once it is inside it, the red zone (spec 2026-10-24 §6.1).
+
+    Inline SVG with no script: the server redraws it on each games:{id} notice, and nothing on it
+    moves between notices. The geometry is FieldGeometry's, so the markup only says how each mark
+    looks. A field ESPN did not send draws nothing — no spot, no line of gain, no arrow — and the
+    field and its end zones stay, so the strip does not jump in and out between plays.
+
+    Team has no colours on this desk, so the end zones are a neutral fill with the side's mark in
+    them rather than a club's colour; every fill is a token, so both themes hold. The whole strip
+    is one image to a reader, described in words by Label: "BUF ball, 2nd and 6 at KC 34".
+*@
+
+@{
+    var marks = HomeBall is { } home ? FieldGeometry.Marks(YardLine, Distance, home) : null;
+}
+
+<svg class="fieldstrip" viewBox="0 0 @N(FieldGeometry.Width) 10"
+     role="img" aria-label="@Label">
+    @* The field and its two end zones. *@
+    <rect class="fieldstrip__field" x="@N(FieldGeometry.EndZone)" y="0" width="100" height="10" />
+    <rect class="fieldstrip__zone fieldstrip__zone--away" x="0" y="0" width="@N(FieldGeometry.EndZone)" height="10" />
+    <rect class="fieldstrip__zone fieldstrip__zone--home" x="@N(FieldGeometry.EndZone + 100)" y="0" width="@N(FieldGeometry.EndZone)" height="10" />
+
+    @* The red zone, tinted only once the ball is inside the defence's twenty: a wash drawn on
+       every snap would be one more mark saying nothing. *@
+    @if (marks is { InRedZone: true })
+    {
+        <rect class="fieldstrip__red"
+              x="@N(marks.RedFrom)" y="0" width="@N(marks.RedTo - marks.RedFrom)" height="10" />
+    }
+
+    @* A hairline every ten yards, the fifty a little stronger. *@
+    @for (var yard = 10; yard <= 90; yard += 10)
+    {
+        var x = FieldGeometry.EndZone + yard;
+        <line class="fieldstrip__yard @(yard == 50 ? "fieldstrip__yard--mid" : null)" x1="@N(x)" x2="@N(x)" y1="0" y2="10" />
+    }
+
+    <text class="fieldstrip__mark" x="@N(FieldGeometry.EndZone / 2)" y="5">@AwayAbbrev</text>
+    <text class="fieldstrip__mark" x="@N(FieldGeometry.EndZone * 1.5 + 100)" y="5">@HomeAbbrev</text>
+
+    @if (marks is not null)
+    {
+        @if (marks.Gain is { } gain)
+        {
+            <line class="fieldstrip__gain" x1="@N(gain)" x2="@N(gain)" y1="0.5" y2="9.5" />
+        }
+
+        <line class="fieldstrip__scrim" x1="@N(marks.Spot)" x2="@N(marks.Spot)" y1="0.5" y2="9.5" />
+
+        @* The arrow points from the spot toward the goal being attacked. *@
+        var tip = marks.Leftward ? marks.Spot - 3.2 : marks.Spot + 3.2;
+        var back = marks.Leftward ? marks.Spot - 1.2 : marks.Spot + 1.2;
+        <polygon class="fieldstrip__arrow" points="@($"{N(back)},3.4 {N(tip)},5 {N(back)},6.6")" />
+        <circle class="fieldstrip__spot" cx="@N(marks.Spot)" cy="5" r="1" />
+    }
+</svg>
+
+@code {
+    [Parameter] public string HomeAbbrev { get; set; } = "HOME";
+
+    [Parameter] public string AwayAbbrev { get; set; } = "AWAY";
+
+    /// <summary>Yards from the home goal line; null draws no spot.</summary>
+    [Parameter] public int? YardLine { get; set; }
+
+    /// <summary>Yards to go for a first down; null draws no line of gain.</summary>
+    [Parameter] public int? Distance { get; set; }
+
+    /// <summary>True when the home side has the ball, false for the away side, null when nobody does.</summary>
+    [Parameter] public bool? HomeBall { get; set; }
+
+    /// <summary>The situation in words, for a reader who cannot see the strip.</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

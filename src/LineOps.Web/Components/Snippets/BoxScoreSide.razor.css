@@ -1,0 +1,6 @@
+/* A stat column reads right-aligned, as the Game window's are. Set by class rather than the
+   column's Align, which MudBlazor's analyser refuses on a template column (MUD0002); the cells
+   are the grid's own elements, so the rule reaches them through ::deep. */
+.boxside ::deep .boxside__num {
+    text-align: right;
+}

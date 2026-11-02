@@ -120,6 +120,17 @@ else
                and Head to head under the title, in place rather than in windows of their own;
                the season switch heads the two panes it chooses for (Team data, Players). *@
             <DeskRow Gap="DeskSpace.Space1" data-glide="">
+                @* The game play by play, in a window of its own beside this one. Offered for an
+                   NFL game once it has kicked off (GamecastPanel.Offered): a final keeps the key,
+                   because its plays stay stored. Tinted, as a key opening a window is. *@
+                @if (GamecastPanel.Offered(game))
+                {
+                    <DeskButton Icon="@Icons.Material.Filled.SportsFootball" Emphasis="DeskEmphasis.Tinted"
+                                Title="Follow this game play by play in the Gamecast window"
+                                OnClick="() => Manager.OpenGamecast(game.Id, WindowShortcuts.Describe(game))">
+                        Gamecast
+                    </DeskButton>
+                }
                 @* The wager wizard preloaded from this game: its form opens on this matchup
                    rather than on a game search. A visitor has no wager to log (ADR 0018). *@
                 @if (Manager.Access.CanOperate)
@@ -768,8 +779,8 @@ else
     private RenderFragment RenderPlayers() => @<text>
         @if (HasBox)
         {
-            @RenderBoxSide(_box!.Away, _row!.Game.AwayTeam?.Name ?? "Away")
-            @RenderBoxSide(_box.Home, _row.Game.HomeTeam?.Name ?? "Home")
+            <BoxScoreSide Side="_box!.Away" Team="@(_row!.Game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenBoxPlayer" />
+            <BoxScoreSide Side="_box.Home" Team="@(_row.Game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenBoxPlayer" />
         }
         else
         {
@@ -786,48 +797,12 @@ else
         }
     </text>;
 
-    /// <summary>One side of the box score. Columns are derived from the lines themselves.</summary>
-    private RenderFragment RenderBoxSide(IReadOnlyList<BoxScoreLine> side, string teamName) => @<text>
-        @if (side.Count > 0)
-        {
-            var columns = GameBoxScore.ColumnsFor(side);
-
-            <PanelSection Title="@teamName">
-                <div class="gridwrap gameplayers">
-                    <DeskGrid T="BoxScoreLine" Items="side" EmptyText="No box score lines for this side.">
-                        <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
-                                        Title="Player" CellClass="trunc">
-                            <CellTemplate>
-                                <span title="@context.Item.Name">
-                                    <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                              OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
-                                </span>
-                            </CellTemplate>
-                        </PropertyColumn>
-
-                        <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
-                            <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
-                        </PropertyColumn>
-
-                        @* Box score values arrive as strings straight off the line, so they sort as
-                           strings — coercing them to numbers here would invent a reading the source
-                           did not give. *@
-                        @foreach (var c in columns)
-                        {
-                            var key = c;
-
-                            <TemplateColumn T="BoxScoreLine" Sortable="true" Title="@StatLabels.StatLabel(key)" Align="Align.Right"
-                                            SortBy="@(p => p.Stats.GetValueOrDefault(key) ?? string.Empty)">
-                                <CellTemplate>
-                                    <span class="mono">@(context.Item.Stats.TryGetValue(key, out var v) ? v : "—")</span>
-                                </CellTemplate>
-                            </TemplateColumn>
-                        }
-                    </DeskGrid>
-                </div>
-            </PanelSection>
-        }
-    </text>;
+    /// <summary>A player followed from the box score (BoxScoreSide), opened beside this window.</summary>
+    private Task OpenBoxPlayer((int PlayerId, string Name) player)
+    {
+        Manager.OpenPlayer(player.PlayerId, player.Name, WindowId);
+        return Task.CompletedTask;
+    }
 
     private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
         => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));

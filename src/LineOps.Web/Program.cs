@@ -44,6 +44,7 @@ builder.Services.AddScoped<LineOps.Desk.IDeskJobs, LineOps.Web.Services.Ingestio
 builder.Services.AddScoped<LineOps.Web.Services.WagerSlip>();
 builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services.WagerData>();
 builder.Services.AddScoped<LineOps.Web.Services.IGameWindowData, LineOps.Web.Services.GameWindowData>();
+builder.Services.AddScoped<LineOps.Web.Services.IGamecastData, LineOps.Web.Services.GamecastData>();
 
 // Persist Data Protection keys outside the container when a path is configured. Without this
 // a replaced container generates fresh keys, which silently invalidates every live Blazor
