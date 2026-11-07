@@ -57,7 +57,7 @@ namespace LineOps.Ingestion.Services;
 /// Bounded three times over. At most <see cref="GamecastOptions.MaxFollowedGames"/> games at
 /// once, earliest start first, and said once when the ceiling bites rather than every fifteen
 /// seconds. A failure on one game is logged and the rest of the poll carries on, as the loop
-/// carries on past a failed poll. And a game that fails, or whose summary stays "pre", for
+/// carries on past a failed poll. And a game that fails, or whose summary stays "scheduled", for
 /// <see cref="FailuresBeforeBackOff"/> reads in a row is backed off for a growing while and gives
 /// its slot to the healthy games — a stale event id would otherwise hold slot one for the day
 /// the game stays in play. A crashed feed would leave every window silent, which is worse than a
@@ -85,7 +85,7 @@ public class GamecastFeed(
     /// </summary>
     public const int LeavingReads = 8;
 
-    /// <summary>Failed or "pre" reads in a row before a game is backed off.</summary>
+    /// <summary>Failed or "scheduled" reads in a row before a game is backed off.</summary>
     public const int FailuresBeforeBackOff = 4;
 
     /// <summary>The longest a game in trouble waits between asks.</summary>
@@ -110,7 +110,7 @@ public class GamecastFeed(
         public int ReadsSinceLeaving { get; set; }
     }
 
-    /// <summary>A game whose reads keep failing or keep saying "pre", and when to ask it next.</summary>
+    /// <summary>A game whose reads keep failing or keep saying "scheduled", and when to ask it next.</summary>
     private sealed class Trouble
     {
         public int Failures { get; set; }
@@ -372,7 +372,7 @@ public class GamecastFeed(
         }
         else
         {
-            if (gamecast?.State == "pre")
+            if (gamecast?.State == "scheduled")
                 Stalled(gameId, game, now);
             else
                 Recovered(gameId, game);
@@ -396,7 +396,7 @@ public class GamecastFeed(
                 gameId, game.EventId, trouble.Failures, ex.Message);
     }
 
-    /// <summary>A game past its start whose summary still says "pre": delayed or suspended.</summary>
+    /// <summary>A game past its start whose summary still says "scheduled": delayed or suspended.</summary>
     private void Stalled(int gameId, Followed game, DateTimeOffset now)
     {
         var trouble = Note(gameId, now);

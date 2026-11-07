@@ -112,6 +112,26 @@ public class GamecastOptions
     public string[] EffectiveSports => Sports.Length > 0 ? Sports : DefaultSports;
 
     public static readonly string[] DefaultSports = ["nfl"];
+
+    /// <summary>
+    /// Finished games one backport run fills (<c>GamecastBackport</c>), newest first: two requests
+    /// each, the summary and the probabilities, at the adapter's own pace. Forty is a few minutes
+    /// of ESPN's patience; a season is a few hours of runs. Zero switches the backport off.
+    /// </summary>
+    public int BackportBatch { get; set; } = 40;
+
+    /// <summary>
+    /// Gap between backport runs while finished games are still owed their plays. Slow on
+    /// purpose: the history is not going anywhere, and the live feed has first call on ESPN.
+    /// </summary>
+    public TimeSpan BackportInterval { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// How long a game whose summary held no play-by-play waits before the backport asks again.
+    /// Early history often has none, and asking every ten minutes would not change that. A
+    /// request that failed waits a day, doubling, up to this. Read when the miss is written.
+    /// </summary>
+    public TimeSpan BackportRetryAfter { get; set; } = TimeSpan.FromDays(30);
 }
 
 /// <summary>Who decides when lines are fetched.</summary>

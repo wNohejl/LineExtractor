@@ -94,6 +94,12 @@ public class IngestionJobs(
     /// reliability layer's data rule names the same key (<c>DataQuality.LiveBoxJobKey</c>).
     /// </summary>
     public const string EspnGamecastLive = "espn:gamecast:live";
+
+    /// <summary>
+    /// Plays, drives and probabilities for finished games that have none — the games that ended
+    /// before the feed existed — a batch a run, newest first (<see cref="GamecastBackport"/>).
+    /// </summary>
+    public const string EspnGamecastBackport = "espn:gamecast:backport";
     public const string OddsLines = "odds:lines";
     public const string Settle = "settle";
 
@@ -245,6 +251,24 @@ public class IngestionJobs(
 
         };
 
+        // Plays for the finals from before the feed: two requests a game, a batch a press.
+        var gamecasts = scope.ServiceProvider.GetService<Adapters.IGamecastSource>() is not null;
+        var batch = Math.Max(0, _options.Gamecast.BackportBatch);
+
+        if (scope.ServiceProvider.GetService<GamecastBackport>() is { } backport)
+        {
+            jobs.Add(new IngestionJob(
+                Key: EspnGamecastBackport,
+                Label: "Play-by-play owed",
+                Description: "Plays, drives and win, spread and total probabilities for finished games that have none, "
+                             + $"newest first, {batch} games a press at two requests each. A game ESPN has no plays for "
+                             + "is set aside rather than asked for again.",
+                EstimatedRequests: gamecasts ? Math.Min(await backport.OwedCountAsync(DateTimeOffset.UtcNow, ct), batch) * 2 : 0,
+                Available: gamecasts && batch > 0,
+                Unavailable: !gamecasts ? "No gamecast source registered."
+                    : batch > 0 ? null : "Switched off (Gamecast:BackportBatch)."));
+        }
+
         // Only a desk that holds a fought sport has fighters to describe.
         if (sports.Any(FightSports.IsFight))
         {
@@ -309,6 +333,7 @@ public class IngestionJobs(
                 EspnResults => await RunResultsAsync(ct),
                 EspnClosingLines => await RunClosingLinesAsync(ct),
                 EspnFighters => await RunFightersAsync(FightersPerRun, ct),
+                EspnGamecastBackport => await RunGamecastBackportAsync(ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
 
@@ -716,6 +741,25 @@ public class IngestionJobs(
             + (stillOwed > 0 ? $"; {stillOwed:N0} still owed." : "."));
     }
 
+    /// <summary>
+    /// One batch of the gamecast backport. One batch, not the whole debt, so the scheduler's tick
+    /// is never held for hours; the outcome says whether more is owed, which is what
+    /// <c>--until-done</c> on the Worker repeats on.
+    /// </summary>
+    private async Task<JobOutcome> RunGamecastBackportAsync(CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var backport = scope.ServiceProvider.GetRequiredService<GamecastBackport>();
+
+        var outcome = await backport.RunAsync(DateTimeOffset.UtcNow, ct);
+
+        // A game with no plays is set aside, not failed; only a batch that came away with none
+        // because every request threw is.
+        return new JobOutcome(EspnGamecastBackport, outcome.Status != RunStatus.Failed, outcome.Rows,
+            outcome.Status == RunStatus.Failed ? outcome.Misses : 0, outcome.Detail,
+            More: outcome.RunId != 0 && outcome.StillOwed > 0);
+    }
+
     private static async Task<int> OwedClosesAsync(IServiceProvider provider, IReadOnlyList<string> sports, CancellationToken ct)
     {
         var stats = provider.GetRequiredService<StatsIngestionService>();
@@ -807,4 +851,9 @@ public record IngestionJob(
     string? Unavailable,
     int EstimatedCredits = 0);
 
-public record JobOutcome(string Key, bool Succeeded, int Rows, int Failures, string? Detail);
+/// <summary>What one run of a job did.</summary>
+/// <param name="More">
+/// The job left work a further run would do — a backport taken a batch at a time. False for a job
+/// that does all it can in one run.
+/// </param>
+public record JobOutcome(string Key, bool Succeeded, int Rows, int Failures, string? Detail, bool More = false);

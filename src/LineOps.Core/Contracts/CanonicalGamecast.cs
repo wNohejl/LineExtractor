@@ -5,11 +5,21 @@ namespace LineOps.Core.Contracts;
 /// them, the scoring plays and the per-play probabilities. Plays carry stable provider ids and
 /// sequence numbers, which is what lets the store upsert instead of reload (spec §6.2).
 /// </summary>
+/// <param name="HomeLinescore">
+/// Points by period from the summary's header, first period first, overtime included. Null when
+/// the header carries none. Read by the backport, which fills a finished game's linescore the
+/// scoreboard never gave it; the live feed leaves the game's columns to the scoreboard pass.
+/// </param>
+/// <param name="AwayLinescore">The same, for the away side.</param>
+/// <param name="StatusDetail">ESPN's <c>status.type.shortDetail</c> on the header: "Final", "Final/OT".</param>
 public record CanonicalGamecast(
     string SourceGameId,
     string? State,
     IReadOnlyList<CanonicalDrive> Drives,
-    IReadOnlyList<CanonicalPlay> Plays);
+    IReadOnlyList<CanonicalPlay> Plays,
+    IReadOnlyList<int>? HomeLinescore = null,
+    IReadOnlyList<int>? AwayLinescore = null,
+    string? StatusDetail = null);
 
 public record CanonicalDrive(
     string SourceDriveId,

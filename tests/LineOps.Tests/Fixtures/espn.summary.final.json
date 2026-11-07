@@ -1,0 +1,144 @@
+{
+  "//": "Trimmed ESPN NFL /summary for a finished game that went to overtime, in the shape the summary states a final: the header's competitors carry their linescores as displayValue strings (one per period, overtime included), the status is STATUS_FINAL with shortDetail Final/OT, and drives.previous holds every drive with no drives.current. Two drives of two plays each are kept.",
+  "drives": {
+    "previous": [
+      {
+        "id": "4018729991",
+        "description": "2 plays, 75 yards, 0:58",
+        "start": { "period": { "number": 1 }, "clock": { "displayValue": "15:00" }, "yardLine": 25 },
+        "end": { "period": { "number": 1 }, "clock": { "displayValue": "14:02" }, "yardLine": 100 },
+        "timeElapsed": { "displayValue": "0:58" },
+        "yards": 75,
+        "isScore": true,
+        "offensivePlays": 2,
+        "result": "TD",
+        "displayResult": "Touchdown",
+        "team": { "id": "14" },
+        "plays": [
+          {
+            "id": "40187299910",
+            "sequenceNumber": "10",
+            "type": { "id": "24", "text": "Pass Reception" },
+            "text": "M.Stafford pass deep right to P.Nacua for 40 yards.",
+            "awayScore": 0,
+            "homeScore": 0,
+            "period": { "number": 1 },
+            "clock": { "displayValue": "14:55" },
+            "scoringPlay": false,
+            "statYardage": 40,
+            "start": { "down": 1, "distance": 10, "yardLine": 25, "yardsToEndzone": 75, "team": { "id": "14" } },
+            "end": { "down": 1, "distance": 10, "yardLine": 65, "yardsToEndzone": 35, "team": { "id": "14" } }
+          },
+          {
+            "id": "40187299920",
+            "sequenceNumber": "20",
+            "type": { "id": "67", "text": "Passing Touchdown" },
+            "text": "M.Stafford pass short middle to D.Adams for 35 yards, TOUCHDOWN.",
+            "awayScore": 0,
+            "homeScore": 7,
+            "period": { "number": 1 },
+            "clock": { "displayValue": "14:02" },
+            "scoringPlay": true,
+            "statYardage": 35,
+            "start": { "down": 1, "distance": 10, "yardLine": 65, "yardsToEndzone": 35, "team": { "id": "14" } }
+          }
+        ]
+      },
+      {
+        "id": "40187299922",
+        "description": "2 plays, 30 yards, 0:12",
+        "start": { "period": { "number": 5 }, "clock": { "displayValue": "4:12" }, "yardLine": 45 },
+        "end": { "period": { "number": 5 }, "clock": { "displayValue": "4:00" }, "yardLine": 75 },
+        "timeElapsed": { "displayValue": "0:12" },
+        "yards": 30,
+        "isScore": true,
+        "offensivePlays": 2,
+        "result": "FG",
+        "displayResult": "Field Goal",
+        "team": { "id": "24" },
+        "plays": [
+          {
+            "id": "4018729994010",
+            "sequenceNumber": "401000",
+            "type": { "id": "24", "text": "Pass Reception" },
+            "text": "J.Herbert pass short left to L.McConkey for 18 yards.",
+            "awayScore": 20,
+            "homeScore": 20,
+            "period": { "number": 5 },
+            "clock": { "displayValue": "4:12" },
+            "scoringPlay": false,
+            "statYardage": 18
+          },
+          {
+            "id": "4018729994020",
+            "sequenceNumber": "402000",
+            "type": { "id": "59", "text": "Field Goal Good" },
+            "text": "C.Dicker 41 yard field goal is GOOD.",
+            "awayScore": 23,
+            "homeScore": 20,
+            "period": { "number": 5 },
+            "clock": { "displayValue": "4:00" },
+            "scoringPlay": true,
+            "statYardage": 0
+          }
+        ]
+      }
+    ]
+  },
+  "scoringPlays": [
+    { "id": "40187299920" },
+    { "id": "4018729994020" }
+  ],
+  "winprobability": [
+    { "playId": "40187299910", "homeWinPercentage": 0.612 },
+    { "playId": "40187299920", "homeWinPercentage": 0.684 },
+    { "playId": "4018729994020", "homeWinPercentage": 0.0 }
+  ],
+  "header": {
+    "id": "401872999",
+    "competitions": [
+      {
+        "id": "401872999",
+        "competitors": [
+          {
+            "id": "14",
+            "homeAway": "home",
+            "score": "20",
+            "linescores": [
+              { "displayValue": "7" },
+              { "displayValue": "3" },
+              { "displayValue": "0" },
+              { "displayValue": "10" },
+              { "displayValue": "0" }
+            ]
+          },
+          {
+            "id": "24",
+            "homeAway": "away",
+            "score": "23",
+            "linescores": [
+              { "displayValue": "0" },
+              { "displayValue": "10" },
+              { "displayValue": "7" },
+              { "displayValue": "3" },
+              { "displayValue": "3" }
+            ]
+          }
+        ],
+        "status": {
+          "displayClock": "4:00",
+          "period": 5,
+          "type": {
+            "id": "3",
+            "name": "STATUS_FINAL",
+            "state": "post",
+            "completed": true,
+            "description": "Final",
+            "detail": "Final/OT",
+            "shortDetail": "Final/OT"
+          }
+        }
+      }
+    ]
+  }
+}

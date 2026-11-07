@@ -63,6 +63,12 @@ $personal = @('JournalEntries', 'Parlays', 'AppSettings')
 $exclude = if ($IncludePersonal) { '' } else {
     ($personal | ForEach-Object { "--exclude-table-data='`"$_`"'" }) -join ' '
 }
+
+# Play-by-play keeps its schema and loses its rows too, always: a season of plays is several
+# times the rest of the snapshot, every published version stays in git history, and the other
+# machine refills it from ESPN with espn:gamecast:backport (unmetered).
+$refillable = @('GamePlays', 'GameDrives', 'GamecastBackportMisses')
+$exclude = (@($exclude) + ($refillable | ForEach-Object { "--exclude-table-data='`"$_`"'" })) -join ' '
 $check = if ($IncludePersonal) { '' } else { @"
 if pg_restore -l /snapshots/lineops.dump.partial | grep -E 'TABLE DATA public "?($($personal -join '|'))"? '; then
   echo 'refused: the archive holds personal rows; nothing was replaced' >&2

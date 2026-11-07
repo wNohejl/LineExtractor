@@ -631,6 +631,34 @@ namespace LineOps.Data.Migrations
                     b.ToTable("GamePlays");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.GamecastBackportMiss", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("LastTriedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("RetryAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("GameId");
+
+                    b.HasIndex("SourceId");
+
+                    b.ToTable("GamecastBackportMisses");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.Incident", b =>
                 {
                     b.Property<int>("Id")
@@ -1367,6 +1395,25 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Source");
 
                     b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GamecastBackportMiss", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Source");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.IngestionRun", b =>

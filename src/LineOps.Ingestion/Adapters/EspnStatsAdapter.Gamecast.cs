@@ -151,12 +151,14 @@ public partial class EspnStatsAdapter : IGamecastSource
     /// </summary>
     internal static CanonicalGamecast ParseGamecast(JsonElement root, string sourceGameId)
     {
-        var state = root.TryGetProperty("header", out var header)
-                    && header.TryGetProperty("competitions", out var comps)
-                    && comps.ValueKind == JsonValueKind.Array
-                    && comps.GetArrayLength() > 0
-            ? ReadStatus(comps[0])
-            : null;
+        var competition = root.TryGetProperty("header", out var header)
+                          && header.TryGetProperty("competitions", out var comps)
+                          && comps.ValueKind == JsonValueKind.Array
+                          && comps.GetArrayLength() > 0
+            ? comps[0]
+            : default;
+
+        var state = competition.ValueKind == JsonValueKind.Object ? ReadStatus(competition) : null;
 
         var winPct = new Dictionary<string, decimal>();
 
@@ -225,12 +227,64 @@ public partial class EspnStatsAdapter : IGamecastSource
             }
         }
 
+        var (homeLines, awayLines) = HeaderLinescores(competition);
+
         return new CanonicalGamecast(
             sourceGameId,
             state,
             parsedDrives,
-            plays.Values.OrderBy(p => p.Sequence).ToList());
+            plays.Values.OrderBy(p => p.Sequence).ToList(),
+            homeLines,
+            awayLines,
+            HeaderStatusDetail(competition));
     }
+
+    /// <summary>
+    /// Each side's points by period from the header. The summary states a period as
+    /// <c>{"displayValue":"7"}</c> where the scoreboard states <c>{"value":7.0}</c>, so either is
+    /// read. A side with no periods, or one it cannot read whole, is null, as
+    /// <see cref="ReadLinescore"/> has it: a hole would put one period's points under another.
+    /// </summary>
+    private static (IReadOnlyList<int>? Home, IReadOnlyList<int>? Away) HeaderLinescores(JsonElement competition)
+    {
+        if (competition.ValueKind != JsonValueKind.Object
+            || !competition.TryGetProperty("competitors", out var competitors)
+            || competitors.ValueKind != JsonValueKind.Array)
+            return (null, null);
+
+        IReadOnlyList<int>? home = null, away = null;
+
+        foreach (var c in competitors.EnumerateArray())
+        {
+            if (!c.TryGetProperty("linescores", out var lines) || lines.ValueKind != JsonValueKind.Array || lines.GetArrayLength() == 0)
+                continue;
+
+            var values = lines.EnumerateArray()
+                .Select(line => GamecastJson.Dec(line, "value") ?? GamecastJson.Dec(line, "displayValue"))
+                .ToList();
+
+            IReadOnlyList<int>? points = values.All(v => v is not null)
+                ? values.Select(v => (int)Math.Round(v!.Value)).ToList()
+                : null;
+
+            switch (GamecastJson.Str(c, "homeAway"))
+            {
+                case "home": home = points; break;
+                case "away": away = points; break;
+            }
+        }
+
+        return (home, away);
+    }
+
+    /// <summary>The header's short status line — "Final/OT" — cut to the column, or null.</summary>
+    private static string? HeaderStatusDetail(JsonElement competition)
+        => competition.ValueKind == JsonValueKind.Object
+           && competition.TryGetProperty("status", out var status)
+           && status.ValueKind == JsonValueKind.Object
+           && status.TryGetProperty("type", out var type)
+            ? Fit(GamecastJson.Str(type, "shortDetail"), Core.Entities.Game.StatusDetailLength)
+            : null;
 
     /// <summary>
     /// The core API's probability rows, keyed by play. A row names its play only by

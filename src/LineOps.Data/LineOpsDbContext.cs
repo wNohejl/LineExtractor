@@ -20,6 +20,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<PlayerGameStat> PlayerGameStats => Set<PlayerGameStat>();
     public DbSet<GamePlay> GamePlays => Set<GamePlay>();
     public DbSet<GameDrive> GameDrives => Set<GameDrive>();
+    public DbSet<GamecastBackportMiss> GamecastBackportMisses => Set<GamecastBackportMiss>();
 
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Parlay> Parlays => Set<Parlay>();
@@ -285,6 +286,18 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
             e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // One row per game the backport could not fill, keyed by the game: the backport asks
+        // "was this tried lately?" of every candidate, and a game is tried for one source.
+        b.Entity<GamecastBackportMiss>(e =>
+        {
+            e.HasKey(x => x.GameId);
+            e.Property(x => x.Reason).HasMaxLength(512);
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
         });
 
         b.Entity<JournalEntry>(e =>

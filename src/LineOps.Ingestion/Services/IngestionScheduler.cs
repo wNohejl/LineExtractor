@@ -36,6 +36,10 @@ namespace LineOps.Ingestion.Services;
 ///   <item><b>ESPN after a game</b> — results are fetched once a started game is old enough to
 ///   have finished, and retried until it is final here. Waiting for the next morning meant a
 ///   game finishing at 22:00 stayed unsettled for eleven hours.</item>
+///
+///   <item><b>ESPN for the history</b> — plays for finals from before the gamecast feed, a batch
+///   every <c>BackportInterval</c> while any are owed and no game is in play
+///   (<see cref="GamecastBackport"/>).</item>
 /// </list>
 ///
 /// <para>
@@ -63,6 +67,7 @@ public class IngestionScheduler(
     private DateTimeOffset? _lastResultsSweep;
     private DateTimeOffset? _lastRetentionRun;
     private DateTimeOffset? _lastFighterPass;
+    private DateTimeOffset? _lastBackport;
 
     private TimeSpan _lineInterval = TimeSpan.FromMinutes(30);
 
@@ -149,6 +154,8 @@ public class IngestionScheduler(
 
     private TimeSpan LivePoll => Positive(_options.GamePasses.LivePoll, new EspnScheduleOptions().LivePoll);
 
+    private TimeSpan BackportInterval => Positive(_options.Gamecast.BackportInterval, new GamecastOptions().BackportInterval);
+
     private static TimeSpan Positive(TimeSpan configured, TimeSpan fallback)
         => configured > TimeSpan.Zero ? configured : fallback;
 
@@ -195,6 +202,14 @@ public class IngestionScheduler(
             {
                 await RunJobAsync(IngestionJobs.EspnFighters, ct);
                 _lastFighterPass = now;
+            }
+
+            // Plays for the finals from before the feed, a batch every BackportInterval while any
+            // are owed, and never while a game is in play: the live passes have first call on ESPN.
+            if (_options.Gamecast.Enabled && Due(_lastBackport, BackportInterval, now) && await BackportIsDueAsync(now, ct))
+            {
+                await RunJobAsync(IngestionJobs.EspnGamecastBackport, ct);
+                _lastBackport = now;
             }
         }
 
@@ -268,6 +283,17 @@ public class IngestionScheduler(
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
         return await IngestionJobs.InPlay(db, now, _options.EffectiveSports).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The backport is due while a finished game is owed its plays and no game is in play — the
+    /// backport's own question (<see cref="GamecastBackport.IsDueAsync"/>), so the scheduler and an
+    /// on-demand run agree on it.
+    /// </summary>
+    private async Task<bool> BackportIsDueAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<GamecastBackport>().IsDueAsync(now, ct);
     }
 
     /// <summary>True when a game has started long enough ago to be final and is not final here.</summary>

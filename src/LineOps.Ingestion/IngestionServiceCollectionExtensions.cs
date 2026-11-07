@@ -59,6 +59,10 @@ public static class IngestionServiceCollectionExtensions
         // state of its own and the History panel can inject it directly.
         services.AddSingleton<HistoryBackfillService>();
 
+        // Singleton for the same reason: a scope per run and per game. Here rather than with the
+        // scheduler because the Pull menu and the Worker's --job run it on demand on any host.
+        services.AddSingleton<GamecastBackport>();
+
         // Singleton and hosted: a backfill outlives the circuit that started it, and only one
         // may run at a time. Registered here rather than with the scheduler because the web
         // app starts backfills on demand whether or not it owns the schedule.

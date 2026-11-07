@@ -19,7 +19,10 @@ builder.Services.AddLineOpsObservability(builder.Configuration);
 
 // `--job espn:closing-lines` runs one named job and exits, without the schedule: the way to make
 // a single pull — a backport, a settle — from a terminal, beside a desk that is already running.
+// `--until-done true` runs it again for as long as it says more is owed (JobOutcome.More) and has
+// not failed: `--job espn:gamecast:backport --until-done true` walks every batch of the backport.
 var job = builder.Configuration["job"];
+var untilDone = builder.Configuration.GetValue<bool>("until-done");
 
 if (job is null)
 {
@@ -37,9 +40,17 @@ await using (var scope = host.Services.CreateAsyncScope())
 
 if (job is not null)
 {
-    var outcome = await host.Services.GetRequiredService<LineOps.Ingestion.Services.IngestionJobs>().RunAsync(job);
-    Console.WriteLine($"{outcome.Key}: {(outcome.Succeeded ? "succeeded" : "failed")}, {outcome.Rows:N0} rows, "
-                      + $"{outcome.Failures} failures. {outcome.Detail}");
+    var jobs = host.Services.GetRequiredService<LineOps.Ingestion.Services.IngestionJobs>();
+    LineOps.Ingestion.Services.JobOutcome outcome;
+
+    do
+    {
+        outcome = await jobs.RunAsync(job);
+        Console.WriteLine($"{outcome.Key}: {(outcome.Succeeded ? "succeeded" : "failed")}, {outcome.Rows:N0} rows, "
+                          + $"{outcome.Failures} failures. {outcome.Detail}");
+    }
+    while (untilDone && outcome.Succeeded && outcome.More);
+
     return outcome.Succeeded ? 0 : 1;
 }
 

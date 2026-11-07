@@ -128,3 +128,14 @@ the pre-game refresh again, and both are in the catalogue the Pull menu reads.
 scheduler's loop sleeps `min(TickInterval, LivePoll)` while a game is in play and `TickInterval`
 otherwise, so the fast tick is paid for only during games. Every other job keeps its own due
 gate, so a faster tick asks them more often and runs them no more often.
+
+## Amendment — the history's plays, a batch at a time
+
+`espn:gamecast:backport` fills the play store for finals from before the gamecast feed. Its
+state is "a final in the gamecast leagues and backfill seasons with no plays from ESPN", asked
+every `Gamecast:BackportInterval` (10 min), and it is never due while a game is in play in any
+configured league, so it cannot compete with the live passes for ESPN. One batch a run
+(`BackportBatch`, 40), so a tick is held for minutes rather than hours; a game ESPN has no plays
+for, or whose summary fails, is set aside in `GamecastBackportMisses` until its retry, or the job
+would never stop being due. `JobOutcome.More` says a batch left games owed, and the Worker's
+`--job espn:gamecast:backport --until-done true` repeats on it: the catalogue run, walked to the end.

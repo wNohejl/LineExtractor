@@ -559,7 +559,7 @@ public class GamecastFeedTests(PostgresFixture fixture)
 
         await GameAsync(s, "e-delay", Now.AddHours(-2), GameStatus.Scheduled);
         await GameAsync(s, "e-on", Now.AddHours(-1), GameStatus.Live);
-        source.Games["e-delay"] = () => new CanonicalGamecast("e-delay", "pre", [], []);
+        source.Games["e-delay"] = () => new CanonicalGamecast("e-delay", "scheduled", [], []);
         source.Games["e-on"] = () => Live("e-on");
 
         var feed = Feed(s, source, maxFollowed: 1);

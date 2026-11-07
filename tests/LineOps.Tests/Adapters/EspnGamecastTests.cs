@@ -307,4 +307,29 @@ public class EspnGamecastTests
         Assert.Empty(await source.FetchProbabilitiesAsync("cricket", GameId, CancellationToken.None));
         Assert.Empty(handler.Urls);
     }
+
+    [Fact]
+    public void ParseGamecast_ReadsAFinalsLinescoreAndStatusLineFromTheHeader()
+    {
+        var cast = EspnStatsAdapter.ParseGamecast(Load("espn.summary.final.json"), "401872999");
+
+        // The summary states a period's points as a string, and overtime is a fifth period.
+        Assert.Equal("final", cast.State);
+        Assert.Equal([7, 3, 0, 10, 0], cast.HomeLinescore);
+        Assert.Equal([0, 10, 7, 3, 3], cast.AwayLinescore);
+        Assert.Equal("Final/OT", cast.StatusDetail);
+        Assert.DoesNotContain(cast.Drives, d => d.IsCurrent);
+        Assert.Equal(4, cast.Plays.Count);
+    }
+
+    [Fact]
+    public void ParseGamecast_HasNoLinescoreWhereTheHeaderCarriesNone()
+    {
+        // The live capture's header names the score but not the periods.
+        var cast = Live();
+
+        Assert.Null(cast.HomeLinescore);
+        Assert.Null(cast.AwayLinescore);
+        Assert.Equal("8:26 - 2nd", cast.StatusDetail);
+    }
 }

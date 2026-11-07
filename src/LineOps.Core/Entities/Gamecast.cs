@@ -121,3 +121,34 @@ public class GameDrive
     /// <summary>When we last wrote the row.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+/// <summary>
+/// A finished game the gamecast backport asked for and could not fill: its summary failed, or it
+/// held no plays — early history often has none. One row per game, so the backport skips it on
+/// later runs rather than asking ESPN for the same empty document every ten minutes, and asks
+/// again at <see cref="RetryAt"/>. Bookkeeping only: deleting a row, or all of them, is how a
+/// retry is asked for by hand.
+/// </summary>
+public class GamecastBackportMiss
+{
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    /// <summary>How many runs have asked for this game and come away without plays.</summary>
+    public int Attempts { get; set; }
+
+    public DateTimeOffset LastTriedAt { get; set; }
+
+    /// <summary>
+    /// When the game is worth asking for again. Set when the miss is written: a summary with no
+    /// plays waits the configured retry, a request that failed a day, doubling with each failure
+    /// up to the same ceiling — an outage should not set a whole batch aside for a month.
+    /// </summary>
+    public DateTimeOffset RetryAt { get; set; }
+
+    /// <summary>Why the last ask came away empty: "no plays", or the error.</summary>
+    public string? Reason { get; set; }
+}
