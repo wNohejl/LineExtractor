@@ -1,6 +1,6 @@
 ---
 name: apple-mudblazor
-description: Use when building, restyling or reviewing any window, panel, sheet, alert or primitive on the LineOps Desk (src/LineOps.Desk, src/LineOps.Web/Components) — the Apple-feel MudBlazor design system as it is built. Covers where the tokens, the MudBlazor seam and the Desk* primitives live, the rules that hold them together, and when to be modal. Pairs with apple-hig-components (which control, how grouped) and anthropic-skills:apple-hig-web (patterns, live HIG pages, the review checklist).
+description: Use when building, restyling or reviewing anything on the LineOps Desk (src/LineOps.Desk, src/LineOps.Web/Components): where the tokens, Desk* primitives and MudBlazor seam live, the rules that hold them together, and when to be modal. Pairs with apple-hig-components (what to draw) and anthropic-skills:apple-hig-web (patterns).
 ---
 
 # Apple-feel MudBlazor, as the Desk builds it

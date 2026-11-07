@@ -1,6 +1,6 @@
 ---
 name: apple-hig-components
-description: Use when designing, building or reviewing any screen, window, form, wizard or control so it follows Apple's Human Interface Guidelines for components — which component the job calls for, how it is grouped, labelled, sized and coloured, and the tells that make a screen read as blocky or generated. Distilled from developer.apple.com/design/human-interface-guidelines (components, layout, color, typography, dark mode) in October 2026. Pairs with apple-mudblazor (the Desk's tokens, primitives and MudBlazor seam) and anthropic-skills:apple-hig-web (patterns, live HIG pages, review checklist); this skill supplies the component judgment.
+description: Use when designing, building or reviewing any window, form, wizard or control against Apple's Human Interface Guidelines — which component the job calls for, how it is grouped (one hairline per group, never nested), labelled, sized and coloured, and the audit before "done". Component judgment only; apple-mudblazor is how the Desk draws it, anthropic-skills:apple-hig-web is patterns and the live HIG.
 ---
 
 # Apple HIG components, applied
