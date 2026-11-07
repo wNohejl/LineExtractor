@@ -775,9 +775,9 @@ else
                 <div class="meta">
                     @form.Record over @form.Recent.Count.ToString("N0") @(form.Recent.Count == 1 ? "game" : "games")
                 </div>
-                <div class="row">
+                <DeskRow>
                     <FormRun Log="@FormResult.From(form.Recent)" />
-                </div>
+                </DeskRow>
             }
         </DeskStack>
     </text>;

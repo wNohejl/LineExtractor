@@ -69,9 +69,17 @@
                             <DeskSparkline Values="row.Trend" Positions="row.Positions" Step="true" Width="64" Height="16"
                                            Label="@OddsPanel.TrendLabel(row)" />
                         </td>
-                        <td class="r dim gamemove__quote" title="@DisplayTime.Stamp(row.Open.CapturedAt)">@OddsPanel.Quote(row.Open)</td>
+                        <td class="r dim gamemove__quote">
+                            <DeskTooltip Text="@($"Opened {DisplayTime.Stamp(row.Open.CapturedAt)}")">
+                                <span tabindex="0">@OddsPanel.Quote(row.Open)</span>
+                            </DeskTooltip>
+                        </td>
                         <td class="r gamemove__quote">@OddsPanel.Quote(row.Now)</td>
-                        <td class="r gamemove__quote @(row.Moved ? null : "dim")" title="@OddsPanel.MoveTitle(row, Market)">@OddsPanel.MoveText(row)</td>
+                        <td class="r gamemove__quote @(row.Moved ? null : "dim")">
+                            <DeskTooltip Text="@OddsPanel.MoveTitle(row, Market)">
+                                <span tabindex="0">@OddsPanel.MoveText(row)</span>
+                            </DeskTooltip>
+                        </td>
                     </tr>
                 }
             </tbody>

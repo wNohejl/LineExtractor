@@ -250,7 +250,9 @@ else
                 {
                     <div class="tape__fight">
                         <ResultTag Result="@(fight.Result switch { "W" => ResultKind.Win, "L" => ResultKind.Loss, "D" => ResultKind.Tie, _ => ResultKind.Push })">@(fight.Result ?? "—")</ResultTag>
-                        <span class="tape__fight-opp trunc" title="@fight.Event">@fight.Opponent</span>
+                        <DeskTooltip Text="@fight.Event">
+                            <span class="tape__fight-opp trunc" tabindex="0">@fight.Opponent</span>
+                        </DeskTooltip>
                         <span class="tape__fight-how">@(fight.Method is { } m ? Short(m) : "")@(fight.Round is { } r ? $" R{r} {fight.Clock}" : "")</span>
                         <span class="tape__fight-date">@fight.Date?.ToString("MMM yyyy")</span>
                     </div>

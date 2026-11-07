@@ -107,7 +107,7 @@ else
                             <Summary>
                                 <span class="logrow__date dim">@fight.Date?.ToString("d MMM yy")</span>
                                 <ResultTag Result="@(fight.Result switch { "W" => ResultKind.Win, "L" => ResultKind.Loss, "D" => ResultKind.Tie, _ => ResultKind.Push })">@(fight.Result ?? "—")</ResultTag>
-                                <span class="logrow__opp trunc" title="@fight.Event">vs @fight.Opponent</span>
+                                <span class="logrow__opp trunc">vs @fight.Opponent</span>
                                 <span class="dim">@fight.Method@(fight.Round is { } round ? $" · R{round} {fight.Clock}" : "")</span>
                                 @if (fight.Title)
                                 {

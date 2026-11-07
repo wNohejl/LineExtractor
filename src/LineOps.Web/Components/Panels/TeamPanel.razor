@@ -71,7 +71,7 @@ else
                             Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
                     @foreach (var option in _seasonOptions)
                     {
-                        <option value="@option.Value" title="@option.Title">@option.Label</option>
+                        <option value="@option.Value">@option.Label</option>
                     }
                 </DeskSelect>
             }
