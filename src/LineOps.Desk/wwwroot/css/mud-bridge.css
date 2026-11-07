@@ -144,7 +144,7 @@
 .mud-input.mud-input-outlined > .mud-input-outlined-border {
     border-color: var(--separator);
     border-radius: var(--radius);
-    transition: border-color .12s ease;
+    transition: border-color var(--dur-fast) var(--ease-standard);
 }
 
 .mud-input.mud-input-outlined:hover > .mud-input-outlined-border { border-color: var(--surface-3); }
@@ -319,7 +319,7 @@
 /* The label is its own width, not the cell's, so the arrow can follow the word. */
 .deskgrid .mud-table-head .mud-table-cell .column-header .sortable-column-header {
     width: auto;
-    transition: color .1s ease;
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 
 .deskgrid .mud-table-head .mud-table-cell .column-header:hover .sortable-column-header { color: var(--text-primary); }
@@ -365,7 +365,7 @@
     height: 12px;
     color: var(--accent);
     opacity: 0;
-    transition: opacity .1s ease, transform .1s ease;
+    transition: opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 
 .deskgrid .mud-table-head .mud-table-cell .column-header:hover .column-options .sort-direction-icon,
@@ -585,7 +585,7 @@
     color: var(--text-primary);
     font-family: var(--face-ui);
     font-size: calc(12.5px * var(--text-scale));
-    font-weight: 400; /* .mud-alert-filled-* asks for 500; nothing else on the desk does */
+    font-weight: var(--weight-regular); /* .mud-alert-filled-* asks for 500; nothing else on the desk does */
     letter-spacing: .01em;
     padding: 4px 12px;
 }
@@ -639,15 +639,16 @@
 
 .mud-snackbar.desk-toast .mud-snackbar-icon .mud-icon-root { font-size: calc(16px * var(--text-scale)); }
 
-/* The close button is an escape, not a button — flat, dim, and it brightens rather than
-   fills. Giving it a fill would make the notice look pressable.
+/* The close button is an escape, not a button — flat, in secondary ink so it can be found
+   (tertiary is for what need not be read), and it brightens to primary rather than fills.
+   Giving it a fill would make the notice look pressable.
 
    Note the class: the snackbar's dismiss is `.mud-snackbar-close-button`, not MudAlert's
    `.mud-alert-close-button`. The two components share a look but not a class name, and the
    alert's name is the one that reads as obvious. */
 .mud-snackbar.desk-toast .mud-snackbar-close-button {
-    color: var(--text-tertiary);
-    transition: color .12s ease;
+    color: var(--text-secondary);
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 
 .mud-snackbar.desk-toast .mud-snackbar-close-button:hover { color: var(--text-primary); }

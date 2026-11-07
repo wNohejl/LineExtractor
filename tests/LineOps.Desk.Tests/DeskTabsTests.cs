@@ -265,9 +265,12 @@ public class DeskTabsTests : DeskTestContext
         var badge = tab.QuerySelector(".badge")!;
 
         Assert.Equal("Queue", tab.GetAttribute("title"));
-        Assert.Equal("Queue", tab.TextContent.Replace(badge.TextContent, string.Empty).Trim());
+        var spoken = tab.QuerySelector(".sr-only")!;
+
+        Assert.Equal("Queue", tab.TextContent.Replace(spoken.TextContent, string.Empty).Replace(badge.TextContent, string.Empty).Trim());
         Assert.Equal("2", badge.TextContent.Trim());
-        Assert.Equal("2 items", badge.GetAttribute("aria-label"));
+        Assert.Equal("true", badge.GetAttribute("aria-hidden"));
+        Assert.Equal("2 items", spoken.TextContent.Trim());
     }
 
     /// <summary>Nothing to count is no badge — and a tab with no count was never asked for one.</summary>

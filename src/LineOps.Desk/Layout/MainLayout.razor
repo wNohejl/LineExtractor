@@ -25,10 +25,19 @@
 
 @Body
 
-<div id="blazor-error-ui" data-nosnippet>
-    Something went wrong.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+@*
+    The framework's own banner for a circuit that failed. Blazor finds it by id, shows it by
+    writing display:block inline and wires .reload and .dismiss by class, so the three names
+    stay; desk.css hides it until then and floats it as a toast.
+*@
+<div id="blazor-error-ui" role="alert" data-nosnippet>
+    <div class="blazor-error-ui__row">
+        <p class="blazor-error-ui__text">The connection to the desk failed. Reload to continue.</p>
+        <a href="." class="reload desk-btn desk-btn--plain">Reload</a>
+        <button type="button" class="dismiss win__ctl" aria-label="Dismiss" title="Dismiss">
+            <Glyph Icon="@Icons.Material.Filled.Close" />
+        </button>
+    </div>
 </div>
 
 @code {

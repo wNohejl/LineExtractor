@@ -10,8 +10,9 @@
 
     Nothing to count is no badge — an empty pill or a "0" is noise on a control that has
     nothing to report. A count past the cap shows as "99+", so the pill keeps its width; the
-    reader still hears the true count, with its noun, from the aria-label: "120 items in the
-    list", never a bare figure.
+    reader still hears the true count, with its noun, from a visually hidden sentence beside
+    the pill (the pill itself is hidden from a reader — a bare span may not carry a name in
+    ARIA 1.2): "120 items in the list", never a bare figure.
 
     Matte and quiet: secondary ink on the hover fill, caption size, tabular figures. A badge
     reports; it is not a key and catches no light.
@@ -21,8 +22,8 @@
 {
     <span class="badge num @DeskLayout.ExtraClass(Extra) @Class"
           style="@DeskLayout.MergeStyle(null, Extra)"
-          aria-label="@($"{Count} {(Count == 1 ? One ?? Label : Label)}")"
-          @attributes="DeskLayout.WithoutClassAndStyle(Extra)">@(Count > Max ? $"{Max}+" : Count.ToString(System.Globalization.CultureInfo.InvariantCulture))</span>
+          aria-hidden="true"
+          @attributes="DeskLayout.WithoutClassAndStyle(Extra)">@(Count > Max ? $"{Max}+" : Count.ToString(System.Globalization.CultureInfo.InvariantCulture))</span><span class="sr-only">@($"{Count} {(Count == 1 ? One ?? Label : Label)}")</span>
 }
 
 @code {

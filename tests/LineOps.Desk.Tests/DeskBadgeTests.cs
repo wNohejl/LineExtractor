@@ -39,20 +39,36 @@ public class DeskBadgeTests : DeskTestContext
         Assert.Equal("9+", Badge(12, max: 9).Find(".badge").TextContent.Trim());
     }
 
-    /// <summary>The name carries the true count, even where the pill shows the cap.</summary>
+    /// <summary>
+    /// A reader hears the true count with its noun, even where the pill shows the cap. A bare span
+    /// may not carry a name (ARIA 1.2 prohibits aria-label on a generic), so the figure is hidden
+    /// from the reader and a visually hidden sentence beside it says what it counts.
+    /// </summary>
     [Fact]
     public void Names_its_count_for_a_reader()
     {
-        Assert.Equal("5 items in the list", Badge(5).Find(".badge").GetAttribute("aria-label"));
-        Assert.Equal("120 items in the list", Badge(120).Find(".badge").GetAttribute("aria-label"));
+        Assert.Equal("5 items in the list", Spoken(Badge(5)));
+        Assert.Equal("120 items in the list", Spoken(Badge(120)));
+    }
+
+    [Fact]
+    public void The_figure_is_hidden_from_a_reader_and_carries_no_name()
+    {
+        var badge = Badge(5).Find(".badge");
+
+        Assert.Equal("true", badge.GetAttribute("aria-hidden"));
+        Assert.False(badge.HasAttribute("aria-label"));
+        Assert.Empty(badge.QuerySelectorAll(".sr-only"));
     }
 
     [Fact]
     public void One_takes_the_singular_noun()
     {
         var one = RenderComponent<DeskBadge>(p => p.Add(x => x.Count, 1).Add(x => x.Label, "items in the list").Add(x => x.One, "item in the list"));
-        Assert.Equal("1 item in the list", one.Find(".badge").GetAttribute("aria-label"));
+        Assert.Equal("1 item in the list", Spoken(one));
     }
+
+    private static string Spoken(IRenderedFragment cut) => cut.Find(".sr-only").TextContent.Trim();
 
     [Fact]
     public void Its_figures_are_tabular()

@@ -61,7 +61,7 @@ public class LiveAndResultTests : DeskTestContext
         Assert.Contains("width: 6px", rule);
         Assert.Contains("height: 6px", rule);
         Assert.Contains("var(--state-warning)", rule);
-        Assert.Matches(@"animation:\s*tag-live\s+1\.2s\s+ease-in-out\s+infinite\s+alternate", rule);
+        Assert.Matches(@"animation:\s*tag-live\s+var\(--dur-sweep\)\s+ease-in-out\s+infinite\s+alternate", rule);
 
         var keys = Block(Css, @"@keyframes\s+tag-live\s*\{");
         Assert.Matches(@"opacity:\s*1\b", keys);
@@ -149,10 +149,10 @@ public class LiveAndResultTests : DeskTestContext
     }
 
     [Fact]
-    public void Snippet_arrival_is_180ms_ease_out_and_opacity_only_under_reduced_motion()
+    public void Snippet_arrival_is_the_fast_ease_out_and_opacity_only_under_reduced_motion()
     {
         var rule = Block(Css, @"\.snippet--arrive\s*\{");
-        Assert.Matches(@"animation:\s*snippet-arrive\s+180ms\s+ease-out", rule);
+        Assert.Matches(@"animation:\s*snippet-arrive\s+var\(--dur-fast\)\s+var\(--ease-enter\)", rule);
 
         var keys = Block(Css, @"@keyframes\s+snippet-arrive\s*\{");
         Assert.Matches(@"from\s*\{\s*opacity:\s*0;\s*transform:\s*translateY\(-4px\);\s*\}", keys);

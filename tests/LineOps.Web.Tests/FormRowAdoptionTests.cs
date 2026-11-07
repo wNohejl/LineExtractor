@@ -4,39 +4,32 @@ using LineOps.Web.Tests.Support;
 namespace LineOps.Web.Tests;
 
 /// <summary>
-/// The grouped form has a primitive (<c>FormGroup</c> and <c>FormRow</c> in the Desk) and an older
-/// spelling: the four class names written by hand. The spelling is not wrong, so this does not
-/// forbid it; it ratchets. The count of hand-spelled form rows in this application may only go
-/// down — a window that is touched converts its rows, and nothing new is written the old way.
-/// Lower the numbers here as windows convert.
+/// The grouped form has one spelling: <c>FormGroup</c> and <c>FormRow</c> in the Desk. The older
+/// spelling, the class names written by hand, drifted window to window (a head that was an h4
+/// here and a div there, a footer inside the group instead of under it), so it ratcheted down
+/// from forty rows on 1 November 2026 to none on 7 November. A row whose label carries markup is
+/// a FormRow with <c>LabelContent</c>; a row whose leading column is not a label is a FormRow
+/// with <c>Lead</c>. A row that is not label-and-control at all is a plain <c>.wgroup__row</c>.
 /// </summary>
 public class FormRowAdoptionTests
 {
-    /// <summary>Hand-spelled form rows left on 1 November 2026, after the Slip converted.</summary>
-    private const int FormRowsLeft = 40;
-
-    /// <summary>Hand-spelled row labels left on the same day.</summary>
-    private const int LabelsLeft = 35;
-
-    private static IEnumerable<string> Sources()
+    private static IEnumerable<(string File, string Text)> Sources()
         => Directory.EnumerateFiles(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components"), "*.razor", SearchOption.AllDirectories)
-            .Select(File.ReadAllText);
+            .Select(f => (Path.GetFileName(f), File.ReadAllText(f)));
 
     [Fact]
-    public void Hand_spelled_form_rows_only_go_down()
+    public void No_form_row_is_spelled_by_hand()
     {
-        var rows = Sources().Sum(s => Regex.Matches(s, @"class=""wgroup__row wgroup__row--form").Count);
+        var spelled = Sources().Where(s => Regex.IsMatch(s.Text, @"class=""wgroup__row wgroup__row--form")).Select(s => s.File);
 
-        Assert.True(rows <= FormRowsLeft,
-            $"{rows} form rows are spelled by hand (the ratchet is {FormRowsLeft}). New rows are <FormRow Label=\"…\">; a window you touch converts its rows.");
+        Assert.Empty(spelled);
     }
 
     [Fact]
-    public void Hand_spelled_row_labels_only_go_down()
+    public void No_row_label_is_spelled_by_hand()
     {
-        var labels = Sources().Sum(s => Regex.Matches(s, @"class=""wgroup__label""").Count);
+        var spelled = Sources().Where(s => Regex.IsMatch(s.Text, @"class=""wgroup__label""")).Select(s => s.File);
 
-        Assert.True(labels <= LabelsLeft,
-            $"{labels} row labels are spelled by hand (the ratchet is {LabelsLeft}). A FormRow's Label is the label.");
+        Assert.Empty(spelled);
     }
 }

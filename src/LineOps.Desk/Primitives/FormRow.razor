@@ -6,18 +6,39 @@
     (a DeskField with a Label, a DeskSwitch with its Label, a bare field with an aria-label),
     and a row whose control is a sentence or a figure has nothing to point a label at.
 
+    Most rows name themselves with Label. A label that carries markup — a figure echoed under
+    the word, say — is LabelContent, still drawn as the row's label. A row whose leading column
+    is not a label at all — a sentence saying what the row waits for, or a two-line summary of
+    what was chosen — passes Lead, which takes the column as it is.
+
     A row that is not label-and-control — a card in a list, one line of a receipt — is a plain
     .wgroup__row the caller draws; this is the form row only.
 *@
 
 <div class="wgroup__row wgroup__row--form @Class" @attributes="Rest">
-    <span class="wgroup__label">@Label</span>
+    @if (Lead is not null)
+    {
+        @Lead
+    }
+    else
+    {
+        <span class="wgroup__label">@if (LabelContent is not null) { @LabelContent } else { @Label }</span>
+    }
     @ChildContent
 </div>
 
 @code {
     /// <summary>The row's label, in sentence case.</summary>
-    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public string Label { get; set; } = string.Empty;
+
+    /// <summary>A label that carries markup, drawn as the row's label in place of <see cref="Label"/>.</summary>
+    [Parameter] public RenderFragment? LabelContent { get; set; }
+
+    /// <summary>
+    /// The leading column when it is not a label: the caller's markup takes the column as it is,
+    /// in place of the label.
+    /// </summary>
+    [Parameter] public RenderFragment? Lead { get; set; }
 
     /// <summary>The control, the value, or the sentence the row holds.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }

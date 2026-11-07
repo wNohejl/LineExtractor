@@ -36,6 +36,46 @@ public class DeskCssConventionTests
         Assert.DoesNotMatch(LiteralColour + @"|\bwhite\b", WithoutComments(reconnect));
     }
 
+    /// <summary>
+    /// Every duration and delay a transition or an animation spends is a <c>--dur-*</c> token (or
+    /// a multiple of one), so motion keeps one tempo. Literal durations drifted under the 150ms
+    /// floor — .1s, .12s, .16s — each one a hand-tuned exception nobody could see beside the rest.
+    /// </summary>
+    [Fact]
+    public void No_literal_duration_outside_the_token_blocks()
+    {
+        // The one allowed literal: the reduced-motion block's near-zero, which is not a tempo but
+        // the absence of one, and must out-weigh any component (hence its !important).
+        string[] allowed = [".01ms !important"];
+
+        var desk = Css("desk.css");
+        var scale = Regex.Match(desk, @"/\*\s*=+\s*Scale\.");
+        Assert.True(scale.Success, "The Scale banner after the theme blocks was not found.");
+
+        var sheets = new Dictionary<string, string>
+        {
+            ["desk.css"] = desk[scale.Index..],
+            ["controls.css"] = Css("controls.css"),
+            ["mud-bridge.css"] = Css("mud-bridge.css"),
+            ["ReconnectModal.razor.css"] = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "Layout", "ReconnectModal.razor.css")),
+        };
+
+        var literals = new List<string>();
+        foreach (var (name, css) in sheets)
+        {
+            foreach (Match declaration in Regex.Matches(WithoutComments(css), @"(?<![\w-])(?:transition|animation)[\w-]*\s*:\s*([^;{}]*)"))
+            {
+                var value = declaration.Groups[1].Value.Trim();
+                if (allowed.Contains(value))
+                    continue;
+                if (Regex.IsMatch(value, @"(?<![\w.-])\d*\.?\d+m?s\b"))
+                    literals.Add($"{name}: {declaration.Value.Trim()}");
+            }
+        }
+
+        Assert.True(literals.Count == 0, "Literal durations:\n" + string.Join("\n", literals));
+    }
+
     [Fact]
     public void A_form_is_not_boxed()
     {

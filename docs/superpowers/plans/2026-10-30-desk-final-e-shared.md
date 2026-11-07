@@ -319,6 +319,15 @@ And the last three, the same day:
 
 Nothing on this list is open.
 
+On 7 November 2026 the FormRow sweep finished: no window spells a form row or a row label by
+hand, and `FormRowAdoptionTests` holds that at none. `FormRow` gained `LabelContent` (a label
+that carries markup) and `Lead` (a leading column that is not a label), which the wager
+window's three price rows needed. HIG 12's remaining cases went the same day: no meaning is
+carried by a hover title on text that cannot take focus (`HoverOnlyTitleTests`). A checklist
+review of the Desk package found nine more, all fixed: the error banner, the destructive menu
+ink, tertiary text that must be read, the toast close key, the accent swatch and window control
+targets, the reconnect dialog, literal durations, the `main` landmark and the badge's name.
+
 Not defects, recorded so nobody re-greps them: the eight `Title="GP|ATS|RCA|CLV|ROI"` column
 headers are initialisms, not shouting labels; the three `text-transform: uppercase` rules are
 the wordmark and the empty-state mark; the `.mud-tooltip` and snackbar `.01–.02em` tracking is

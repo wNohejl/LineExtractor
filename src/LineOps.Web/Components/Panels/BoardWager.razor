@@ -248,19 +248,22 @@ else
                             @* The price row keeps its place before a side is picked, so the group
                                does not jump when one is: it says what it waits for in tertiary, and
                                the book pop-up is there but disabled (recipe rule 3), not hidden. *@
-                            <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty wager-offer">
-                                <span class="wbet__wait" id="@_waitId">Choose a side above.</span>
-                                <div class="wager-offer__top">
-                                    <BookPicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
-                                </div>
-                            </div>
+                            <FormRow Class="wbet__price wbet__price--empty wager-offer">
+                                <Lead><span class="wbet__wait" id="@_waitId">Choose a side above.</span></Lead>
+                                <ChildContent>
+                                    <div class="wager-offer__top">
+                                        <BookPicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
+                                    </div>
+                                </ChildContent>
+                            </FormRow>
                         }
                         else if (Typing)
                         {
                             @* Typed: a row per field, label leading, fields one width (HIG: fields in
                                a group share widths and stack). *@
-                            <div class="wgroup__row wgroup__row--form wbet__price wager-typed">
-                                <span class="wgroup__label">Price<span class="wbet__echo">@(_noGame ? null : TypedEcho)</span></span>
+                            <FormRow Class="wbet__price wager-typed">
+                                <LabelContent>Price<span class="wbet__echo">@(_noGame ? null : TypedEcho)</span></LabelContent>
+                                <ChildContent>
                                 <div class="wager-typed__cell">
                                     <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
                                                aria-label="Price" placeholder="-110" Class="wfield--short"
@@ -276,7 +279,8 @@ else
                                         </DeskButton>
                                     }
                                 </div>
-                            </div>
+                                </ChildContent>
+                            </FormRow>
                             @if (HasLine)
                             {
                                 <FormRow Label="Line" Class="wager-typed">
@@ -307,11 +311,14 @@ else
                                the pencil that replaces the number last. The echo is the label, so there
                                is no "Price" label, and the line is said once, in the echo. Keyed on the
                                side, so a new choice cross-fades in (rule 4) rather than swapping. *@
-                            <div class="wgroup__row wgroup__row--form wbet__price wager-offer">
+                            <FormRow Class="wbet__price wager-offer">
+                                <Lead>
                                 <span class="wbet__echo-pair" @key="offer.Label">
                                     <span class="wbet__side">@EchoSide(offer)</span>
                                     <span class="wbet__detail">@EchoDetail(_market!, offer.Outcome)</span>
                                 </span>
+                                </Lead>
+                                <ChildContent>
                                 <div class="wager-offer__top">
                                     <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
                                     <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
@@ -322,7 +329,8 @@ else
                                                 Title="Enter a price"
                                                 OnClick="ToggleManual" />
                                 </div>
-                            </div>
+                                </ChildContent>
+                            </FormRow>
                         }
                     </div>
 

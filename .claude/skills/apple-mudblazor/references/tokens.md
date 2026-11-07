@@ -241,6 +241,10 @@ rung**, so a layout re-tunes in one place.
 --ease-standard: cubic-bezier(.25,.1,.25,1);
 --ease-spring:   cubic-bezier(.32,1.28,.42,1);
 --ease-exit:     cubic-bezier(.4,0,1,1);
+--ease-enter:    cubic-bezier(0,0,.58,1);
+
+/* the loops: ambient signals, never a response to a press */
+--dur-spin: .8s;  --dur-sweep: 1.15s;  --dur-shimmer: 1.5s;  --dur-breathe: 1.9s;
 ```
 
 **Motion says where a thing came from.** A sheet rises from below and settles; a
@@ -251,13 +255,16 @@ for decoration.
 - `--ease-spring` **overshoots a hair and settles**, approximating the platform
   spring. Use it for anything arriving or travelling to a position (a sheet, a
   segmented control's cap).
+- `--ease-enter` decelerates without overshoot: a small arrival in place, such as an
+  answer appearing under the row that asked for it.
 - `--ease-exit` does **not** overshoot, because things leaving should not draw a
   second look.
 
 > **These are interaction motion tokens. They do not apply to continuous ambient
 > signals.**
 
-A busy sheen, a live pulse, a ticker — those run on their own duration. Sizing an
+A busy sheen, a live pulse, a ticker — those run on the loop tokens (`--dur-spin`,
+`--dur-sweep`, `--dur-shimmer`, `--dur-breathe`), never on a literal. Sizing an
 always-on animation from an interaction token makes it read as a control
 responding to something, which is exactly the wrong message.
 

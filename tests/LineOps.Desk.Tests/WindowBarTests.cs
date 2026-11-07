@@ -324,7 +324,7 @@ public class WindowBarTests : SampleDeskTestContext
         var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
         Assert.DoesNotContain(".win__ctl::before", css);
         Assert.DoesNotMatch(@"\.win__ctl[\w-]*:hover[^{]*\{[^}]*state-negative", css);
-        Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*24px[^}]*height:\s*24px[^}]*color:\s*var\(--text-secondary\)", css);
+        Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*28px[^}]*height:\s*28px[^}]*color:\s*var\(--text-secondary\)", css);
         Assert.Matches(@"\.win__ctl:hover\s*\{[^}]*background:\s*var\(--surface-3\)", css);
     }
 

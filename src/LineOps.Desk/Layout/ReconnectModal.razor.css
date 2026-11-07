@@ -1,3 +1,5 @@
+/* The circuit-lost notice, on the Desk's tokens. The visibility rules are the framework's
+   contract: it sets one state class on the dialog and the copy for that state shows. */
 .components-reconnect-first-attempt-visible,
 .components-reconnect-repeated-attempt-visible,
 .components-reconnect-failed-visible,
@@ -19,140 +21,102 @@
     display: block;
 }
 
-
+/* An alert's shape: the sheet's corner and shadow on the raised surface. It rises a step
+   and settles, the way a sheet arrives, after a beat — a connection that comes back at once
+   never shows the notice at all. It leaves by fading, because a thing leaving should not
+   draw a second look. */
 #components-reconnect-modal {
     background-color: var(--surface-1);
     color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-body);
     width: 20rem;
     margin: 20vh auto;
-    padding: 2rem;
+    padding: var(--space-6);
     border: 0;
-    border-radius: 0.5rem;
-    box-shadow: var(--shadow-2);
+    border-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-sheet);
     opacity: 0;
-    transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
-    animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
-    &[open]
-
-{
-    animation: components-reconnect-modal-slideUp 1.5s cubic-bezier(.05, .89, .25, 1.02) 0.3s, components-reconnect-modal-fadeInOpacity 0.5s ease-in-out 0.3s;
-    animation-fill-mode: both;
+    transition: display var(--dur-base) allow-discrete, overlay var(--dur-base) allow-discrete;
+    animation: components-reconnect-modal-fadeOut var(--dur-base) var(--ease-exit) both;
 }
 
+#components-reconnect-modal[open] {
+    animation: components-reconnect-modal-rise var(--dur-slow) var(--ease-spring) var(--dur-base) both;
 }
 
 #components-reconnect-modal::backdrop {
     background-color: color-mix(in srgb, var(--surface-0) 55%, transparent);
-    animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
+    animation: components-reconnect-modal-fadeIn var(--dur-base) var(--ease-standard);
     opacity: 1;
 }
 
-@keyframes components-reconnect-modal-slideUp {
-    0% {
-        transform: translateY(30px) scale(0.95);
-    }
-
-    100% {
-        transform: translateY(0);
+/* No travel when motion is unwelcome: the notice fades in place. */
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal[open] {
+        animation-name: components-reconnect-modal-fadeIn;
     }
 }
 
-@keyframes components-reconnect-modal-fadeInOpacity {
-    0% {
+@keyframes components-reconnect-modal-rise {
+    from {
         opacity: 0;
+        transform: translateY(var(--space-2)) scale(.98);
     }
 
-    100% {
+    to {
         opacity: 1;
+        transform: none;
     }
 }
 
-@keyframes components-reconnect-modal-fadeOutOpacity {
-    0% {
-        opacity: 1;
-    }
+@keyframes components-reconnect-modal-fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 
-    100% {
-        opacity: 0;
-    }
+@keyframes components-reconnect-modal-fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
 }
 
 .components-reconnect-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    gap: var(--space-4);
 }
 
 #components-reconnect-modal p {
     margin: 0;
     text-align: center;
+    line-height: var(--leading-body);
 }
 
+/* The Desk's Filled key: the one action the notice commits to. */
 #components-reconnect-modal button {
+    height: 28px;
+    padding: 0 var(--space-4);
     border: 0;
+    border-radius: var(--radius);
     background-color: var(--accent);
     color: var(--on-accent);
-    padding: 4px 24px;
-    border-radius: 4px;
+    font: inherit;
+    font-weight: var(--weight-semibold);
+    box-shadow: var(--shadow-1);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-    #components-reconnect-modal button:hover {
-        background-color: var(--accent-hover);
-    }
-
-    #components-reconnect-modal button:active {
-        background-color: var(--accent-press);
-    }
-
-.components-rejoining-animation {
-    position: relative;
-    width: 80px;
-    height: 80px;
+#components-reconnect-modal button:hover {
+    background-color: var(--accent-hover);
 }
 
-    .components-rejoining-animation div {
-        position: absolute;
-        border: 3px solid var(--accent);
-        opacity: 1;
-        border-radius: 50%;
-        animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-    }
+#components-reconnect-modal button:active {
+    background-color: var(--accent-press);
+}
 
-        .components-rejoining-animation div:nth-child(2) {
-            animation-delay: -0.5s;
-        }
-
-@keyframes components-rejoining-animation {
-    0% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 0;
-    }
-
-    4.9% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 0;
-    }
-
-    5% {
-        top: 40px;
-        left: 40px;
-        width: 0;
-        height: 0;
-        opacity: 1;
-    }
-
-    100% {
-        top: 0px;
-        left: 0px;
-        width: 80px;
-        height: 80px;
-        opacity: 0;
-    }
+#components-reconnect-modal button:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }

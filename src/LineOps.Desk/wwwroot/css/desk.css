@@ -178,6 +178,16 @@
     --ease-standard: cubic-bezier(.25, .1, .25, 1);
     --ease-spring: cubic-bezier(.32, 1.28, .42, 1);
     --ease-exit: cubic-bezier(.4, 0, 1, 1);
+    /* An inline arrival — a line of text appearing in place — decelerates into its slot and
+       neither overshoots (spring) nor eases in first (standard). */
+    --ease-enter: cubic-bezier(0, 0, .58, 1);
+
+    /* Loops: the period of a thing that repeats while work is under way, not a transition.
+       They are slower than any transition because a loop is watched, not noticed. */
+    --dur-spin: .8s; /* a spinner's turn */
+    --dur-sweep: 1.15s; /* a sheen or band crossing a busy control, the live tag's throb */
+    --dur-shimmer: 1.5s; /* a skeleton waiting for its first read */
+    --dur-breathe: 1.9s; /* a critical pulse: slow enough to read as a state, not an alarm */
 
     /* --- Depth --------------------------------------------------------------
        Soft, layered, and wide. Depth comes from shadow and material, not border. */
@@ -1230,7 +1240,7 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     cursor: pointer;
-    transition: color .12s ease;
+    transition: color var(--dur-fast) var(--ease-standard);
 }
 
 .tabs__tab:hover { color: var(--text-primary); }
@@ -1278,15 +1288,15 @@ html, body {
         transform var(--dur-fast) var(--ease-standard),
         width var(--dur-fast) var(--ease-standard),
         height var(--dur-fast) var(--ease-standard),
-        background-color var(--dur-fast) ease,
-        opacity .1s ease;
+        background-color var(--dur-fast) var(--ease-standard),
+        opacity var(--dur-fast) var(--ease-standard);
 }
 
 [data-glide-live] > .glide-plate { opacity: 1; }
 
 /* Appearing under the first control it meets, the plate arrives in place —
    sliding in from the container's corner would draw a line nobody made. */
-.glide-plate--still { transition: opacity .1s ease; }
+.glide-plate--still { transition: opacity var(--dur-fast) var(--ease-standard); }
 
 /* The marble, measured. Same travel as the CSS-variable one on the gate, but it
    takes the size of whatever it lands on, which is what lets the toolbar hold
@@ -1313,7 +1323,7 @@ html, body {
 [data-glide-live] .rail__btn:hover { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-    .glide-plate { transition: opacity .1s ease; }
+    .glide-plate { transition: opacity var(--dur-fast) var(--ease-standard); }
 }
 
 /* --------------------------------------------------------------- footer --- */
@@ -1362,6 +1372,11 @@ html, body {
     background-position: -1px -1px;
 }
 
+/* The desk is the page's main landmark, and a router's FocusOnNavigate lands focus on it
+   (tabindex -1) so a reader starts there. That focus is a starting point, not a selection:
+   ringing the whole desk would say every window was chosen at once. */
+.desk[tabindex="-1"]:focus, .deskpage[tabindex="-1"]:focus { outline: none; box-shadow: none; }
+
 /* Windows position against this, so a declared resolution gets a real surface of that
    size and the desk scrolls to it, rather than layout pretending the screen is bigger. */
 .desk__surface {
@@ -1380,9 +1395,9 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 18px;
+    gap: var(--space-5);
     text-align: center;
-    padding: 24px;
+    padding: var(--space-6);
 }
 
 .desk-empty__mark {
@@ -1427,7 +1442,7 @@ html, body {
        commit, an eviction, or a close — every tab slides to its new slot instead of
        jumping. Suppressed during the two live gestures below, where a transition would
        lag a frame behind the pointer instead of tracking it. */
-    transition: left .16s ease, width .16s ease;
+    transition: left var(--dur-fast) var(--ease-standard), width var(--dur-fast) var(--ease-standard);
 }
 
 body.splitting .win, body.tab-dragging .win { transition: none; user-select: none; }
@@ -1555,15 +1570,20 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
 
-/* Two pixels between the keys, so a hover fill reads as one key lit rather than a strip
-   lighting in thirds. */
+/* A step of the ramp between the keys, so a hover fill reads as one key lit rather than a
+   strip lighting in thirds, and a second step before Close: the key that ends the window
+   stands a little apart from the keys that only rearrange it, so a hurried click on Minimise
+   does not land on Close. */
 .win__controls {
     display: flex;
-    gap: 2px;
+    gap: var(--space-1);
     flex: 0 0 auto;
 }
 
-/* The desk's own plain icon keys: 24px, a key's size inside a row, the glyph always drawn
+.win__controls > .win__ctl--close { margin-left: var(--space-2); }
+
+/* The desk's own plain icon keys: 28px — the toolbar's control height and the smallest target
+   the desk draws, held inside the 34px title bar — the glyph always drawn
    in secondary ink. They were 12px grey dots that showed their glyphs only on hover — a
    Mac's traffic lights set in a Windows order, the half-imitation of system chrome the HIG
    says reads as broken. A key says what it does at rest; a dot made the operator hover to
@@ -1571,8 +1591,8 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
    included: closing a window is dismissal, not destruction, and a window holding unsaved
    input asks before it goes. */
 .win__ctl {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: grid;
     place-items: center;
     padding: 0;
@@ -1624,7 +1644,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     inset: 0;
     width: 34%;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: pulse-sweep 1.15s linear infinite;
+    animation: pulse-sweep var(--dur-sweep) linear infinite;
 }
 
 @keyframes pulse-sweep {
@@ -1633,7 +1653,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 }
 
 /* Critical earns a slow breath — it is the one state you must not miss. */
-.pulse--critical { animation: pulse-breathe 1.9s ease-in-out infinite; }
+.pulse--critical { animation: pulse-breathe var(--dur-breathe) ease-in-out infinite; }
 
 @keyframes pulse-breathe {
     0%, 100% { opacity: 1; }
@@ -1685,7 +1705,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     height: 34px;
     border-radius: 1px;
     background: var(--surface-3);
-    transition: background-color .12s ease, height .12s ease;
+    transition: background-color var(--dur-fast) var(--ease-standard), height var(--dur-fast) var(--ease-standard);
 }
 
 /* Accent, not the neutral hover fill, and deliberately: this is not a plate behind a
@@ -2145,7 +2165,7 @@ body.dialog-dragging { user-select: none; }
 .desklink {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
     max-width: 100%;
     padding: 0;
     background: none;
@@ -2162,7 +2182,7 @@ body.dialog-dragging { user-select: none; }
     text-overflow: ellipsis;
     white-space: nowrap;
     border-bottom: 1px dotted transparent;
-    transition: border-color .1s ease, color .1s ease;
+    transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
 }
 
 .desklink__shortcut {
@@ -2174,7 +2194,7 @@ body.dialog-dragging { user-select: none; }
     color: var(--accent-ink);
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
-    transition: opacity .1s ease;
+    transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
 .desklink__shortcut svg { width: 11px; height: 11px; }
@@ -2275,7 +2295,7 @@ body.dialog-dragging { user-select: none; }
     border-radius: 50%;
     background: var(--state-warning);
     vertical-align: 1px;
-    animation: tag-live 1.2s ease-in-out infinite alternate;
+    animation: tag-live var(--dur-sweep) ease-in-out infinite alternate;
 }
 
 @keyframes tag-live {
@@ -2365,7 +2385,7 @@ body.dialog-dragging { user-select: none; }
 /* Apple answers a press with a fast, small scale rather than travel. */
 .desk-btn:active:not(:disabled), .btn:active:not(:disabled) {
     transform: scale(.97);
-    transition-duration: .05s;
+    transition-duration: calc(var(--dur-fast) / 3);
 }
 
 .desk-btn:disabled, .desk-btn[disabled],
@@ -2452,7 +2472,7 @@ body.dialog-dragging { user-select: none; }
         transparent 0%,
         var(--sheen) 50%,
         transparent 100%);
-    animation: desk-btn-sheen 1.1s var(--ease-standard) infinite;
+    animation: desk-btn-sheen var(--dur-sweep) var(--ease-standard) infinite;
 }
 
 @keyframes desk-btn-sheen {
@@ -3065,7 +3085,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --skel-h: 9px;
 }
 
-.skel--lines { display: flex; flex-direction: column; gap: 7px; }
+.skel--lines { display: flex; flex-direction: column; gap: var(--space-2); }
 
 .skel__line,
 .skel__block {
@@ -3093,14 +3113,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     inset: 0;
     background: linear-gradient(90deg, transparent, var(--sheen-soft), transparent);
     transform: translateX(-100%);
-    animation: desk-btn-sheen 1.5s var(--ease-standard) infinite;
+    animation: desk-btn-sheen var(--dur-shimmer) var(--ease-standard) infinite;
 }
 
 /* Staggered so a stack of lines reads as one surface being swept, not as three
    independent bars each doing their own thing. */
-.skel--lines .skel__line:nth-child(2)::after { animation-delay: .12s; }
-.skel--lines .skel__line:nth-child(3)::after { animation-delay: .24s; }
-.skel--lines .skel__line:nth-child(n+4)::after { animation-delay: .36s; }
+.skel--lines .skel__line:nth-child(2)::after { animation-delay: var(--dur-fast); }
+.skel--lines .skel__line:nth-child(3)::after { animation-delay: calc(var(--dur-fast) * 2); }
+.skel--lines .skel__line:nth-child(n+4)::after { animation-delay: calc(var(--dur-fast) * 3); }
 
 /* ---- Grid rows ------------------------------------------------------------
    Same row rhythm and hairline as .deskgrid's real body (see mud-bridge.css), so
@@ -3177,7 +3197,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .prog--indeterminate .prog__fill {
     width: 34%;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: prog-sweep 1.15s linear infinite;
+    animation: prog-sweep var(--dur-sweep) linear infinite;
 }
 
 @keyframes prog-sweep {
@@ -3209,6 +3229,51 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     padding: 0; margin: -1px; overflow: hidden;
     clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
+
+/* ------------------------------------------------- the failed-circuit banner ---
+   The framework's banner for a circuit that failed (Layout/MainLayout.razor). Blazor shows
+   it by writing display:block inline, which out-weighs this rule, so the sheet only ever
+   hides it: until then it is out of the page and out of the accessibility tree. Shown, it
+   is laid out like a toast — the raised surface, one hairline, the sheet's shadow, the
+   failure carried on a lit edge — and pinned to the corner the toasts use, above
+   everything, because nothing on the desk works until it is answered. Its contents are
+   laid out by a row inside it rather than by its own display, which belongs to Blazor. */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    inset: auto var(--space-4) var(--space-4) auto;
+    z-index: var(--z-toast);
+    max-width: min(420px, calc(100vw - 2 * var(--space-4)));
+    box-sizing: border-box;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
+    border-left: 2px solid var(--state-negative);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sheet);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-subheadline);
+}
+
+/* Sentence, key and dismiss on one line, the way a toast holds its text and its one key. */
+.blazor-error-ui__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.blazor-error-ui__text { margin: 0; flex: 1 1 auto; }
+
+/* The toast's key: a plain key in primary ink, semibold — an escape hatch, not a commitment. */
+#blazor-error-ui .reload {
+    --btn-ink: var(--text-primary);
+    flex: none;
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+}
+
+#blazor-error-ui .dismiss { flex: none; }
 
 /* One focus ring, everywhere: --focus-ring, a 1px accent edge in a 3px wash. This was
    a 2px outline, a second shape beside the ring the desk's own keys draw, so a Tab
@@ -3306,13 +3371,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 /* The snippet arrives rather than appears: it fades in from 4px above, the side its key is
-   on, so the answer reads as coming out of the press. 180ms ease-out matches none of the
-   desk's motion tokens (--dur-fast is 150ms, --ease-standard is the browser's ease and
-   --ease-spring overshoots), so the values are written here; an inline answer should
-   decelerate into place, not bounce. It plays once, on
+   on, so the answer reads as coming out of the press. It takes --ease-enter, which
+   decelerates into place and neither bounces (--ease-spring) nor eases in first
+   (--ease-standard): an inline answer should settle, not wobble. It plays once, on
    insertion — a re-render keeps the element and does not replay it. Reduced motion keeps the
    fade and drops the travel. */
-.snippet--arrive { animation: snippet-arrive 180ms ease-out; }
+.snippet--arrive { animation: snippet-arrive var(--dur-fast) var(--ease-enter); }
 
 @keyframes snippet-arrive {
     from { opacity: 0; transform: translateY(-4px); }
@@ -3363,7 +3427,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     font-size: var(--text-footnote);
     padding: 0 var(--space-2);
     cursor: pointer;
-    transition: color .12s ease, background-color .12s ease;
+    transition: color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 
 /* Neutral: the button brightens and takes the --surface-3 hover fill every plain control
@@ -3439,7 +3503,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     font-size: var(--text-subheadline);
     text-align: left;
     cursor: pointer;
-    transition: background .12s ease;
+    transition: background var(--dur-fast) var(--ease-standard);
 }
 
 /* The row's own measure over the disclosure's: controls.css loads after this sheet and

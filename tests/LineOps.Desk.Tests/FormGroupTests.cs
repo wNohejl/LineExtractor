@@ -71,3 +71,34 @@ public class FormGroupTests : DeskTestContext
         Assert.Contains("--form-label: 120px", group.GetAttribute("style"));
     }
 }
+
+/// <summary>
+/// A row's label can carry markup, and a row's leading column can be something other than a
+/// label; both stay FormRows, so the group's shared column and its narrow stacking hold.
+/// </summary>
+public class FormRowSlotTests : DeskTestContext
+{
+    [Fact]
+    public void Label_content_is_drawn_as_the_row_s_label()
+    {
+        var cut = RenderComponent<FormRow>(p => p
+            .Add(x => x.LabelContent, b => b.AddMarkupContent(0, "Price<span class=\"echo\">-110</span>"))
+            .AddChildContent("<input aria-label=\"Price\" />"));
+
+        var label = cut.Find(".wgroup__row--form > .wgroup__label");
+        Assert.Equal("Price-110", label.TextContent);
+        Assert.NotNull(label.QuerySelector(".echo"));
+    }
+
+    [Fact]
+    public void A_lead_takes_the_column_in_place_of_the_label()
+    {
+        var cut = RenderComponent<FormRow>(p => p
+            .Add(x => x.Lead, b => b.AddMarkupContent(0, "<span class=\"wait\">Choose one above.</span>"))
+            .AddChildContent("<button type=\"button\" disabled>Book</button>"));
+
+        var row = cut.Find(".wgroup__row--form");
+        Assert.Empty(row.QuerySelectorAll(".wgroup__label"));
+        Assert.Equal("wait", row.FirstElementChild!.ClassName);
+    }
+}

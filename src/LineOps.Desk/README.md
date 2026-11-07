@@ -311,7 +311,7 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure. | — |
 | `FollowUpLayer` | The floating follow-ups a panel has open, drawn once per panel. | — |
 | `FormGroup` | The grouped form: a sentence-case name, one filled group with one edge, and the explaining sentence as its footer. | — |
-| `FormRow` | One row of a `FormGroup`: the label leading in the shared column, the control taking the rest. | — |
+| `FormRow` | One row of a `FormGroup`: the label leading in the shared column, the control taking the rest; `LabelContent` when the label carries markup, `Lead` when the leading column is not a label. | — |
 | `InlineConfirm` | A question asked in place, with Cancel first and the confirm last; Escape answers Cancel. | — |
 | `KeyRow` | Secondary keys, the reason the primary waits, then the one Filled key, which the reason describes. | — |
 | `Metric` | One number, its label, and the qualifier that stops it being misread. | — |
