@@ -58,14 +58,13 @@ Grey says *"this is not for you"*. The truth is *"this is already doing what you
 asked"*. Those are different sentences and the operator needs the second one.
 `Disabled` and `Busy` are separate parameters for exactly that reason.
 
-### Why the CSS says `.app-btn, .btn`
+### Why the CSS says `.desk-btn, .btn`
 
-`controls.css` writes the button recipe against both class names. `.btn` is
-a dead-cheap forward-compatibility co-selector: any hand-written `.btn` markup
-picks up the same recipe instead of reappearing with a second button language.
-Nothing in the shipped system uses it — every button goes through `DeskButton` —
-so it costs one selector and buys insurance against a stray `.btn` drifting in.
-Delete it if you would rather such markup break loudly.
+`DeskButton` renders `.desk-btn` with one modifier per decision: `--filled`, `--tinted` or
+`--plain` for the emphasis, `--destructive` for the role, `--sm` or `--lg` for the size,
+`--icon` for a glyph with no label, `--busy` while it works. `desk.css` writes the recipe
+against `.desk-btn, .btn`: `.btn` is a dead-cheap co-selector so a stray hand-written button
+picks up the same recipe instead of a second button language. Nothing shipped uses it.
 
 ### Sizes
 

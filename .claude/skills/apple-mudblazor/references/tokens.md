@@ -32,9 +32,9 @@ Depth comes from **fill and shadow**, never from a border.
 --separator-strong: rgba(255,255,255,.16);
 ```
 
-**Hairlines separate; they never outline.** A border around a panel or a button
-is the Material habit this system replaces. A hairline is legitimate *between*
-two things and illegitimate *around* one thing.
+**One edge.** A group or card carries one hairline where it is defined; rows inside it are
+divided by inset hairlines and padding, never framed again, and a button or field has no
+outline at rest. A hairline *around* a thing inside an edged thing is the Material habit this system replaces.
 
 ---
 
@@ -288,10 +288,11 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 ## The second theme
 
-A light mode is one more block. the token block of `src/LineOps.Desk/wwwroot/css/desk.css` and the theme blocks of `themes.css` ships it, keyed on
-`[data-theme="light"]`, and no component, selector or C# call site knows there are
-two themes. If adding one requires touching anything below the token blocks, the
-token that made it necessary was named for a colour.
+A light mode is one more block. `src/LineOps.Desk/wwwroot/css/themes.css` ships it, keyed on
+`[data-theme="apple-light"]` beside `[data-theme="apple-dark"]` — and the same pair again for
+each other family (contrast, nord, rose-pine, solarized) — and no component, selector or C# call
+site knows how many there are. If adding one requires touching anything below the token blocks,
+the token that made it necessary was named for a colour.
 
 **Redeclare every token whose value is a colour, and nothing else.** The type ramp,
 spacing, radii, motion curves and z-layers are not theme-dependent; they stay in
@@ -372,31 +373,26 @@ Then compute the contrast ratios in the test rather than tabulating them, so a
 token nudged by two hundredths of an alpha fails instead of being re-measured by
 hand and forgotten.
 
-### Wiring it up
+### Wiring it up — as the Desk does it
 
-The stylesheet is the whole mechanism: set `data-theme` on `<html>` and the app is
-re-themed. Three things sit around that.
+The stylesheet is the whole mechanism: `data-theme` on `<html>` re-themes the app. Around it:
 
-- **MudBlazor needs the same switch in C#.** Give the theme a `PaletteLight`
-  mirroring the light block, keep it structurally identical to `PaletteDark` so a
-  lost entry is visible by reading down two columns, and drive
-  `MudThemeProvider.IsDarkMode` from the *same* boolean that picks the attribute.
-  Compute them separately and the app's own panels will disagree with its Mud
-  components on screen.
-- **Offer three positions, not two.** Dark, Light, and System — and System is a
-  different kind of answer, not a convenience. Keep a `matchMedia` listener so it
-  stays live; the moment you resolve "system" down to whichever theme it meant at
-  load, you have thrown away the only thing the setting was for. Record the
-  machine's preference on every change, not just while System is selected, or an
-  operator who overrides and later returns to System lands on a stale answer.
-- **Read the stored choice after the first render.** There is no JS runtime during
-  prerender, so `localStorage` is unreachable until then. Default to whichever
-  theme the app already was, so the one unavoidable frame of the wrong theme is
-  seen only by people who have actively chosen the other one.
+- **`ThemeService`** (scoped, `src/LineOps.Desk/Theming/`) holds three choices — `Mode`
+  (System / Dark / Light), `Family` and `Accent` — and derives `Attribute`
+  (`DeskThemeFamilies.Attribute(ShowingFamily, IsDark)`) and `MudTheme`
+  (`DeskTheme.For(ShowingFamily, Accent)`). `MainLayout` hands both to `MudThemeProvider`,
+  so MudBlazor and the stylesheet always flip from the one boolean.
+- **`theme.js`** reads and writes the choices in `localStorage` (`desk.theme`,
+  `desk.theme.family`, `desk.accent`), keeps a `matchMedia` listener so System stays live, and
+  sets `data-reduced-transparency` from the OS setting. **`theme-boot.js`** runs before first
+  paint and stamps the stored attribute, so the one frame of the wrong theme is never seen.
+- **The mirror is tested.** `DeskThemeTests` parses every family's two blocks and holds them to
+  the Standard dark block's colour-token list, its C# palette and its text contrast;
+  `ThemeContrastTests` holds the inks to 4.5:1; `ThemeBootTests` holds the boot script to the
+  family slugs. Add a token to one block and the test names the blocks that lack it.
 
-Also set `<meta name="color-scheme" content="dark light">` and a `color-scheme`
-declaration inside each block, or the browser paints its own scrollbars and the
-canvas behind the app in the wrong theme.
+`<meta name="color-scheme" content="dark light">` and a `color-scheme` declaration in each
+block keep the browser's own scrollbars and canvas in the right theme.
 
 ---
 

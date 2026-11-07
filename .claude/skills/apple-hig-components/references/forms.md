@@ -16,7 +16,7 @@ Section name                       ← optional, footnote, secondary, sentence c
 │ Label          ( Seg | Seg | Seg )               │
 │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │
 │ Label          [ field  ]  ◦ ◦                   │
-└──────────────────────────────────────────────────┘  radius ~10–12pt, NO border
+└──────────────────────────────────────────────────┘  radius ~10–12pt, one 1px hairline
 Footer: one or two sentences of explanation, footnote, secondary.
 
                       ← space, not a line, between groups

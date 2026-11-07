@@ -94,7 +94,7 @@ you debug anything, because none of them looks wrong in the source.
 ### 1. The compound-selector defeat (the companion-rule pattern)
 
 MudBlazor states `.mud-button-text.mud-button-text-inherit { color: inherit }` at
-**two classes, `(0,2,0)`**. Your wrapper class `.app-btn` is **one class,
+**two classes, `(0,2,0)`**. Your wrapper class `.desk-btn` is **one class,
 `(0,1,0)`**. Mud wins, and the button's ink comes from the panel behind it instead
 of from the variant.
 
@@ -102,7 +102,7 @@ The fix is not `!important` and not a deeper nesting hack. It is a **companion
 rule** at matching specificity that hands control back to your custom property:
 
 ```css
-.app-btn.mud-button-text { color: var(--btn-ink); }
+.desk-btn.mud-button-text { color: var(--btn-ink); }
 ```
 
 Two classes, tied on specificity, won on source order because the bridge loads
@@ -118,9 +118,9 @@ the variant's fill — Plain never shows its surface tint, Filled never darkens
 toward the pressed accent.
 
 ```css
-.app-btn.mud-button:hover,
-.app-btn.mud-button:focus-visible,
-.app-btn.mud-button:active { background-color: var(--btn-fill); }
+.desk-btn.mud-button:hover,
+.desk-btn.mud-button:focus-visible,
+.desk-btn.mud-button:active { background-color: var(--btn-fill); }
 ```
 
 This rule adds **no behaviour of its own**. It exists purely so `--btn-fill`,
