@@ -8,7 +8,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="LineOps.Desk" Version="0.3.0" />
-    <PackageVersion Include="LineOps.Desk.Hosting" Version="0.1.0" />
+    <PackageVersion Include="LineOps.Desk" Version="0.4.0" />
+    <PackageVersion Include="LineOps.Desk.Hosting" Version="0.1.1" />
   </ItemGroup>
 </Project>

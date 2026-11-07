@@ -15,7 +15,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <PackageType>Template</PackageType>
     <PackageId>LineOps.Desk.Templates</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Title>Desk application templates</Title>
     <Description>dotnet new deskapp: a Blazor Server application on LineOps.Desk and LineOps.Desk.Hosting, with one example window, the error and not-found pages, and the HIG skills for its agent.</Description>
     <PackageTags>dotnet-new;templates;blazor;desk</PackageTags>

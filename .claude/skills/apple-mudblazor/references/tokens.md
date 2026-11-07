@@ -4,7 +4,7 @@ Every token names a **role**, never a colour. That is the whole reason a second
 theme can be a second `:root` block instead of a component rewrite. If you find
 yourself writing `--blue-500`, stop: the name has to survive being re-themed.
 
-The values live in the token block of `src/LineOps.Desk/wwwroot/css/desk.css` and the theme blocks of `themes.css`. This file is the *why*.
+The values live in the first token block of `desk.css` and the theme blocks of `themes.css` — in the package folder's `staticwebassets/css/`, or `src/LineOps.Desk/wwwroot/css/` in the Desk's repository (see the SKILL's "Where the system lives"). This file is the *why*.
 
 ---
 
@@ -177,7 +177,7 @@ most easily-shipped bug in the system.
 where it exists, self-hosted Inter (SIL OFL 1.1) everywhere else — the closest
 legal match on metrics. Without the Inter fallback, Windows drops to Segoe UI and
 the product looks like a different product on half your machines. See
-`src/LineOps.Desk/wwwroot/fonts/`.
+the Desk's `fonts/` folder.
 
 **One family for everything.** Apple sets numbers in SF too, so there is no second
 "data" or "mono" face. A column of figures is this face plus
@@ -295,7 +295,7 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 ## The second theme
 
-A light mode is one more block. `src/LineOps.Desk/wwwroot/css/themes.css` ships it, keyed on
+A light mode is one more block. The Desk's `themes.css` ships it, keyed on
 `[data-theme="apple-light"]` beside `[data-theme="apple-dark"]` — and the same pair again for
 each other family (contrast, nord, rose-pine, solarized) — and no component, selector or C# call
 site knows how many there are. If adding one requires touching anything below the token blocks,
@@ -384,7 +384,7 @@ hand and forgotten.
 
 The stylesheet is the whole mechanism: `data-theme` on `<html>` re-themes the app. Around it:
 
-- **`ThemeService`** (scoped, `src/LineOps.Desk/Theming/`) holds three choices — `Mode`
+- **`ThemeService`** (scoped, in the Desk's `Theming` namespace) holds three choices — `Mode`
   (System / Dark / Light), `Family` and `Accent` — and derives `Attribute`
   (`DeskThemeFamilies.Attribute(ShowingFamily, IsDark)`) and `MudTheme`
   (`DeskTheme.For(ShowingFamily, Accent)`). `MainLayout` hands both to `MudThemeProvider`,

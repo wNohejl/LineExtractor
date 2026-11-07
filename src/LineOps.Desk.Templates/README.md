@@ -17,7 +17,7 @@ dotnet run --launch-profile http
 ```
 
 From a local build instead, install the `.nupkg` that `dotnet pack src/LineOps.Desk.Templates`
-writes: `dotnet new install ./LineOps.Desk.Templates.0.1.0.nupkg`.
+writes: `dotnet new install ./LineOps.Desk.Templates.0.2.0.nupkg`.
 
 | Option | Default | What it sets |
 | --- | --- | --- |
@@ -46,6 +46,26 @@ writes: `dotnet new install ./LineOps.Desk.Templates.0.1.0.nupkg`.
 - `.claude/launch.json` — the `http` profile as a preview server, and
   `.claude/skills/apple-hig-components` and `apple-mudblazor`, the component rules and the
   token seam every window here is drawn to.
+
+## Tests
+
+The template makes the application only. Its tests are an xunit project beside it on
+`LineOps.Desk.Testing`, whose README has the project file; then one fact holds the new
+application to every Desk convention, and the bench renders its windows:
+
+```csharp
+using LineOps.Desk.Testing;
+using Xunit;
+
+public class DeskConventionTests
+{
+    [Fact]
+    public void The_desk_conventions_hold() => DeskConventions.All(
+        DeskConventions.FindAbove("Acme"), "Acme/Components/App.razor", "Acme/wwwroot/css/app.css");
+}
+```
+
+A freshly made application passes it unchanged.
 
 ## Packing
 

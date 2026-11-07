@@ -22,7 +22,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>LineOps.Desk.Hosting</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Description>The access gate and edge headers for a Desk on ASP.NET Core.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>

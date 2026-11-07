@@ -29,14 +29,19 @@
                             An empty desk. Windows open as tabs in a row — @PrimaryHint
                             Drag a tab past another to reorder them.
                         </p>
-                        <div class="row">
+                        <DeskRow>
                             <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.AddBox" OnClick="OpenPrimary">
                                 Open @PrimaryTitle
                             </DeskButton>
-                            <DeskButton Icon="@Icons.Material.Filled.Workspaces" OnClick="OpenTriage">
-                                Morning triage
-                            </DeskButton>
-                        </div>
+                            @* The catalogue's first workspace, by the name it gives it; a catalogue
+                               that names none offers none. *@
+                            @if (FirstWorkspace is { } workspace)
+                            {
+                                <DeskButton Icon="@Icons.Material.Filled.Workspaces" OnClick="OpenFirstWorkspace">
+                                    @workspace.Name
+                                </DeskButton>
+                            }
+                        </DeskRow>
                     </div>
                 }
 
@@ -363,7 +368,13 @@
         Manager.AdjustSplit(left.Id, right.Id, leftWidth, rightWidth);
     }
 
-    private void OpenTriage() => Manager.ApplyWorkspace(Manager.Catalog.Workspaces[0]);
+    private Workspace? FirstWorkspace => Manager.Catalog.Workspaces.FirstOrDefault();
+
+    private void OpenFirstWorkspace()
+    {
+        if (FirstWorkspace is { } workspace)
+            Manager.ApplyWorkspace(workspace);
+    }
 
     private void OpenPrimary()
     {

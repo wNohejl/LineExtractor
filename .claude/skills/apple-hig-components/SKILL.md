@@ -66,13 +66,19 @@ and colours, and run `references/audit.md` before calling a screen done.
   this repository and its `--color-*` names are not the Desk's. Take its judgment, not its
   files.
 
-## Where this applies in LineOps
+## The shape to copy
 
-The wager window (`BoardWager.razor`) is the reference implementation of
-`references/forms.md` and `references/wizards.md`: a grouped form in three steps, each group
-a fill with one hairline, a segmented control per market, label column leading and controls
-trailing, footers under groups. Any new form or wizard in this repository or a sibling copies
-that shape rather than inventing one.
+In any application on the Desk, the **Parts bin** window is the live reference: its Anatomy,
+Form group, Steps, Key row and Inline confirm sections draw `references/forms.md` and
+`references/wizards.md` with the Desk's own primitives — `FormGroup` and `FormRow` for a grouped
+form (label column leading, controls trailing, the footer under the group, one hairline per
+group), `DeskSteps` for a wizard, `KeyRow` for the keys and the reason the Filled one waits.
+Build a new form or wizard from those primitives rather than from class names, and it lands in
+the shape.
+
+In the Desk's own repository, the LineOps wager window (`BoardWager.razor`) is the worked
+example the references cite: a grouped form in three steps, a segmented control per market,
+each group a fill with one hairline.
 
 ## When not to bend it
 

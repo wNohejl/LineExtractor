@@ -4,6 +4,36 @@ Test fixtures and convention checks for an application built on
 [LineOps.Desk](../LineOps.Desk/README.md). Reference it from an xunit test project beside the
 application.
 
+## The test project
+
+An xunit project beside the application, referencing it and this package:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageReference Include="LineOps.Desk.Testing" Version="0.2.0" />
+    <ProjectReference Include="..\Acme\Acme.csproj" />
+  </ItemGroup>
+  <!-- bUnit 1.x brings AngleSharp 1.2.0, under GHSA-pgww-w46g-26qg. The fixed AngleSharp (1.5)
+       breaks bUnit 1.40 at runtime, and a test only parses markup it rendered itself, so the
+       advisory has nothing to act on here. NuGet does not carry a package's suppression to the
+       projects that reference it, so a test project says so itself. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+  </ItemGroup>
+</Project>
+```
+
+The facts below need `using Xunit;` and `using LineOps.Desk.Testing;` (or global usings).
+
 ## The conventions, in one fact
 
 ```csharp

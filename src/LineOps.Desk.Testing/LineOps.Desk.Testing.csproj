@@ -21,7 +21,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>LineOps.Desk.Testing</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Description>Test fixtures and convention checks for an application built on LineOps.Desk: a bUnit bench, fakes for the Desk's seams, and the Desk's source conventions as calls from your own facts.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
