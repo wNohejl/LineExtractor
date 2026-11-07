@@ -376,7 +376,10 @@ publishes them.
 1. Raise `<Version>` in `LineOps.Desk.csproj`, and in `LineOps.Desk.Hosting.csproj` if Hosting
    changed. Raise the same versions in the template's
    `src/LineOps.Desk.Templates/content/deskapp/Directory.Packages.props`, and the template's own
-   `<Version>` with them (`DeskTemplateTests` fails until the two agree). Commit on
+   `<Version>` with them (`DeskTemplateTests` fails until the two agree). The HIG skills a new
+   application's agent reads are packed from this repository's `.claude/skills` as the template
+   builds, so a skill edit needs no copy step (`DeskTemplateSkillsTests` holds every skill there
+   to being packed). Commit on
    `LineX_Development`, merge to `main`, and push.
 2. Tag the merge with the Desk's version and push the tag:
 
