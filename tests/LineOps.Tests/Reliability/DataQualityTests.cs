@@ -125,8 +125,11 @@ public class DataQualityTests(PostgresFixture fixture)
             // Dated now: a source whose last success is a day old is a freshness alert in every other test.
             var run = new IngestionRun
             {
-                SourceId = source.Id, JobKey = jobKey, Status = RunStatus.Success,
-                StartedAt = DateTimeOffset.UtcNow, FinishedAt = DateTimeOffset.UtcNow
+                SourceId = source.Id,
+                JobKey = jobKey,
+                Status = RunStatus.Success,
+                StartedAt = DateTimeOffset.UtcNow,
+                FinishedAt = DateTimeOffset.UtcNow
             };
             db.Players.Add(player);
             db.IngestionRuns.Add(run);
@@ -134,8 +137,11 @@ public class DataQualityTests(PostgresFixture fixture)
 
             db.PlayerGameStats.Add(new PlayerGameStat
             {
-                GameId = game.Id, PlayerId = player.Id, SourceId = source.Id,
-                CapturedAt = game.StartsAt, IngestionRunId = run.Id
+                GameId = game.Id,
+                PlayerId = player.Id,
+                SourceId = source.Id,
+                CapturedAt = game.StartsAt,
+                IngestionRunId = run.Id
             });
             await db.SaveChangesAsync();
         }

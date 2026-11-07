@@ -713,7 +713,10 @@ public class GamecastPanelTests : DeskTestContext
         Bench.Clock = now;
         _data.Header = FakeGamecastData.Live() with
         {
-            ClockSeconds = 267, DisplayClock = "4:27", StatusDetail = "4:27 - 2nd", LiveUpdatedAt = now.AddSeconds(-15)
+            ClockSeconds = 267,
+            DisplayClock = "4:27",
+            StatusDetail = "4:27 - 2nd",
+            LiveUpdatedAt = now.AddSeconds(-15)
         };
         FourPlays();
         var cut = Render();
@@ -739,7 +742,10 @@ public class GamecastPanelTests : DeskTestContext
         Bench.Clock = now;
         _data.Header = FakeGamecastData.Live() with
         {
-            ClockSeconds = 267, DisplayClock = "4:27", StatusDetail = "4:27 - 2nd", LiveUpdatedAt = now.AddSeconds(-15)
+            ClockSeconds = 267,
+            DisplayClock = "4:27",
+            StatusDetail = "4:27 - 2nd",
+            LiveUpdatedAt = now.AddSeconds(-15)
         };
         FourPlays();
         return Render();

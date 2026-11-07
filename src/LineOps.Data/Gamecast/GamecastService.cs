@@ -151,9 +151,22 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts)
             .OrderBy(d => d.Sequence)
             .Select(d => new
             {
-                d.Sequence, d.TeamId, TeamAbbrev = d.Team!.Abbrev, d.Description, d.Result, d.Yards,
-                d.OffensivePlays, d.TimeElapsed, d.IsScore, d.IsCurrent, d.StartPeriod, d.StartClock,
-                d.StartYardLine, d.EndPeriod, d.EndClock, d.EndYardLine
+                d.Sequence,
+                d.TeamId,
+                TeamAbbrev = d.Team!.Abbrev,
+                d.Description,
+                d.Result,
+                d.Yards,
+                d.OffensivePlays,
+                d.TimeElapsed,
+                d.IsScore,
+                d.IsCurrent,
+                d.StartPeriod,
+                d.StartClock,
+                d.StartYardLine,
+                d.EndPeriod,
+                d.EndClock,
+                d.EndYardLine
             })
             .ToListAsync(ct);
 
@@ -214,10 +227,28 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts)
             .ThenBy(p => p.Id)
             .Select(p => new
             {
-                p.Id, p.Sequence, p.DriveSeq, p.Period, p.Clock, p.ClockSeconds, p.Type, p.Text,
-                p.HomeScore, p.AwayScore, p.IsScoring, p.IsTurnover, p.IsPenalty, p.Yardage, p.TeamId,
-                p.StartSituation, p.EndSituation, p.HomeWinPct, p.SpreadCoverPctHome, p.TotalOverPct,
-                p.Wallclock, p.Modified
+                p.Id,
+                p.Sequence,
+                p.DriveSeq,
+                p.Period,
+                p.Clock,
+                p.ClockSeconds,
+                p.Type,
+                p.Text,
+                p.HomeScore,
+                p.AwayScore,
+                p.IsScoring,
+                p.IsTurnover,
+                p.IsPenalty,
+                p.Yardage,
+                p.TeamId,
+                p.StartSituation,
+                p.EndSituation,
+                p.HomeWinPct,
+                p.SpreadCoverPctHome,
+                p.TotalOverPct,
+                p.Wallclock,
+                p.Modified
             })
             .ToListAsync(ct);
 

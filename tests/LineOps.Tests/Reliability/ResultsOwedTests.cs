@@ -148,16 +148,22 @@ public class ResultsOwedTests(PostgresFixture fixture)
         // Dated now: a source whose last success is days old is a freshness alert in every other test.
         var run = new IngestionRun
         {
-            SourceId = source.Id, JobKey = jobKey, Status = RunStatus.Success,
-            StartedAt = DateTimeOffset.UtcNow, FinishedAt = DateTimeOffset.UtcNow
+            SourceId = source.Id,
+            JobKey = jobKey,
+            Status = RunStatus.Success,
+            StartedAt = DateTimeOffset.UtcNow,
+            FinishedAt = DateTimeOffset.UtcNow
         };
         db.IngestionRuns.Add(run);
         await db.SaveChangesAsync();
 
         db.PlayerGameStats.Add(new PlayerGameStat
         {
-            GameId = game.Id, PlayerId = player.Id, SourceId = source.Id,
-            CapturedAt = game.StartsAt, IngestionRunId = run.Id
+            GameId = game.Id,
+            PlayerId = player.Id,
+            SourceId = source.Id,
+            CapturedAt = game.StartsAt,
+            IngestionRunId = run.Id
         });
         await db.SaveChangesAsync();
         return game;
