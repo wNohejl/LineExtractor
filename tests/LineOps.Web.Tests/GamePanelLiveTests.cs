@@ -47,8 +47,13 @@ public class GamePanelLiveTests : DeskTestContext
         return cut;
     }
 
-    // Past the panel's one-second settle, with room to spare.
+    // Past the panel's one-second settle, with room to spare: for asserting that nothing reloads.
     private static void Settle() => Thread.Sleep(1600);
+
+    // How long a reload that should happen may take. A test that expects one waits for it rather
+    // than sleeping a fixed time and looking once, which a slower CI runner can miss: the settle
+    // is a second, and the read after it is not instant.
+    private static readonly TimeSpan Reload = TimeSpan.FromSeconds(5);
 
     [Fact]
     public void A_change_to_another_game_does_not_reload_the_window()
@@ -84,12 +89,13 @@ public class GamePanelLiveTests : DeskTestContext
     [Fact]
     public void A_price_change_on_this_game_reloads_the_row_with_its_prices_but_not_the_rest()
     {
-        Render();
+        var cut = Render();
         var (rows, details) = (_data.RowReads, _data.DetailReads);
 
         Signal("odds", BoardRows.GameId.ToString());
-        Settle();
 
+        cut.WaitForAssertion(() => Assert.Equal(rows + 1, _data.RowReads), Reload);
+        Settle();
         Assert.Equal(rows + 1, _data.RowReads);
         Assert.Equal(details, _data.DetailReads);
     }
@@ -99,28 +105,29 @@ public class GamePanelLiveTests : DeskTestContext
     [InlineData("games")]
     public void The_journal_or_a_bare_notice_reloads_everything(string topic)
     {
-        Render();
+        var cut = Render();
         var (rows, details) = (_data.RowReads, _data.DetailReads);
 
         Signal(topic);
-        Settle();
 
-        Assert.Equal(rows + 1, _data.RowReads);
-        Assert.Equal(details + 1, _data.DetailReads);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(rows + 1, _data.RowReads);
+            Assert.Equal(details + 1, _data.DetailReads);
+        }, Reload);
     }
 
     [Fact]
     public void The_final_whistle_reloads_the_box_score_and_the_form()
     {
         _data.Row = BoardRows.Row() with { Game = Bears_at_Patriots() };
-        Render();
+        var cut = Render();
         var details = _data.DetailReads;
 
         _data.Game = Bears_at_Patriots(GameStatus.Final);
         Signal("games", BoardRows.GameId.ToString());
-        Settle();
 
-        Assert.Equal(details + 1, _data.DetailReads);
+        cut.WaitForAssertion(() => Assert.Equal(details + 1, _data.DetailReads), Reload);
     }
 
     /// <summary>
