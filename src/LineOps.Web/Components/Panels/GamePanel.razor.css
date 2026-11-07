@@ -18,7 +18,5 @@
     white-space: nowrap;
 }
 
-.gamelive__situation + .gamelive__last::before {
-    content: "·";
-    margin-right: var(--space-2);
-}
+/* The "·" between the situation and the last play is lineops.css's: the last play sits in a
+   tooltip wrapper, which a scoped selector cannot reach across. */

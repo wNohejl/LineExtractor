@@ -258,7 +258,7 @@ else
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
                 @{ var leader = FinalLeader(context.Item.Game); }
-                <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@WindowShortcuts.Describe(context.Item.Game)"
+                <DeskLink Destination="game" Class="board__matchup-link" Tooltip="@MatchupTooltip(context.Item)"
                           OnClick="() => Manager.OpenGame(context.Item.Game)">
                     <span class="board__sides">
                         @if (context.Item.Bout is not null)
@@ -289,10 +289,12 @@ else
                 @* The row says only that it has no price, in secondary ink. The reason is the
                    banner's when every unpriced row shares it — thirteen orange copies of "No lines
                    pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
-                   reasons differ the banner says to open a row, so the open row gives its own. *@
+                   reasons differ the banner says to open a row, so the open row gives its own.
+                   No title: the reason is always in visible text, on the banner or the open row,
+                   and a title on text that takes no focus reaches only a pointer (HIG 12). *@
                 @if (context.Item.Unpriced is { } reason)
                 {
-                    <div class="board__gap" title="@reason">
+                    <div class="board__gap">
                         No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
                     </div>
                 }
@@ -338,7 +340,9 @@ else
                                winner's line reads W, the loser's L, beside the method and where it ended. *@
                             var leader = FinalLeader(context.Item.Game);
                             var result = FightSports.ResultLine(context.Item.Game, fought) ?? "";
-                            <span class="board__scores" title="@result">
+                            @* No title: the marks and the method are on the cell, and the sentence is
+                               read aloud from the sr-only line — a title would reach a pointer only. *@
+                            <span class="board__scores">
                                 <span class="board__score@(leader == ScoreLeader.Away ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: true)</span>
                                 <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")" aria-hidden="true">@FightMark(fought, leader, home: false)</span>
                                 <span class="sr-only">@result</span>
@@ -353,7 +357,7 @@ else
                                both at full weight, since nobody has lost. Read aloud as the
                                sentence the lines stand for. *@
                             var leader = FinalLeader(context.Item.Game);
-                            <span class="board__scores" title="@ScoreTitle(context.Item.Game)">
+                            <span class="board__scores">
                                 <span class="board__score@(leader == ScoreLeader.Home ? " board__score--loser" : "")"
                                       aria-hidden="true">@(context.Item.Game.AwayScore ?? 0)</span>
                                 <span class="board__score@(leader == ScoreLeader.Away ? " board__score--loser" : "")"
@@ -924,7 +928,10 @@ else
             </span>
             @if (starter is { } s)
             {
-                <span class="board__starter" title="@s.Title"><span class="board__starter-role">@s.Role</span> @s.Name</span>
+                @* No title of its own: the starter sits inside the matchup link, which takes focus,
+                   so the full name and what the role means ride on the link's tooltip
+                   (MatchupTooltip) instead of a title only a pointer raises (HIG 12). *@
+                <span class="board__starter"><span class="board__starter-role">@s.Role</span> @s.Name</span>
             }
         </span>
     };
@@ -945,6 +952,30 @@ else
     };
 
     /// <summary>
+    /// The matchup link's tooltip: the game it opens, then each side's starter in full — the
+    /// sentence the abbreviated "SP Gasser" stands for. The link takes focus, so this reaches
+    /// the keyboard and a screen reader, where a title on the starter's own span did not.
+    /// </summary>
+    public static string MatchupTooltip(BoardRow row)
+    {
+        var game = row.Game;
+        var fight = row.Bout is not null;
+        var lines = new List<string> { WindowShortcuts.Describe(game) };
+
+        // Billed order, as the cell draws it: red corner first for a fight, away first otherwise.
+        foreach (var home in fight ? new[] { true, false } : new[] { false, true })
+        {
+            if (Starter(row, home) is { } s)
+            {
+                var team = home ? game.HomeTeam : game.AwayTeam;
+                lines.Add($"{TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))}: {s.Title}");
+            }
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>
     /// A club's starter as the matchup cell names it: the probable pitcher MLB has announced, or
     /// the quarterback an NFL club started its last game with. Null when the game has neither
     /// side's; a side not yet named reads TBD, so the two starters still line up under their clubs.
@@ -957,7 +988,7 @@ else
         if (row.Bout is { } bout)
         {
             var record = home ? bout.HomeRecord : bout.AwayRecord;
-            return record is null ? null : ("", record, "Record going into this fight");
+            return record is null ? null : ("", record, $"Record going into this fight: {record}");
         }
 
         if (game.AwayProbablePitcher is not null || game.HomeProbablePitcher is not null)

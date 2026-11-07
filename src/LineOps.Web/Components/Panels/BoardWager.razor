@@ -232,12 +232,11 @@ else
                     <div class="wgroup wbet">
                         @if (_noGame)
                         {
-                            <div class="wgroup__row wgroup__row--form">
-                                <span class="wgroup__label">Bet</span>
+                            <FormRow Label="Bet">
                                 <DeskField TValue="string" Immediate="true" Class="wfield--fill"
                                            placeholder="e.g. Steelers to win the AFC North"
                                            aria-label="The bet" Value="_described" ValueChanged="SetDescribed" />
-                            </div>
+                            </FormRow>
                         }
                         else if (Row is not null)
                         {
@@ -250,9 +249,9 @@ else
                                does not jump when one is: it says what it waits for in tertiary, and
                                the book pop-up is there but disabled (recipe rule 3), not hidden. *@
                             <div class="wgroup__row wgroup__row--form wbet__price wbet__price--empty wager-offer">
-                                <span class="wbet__wait">Choose a side above.</span>
+                                <span class="wbet__wait" id="@_waitId">Choose a side above.</span>
                                 <div class="wager-offer__top">
-                                    <BookPicker Books="[]" Disabled="true" />
+                                    <BookPicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
                                 </div>
                             </div>
                         }
@@ -280,16 +279,14 @@ else
                             </div>
                             @if (HasLine)
                             {
-                                <div class="wgroup__row wgroup__row--form wager-typed">
-                                    <span class="wgroup__label">Line</span>
+                                <FormRow Label="Line" Class="wager-typed">
                                     <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
                                                aria-label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
                                                Class="wfield--short"
                                                Value="_typedLine" ValueChanged="SetTypedLine" />
-                                </div>
+                                </FormRow>
                             }
-                            <div class="wgroup__row wgroup__row--form wager-typed">
-                                <span class="wgroup__label">Book</span>
+                            <FormRow Label="Book" Class="wager-typed">
                                 <DeskField TValue="string" Immediate="true" aria-label="Book" placeholder="draftkings"
                                            list="@_booksListId" Class="wfield--short"
                                            Value="_typedBook" ValueChanged="SetTypedBook" />
@@ -299,7 +296,7 @@ else
                                         <option value="@book"></option>
                                     }
                                 </datalist>
-                            </div>
+                            </FormRow>
                         }
                         else if (_offer is { } offer && Side?.Offer is { } quoted)
                         {
@@ -353,7 +350,10 @@ else
                                     <text> · best is @best.Book @Price(best.PriceAmerican)</text>
                                 }
                             </span>
-                            <span class="wager-offer__age" title="When the desk last fetched this price">
+                            @* The age says what it is in its own words ("captured 1h 49m ago",
+                               "closing price"); a hover title repeating that never reached the
+                               keyboard (HIG 12). *@
+                            <span class="wager-offer__age">
                                 <Glyph Icon="@Icons.Material.Filled.Schedule" /> @Captured(priced)
                             </span>
                         </p>
@@ -385,18 +385,16 @@ else
                    typed (the field is Immediate). *@
                 <section class="wsection" aria-label="Stake">
                     <div class="wgroup wstake">
-                        <div class="wgroup__row wgroup__row--form">
-                            <span class="wgroup__label">Stake</span>
+                        <FormRow Label="Stake">
                             <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="_offer?.PriceAmerican" ShowReturns="false" />
-                        </div>
-                        <div class="wgroup__row wgroup__row--form">
-                            <span class="wgroup__label">Note</span>
+                        </FormRow>
+                        <FormRow Label="Note">
                             @* Immediate: a note bound on change is committed by the blur, and a press of
                                Add to slip or Log straight from the field could run before it — the wager
                                went on with no note. Bound as it is typed, the key reads what it shows. *@
                             <DeskField TValue="string" Immediate="true" placeholder="Optional"
                                        aria-label="Note" Class="wfield--fill" @bind-Value="_note" />
-                        </div>
+                        </FormRow>
                     </div>
                     @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
                     {
@@ -620,6 +618,9 @@ else
     private const int BetStep = 1, StakeStep = 2, ReviewStep = 3;
 
     private readonly string _booksListId = "books-" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>The price row's "choose a side" text, which the disabled book pop-up is described by.</summary>
+    private readonly string _waitId = "wait-" + Guid.NewGuid().ToString("N")[..8];
 
     private BoardRow? Row;
     private int? _gameId;

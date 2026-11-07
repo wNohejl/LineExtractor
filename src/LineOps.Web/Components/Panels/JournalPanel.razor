@@ -106,22 +106,19 @@ else
             <div class="wgroup jform">
                 @LegFields(_entry)
 
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Stake</span>
+                <FormRow Label="Stake">
                     <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
                               PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)"
                               Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Book</span>
+                </FormRow>
+                <FormRow Label="Book">
                     @BookPicker(_entry.Book, SetEntryBookAsync)
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Note</span>
+                </FormRow>
+                <FormRow Label="Note">
                     <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
                                placeholder="Optional" Value="_entry.Note"
                                ValueChanged="@((string? n) => Edit("note", () => _entry.Note = n))" />
-                </div>
+                </FormRow>
             </div>
             @if (_entry.ManualPrice)
             {
@@ -174,18 +171,15 @@ else
         <div class="wsections">
             <section class="wsection" aria-label="Parlay">
                 <div class="wgroup jform">
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Book</span>
+                    <FormRow Label="Book">
                         @BookPicker(edited.Book, SetParlayBookAsync)
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Stake</span>
+                    </FormRow>
+                    <FormRow Label="Stake">
                         <StakeRow Stake="edited.Stake" StakeChanged="@(s => Edit("stake", () => edited.Stake = s))"
                                   PriceAmerican="@CombinedPrice(edited)"
                                   Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Book's price</span>
+                    </FormRow>
+                    <FormRow Label="Book's price">
                         @* The book's own price for the parlay, when it gave one: what a clean win pays.
                            Without it the legs' prices are multiplied, as the slip does. *@
                         <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
@@ -193,13 +187,12 @@ else
                                    Value="edited.PriceQuoted"
                                    ValueChanged="@((int? q) => Edit("quoted", () => edited.PriceQuoted = q))"
                                    Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Note</span>
+                    </FormRow>
+                    <FormRow Label="Note">
                         <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
                                    placeholder="Optional" Value="edited.Note"
                                    ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
-                    </div>
+                    </FormRow>
                 </div>
             </section>
 
@@ -209,8 +202,7 @@ else
                     @foreach (var (leg, n) in edited.Parlay.Legs.OrderBy(l => l.Id).Select((l, i) => (l, i + 1)))
                     {
                         var field = $"leg-{leg.Id}";
-                        <div class="wgroup__row wgroup__row--form" @key="leg.Id">
-                            <span class="wgroup__label">Leg @n</span>
+                        <FormRow Label="@($"Leg {n}")" @key="leg.Id">
                             <DeskRow Justify="DeskJustify.Between">
                                 <div>
                                     <div>@Describe(leg)</div>
@@ -225,7 +217,7 @@ else
                                            ValueChanged="@((int? p) => Edit(field, () => edited.LegPrices[leg.Id] = p))"
                                            Error="@(Touched(field) ? LegPriceError(edited.LegPrices.GetValueOrDefault(leg.Id), leg.PriceTaken) : null)" />
                             </DeskRow>
-                        </div>
+                        </FormRow>
                     }
                 </div>
                 <p class="wgroup__foot">
@@ -1179,15 +1171,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             : null;
 
     private RenderFragment LegFields(Draft d) => @<text>
-        <div class="wgroup__row wgroup__row--form">
-            <span class="wgroup__label">Game</span>
+        <FormRow Label="Game">
             <GamePicker Value="d.GameId" Selected="d.Game"
                         SelectedChanged="@((Game? g) => Edit("game", () => d.Game = g))"
                         ValueChanged="@((int? id) => Edit("game", () => d.GameId = id))" />
-        </div>
+        </FormRow>
 
-        <div class="wgroup__row wgroup__row--form">
-            <span class="wgroup__label">Market</span>
+        <FormRow Label="Market">
             <DeskSelect TValue="string" Value="d.Market" Class="wfield--short" aria-label="Market"
                         ValueChanged="@((string? m) => Edit("market", () => d.Market = m ?? Markets.Spread))">
                 <option value="@Markets.Moneyline">Moneyline</option>
@@ -1195,10 +1185,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 <option value="@Markets.Total">Total</option>
                 <option value="@FreeText">Other (describe)</option>
             </DeskSelect>
-        </div>
+        </FormRow>
 
-        <div class="wgroup__row wgroup__row--form">
-            <span class="wgroup__label">@(d.Market == FreeText ? "Bet" : "Selection")</span>
+        <FormRow Label="@(d.Market == FreeText ? "Bet" : "Selection")">
             @if (d.Market == FreeText)
             {
                 <DeskField TValue="string" Class="wfield--fill" aria-label="The bet"
@@ -1226,26 +1215,24 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                            Value="d.Outcome"
                            ValueChanged="@((string? o) => Edit("selection", () => d.Outcome = o ?? string.Empty))" />
             }
-        </div>
+        </FormRow>
 
         @if (d.Market is Markets.Spread or Markets.Total)
         {
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Line</span>
+            <FormRow Label="Line">
                 <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="0.5"
                            aria-label="Line" placeholder="-3" Value="d.LineTaken"
                            ValueChanged="@((decimal? l) => Edit("line", () => d.LineTaken = l))"
                            Error="@(Touched("line") ? LineError(d.Market, d.LineTaken) : null)" />
-            </div>
+            </FormRow>
         }
 
-        <div class="wgroup__row wgroup__row--form">
-            <span class="wgroup__label">Price</span>
+        <FormRow Label="Price">
             <DeskField TValue="int" Mono="true" Class="wfield--short" type="number"
                        aria-label="Price" placeholder="-110" Value="d.PriceTaken"
                        ValueChanged="@((int p) => Edit("price", () => d.PriceTaken = p))"
                        Error="@(Touched("price") ? PriceError(d.PriceTaken) : null)" />
-        </div>
+        </FormRow>
     </text>;
 
     private RenderFragment BookPicker(string current, Func<string, Task> set) => @<text>
@@ -1291,12 +1278,16 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         @if (Clv(e) is { } clv)
         {
             @* When the line moved, the points are the reading; the two prices are for different
-               numbers and their difference means nothing on its own. *@
-            <span class="@(clv.BeatClose ? "up" : "down")" title="@ClvTitle(e)">
-                @(clv.SameNumber
-                    ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
-                    : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
-            </span>
+               numbers and their difference means nothing on its own. The close it was measured
+               against is a tooltip on a focusable figure, not a title: a title never reaches the
+               keyboard (HIG 12), and the figure keeps its own text as its name. *@
+            <DeskTooltip Text="@ClvTitle(e)">
+                <span class="journal-clv @(clv.BeatClose ? "up" : "down")" tabindex="0">
+                    @(clv.SameNumber
+                        ? clv.CentsPercent.ToString("+0.0;-0.0") + "%"
+                        : clv.PointsGained!.Value.ToString("+0.#;-0.#") + " pts")
+                </span>
+            </DeskTooltip>
         }
         else
         {

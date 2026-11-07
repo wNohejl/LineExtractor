@@ -87,7 +87,11 @@ else
             }
             @if (lastPlay is not null)
             {
-                <span class="gc__last" title="@game.LastPlay">Last: @lastPlay</span>
+                @* The line is cut to fit; the whole play is a tooltip on a trigger that takes
+                   focus, not a title only a pointer raises (HIG 12). *@
+                <DeskTooltip Text="@game.LastPlay!.Trim()" Placement="DeskTooltipPlacement.Bottom">
+                    <span class="gc__last" tabindex="0">Last: @lastPlay</span>
+                </DeskTooltip>
             }
             @if (situation is null && lastPlay is null)
             {
@@ -122,7 +126,13 @@ else
 
         @if (NotFollowed(Now) is { } quiet)
         {
-            <Note State="DeskState.Warning" Class="gc__quiet" title="@QuietKeys">@quiet</Note>
+            @* The settings are what the operator acts on, so they are on the note in a line of
+               their own rather than in a title a note — which never takes focus — gave only a
+               pointer (HIG 12). The sentence itself still names none. *@
+            <Note State="DeskState.Warning" Class="gc__quiet">
+                @quiet
+                <span class="gc__quiet-keys">@QuietKeys</span>
+            </Note>
         }
 
         @if (_plays.Count == 0)

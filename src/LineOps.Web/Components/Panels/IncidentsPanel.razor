@@ -193,16 +193,16 @@ else
             <div class="wgroup opsgroup opsgroup--log">
                 @foreach (var note in _timeline)
                 {
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label opsstamp">@DisplayTime.Format(note.At, "MMM d HH:mm:ss") @DisplayTime.Label</span>
+                    @* The stamp is the row's label; .opsstamp on the row sets it in the secondary
+                       colour and tabular figures. *@
+                    <FormRow Label="@($"{DisplayTime.Format(note.At, "MMM d HH:mm:ss")} {DisplayTime.Label}")" Class="opsstamp">
                         <span class="opsrow__text">@note.Note</span>
-                    </div>
+                    </FormRow>
                 }
 
                 @if (Manager.Access.CanOperate)
                 {
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">New note</span>
+                    <FormRow Label="New note">
                         <div class="opsrow">
                             @* Immediate: the Add key beside it is disabled until there is text, so the key has
                                to learn about the first keystroke rather than about the blur. *@
@@ -222,7 +222,7 @@ else
                                 </Primary>
                             </KeyRow>
                         </div>
-                    </div>
+                    </FormRow>
                 }
             </div>
 
@@ -245,14 +245,12 @@ else
                used to sit one above the other with nothing to say which was which. *@
             <PanelSection Title="Root-cause analysis">
                 <div class="wgroup opsgroup opsgroup--log">
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Root cause</span>
+                    <FormRow Label="Root cause">
                         <span class="opsrow__text">@_selected.RootCause</span>
-                    </div>
-                    <div class="wgroup__row wgroup__row--form">
-                        <span class="wgroup__label">Corrective action</span>
+                    </FormRow>
+                    <FormRow Label="Corrective action">
                         <span class="opsrow__text">@_selected.CorrectiveActions</span>
-                    </div>
+                    </FormRow>
                 </div>
             </PanelSection>
         }
@@ -270,26 +268,24 @@ else
                of it is still missing. *@
             <PanelForm Class="pform--grouped opsrca">
                 <ChildContent>
-                    <section class="wsection" aria-label="Root-cause analysis">
-                        <div class="wgroup opsgroup opsgroup--log">
-                            <div class="wgroup__row wgroup__row--form">
-                                <span class="wgroup__label">Root cause</span>
+                    <FormGroup aria-label="Root-cause analysis" GroupClass="opsgroup opsgroup--log">
+                        <ChildContent>
+                            <FormRow Label="Root cause">
                                 <DeskTextArea rows="4" Class="wfield--fill" aria-label="Root cause" Required
                                               placeholder="What actually broke, and why did it break now?"
                                               @bind-Value="_rootCause" />
-                            </div>
-                            <div class="wgroup__row wgroup__row--form">
-                                <span class="wgroup__label">Corrective action</span>
+                            </FormRow>
+                            <FormRow Label="Corrective action">
                                 <DeskTextArea rows="4" Class="wfield--fill" aria-label="Corrective action" Required
                                               placeholder="What change prevents a recurrence? Reference the commit."
                                               @bind-Value="_corrective" />
-                            </div>
-                        </div>
-                        <p class="wgroup__foot">
+                            </FormRow>
+                        </ChildContent>
+                        <Footer>
                             Both are needed to resolve. An incident without a cause and a fix teaches
                             nothing later.
-                        </p>
-                    </section>
+                        </Footer>
+                    </FormGroup>
 
                     @if (_error is not null)
                     {

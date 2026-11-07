@@ -11,8 +11,10 @@
 
     It was a 3×2 grid of outlined cells. A grid of cells reads as a table to look things up
     in, not a control to choose with; three rows of one control each read as a form, which
-    is what this is. The market is named on the left of its row, with what it means on hover;
-    hovering a segment says in words what it wins on.
+    is what this is. The market is named on the left of its row. Hovering or focusing a
+    segment raises a tooltip that says in words what it wins on, and under that what the
+    market means — a tooltip on the key itself, because a title on the market's name (text
+    that takes no focus) never reached the keyboard (HIG 12).
 
     The accessible name of each segment is the desk's full label ("ML · Chiefs"), the same
     words the slip card and the journal use, so a screen reader hears the team and the
@@ -26,8 +28,7 @@
         var cells = InColumns(group).ToList();
         var on = cells.FindIndex(IsChosen);
 
-        <div class="wgroup__row wgroup__row--form selection-group">
-            <span class="wgroup__label selection-group__label" title="@MarketHelp(group.Key)">@MarketTitle(group.Key)</span>
+        <FormRow Label="@MarketTitle(group.Key)" Class="selection-group">
             <div class="marble-row gate gate--lg selection-gate"
                  role="radiogroup"
                  aria-label="@MarketTitle(group.Key)"
@@ -39,12 +40,14 @@
                 @foreach (var choice in cells)
                 {
                     var chosen = IsChosen(choice);
+                    @* mud-width-full: the tooltip's root becomes the grid cell, and MudBlazor's own
+                       rule (.mud-tooltip-root:has(> .mud-width-full)) lets the segment fill it. *@
+                    <DeskTooltip Text="@Tip(choice)">
                     <button type="button"
-                            class="gate__opt selection-chip @(chosen ? "gate__opt--on selection-chip--on" : null)"
+                            class="gate__opt selection-chip mud-width-full @(chosen ? "gate__opt--on selection-chip--on" : null)"
                             role="radio"
                             aria-checked="@(chosen ? "true" : "false")"
                             aria-label="@choice.Label"
-                            title="@Explain(choice)"
                             @onclick="() => OnChoose.InvokeAsync(choice)">
                         @* Two lines that never break inside themselves: who, then the numbers. Wide,
                            they sit on one line; narrow, every segment breaks in the same place. *@
@@ -67,9 +70,10 @@
                             }
                         </span>
                     </button>
+                    </DeskTooltip>
                 }
             </div>
-        </div>
+        </FormRow>
     }
 </div>
 
@@ -132,6 +136,13 @@
                          + (choice.Offer?.Line is { } total ? " " + Math.Abs(total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : ""),
         _ => choice.Offer?.Line is { } line ? OddsMath.FormatLine(line, choice.Outcome) : string.Empty
     };
+
+    /// <summary>
+    /// A segment's tooltip: what it wins on, then on a line of its own what the market means —
+    /// the help the market's name used to carry in a title only a pointer could raise.
+    /// </summary>
+    private static string Tip(SelectionChoice choice)
+        => MarketHelp(choice.Market) is { Length: > 0 } help ? $"{Explain(choice)}\n{help}" : Explain(choice);
 
     /// <summary>What the option wins on, in a sentence, for whoever does not read a line by eye.</summary>
     private static string Explain(SelectionChoice choice)

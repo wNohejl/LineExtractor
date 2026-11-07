@@ -12,7 +12,12 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* The last play is a tooltip's trigger (HIG 12), so MudTooltip's root stands between it and
+   the title line's flex row: the span is a block inside it, to keep its ellipsis, and the dot
+   follows the situation across the root. The root's own sizing is in lineops.css, since the
+   root is drawn by the tooltip and carries no scope of this window's. */
 .gc__last {
+    display: block;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
@@ -20,9 +25,17 @@
     white-space: nowrap;
 }
 
-.gc__situation + .gc__last::before {
+.gc__situation + .mud-tooltip-root > .gc__last::before {
     content: "·";
     margin-right: var(--space-2);
+}
+
+/* The settings behind a quiet feed: on the note, on a line of their own, in its quieter ink. */
+.gc__quiet-keys {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
 }
 
 /* The strip owns the air beneath it, as a slot does (ADR 0020). */

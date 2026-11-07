@@ -37,8 +37,7 @@
         <div class="wgroup opsgroup opsgroup--wide">
             @foreach (var source in _eligibility)
             {
-                <div class="wgroup__row wgroup__row--form" @key="source.Key">
-                    <span class="wgroup__label">@SourceName(source.Key)</span>
+                <FormRow Label="@SourceName(source.Key)" @key="source.Key">
                     <div class="opsrow">
                         @if (!source.Eligible)
                         {
@@ -46,7 +45,7 @@
                         }
                         <span class="opsrow__text quiet">@source.Reason</span>
                     </div>
-                </div>
+                </FormRow>
             }
         </div>
 
@@ -117,8 +116,7 @@ else if (!Loaded && !Failed)
                    that could never be pressed, which is the one thing a key must not be. Busy means
                    "the work you started is still running on this control"; there is no work to start
                    here, only a walk to report, and Stop beside it is the control. *@
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Walking</span>
+                <FormRow Label="Walking">
                     <div class="opsrow">
                         <span class="opsrow__text">@WalkingAt</span>
                         @if (Manager.Access.CanOperate)
@@ -129,15 +127,14 @@ else if (!Loaded && !Failed)
                             </DeskButton>
                         }
                     </div>
-                </div>
+                </FormRow>
             }
             else if (!Manager.Access.CanOperate)
             {
                 @* A visitor reads what the history holds; walking it spends requests (ADR 0018). *@
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Walk</span>
+                <FormRow Label="Walk">
                     <span class="opsrow__text quiet">Idle</span>
-                </div>
+                </FormRow>
             }
             else
             {
@@ -145,8 +142,7 @@ else if (!Loaded && !Failed)
                    everything this panel shows, and it raises Changed on start, on every day walked and
                    on finish — which this panel is subscribed to. A key offering to reload data that
                    nothing else can have changed is a key that only ever repaints the same numbers. *@
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Past days</span>
+                <FormRow Label="Past days">
                     <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@GatherWaits">
                         <Primary Context="why">
                             <DeskButton Emphasis="DeskEmphasis.Filled"
@@ -158,13 +154,12 @@ else if (!Loaded && !Failed)
                             </DeskButton>
                         </Primary>
                     </KeyRow>
-                </div>
+                </FormRow>
 
                 @* Re-walking is how a day stored by older, wronger code gets corrected. It is behind a
                    confirm because it is slow — every day walked again, one request per finished game —
                    not because it is dangerous: rows are re-resolved onto themselves, never duplicated. *@
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Held days</span>
+                <FormRow Label="Held days">
                     @if (_confirmRewalk)
                     {
                         <InlineConfirm Class="opsrow" ConfirmLabel="Re-walk"
@@ -190,13 +185,12 @@ else if (!Loaded && !Failed)
                             </Primary>
                         </KeyRow>
                     }
-                </div>
+                </FormRow>
 
                 @* A range, named: the sports and the days to walk again — how a season stored before its
                    finals is finalized, and how its finals get ESPN's closing line, without re-walking
                    every held day of every league. *@
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Sports</span>
+                <FormRow Label="Sports">
                     <div class="opsrow">
                         @foreach (var sport in Backfill.Sports)
                         {
@@ -205,9 +199,8 @@ else if (!Loaded && !Failed)
                                           CheckedChanged="@((bool on) => ToggleRangeSport(key, on))" />
                         }
                     </div>
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Dates</span>
+                </FormRow>
+                <FormRow Label="Dates">
                     <div class="opsrow">
                         <DeskField TValue="string" type="date" aria-label="From" Class="wfield--short"
                                    Value="@_rangeFrom" ValueChanged="@((string v) => _rangeFrom = v)" />
@@ -219,9 +212,8 @@ else if (!Loaded && !Failed)
                             Season to date
                         </DeskButton>
                     </div>
-                </div>
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Range</span>
+                </FormRow>
+                <FormRow Label="Range">
                     @* What the range will walk while it is a range; why its key waits while it is not. *@
                     <KeyRow Class="opsrow" Justify="DeskJustify.Start" Reason="@RangeWaits">
                         <Secondary>
@@ -239,7 +231,7 @@ else if (!Loaded && !Failed)
                             </DeskButton>
                         </Primary>
                     </KeyRow>
-                </div>
+                </FormRow>
             }
         </div>
 
@@ -332,10 +324,11 @@ else if (!Loaded && !Failed)
             }
             @if (context.Item.Missing is > 0 and var missing)
             {
-                <Tag State="DeskState.Warning"
-                     Title="Scheduled by the league and not on record at all — a game the schedule never reached, or one called off and not made up.">
-                    @missing.ToString("N0") missing
-                </Tag>
+                @* What "missing" means, raised by focus as well as hover: a tag's title reached a
+                   pointer only (HIG finding 12). *@
+                <DeskTooltip Text="Scheduled by the league and not on record at all — a game the schedule never reached, or one called off and not made up.">
+                    <Tag State="DeskState.Warning" tabindex="0">@missing.ToString("N0") missing</Tag>
+                </DeskTooltip>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -361,7 +354,9 @@ else if (!Loaded && !Failed)
             else
             {
                 <span class="num">@context.Item.WithStats.ToString("N0")</span>
-                <Tag State="DeskState.Warning" Title="Finals with no player stat lines.">@context.Item.FinalsWithoutStats.ToString("N0") short</Tag>
+                <DeskTooltip Text="Finals with no player stat lines.">
+                    <Tag State="DeskState.Warning" tabindex="0">@context.Item.FinalsWithoutStats.ToString("N0") short</Tag>
+                </DeskTooltip>
             }
         </CellTemplate>
     </PropertyColumn>
@@ -371,9 +366,9 @@ else if (!Loaded && !Failed)
     <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right">
         <CellTemplate>
             <span class="num">@context.Item.WithClose.ToString("N0")</span>
-            <span class="dim num" title="Closed by a book market; the rest by the stats provider's single-book reference.">
-                · @context.Item.WithMarketClose.ToString("N0") market
-            </span>
+            <DeskTooltip Text="Closed by a book market; the rest by the stats provider's single-book reference.">
+                <span class="dim num" tabindex="0">· @context.Item.WithMarketClose.ToString("N0") market</span>
+            </DeskTooltip>
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
@@ -402,7 +397,8 @@ else if (!Loaded && !Failed)
                     Title="Rows" Align="Align.Right" Format="N0" />
 
     @* Sorting by state is how you find the days that need a retry pass. Held is the expected
-       state and is said quietly; Failed keeps its tag and its error on hover. *@
+       state and is said quietly; Failed keeps its tag, and its error is the tag's tooltip, which
+       keyboard focus raises as well as hover. *@
     <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State">
         <CellTemplate>
             @if (context.Item.Error is null)
@@ -411,7 +407,9 @@ else if (!Loaded && !Failed)
             }
             else
             {
-                <Tag State="DeskState.Negative" Title="@context.Item.Error">Failed</Tag>
+                <DeskTooltip Text="@context.Item.Error">
+                    <Tag State="DeskState.Negative" tabindex="0">Failed</Tag>
+                </DeskTooltip>
             }
         </CellTemplate>
     </PropertyColumn>

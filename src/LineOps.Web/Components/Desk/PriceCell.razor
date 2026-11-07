@@ -22,18 +22,21 @@
 {
     <span class="dim">—</span>
 }
-else if (Offer.IsClosing)
+else if (Takeable)
 {
-    @* DeskTooltip rather than the title attribute the live cell uses. The bridge themes the
-       .mud-tooltip it draws, and it gives the explanation a measure and honours the line
-       break — which a native tooltip does not, so a provenance sentence and a book breakdown
-       would arrive as one unreadable ribbon. Its Text is a string rather than a fragment: this
-       is two lines of prose, and a string is what the styling and the tests can both reach. *@
-    <DeskTooltip Text="@Why">@Body(true)</DeskTooltip>
+    @* A button takes focus, so its title reaches the keyboard and a screen reader as it is. *@
+    @Body(false)
 }
 else
 {
-    @Body(false)
+    @* Any price that is not a door is a reading on a trigger that takes focus (tabindex in
+       Body), with its explanation in a DeskTooltip: a title on a div no key can reach gave the
+       book breakdown to a pointer only (HIG 12). The bridge themes the .mud-tooltip it draws,
+       gives the explanation a measure and honours the line break — which a native tooltip does
+       not, so a closing price's provenance sentence and its book breakdown would arrive as one
+       unreadable ribbon. Its Text is a string rather than a fragment: the styling and the tests
+       can both reach it. *@
+    <DeskTooltip Text="@(Offer.IsClosing ? Why : Tooltip)">@Body(Offer.IsClosing)</DeskTooltip>
 }
 
 @code {
@@ -105,7 +108,7 @@ else
         }
         else
         {
-            <div class="price @(closing ? "price--closing" : null)" title="@(closing ? null : Tooltip)">@Inside(closing)</div>
+            <div class="price @(closing ? "price--closing" : null)" tabindex="0">@Inside(closing)</div>
         }
     </text>;
 
@@ -129,12 +132,15 @@ else
 
             @if (Offer.Rungs.Count > 1)
             {
-                <span class="rail">
+                @* The rail is one picture with one name — every book and its price — and its ticks
+                   are marks within it, hidden from a screen reader. A title per tick reached a
+                   pointer only, and a two-pixel one barely (HIG 12). *@
+                <span class="rail" role="img" aria-label="@RailLabel">
                     @foreach (var rung in Offer.Rungs)
                     {
                         <span class="rail__tick @(rung.Book == Offer.Book ? "rail__tick--best" : null)"
                               style="left:@(Position(rung).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%"
-                              title="@Monogram(rung.Book): @FormatPrice(rung.PriceAmerican)"></span>
+                              aria-hidden="true"></span>
                     }
                 </span>
 
@@ -274,6 +280,16 @@ else
                 : text;
         }
     }
+
+    /// <summary>
+    /// The rail's accessible name: where every book stands, best first as the ticks run.
+    /// "Books: DK o7 -110, FD o7.5 +105".
+    /// </summary>
+    private string RailLabel
+        => Offer is null
+            ? string.Empty
+            : "Books: " + string.Join(", ", Offer.Rungs.OrderBy(Position).Select(r =>
+                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
 
     private static string FormatPrice(int american) => OddsMath.FormatPrice(american);
 

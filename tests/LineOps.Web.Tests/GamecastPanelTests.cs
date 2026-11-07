@@ -554,9 +554,11 @@ public class GamecastPanelTests : DeskTestContext
         Assert.Contains("Plays are not arriving.", note.TextContent);
         Assert.Contains("The feed runs on the machine that runs the schedule.", note.TextContent);
 
-        // The configuration key is there for whoever hovers, not in the sentence.
-        Assert.DoesNotContain("Ingestion:", note.TextContent);
-        Assert.Contains("Ingestion:HostScheduler", note.GetAttribute("title"));
+        // The configuration keys are on the note, in a line of their own, not in the sentence.
+        var keys = cut.Find(".gc__quiet .gc__quiet-keys");
+        Assert.Contains("Ingestion:HostScheduler", keys.TextContent);
+        Assert.DoesNotContain("Ingestion:", note.TextContent.Replace(keys.TextContent, ""));
+        Assert.Null(note.GetAttribute("title"));
     }
 
     private static GameBoxScore Box(string yards) => new(new Game { Id = BoardRows.GameId },

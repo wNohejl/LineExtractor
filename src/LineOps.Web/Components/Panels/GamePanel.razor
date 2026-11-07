@@ -91,7 +91,11 @@ else
             }
             @if (lastPlay is not null)
             {
-                <span class="gamelive__last" title="@game.LastPlay">Last: @lastPlay</span>
+                @* The whole play is the line's tooltip, which keyboard focus raises as well as
+                   hover: the line gives way to the window with an ellipsis. *@
+                <DeskTooltip Text="@(game.LastPlay!)">
+                    <span class="gamelive__last" tabindex="0">Last: @lastPlay</span>
+                </DeskTooltip>
             }
             @if (situation is null && lastPlay is null)
             {
@@ -561,8 +565,10 @@ else
             var open = _openMarket == key;
             var region = $"gamemove-{WindowId}-{key}";
         }
-        <div class="wgroup__row wgroup__row--form @(open ? "gamelines__row--open" : null)">
-            <button type="button" class="wgroup__label gamelines__toggle disclosure__summary"
+        @* Not a FormRow: the name is a press of its own, not a label, so the row lays out its
+           name and its two sides itself (.gamelines__row, in the form row's columns). *@
+        <div class="wgroup__row gamelines__row @(open ? "gamelines__row--open" : null)">
+            <button type="button" class="gamelines__toggle disclosure__summary"
                     aria-expanded="@(open ? "true" : "false")" aria-controls="@region"
                     @onclick="() => ToggleMarket(key)">
                 <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
@@ -645,15 +651,25 @@ else
     /// </para>
     /// </summary>
     private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market) => @<text>
+        @* Every book's price is the cell's tooltip, raised by keyboard focus as well as hover —
+           a title on the reading reached a pointer only — and its line breaks are kept. A cell
+           with no price has no books to list and no tooltip. *@
         @if (CanTake(offer))
         {
-            <button type="button" class="gamelines__cell gamelines__cell--take"
-                    title="@(EveryBook(offer!) + "\nPress to place a wager on this side.")"
-                    @onclick="() => Take(market, offer)">@LineInside(offer, side, total)</button>
+            <DeskTooltip Text="@(EveryBook(offer!) + "\nPress to place a wager on this side.")">
+                <button type="button" class="gamelines__cell gamelines__cell--take"
+                        @onclick="() => Take(market, offer)">@LineInside(offer, side, total)</button>
+            </DeskTooltip>
+        }
+        else if (offer is not null)
+        {
+            <DeskTooltip Text="@EveryBook(offer)">
+                <div class="gamelines__cell" tabindex="0">@LineInside(offer, side, total)</div>
+            </DeskTooltip>
         }
         else
         {
-            <div class="gamelines__cell" title="@(offer is null ? null : EveryBook(offer))">@LineInside(offer, side, total)</div>
+            <div class="gamelines__cell">@LineInside(offer, side, total)</div>
         }
     </text>;
 

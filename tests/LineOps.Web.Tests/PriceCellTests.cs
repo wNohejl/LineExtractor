@@ -261,7 +261,7 @@ public class PriceCellTests : DeskTestContext
                 Rung("fanduel", 105, 0.488, 7.5m)
             ])));
 
-        var tooltip = cut.Find(".price").GetAttribute("title") ?? string.Empty;
+        var tooltip = cut.FindComponent<DeskTooltip>().Instance.Text;
 
         Assert.Contains("DK o7 -110", tooltip);
         Assert.Contains("FD o7.5 +105", tooltip);
@@ -373,18 +373,35 @@ public class PriceCellTests : DeskTestContext
     }
 
     /// <summary>
-    /// The live cell keeps its native title attribute — one line of book breakdown is exactly
-    /// what that is for, and putting a MudBlazor component in nineteen rows × six columns to
-    /// say the same thing would cost the board a great deal for no gain.
+    /// A takeable price is a button, which takes focus, so its native title reaches the
+    /// keyboard and stays — a MudBlazor component in nineteen rows × six columns to say the
+    /// same thing would cost the board a great deal for no gain.
     /// </summary>
     [Fact]
-    public void A_live_price_keeps_the_native_tooltip_and_grows_no_second_one()
+    public void A_takeable_price_keeps_the_native_tooltip_and_grows_no_second_one()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524)))
+            .Add(x => x.OnTake, () => { }));
+
+        Assert.NotNull(cut.Find("button.price").GetAttribute("title"));
+        Assert.Empty(cut.FindComponents<DeskTooltip>());
+    }
+
+    /// <summary>
+    /// A live price nobody can take is a div, and a title on it reached a pointer only
+    /// (HIG 12). It takes focus and says the same thing in a tooltip, with no title left to compete.
+    /// </summary>
+    [Fact]
+    public void A_live_price_that_cannot_be_taken_explains_itself_on_focus()
     {
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
             Offer(rungs: Rung("draftkings", -110, 0.524))));
 
-        Assert.NotNull(cut.Find(".price").GetAttribute("title"));
-        Assert.Empty(cut.FindComponents<DeskTooltip>());
+        var cell = cut.Find(".price");
+        Assert.Equal("0", cell.GetAttribute("tabindex"));
+        Assert.Null(cell.GetAttribute("title"));
+        Assert.Contains("DK -110", cut.FindComponent<DeskTooltip>().Instance.Text);
     }
 
     /// <summary>The muted cell must not also carry the native tooltip, or the two compete.</summary>
@@ -465,7 +482,7 @@ public class PriceCellTests : DeskTestContext
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
             Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
 
-        Assert.StartsWith("Fair +100 (Pinnacle, no-vig)", cut.Find(".price").GetAttribute("title"));
+        Assert.StartsWith("Fair +100 (Pinnacle, no-vig)", cut.FindComponent<DeskTooltip>().Instance.Text);
     }
 
     [Fact]
@@ -554,7 +571,7 @@ public class PriceCellTests : DeskTestContext
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer, Offer(rungs: Rung("draftkings", -110, 0.524))));
 
         Assert.Empty(cut.FindAll("button"));
-        Assert.DoesNotContain("Click to log", cut.Find(".price").GetAttribute("title") ?? "");
+        Assert.DoesNotContain("Click to log", cut.FindComponent<DeskTooltip>().Instance.Text);
     }
 
     // ---- HIG 2: a door is a real button --------------------------------------------------

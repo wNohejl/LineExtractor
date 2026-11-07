@@ -127,7 +127,11 @@ else
             <TemplateColumn T="MovementRow" Title="Open" Align="Align.Right" Sortable="true"
                             SortBy="@(r => Rank(r.Open))" HeaderClass="col--wide" CellClass="col--wide">
                 <CellTemplate>
-                    <span class="dim movement__quote" title="@DisplayTime.Stamp(context.Item.Open.CapturedAt)">@Quote(context.Item.Open)</span>
+                    @* When the open was seen is a tooltip on a trigger that takes focus, not a title
+                       only a pointer raises (HIG 12). *@
+                    <DeskTooltip Text="@OpenedTooltip(context.Item)">
+                        <span class="dim movement__quote" tabindex="0">@Quote(context.Item.Open)</span>
+                    </DeskTooltip>
                 </CellTemplate>
             </TemplateColumn>
 
@@ -145,8 +149,9 @@ else
             <TemplateColumn T="MovementRow" Title="Move" Align="Align.Right" Sortable="true"
                             SortBy="@(r => MoveSize(r))">
                 <CellTemplate>
-                    <span class="movement__move @(context.Item.Moved ? null : "dim")"
-                          title="@MoveTitle(context.Item, _market)">@MoveText(context.Item)</span>
+                    <DeskTooltip Text="@MoveTitle(context.Item, _market)">
+                        <span class="movement__move @(context.Item.Moved ? null : "dim")" tabindex="0">@MoveText(context.Item)</span>
+                    </DeskTooltip>
                 </CellTemplate>
             </TemplateColumn>
 
@@ -156,11 +161,15 @@ else
                 <CellTemplate>
                     @if (context.Item.LastMoved is { } at)
                     {
-                        <span class="dim" title="@DisplayTime.Stamp(at)">@Ago(at, DateTimeOffset.UtcNow)</span>
+                        <DeskTooltip Text="@($"Last moved {DisplayTime.Stamp(at)}")">
+                            <span class="dim" tabindex="0">@Ago(at, DateTimeOffset.UtcNow)</span>
+                        </DeskTooltip>
                     }
                     else
                     {
-                        <span class="dim" title="Seen once, @DisplayTime.Stamp(context.Item.Open.CapturedAt)">—</span>
+                        @* Said in the cell: the dash meant it, but only to a pointer. When it was
+                           seen is the Open cell's tooltip. *@
+                        <span class="dim">seen once</span>
                     }
                 </CellTemplate>
             </TemplateColumn>
@@ -732,6 +741,9 @@ else
 
         return parts.Count == 0 ? "no net move" : string.Join(" · ", parts);
     }
+
+    /// <summary>The Open cell's tooltip: when the opening number was first seen.</summary>
+    public static string OpenedTooltip(MovementRow row) => $"Opened {DisplayTime.Stamp(row.Open.CapturedAt)}";
 
     /// <summary>The Move cell's tooltip: the same change in words, with what it means for the side.</summary>
     public static string MoveTitle(MovementRow row, string market)

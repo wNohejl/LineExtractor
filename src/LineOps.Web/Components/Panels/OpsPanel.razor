@@ -126,11 +126,10 @@ else
 {
     <section class="wsection" aria-label="Scanning">
         <div class="wgroup opsgroup">
-            <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Scanning</span>
+            <FormRow Label="Scanning">
                 <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
                             Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
-            </div>
+            </FormRow>
             @if (_confirmAutomatic)
             {
                 <InlineConfirm Class="wgroup__row" ConfirmLabel="Scan automatically"
@@ -240,9 +239,14 @@ else
         </CellTemplate>
     </PropertyColumn>
 
-    @* The rule's name in words; its key, which is what the runbook is filed under, on hover. *@
+    @* The rule's name in words; its key, which is what the runbook is filed under, in a tooltip
+       that keyboard focus raises as well as hover — a title on text reached a pointer only. *@
     <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule">
-        <CellTemplate><span class="dim" title="@context.Item.RuleKey">@RuleName(context.Item.RuleKey)</span></CellTemplate>
+        <CellTemplate>
+            <DeskTooltip Text="@($"Rule key: {context.Item.RuleKey}")">
+                <span class="dim" tabindex="0">@RuleName(context.Item.RuleKey)</span>
+            </DeskTooltip>
+        </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened">
@@ -298,8 +302,7 @@ else
                 <div class="wgroup opsgroup opsgroup--wide">
                     @foreach (var source in _injectable)
                     {
-                        <div class="wgroup__row wgroup__row--form" @key="source.Id">
-                            <span class="wgroup__label">@source.Name</span>
+                        <FormRow Label="@source.Name" @key="source.Id">
                             <div class="opsrow">
                                 <DeskSelect TValue="string"
                                             Value="@(source.FailureMode ?? "")"
@@ -315,7 +318,7 @@ else
                                     <Tag State="DeskState.Negative">Injecting</Tag>
                                 }
                             </div>
-                        </div>
+                        </FormRow>
                     }
                 </div>
                 <p class="wgroup__foot opsfoot">@WhatTheDrillDoes()</p>

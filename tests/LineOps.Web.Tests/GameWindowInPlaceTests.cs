@@ -166,7 +166,7 @@ public class GameWindowInPlaceTests : DeskTestContext
     {
         var source = GamePanelSource();
 
-        Assert.Contains("class=\"wgroup__label gamelines__toggle disclosure__summary\"", source);
+        Assert.Contains("class=\"gamelines__toggle disclosure__summary\"", source);
         Assert.Contains("aria-expanded=\"@(open ? \"true\" : \"false\")\" aria-controls=\"@region\"", source);
         Assert.Contains("<MarketMovement Id=\"@region\"", source);
         Assert.DoesNotContain("Hover a price for every book", source);

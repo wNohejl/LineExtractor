@@ -121,7 +121,9 @@
     transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
+/* Focus within the row reveals it as a hover does, so a keyboard reaches the same reading (HIG 12). */
 .mud-table-row:hover .price__edge,
+.mud-table-row:focus-within .price__edge,
 .board__row--open .price__edge { opacity: 1; }
 
 .price__edge--wide { color: var(--state-positive-ink); }
@@ -163,7 +165,13 @@
 }
 
 .mud-table-row:hover .price__ev,
+.mud-table-row:focus-within .price__ev,
 .board__row--open .price__ev { opacity: 1; }
+
+/* A tooltip's trigger in a window title's detail line (the Gamecast's last play, HIG 12):
+   MudTooltip's root takes the trigger's place in that flex row, so it is the root that may
+   shrink, and the trigger inside keeps its own ellipsis. */
+.ptitle__text > .mud-tooltip-root { min-width: 0; max-width: 100%; }
 
 .price__ev--plus {
     color: var(--state-positive-ink);
@@ -1069,12 +1077,6 @@
 .selection-chip--on .selection-chip__team, .selection-chip--on .selection-chip__side { font-weight: var(--weight-semibold); }
 .selection-chip--on .selection-chip__price { color: var(--accent-ink); }
 .selection-chip__price--none { font-size: var(--text-footnote); color: var(--text-tertiary); }
-/* The market's name explains itself on hover: the dotted rule is the desk's "there is help here". */
-.selection-group__label {
-    cursor: help;
-    text-decoration: underline dotted var(--text-tertiary);
-    text-underline-offset: 3px;
-}
 
 /* ---- The price row: the number, the line, the pencil that replaces the number, and the book
    menu, in one run beside the label — nothing pinned to the far edge. What the number is
@@ -1162,6 +1164,8 @@
 /* The stake's chosen cap on a form row: the same control as the sides, one level down. */
 .wsteps .selection-gate .gate__opt:focus-visible { z-index: 2; }
 .journal-manual { margin-right: var(--space-1); font-size: var(--text-footnote); }
+.journal-clv:focus-visible,
+.journal-manual:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 /* The Journal's foot: what the window is, under everything it holds, a section's air below
    the last list and at a reading width. */
 .journal-foot { margin-top: var(--space-6); max-width: 80ch; }
@@ -1436,7 +1440,7 @@ button.gamelines__cell { align-items: stretch; }
    note may run to several lines, so a row aligns on its first line rather than its middle. */
 .opsgroup--log { max-width: 760px; --form-label: 152px; }
 .opsgroup--log .wgroup__row--form { align-items: baseline; }
-.opsstamp { color: var(--text-secondary); font-size: var(--text-subheadline); font-variant-numeric: tabular-nums; }
+.opsstamp > .wgroup__label { color: var(--text-secondary); font-size: var(--text-subheadline); font-variant-numeric: tabular-nums; }
 /* A group after a grid or a footnote stands apart by space, never a rule. */
 .opsgroup:not(:first-child) { margin-top: var(--space-4); }
 /* A section that follows a grid or a metric row in the same body takes the same air a second
@@ -1522,6 +1526,30 @@ button.gamelines__toggle {
     padding: 2px 6px 2px 4px;
 }
 button.gamelines__toggle:hover { background: var(--surface-3); }
+.gamelines__row {
+    display: grid;
+    grid-template-columns: var(--form-label, 88px) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+}
+button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
+@container (max-width: 400px) {
+    .gamelines__row {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--space-1);
+        padding-top: var(--space-2);
+        padding-bottom: var(--space-2);
+    }
+    button.gamelines__toggle { font-size: var(--text-subheadline); color: var(--text-secondary); }
+}
+.gamelines__sides > .mud-tooltip-root { display: block; min-width: 0; }
+.gamelines__sides > .mud-tooltip-root > .gamelines__cell { min-width: 0; }
+/* The take key keeps its -4px bleed either side, so it spans its column plus the bleed. */
+.gamelines__sides > .mud-tooltip-root > .gamelines__cell--take { width: calc(100% + 8px); }
+.gamelines__cell[tabindex]:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
 /* The opened market's detail reads as the row's own continuation: no hairline between a row and
    what it discloses, indented to the name's leading edge as a disclosure's content is. */
 .gamelines__detail { display: block; padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + 12px + var(--space-2)); }
@@ -1638,3 +1666,16 @@ button.gamelines__toggle:hover { background: var(--surface-3); }
    window's game pick capped at the longest option, not the toolbar. */
 .legline { white-space: nowrap; }
 .odds-game { max-width: min(440px, 100%); }
+
+/* The last play sits in a tooltip: its wrapper is the flex item on the title's detail line. */
+.ptitle__text > .mud-tooltip-root:has(> .gamelive__last) { min-width: 0; max-width: 100%; }
+.ptitle__text > .mud-tooltip-root > .gamelive__last {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ptitle__text > .gamelive__situation + .mud-tooltip-root > .gamelive__last::before {
+    content: "·";
+    margin-right: var(--space-2);
+}

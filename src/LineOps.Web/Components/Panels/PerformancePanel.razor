@@ -150,8 +150,7 @@ else
             <DeskStack Gap="DeskSpace.Space4">
                 <section class="wsection" aria-label="Bankroll">
                     <div class="wgroup opsgroup opsgroup--wide">
-                        <div class="wgroup__row wgroup__row--form">
-                            <span class="wgroup__label">Starting bankroll</span>
+                        <FormRow Label="Starting bankroll">
                             <div class="opsrow">
                                 <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50"
                                            Class="wfield--short" aria-label="Starting bankroll"
@@ -167,7 +166,7 @@ else
                                     </Primary>
                                 </KeyRow>
                             </div>
-                        </div>
+                        </FormRow>
                     </div>
                     <p class="wgroup__foot">The curve starts here; stored with the journal, not the browser.</p>
 

@@ -181,9 +181,15 @@ public class WagerStepperTests : WagerTestContext
         Assert.Equal(["Moneyline", "Spread", "Total"], cut.FindAll(".selection-gate").Select(g => g.GetAttribute("aria-label")));
         Assert.Empty(cut.FindAll(".selection-gate .gate__cap"));
         Assert.Equal(["Bills", "Chiefs"], cut.FindAll(".selection-gate")[0].QuerySelectorAll(".selection-chip__team").Select(t => t.TextContent.Trim()));
-        var labels = cut.FindAll(".selection-group__label");
+        var labels = cut.FindAll(".selection-group > .wgroup__label");
         Assert.Equal(["Moneyline", "Spread", "Total"], labels.Select(l => l.TextContent.Trim()));
-        Assert.Contains("wins the game", labels[0].GetAttribute("title"));
+        // What a market means is told on its segments' tooltips, which focus raises as well as
+        // hover (HIG 12) — not in a title on the market's name, which takes no focus.
+        Assert.All(labels, l => Assert.Null(l.GetAttribute("title")));
+        var tips = cut.FindComponents<LineOps.Desk.Primitives.DeskTooltip>()
+            .Where(t => t.FindAll(".selection-chip").Count == 1)
+            .ToDictionary(t => t.Find(".selection-chip").GetAttribute("aria-label")!, t => t.Instance.Text);
+        Assert.Contains("wins the game", tips["ML · Bills"]);
 
         // Segments read in order — away, then home; Over, then Under — and carry only what
         // differs: the line, and the price.
@@ -193,7 +199,8 @@ public class WagerStepperTests : WagerTestContext
         var chiefs = cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Chiefs");
         Assert.Null(chiefs.QuerySelector(".selection-chip__side"));
         Assert.Equal("-128", chiefs.QuerySelector(".selection-chip__price")!.TextContent.Trim());
-        Assert.Equal("Kansas City Chiefs win the game.", chiefs.GetAttribute("title"));
+        Assert.Null(chiefs.GetAttribute("title"));
+        Assert.StartsWith("Kansas City Chiefs win the game.\n", tips["ML · Chiefs"]);
         Assert.Equal("-2.5", cut.FindAll(".selection-chip")[3].QuerySelector(".selection-chip__side")!.TextContent.Trim());
     }
 

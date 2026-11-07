@@ -76,7 +76,9 @@ else
                             Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))">
                     @foreach (var option in _seasonOptions)
                     {
-                        <option value="@option.Value" title="@option.Title">@option.Label</option>
+                        @* No title: an option shows none in most browsers, and "MLB 2025 season"
+                           only repeats the label under a select already named Season (HIG 12). *@
+                        <option value="@option.Value">@option.Label</option>
                     }
                 </DeskSelect>
             }

@@ -28,13 +28,16 @@
             @* The current book's name is the pop-up's label, as a macOS pop-up button shows its
                choice (wizards.md, bet-and-price rule 5), with the up/down chevron a pop-up wears.
                Disabled — no side chosen yet — it keeps its place and says "Book", so the row
-               does not jump when a side is picked. *@
+               does not jump when a side is picked. Why it is disabled is never a hover title — a
+               disabled key takes no focus, so the keyboard would never hear it (HIG 12): the row
+               says it in visible text, and DescribedBy points the key at that text. *@
             <button type="button" class="book-picker__trigger"
                     aria-haspopup="menu"
                     aria-expanded="@(_open ? "true" : "false")"
+                    aria-describedby="@(Disabled ? DescribedBy : null)"
                     data-popover-return="true"
                     disabled="@Disabled"
-                    title="@(Disabled ? "Choose a side first" : "Change the book this price is from")"
+                    title="@(Disabled ? null : "Change the book this price is from")"
                     @onclick="Toggle">
                 <span class="wager-offer__book">@(Chosen ?? "Book")</span>
                 @if (ChosenIsBest)
@@ -72,6 +75,9 @@
 
     /// <summary>Nothing to choose from yet: the pop-up shows, disabled, and never opens.</summary>
     [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>The id of the visible text that says why the pop-up is disabled, read with it while it is.</summary>
+    [Parameter] public string? DescribedBy { get; set; }
 
     private bool _open;
 
