@@ -16,7 +16,21 @@ namespace LineOps.Desk;
 /// </param>
 /// <param name="Available">False when the run cannot start here: it stays in the menu, dimmed.</param>
 /// <param name="Unavailable">Why it cannot start, written where its description would be.</param>
-public sealed record DeskJob(string Key, string Label, string Description, string? Cost, bool Available, string? Unavailable);
+/// <param name="Sheet">
+/// For a run that has to ask something first — which records, which dates — the sheet that asks.
+/// Choosing the entry opens it instead of running; a sheet completed with a <see cref="DeskJobRun"/>
+/// (<c>DialogResult.Ok(run)</c>) has that run made as a chosen entry's is — the busy key, the
+/// toast, the reload — and any other way out runs nothing. Its label ends in an ellipsis.
+/// </param>
+public sealed record DeskJob(
+    string Key, string Label, string Description, string? Cost, bool Available, string? Unavailable,
+    Func<IDeskSheets, Task<IDeskSheetHandle>>? Sheet = null);
+
+/// <summary>
+/// A run a job's sheet has been answered with: what it does once started, telling its progress
+/// as a short phrase the busy key shows ("Day 3 of 12"), and the outcome the desk toasts.
+/// </summary>
+public delegate Task<DeskJobOutcome> DeskJobRun(IProgress<string> progress, CancellationToken ct);
 
 /// <summary>How a run went, which decides how the desk reports it.</summary>
 public enum DeskJobResult
@@ -77,9 +91,26 @@ public sealed class DeskJobRunner(IServiceProvider services, DeskToasts toasts, 
         if (!access.CanOperate)
             return false;
 
+        return await RunAsync(job.Label, () => jobs.RunAsync(job.Key));
+    }
+
+    /// <summary>
+    /// Makes a run a job's sheet was answered with (<see cref="DeskJob.Sheet"/>), reported as a
+    /// chosen entry's is. False when nothing ran to completion.
+    /// </summary>
+    public async Task<bool> RunAsync(DeskJob job, DeskJobRun run, IProgress<string> progress, CancellationToken ct = default)
+    {
+        if (!access.CanOperate)
+            return false;
+
+        return await RunAsync(job.Label, () => run(progress, ct));
+    }
+
+    private async Task<bool> RunAsync(string label, Func<Task<DeskJobOutcome>> run)
+    {
         try
         {
-            var outcome = await jobs.RunAsync(job.Key);
+            var outcome = await run();
 
             // Succeeding with nothing is worth saying differently: reported as a success it
             // reads as "done" when nothing arrived.
@@ -101,8 +132,8 @@ public sealed class DeskJobRunner(IServiceProvider services, DeskToasts toasts, 
         catch (Exception ex)
         {
             // The exception is for the log; the toast says what did not happen and what to do.
-            log.LogError(ex, "{Job} failed", job.Label);
-            toasts.Fail($"{job.Label} did not finish. Try again.");
+            log.LogError(ex, "{Job} failed", label);
+            toasts.Fail($"{label.TrimEnd('…')} did not finish. Try again.");
             return false;
         }
     }

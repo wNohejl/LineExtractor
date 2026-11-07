@@ -203,6 +203,66 @@ public class DeskJobMenuTests : DeskTestContext
         Assert.Empty(Toasts());
     }
 
+    /// <summary>A run that asks for something first: its entry opens the sheet that asks.</summary>
+    private static DeskJob Asking => new("ranged", "Choose a range…", "Asks which first", null, true, null,
+        Sheet: sheets => sheets.ShowAsync(new DialogParameters<DeskSheet>()));
+
+    [Fact]
+    public void A_run_that_asks_first_opens_its_sheet_and_runs_nothing_yet()
+    {
+        var sheets = new FakeSheets();
+        Services.AddSingleton<IDeskSheets>(sheets);
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, new FakeJobs { Only = Asking })));
+
+        cut.Find("[role=menuitem]").Click();
+
+        Assert.Equal(typeof(DeskSheet), sheets.Shown);
+        Assert.Empty(cut.FindAll("[role=menu]"));
+        Assert.Empty(Toasts());
+    }
+
+    [Fact]
+    public void The_run_a_sheet_completes_with_runs_as_a_chosen_entry_does()
+    {
+        var sheets = new FakeSheets();
+        Services.AddSingleton<IDeskSheets>(sheets);
+        var ran = 0;
+        var busy = new List<bool>();
+        var cut = Open(Menu(p => p
+            .Add(x => x.Jobs, new FakeJobs { Only = Asking })
+            .Add(x => x.OnRan, () => ran++)
+            .Add(x => x.OnBusyChanged, (bool b) => busy.Add(b))));
+        cut.Find("[role=menuitem]").Click();
+
+        DeskJobRun run = (progress, _) =>
+        {
+            progress.Report("Step 2 of 3");
+            return Task.FromResult(new DeskJobOutcome(DeskJobResult.Done, "Ranged over 3 days."));
+        };
+        cut.InvokeAsync(() => sheets.Last!.Close(DialogResult.Ok(run)));
+
+        cut.WaitForAssertion(() => Assert.Equal(["Ranged over 3 days."], Toasts()));
+        Assert.Equal(1, ran);
+        Assert.Equal([true, false], busy);
+    }
+
+    [Fact]
+    public void A_sheet_dismissed_runs_nothing()
+    {
+        var sheets = new FakeSheets();
+        Services.AddSingleton<IDeskSheets>(sheets);
+        var busy = new List<bool>();
+        var cut = Open(Menu(p => p
+            .Add(x => x.Jobs, new FakeJobs { Only = Asking })
+            .Add(x => x.OnBusyChanged, (bool b) => busy.Add(b))));
+        cut.Find("[role=menuitem]").Click();
+
+        cut.InvokeAsync(() => sheets.Last!.Close());
+
+        Assert.Empty(busy);
+        Assert.Empty(Toasts());
+    }
+
     private sealed class Visitor : IDeskAccess
     {
         public bool CanOperate => false;

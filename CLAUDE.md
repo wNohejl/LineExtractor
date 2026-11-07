@@ -45,6 +45,8 @@ database's own count, so the month is not spent twice. Refresh it whenever the d
 machine should see — after a backfill, after a season closes. `restore-data.ps1` refuses to
 overwrite a database that already holds games unless told to with `-Force`.
 
+A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`): `dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or Pull data → Pull a date range… on the desk.
+
 Laptop bootstrap, from nothing:
 
 ```powershell

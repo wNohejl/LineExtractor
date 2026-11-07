@@ -1,5 +1,8 @@
 using LineOps.Desk;
+using LineOps.Desk.Primitives;
 using LineOps.Ingestion.Services;
+using LineOps.Web.Components.Desk;
+using MudBlazor;
 
 namespace LineOps.Web.Services;
 
@@ -12,8 +15,14 @@ namespace LineOps.Web.Services;
 /// the job the scheduler runs (<see cref="IngestionJobs"/>) — nothing here is a second
 /// implementation. Scoped, so the labels it remembers are one circuit's.
 /// </para>
+///
+/// <para>
+/// One entry asks before it runs: a date range (<see cref="RangePull"/>), whose league and days
+/// a sheet asks for. It is the Worker's <c>--job espn:range</c>, and it sits under the catalogue
+/// because it is not one of the scheduler's jobs — nothing runs it on a timer.
+/// </para>
 /// </summary>
-public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
+public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDeskJobs
 {
     private readonly Dictionary<string, string> _labels = [];
 
@@ -24,7 +33,13 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
         foreach (var job in described)
             _labels[job.Key] = job.Label;
 
-        return described.Select(Describe).ToList();
+        var entries = described.Select(Describe).ToList();
+
+        // A stats source is what walks it; without one the entry stays, dimmed, with the reason.
+        var stats = described.FirstOrDefault(j => j.Key == IngestionJobs.EspnResults);
+        entries.Add(Range(stats?.Available ?? false, stats?.Unavailable));
+
+        return entries;
     }
 
     public async Task<DeskJobOutcome> RunAsync(string key, CancellationToken ct = default)
@@ -38,6 +53,21 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
 
         return Outcome(label, await jobs.RunAsync(key, ct));
     }
+
+    /// <summary>The date range's entry: its sheet asks for the league and the days, then the menu runs it.</summary>
+    private DeskJob Range(bool available, string? unavailable)
+        => new(IngestionJobs.EspnRange,
+            "Pull a date range…",
+            "One league's games over the days you name, with each final's box score and closing line — "
+            + "for history the backfill seasons do not reach, or a range that came in incomplete.",
+            "1 req a game day + 1 a final",
+            available,
+            unavailable,
+            Sheet: async sheets => await sheets.ShowAsync(new DialogParameters<RangePullSheet>
+            {
+                { x => x.Leagues, await range.LeaguesAsync() },
+                { x => x.Pull, range.RunAsync }
+            }));
 
     /// <summary>One pull as a menu entry.</summary>
     public static DeskJob Describe(IngestionJob job)
@@ -66,4 +96,17 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
 
         return new(DeskJobResult.Done, outcome.Detail ?? $"{label}: {outcome.Rows:N0} rows.");
     }
+
+    /// <summary>
+    /// A range pull's summary as the sentence the desk toasts: a refusal in its own words, a failed
+    /// day as a warning, and a range with no game held or found as nothing new.
+    /// </summary>
+    public static DeskJobOutcome RangeOutcome(RangePullSummary summary)
+        => summary switch
+        {
+            { Refused: { } refused } => new(DeskJobResult.Failed, refused),
+            { Failures: > 0 } => new(DeskJobResult.Failed, summary.Sentence),
+            { Games: 0, DaysSkipped: 0 } => new(DeskJobResult.Nothing, summary.Sentence),
+            _ => new(DeskJobResult.Done, summary.Sentence)
+        };
 }

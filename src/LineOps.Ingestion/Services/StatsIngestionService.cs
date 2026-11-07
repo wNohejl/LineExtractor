@@ -62,7 +62,42 @@ public class StatsIngestionService(
     public Task<IngestionOutcome> IngestLiveAsync(
         IStatsSource source, string sportKey, string jobKey, DateOnly date, CancellationToken ct)
         => IngestAsync(source, sportKey, jobKey, date, schedulesOnly: true, ct,
-            narrow: (result, sourceKey, c) => InPlayAsync(result, sportKey, sourceKey, c));
+            narrow: (result, sourceKey, c) => InPlayAsync(result, sportKey, sourceKey, c), quietPoll: true);
+
+    /// <summary>
+    /// One day of a range the operator named (<see cref="RangePull"/>): the box-score pass for a
+    /// day gone by, the schedule pass for today and after, through the same run row, budget guard
+    /// and persist as either — except that a game we hold as final is not walked back by it.
+    ///
+    /// <para>
+    /// A range reaches into history, and ESPN's view of an old fixture is not always the one it
+    /// had the night it was played: an event moved or relisted reads as scheduled, scoreless. The
+    /// resolver takes whatever status and score it is handed (only a missing score is left
+    /// alone), so a re-pull would put a graded game back before its first play. A held final
+    /// therefore keeps its status, score and state of play unless the provider still calls it
+    /// final, when its score — a correction — is taken as the results sweep takes it.
+    /// </para>
+    /// </summary>
+    public Task<IngestionOutcome> IngestRangeDayAsync(
+        IStatsSource source, string sportKey, string jobKey, DateOnly date, bool schedulesOnly, CancellationToken ct)
+        => IngestAsync(source, sportKey, jobKey, date, schedulesOnly, ct,
+            narrow: async (result, sourceKey, c) => result.Games.Count == 0
+                ? result
+                : result with { Games = KeepHeldFinals(result.Games, await HeldStatusesAsync(result, sportKey, sourceKey, c)) });
+
+    /// <summary>
+    /// A scoreboard with every game we hold as final kept so: one the provider no longer calls
+    /// final carries no status, score or state of play, which the resolver reads as no news. See
+    /// <see cref="IngestRangeDayAsync"/>.
+    /// </summary>
+    internal static IReadOnlyList<CanonicalGame> KeepHeldFinals(
+        IReadOnlyList<CanonicalGame> scoreboard, IReadOnlyDictionary<string, GameStatus> ours)
+        => scoreboard
+            .Select(g => ours.TryGetValue(g.SourceGameId, out var held) && held == GameStatus.Final
+                         && EntityResolver.MapStatus(g.Status) != GameStatus.Final
+                ? g with { Status = null, HomeScore = null, AwayScore = null, Live = null }
+                : g)
+            .ToList();
 
     private async Task<StatsFetchResult> InPlayAsync(
         StatsFetchResult result, string sportKey, string sourceKey, CancellationToken ct)
@@ -70,18 +105,23 @@ public class StatsIngestionService(
         if (result.Games.Count == 0)
             return result;
 
+        return result with { Games = SelectInPlay(result.Games, await HeldStatusesAsync(result, sportKey, sourceKey, ct)) };
+    }
+
+    /// <summary>Our status for each event on a scoreboard that we hold, keyed by the provider's event id.</summary>
+    private async Task<Dictionary<string, GameStatus>> HeldStatusesAsync(
+        StatsFetchResult result, string sportKey, string sourceKey, CancellationToken ct)
+    {
         var from = result.Games.Min(g => g.StartsAt).AddDays(-2);
         var to = result.Games.Max(g => g.StartsAt).AddDays(2);
 
-        var ours = (await db.Games
+        return (await db.Games
                 .Where(g => g.Sport!.Key == sportKey && g.StartsAt > from && g.StartsAt < to)
                 .Select(g => new { g.ExternalIds, g.Status })
                 .ToListAsync(ct))
             .Where(g => g.ExternalIds.ContainsKey(sourceKey))
             .GroupBy(g => g.ExternalIds[sourceKey])
             .ToDictionary(g => g.Key, g => g.First().Status);
-
-        return result with { Games = SelectInPlay(result.Games, ours) };
     }
 
     /// <summary>
@@ -155,12 +195,13 @@ public class StatsIngestionService(
         DateOnly date,
         bool schedulesOnly,
         CancellationToken ct,
-        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null)
+        Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null,
+        bool quietPoll = false)
         => IngestAsync(source.Key, source, sportKey, jobKey,
             c => schedulesOnly
                 ? source.FetchScheduleAsync(sportKey, date, c)
                 : source.FetchBoxScoresAsync(sportKey, date, c),
-            ct, narrow);
+            ct, narrow, quietPoll: quietPoll);
 
     private async Task<IngestionOutcome> IngestAsync(
         string sourceKey,
@@ -170,7 +211,8 @@ public class StatsIngestionService(
         Func<CancellationToken, Task<StatsFetchResult>> fetch,
         CancellationToken ct,
         Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null,
-        bool live = false)
+        bool live = false,
+        bool quietPoll = false)
     {
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
             ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
@@ -189,8 +231,8 @@ public class StatsIngestionService(
         // a `runs` notice, and every open Ops, Runs and History window reloaded on each one. A
         // metered source keeps its row every time, because the budget guard counts requests from
         // the runs and a request with no row would be spent without being counted. A live box
-        // score is quiet on the same terms.
-        var quiet = (narrow is not null || live) && IsUnmetered(sourceRow);
+        // score is quiet on the same terms; a range day, narrowed too, is not a poll and keeps its row.
+        var quiet = (quietPoll || live) && IsUnmetered(sourceRow);
 
         if (!quiet)
             await RecordAsync(run, ct);

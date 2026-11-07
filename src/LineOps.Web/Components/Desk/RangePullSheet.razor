@@ -1,0 +1,140 @@
+@using System.Globalization
+@using LineOps.Ingestion.Services
+
+@*
+    The Pull data menu's "Pull a date range…": which league, which days, and whether days already
+    held complete are pulled again — then the pull, run as the menu runs any of its entries.
+
+    A sheet, because the task is self-contained and completing it is the only goal (modality.md):
+    the answers are asked for, then the sheet is gone and the menu's busy key carries the pull,
+    its progress ("NFL Sep 8 · 3 of 4") and its toast. Nothing is spent while the sheet is open.
+
+    One grouped form: the league is a pop-up because the leagues come from data (Sports.Enabled),
+    the dates are two date fields in their own rows, and "Re-pull days already complete" is a
+    toggle — a setting of the pull, read when it starts. Pull is the one Filled key and waits,
+    with its reason on the row, while the answers are not a range a pull takes (RangePull.Check):
+    a league named, From not after To, at most a season of days.
+*@
+
+<DeskSheet Title="Pull a date range"
+           Subtitle="Games, finals, box scores and closing lines, from ESPN"
+           Width="@Width">
+    <ChildContent>
+        <FormGroup LabelWidth="96px">
+            <ChildContent>
+                <FormRow Label="League">
+                    <DeskSelect TValue="string" aria-label="League" Class="wfield--short"
+                                Value="@_league" ValueChanged="@((string v) => _league = v)">
+                        @if (Leagues.Count == 0)
+                        {
+                            <option value="">No league enabled</option>
+                        }
+                        @foreach (var league in Leagues)
+                        {
+                            <option value="@league.Key">@league.Name</option>
+                        }
+                    </DeskSelect>
+                </FormRow>
+                <FormRow Label="From">
+                    <DeskField TValue="string" type="date" aria-label="From" Class="wfield--short"
+                               Value="@_from" ValueChanged="@((string v) => _from = v)" />
+                </FormRow>
+                <FormRow Label="To">
+                    <DeskField TValue="string" type="date" aria-label="To" Class="wfield--short"
+                               Value="@_to" ValueChanged="@((string v) => _to = v)" />
+                </FormRow>
+                <div class="wgroup__row">
+                    <DeskToggle Label="Re-pull days already complete" @bind-Checked="_refresh"
+                                Title="Pull every game day again, even one whose finals all hold their stats and a closing line" />
+                </div>
+            </ChildContent>
+            <Footer>
+                Only the days ESPN's calendar lists with games are asked for, at most @RangePull.MaxDays days
+                — about a season. A day already complete, every final holding its stats and a closing line,
+                is left alone unless re-pulled. Days before today get box scores and closes; today and after,
+                the schedule.
+            </Footer>
+        </FormGroup>
+    </ChildContent>
+    <Footer>
+        <KeyRow Reason="@Waits">
+            <Secondary>
+                <DeskButton Emphasis="DeskEmphasis.Plain" OnClick="Cancel">Cancel</DeskButton>
+            </Secondary>
+            <Primary Context="why">
+                <DeskButton Emphasis="DeskEmphasis.Filled"
+                            Icon="@Icons.Material.Filled.CloudDownload"
+                            Disabled="@(Waits is not null)"
+                            aria-describedby="@why"
+                            OnClick="Begin">
+                    Pull
+                </DeskButton>
+            </Primary>
+        </KeyRow>
+    </Footer>
+</DeskSheet>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? Instance { get; set; }
+
+    /// <summary>The leagues the desk offers — every enabled sport — by key, with the name to show.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<RangeLeague> Leagues { get; set; } = [];
+
+    /// <summary>The pull itself, on the host: the range, where it has got to, and what it did.</summary>
+    [Parameter, EditorRequired]
+    public Func<RangePullRequest, IProgress<RangePullProgress>, CancellationToken, Task<RangePullSummary>> Pull { get; set; } = null!;
+
+    /// <summary>The floor for the sheet's body; IDeskSheets sets it.</summary>
+    [Parameter] public string Width { get; set; } = "480px";
+
+    /// <summary>Today, as the league counts it; a parameter so a test can stand on a known day.</summary>
+    [Parameter] public DateOnly? Today { get; set; }
+
+    private string? _league;
+    private string? _from;
+    private string? _to;
+    private bool _refresh;
+
+    protected override void OnInitialized()
+    {
+        var today = Today ?? LeagueClock.Today();
+
+        // The week just gone, as a start: the shape is visible before anything is typed.
+        _league = Leagues.FirstOrDefault()?.Key;
+        _from = Iso(today.AddDays(-7));
+        _to = Iso(today.AddDays(-1));
+    }
+
+    /// <summary>Why Pull waits, or null when the answers are a range a pull takes.</summary>
+    private string? Waits => RangePull.Check(_league, Parse(_from), Parse(_to));
+
+    private void Cancel() => Instance?.Close(DialogResult.Cancel());
+
+    private void Begin()
+    {
+        if (Waits is not null || Parse(_from) is not { } from || Parse(_to) is not { } to)
+            return;
+
+        var request = new RangePullRequest(_league!, from, to, _refresh);
+        var pull = Pull;
+
+        DeskJobRun run = async (progress, ct) => LineOps.Web.Services.IngestionDeskJobs.RangeOutcome(
+            await pull(request, new Phrases(progress), ct));
+
+        Instance?.Close(DialogResult.Ok(run));
+    }
+
+    private static string Iso(DateOnly day) => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static DateOnly? Parse(string? raw)
+        => DateOnly.TryParseExact(raw, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+            ? day
+            : null;
+
+    /// <summary>A day's progress as the phrase the busy key shows: "NFL Sep 8 · 3 of 4".</summary>
+    private sealed class Phrases(IProgress<string> key) : IProgress<RangePullProgress>
+    {
+        public void Report(RangePullProgress p)
+            => key.Report($"{p.Sport.ToUpperInvariant()} {p.Day.ToString("MMM d", CultureInfo.InvariantCulture)} · {p.Done + 1} of {p.Of}");
+    }
+}

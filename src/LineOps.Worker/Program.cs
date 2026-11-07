@@ -1,5 +1,6 @@
 using LineOps.Data;
 using LineOps.Ingestion;
+using LineOps.Ingestion.Services;
 using LineOps.Observability;
 using LineOps.Reliability;
 
@@ -24,6 +25,20 @@ builder.Services.AddLineOpsObservability(builder.Configuration);
 var job = builder.Configuration["job"];
 var untilDone = builder.Configuration.GetValue<bool>("until-done");
 
+// `--job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30 [--refresh true]` pulls a league's
+// games over those days, with each final's box score and close (RangePull), and prints what it did.
+// The arguments are checked before the host is built, so a typo costs nothing and says what to fix.
+RangePullRequest? range = null;
+
+if (job == IngestionJobs.EspnRange
+    && !RangePullRequest.TryParse(builder.Configuration["sport"], builder.Configuration["from"],
+        builder.Configuration["to"], builder.Configuration["refresh"], out range, out var rangeError))
+{
+    Console.Error.WriteLine(rangeError);
+    Console.Error.WriteLine(RangePull.Usage);
+    return 2;
+}
+
 if (job is null)
 {
     builder.Services.AddLineOpsIngestionScheduler();
@@ -38,10 +53,23 @@ await using (var scope = host.Services.CreateAsyncScope())
     await initialiser.InitialiseAsync();
 }
 
+if (range is not null)
+{
+    var summary = await host.Services.GetRequiredService<RangePull>().RunAsync(
+        range, new ConsoleProgress<RangePullProgress>(p =>
+            Console.WriteLine($"{p.Sport} {p.Day:yyyy-MM-dd} ({p.Done + 1} of {p.Of})")),
+        CancellationToken.None);
+
+    var ranged = summary.ToOutcome();
+    Console.WriteLine($"{ranged.Key}: {(ranged.Succeeded ? "succeeded" : "failed")}. {ranged.Detail}");
+
+    return ranged.Succeeded ? 0 : 1;
+}
+
 if (job is not null)
 {
-    var jobs = host.Services.GetRequiredService<LineOps.Ingestion.Services.IngestionJobs>();
-    LineOps.Ingestion.Services.JobOutcome outcome;
+    var jobs = host.Services.GetRequiredService<IngestionJobs>();
+    JobOutcome outcome;
 
     do
     {
@@ -56,3 +84,9 @@ if (job is not null)
 
 await host.RunAsync();
 return 0;
+
+/// <summary>Progress written as it is reported, so the days print in the order they are walked.</summary>
+internal sealed class ConsoleProgress<T>(Action<T> report) : IProgress<T>
+{
+    public void Report(T value) => report(value);
+}

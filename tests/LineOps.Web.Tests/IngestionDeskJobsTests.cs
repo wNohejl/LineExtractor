@@ -50,3 +50,36 @@ public class IngestionDeskJobsTests
             IngestionDeskJobs.Outcome("Prices", new JobOutcome("odds:lines", true, 40, 0, "40 prices for 3 fixtures.")));
     }
 }
+
+/// <summary>
+/// A range pull's summary as the toast the menu raises: a refusal or a failed day is a warning
+/// that says so, a range that found no game is nothing new, and anything else is done.
+/// </summary>
+public class RangeOutcomeTests
+{
+    private static RangePullSummary Summary(int games = 16, int failures = 0, string? refused = null)
+        => new("nfl", new DateOnly(2024, 9, 5), new DateOnly(2024, 9, 9), 5, 4, true, 4, 0, games, games, 700, 64, 24,
+            failures, refused);
+
+    [Fact]
+    public void A_refusal_is_a_warning_in_its_own_words()
+        => Assert.Equal(new DeskJobOutcome(DeskJobResult.Failed, "A range pull is already running on this host."),
+            IngestionDeskJobs.RangeOutcome(Summary(refused: "A range pull is already running on this host.")));
+
+    [Fact]
+    public void A_failed_day_is_a_warning()
+        => Assert.Equal(DeskJobResult.Failed, IngestionDeskJobs.RangeOutcome(Summary(failures: 1)).Result);
+
+    [Fact]
+    public void No_game_found_is_nothing_new()
+        => Assert.Equal(DeskJobResult.Nothing, IngestionDeskJobs.RangeOutcome(Summary(games: 0)).Result);
+
+    [Fact]
+    public void A_pull_that_ran_says_what_it_did()
+    {
+        var outcome = IngestionDeskJobs.RangeOutcome(Summary());
+
+        Assert.Equal(DeskJobResult.Done, outcome.Result);
+        Assert.StartsWith("NFL 2024-09-05 to 2024-09-09: 4 of 5 days with games", outcome.Summary);
+    }
+}

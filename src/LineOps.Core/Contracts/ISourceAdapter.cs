@@ -318,3 +318,22 @@ public interface IClosingLineSource
     Task<IReadOnlyList<CanonicalOdds>> FetchClosingLinesAsync(
         string sportKey, ClosingLineRequest game, CancellationToken ct);
 }
+
+/// <summary>The league days in a range that hold games, and whether a calendar said so.</summary>
+/// <param name="Days">Oldest first, each one a day the provider's scoreboard is addressed by.</param>
+/// <param name="FromCalendar">
+/// False when the provider's calendar could not be read and every day in the range stands in for
+/// it: a walk that asks an empty day costs one request, a calendar misread would cost the games.
+/// </param>
+public record GameDays(IReadOnlyList<DateOnly> Days, bool FromCalendar, FetchCost Cost);
+
+/// <summary>
+/// A stats provider that can say which days of a range have games without fetching each day — so
+/// a range pull asks for the days that have something on them. ESPN, from its season calendar.
+/// </summary>
+public interface IGameDaySource
+{
+    string Key { get; }
+
+    Task<GameDays> FetchGameDaysAsync(string sportKey, DateOnly from, DateOnly to, CancellationToken ct);
+}

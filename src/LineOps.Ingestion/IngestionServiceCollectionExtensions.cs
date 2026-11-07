@@ -63,6 +63,10 @@ public static class IngestionServiceCollectionExtensions
         // scheduler because the Pull menu and the Worker's --job run it on demand on any host.
         services.AddSingleton<GamecastBackport>();
 
+        // Singleton: a scope per day, and the one gate that keeps a host to one range at a time,
+        // whichever of the desk's sheet and the Worker's --job espn:range asked.
+        services.AddSingleton<RangePull>();
+
         // Singleton and hosted: a backfill outlives the circuit that started it, and only one
         // may run at a time. Registered here rather than with the scheduler because the web
         // app starts backfills on demand whether or not it owns the schedule.

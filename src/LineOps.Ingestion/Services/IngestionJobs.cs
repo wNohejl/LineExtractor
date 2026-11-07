@@ -100,6 +100,14 @@ public class IngestionJobs(
     /// before the feed existed — a batch a run, newest first (<see cref="GamecastBackport"/>).
     /// </summary>
     public const string EspnGamecastBackport = "espn:gamecast:backport";
+
+    /// <summary>
+    /// A league's games over a range of days the operator names, with each final's box score and
+    /// its close (<see cref="RangePull"/>): history the backfill seasons do not reach, or a range
+    /// that came in incomplete. Not in the catalogue the menu lists, since it cannot run without a
+    /// league and dates; the desk asks for them in a sheet, the Worker as <c>--sport --from --to</c>.
+    /// </summary>
+    public const string EspnRange = "espn:range";
     public const string OddsLines = "odds:lines";
     public const string Settle = "settle";
 
@@ -336,6 +344,10 @@ public class IngestionJobs(
                 EspnGamecastBackport => await RunGamecastBackportAsync(ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
+
+                // A range is nothing without its league and dates, so it is refused by name here
+                // rather than reported as an unknown job.
+                EspnRange => new JobOutcome(key, false, 0, 0, RangePull.Usage),
 
                 _ when key.StartsWith(OddsLinesPrefix, StringComparison.Ordinal)
                     => await RunOddsAsync(key[OddsLinesPrefix.Length..], ct),

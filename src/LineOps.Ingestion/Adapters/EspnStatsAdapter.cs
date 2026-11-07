@@ -15,7 +15,7 @@ namespace LineOps.Ingestion.Adapters;
 /// nothing critical depends solely on ESPN, and when it does break it produces a genuine
 /// incident to triage rather than a hypothetical one.
 /// </summary>
-public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource, IClosingLineSource, IFighterSource
+public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter> logger) : IStatsSource, IClosingLineSource, IFighterSource, IGameDaySource
 {
     public const string SourceKey = "espn";
 

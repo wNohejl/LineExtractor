@@ -1,6 +1,8 @@
 @namespace LineOps.Desk.Primitives
 @inject DeskJobRunner Runner
 @inject IDeskAccess Access
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
 
 @*
     A key that opens a menu of named runs, each saying what it costs before it is chosen.
@@ -123,14 +125,36 @@
             return;
 
         _open = false;
+
+        // A run that asks first: its sheet asks, and only a sheet answered with a run starts one.
+        // The key is busy for the run, not for the asking — nothing is spent while the sheet is open.
+        if (job.Sheet is { } sheet)
+        {
+            if (Services.GetService<IDeskSheets>() is not { } sheets)
+                return;
+
+            var handle = await sheet(sheets);
+            var result = await handle.Result;
+
+            if (result is { Canceled: false, Data: DeskJobRun run })
+                await RunWhileBusyAsync(job, () => Runner.RunAsync(job, run, new Progress<string>(OnProgress)));
+
+            return;
+        }
+
+        await RunWhileBusyAsync(job, () => Runner.RunAsync(jobs, job));
+    }
+
+    private async Task RunWhileBusyAsync(DeskJob job, Func<Task<bool>> run)
+    {
         _running = job.Key;
-        _runningLabel = job.Label;
+        _runningLabel = job.Label.TrimEnd('…');
 
         await OnBusyChanged.InvokeAsync(true);
 
         try
         {
-            if (await Runner.RunAsync(jobs, job))
+            if (await run())
                 await OnRan.InvokeAsync();
         }
         finally
@@ -139,4 +163,15 @@
             await OnBusyChanged.InvokeAsync(false);
         }
     }
+
+    /// <summary>A long run's progress, on the busy key where the press was made.</summary>
+    private void OnProgress(string phrase)
+        => _ = InvokeAsync(() =>
+        {
+            if (_running is null)
+                return;
+
+            _runningLabel = phrase;
+            StateHasChanged();
+        });
 }
