@@ -294,6 +294,12 @@ public class GamecastBackportTests(PostgresFixture fixture)
         // The score and the status are the scoreboard pass's, whatever the summary says.
         Assert.Equal(GameStatus.Final, stored.Status);
         Assert.Equal((20, 23), (stored.HomeScore, stored.AwayScore));
+
+        // The backport is plays and probabilities, never a price: a game's lines come from the
+        // closing-line refill (ESPN's stated close) or a book market, and nothing here invents
+        // one. A row in either odds table from this run would be a fabricated line.
+        Assert.Equal(0, await db.ClosingLines.CountAsync(c => c.GameId == game.Id));
+        Assert.Equal(0, await db.OddsSnapshots.CountAsync(o => o.GameId == game.Id));
     }
 
     [Fact]

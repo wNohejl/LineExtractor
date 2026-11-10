@@ -35,17 +35,22 @@ public class WagerWindowTabsTests : WagerTestContext
     {
         var cut = Render();
 
-        // An empty slip is not offered as a section, so the form stands alone with no bar; the
-        // first banking brings the bar, with the count as a badge beside the name, not part of it.
-        Assert.Empty(cut.FindAll("[role=tab]"));
+        // An empty slip keeps its tab, disabled: in the bar, in its place, and not a key until
+        // something is banked. The count is a badge beside the name, not part of it: at zero
+        // there is none, and a click on the disabled tab turns nothing.
+        var tabs = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
+        Assert.Equal(["Wager", "Slip"], tabs);
+        Assert.True(SlipTab(cut).HasAttribute("disabled"));
+        Assert.Equal("true", SlipTab(cut).GetAttribute("aria-disabled"));
+        Assert.Null(SlipTab(cut).QuerySelector(".badge"));
+
+        SlipTab(cut).Click();
+        Assert.Equal("true", cut.FindAll("[role=tab]")[0].GetAttribute("aria-selected"));
         Assert.NotEmpty(cut.FindAll(".wsteps"));
 
         Bank(cut);
 
-        var tabs = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
-        Assert.Equal(2, tabs.Count);
-        Assert.Equal("Wager", tabs[0]);
-        Assert.StartsWith("Slip", tabs[1], StringComparison.Ordinal);
+        Assert.False(SlipTab(cut).HasAttribute("disabled"));
         Assert.Equal("1", SlipTab(cut).QuerySelector(".badge")!.TextContent.Trim());
     }
 
@@ -93,9 +98,9 @@ public class WagerWindowTabsTests : WagerTestContext
     }
 
     /// <summary>
-    /// The Slip tab stays while the operator is on it, so a slip emptied there (its last card
-    /// dropped) is not pulled from under them; what it shows then offers the way back to this
-    /// window's form, not a second window, and leaving it folds the bar away.
+    /// The Slip tab stays live while the operator is on it, so a slip emptied there (its last
+    /// card dropped) is not pulled from under them; what it shows then offers the way back to
+    /// this window's form, not a second window, and once they leave the tab is disabled again.
     /// </summary>
     [Fact]
     public void An_emptied_slip_tab_offers_pick_a_bet_and_turns_back_to_the_wager_tab()
@@ -107,11 +112,12 @@ public class WagerWindowTabsTests : WagerTestContext
 
         var key = cut.WaitForElement(".empty__action button");
         Assert.Equal("Pick a bet", key.TextContent.Trim());
-        Assert.Equal(2, cut.FindAll("[role=tab]").Count);
+        Assert.False(SlipTab(cut).HasAttribute("disabled"));
 
         key.Click();
 
-        Assert.Empty(cut.FindAll("[role=tab]"));
+        Assert.Equal("true", cut.FindAll("[role=tab]")[0].GetAttribute("aria-selected"));
+        Assert.True(SlipTab(cut).HasAttribute("disabled"));
         Assert.NotEmpty(cut.FindAll(".wsteps"));
         Assert.Empty(Services.GetRequiredService<LineOps.Desk.Windowing.WindowManager>().Windows);
     }

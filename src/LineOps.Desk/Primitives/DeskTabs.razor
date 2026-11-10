@@ -15,7 +15,10 @@
     every caller's:
 
       · A section with nothing behind it is not offered. The caller states
-        availability on the tab; an empty one never renders.
+        availability on the tab; an empty one never renders. A section that is
+        empty for now is disabled instead (DeskTab.Enabled): it keeps its place in
+        the bar, dim, and cannot be picked, so the bar holds its shape as the
+        section fills and empties.
       · Fewer than two available sections is not a choice, so the bar disappears
         and its one section renders on its own.
 
@@ -43,14 +46,16 @@
             var tab = Available[index];
             var selected = index == SelectedIndex;
 
-            <button class="tabs__tab @(selected ? "tabs__tab--on" : null)"
+            <button class="tabs__tab @(selected ? "tabs__tab--on" : null) @(tab.Enabled ? null : "tabs__tab--off")"
                     type="button"
                     role="tab"
                     id="@TabId(index)"
                     aria-selected="@(selected ? "true" : "false")"
+                    aria-disabled="@(tab.Enabled ? null : "true")"
+                    disabled="@(!tab.Enabled)"
                     aria-controls="@PanelId"
                     tabindex="@(selected ? "0" : "-1")"
-                    title="@tab.Label"
+                    title="@(tab.Enabled ? tab.Label : $"{tab.Label}: nothing here yet")"
                     @ref="_refs[index]"
                     @onclick="() => SelectAsync(index)">
                 @tab.Label
@@ -135,20 +140,21 @@ else if (Available.Count == 1)
         if (available.Count == 0)
             return;
 
-        // The held value names a section that is no longer offered — say so once,
-        // so the caller's state and the bar agree about what is on screen.
-        var held = available.Any(t => EqualityComparer<TValue>.Default.Equals(t.Value, Value));
+        // The held value names a section that is no longer offered, or one that cannot be
+        // opened now — say so once, so the caller's state and the bar agree about what is on
+        // screen. The first enabled section stands in; with none enabled, the first there is.
+        var held = available.Any(t => t.Enabled && EqualityComparer<TValue>.Default.Equals(t.Value, Value));
 
         if (!held && !EqualityComparer<TValue>.Default.Equals(_corrected, Value))
         {
             _corrected = Value;
-            await ValueChanged.InvokeAsync(available[0].Value);
+            await ValueChanged.InvokeAsync((available.FirstOrDefault(t => t.Enabled) ?? available[0]).Value);
         }
     }
 
     private async Task SelectAsync(int index)
     {
-        if (index == SelectedIndex)
+        if (index == SelectedIndex || !Available[index].Enabled)
             return;
 
         await ValueChanged.InvokeAsync(Available[index].Value);
@@ -156,19 +162,32 @@ else if (Available.Count == 1)
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
+        var available = Available;
         var current = SelectedIndex;
-        var last = Available.Count - 1;
+        var last = available.Count - 1;
 
         // Wraps, unlike the gate: a tab bar is a ring you cycle, where a gate is a
-        // track with two ends you can feel.
+        // track with two ends you can feel. A disabled tab is not on the ring.
         var next = e.Key switch
         {
-            "ArrowRight" or "ArrowDown" => current == last ? 0 : current + 1,
-            "ArrowLeft" or "ArrowUp" => current == 0 ? last : current - 1,
-            "Home" => 0,
-            "End" => last,
+            "ArrowRight" or "ArrowDown" => Step(current, +1),
+            "ArrowLeft" or "ArrowUp" => Step(current, -1),
+            "Home" => Enumerable.Range(0, available.Count).FirstOrDefault(i => available[i].Enabled, current),
+            "End" => Enumerable.Range(0, available.Count).Reverse().FirstOrDefault(i => available[i].Enabled, current),
             _ => current
         };
+
+        int Step(int from, int by)
+        {
+            var at = from;
+            for (var n = 0; n <= last; n++)
+            {
+                at = at + by < 0 ? last : at + by > last ? 0 : at + by;
+                if (available[at].Enabled)
+                    return at;
+            }
+            return from;
+        }
 
         if (next == current)
             return;

@@ -1245,6 +1245,10 @@ html, body {
 
 .tabs__tab:hover { color: var(--text-primary); }
 .tabs__tab--on { color: var(--text-primary); cursor: default; }
+/* A section that is empty for now: in the bar, in its place, and plainly not a key — tertiary
+   ink (a disabled control is outside the contrast rule), no hover lift, no pointer. */
+.tabs__tab--off,
+.tabs__tab--off:hover { color: var(--text-tertiary); cursor: not-allowed; }
 .tabs__tab:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
 
 @media (prefers-reduced-motion: reduce) {

@@ -304,7 +304,7 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskStepper` | One capsule control that nudges a value by a step. | — |
 | `DeskSteps` | A vertical sequence of steps joined by a rail. | — |
 | `DeskSwitch` | A gate switch: one visible choice among two to five. | — |
-| `DeskTabs` | A window's sections, with the selection sliding between them; a `DeskTab`'s `Count` draws a badge after its name. | — |
+| `DeskTabs` | A window's sections, with the selection sliding between them; a `DeskTab`'s `Count` draws a badge after its name, and `Enabled: false` keeps an empty section in the bar, disabled, until it has something behind it. | — |
 | `DeskTextArea` | A field with room for a paragraph. | — |
 | `DeskToggle` | A setting that takes effect the moment it flips; announced as a switch. | — |
 | `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry. | `MudTooltip` |

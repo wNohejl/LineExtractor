@@ -127,6 +127,48 @@ public class DeskTabsTests : DeskTestContext
         Assert.Contains("showing odds", cut.Markup);
     }
 
+    /// <summary>
+    /// A section empty for now keeps its place but cannot be opened: disabled, named as such,
+    /// out of the arrow ring, and a click on it says nothing.
+    /// </summary>
+    [Fact]
+    public void A_section_that_is_empty_for_now_is_in_the_bar_but_disabled()
+    {
+        var picked = new List<string>();
+        var cut = Bar("odds", EventCallback.Factory.Create<string>(this, picked.Add), tabs:
+        [
+            new("odds", "Odds"),
+            new("slip", "Slip", Enabled: false),
+            new("runs", "Runs")
+        ]);
+
+        var tabs = cut.FindAll("[role=tab]");
+        Assert.Equal(["Odds", "Slip", "Runs"], tabs.Select(t => t.TextContent.Trim()));
+        Assert.True(tabs[1].HasAttribute("disabled"));
+        Assert.Equal("true", tabs[1].GetAttribute("aria-disabled"));
+        Assert.Contains("tabs__tab--off", tabs[1].ClassName);
+        Assert.Equal("Slip: nothing here yet", tabs[1].GetAttribute("title"));
+
+        tabs[1].Click();
+        Assert.Empty(picked);
+
+        cut.Find("[role=tablist]").KeyDown("ArrowRight");
+        Assert.Equal(["runs"], picked);
+    }
+
+    [Fact]
+    public void A_value_on_a_disabled_section_is_corrected_to_the_first_enabled_one()
+    {
+        var picked = new List<string>();
+        Bar("slip", EventCallback.Factory.Create<string>(this, picked.Add), tabs:
+        [
+            new("odds", "Odds"),
+            new("slip", "Slip", Enabled: false)
+        ]);
+
+        Assert.Equal(["odds"], picked);
+    }
+
     [Fact]
     public void No_available_section_renders_nothing()
     {

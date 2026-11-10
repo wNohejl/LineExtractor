@@ -513,14 +513,15 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
     private JournalTab _tab;
 
-    // An empty slip is not offered as a section: a tab that opens onto "nothing on the slip" is
-    // a click spent to learn so, and the Journal's Log entry key is the way to a wager. The tab
-    // stays while the operator is on it — the slip just logged says what it did there — and
-    // the bar folds to the Journal alone once they leave or a bet arrives.
+    // An empty slip cannot be opened: a tab that opens onto "nothing on the slip" is a click
+    // spent to learn so, and the Journal's Log entry key is the way to a wager. The tab keeps
+    // its place in the bar, disabled, so the bar does not change shape as bets come and go;
+    // it stays live while the operator is on it, so a slip just emptied by logging is not
+    // pulled from under the report of what it logged.
     private IReadOnlyList<DeskTab<JournalTab>> Tabs =>
     [
         new(JournalTab.Journal, "Journal"),
-        new(JournalTab.Slip, "Slip", Available: Slip.Items.Count > 0 || _tab == JournalTab.Slip, Count: Slip.Items.Count)
+        new(JournalTab.Slip, "Slip", Count: Slip.Items.Count, Enabled: Slip.Items.Count > 0 || _tab == JournalTab.Slip)
     ];
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };
