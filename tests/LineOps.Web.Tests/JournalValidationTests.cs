@@ -22,7 +22,7 @@ public class JournalValidationTests
     [InlineData(15)]
     [InlineData(50)]
     public void A_price_that_is_neither_american_nor_decimal_says_what_a_price_is(double price)
-        => Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+        => Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05.",
             JournalPanel.PriceError((decimal)price));
 
     [Theory]

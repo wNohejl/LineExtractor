@@ -398,9 +398,9 @@ public class JournalParlayTests : WagerTestContext
 
         Row(cut, "Book's price").QuerySelector("input")!.Change("0.5");
 
-        Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+        Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05.",
             Row(cut, "Book's price").QuerySelector(".field-err")!.TextContent.Trim());
-        Assert.Equal("The book's price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+        Assert.Equal("The book's price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05.",
             SaveReason(cut).TextContent.Trim());
         var save = Key(cut, "Save changes");
         Assert.True(save.HasAttribute("disabled"));

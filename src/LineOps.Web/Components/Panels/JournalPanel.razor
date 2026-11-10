@@ -648,7 +648,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// no price at all.
     /// </summary>
     public static string? PriceError(decimal price)
-        => OddsMath.ReadTypedPrice(price) is null ? "A price is −100 or lower, +100 or higher, or decimal odds above 1.00." : null;
+        => OddsMath.ReadTypedPrice(price) is null ? "A price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05." : null;
 
     /// <summary>The American price a typed price is read as; null where it is none, or nothing is typed.</summary>
     public static decimal? ReadPrice(decimal? typed)
@@ -749,9 +749,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         => StakeError(d.Stake) is not null ? "Needs a stake above zero."
             : string.IsNullOrWhiteSpace(d.Book) ? "Needs the book the parlay was placed at."
             : d.PriceQuoted is { } quoted && PriceError(quoted) is not null
-                ? "The book's price is −100 or lower, +100 or higher, or decimal odds above 1.00."
+                ? "The book's price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05."
             : d.Parlay.Legs.Any(l => LegPriceError(d.LegPrices.GetValueOrDefault(l.Id), l.PriceTaken) is not null)
-                ? "Each leg needs the price it was taken at: −100 or lower, +100 or higher, or decimal odds above 1.00."
+                ? "Each leg needs the price it was taken at: −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05."
             : null;
 
     // A total's two sides as the grader reads them, lower-case.

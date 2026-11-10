@@ -192,7 +192,8 @@
                            To the cent, or decimal odds, read as the American price the label says back. *@
                         <DeskField TValue="decimal?" Mono="true" type="number" step="any" Class="wfield--short"
                                    placeholder="Optional" aria-label="Parlay price"
-                                   Value="@(ParlayTypedHolds ? _parlayTyped : Slip.ParlayPriceQuoted)"
+                                   Error="@(ParlayTypedRefused ? "A price is −100 or lower, +100 or higher, or decimal odds with a fraction, such as 2.05." : null)"
+                                   Value="@(ParlayTypedHolds || ParlayTypedRefused ? _parlayTyped : Slip.ParlayPriceQuoted)"
                                    ValueChanged="@((decimal? p) => SetParlayPrice(p))" />
                         </ChildContent>
                     </FormRow>
@@ -354,6 +355,11 @@
 
     private bool ParlayTypedHolds
         => _parlayTyped is { } t && OddsMath.ReadTypedPrice(t) is { } read && read == Slip.ParlayPriceQuoted;
+
+    // A number typed that is not a price stays in the field with the reason beside it, rather
+    // than vanishing: the slip holds no quote, and the operator can see what it refused.
+    private bool ParlayTypedRefused
+        => _parlayTyped is { } t && OddsMath.ReadTypedPrice(t) is null && Slip.ParlayPriceQuoted is null;
 
     private void SetParlayPrice(decimal? typed)
     {

@@ -215,6 +215,13 @@ public class SlipPanelTests : WagerTestContext
 
         cut.Find("input[aria-label='Parlay price']").Change("241.5");
         Assert.Equal(241.5m, Slip.ParlayPriceQuoted);
+
+        // A dropped digit is refused out loud: the number stays in the field with the reason,
+        // and the slip holds no quote until a price replaces it.
+        cut.Find("input[aria-label='Parlay price']").Change("15");
+        Assert.Null(Slip.ParlayPriceQuoted);
+        Assert.Equal("15", cut.Find("input[aria-label='Parlay price']").GetAttribute("value"));
+        Assert.Contains("decimal odds with a fraction, such as 2.05", cut.Markup);
     }
 
     [Fact]
