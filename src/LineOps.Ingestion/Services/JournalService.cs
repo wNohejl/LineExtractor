@@ -539,7 +539,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     {
         EntryResult.Loss => new(EntryResult.Loss, 0m),
         EntryResult.Push or EntryResult.Void => new(parlay.Result, parlay.Stake),
-        EntryResult.Win when parlay.PriceQuoted is { } quoted => new(EntryResult.Win, Math.Round(OddsMath.PayoutOnWin(quoted, parlay.Stake), 2)),
+        EntryResult.Win when parlay.PriceQuoted is { } quoted => new(EntryResult.Win, Math.Round(OddsMath.PayoutOnWin(quoted, parlay.Stake), 2, MidpointRounding.AwayFromZero)),
         _ => new(EntryResult.Pending, null)
     };
 

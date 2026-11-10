@@ -112,6 +112,16 @@ public class InjuryReportService(
             player.InjuryStatus = Truncate(entry.Status, 32);
             player.InjuryNote = Truncate(entry.Note, 512);
             player.InjuryUpdatedAt = now;
+
+            // A player the report named and the roster matched by name alone now carries the
+            // report's id, so the next report finds him exactly and a shared name cannot lose him.
+            // A new dictionary rather than a key added to the tracked one, as the other writers of
+            // ExternalIds do, so the change is a new value whatever the column's comparer sees.
+            if (!player.ExternalIds.ContainsKey(source.Key))
+            {
+                player.ExternalIds = new Dictionary<string, string>(player.ExternalIds) { [source.Key] = entry.SourcePlayerId };
+                byId.TryAdd(entry.SourcePlayerId, player);
+            }
         }
 
         run.RequestsMade = 1;

@@ -90,6 +90,8 @@ public class InjuryReportTests(PostgresFixture fixture)
         Assert.True(players["Kyler Murray"].InjuryUpdatedAt >= before);
         Assert.Equal("Active", players["Carson Wentz"].InjuryStatus);
         Assert.Null(players["Carson Wentz"].InjuryNote);
+        // Matched by name alone, he now carries the report's id, so the next report finds him exactly.
+        Assert.Equal("2573079", players["Carson Wentz"].ExternalIds[source.Key]);
         Assert.False(players.ContainsKey("Nobody On File"));
 
         var run = await db.IngestionRuns.AsNoTracking().SingleAsync(r => r.Id == outcome.RunId);

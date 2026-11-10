@@ -18,6 +18,9 @@ public class JournalValidationTests
     [InlineData(-1)]
     [InlineData(1)]
     [InlineData(0.5)]
+    // A whole number under 100 is a digit dropped, not decimal odds.
+    [InlineData(15)]
+    [InlineData(50)]
     public void A_price_that_is_neither_american_nor_decimal_says_what_a_price_is(double price)
         => Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
             JournalPanel.PriceError((decimal)price));
@@ -29,7 +32,7 @@ public class JournalValidationTests
     [InlineData(250)]
     [InlineData(-104.35)]
     [InlineData(2.0435)]
-    [InlineData(50)]
+    [InlineData(1.5)]
     public void A_quoted_price_has_no_error(double price)
         => Assert.Null(JournalPanel.PriceError((decimal)price));
 

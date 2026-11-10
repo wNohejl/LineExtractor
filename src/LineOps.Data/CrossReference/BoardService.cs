@@ -118,8 +118,11 @@ public class BoardService(LineOpsDbContext db)
             })
             .Select(row =>
             {
-                var away = Starters.Quarterback(passing, injuries, row.Game.AwayTeamId, row.Game.StartsAt);
-                var home = Starters.Quarterback(passing, injuries, row.Game.HomeTeamId, row.Game.StartsAt);
+                // The report is about the next game, not the last: a game under way or finished
+                // was started by whoever started it, whatever the club said of him since.
+                var report = row.Game.StartsAt > now ? injuries : NoInjuries;
+                var away = Starters.Quarterback(passing, report, row.Game.AwayTeamId, row.Game.StartsAt);
+                var home = Starters.Quarterback(passing, report, row.Game.HomeTeamId, row.Game.StartsAt);
 
                 return row with
                 {
@@ -141,7 +144,7 @@ public class BoardService(LineOpsDbContext db)
     private async Task<(List<PassingLine> Lines, Dictionary<string, (string Status, string? Note)> Injuries)> PassingLinesAsync(
         List<Game> games, DateTimeOffset now, CancellationToken ct)
     {
-        var nfl =games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
+        var nfl = games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (nfl.Count == 0)
             return ([], []);
@@ -187,6 +190,9 @@ public class BoardService(LineOpsDbContext db)
     /// word, and counts as no status — a quarterback ruled out a month ago and playing since is
     /// not still out.
     /// </summary>
+    /// <summary>No report: what a game already started is read with, since it was started by whoever started it.</summary>
+    private static readonly Dictionary<string, (string Status, string? Note)> NoInjuries = new();
+
     public static Dictionary<string, (string Status, string? Note)> CurrentInjuries(
         IEnumerable<(string FullName, string? Status, string? Note, DateTimeOffset? UpdatedAt)> players,
         DateTimeOffset now)

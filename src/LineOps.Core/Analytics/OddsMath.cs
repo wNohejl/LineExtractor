@@ -202,9 +202,11 @@ public static class OddsMath
 
     /// <summary>
     /// What a typed price means. A number of 100 or more either way is an American price as typed;
-    /// one between 1.01 and 99.99 is decimal odds — what a book shows beside the American price —
-    /// and is read as the American price it stands for (2.0435 is +104.35). Anything else is not a
-    /// price and comes back null.
+    /// one between 1.01 and 99.99 with a fraction is decimal odds — what a book shows beside the
+    /// American price — and is read as the American price it stands for (2.0435 is +104.35). A
+    /// whole number under 100 is not a price: a book never prints decimal odds of exactly 15, and
+    /// "+15" is "+150" with a digit dropped, which used to be refused and still is. Anything else
+    /// is not a price and comes back null.
     /// </summary>
     public static decimal? ReadTypedPrice(decimal typed)
     {
@@ -213,7 +215,7 @@ public static class OddsMath
         if (size >= 100m)
             return Math.Round(typed, 4, MidpointRounding.AwayFromZero);
 
-        if (typed is >= 1.01m and <= 99.99m)
+        if (typed is >= 1.01m and <= 99.99m && typed != decimal.Truncate(typed))
             return FromDecimal(typed);
 
         return null;

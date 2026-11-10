@@ -241,7 +241,7 @@ public static class PerformanceAnalytics
         entry.SettledAt = result == EntryResult.Pending ? null : at ?? DateTimeOffset.UtcNow;
         entry.Payout = result switch
         {
-            EntryResult.Win => Math.Round(OddsMath.PayoutOnWin(entry.PriceTaken, entry.Stake), 2),
+            EntryResult.Win => Math.Round(OddsMath.PayoutOnWin(entry.PriceTaken, entry.Stake), 2, MidpointRounding.AwayFromZero),
             EntryResult.Push or EntryResult.Void => entry.Stake,
             EntryResult.Loss => 0m,
             _ => null

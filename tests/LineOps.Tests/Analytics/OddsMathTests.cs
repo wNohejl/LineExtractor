@@ -205,6 +205,9 @@ public class OddsMathTests
     [InlineData("0")]
     [InlineData("1")]
     [InlineData("-50")]
+    // A whole number under 100 is a dropped digit (+15 for +150), not decimal odds.
+    [InlineData("15")]
+    [InlineData("50")]
     public void ReadTypedPrice_RefusesWhatIsNotAPrice(string typed)
         => Assert.Null(OddsMath.ReadTypedPrice(decimal.Parse(typed, CultureInfo.InvariantCulture)));
 

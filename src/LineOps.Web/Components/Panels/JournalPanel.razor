@@ -1167,7 +1167,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private async Task SetParlayResultAsync(Parlay parlay, EntryResult result)
     {
         var payout = result == EntryResult.Win && parlay.PriceQuoted is { } q
-            ? Math.Round(OddsMath.PayoutOnWin(q, parlay.Stake), 2)
+            ? Math.Round(OddsMath.PayoutOnWin(q, parlay.Stake), 2, MidpointRounding.AwayFromZero)
             : (decimal?)null;
 
         try

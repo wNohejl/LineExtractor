@@ -375,17 +375,17 @@ public class JournalParlayTests : WagerTestContext
         var (cut, _) = Render(parlay);
         RowAction(cut, "Edit");
 
-        Row(cut, "Book's price").QuerySelector("input")!.Change("13");
+        Row(cut, "Book's price").QuerySelector("input")!.Change("13.5");
         LegPrice(cut, 3).Change("2.5");
 
-        Assert.Contains("Decimal 13 = +1200", cut.Markup);
+        Assert.Contains("Decimal 13.5 = +1250", cut.Markup);
         Assert.Equal("Decimal 2.5 = +150", Row(cut, "Leg 3").QuerySelector(".wbet__echo")!.TextContent.Trim());
         Assert.False(Key(cut, "Save changes").HasAttribute("disabled"));
 
         Key(cut, "Save changes").Click();
 
         var (_, edit) = Assert.Single(_journal.Writes);
-        Assert.Equal(1200m, edit.PriceQuoted);
+        Assert.Equal(1250m, edit.PriceQuoted);
         Assert.Equal(150m, edit.LegPrices![103]);
     }
 

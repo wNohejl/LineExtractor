@@ -44,7 +44,7 @@ public static class ParlayGrading
         var clean = winners.Count == legs.Count;
 
         if (clean && parlay.PriceQuoted is { } quoted && quoted != 0)
-            return new(EntryResult.Win, Math.Round(OddsMath.PayoutOnWin(quoted, parlay.Stake), 2));
+            return new(EntryResult.Win, Math.Round(OddsMath.PayoutOnWin(quoted, parlay.Stake), 2, MidpointRounding.AwayFromZero));
 
         if (winners.Any(l => l.PriceTaken == 0))
             return new(EntryResult.Pending, null,
@@ -53,7 +53,7 @@ public static class ParlayGrading
                     : "Won after a push, and a winning leg's price was not logged to reprice it.");
 
         var multiplier = OddsMath.CombinedDecimal(winners.Select(l => l.PriceTaken));
-        return new(EntryResult.Win, Math.Round(parlay.Stake * multiplier, 2));
+        return new(EntryResult.Win, Math.Round(parlay.Stake * multiplier, 2, MidpointRounding.AwayFromZero));
     }
 
     /// <summary>Applies an outcome to the parlay, stamping when it settled.</summary>

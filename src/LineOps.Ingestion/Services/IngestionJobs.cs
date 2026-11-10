@@ -871,8 +871,9 @@ public class IngestionJobs(
 
             foreach (var closer in closers)
             {
-                toAsk += await stats.ClosingLinesToAskAsync(sport, closer, now, ClosingLinesPerRun, ct);
-                askable += await stats.ClosingLinesToAskAsync(sport, closer, now, int.MaxValue, ct);
+                var canAsk = await stats.ClosingLinesToAskAsync(sport, closer, now, int.MaxValue, ct);
+                askable += canAsk;
+                toAsk += Math.Min(canAsk, ClosingLinesPerRun);
             }
         }
 
