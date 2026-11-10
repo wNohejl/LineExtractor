@@ -514,8 +514,6 @@ public class IngestionJobs(
         if (sports.Count == 0 || DateTimeOffset.UtcNow - _injuriesSyncedAt < InjuriesInterval)
             return;
 
-        _injuriesSyncedAt = DateTimeOffset.UtcNow;
-
         foreach (var sport in sports)
         {
             try
@@ -526,6 +524,11 @@ public class IngestionJobs(
 
                 logger.LogInformation("Injury report {Sport}: {Status}, {Rows} players written",
                     sport, outcome.Status, outcome.RowsIngested);
+
+                // The half hour starts from a report that was read, not from an attempt: a press
+                // after a Failed run row asks ESPN again rather than waiting it out.
+                if (outcome.Status != RunStatus.Failed)
+                    _injuriesSyncedAt = DateTimeOffset.UtcNow;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

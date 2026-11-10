@@ -130,7 +130,7 @@ new, `IngestionJobs.cs` region `SyncSpineAsync` only, `Starters.cs`, `BoardServi
   fields (price, book's parlay price) and the slip's closing-card field.
 - Money shows cents when it has them: `$521.74 · $1,021.74 back with the stake`; whole dollars
   stay `$520`.
-- Tests: 500 at +104.35 → 1,021.74; decimal-odds entry; a journal row round-trips 104.35.
+- Tests: 500 at decimal 2.04348 → 1,021.74 and at +104.35 → 1,021.75; decimal-odds entry; a journal row round-trips 104.348.
 
 ## Checklist (verifier)
 

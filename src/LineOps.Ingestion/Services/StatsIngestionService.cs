@@ -434,11 +434,10 @@ public class StatsIngestionService(
 
         var lines = new List<CanonicalOdds>();
         var gameMap = new Dictionary<string, Game>();
-        var unanswered = new List<Game>();
+        var asked = new List<Game>();
         var requests = 0;
         var answered = 0;
         var failures = 0;
-        var market = OwedMarket(sportKey);
 
         // A fight's odds live under its card's event, not its own id (ADR 0021).
         var owedIds = owed.Select(g => g.Id).ToList();
@@ -463,13 +462,7 @@ public class StatsIngestionService(
 
                 gameMap[eventId] = game;
                 lines.AddRange(found);
-
-                // Answered means the close the game is owed: a reply with a spread and no total
-                // leaves a game owed, and would be asked again on every press.
-                if (found.Any(l => l.Market == market))
-                    answered++;
-                else
-                    unanswered.Add(game);
+                asked.Add(game);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -485,8 +478,13 @@ public class StatsIngestionService(
 
         try
         {
-            written = await PersistClosingLinesAsync(sourceRow, lines, gameMap, ct);
-            setAside = await SetAsideAsync(sourceRow.Id, unanswered, at, ct);
+            // Answered means the close the game is owed was written: a reply with a spread and no
+            // total, or a moneyline the writer could not place on the bout, leaves the game owed,
+            // and a game left owed is set aside so the next press does not ask it again.
+            var persisted = await PersistClosingLinesWithClosedAsync(sourceRow, lines, gameMap, ct);
+            written = persisted.Written;
+            answered = asked.Count(g => persisted.Closed.Contains(g.Id));
+            setAside = await SetAsideAsync(sourceRow.Id, asked.Where(g => !persisted.Closed.Contains(g.Id)).ToList(), at, ct);
 
             run.Status = failures == 0 || written > 0 ? RunStatus.Success : RunStatus.Failed;
             run.Error = failures > 0 ? $"{failures} of {requests} games had no answer from the provider." : null;
@@ -853,9 +851,22 @@ public class StatsIngestionService(
         IReadOnlyList<CanonicalOdds> lines,
         Dictionary<string, Game> gameMap,
         CancellationToken ct)
+        => (await PersistClosingLinesWithClosedAsync(sourceRow, lines, gameMap, ct)).Written;
+
+    /// <summary>
+    /// As <see cref="PersistClosingLinesAsync"/>, and which games it actually gave the close they
+    /// were owed. The refill decides "answered" from this, not from the reply: a moneyline ESPN
+    /// states for a bout whose fighters it names differently is a reply the writer drops, and a
+    /// game counted answered on the reply alone was never set aside and was asked again every press.
+    /// </summary>
+    private async Task<(int Written, HashSet<int> Closed)> PersistClosingLinesWithClosedAsync(
+        Source sourceRow,
+        IReadOnlyList<CanonicalOdds> lines,
+        Dictionary<string, Game> gameMap,
+        CancellationToken ct)
     {
         if (lines.Count == 0)
-            return 0;
+            return (0, []);
 
         var gameIds = gameMap.Values.Select(g => g.Id).ToHashSet();
 
@@ -925,7 +936,7 @@ public class StatsIngestionService(
         if (written > 0)
             logger.LogInformation("{Source}: {Count} closing lines recorded", sourceRow.Key, written);
 
-        return written;
+        return (written, closed);
     }
 
     /// <summary>
