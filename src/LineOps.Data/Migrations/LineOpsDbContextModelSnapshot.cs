@@ -257,6 +257,32 @@ namespace LineOps.Data.Migrations
                     b.ToTable("ClosingLines");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.ClosingLineMiss", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("LastTriedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("RetryAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("GameId", "SourceId");
+
+                    b.HasIndex("RetryAt");
+
+                    b.HasIndex("SourceId");
+
+                    b.ToTable("ClosingLineMisses");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.FighterProfile", b =>
                 {
                     b.Property<int>("TeamId")
@@ -714,6 +740,9 @@ namespace LineOps.Data.Migrations
                     b.Property<int>("CreditsSpent")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Detail")
+                        .HasColumnType("text");
+
                     b.Property<string>("Error")
                         .HasColumnType("text");
 
@@ -829,8 +858,9 @@ namespace LineOps.Data.Migrations
                     b.Property<int?>("PlayerId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("PriceTaken")
-                        .HasColumnType("integer");
+                    b.Property<decimal>("PriceTaken")
+                        .HasPrecision(11, 4)
+                        .HasColumnType("numeric(11,4)");
 
                     b.Property<string>("Result")
                         .IsRequired()
@@ -972,8 +1002,9 @@ namespace LineOps.Data.Migrations
                     b.Property<DateTimeOffset>("PlacedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int?>("PriceQuoted")
-                        .HasColumnType("integer");
+                    b.Property<decimal?>("PriceQuoted")
+                        .HasPrecision(11, 4)
+                        .HasColumnType("numeric(11,4)");
 
                     b.Property<string>("Result")
                         .IsRequired()
@@ -1010,6 +1041,17 @@ namespace LineOps.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
+
+                    b.Property<string>("InjuryNote")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("InjuryStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("InjuryUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Position")
                         .HasMaxLength(32)
@@ -1298,6 +1340,25 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Game");
 
                     b.Navigation("Player");
+
+                    b.Navigation("Source");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.ClosingLineMiss", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
 
                     b.Navigation("Source");
                 });

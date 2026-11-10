@@ -558,6 +558,17 @@ else
     /// <summary>"+$1,240", "−$20", "$0".</summary>
     public static string Signed(decimal amount) => amount.ToString("+$#,0;−$#,0;$0");
 
+    /// <summary>
+    /// One bet's money, signed as <see cref="Signed"/> is, with its cents when it has them:
+    /// "+$521.75", "−$20", "+$500". A bet at +104.35 nets cents, and the Journal's row says what
+    /// the book paid; the summaries here stay whole dollars.
+    /// </summary>
+    public static string SignedToTheCent(decimal amount)
+    {
+        var cents = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+        return cents == decimal.Truncate(cents) ? Signed(cents) : cents.ToString("+$#,0.00;−$#,0.00;$0");
+    }
+
     /// <summary>"$1,240", "−$20", "$0".</summary>
     public static string Money(decimal amount) => amount.ToString("$#,0;−$#,0;$0");
 

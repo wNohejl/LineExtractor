@@ -40,6 +40,13 @@ public class IngestionRun
     /// </summary>
     public int? ProviderCreditsRemaining { get; set; }
 
+    /// <summary>
+    /// What the run did, in a sentence the Runs window can show: games asked, games answered, what
+    /// was set aside and until when. A run that wrote nothing is not a run that did nothing, and
+    /// the row is where that is said. Null for runs that have nothing to add to their counts.
+    /// </summary>
+    public string? Detail { get; set; }
+
     public string? Error { get; set; }
 
     public TimeSpan? Duration => FinishedAt is null ? null : FinishedAt - StartedAt;

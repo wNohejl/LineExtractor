@@ -247,7 +247,10 @@ else
 
             The matchup is the two clubs side by side, away then home, each a chip of its mark
             and nickname with its starter in small type beneath: the probable pitcher MLB names,
-            or the quarterback an NFL club started its last game with. Stacked as two plain
+            or the quarterback an NFL club started its last game with — unless the injury report
+            has him out, when it is the passer who started without him, and the starter's tooltip
+            carries the injury ("Kyler Murray is out; Carson Wentz started the club's last game
+            without him"), or a dash when nobody has thrown in his place. Stacked as two plain
             lines over a "Gasser v Peralta" line and a stale-price warning, the clubs, their
             starters and the gap all read as one grey block; as chips, each club is an object and
             its starter sits under the club it pitches or throws for. The full names stay on the
@@ -999,12 +1002,20 @@ else
                 : $"Probable starting pitcher: {pitcher}");
         }
 
-        if (row.AwayQuarterback is not null || row.HomeQuarterback is not null)
+        if (row.AwayQuarterback is not null || row.HomeQuarterback is not null
+            || row.AwayQuarterbackBasis is not null || row.HomeQuarterbackBasis is not null)
         {
             var quarterback = home ? row.HomeQuarterback : row.AwayQuarterback;
-            return ("QB", quarterback is null ? "—" : Surname(quarterback), quarterback is null
-                ? "No passing on record for this club"
-                : $"Started at quarterback in the club's last game: {quarterback}");
+            var basis = home ? row.HomeQuarterbackBasis : row.AwayQuarterbackBasis;
+
+            // A starter ruled out says so: the tooltip is the injury and who stands in.
+            var title = basis is not null && basis != LineOps.Data.CrossReference.Starters.LastGameBasis
+                ? basis
+                : quarterback is null
+                    ? "No passing on record for this club"
+                    : $"{LineOps.Data.CrossReference.Starters.LastGameBasis}: {quarterback}";
+
+            return ("QB", quarterback is null ? "—" : Surname(quarterback), title);
         }
 
         return null;

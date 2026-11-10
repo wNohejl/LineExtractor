@@ -271,6 +271,10 @@ public class GamecastBackport(
 
         var stillOwed = (await EligibleAsync(db, source.Key, now, int.MaxValue, ct)).Count;
 
+        var detail = $"{games} of {picked.Count} games backported, {rows:N0} rows in {requests} requests"
+                     + (misses > 0 ? $", {misses} without plays" : "")
+                     + (stillOwed > 0 ? $"; {stillOwed:N0} still owed." : "; none left owed.");
+
         // A game with no play-by-play is history ESPN never kept, not a failure; a request that threw is.
         run.RequestsMade = requests;
         run.RowsIngested = rows;
@@ -279,11 +283,8 @@ public class GamecastBackport(
             : games > 0 ? RunStatus.Partial : RunStatus.Failed;
         run.Error = misses == 0 ? null
             : $"{misses} of {picked.Count} games without plays ({failures} failed)" + (lastError is null ? "." : $"; last: {lastError}");
+        run.Detail = detail;
         await db.SaveChangesAsync(ct);
-
-        var detail = $"{games} of {picked.Count} games backported, {rows:N0} rows in {requests} requests"
-                     + (misses > 0 ? $", {misses} without plays" : "")
-                     + (stillOwed > 0 ? $"; {stillOwed:N0} still owed." : "; none left owed.");
 
         logger.LogInformation("Gamecast backport: {Detail}", detail);
 

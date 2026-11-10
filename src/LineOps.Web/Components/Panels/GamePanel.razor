@@ -233,7 +233,7 @@ else
                     {
                         <span class="num">@Price(bet.PriceTaken)</span>
                     }
-                    <span class="dim">@(bet.IsParlayLeg ? $"leg of a {bet.Parlay?.Stake:C0} parlay" : bet.Stake.ToString("C0"))</span>
+                    <span class="dim">@(bet.IsParlayLeg ? $"leg of a {(bet.Parlay is { } legOf ? OddsMath.Money(legOf.Stake) : "")} parlay" : OddsMath.Money(bet.Stake))</span>
                     @if (clv is { } c)
                     {
                         <span class="@(c.BeatClose ? "up" : "down")">
@@ -610,7 +610,7 @@ else
         var parts = new List<string>();
 
         if (pending.Count > 0)
-            parts.Add($"{pending.Count} pending · {pending.Sum(b => b.IsParlayLeg ? 0 : b.Stake):C0} at risk");
+            parts.Add($"{pending.Count} pending · {OddsMath.Money(pending.Sum(b => b.IsParlayLeg ? 0 : b.Stake))} at risk");
 
         foreach (var (result, word) in new[] { (EntryResult.Win, "won"), (EntryResult.Loss, "lost"), (EntryResult.Push, "pushed"), (EntryResult.Void, "void") })
         {

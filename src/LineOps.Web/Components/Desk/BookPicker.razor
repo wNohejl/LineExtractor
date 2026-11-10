@@ -106,5 +106,5 @@
         return age < TimeSpan.FromMinutes(1) ? "Captured just now" : $"Captured {Checks.Span(age)} ago";
     }
 
-    private static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
+    private static string Price(decimal american) => OddsMath.FormatPrice(american);
 }

@@ -2,6 +2,7 @@ using Bunit;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Desk.Windowing;
+using LineOps.Web.Components;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
 using LineOps.Web.Windowing;
@@ -332,6 +333,107 @@ public class JournalPanelTests : WagerTestContext
         Assert.Contains("All books", overflow);
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Sport<", overflow);
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Book<", overflow);
+    }
+
+    /// <summary>
+    /// The list is ordered by the game, newest first, not by when the bet was placed: a bet
+    /// placed on Monday for Sunday's game sits above one placed an hour ago on tonight's. The
+    /// column says so — Game, its start, with the placement beneath it.
+    /// </summary>
+    [Fact]
+    public void The_first_row_is_the_later_game_whenever_it_was_placed()
+    {
+        var tonight = Pending();
+        var sunday = Pending();
+        sunday.Id = 8;
+        sunday.Game = new Game
+        {
+            Id = 22,
+            Sport = new Sport { Key = "nfl", Name = "NFL" },
+            AwayTeam = new Team { Name = "Dallas Cowboys", Abbrev = "DAL" },
+            HomeTeam = new Team { Name = "Philadelphia Eagles", Abbrev = "PHI" },
+            StartsAt = DateTimeOffset.UtcNow.AddDays(4),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
+        };
+        sunday.GameId = sunday.Game.Id;
+        sunday.Outcome = "Philadelphia Eagles";
+        sunday.PlacedAt = DateTimeOffset.UtcNow.AddDays(-2);
+        _journal.Entries.AddRange([tonight, sunday]);   // read in placement order
+
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+
+        Assert.Equal("Game", cut.FindAll("thead th").First().TextContent.Trim());
+        var first = cut.FindAll("tbody tr").First().QuerySelector("td")!;
+        Assert.Contains(DisplayTime.Stamp(sunday.Game.StartsAt), first.TextContent);
+        Assert.Equal($"placed {DisplayTime.Stamp(sunday.PlacedAt)}", first.QuerySelector(".dim")!.TextContent.Trim());
+        Assert.Contains("Philadelphia Eagles", cut.FindAll("tbody tr").First().TextContent);
+    }
+
+    /// <summary>
+    /// A bet logged against no tracked game has no start to show. Its Game cell used to fall back
+    /// to the placement and print the same time on both lines; it says "No game", dim, and the
+    /// placement once. Its stake is kept to the cent.
+    /// </summary>
+    [Fact]
+    public void An_untracked_bet_says_no_game_and_its_placement_once()
+    {
+        using var dollars = new UsDollars();
+        var untracked = Pending();
+        untracked.GameId = null;
+        untracked.Game = null;
+        untracked.Market = "other";
+        untracked.FreeTextMarket = "Player X over 1.5 receiving TDs";
+        untracked.Stake = 12.5m;
+        _journal.Entries.Add(untracked);
+
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+
+        var row = cut.FindAll("tbody tr").First();
+        var cell = row.QuerySelector("td .journal-when")!;
+        var lines = cell.QuerySelectorAll(".dim").Select(d => d.TextContent.Trim()).ToList();
+        var placed = DisplayTime.Stamp(untracked.PlacedAt);
+
+        Assert.Equal(["No game", $"placed {placed}"], lines);
+        Assert.Equal(1, cell.TextContent.Split(placed).Length - 1);
+
+        var headers = cut.FindAll("table").First().QuerySelectorAll("thead th").Select(h => h.TextContent.Trim()).ToList();
+        Assert.Equal("$12.50", row.QuerySelectorAll("td")[headers.IndexOf("Stake")].TextContent.Trim());
+    }
+
+    /// <summary>
+    /// The edit form's price reads decimal odds as the wager window and the slip do: 2.0435 is
+    /// +104.35, said back beside the label, and logged as the American price.
+    /// </summary>
+    [Fact]
+    public void A_decimal_price_typed_in_the_edit_form_is_said_back_and_logged_as_american()
+    {
+        _journal.Entries.Add(Pending());
+
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+        JournalParlayTests.RowAction(cut, "Edit");
+
+        AngleSharp.Dom.IElement PriceRow()
+            => cut.FindAll(".pform .wgroup__row--form")
+                .First(r => r.QuerySelector(".wgroup__label")!.TextContent.Trim().StartsWith("Price"));
+
+        PriceRow().QuerySelector("input")!.Change("2.0435");
+
+        Assert.Equal("Decimal 2.0435 = +104.35", PriceRow().QuerySelector(".wbet__echo")!.TextContent.Trim());
+        Assert.Null(PriceRow().QuerySelector(".field-err"));
+
+        Save(cut).Click();
+
+        var (id, draft) = Assert.Single(_journal.EntryWrites);
+        Assert.Equal(7, id);
+        Assert.Equal(104.35m, draft.PriceTaken);
+        Assert.True(draft.ManualPrice);
     }
 
     /// <summary>Settle and Build parlay fold last; Log entry, the window's own key, never leaves the row.</summary>

@@ -83,9 +83,12 @@ public static class DeskServiceCollectionExtensions
     {
         services.AddMudServices(options =>
         {
-            // Toasts land bottom-right, clear of the side rail and of the pulse strip in the header.
-            // Newest on top so a burst reads in the order it happened from the corner inwards.
-            options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.BottomRight;
+            // Toasts land top-right, just under the header and to the right of the windows — where
+            // the eye already goes for the header's own notices, and across the desk from the side
+            // rail. mud-bridge.css sets the offset below the header; the pulse strips are on the
+            // windows' title bars, not the header, so nothing loud is covered. Newest on top, so a
+            // burst reads from the header downwards in the order it happened.
+            options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.TopRight;
             options.SnackbarConfiguration.NewestOnTop = true;
             // Duplicates are allowed, against MudBlazor's default. A desk notice is derived from an
             // outcome, so pressing the same button twice on an unchanged state produces the same

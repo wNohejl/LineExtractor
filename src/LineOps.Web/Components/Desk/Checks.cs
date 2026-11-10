@@ -65,7 +65,7 @@ public static class Checks
             : " against the fair price";
 
         var expected = stake > 0
-            ? $" · {Signed((decimal)ev * stake)} expected on {stake.ToString("C0", CultureInfo.CurrentCulture)}"
+            ? $" · {Signed((decimal)ev * stake)} expected on {OddsMath.Money(stake)}"
             : "";
 
         return ev > 0
@@ -128,7 +128,7 @@ public static class Checks
         var what = SelectionText.Of(prior.Market, prior.Outcome, prior.LineTaken);
 
         return new Check(DeskState.Warning,
-            $"Already in the journal: {prior.Stake.ToString("C0", CultureInfo.CurrentCulture)} on {what} at "
+            $"Already in the journal: {OddsMath.Money(prior.Stake)} on {what} at "
             + $"{OddsMath.FormatPrice(prior.PriceTaken)} ({prior.Book}), {DisplayTime.Stamp(prior.PlacedAt)}. "
             + "Logging again records a second bet.",
             actions.OpenJournal is not null ? OpenJournal : null, actions.OpenJournal);
@@ -139,7 +139,7 @@ public static class Checks
     /// place that already shows the side, such as a slip card.
     /// </summary>
     public static string Prior(JournalEntry prior)
-        => $"{prior.Stake.ToString("C0", CultureInfo.CurrentCulture)} at {OddsMath.FormatPrice(prior.PriceTaken)} "
+        => $"{OddsMath.Money(prior.Stake)} at {OddsMath.FormatPrice(prior.PriceTaken)} "
            + $"({prior.Book}), {DisplayTime.Stamp(prior.PlacedAt)}";
 
     /// <summary>"12 min", "2h 14m" — whole minutes, so a threshold reads the same on screen as in a test.</summary>

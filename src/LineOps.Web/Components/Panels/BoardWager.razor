@@ -1,3 +1,4 @@
+@using System.Globalization
 @using LineOps.Core.Analytics
 @using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
@@ -48,7 +49,8 @@
           Value="_tab" ValueChanged="@((WagerTab t) => _tab = t)">
 @if (context == WagerTab.Slip)
 {
-    <SlipPanel />
+    @* An empty slip here offers the way back to this window's own form, not a second window. *@
+    <SlipPanel OnPickBet="@(EventCallback.Factory.Create(this, PickBet))" />
 }
 else if (_loading)
 {
@@ -138,49 +140,36 @@ else
        until the next one, so nothing about it said a thing had been added. The Slip tab's
        count is what the slip holds. *@
 
-    @* Logged: the wizard ends on what it did, as an assistant ends on its last page, and offers
-       the next thing to do rather than leaving the form filled in with its key gone dim. It
-       used to clear only the stake and keep the side, so the next bet started from the last
-       one's choices — the operator had to undo them by hand or start over from the Journal.
-       New bet is the one Filled key: the game stays, everything chosen for the logged bet
-       goes, and step 1 opens. Same bet again is the old behaviour, kept for a second stake on
-       the same side; View in journal opens the record. *@
+    @* Logged: the wizard starts the next bet by itself — the game stays, everything chosen for
+       the logged bet goes, and step 1 opens — and what it did is one line above the steps. The
+       receipt used to stand in the steps' place until New bet was pressed, so a second bet on
+       the same game was a press nobody wanted to make. The line offers Same bet again (the
+       logged side and book, a fresh stake) and View in journal; picking a side is the next bet
+       and the line goes. It is a status line, as the closing note under the card is: a tag for
+       the state, the bet in one sentence, two plain keys. *@
     @if (_receipt is { } receipt)
     {
-        <section class="wcard wreceipt" role="status" aria-labelledby="wreceipt-title">
-            <span class="wreceipt__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.CheckCircle" /></span>
-            <div class="wreceipt__main">
-                <h3 id="wreceipt-title" class="wreceipt__title">Logged in the journal</h3>
-                <p class="wreceipt__bet">
-                    <strong class="num">@receipt.Stake.ToString("C0")</strong> on @receipt.Bet at
+        <div class="wstatus wlogged" role="status">
+            <span class="wstatus__text">
+                <Tag State="DeskState.Positive">Logged</Tag>
+                <span class="wreceipt__bet">
+                    <strong class="num">@OddsMath.Money(receipt.Stake)</strong> on @receipt.Bet at
                     <span class="num">@Price(receipt.PriceAmerican)</span> · @receipt.Book@(receipt.Manual ? ", your own price" : "")
-                </p>
-                <p class="wreceipt__foot num">
-                    @if (receipt.Profit is { } profit && receipt.Payout is { } payout)
-                    {
-                        <text>To win @profit.ToString("C0") · @payout.ToString("C0") back if it wins. </text>
-                    }
-                    Closing-line value resolves once the game starts and the close is recorded.
-                </p>
-            </div>
-            <div class="wreceipt__keys">
-                <DeskButton Icon="@Icons.Material.Filled.MenuBook" OnClick="OpenJournalAsync"
-                            Title="Open the Journal, where this bet is now recorded">
-                    View in journal
-                </DeskButton>
-                <DeskButton Icon="@Icons.Material.Filled.ContentCopy" OnClick="SameBetAgain"
+                </span>
+            </span>
+            <span class="wlogged__keys">
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ContentCopy" OnClick="SameBetAgainAsync"
                             Title="Keep this side and book, and take another stake">
                     Same bet again
                 </DeskButton>
-                <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Add" OnClick="NewBetAsync"
-                            Title="Clear the bet and start another on this game">
-                    New bet
+                <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.MenuBook" OnClick="OpenJournalAsync"
+                            Title="Open the Journal, where this bet is now recorded">
+                    View in journal
                 </DeskButton>
-            </div>
-        </section>
+            </span>
+        </div>
     }
-    else
-    {
+
     @* One main card holds the stepper, as the package wizard draws it: a bordered surface with
        the rail inside; the review step becomes its own card beside the form when the window is
        wide enough for two columns (CSS, .wcard and .wstep--review). *@
@@ -262,10 +251,12 @@ else
                             @* Typed: a row per field, label leading, fields one width (HIG: fields in
                                a group share widths and stack). *@
                             <FormRow Class="wbet__price wager-typed">
-                                <LabelContent>Price<span class="wbet__echo">@(_noGame ? null : TypedEcho)</span></LabelContent>
+                                <LabelContent>Price<span class="wbet__echo">@PriceEcho</span></LabelContent>
                                 <ChildContent>
                                 <div class="wager-typed__cell">
-                                    <DeskField TValue="int?" Mono="true" type="number" Immediate="true"
+                                    @* To the cent (+104.35), or decimal odds (2.0435), which the
+                                       echo above says back as the American price it reads. *@
+                                    <DeskField TValue="decimal?" Mono="true" type="number" step="any" Immediate="true"
                                                aria-label="Price" placeholder="-110" Class="wfield--short"
                                                Value="_typedPrice" ValueChanged="SetTypedPrice" />
                                     @if (Side?.Offer is not null)
@@ -385,7 +376,7 @@ else
                   OnOpen="() => OpenStep(StakeStep)"
                   Waiting="@(HasSide ? "Finish your bet's price first." : "Pick your bet first.")"
                   Hint="How much you put down. What it returns if it wins updates as you type.">
-            <Summary>@_stake.ToString("C0")</Summary>
+            <Summary>@OddsMath.Money(_stake)</Summary>
             <ChildContent>
                 @* Two rows of the same grouped form: the amount with its quick values beside
                    the field (HIG: common values sit beside the field), and the note; what the
@@ -407,8 +398,8 @@ else
                     @if (_offer is { PriceAmerican: not 0 } stakedAt && _stake > 0)
                     {
                         <p class="wgroup__foot wstake__win num">
-                            To win <strong>@OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake).ToString("C0")</strong>
-                            · @OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake).ToString("C0") back with the stake
+                            To win <strong>@OddsMath.Money(OddsMath.ProfitOnWin(stakedAt.PriceAmerican, _stake))</strong>
+                            · @OddsMath.Money(OddsMath.PayoutOnWin(stakedAt.PriceAmerican, _stake)) back with the stake
                         </p>
                     }
                 </section>
@@ -438,12 +429,22 @@ else
             else if (_offer is { } logging && _stake > 0)
             {
                 <p class="wreview">
-                    You are logging <strong>@_stake.ToString("C0")</strong> on
+                    You are logging <strong>@OddsMath.Money(_stake)</strong> on
                     <strong>@logging.Label at @Price(logging.PriceAmerican)</strong> with @logging.Book@(logging.Manual ? ", your own price" : "").
                     @if (logging.PriceAmerican != 0)
                     {
-                        <text>It returns <strong>@OddsMath.PayoutOnWin(logging.PriceAmerican, _stake).ToString("C0")</strong> if it wins.</text>
+                        <text>It returns <strong>@OddsMath.Money(OddsMath.PayoutOnWin(logging.PriceAmerican, _stake))</strong> if it wins.</text>
                     }
+                </p>
+            }
+
+            @if (OnSlip)
+            {
+                @* Banked, and the window left as it was: the tag says this exact bet is on the
+                   slip, and goes once the side, the price or the stake changes (or the card
+                   leaves the slip). Banking again banks a second card, which the slip names. *@
+                <p class="wreview wbanked">
+                    <Tag>On the slip</Tag> Adding it again banks a second card; Log takes it off the slip and into the journal.
                 </p>
             }
 
@@ -466,9 +467,10 @@ else
                    cannot be used yet: Add to slip appears with a stake, Add as leg with a price
                    that can be taken. The Filled key stays, disabled, because its reason is the
                    next instruction; a closing line's reason is the status note under the card,
-                   said once. The count on the Slip tab is the acknowledgment (the key's badge
-                   leaves with the key once the stake clears); the slip does not open (spec
-                   §11.3) — it is a tab here, a link away. A bet on no game has no slip card. *@
+                   said once. The count on the Slip tab and the review's On the slip tag are
+                   the acknowledgment, and the key stays: the bet stays on screen after it is
+                   banked. The slip does not open (spec §11.3) — it is a tab here, a link away.
+                   A bet on no game has no slip card. *@
                 <KeyRow Reason="@KeyReason">
                     <Secondary>
                         @if (!BuildParlay)
@@ -513,7 +515,7 @@ else
                                         Title="Record this bet in the Journal"
                                         aria-describedby="@why"
                                         OnClick="PlaceAsync">
-                                Log @(_stake > 0 ? _stake.ToString("C0") : "wager")
+                                Log @(_stake > 0 ? OddsMath.Money(_stake) : "wager")
                             </DeskButton>
                         }
                     </Primary>
@@ -522,7 +524,6 @@ else
         </DeskStep>
     </DeskSteps>
     </div>
-    }
 
     @if (_receipt is null && _offer is { IsClosing: true })
     {
@@ -592,7 +593,12 @@ else
 
     [Parameter] public string? Note { get; set; }
 
-    [Parameter] public int? PriceAmerican { get; set; }
+    /// <summary>
+    /// A typed price the copy types again, as invariant text ("104.35"): a price is taken to the
+    /// cent, and a decimal parameter cannot be set from what a saved desk restores. A desk saved
+    /// while the price was whole hands an int; <see cref="WagerPrefill.Read"/> reads either.
+    /// </summary>
+    [Parameter] public object? PriceAmerican { get; set; }
 
     [Parameter] public object? TakenLine { get; set; }
 
@@ -645,7 +651,7 @@ else
     private IReadOnlyList<string> _knownBooks = [];
 
     private bool _manual;
-    private int? _typedPrice;
+    private decimal? _typedPrice;
     private decimal? _typedLine;
     private string? _typedBook;
 
@@ -658,14 +664,35 @@ else
     private string? _note;
     private string? _error;
     private string? _logged;
-    // The last note was a banking, so it offers the slip tab.
-    private bool _banked;
 
-    // The bet just logged, shown in place of the steps until the operator picks what is next.
+    // What was last banked from this window, and the card it became: the review's "On the slip"
+    // tag stands while the bet on screen is still exactly that one and the card is still there.
+    private Banking? _banked;
+
+    private sealed record Banking(Guid Card, BetShape Bet);
+
+    /// <summary>What makes two bets the same bet for the slip's tag: the side, the price and where, and the stake.</summary>
+    private sealed record BetShape(string Market, string Outcome, decimal? Line, string Book, decimal PriceAmerican,
+                                   bool Manual, decimal Stake);
+
+    private BetShape? ShapeNow
+        => _offer is { } o ? new BetShape(o.Market, o.Outcome, o.Line, o.Book, o.PriceAmerican, o.Manual, _stake) : null;
+
+    private bool OnSlip
+        => _banked is { } banked && banked.Bet == ShapeNow && Slip.Items.Any(i => i.Id == banked.Card);
+
+    // The bet just logged, said in one line above the steps until the next bet is begun.
     private LoggedWager? _receipt;
 
-    private sealed record LoggedWager(string Bet, int PriceAmerican, string Book, decimal Stake,
-                                      decimal? Profit, decimal? Payout, bool Manual);
+    private sealed record LoggedWager(string Bet, decimal PriceAmerican, string Book, decimal Stake, bool Manual,
+                                      BetChoice Choice);
+
+    /// <summary>
+    /// What the operator chose for a bet, short of its stake: what Same bet again puts back after
+    /// the wizard has reset itself for the next one.
+    /// </summary>
+    private sealed record BetChoice(string? Market, string? Outcome, string? Book, bool Manual, decimal? TypedPrice,
+                                    decimal? TypedLine, string? TypedBook, string? Described, bool SideChosen);
 
     // What the door named, last time it was applied. A re-render that hands the same door back
     // leaves the window as the operator left it, so New bet is not undone by the window landing
@@ -799,7 +826,7 @@ else
             // The no-game form, filled in: the description, the price and the book it was at.
             _noGame = true;
             _described = Described;
-            _typedPrice = PriceAmerican;
+            _typedPrice = WagerPrefill.Read(PriceAmerican);
             _typedBook = Book;
             Reprice();
             return;
@@ -813,11 +840,12 @@ else
         var landed = SelectionChoice.Land(Row, Market, Outcome, null);
         _market = landed?.Market;
         _outcome = landed?.Outcome;
-        _manual = PriceAmerican is not null;
+        var typedPrice = WagerPrefill.Read(PriceAmerican);
+        _manual = typedPrice is not null;
 
         if (_manual)
         {
-            _typedPrice = PriceAmerican;
+            _typedPrice = typedPrice;
             _typedLine = WagerPrefill.Read(TakenLine ?? Saved?.GetValueOrDefault("Line"));
             _typedBook = Book;
         }
@@ -883,7 +911,7 @@ else
             var outcome = _noGame ? string.Empty : side?.Outcome;
 
             _offer = market is not null && outcome is not null
-                     && _typedPrice is { } price && Math.Abs(price) >= 100
+                     && TypedAmerican is { } price && Math.Abs(price) >= 100
                      && !string.IsNullOrWhiteSpace(_typedBook)
                      && (!_noGame || !string.IsNullOrWhiteSpace(_described))
                 ? WagerOffer.Typed(market, outcome, HasLine ? _typedLine : null, _typedBook.Trim().ToLowerInvariant(),
@@ -993,11 +1021,15 @@ else
     private void SetDescribed(string? text)
     {
         _described = text;
+        // Describing the next bet is beginning it: the last one's line has been read.
+        _receipt = null;
         Reprice();
     }
 
     private async Task ChooseAsync(SelectionChoice choice)
     {
+        // A side picked is the next bet begun: the logged one's line goes.
+        _receipt = null;
         _market = choice.Market;
         _outcome = choice.Outcome;
         _moved = null;
@@ -1098,7 +1130,7 @@ else
         _typedBook = from?.Book ?? _typedBook ?? _book;
     }
 
-    private void SetTypedPrice(int? price)
+    private void SetTypedPrice(decimal? price)
     {
         _typedPrice = price;
         Reprice();
@@ -1130,8 +1162,10 @@ else
 
     /// <summary>
     /// Tells the window whether it holds a wager the operator has started — a side picked or a
-    /// stake set — so closing or evicting it asks first. Cleared when the wager is logged, banked
-    /// on the slip or added as a leg, and when a new game is searched for.
+    /// stake set — so closing or evicting it asks first. Cleared when the wager is logged and the
+    /// wizard resets, and when a new game is searched for. Banking on the slip or as a leg leaves
+    /// the bet on screen, so it leaves the mark too: a window marked clean after Add to slip could
+    /// be evicted and come back empty, the bet the operator was still looking at gone.
     /// </summary>
     private void SyncUnsaved() => MarkUnsaved(_sideChosen || _stake > 0, "this wager");
 
@@ -1295,15 +1329,18 @@ else
         return Task.CompletedTask;
     }
 
+    private BetChoice Chosen()
+        => new(_market, _outcome, _book, _manual, _typedPrice, _typedLine, _typedBook, _described, _sideChosen);
+
     /// <summary>
-    /// The receipt's Filled key. Everything the logged bet chose goes — the side, a typed price
-    /// or line, the described bet, the stake and the note — and step 1 opens on the same game.
-    /// The book stays as the default, since the next bet is usually at the same book; choosing
-    /// a side shows its price there or the best one, as the first bet did.
+    /// What a successful Log does next (it was the receipt's New bet key). Everything the logged
+    /// bet chose goes — the side, a typed price or line, the described bet, the stake and the
+    /// note — and step 1 opens on the same game. The book stays as the default, since the next
+    /// bet is usually at the same book; choosing a side shows its price there or the best one,
+    /// as the first bet did. The receipt line is the caller's to set.
     /// </summary>
     private async Task NewBetAsync()
     {
-        _receipt = null;
         _logged = null;
         _error = null;
         _market = null;
@@ -1319,6 +1356,7 @@ else
         _sideChosen = false;
         _fromClose = false;
         _keptClose = false;
+        _banked = null;
 
         Reprice();
         SyncUnsaved();
@@ -1326,14 +1364,32 @@ else
     }
 
     /// <summary>
-    /// The receipt's second key: the side and the book the logged bet had, a fresh stake. What
-    /// the window did after a log before the receipt existed.
+    /// The receipt line's first key: the side, the book and any typed price the logged bet had,
+    /// put back on the reset wizard, and a fresh stake — a second stake on the same side is the
+    /// one press. The duplicate check then names the bet just logged.
     /// </summary>
-    private void SameBetAgain()
+    private async Task SameBetAgainAsync()
     {
+        if (_receipt is not { } receipt)
+            return;
+
+        var choice = receipt.Choice;
         _receipt = null;
         _logged = null;
         _opened = null;
+        _market = choice.Market;
+        _outcome = choice.Outcome;
+        _book = choice.Book;
+        _manual = choice.Manual;
+        _typedPrice = choice.TypedPrice;
+        _typedLine = choice.TypedLine;
+        _typedBook = choice.TypedBook;
+        _described = choice.Described;
+        _sideChosen = choice.SideChosen;
+
+        Reprice();
+        SyncUnsaved();
+        await ReadPriorAsync();
     }
 
     private RenderFragment ValueLine(WagerOffer offer) => @<text>
@@ -1361,6 +1417,31 @@ else
         => Side is { } side
             ? SelectionText.Of(side.Market, side.Outcome, HasLine ? _typedLine ?? side.Offer?.Line : null)
             : null;
+
+    /// <summary>
+    /// The typed price as the American price it is read as (<see cref="OddsMath.ReadTypedPrice"/>):
+    /// +104.35 as typed, and decimal odds 2.0435 as +104.35. Null while what is typed is not a price.
+    /// </summary>
+    private decimal? TypedAmerican => _typedPrice is { } typed ? OddsMath.ReadTypedPrice(typed) : null;
+
+    /// <summary>
+    /// What a typed decimal price was read as — "Decimal 2.0435 = +104.35" — so the number logged
+    /// is on screen before it is logged. Null for an American price, which is shown as typed.
+    /// </summary>
+    private string? DecimalEcho
+        => _typedPrice is { } typed && Math.Abs(typed) < 100 && TypedAmerican is { } american
+            ? $"Decimal {typed.ToString("0.######", CultureInfo.InvariantCulture)} = {Price(american)}"
+            : null;
+
+    /// <summary>The line under the typed price's label: the side typed, and a decimal price's reading.</summary>
+    private string? PriceEcho
+    {
+        get
+        {
+            var parts = new[] { _noGame ? null : TypedEcho, DecimalEcho }.Where(p => p is not null).ToList();
+            return parts.Count == 0 ? null : string.Join(" · ", parts);
+        }
+    }
 
     /// <summary>
     /// Why a price has no value read, said rather than left as a bare "no fair price": a line
@@ -1399,26 +1480,33 @@ else
     /// Banks the wager on the slip, with its stake: the slip never takes a $0 bet. A closing
     /// price is allowed: the card carries the same block the Log key does here.
     /// </summary>
+    /// <remarks>
+    /// The window is left exactly as it was — side, price, book, stake and note — and stays
+    /// marked as holding input. It used to clear the stake and mark itself clean, so the stake
+    /// step folded empty, the bet looked lost, and the clean window could be evicted and reopen
+    /// with nothing in it. The review's "On the slip" tag is the acknowledgment beside the bet;
+    /// a press after a change banks the changed bet as a second card.
+    /// </remarks>
     private void AddToSlip()
     {
         if (!CanBank || _offer is not { } offer || Row is null)
             return;
 
         // The duplicate check's reading travels with the card, so the slip can say it too.
-        Slip.Add(offer.ToSlipItem(Row.Game, Matchup(Row.Game), _stake, _note) with
+        var card = Slip.Add(offer.ToSlipItem(Row.Game, Matchup(Row.Game), _stake, _note) with
         {
             InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
         });
 
         _error = null;
-        _logged = $"Added {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
-        _banked = true;
+        _logged = $"Added {OddsMath.Money(_stake)} on {offer.Label} at {Price(offer.PriceAmerican)} to the slip.";
+        _banked = new Banking(card.Id, ShapeNow!);
         Banked(_logged);
-        _stake = 0;
-        _note = null;
-        _sideChosen = false;
         SyncUnsaved();
     }
+
+    /// <summary>The empty Slip tab's key: back to this window's own form.</summary>
+    private void PickBet() => _tab = WagerTab.Wager;
 
     /// <summary>
     /// An addition to the slip, said as one: a green toast, with a key that turns this window
@@ -1434,13 +1522,14 @@ else
     /// <summary>
     /// Banks the bet as a parlay leg. On the game search the game is cleared afterwards, so the
     /// next leg starts from the search: a parlay is several games, found one after another.
+    /// Anywhere else the bet stays on screen as it was, as Add to slip leaves it.
     /// </summary>
     private async Task AddLegAsync()
     {
         if (!CanBankLeg || _offer is not { } offer || Row is null)
             return;
 
-        Slip.AddLeg(offer.ToSlipItem(Row.Game, Matchup(Row.Game), 0m, _note) with
+        var card = Slip.AddLeg(offer.ToSlipItem(Row.Game, Matchup(Row.Game), 0m, _note) with
         {
             InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
         });
@@ -1448,16 +1537,16 @@ else
         var logged = $"Added {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book}) as a leg · "
                      + $"{LegCount} {(LegCount == 1 ? "leg" : "legs")} on the slip.";
         Banked(logged);
-        _note = null;
-        _sideChosen = false;
-        SyncUnsaved();
+        _banked = new Banking(card.Id, ShapeNow!);
 
         if (BuildParlay && Searching)
+        {
+            _note = null;
             await PickGameAsync(null);
+        }
 
         _error = null;
         _logged = logged;
-        _banked = true;
     }
 
     private async Task PlaceAsync()
@@ -1472,29 +1561,27 @@ else
         {
             await Data.LogStraightsAsync([offer.ToDraft(Row?.Game.Id, _stake, _note)]);
 
-            // Hosted as a window there is no host to close the form, so it says what it did and
-            // clears the stake: a form left exactly as it was, key still lit, logged the same
-            // wager twice on the next press. The side stays, so the journal check can name it,
-            // and Same bet again can pick up from it; the receipt stands in front until the
-            // operator chooses that or New bet.
-            _logged = $"Logged {_stake:C0} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book})"
-                      + (offer.Manual ? ", your own price." : ".");
-            _banked = false;
-            _receipt = new LoggedWager(
-                offer.Label, offer.PriceAmerican, offer.Book, _stake,
-                offer.PriceAmerican == 0 ? null : OddsMath.ProfitOnWin(offer.PriceAmerican, _stake),
-                offer.PriceAmerican == 0 ? null : OddsMath.PayoutOnWin(offer.PriceAmerican, _stake),
-                offer.Manual);
-            Toasts.Success(_logged);
-            _stake = 0;
-            _note = null;
-            _sideChosen = false;
-            SyncUnsaved();
+            // The bet on screen may be the one banked on the slip a moment ago, still exactly as
+            // banked. Logged here, it has gone to the journal, so its card leaves the slip:
+            // otherwise the slip's Log would record the same bet a second time.
+            if (_banked is { } banked && OnSlip)
+                Slip.Logged([banked.Card]);
+
+            // Hosted as a window there is no host to close the form, so it resets itself for the
+            // next bet on the same game (a form left exactly as it was, key still lit, logged the
+            // same wager twice on the next press) and says what it did in one line above the
+            // steps, with Same bet again for a second stake on this side.
+            var receipt = new LoggedWager(offer.Label, offer.PriceAmerican, offer.Book, _stake, offer.Manual, Chosen());
+            var logged = $"Logged {OddsMath.Money(_stake)} on {offer.Label} at {Price(offer.PriceAmerican)} ({offer.Book})"
+                         + (offer.Manual ? ", your own price." : ".");
+            Toasts.Success(logged);
+
+            // The reset re-reads the journal for a side that is no longer chosen, which clears the check.
+            await NewBetAsync();
+            _receipt = receipt;
+            _logged = logged;
 
             await OnPlaced.InvokeAsync();
-
-            // The change notice will re-read the journal; this reads it now rather than a second later.
-            await ReadPriorAsync();
         }
         catch (Exception ex)
         {

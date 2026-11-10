@@ -107,6 +107,62 @@ public class JournalServiceTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task A_price_to_the_cent_is_stored_and_paid_to_the_cent()
+    {
+        // Fanatics quoted +104.35 on $500. The column was an integer, and the desk took +104.
+        await using var db = fixture.CreateContext();
+        var (game, home, _) = await FinalGameAsync(db, home: 3, away: 2);
+        var journal = Service(db);
+
+        var entry = await journal.SaveEntryAsync(new EntryDraft(
+            game.Id, Markets.Moneyline, null, home.Name, null, 104.35m, 500m, "fanatics", null, ManualPrice: true));
+        await new SettlementService(db, NullLogger<SettlementService>.Instance).SettleAsync();
+
+        var stored = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.Id == entry.Id);
+        Assert.Equal(104.35m, stored.PriceTaken);
+        Assert.Equal(EntryResult.Win, stored.Result);
+        Assert.Equal(1021.75m, stored.Payout);
+    }
+
+    [Fact]
+    public async Task The_price_behind_a_printed_one_is_stored_to_four_places()
+    {
+        // The book prints +104.35 and pays $1,021.74 on $500: its price is +104.348, from the
+        // decimal odds 2.04348. A cent would pay a cent too much.
+        await using var db = fixture.CreateContext();
+        var (game, home, _) = await FinalGameAsync(db, home: 3, away: 2);
+        var journal = Service(db);
+
+        var entry = await journal.SaveEntryAsync(new EntryDraft(
+            game.Id, Markets.Moneyline, null, home.Name, null, 104.348m, 500m, "fanatics", null, ManualPrice: true));
+        await new SettlementService(db, NullLogger<SettlementService>.Instance).SettleAsync();
+
+        var stored = await db.JournalEntries.AsNoTracking().FirstAsync(e => e.Id == entry.Id);
+        Assert.Equal(104.348m, stored.PriceTaken);
+        Assert.Equal(1021.74m, stored.Payout);
+    }
+
+    [Fact]
+    public async Task A_parlay_price_to_the_cent_is_stored_and_paid_on()
+    {
+        await using var db = fixture.CreateContext();
+        var (first, firstHome, _) = await FinalGameAsync(db, home: 5, away: 1);
+        var (second, _, secondAway) = await FinalGameAsync(db, home: 2, away: 7);
+        var journal = Service(db);
+
+        var parlay = await journal.SaveParlayAsync(new ParlayDraft("fanatics", 10m, 264.35m, null, [
+            new EntryDraft(first.Id, Markets.Moneyline, null, firstHome.Name, null, -110.5m, 0m, "", null),
+            new EntryDraft(second.Id, Markets.Moneyline, null, secondAway.Name, null, -110, 0m, "", null)
+        ]));
+        await new SettlementService(db, NullLogger<SettlementService>.Instance).SettleAsync();
+
+        var settled = await db.Parlays.AsNoTracking().Include(p => p.Legs).FirstAsync(p => p.Id == parlay.Id);
+        Assert.Equal(264.35m, settled.PriceQuoted);
+        Assert.Contains(settled.Legs, l => l.PriceTaken == -110.5m);
+        Assert.Equal(36.44m, settled.Payout);
+    }
+
+    [Fact]
     public async Task A_parlay_settles_as_one_bet_when_its_legs_do()
     {
         await using var db = fixture.CreateContext();
@@ -192,7 +248,7 @@ public class JournalServiceTests(PostgresFixture fixture)
         var legs = parlay.Legs.OrderBy(l => l.Id).ToList();
 
         await Service(db).UpdateParlayAsync(parlay.Id, new ParlayEdit("draftkings", 10m, null, "Sunday double",
-            new Dictionary<int, int> { [legs[1].Id] = 150 }));
+            new Dictionary<int, decimal> { [legs[1].Id] = 150 }));
 
         var after = await ReadParlayAsync(db, parlay.Id);
         var corrected = after.Legs.Single(l => l.Id == legs[1].Id);
@@ -290,7 +346,7 @@ public class JournalServiceTests(PostgresFixture fixture)
         var unpriced = parlay.Legs.Single(l => l.PriceTaken == 0);
 
         await journal.UpdateParlayAsync(parlay.Id, new ParlayEdit("betmgm", 15m, 450, "both props",
-            new Dictionary<int, int> { [unpriced.Id] = 140 }));
+            new Dictionary<int, decimal> { [unpriced.Id] = 140 }));
 
         var after = await ReadParlayAsync(db, parlay.Id);
         Assert.Equal(EntryResult.Pending, after.Result);
@@ -315,11 +371,11 @@ public class JournalServiceTests(PostgresFixture fixture)
         var other = await journal.SaveParlayAsync(Draft());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => journal.UpdateParlayAsync(parlay.Id,
-            new ParlayEdit("caesars", 5m, null, null, new Dictionary<int, int> { [other.Legs[0].Id] = 150 })));
+            new ParlayEdit("caesars", 5m, null, null, new Dictionary<int, decimal> { [other.Legs[0].Id] = 150 })));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => journal.UpdateParlayAsync(parlay.Id,
             new ParlayEdit("caesars", 0m, null, null)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => journal.UpdateParlayAsync(parlay.Id,
-            new ParlayEdit("caesars", 5m, null, null, new Dictionary<int, int> { [parlay.Legs[0].Id] = 50 })));
+            new ParlayEdit("caesars", 5m, null, null, new Dictionary<int, decimal> { [parlay.Legs[0].Id] = 50 })));
 
         var untouched = await ReadParlayAsync(db, parlay.Id);
         Assert.Equal(5m, untouched.Stake);
@@ -354,6 +410,91 @@ public class JournalServiceTests(PostgresFixture fixture)
         Assert.Contains("hard rock", books);
         Assert.Contains("draftkings", books);
         Assert.Equal(books.Count, books.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    /// <summary>One sport with a game per start given, so a filter on its key reads only these.</summary>
+    private static async Task<(string SportKey, Game[] Games)> GamesStartingAsync(
+        LineOpsDbContext db, params DateTimeOffset[] starts)
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var sport = new Sport { Key = $"jo-{suffix}", Name = "TEST" };
+        db.Sports.Add(sport);
+        await db.SaveChangesAsync();
+
+        var h = new Team { SportId = sport.Id, Name = $"Home {suffix}", Abbrev = "HOM" };
+        var a = new Team { SportId = sport.Id, Name = $"Away {suffix}", Abbrev = "AWY" };
+        db.Teams.AddRange(h, a);
+        await db.SaveChangesAsync();
+
+        var games = starts.Select(s => new Game
+        {
+            SportId = sport.Id, HomeTeamId = h.Id, AwayTeamId = a.Id,
+            StartsAt = s, Status = GameStatus.Scheduled, SeasonYear = 2026
+        }).ToArray();
+        db.Games.AddRange(games);
+        await db.SaveChangesAsync();
+        return (sport.Key, games);
+    }
+
+    private static JournalEntry Bet(Game game, DateTimeOffset placed, decimal stake = 10m) => new()
+    {
+        GameId = game.Id, Market = Markets.Moneyline, Outcome = "Home", Book = "draftkings",
+        PriceTaken = -110, Stake = stake, PlacedAt = placed, Result = EntryResult.Pending
+    };
+
+    [Fact]
+    public async Task An_entry_for_a_later_game_placed_earlier_sorts_first()
+    {
+        await using var db = fixture.CreateContext();
+        var now = DateTimeOffset.UtcNow;
+        var (sport, games) = await GamesStartingAsync(db, now.AddDays(1), now.AddDays(5));
+        var (soon, later) = (games[0], games[1]);
+
+        // The bet on Friday's game was placed first; the bet on tomorrow's, an hour ago.
+        db.JournalEntries.AddRange(Bet(later, now.AddDays(-3)), Bet(soon, now.AddHours(-1)));
+        await db.SaveChangesAsync();
+
+        var read = await Service(db).EntriesAsync(new JournalFilter(SportKey: sport));
+
+        Assert.Equal([later.Id, soon.Id], read.Select(e => e.GameId!.Value));
+    }
+
+    [Fact]
+    public async Task The_take_keeps_the_latest_games_not_the_latest_placements()
+    {
+        await using var db = fixture.CreateContext();
+        var now = DateTimeOffset.UtcNow;
+        var (sport, games) = await GamesStartingAsync(db, now.AddDays(1), now.AddDays(5));
+
+        db.JournalEntries.AddRange(Bet(games[1], now.AddDays(-3)), Bet(games[0], now.AddHours(-1)));
+        await db.SaveChangesAsync();
+
+        var read = await Service(db).EntriesAsync(new JournalFilter(SportKey: sport, Take: 1));
+
+        Assert.Equal(games[1].Id, Assert.Single(read).GameId);
+    }
+
+    [Fact]
+    public async Task A_parlay_sorts_by_its_last_leg()
+    {
+        await using var db = fixture.CreateContext();
+        var now = DateTimeOffset.UtcNow;
+        var (sport, g) = await GamesStartingAsync(db, now.AddDays(1), now.AddDays(2), now.AddDays(3), now.AddDays(6));
+
+        // Placed first, but its last leg is the latest game of all: it leads. The other was
+        // placed later and its first leg is the earliest game; its last leg is day three.
+        var longShot = new Parlay { Book = "draftkings", Stake = 5m, PlacedAt = now.AddDays(-4),
+            Legs = [Bet(g[0], now.AddDays(-4), 0m), Bet(g[3], now.AddDays(-4), 0m)] };
+        var recent = new Parlay { Book = "draftkings", Stake = 5m, PlacedAt = now.AddHours(-1),
+            Legs = [Bet(g[1], now.AddHours(-1), 0m), Bet(g[2], now.AddHours(-1), 0m)] };
+        db.Parlays.AddRange(recent, longShot);
+        await db.SaveChangesAsync();
+
+        var read = await Service(db).ParlaysAsync(new JournalFilter(SportKey: sport, Take: 1));
+
+        Assert.Equal(longShot.Id, Assert.Single(read).Id);
+        Assert.Equal([longShot.Id, recent.Id],
+            (await Service(db).ParlaysAsync(new JournalFilter(SportKey: sport))).Select(p => p.Id));
     }
 
     [Fact]

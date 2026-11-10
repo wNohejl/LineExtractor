@@ -91,11 +91,18 @@ public class SharedControlsTests : DeskTestContext
     [Fact]
     public void Returns_sit_beside_the_stake_once_there_is_one()
     {
+        using var dollars = new UsDollars();
         var none = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 0m).Add(x => x.PriceAmerican, -110));
         Assert.Empty(none.FindAll(".stake-row__returns"));
 
+        // To the cent, as the book pays it: $100 at -110 returns $190.91, not "$191".
         var some = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 100m).Add(x => x.PriceAmerican, -110));
-        Assert.Contains(OddsMath.PayoutOnWin(-110, 100m).ToString("C0"), some.Find(".stake-row__returns").TextContent);
+        Assert.Contains("$190.91", some.Find(".stake-row__returns").TextContent);
+        Assert.Contains("$90.91 profit", some.Find(".stake-row__returns").TextContent);
+
+        var whole = RenderComponent<StakeRow>(p => p.Add(x => x.Stake, 100m).Add(x => x.PriceAmerican, 150));
+        Assert.Contains("$250", whole.Find(".stake-row__returns").TextContent);
+        Assert.DoesNotContain("$250.00", whole.Find(".stake-row__returns").TextContent);
     }
 
     [Fact]

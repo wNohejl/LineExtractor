@@ -15,19 +15,38 @@ public class JournalValidationTests
     [Theory]
     [InlineData(0)]
     [InlineData(-99)]
-    [InlineData(99)]
     [InlineData(-1)]
-    [InlineData(50)]
-    public void A_price_inside_the_dead_band_says_what_a_price_is(int price)
-        => Assert.Equal("A price is −100 or lower, or +100 or higher.", JournalPanel.PriceError(price));
+    [InlineData(1)]
+    [InlineData(0.5)]
+    public void A_price_that_is_neither_american_nor_decimal_says_what_a_price_is(double price)
+        => Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+            JournalPanel.PriceError((decimal)price));
 
     [Theory]
     [InlineData(-100)]
     [InlineData(100)]
     [InlineData(-110)]
     [InlineData(250)]
-    public void A_quoted_price_has_no_error(int price)
-        => Assert.Null(JournalPanel.PriceError(price));
+    [InlineData(-104.35)]
+    [InlineData(2.0435)]
+    [InlineData(50)]
+    public void A_quoted_price_has_no_error(double price)
+        => Assert.Null(JournalPanel.PriceError((decimal)price));
+
+    [Theory]
+    [InlineData(2.0435, 104.35)]
+    [InlineData(1.5, -200)]
+    [InlineData(-110, -110)]
+    public void A_typed_price_is_read_as_the_american_price_the_wager_window_reads(double typed, double american)
+        => Assert.Equal((decimal)american, JournalPanel.ReadPrice((decimal)typed));
+
+    [Fact]
+    public void Decimal_odds_are_said_back_and_american_ones_are_not()
+    {
+        Assert.Equal("Decimal 2.0435 = +104.35", JournalPanel.DecimalEcho(2.0435m));
+        Assert.Null(JournalPanel.DecimalEcho(-110m));
+        Assert.Null(JournalPanel.DecimalEcho(null));
+    }
 
     [Theory]
     [InlineData(0)]

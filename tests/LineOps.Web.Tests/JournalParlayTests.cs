@@ -4,6 +4,7 @@ using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Desk.Windowing;
 using LineOps.Ingestion.Services;
+using LineOps.Web.Components;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Services;
 using LineOps.Web.Tests.Support;
@@ -260,6 +261,37 @@ public class JournalParlayTests : WagerTestContext
                ?? select.QuerySelectorAll("option").FirstOrDefault(o => o.HasAttribute("selected"))?.GetAttribute("value");
     }
 
+    /// <summary>
+    /// A parlay is ordered by its last leg's game: one placed two days ago whose last leg is
+    /// next week sits above yesterday's four-leg, whose last leg is tonight.
+    /// </summary>
+    [Fact]
+    public void The_first_parlay_is_the_one_whose_last_leg_is_latest()
+    {
+        var yesterday = FourLegs();
+        var nextWeek = new Parlay { Book = "fanduel", Stake = 10m, PlacedAt = DateTimeOffset.UtcNow.AddDays(-2) };
+        var games = new[]
+        {
+            Game(21, "Chicago Bears", "Minnesota Vikings", DateTimeOffset.UtcNow.AddHours(1)),
+            Game(22, "Denver Broncos", "Las Vegas Raiders", DateTimeOffset.UtcNow.AddDays(7))
+        };
+        var id = 201;
+        foreach (var game in games)
+            nextWeek.Legs.Add(new JournalEntry
+            {
+                Id = id++, GameId = game.Id, Game = game, Market = Markets.Moneyline, Outcome = game.HomeTeam!.Name,
+                PriceTaken = -110, Book = "fanduel", PlacedAt = nextWeek.PlacedAt, ParlayGroupId = nextWeek.Id
+            });
+
+        var (cut, _) = Render(yesterday, nextWeek);   // read in placement order
+
+        var grid = cut.FindAll("table").Last();
+        Assert.Equal("Game", grid.QuerySelector("thead th")!.TextContent.Trim());
+        var first = grid.QuerySelector("tbody tr td")!;
+        Assert.Contains(DisplayTime.Stamp(games[1].StartsAt), first.TextContent);
+        Assert.Equal($"placed {DisplayTime.Stamp(nextWeek.PlacedAt)}", first.QuerySelector(".dim")!.TextContent.Trim());
+    }
+
     [Fact]
     public void A_graded_parlay_says_an_edit_sends_it_back_to_pending()
     {
@@ -335,6 +367,28 @@ public class JournalParlayTests : WagerTestContext
         Assert.Contains("Parlay saved.", cut.Markup);
     }
 
+    /// <summary>Decimal odds typed for the book's price or a leg's are said back and saved as the American price they are.</summary>
+    [Fact]
+    public void Decimal_odds_on_the_book_and_a_leg_are_saved_as_american()
+    {
+        var parlay = FourLegs();
+        var (cut, _) = Render(parlay);
+        RowAction(cut, "Edit");
+
+        Row(cut, "Book's price").QuerySelector("input")!.Change("13");
+        LegPrice(cut, 3).Change("2.5");
+
+        Assert.Contains("Decimal 13 = +1200", cut.Markup);
+        Assert.Equal("Decimal 2.5 = +150", Row(cut, "Leg 3").QuerySelector(".wbet__echo")!.TextContent.Trim());
+        Assert.False(Key(cut, "Save changes").HasAttribute("disabled"));
+
+        Key(cut, "Save changes").Click();
+
+        var (_, edit) = Assert.Single(_journal.Writes);
+        Assert.Equal(1200m, edit.PriceQuoted);
+        Assert.Equal(150m, edit.LegPrices![103]);
+    }
+
     /// <summary>The entry form's price rule, on the book's price and on each leg's: a number in the dead band is not a price.</summary>
     [Fact]
     public void A_price_that_is_not_a_price_says_so_and_save_says_what_it_waits_for()
@@ -342,10 +396,12 @@ public class JournalParlayTests : WagerTestContext
         var (cut, _) = Render();
         RowAction(cut, "Edit");
 
-        Row(cut, "Book's price").QuerySelector("input")!.Change("50");
+        Row(cut, "Book's price").QuerySelector("input")!.Change("0.5");
 
-        Assert.Equal("A price is −100 or lower, or +100 or higher.", Row(cut, "Book's price").QuerySelector(".field-err")!.TextContent.Trim());
-        Assert.Equal("The book's price is −100 or lower, or +100 or higher.", SaveReason(cut).TextContent.Trim());
+        Assert.Equal("A price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+            Row(cut, "Book's price").QuerySelector(".field-err")!.TextContent.Trim());
+        Assert.Equal("The book's price is −100 or lower, +100 or higher, or decimal odds above 1.00.",
+            SaveReason(cut).TextContent.Trim());
         var save = Key(cut, "Save changes");
         Assert.True(save.HasAttribute("disabled"));
         Assert.Equal(cut.Find(".pform .keyrow__reason").Id, save.GetAttribute("aria-describedby"));
@@ -423,7 +479,7 @@ public class JournalParlayTests : WagerTestContext
         // A leg on a game that has started is the price taken, not a closing line: all four are legs.
         Assert.All(Slip.Items, i => Assert.False(i.IsClosing));
         Assert.Equal(4, Slip.Legs.Count);
-        Assert.Equal(new[] { -128, -110, -105, 145 }, Slip.Items.Select(i => i.PriceAmerican));
+        Assert.Equal(new[] { -128m, -110m, -105m, 145m }, Slip.Items.Select(i => i.PriceAmerican));
         Assert.Equal(new[] { "Kansas City Chiefs", "Philadelphia Eagles", "over", "Miami Dolphins" }, Slip.Items.Select(i => i.Outcome));
         Assert.Equal(-3.5m, Slip.Items[1].Line);
         Assert.Equal("Dallas Cowboys at Philadelphia Eagles", Slip.Items[1].Matchup);

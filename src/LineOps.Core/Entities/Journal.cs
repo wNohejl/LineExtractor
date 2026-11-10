@@ -40,7 +40,12 @@ public class JournalEntry
     /// <summary>The handicap/total taken, as it stood at placement.</summary>
     public decimal? LineTaken { get; set; }
 
-    public int PriceTaken { get; set; }
+    /// <summary>
+    /// The American price taken, to four places. Books quote +104.35 and pay on the price behind
+    /// it (+104.348 from its decimal odds 2.04348), so a whole number — or a cent — would pay the
+    /// wrong amount. The close (<see cref="ClosingPrice"/>) is a feed's price and stays whole.
+    /// </summary>
+    public decimal PriceTaken { get; set; }
 
     /// <summary>
     /// The price was typed by the operator rather than taken from a fetched book price: a number
@@ -168,7 +173,7 @@ public class Parlay
     /// parlays their own way, so where it is known it is what a clean win pays; the product of
     /// the legs' prices is the fallback, and the only way to reprice after a push.
     /// </summary>
-    public int? PriceQuoted { get; set; }
+    public decimal? PriceQuoted { get; set; }
 
     public DateTimeOffset PlacedAt { get; set; }
 

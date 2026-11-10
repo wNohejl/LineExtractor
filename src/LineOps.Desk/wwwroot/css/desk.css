@@ -3235,13 +3235,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    it by writing display:block inline, which out-weighs this rule, so the sheet only ever
    hides it: until then it is out of the page and out of the accessibility tree. Shown, it
    is laid out like a toast — the raised surface, one hairline, the sheet's shadow, the
-   failure carried on a lit edge — and pinned to the corner the toasts use, above
-   everything, because nothing on the desk works until it is answered. Its contents are
-   laid out by a row inside it rather than by its own display, which belongs to Blazor. */
+   failure carried on a lit edge — and pinned where the toasts land, top-right under the
+   header at the offset mud-bridge.css gives the snackbar container, above everything,
+   because nothing on the desk works until it is answered. Its contents are laid out by a
+   row inside it rather than by its own display, which belongs to Blazor. */
 #blazor-error-ui {
     display: none;
     position: fixed;
-    inset: auto var(--space-4) var(--space-4) auto;
+    inset: calc(var(--titlebar-h) + var(--space-4) + var(--space-3)) var(--space-4) auto auto;
     z-index: var(--z-toast);
     max-width: min(420px, calc(100vw - 2 * var(--space-4)));
     box-sizing: border-box;
@@ -3300,6 +3301,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     }
 
     .hdr { height: auto; flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
+    /* The wrapped header has no fixed height; the banner takes the toasts' narrow offset
+       (mud-bridge.css), which assumes two rows. */
+    #blazor-error-ui {
+        top: calc(2 * var(--titlebar-h) + var(--space-4) + var(--space-3));
+        right: var(--space-2);
+        max-width: calc(100vw - 2 * var(--space-2));
+    }
     .ftr__stat:not(:last-child), .ftr__divider { display: none; }
 
     .win {

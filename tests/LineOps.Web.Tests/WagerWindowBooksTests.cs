@@ -102,7 +102,9 @@ public class WagerWindowBooksTests : WagerTestContext
     /// <summary>
     /// A wager with a side or a stake chosen is input the operator would lose by closing the
     /// window, so the window asks first (WindowManager.SetUnsaved); a window a door landed on a
-    /// side has nothing of the operator's yet. Logging it hands it over, and the window is clean.
+    /// side has nothing of the operator's yet. Logging it hands it over, and the window is clean;
+    /// banking it on the slip keeps the mark, because the bet stays on screen to be changed and
+    /// banked again, and a clean window is one the desk may evict.
     /// </summary>
     [Fact]
     public void Wager_marks_its_window_unsaved_once_a_side_is_chosen()
@@ -131,7 +133,7 @@ public class WagerWindowBooksTests : WagerTestContext
     }
 
     [Fact]
-    public void A_stake_alone_marks_the_window_unsaved_and_adding_to_the_slip_clears_it()
+    public void A_stake_alone_marks_the_window_unsaved_and_adding_to_the_slip_keeps_it()
     {
         var manager = Services.GetRequiredService<LineOps.Desk.Windowing.WindowManager>();
         var window = manager.Open(LineOps.Web.Windowing.WindowCatalog.Find(LineOps.Web.Windowing.WindowCatalog.Wager)!);
@@ -152,7 +154,7 @@ public class WagerWindowBooksTests : WagerTestContext
 
         Key(cut, "Add to slip").Click();
 
-        Assert.False(window.HasUnsavedInput);
+        Assert.True(window.HasUnsavedInput);
     }
 
     [Fact]

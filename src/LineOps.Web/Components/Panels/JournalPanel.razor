@@ -108,7 +108,7 @@ else
 
                 <FormRow Label="Stake">
                     <StakeRow Stake="_entry.Stake" StakeChanged="@(s => Edit("stake", () => _entry.Stake = s))"
-                              PriceAmerican="@(_entry.PriceTaken == 0 ? null : _entry.PriceTaken)"
+                              PriceAmerican="@ReadPrice(_entry.PriceTaken)"
                               Error="@(Touched("stake") ? StakeError(_entry.Stake) : null)" />
                 </FormRow>
                 <FormRow Label="Book">
@@ -179,14 +179,18 @@ else
                                   PriceAmerican="@CombinedPrice(edited)"
                                   Error="@(Touched("stake") ? StakeError(edited.Stake) : null)" />
                     </FormRow>
-                    <FormRow Label="Book's price">
+                    <FormRow>
+                        <LabelContent>Book's price<span class="wbet__echo">@DecimalEcho(edited.PriceQuoted)</span></LabelContent>
+                        <ChildContent>
                         @* The book's own price for the parlay, when it gave one: what a clean win pays.
-                           Without it the legs' prices are multiplied, as the slip does. *@
-                        <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                           Without it the legs' prices are multiplied, as the slip does. To the cent,
+                           or decimal odds, read as the American price the label says back. *@
+                        <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="any"
                                    aria-label="The book's price for the parlay" placeholder="Optional"
                                    Value="edited.PriceQuoted"
-                                   ValueChanged="@((int? q) => Edit("quoted", () => edited.PriceQuoted = q))"
+                                   ValueChanged="@((decimal? q) => Edit("quoted", () => edited.PriceQuoted = q))"
                                    Error="@(Touched("quoted") && edited.PriceQuoted is { } quoted ? PriceError(quoted) : null)" />
+                        </ChildContent>
                     </FormRow>
                     <FormRow Label="Note">
                         <DeskField TValue="string" Class="wfield--fill" aria-label="Note"
@@ -210,11 +214,12 @@ else
                                     {
                                         <div class="meta">@MatchupWithDate(leg.Game)</div>
                                     }
+                                    <span class="wbet__echo">@DecimalEcho(edited.LegPrices.GetValueOrDefault(leg.Id))</span>
                                 </div>
-                                <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                                <DeskField TValue="decimal?" Mono="true" Class="wfield--short" type="number" step="any"
                                            aria-label="@($"Price taken on {Describe(leg)}")" placeholder="-110"
                                            Value="@edited.LegPrices.GetValueOrDefault(leg.Id)"
-                                           ValueChanged="@((int? p) => Edit(field, () => edited.LegPrices[leg.Id] = p))"
+                                           ValueChanged="@((decimal? p) => Edit(field, () => edited.LegPrices[leg.Id] = p))"
                                            Error="@(Touched(field) ? LegPriceError(edited.LegPrices.GetValueOrDefault(leg.Id), leg.PriceTaken) : null)" />
                             </DeskRow>
                         </FormRow>
@@ -269,10 +274,27 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 {
     <PanelSection Title="Entries">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
-        <PropertyColumn T="JournalEntry" TProperty="DateTimeOffset" Property="e => e.PlacedAt" Title="Placed"
+        @* Ordered by the game, newest first, as the service reads it: a bet placed days ahead on
+           a later game sits above one placed tonight. The placement is the dim second line; the
+           Placed within filter still cuts by it. *@
+        <TemplateColumn T="JournalEntry" Title="Game" Sortable="true" SortBy="@(e => JournalService.GameStart(e))"
                         InitialDirection="SortDirection.Descending">
-            <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
-        </PropertyColumn>
+            <CellTemplate>
+                @* An untracked bet has no game to start; its game start falls back to the placement,
+                   which would print the same time twice. It says so instead, dim like the line under it. *@
+                <div class="journal-when">
+                    @if (context.Item.GameId is null)
+                    {
+                        <span class="dim">No game</span>
+                    }
+                    else
+                    {
+                        @Starts(JournalService.GameStart(context.Item))
+                    }
+                    <div class="dim">placed @Starts(context.Item.PlacedAt)</div>
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection">
             <CellTemplate>
@@ -292,7 +314,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="int" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
             <CellTemplate>
                 @* Said where the number is: a typed price is the operator's word, not an observation. *@
                 @if (context.Item.ManualPrice)
@@ -306,7 +328,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right">
-            <CellTemplate>@context.Item.Stake.ToString("C0")</CellTemplate>
+            <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result">
@@ -318,7 +340,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
                     @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
                        follows the machine's region, and on this one printed "($20)". *@
-                    @(context.Item.IsSettled ? PerformancePanel.Signed(context.Item.NetReturn) : "—")
+                    @(context.Item.IsSettled ? PerformancePanel.SignedToTheCent(context.Item.NetReturn) : "—")
                 </span>
             </CellTemplate>
         </PropertyColumn>
@@ -370,10 +392,16 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     <PanelSection Title="Parlays">
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
-        <PropertyColumn T="Parlay" TProperty="DateTimeOffset" Property="p => p.PlacedAt" Title="Placed"
+        @* A parlay is ordered by its last leg's game: it is open until that one is. *@
+        <TemplateColumn T="Parlay" Title="Game" Sortable="true" SortBy="@(p => JournalService.LastLegStart(p))"
                         InitialDirection="SortDirection.Descending">
-            <CellTemplate><span class="dim">@Starts(context.Item.PlacedAt)</span></CellTemplate>
-        </PropertyColumn>
+            <CellTemplate>
+                <div class="journal-when">
+                    @Starts(JournalService.LastLegStart(context.Item))
+                    <div class="dim">placed @Starts(context.Item.PlacedAt)</div>
+                </div>
+            </CellTemplate>
+        </TemplateColumn>
 
         <TemplateColumn T="Parlay" Title="Legs" Sortable="false">
             <CellTemplate>
@@ -411,7 +439,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </TemplateColumn>
 
         <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.Stake" Title="Stake" Align="Align.Right">
-            <CellTemplate>@context.Item.Stake.ToString("C0")</CellTemplate>
+            <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
         </PropertyColumn>
 
         <PropertyColumn T="Parlay" TProperty="EntryResult" Property="p => p.Result" Title="Result">
@@ -423,7 +451,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
                     @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
                        follows the machine's region, and on this one printed "($20)". *@
-                    @(context.Item.IsSettled ? PerformancePanel.Signed(context.Item.NetReturn) : "—")
+                    @(context.Item.IsSettled ? PerformancePanel.SignedToTheCent(context.Item.NetReturn) : "—")
                 </span>
             </CellTemplate>
         </PropertyColumn>
@@ -510,16 +538,20 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         public Parlay Parlay { get; } = parlay;
         public string Book { get; set; } = parlay.Book;
         public decimal Stake { get; set; } = parlay.Stake;
-        public int? PriceQuoted { get; set; } = parlay.PriceQuoted;
+        public decimal? PriceQuoted { get; set; } = parlay.PriceQuoted;
         public string? Note { get; set; } = parlay.Note;
 
-        public Dictionary<int, int?> LegPrices { get; } =
-            parlay.Legs.ToDictionary(l => l.Id, l => l.PriceTaken == 0 ? (int?)null : l.PriceTaken);
+        public Dictionary<int, decimal?> LegPrices { get; } =
+            parlay.Legs.ToDictionary(l => l.Id, l => l.PriceTaken == 0 ? (decimal?)null : l.PriceTaken);
 
-        /// <summary>An empty leg field sends nothing: the leg keeps the price it has, or its lack of one.</summary>
+        /// <summary>
+        /// An empty leg field sends nothing: the leg keeps the price it has, or its lack of one.
+        /// Each price goes as the American price it is read as, so decimal odds typed here are
+        /// stored as the wager window stores them.
+        /// </summary>
         public ParlayEdit ToEdit() => new(
-            Book, Stake, PriceQuoted, Note,
-            LegPrices.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => p.Value!.Value));
+            Book, Stake, PriceQuoted is { } q ? ReadPrice(q) ?? q : null, Note,
+            LegPrices.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => ReadPrice(p.Value) ?? p.Value!.Value));
     }
 
     /// <summary>
@@ -529,7 +561,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private sealed class Draft
     {
         /// <summary>The price as logged, so an edit to it can be told from an edit to the stake.</summary>
-        public int OriginalPrice { get; init; }
+        public decimal OriginalPrice { get; init; }
         public decimal? OriginalLine { get; init; }
         public bool WasManual { get; init; }
 
@@ -537,7 +569,10 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         /// A typed price stays typed; a fetched one becomes typed once its number is edited here,
         /// because the number in the journal is then the operator's, not the desk's.
         /// </summary>
-        public bool ManualPrice => WasManual || PriceTaken != OriginalPrice || LineTaken != OriginalLine;
+        public bool ManualPrice => WasManual || LoggedPrice != OriginalPrice || LineTaken != OriginalLine;
+
+        /// <summary>The price as it is logged: the typed one, read as American odds where it is decimal.</summary>
+        public decimal LoggedPrice => ReadPrice(PriceTaken) ?? PriceTaken;
 
         public int? GameId { get; set; }
         public Game? Game { get; set; }
@@ -545,7 +580,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         public string? FreeTextMarket { get; set; }
         public string Outcome { get; set; } = string.Empty;
         public decimal? LineTaken { get; set; }
-        public int PriceTaken { get; set; } = -110;
+        public decimal PriceTaken { get; set; } = -110;
         public decimal Stake { get; set; } = 100m;
         public string Book { get; set; } = string.Empty;
         public string? Note { get; set; }
@@ -553,7 +588,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         public EntryDraft ToDraft() => new(
             GameId, Market == FreeText ? "other" : Market,
             Market == FreeText ? FreeTextMarket : null,
-            Outcome, LineTaken, PriceTaken, Stake, Book, Note, ManualPrice);
+            Outcome, LineTaken, LoggedPrice, Stake, Book, Note, ManualPrice);
     }
 
     private static readonly IReadOnlyList<DeskSwitchOption<JournalStatus>> Statuses =
@@ -603,11 +638,26 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
            && (d.Market == FreeText ? !string.IsNullOrWhiteSpace(d.FreeTextMarket) : !string.IsNullOrWhiteSpace(d.Outcome));
 
     /// <summary>
-    /// American odds have a dead band: nothing is quoted between −100 and +100, so a number in
-    /// it is a typo — most often a dropped digit — and zero is no price at all.
+    /// A typed price is American odds to the cent or decimal odds, read as the wager window and
+    /// the slip read them (<see cref="OddsMath.ReadTypedPrice"/>): 2.0435 is +104.35. What is
+    /// neither — below 1.01 and above −100 — is a typo, most often a dropped digit, and zero is
+    /// no price at all.
     /// </summary>
-    public static string? PriceError(int price)
-        => price is > -100 and < 100 ? "A price is −100 or lower, or +100 or higher." : null;
+    public static string? PriceError(decimal price)
+        => OddsMath.ReadTypedPrice(price) is null ? "A price is −100 or lower, +100 or higher, or decimal odds above 1.00." : null;
+
+    /// <summary>The American price a typed price is read as; null where it is none, or nothing is typed.</summary>
+    public static decimal? ReadPrice(decimal? typed)
+        => typed is { } t ? OddsMath.ReadTypedPrice(t) : null;
+
+    /// <summary>
+    /// What a typed decimal price is read as — "Decimal 2.0435 = +104.35" — so the number logged
+    /// is on screen first, as the slip says it. Null for an American price, or nothing typed.
+    /// </summary>
+    public static string? DecimalEcho(decimal? typed)
+        => typed is { } t && Math.Abs(t) < 100 && OddsMath.ReadTypedPrice(t) is { } american
+            ? $"Decimal {t.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)} = {Price(american)}"
+            : null;
 
     public static string? StakeError(decimal stake)
         => stake <= 0 ? "Enter a stake above zero." : null;
@@ -650,8 +700,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         static string? Text(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
-        static IEnumerable<KeyValuePair<int, int>> Prices(ParlayEdit e)
-            => (e.LegPrices ?? new Dictionary<int, int>()).OrderBy(p => p.Key);
+        static IEnumerable<KeyValuePair<int, decimal>> Prices(ParlayEdit e)
+            => (e.LegPrices ?? new Dictionary<int, decimal>()).OrderBy(p => p.Key);
 
         return !string.Equals(Text(current.Book), Text(opened.Book), StringComparison.OrdinalIgnoreCase)
                || current.Stake != opened.Stake
@@ -665,7 +715,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// leg that had a price asks for it back — clearing it would leave the parlay a price short
     /// to reprice on, which is not a correction. A leg logged without one may stay without.
     /// </summary>
-    private static string? LegPriceError(int? typed, int logged)
+    private static string? LegPriceError(decimal? typed, decimal logged)
         => typed is { } price ? PriceError(price)
             : logged != 0 ? "Enter the price this leg was taken at."
             : null;
@@ -675,17 +725,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// real one, otherwise the legs' prices multiplied, as the slip reads it. None where a leg has
     /// no price, or for legs on one game, which win and lose together and do not multiply.
     /// </summary>
-    private static int? CombinedPrice(ParlayEditDraft d)
+    private static decimal? CombinedPrice(ParlayEditDraft d)
     {
         if (d.PriceQuoted is { } quoted)
-            return PriceError(quoted) is null ? quoted : null;
+            return ReadPrice(quoted);
 
         var legs = d.Parlay.Legs;
         if (legs.Count < 2 || legs.Where(l => l.GameId is not null).GroupBy(l => l.GameId).Any(g => g.Count() > 1))
             return null;
 
-        var prices = legs.Select(l => d.LegPrices.GetValueOrDefault(l.Id)).ToList();
-        return prices.All(p => p is { } price && PriceError(price) is null)
+        var prices = legs.Select(l => ReadPrice(d.LegPrices.GetValueOrDefault(l.Id))).ToList();
+        return prices.All(p => p is not null)
             ? OddsMath.CombinedAmerican(prices.Select(p => p!.Value))
             : null;
     }
@@ -694,9 +744,10 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private static string? ParlayWaiting(ParlayEditDraft d)
         => StakeError(d.Stake) is not null ? "Needs a stake above zero."
             : string.IsNullOrWhiteSpace(d.Book) ? "Needs the book the parlay was placed at."
-            : d.PriceQuoted is { } quoted && PriceError(quoted) is not null ? "The book's price is −100 or lower, or +100 or higher."
+            : d.PriceQuoted is { } quoted && PriceError(quoted) is not null
+                ? "The book's price is −100 or lower, +100 or higher, or decimal odds above 1.00."
             : d.Parlay.Legs.Any(l => LegPriceError(d.LegPrices.GetValueOrDefault(l.Id), l.PriceTaken) is not null)
-                ? "Each leg needs the price it was taken at, −100 or lower or +100 or higher."
+                ? "Each leg needs the price it was taken at: −100 or lower, +100 or higher, or decimal odds above 1.00."
             : null;
 
     // A total's two sides as the grader reads them, lower-case.
@@ -1045,7 +1096,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         var confirmed = await Alerts.ConfirmAsync(
             "Delete this entry?",
-            message: $"{Describe(entry)} — {entry.Stake:C0} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
+            message: $"{Describe(entry)} — {OddsMath.Money(entry.Stake)} at {Price(entry.PriceTaken)}. It leaves the journal and every figure built on it.",
             confirmLabel: "Delete", destructive: true);
 
         if (!confirmed)
@@ -1071,7 +1122,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         var confirmed = await Alerts.ConfirmAsync(
             "Delete this parlay?",
-            message: $"{parlay.Legs.Count} legs, {parlay.Stake:C0}. The parlay and all its legs leave the journal.",
+            message: $"{parlay.Legs.Count} legs, {OddsMath.Money(parlay.Stake)}. The parlay and all its legs leave the journal.",
             confirmLabel: "Delete", destructive: true);
 
         if (!confirmed)
@@ -1116,7 +1167,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private async Task SetParlayResultAsync(Parlay parlay, EntryResult result)
     {
         var payout = result == EntryResult.Win && parlay.PriceQuoted is { } q
-            ? OddsMath.PayoutOnWin(q, parlay.Stake)
+            ? Math.Round(OddsMath.PayoutOnWin(q, parlay.Stake), 2)
             : (decimal?)null;
 
         try
@@ -1227,11 +1278,16 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </FormRow>
         }
 
-        <FormRow Label="Price">
-            <DeskField TValue="int" Mono="true" Class="wfield--short" type="number"
+        @* To the cent, or decimal odds, read as the American price the label says back, as the
+           wager window and the slip read them. *@
+        <FormRow>
+            <LabelContent>Price<span class="wbet__echo">@DecimalEcho(d.PriceTaken)</span></LabelContent>
+            <ChildContent>
+            <DeskField TValue="decimal" Mono="true" Class="wfield--short" type="number" step="any"
                        aria-label="Price" placeholder="-110" Value="d.PriceTaken"
-                       ValueChanged="@((int p) => Edit("price", () => d.PriceTaken = p))"
+                       ValueChanged="@((decimal p) => Edit("price", () => d.PriceTaken = p))"
                        Error="@(Touched("price") ? PriceError(d.PriceTaken) : null)" />
+            </ChildContent>
         </FormRow>
     </text>;
 
@@ -1303,7 +1359,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// <summary>"Took -1.5 -110; closed -2.5 -110 at fanduel (no close for draftkings)" — what was compared.</summary>
     private static string ClvTitle(JournalEntry e)
     {
-        static string At(decimal? points, int price)
+        static string At(decimal? points, decimal price)
             => points is { } p ? $"{p:+0.#;-0.#} {Price(price)}" : Price(price);
 
         var close = At(e.ClosingPoints, e.ClosingPrice!.Value);

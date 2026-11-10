@@ -566,6 +566,29 @@
 
 /* ----------------------------------------------------------------- toasts --- */
 
+/* Where toasts land: top-right (AddDesk's PositionClass), under the header rather than over
+   it. MudBlazor pins the container 24px from the viewport's top, which puts a toast across
+   the header's right-hand controls; the header is a title bar plus --space-4 tall (desk.css
+   .hdr), so the container starts a --space-3 below that, and --space-4 in from the edge,
+   the same air the windows keep. The id plus the class out-specifies Mud's one-class rule
+   without leaning on source order. z-index is Mud's own, already re-pointed at --z-toast
+   above. #blazor-error-ui in desk.css takes the same corner and the same offset. */
+#mud-snackbar-container.mud-snackbar-location-top-right {
+    top: calc(var(--titlebar-h) + var(--space-4) + var(--space-3));
+    right: var(--space-4);
+}
+
+/* Below 720px the header wraps (desk.css: .hdr height:auto), so its height is no longer a
+   token. The offset assumes two wrapped rows of title-bar height; where the header wraps
+   to more, a toast overlaps its last row — the limit of a fixed offset, accepted over
+   measuring the header from script. The error banner in desk.css uses the same offset. */
+@media (max-width: 720px) {
+    #mud-snackbar-container.mud-snackbar-location-top-right {
+        top: calc(2 * var(--titlebar-h) + var(--space-4) + var(--space-3));
+        right: var(--space-2);
+    }
+}
+
 /* A toast is the desk's transient tier — see Components/Desk/DeskToasts.cs, which is the
    only thing allowed to raise one. Material's snackbar is a floating card in a filled
    severity colour with a three-layer shadow; the desk's is the same raised surface a window

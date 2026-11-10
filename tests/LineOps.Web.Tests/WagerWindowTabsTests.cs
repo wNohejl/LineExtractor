@@ -4,6 +4,7 @@ using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Tests.Support;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
 
@@ -55,6 +56,56 @@ public class WagerWindowTabsTests : WagerTestContext
         Assert.NotNull(cut.Find(".slip-card"));
         Assert.Empty(cut.FindAll(".wsteps"));
     }
+
+    /// <summary>
+    /// A look at the slip after banking does not cost the bet: back on the Wager tab the side,
+    /// its price and book, and the stake are as they were left, and Add to slip can be pressed
+    /// again.
+    /// </summary>
+    [Fact]
+    public void Wager_then_slip_then_wager_finds_the_bet_as_it_was_left()
+    {
+        var cut = RenderComponent<BoardWager>(p => p.Add(x => x.GameId, BoardRows.GameId));
+
+        cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Bills").Click();
+        cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith(50m.ToString("C0"), StringComparison.Ordinal)).Click();
+
+        var bet = Squash(Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent);
+        var review = Squash(cut.Find(".wreview").TextContent);
+        Assert.StartsWith("ML · Bills", bet);
+        Assert.Contains($"{50m:C0} on ML · Bills", review);
+
+        cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal)).Click();
+        cut.FindAll("[role=tab]")[1].Click();
+        Assert.NotNull(cut.Find(".slip-card"));
+        cut.FindAll("[role=tab]")[0].Click();
+
+        Assert.Equal(bet, Squash(Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent));
+        Assert.Equal(review, Squash(cut.Find(".wreview").TextContent));
+        Assert.Contains("wstep--done", Step(cut, "Stake").ClassList);
+        Assert.Equal("On the slip", cut.Find(".wbanked .tag").TextContent.Trim());
+        var again = cut.FindAll("button").First(b => b.TextContent.Trim().StartsWith("Add to slip", StringComparison.Ordinal));
+        Assert.False(again.HasAttribute("disabled"));
+    }
+
+    /// <summary>An empty Slip tab offers the way back to this window's form, not a second window.</summary>
+    [Fact]
+    public void An_empty_slip_tab_offers_pick_a_bet_and_turns_back_to_the_wager_tab()
+    {
+        var cut = Render();
+        cut.FindAll("[role=tab]")[1].Click();
+
+        var key = cut.Find(".empty__action button");
+        Assert.Equal("Pick a bet", key.TextContent.Trim());
+
+        key.Click();
+
+        Assert.Equal("true", cut.FindAll("[role=tab]")[0].GetAttribute("aria-selected"));
+        Assert.NotEmpty(cut.FindAll(".wsteps"));
+        Assert.Empty(Services.GetRequiredService<LineOps.Desk.Windowing.WindowManager>().Windows);
+    }
+
+    private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     [Fact]
     public void View_slip_after_banking_is_a_link_to_the_slip_tab()

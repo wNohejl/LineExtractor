@@ -134,7 +134,7 @@ public class DeskWiringTests : DeskTestContext
         using var provider = services.BuildServiceProvider();
         var snackbar = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MudBlazor.SnackbarConfiguration>>().Value;
 
-        Assert.Equal(MudBlazor.Defaults.Classes.Position.BottomRight, snackbar.PositionClass);
+        Assert.Equal(MudBlazor.Defaults.Classes.Position.TopRight, snackbar.PositionClass);
         Assert.Equal(120, snackbar.ShowTransitionDuration);
         Assert.Equal(2, snackbar.MaxDisplayedSnackbars);
     }

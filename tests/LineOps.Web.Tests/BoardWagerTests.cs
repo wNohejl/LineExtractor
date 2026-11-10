@@ -132,38 +132,41 @@ public class BoardWagerTests : WagerTestContext
         Assert.Equal(-128, bet.PriceTaken);
         Assert.Equal(50m, bet.Stake);
 
-        // The steps give way to the receipt: what was logged, and what to do next.
-        var receipt = cut.Find(".wreceipt");
-        Assert.Equal("Logged in the journal", receipt.QuerySelector(".wreceipt__title")!.TextContent.Trim());
+        // What was logged is one line above the steps, which have started the next bet.
+        var receipt = cut.Find(".wlogged");
+        Assert.Equal("Logged", receipt.QuerySelector(".tag")!.TextContent.Trim());
         Assert.Equal($"{50m:C0} on ML · Chiefs at -128 · draftkings", Squash(receipt.QuerySelector(".wreceipt__bet")!.TextContent));
-        Assert.Empty(cut.FindAll(".wsteps"));
+        Assert.NotEmpty(cut.FindAll(".wsteps"));
 
-        // Same bet again is the old behaviour: the side stays, the stake is asked for again, so
-        // the lit key cannot log the same wager twice.
+        // Same bet again puts the side back and asks for the stake again, so no lit key can log
+        // the same wager twice.
         Key(cut, "Same bet again").Click();
-        Assert.Empty(cut.FindAll(".wreceipt"));
+        Assert.Empty(cut.FindAll(".wlogged"));
         Assert.True(Log(cut).HasAttribute("disabled"));
         Assert.Contains("Chiefs", cut.FindAll(".wstep__summary").First().TextContent);
     }
 
+    /// <summary>
+    /// A successful Log resets the wizard as New bet did — the game kept, the side, price, stake
+    /// and note gone, step 1 open — and the receipt is a line above the steps with two plain
+    /// keys. It used to stand in the steps' place until New bet was pressed.
+    /// </summary>
     [Fact]
-    public void New_bet_clears_what_the_logged_bet_chose_and_opens_the_first_step()
+    public void Logging_resets_the_wizard_to_its_first_step_under_a_line_saying_what_was_logged()
     {
         var cut = Render(Markets.Spread, BoardRows.Away);
 
         Key(cut, 50m.ToString("C0")).Click();
+        cut.Find("input[aria-label='Note']").Input("buy the hook");
         Log(cut).Click();
 
-        // New bet is the receipt's one Filled key, and the last.
-        var keys = cut.Find(".wreceipt__keys").QuerySelectorAll("button").ToList();
-        Assert.Equal("New bet", keys[^1].TextContent.Trim());
-        Assert.Contains("desk-btn--filled", keys[^1].ClassList);
-        Assert.Single(keys, k => k.ClassList.Contains("desk-btn--filled"));
-
-        keys[^1].Click();
+        // The line's keys are plain: the next bet's Filled key is the steps' own.
+        var keys = cut.Find(".wlogged__keys").QuerySelectorAll("button").Select(k => k.TextContent.Trim()).ToList();
+        Assert.Equal(["Same bet again", "View in journal"], keys);
+        Assert.Empty(cut.Find(".wlogged").QuerySelectorAll("button.desk-btn--filled"));
 
         // Step 1 again, nothing chosen; the review and its Log key wait for a price.
-        Assert.Empty(cut.FindAll(".wreceipt"));
+        Assert.Contains("wstep--current", Step(cut, "Bet").ClassList);
         Assert.Empty(cut.FindAll(".wbet [role=radio][aria-checked=true]"));
         Assert.NotNull(cut.Find(".wbet__wait"));
         Assert.Empty(cut.FindAll("button.desk-btn--filled"));
@@ -171,9 +174,106 @@ public class BoardWagerTests : WagerTestContext
         // A re-render handing the window the same door does not land it back on the old side.
         cut.SetParametersAndRender(p => p.Add(x => x.Market, Markets.Spread).Add(x => x.Outcome, BoardRows.Away));
         Assert.Empty(cut.FindAll(".wbet [role=radio][aria-checked=true]"));
+
+        // Picking a side is the next bet: the line goes, and the note did not carry over.
+        cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Chiefs").Click();
+        Assert.Empty(cut.FindAll(".wlogged"));
+        Assert.Equal("", cut.Find("input[aria-label='Note']").GetAttribute("value") ?? "");
+    }
+
+    [Fact]
+    public void Two_bets_log_one_after_the_other_without_New_bet()
+    {
+        var cut = Render();
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Bills").Click();
+        Key(cut, 25m.ToString("C0")).Click();
+        Log(cut).Click();
+
+        Assert.Equal([(BoardRows.Home, 50m), (BoardRows.Away, 25m)], Data.Straights.Select(b => (b.Outcome, b.Stake)));
+        Assert.StartsWith($"{25m:C0} on ML · Bills", Squash(cut.Find(".wlogged .wreceipt__bet").TextContent));
     }
 
     private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    // ---- Prices to the cent ----------------------------------------------------------------
+
+    /// <summary>Types a price of your own on the Chiefs moneyline, and a stake.</summary>
+    private IRenderedComponent<BoardWager> TypedAt(string price, string stake)
+    {
+        var cut = Render();
+        if (cut.FindAll(".wager-manual-key").Count == 0)
+            Change(cut, "Bet");
+        cut.Find(".wager-manual-key").Click();
+
+        cut.Find("input[aria-label='Price']").Input(price);
+        cut.Find("input[aria-label='Stake']").Input(stake);
+        return cut;
+    }
+
+    /// <summary>
+    /// Fanatics quoted +104.35 on $500. The field kept 104 silently and the window said "To win
+    /// $520": the cents were neither typed nor paid.
+    /// </summary>
+    [Fact]
+    public void A_price_to_the_cent_is_paid_to_the_cent()
+    {
+        using var dollars = new UsDollars();
+        var cut = TypedAt("104.35", "500");
+
+        Assert.Equal("To win $521.75 · $1,021.75 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
+        Assert.Contains("ML · Chiefs at +104.35", Squash(cut.Find(".wreview").TextContent));
+        Assert.Contains("It returns $1,021.75 if it wins.", Squash(cut.Find(".wreview").TextContent));
+
+        Log(cut).Click();
+
+        var bet = Assert.Single(Data.Straights);
+        Assert.Equal(104.35m, bet.PriceTaken);
+        Assert.StartsWith("$500 on ML · Chiefs at +104.35", Squash(cut.Find(".wreceipt__bet").TextContent));
+    }
+
+    [Fact]
+    public void A_whole_price_shows_whole_dollars()
+    {
+        using var dollars = new UsDollars();
+        var cut = TypedAt("104", "500");
+
+        Assert.Equal("To win $520 · $1,020 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
+    }
+
+    /// <summary>Decimal odds, what a book prints beside the American price, read as that price and said back.</summary>
+    [Fact]
+    public void Decimal_odds_are_read_as_the_american_price_they_stand_for()
+    {
+        using var dollars = new UsDollars();
+        var cut = TypedAt("2.0435", "500");
+
+        Assert.Contains("Decimal 2.0435 = +104.35", cut.Find(".wager-typed .wbet__echo").TextContent);
+        Assert.Equal("To win $521.75 · $1,021.75 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
+
+        Log(cut).Click();
+        Assert.Equal(104.35m, Assert.Single(Data.Straights).PriceTaken);
+    }
+
+    /// <summary>
+    /// The book's own decimal odds carry the price behind the one it prints: 2.04348 is +104.348,
+    /// shown as +104.35, and pays the $1,021.74 the book pays — not the $1,021.75 of +104.35.
+    /// </summary>
+    [Fact]
+    public void The_books_decimal_odds_pay_what_the_book_pays()
+    {
+        using var dollars = new UsDollars();
+        var cut = TypedAt("2.04348", "500");
+
+        Assert.Contains("Decimal 2.04348 = +104.35", cut.Find(".wager-typed .wbet__echo").TextContent);
+        Assert.Equal("To win $521.74 · $1,021.74 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
+
+        Log(cut).Click();
+        Assert.Equal(104.348m, Assert.Single(Data.Straights).PriceTaken);
+    }
 
     // ---- Before you log -------------------------------------------------------------------
 
@@ -254,8 +354,13 @@ public class BoardWagerTests : WagerTestContext
         Assert.True(item.IsClosing);
     }
 
+    /// <summary>
+    /// Add to slip banks the wager and leaves it on screen as it was: the stake stays, Log stays
+    /// lit, and the review says the bet is on the slip until something about it changes. It used
+    /// to clear the stake, so the stake step folded empty and the bet looked lost.
+    /// </summary>
     [Fact]
-    public void Add_to_slip_counts_on_the_slip_tab_and_clears_the_stake()
+    public void Add_to_slip_counts_on_the_slip_tab_and_keeps_the_bet()
     {
         var cut = Render();
         Assert.Null(SlipCount(cut));
@@ -263,14 +368,71 @@ public class BoardWagerTests : WagerTestContext
         Key(cut, 50m.ToString("C0")).Click();
         Key(cut, "Add to slip").Click();
 
-        // The count is the Slip tab's: with the stake cleared, Add to slip (and its badge) waits out of sight.
         Assert.Equal("1", SlipCount(cut));
         Assert.Equal(50m, Slip.Items.Single().Stake);
         // Said as an addition: a green toast with a key to the slip.
         Assert.Equal($"Added {50m:C0} on ML · Chiefs at -128 to the slip.", LastToast.Message);
         Assert.Equal(DeskState.Positive, LastToast.State);
         Assert.Equal("View slip", LastToast.ActionLabel);
-        Assert.True(Log(cut).HasAttribute("disabled"));   // the stake is cleared
+        Assert.False(Log(cut).HasAttribute("disabled"));   // the stake stays
+        Assert.Equal("On the slip", cut.Find(".wbanked .tag").TextContent.Trim());
+
+        // A different stake is a different wager: the tag goes, and Add to slip banks a second card.
+        Key(cut, 25m.ToString("C0")).Click();
+        Assert.Empty(cut.FindAll(".wbanked"));
+
+        Key(cut, "Add to slip").Click();
+
+        Assert.Equal([50m, 25m], Slip.Items.Select(i => i.Stake));
+        Assert.Equal("2", SlipCount(cut));
+        Assert.NotNull(cut.Find(".wbanked"));
+    }
+
+    [Fact]
+    public void The_on_the_slip_tag_goes_when_the_card_leaves_the_slip()
+    {
+        var cut = Render();
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Key(cut, "Add to slip").Click();
+        cut.InvokeAsync(() => Slip.Clear());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".wbanked")));
+    }
+
+    /// <summary>
+    /// Log after Add to slip, with the bet unchanged, is the banked bet going to the journal: its
+    /// card leaves the slip, so the slip's own Log cannot record it a second time. A card the
+    /// bet no longer matches (a new stake since) stays, because it is a different wager.
+    /// </summary>
+    [Fact]
+    public void Logging_the_bet_still_banked_takes_its_card_off_the_slip()
+    {
+        var cut = Render();
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Key(cut, "Add to slip").Click();
+        Assert.Single(Slip.Items);
+
+        Log(cut).Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(Slip.Items));
+        Assert.Null(SlipCount(cut));
+    }
+
+    [Fact]
+    public void Logging_a_changed_bet_leaves_the_banked_card_on_the_slip()
+    {
+        var cut = Render();
+
+        Key(cut, 50m.ToString("C0")).Click();
+        Key(cut, "Add to slip").Click();
+        Key(cut, 25m.ToString("C0")).Click();
+
+        Log(cut).Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find(".wlogged")));
+        Assert.Equal(50m, Slip.Items.Single().Stake);
     }
 
     [Fact]

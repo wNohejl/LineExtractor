@@ -343,6 +343,10 @@ public class GamecastBackportTests(PostgresFixture fixture)
         Assert.Equal(4, run.RequestsMade);
         Assert.Equal(10, run.RowsIngested);
         Assert.NotNull(run.FinishedAt);
+
+        // The run row says what the press did, in the sentence the toast carries.
+        Assert.Equal(outcome.Detail, run.Detail);
+        Assert.StartsWith("2 of 2 games backported", run.Detail);
     }
 
     [Fact]

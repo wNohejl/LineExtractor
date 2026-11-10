@@ -375,21 +375,34 @@ public class StatsIngestionService(
         => source.RateLimitPerHour is null && source.RateLimitPerDay is null && source.MonthlyCreditBudget is null;
 
     /// <summary>
-    /// Finished games in one sport with no closing total from any source, asked of a provider
+    /// Finished games in one sport without the close they are owed from any source (a fight's
+    /// moneyline, any other game's total — <see cref="OwedMarket"/>), asked of a provider
     /// that can state a close per game — the backport for a season the box-score walk stored
     /// without lines. What it finds is written exactly as the walk writes it, under the stats
     /// provider's own source and only where that source holds nothing for the side yet.
     ///
     /// <para>
-    /// A game the provider has no line for stays owed and is asked again next time; there is no
-    /// marker for "asked and found nothing", because ESPN does fill a close in after the fact,
-    /// and the request is cheap. Where it has none, there is none: nothing is fabricated.
+    /// A game the provider answers without the close it is owed is set aside
+    /// (<see cref="ClosingLineMiss"/>): not asked again for two weeks, then four, eight, and at
+    /// most every ninety days, because ESPN does fill a close in after the fact — but not for a
+    /// fight card from two seasons ago, which every press used to ask about again. Where it has
+    /// none, there is none: nothing is fabricated.
+    /// </para>
+    ///
+    /// <para>
+    /// The run row says what the press did in <see cref="IngestionRun.Detail"/> — "NFL: 2 asked,
+    /// 0 answered; 2 set aside until Nov 23." — and keeps <see cref="IngestionRun.Error"/> for what
+    /// went wrong. A write that throws marks the run Failed with its error rather than leaving it
+    /// Running.
     /// </para>
     /// </summary>
+    /// <param name="now">The moment the press is taken at: what a set-aside game's retry is measured from.</param>
     public async Task<IngestionOutcome> RefillClosingLinesAsync(
         IClosingLineSource source, string sportKey, string jobKey, int limit, CancellationToken ct,
-        DateTimeOffset? from = null, DateTimeOffset? to = null)
+        DateTimeOffset? from = null, DateTimeOffset? to = null, DateTimeOffset? now = null)
     {
+        var at = now ?? DateTimeOffset.UtcNow;
+
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
             ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
 
@@ -405,7 +418,8 @@ public class StatsIngestionService(
         await db.SaveChangesAsync(ct);
 
         // A backfill range asks only for its own games; the scheduled job asks for every final.
-        var owedQuery = ClosingLinesOwed(sportKey);
+        // Either way a game set aside by this source is left until its retry date.
+        var owedQuery = ClosingLinesOwed(sportKey, sourceRow.Id, source.Key, at);
         if (from is { } since)
             owedQuery = owedQuery.Where(g => g.StartsAt >= since);
         if (to is { } until)
@@ -420,8 +434,11 @@ public class StatsIngestionService(
 
         var lines = new List<CanonicalOdds>();
         var gameMap = new Dictionary<string, Game>();
+        var unanswered = new List<Game>();
         var requests = 0;
+        var answered = 0;
         var failures = 0;
+        var market = OwedMarket(sportKey);
 
         // A fight's odds live under its card's event, not its own id (ADR 0021).
         var owedIds = owed.Select(g => g.Id).ToList();
@@ -446,40 +463,206 @@ public class StatsIngestionService(
 
                 gameMap[eventId] = game;
                 lines.AddRange(found);
+
+                // Answered means the close the game is owed: a reply with a spread and no total
+                // leaves a game owed, and would be asked again on every press.
+                if (found.Any(l => l.Market == market))
+                    answered++;
+                else
+                    unanswered.Add(game);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // One game ESPN cannot answer for must not cost the rest of the season.
+                // One game ESPN cannot answer for must not cost the rest of the season. A request
+                // that threw is not set aside: the next press asks it again.
                 failures++;
                 logger.LogWarning(ex, "{Source}: closing odds unavailable for {GameId}", source.Key, eventId);
             }
         }
 
-        var written = await PersistClosingLinesAsync(sourceRow, lines, gameMap, ct);
+        var written = 0;
+        DateTimeOffset[] setAside = [];
+
+        try
+        {
+            written = await PersistClosingLinesAsync(sourceRow, lines, gameMap, ct);
+            setAside = await SetAsideAsync(sourceRow.Id, unanswered, at, ct);
+
+            run.Status = failures == 0 || written > 0 ? RunStatus.Success : RunStatus.Failed;
+            run.Error = failures > 0 ? $"{failures} of {requests} games had no answer from the provider." : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // What was not written is not kept half-written: the closes and misses in flight are
+            // dropped, and the run says why rather than sitting at Running for ever.
+            foreach (var entry in db.ChangeTracker.Entries().Where(e => e.Entity != run
+                         && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList())
+                entry.State = entry.State == EntityState.Added ? EntityState.Detached : EntityState.Unchanged;
+
+            logger.LogError(ex, "{Source}/{Sport}: closing lines could not be written", source.Key, sportKey);
+
+            written = 0;
+            setAside = [];
+            run.Status = RunStatus.Failed;
+            run.Error = $"{ex.GetType().Name}: {ex.Message}";
+        }
 
         run.RequestsMade = requests;
         run.RowsIngested = written;
         run.FinishedAt = DateTimeOffset.UtcNow;
-        run.Status = failures == 0 || written > 0 ? RunStatus.Success : RunStatus.Failed;
-        run.Error = failures > 0 ? $"{failures} of {requests} games had no answer from the provider." : null;
+        run.Detail = owed.Count == 0
+            ? await NothingToAskAsync(sportKey, sourceRow.Id, at, from, to, ct)
+            : RefillDetail(sportKey, requests, answered, setAside);
         await db.SaveChangesAsync(ct);
 
-        var filled = lines.Select(l => l.SourceGameId).Distinct().Count();
-        logger.LogInformation("{Source}/{Sport}: {Filled} of {Owed} games owed a close got one, {Rows} lines",
-            source.Key, sportKey, filled, owed.Count, written);
+        logger.LogInformation("{Source}/{Sport}: {Detail} {Rows} lines written",
+            source.Key, sportKey, run.Detail, written);
 
         return new IngestionOutcome(run.Id, run.Status, written, run.Error);
     }
 
     /// <summary>
-    /// Finals in one sport that no source has given a closing total. The total, because it is
-    /// the market a stats provider's walk is likeliest to have missed and the one every game has
-    /// — a game with a closing total from somewhere has had its close read.
+    /// A press that asked nothing: "NFL: nothing owed." when no final lacks its close, and when
+    /// every one that does is set aside, how many and until when — so a quiet run is not read as
+    /// a league with nothing missing.
+    /// </summary>
+    private async Task<string> NothingToAskAsync(
+        string sportKey, int sourceId, DateTimeOffset now, DateTimeOffset? from, DateTimeOffset? to, CancellationToken ct)
+    {
+        var owed = ClosingLinesOwed(sportKey);
+        if (from is { } since)
+            owed = owed.Where(g => g.StartsAt >= since);
+        if (to is { } until)
+            owed = owed.Where(g => g.StartsAt < until);
+
+        var retries = await db.ClosingLineMisses
+            .Where(m => m.SourceId == sourceId && m.RetryAt > now && owed.Any(g => g.Id == m.GameId))
+            .Select(m => m.RetryAt)
+            .ToListAsync(ct);
+
+        return retries.Count == 0
+            ? $"{sportKey.ToUpperInvariant()}: nothing owed."
+            : WithSetAside($"{sportKey.ToUpperInvariant()}: nothing to ask", retries);
+    }
+
+    /// <summary>The first wait after a miss; each further miss doubles it, up to <see cref="MaxMissWait"/>.</summary>
+    public static readonly TimeSpan FirstMissWait = TimeSpan.FromDays(14);
+
+    public static readonly TimeSpan MaxMissWait = TimeSpan.FromDays(90);
+
+    /// <summary>How long a game is left after its <paramref name="attempts"/>th miss: 14, 28, 56, then 90 days.</summary>
+    public static TimeSpan MissWait(int attempts)
+    {
+        var days = FirstMissWait.TotalDays * Math.Pow(2, Math.Clamp(attempts, 1, 16) - 1);
+        return TimeSpan.FromDays(Math.Min(days, MaxMissWait.TotalDays));
+    }
+
+    /// <summary>
+    /// Remembers each game asked and left without its close, so the next press does not ask it
+    /// again before its retry date. Returns the retry dates written.
+    /// </summary>
+    private async Task<DateTimeOffset[]> SetAsideAsync(
+        int sourceId, IReadOnlyList<Game> games, DateTimeOffset now, CancellationToken ct)
+    {
+        if (games.Count == 0)
+        {
+            await db.SaveChangesAsync(ct);
+            return [];
+        }
+
+        var ids = games.Select(g => g.Id).ToList();
+        var held = await db.ClosingLineMisses
+            .Where(m => m.SourceId == sourceId && ids.Contains(m.GameId))
+            .ToDictionaryAsync(m => m.GameId, ct);
+
+        var retries = new List<DateTimeOffset>(games.Count);
+
+        foreach (var game in games)
+        {
+            if (!held.TryGetValue(game.Id, out var miss))
+            {
+                miss = new ClosingLineMiss { GameId = game.Id, SourceId = sourceId };
+                db.ClosingLineMisses.Add(miss);
+                held[game.Id] = miss;
+            }
+
+            miss.Attempts++;
+            miss.LastTriedAt = now;
+            miss.RetryAt = now + MissWait(miss.Attempts);
+            retries.Add(miss.RetryAt);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return [.. retries];
+    }
+
+    /// <summary>"NFL: 2 asked, 0 answered; 2 set aside until Nov 23."</summary>
+    internal static string RefillDetail(string sportKey, int asked, int answered, IReadOnlyCollection<DateTimeOffset> setAside)
+        => WithSetAside($"{sportKey.ToUpperInvariant()}: {asked:N0} asked, {answered:N0} answered", setAside);
+
+    /// <summary>The sentence, and how many games are set aside until when, if any are.</summary>
+    private static string WithSetAside(string sentence, IReadOnlyCollection<DateTimeOffset> setAside)
+    {
+        if (setAside.Count == 0)
+            return sentence + ".";
+
+        var first = LeagueClock.DateOf(setAside.Min());
+        var last = LeagueClock.DateOf(setAside.Max());
+        var until = first == last
+            ? Day(first)
+            : $"between {Day(first)} and {Day(last)}";
+
+        return $"{sentence}; {setAside.Count:N0} set aside until {until}.";
+
+        static string Day(DateOnly day) => day.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The close a game is owed: a fight's moneyline, because a fight has no total to close at
+    /// (ADR 0021); any other game's total, because it is the market a stats provider's walk is
+    /// likeliest to have missed and the one every game has.
+    /// </summary>
+    public static string OwedMarket(string sportKey)
+        => FightSports.IsFight(sportKey) ? Markets.Moneyline : Markets.Total;
+
+    /// <summary>
+    /// Finals in one sport that no source has given the close they are owed
+    /// (<see cref="OwedMarket"/>) — a game with that close from somewhere has had its close read.
     /// </summary>
     public IQueryable<Game> ClosingLinesOwed(string sportKey)
-        => db.Games.Where(g => g.Sport!.Key == sportKey
-                               && g.Status == GameStatus.Final
-                               && !db.ClosingLines.Any(c => c.GameId == g.Id && c.Market == Markets.Total));
+    {
+        var market = OwedMarket(sportKey);
+
+        return db.Games.Where(g => g.Sport!.Key == sportKey
+                                   && g.Status == GameStatus.Final
+                                   && !db.ClosingLines.Any(c => c.GameId == g.Id && c.Market == market));
+    }
+
+    /// <summary>
+    /// The finals a press will ask <paramref name="sourceId"/> about at <paramref name="now"/>: those
+    /// owed a close that the source knows by its own event id, less the ones it answered without
+    /// one whose retry date is still ahead. A game with no id for the source cannot be asked, so it
+    /// is neither asked nor set aside; counting it would quote games no press reaches. What the
+    /// menu quotes is this count, so the quote is what a press asks.
+    /// </summary>
+    public IQueryable<Game> ClosingLinesOwed(string sportKey, int sourceId, string sourceKey, DateTimeOffset now)
+        => ClosingLinesOwed(sportKey)
+            .Where(g => EF.Functions.JsonExists(g.ExternalIds, sourceKey))
+            .Where(g => !db.ClosingLineMisses.Any(m => m.GameId == g.Id && m.SourceId == sourceId && m.RetryAt > now));
+
+    /// <summary>
+    /// How many finals in one sport a press of the refill will ask <paramref name="sourceKey"/>
+    /// about, at most <paramref name="limit"/>: zero for a source not registered.
+    /// </summary>
+    public async Task<int> ClosingLinesToAskAsync(
+        string sportKey, string sourceKey, DateTimeOffset now, int limit, CancellationToken ct)
+    {
+        var sourceId = await db.Sources.Where(s => s.Key == sourceKey).Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
+
+        return sourceId is { } id
+            ? Math.Min(await ClosingLinesOwed(sportKey, id, sourceKey, now).CountAsync(ct), limit)
+            : 0;
+    }
 
     private async Task<int> PersistAsync(
         Source sourceRow, StatsFetchResult result, string sportKey, Func<CancellationToken, Task<long>> runId,
@@ -692,6 +875,7 @@ public class StatsIngestionService(
             .ToHashSet();
 
         var written = 0;
+        var closed = new HashSet<int>();
 
         foreach (var line in lines)
         {
@@ -724,6 +908,18 @@ public class StatsIngestionService(
             });
 
             written++;
+
+            if (line.Market == (fighters.ContainsKey(game.Id) ? Markets.Moneyline : Markets.Total))
+                closed.Add(game.Id);
+        }
+
+        // A game that now has the close it was owed is no longer set aside by anyone: the memory
+        // of having asked goes with the debt.
+        if (closed.Count > 0)
+        {
+            db.ClosingLineMisses.RemoveRange(await db.ClosingLineMisses
+                .Where(m => closed.Contains(m.GameId))
+                .ToListAsync(ct));
         }
 
         if (written > 0)

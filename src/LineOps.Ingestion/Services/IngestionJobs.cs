@@ -248,14 +248,7 @@ public class IngestionJobs(
                 Available: stats > 0,
                 Unavailable: stats > 0 ? null : "No stats source registered."),
 
-            new IngestionJob(
-                Key: EspnClosingLines,
-                Label: "Closing lines owed",
-                Description: "ESPN's closing moneyline, spread and total for finished games that have no closing total, "
-                             + "one request per game. Where ESPN has no line, none is written.",
-                EstimatedRequests: closers > 0 ? await OwedClosesAsync(scope.ServiceProvider, sports, ct) : 0,
-                Available: closers > 0,
-                Unavailable: closers > 0 ? null : "No stats source states closing lines."),
+            await ClosingLinesJobAsync(scope.ServiceProvider, sports, closers, ct),
 
         };
 
@@ -406,6 +399,7 @@ public class IngestionJobs(
         }
 
         await SyncSpineAsync(ct);
+        await SyncInjuriesAsync(ct);
 
         return new JobOutcome(EspnSlate, failures == 0, rows, failures, null);
     }
@@ -495,6 +489,47 @@ public class IngestionJobs(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogWarning(ex, "MLB spine {Date} failed; the slate is unaffected", day);
+            }
+        }
+    }
+
+    /// <summary>When the injury report was last read. A club's word on a player changes a few
+    /// times a week; one request per half hour is plenty however often the slate is pressed.</summary>
+    private DateTimeOffset _injuriesSyncedAt = DateTimeOffset.MinValue;
+
+    private static readonly TimeSpan InjuriesInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// The league injury report for each configured league that has one, as its own run
+    /// (<see cref="InjuryReportService.JobKey"/>). Best effort: ESPN down costs the statuses,
+    /// never the slate.
+    /// </summary>
+    private async Task SyncInjuriesAsync(CancellationToken ct)
+    {
+        // The leagues with a report worth reading are the adapter's to say (EspnStatsAdapter.InjuryLeagues):
+        // the NFL, whose starter the Board infers from a box score and so needs telling when the
+        // club rules him out. MLB names its probable pitchers and a fight's card is its fighters.
+        var sports = _options.EffectiveSports.Where(Adapters.EspnStatsAdapter.InjuryLeagues.Contains).ToList();
+
+        if (sports.Count == 0 || DateTimeOffset.UtcNow - _injuriesSyncedAt < InjuriesInterval)
+            return;
+
+        _injuriesSyncedAt = DateTimeOffset.UtcNow;
+
+        foreach (var sport in sports)
+        {
+            try
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var injuries = scope.ServiceProvider.GetRequiredService<InjuryReportService>();
+                var outcome = await injuries.RefreshAsync(sport, InjuryReportService.JobKey, ct);
+
+                logger.LogInformation("Injury report {Sport}: {Status}, {Rows} players written",
+                    sport, outcome.Status, outcome.RowsIngested);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Injury report {Sport} failed; the slate is unaffected", sport);
             }
         }
     }
@@ -678,15 +713,22 @@ public class IngestionJobs(
     private readonly System.Collections.Concurrent.ConcurrentDictionary<DateOnly, (int Attempts, DateTimeOffset NextTry)> _sweptDates = new();
 
     /// <summary>
-    /// Every configured sport's finals with no closing total, asked of each stats source that can
-    /// state a close. Settles afterwards: an entry waiting on its close for CLV gets it now rather
-    /// than at the next settle.
+    /// Every configured sport's finals owed a close (<see cref="StatsIngestionService.OwedMarket"/>),
+    /// asked of each stats source that can state one — less the games a source has set aside
+    /// until their retry date. Each sport's run row says what it asked; the roll-up keeps "without
+    /// a close" apart from "asked", because 523 owed and 3 asked is the difference between a
+    /// two-minute press and a one-second one. Settles afterwards: an entry waiting on its close for
+    /// CLV gets it now rather than at the next settle.
     /// </summary>
     private async Task<JobOutcome> RunClosingLinesAsync(CancellationToken ct)
     {
         var rows = 0;
         var failures = 0;
-        var owedBefore = 0;
+        var asked = 0;
+
+        OwedCloses before;
+        await using (var scope = scopeFactory.CreateAsyncScope())
+            before = await OwedClosesAsync(scope.ServiceProvider, _options.EffectiveSports, ct);
 
         foreach (var sportKey in _options.EffectiveSports)
         {
@@ -696,13 +738,13 @@ public class IngestionJobs(
             await using var scope = scopeFactory.CreateAsyncScope();
             var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
             var stats = scope.ServiceProvider.GetRequiredService<StatsIngestionService>();
-
-            owedBefore += await stats.ClosingLinesOwed(sportKey).CountAsync(ct);
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
 
             foreach (var source in registry.StatsSources.OfType<Core.Contracts.IClosingLineSource>())
             {
                 var outcome = await stats.RefillClosingLinesAsync(source, sportKey, EspnClosingLines, ClosingLinesPerRun, ct);
                 rows += outcome.RowsIngested;
+                asked += await db.IngestionRuns.Where(r => r.Id == outcome.RunId).Select(r => r.RequestsMade).FirstOrDefaultAsync(ct);
 
                 if (outcome.Status == RunStatus.Failed)
                     failures++;
@@ -712,13 +754,48 @@ public class IngestionJobs(
         if (rows > 0)
             await RunSettleAsync(ct);
 
-        int owedAfter;
+        OwedCloses after;
         await using (var scope = scopeFactory.CreateAsyncScope())
-            owedAfter = await OwedClosesAsync(scope.ServiceProvider, _options.EffectiveSports, ct);
+            after = await OwedClosesAsync(scope.ServiceProvider, _options.EffectiveSports, ct);
 
         return new JobOutcome(EspnClosingLines, failures == 0, rows, failures,
-            $"{rows:N0} closing lines written; {owedBefore - owedAfter} of {owedBefore} games owed a close now have one"
-            + (owedAfter > 0 ? $", {owedAfter} still without (ESPN has no line for them)." : "."));
+            ClosingLinesSentence(rows, asked, before.WithoutClose - after.WithoutClose, after));
+    }
+
+    /// <summary>
+    /// "0 closing lines written; 0 of 3 games asked got a close; 520 set aside until their retry date."
+    /// </summary>
+    internal static string ClosingLinesSentence(int rows, int asked, int closed, OwedCloses after)
+    {
+        if (asked == 0 && after.WithoutClose == 0)
+            return $"{rows:N0} closing lines written; no game is owed a close.";
+
+        return $"{rows:N0} closing lines written; {Math.Max(0, closed):N0} of {asked:N0} games asked got a close"
+               + (after.SetAside > 0 ? $"; {after.SetAside:N0} set aside until their retry date" : "")
+               + (after.ToAsk > 0 ? $"; {after.ToAsk:N0} still to ask" : "")
+               + ".";
+    }
+
+    /// <summary>
+    /// The closing-line refill as the menu offers it: the estimate counts only the games a press
+    /// will ask, and the description says how many are without a close and how many of those
+    /// that is — "523 without a close · 3 to ask".
+    /// </summary>
+    private static async Task<IngestionJob> ClosingLinesJobAsync(
+        IServiceProvider provider, IReadOnlyList<string> sports, int closers, CancellationToken ct)
+    {
+        var owed = closers > 0 ? await OwedClosesAsync(provider, sports, ct) : new OwedCloses(0, 0);
+
+        return new IngestionJob(
+            Key: EspnClosingLines,
+            Label: "Closing lines owed",
+            Description: "ESPN's closing moneyline, spread and total for finished games without the close they are owed "
+                         + "(a fight's moneyline, a game's total), one request per game. Where ESPN has no line, none is "
+                         + "written, and the game is set aside — two weeks the first time, longer each time after — before it is asked again."
+                         + (closers > 0 ? $" {owed.WithoutClose:N0} without a close · {owed.ToAsk:N0} to ask." : ""),
+            EstimatedRequests: owed.ToAsk,
+            Available: closers > 0,
+            Unavailable: closers > 0 ? null : "No stats source states closing lines.");
     }
 
     /// <summary>
@@ -772,16 +849,44 @@ public class IngestionJobs(
             More: outcome.RunId != 0 && outcome.StillOwed > 0);
     }
 
-    private static async Task<int> OwedClosesAsync(IServiceProvider provider, IReadOnlyList<string> sports, CancellationToken ct)
+    /// <summary>
+    /// Finals without the close they are owed, and of those the ones a press would ask each
+    /// closing-line source about now — not set aside, and within a run's ceiling.
+    /// </summary>
+    private static async Task<OwedCloses> OwedClosesAsync(IServiceProvider provider, IReadOnlyList<string> sports, CancellationToken ct)
     {
         var stats = provider.GetRequiredService<StatsIngestionService>();
-        var owed = 0;
+        var closers = provider.GetRequiredService<SourceRegistry>().StatsSources
+            .OfType<Core.Contracts.IClosingLineSource>()
+            .Select(s => s.Key)
+            .ToList();
+        var now = DateTimeOffset.UtcNow;
+        var without = 0;
+        var toAsk = 0;
+        var askable = 0;
 
         foreach (var sport in sports)
-            owed += await stats.ClosingLinesOwed(sport).CountAsync(ct);
+        {
+            without += await stats.ClosingLinesOwed(sport).CountAsync(ct);
 
-        return owed;
+            foreach (var closer in closers)
+            {
+                toAsk += await stats.ClosingLinesToAskAsync(sport, closer, now, ClosingLinesPerRun, ct);
+                askable += await stats.ClosingLinesToAskAsync(sport, closer, now, int.MaxValue, ct);
+            }
+        }
+
+        // Set aside is what is owed less what could be asked at all — not less what one press
+        // asks, which a run's ceiling caps: 700 owed and none set aside is 600 to ask now and 100
+        // after, not 100 set aside.
+        return new OwedCloses(without, toAsk, Math.Max(0, without - askable));
     }
+
+    /// <summary>
+    /// Finals without the close they are owed; how many of them a press would ask now (within a
+    /// run's ceiling); and how many are set aside until their retry date.
+    /// </summary>
+    internal readonly record struct OwedCloses(int WithoutClose, int ToAsk, int SetAside = 0);
 
     private async Task<JobOutcome> RunSettleAsync(CancellationToken ct)
     {

@@ -44,6 +44,35 @@ public class Player
     /// <summary>active | injured | inactive — as reported by the stats source.</summary>
     public string Status { get; set; } = "active";
 
+    /// <summary>
+    /// The club's own word on the player's availability, as the stats source relays it —
+    /// "Out", "Questionable", "Injured Reserve", "Doubtful", "Active" — or null where no report
+    /// names the player. Read beside a starter: a quarterback ruled out does not start.
+    /// </summary>
+    public string? InjuryStatus { get; set; }
+
+    /// <summary>The report's one-line note ("ruled out for Monday with a hamstring"), when it has one.</summary>
+    public string? InjuryNote { get; set; }
+
+    /// <summary>When the injury report last named this player; null when it never has.</summary>
+    public DateTimeOffset? InjuryUpdatedAt { get; set; }
+
+    /// <summary>
+    /// How long the report's word on a player holds once the report stops naming him. ESPN lists
+    /// twenty-five entries a club, newest first, so a player ruled out weeks ago drops off the
+    /// bottom as others are added — his absence says the list is full, not that he is well. A
+    /// status the report has not repeated for this long is read as no status at all.
+    /// </summary>
+    public static readonly TimeSpan InjuryStatusLife = TimeSpan.FromDays(14);
+
+    /// <summary>
+    /// Whether a status last written at <paramref name="updatedAt"/> still holds at
+    /// <paramref name="now"/>: within <see cref="InjuryStatusLife"/>. A status with no time
+    /// against it is not.
+    /// </summary>
+    public static bool InjuryStatusHolds(DateTimeOffset? updatedAt, DateTimeOffset now)
+        => updatedAt is { } at && now - at <= InjuryStatusLife;
+
     public Dictionary<string, string> ExternalIds { get; set; } = [];
 }
 

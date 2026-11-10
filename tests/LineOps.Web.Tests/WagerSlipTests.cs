@@ -11,7 +11,7 @@ namespace LineOps.Web.Tests;
 /// </summary>
 public class WagerSlipTests
 {
-    private static SlipItem Item(int price = -110, bool closing = false, decimal stake = 50m,
+    private static SlipItem Item(decimal price = -110, bool closing = false, decimal stake = 50m,
         string outcome = "Kansas City Chiefs", string book = "draftkings", int gameId = 7,
         string market = Markets.Moneyline, decimal? line = null)
         => new(Guid.Empty, gameId, "Buffalo Bills at Kansas City Chiefs", DateTimeOffset.UtcNow.AddHours(3), "nfl",
@@ -96,16 +96,36 @@ public class WagerSlipTests
         Assert.Equal(177, slip.CombinedPrice);
     }
 
+    [Fact]
+    public void A_leg_at_a_price_to_the_cent_multiplies_exactly()
+    {
+        var slip = new WagerSlip();
+        var first = slip.Add(Item(price: -132, closing: true, gameId: 1));
+        slip.Add(Item(price: 104.35m, gameId: 2));
+        slip.SetMode(SlipMode.Parlay);
+
+        Assert.True(slip.TakePrice(first.Id, -104.35m));
+        Assert.Equal(-104.35m, slip.Items.Single(i => i.Id == first.Id).PriceAmerican);
+
+        // The draft carries the cents to the journal, which pays on the exact product:
+        // 1.958313368... × 2.0435 = 4.00181... — +300 once printed whole.
+        var draft = slip.ToParlayDraft();
+        Assert.Equal(new[] { -104.35m, 104.35m }, draft.Legs.Select(l => l.PriceTaken));
+        Assert.Equal((1m + 100m / 104.35m) * 2.0435m, OddsMath.CombinedDecimal(draft.Legs.Select(l => l.PriceTaken)));
+        Assert.Equal(300m, slip.CombinedPrice);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-99)]
     [InlineData(99)]
-    public void A_number_that_is_not_a_price_is_refused(int price)
+    [InlineData(99.99)]
+    public void A_number_that_is_not_a_price_is_refused(double price)
     {
         var slip = new WagerSlip();
         var closing = slip.Add(Item(closing: true));
 
-        Assert.False(slip.TakePrice(closing.Id, price));
+        Assert.False(slip.TakePrice(closing.Id, (decimal)price));
         Assert.True(slip.Items.Single().IsClosing);
     }
 
@@ -378,6 +398,50 @@ public class WagerSlipTests
 
         Assert.Equal(new[] { closing.Id }, slip.Items.Select(i => i.Id));
         Assert.Equal(1, changes);
+    }
+
+    /// <summary>
+    /// A logged parlay takes its money with it: the stake, the book's own price and the book were
+    /// that parlay's, and kept they priced the next one built on the slip.
+    /// </summary>
+    [Fact]
+    public void A_logged_parlay_leaves_no_stake_price_or_book_for_the_next()
+    {
+        var slip = new WagerSlip();
+        var a = slip.AddLeg(Item(gameId: 1));
+        var b = slip.AddLeg(Item(gameId: 2));
+        slip.SetParlay(25m, 441, "fanduel");
+        var changes = 0;
+        slip.Changed += () => changes++;
+
+        slip.Logged([a.Id, b.Id]);
+
+        Assert.Empty(slip.Items);
+        Assert.Equal(0m, slip.ParlayStake);
+        Assert.Null(slip.ParlayPriceQuoted);
+        Assert.Null(slip.ParlayBook);
+        Assert.Equal(1, changes);
+
+        slip.AddLeg(Item(gameId: 3));
+        slip.AddLeg(Item(-120, gameId: 4));
+        Assert.Equal(slip.MultipliedPrice, slip.CombinedPrice);
+    }
+
+    [Fact]
+    public void A_straight_bet_logged_beside_the_legs_leaves_the_parlay_its_price()
+    {
+        var slip = new WagerSlip();
+        slip.AddLeg(Item(gameId: 1));
+        slip.AddLeg(Item(gameId: 2));
+        var straight = slip.Add(Item(gameId: 3) with { Stake = 50m });
+        slip.SetParlay(25m, 441, "fanduel");
+
+        slip.Logged([straight.Id]);
+
+        Assert.Equal(2, slip.Legs.Count);
+        Assert.Equal(25m, slip.ParlayStake);
+        Assert.Equal(441m, slip.ParlayPriceQuoted);
+        Assert.Equal("fanduel", slip.ParlayBook);
     }
 
     [Fact]

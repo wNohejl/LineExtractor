@@ -58,7 +58,11 @@
 
     @if (Slip.Items.Count == 0)
     {
-        <EmptyState Kind="EmptyStateKind.New">
+        @* The one step out of an empty slip belongs on it (as Performance's empty state opens the
+           Journal). Hosted by a Place wager window, it turns back to that window's form; anywhere
+           else — the Journal's tab, the Slip window — it opens Place wager on its game search.
+           A visitor cannot place a wager, so a visitor is not offered one. *@
+        <EmptyState Kind="EmptyStateKind.New" Action="@(Manager.Access.CanOperate ? PickBetKey : null)">
             Nothing on the slip. Add to slip in a Place wager window banks the wager here; Add as leg,
             or Shift-click a price on the Board, banks a parlay leg.
         </EmptyState>
@@ -113,12 +117,14 @@
                                starting from the closing number on the card. It used to send the
                                operator to the Journal, which logs one bet and never a parlay. *@
                             <div class="slip-card__take">
-                                <span class="slip-card__take-label" id="@($"took-{item.Id:N}")">Price you got</span>
-                                <DeskField TValue="int?" Mono="true" Immediate="true" type="number" Class="slip-card__price"
+                                <span class="slip-card__take-label" id="@($"took-{item.Id:N}")">Price you got@(DecimalEcho(_typed.GetValueOrDefault(item.Id)) is { } read ? $" · {read}" : "")</span>
+                                @* To the cent, or decimal odds (2.0435), read as the American price
+                                   the label says back. *@
+                                <DeskField TValue="decimal?" Mono="true" Immediate="true" type="number" step="any" Class="slip-card__price"
                                            aria-labelledby="@($"took-{item.Id:N}")"
-                                           Error="@(_badPrice.Contains(item.Id) ? "A price is −100 or lower, or +100 or higher." : null)"
+                                           Error="@(_badPrice.Contains(item.Id) ? "A price is −100 or lower, +100 or higher, or decimal odds such as 2.05." : null)"
                                            Value="@(_typed.TryGetValue(item.Id, out var typed) ? typed : item.PriceAmerican)"
-                                           ValueChanged="@((int? p) => _typed[item.Id] = p)" />
+                                           ValueChanged="@((decimal? p) => _typed[item.Id] = p)" />
                                 <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
                                             Title="Log this wager at the price typed beside it"
                                             OnClick="() => TakePrice(item)">
@@ -135,7 +141,7 @@
                             @* The field holds a number the slip refused; the card keeps its stake
                                and says so, rather than letting a $0 sit there looking banked. *@
                             <div class="slip-card__remedy slip-card__zero">
-                                Needs a stake above zero. The slip keeps @item.Stake.ToString("C0") until you type one.
+                                Needs a stake above zero. The slip keeps @OddsMath.Money(item.Stake) until you type one.
                             </div>
                         }
                     </div>
@@ -178,12 +184,17 @@
                                   StakeChanged="@(s => Slip.SetParlay(s, Slip.ParlayPriceQuoted, Slip.ParlayBook))"
                                   PriceAmerican="Slip.CombinedPrice" />
                     </FormRow>
-                    <FormRow Label="Book's price">
+                    <FormRow>
+                        <LabelContent>Book's price<span class="wbet__echo">@(ParlayTypedHolds ? DecimalEcho(_parlayTyped) : null)</span></LabelContent>
+                        <ChildContent>
                         @* The book's own price for the parlay, when it gave one: it is what a clean
-                           win pays. Without it the legs are multiplied, which is also how a push reprices. *@
-                        <DeskField TValue="int?" Mono="true" type="number" Class="wfield--short"
-                                   placeholder="Optional" aria-label="Parlay price" Value="Slip.ParlayPriceQuoted"
-                                   ValueChanged="@((int? p) => Slip.SetParlay(Slip.ParlayStake, p, Slip.ParlayBook))" />
+                           win pays. Without it the legs are multiplied, which is also how a push reprices.
+                           To the cent, or decimal odds, read as the American price the label says back. *@
+                        <DeskField TValue="decimal?" Mono="true" type="number" step="any" Class="wfield--short"
+                                   placeholder="Optional" aria-label="Parlay price"
+                                   Value="@(ParlayTypedHolds ? _parlayTyped : Slip.ParlayPriceQuoted)"
+                                   ValueChanged="@((decimal? p) => SetParlayPrice(p))" />
+                        </ChildContent>
                     </FormRow>
                     <FormRow Label="Book">
                         <DeskSelect TValue="string" Class="wfield--short" Value="Slip.ParlayBook"
@@ -211,10 +222,13 @@
                             else if (Slip.Legs.Count >= 2)
                             {
                                 @* The multiplication itself, so the operator can check it against the
-                                   book's ticket: 1.76 × 1.57 × 1.60 = 4.42, which is +342. *@
+                                   book's ticket: 1.111 × 1.333 × 1.286 = 1.905, which is -111. Three
+                                   places, and the product of the exact odds rather than of the rounded
+                                   ones or the American price turned back: at two places a short
+                                   favourite's 1.11 hid enough that the sum did not check. *@
                                 <text>
                                     @Slip.Legs.Count legs, decimal odds multiplied:
-                                    <span class="num">@string.Join(" × ", Slip.Legs.Select(l => Decimal(l.PriceAmerican))) = @Decimal(Slip.MultipliedPrice!.Value)</span>,
+                                    <span class="num">@string.Join(" × ", Slip.Legs.Select(l => Decimal3(OddsMath.ToDecimal(l.PriceAmerican)))) = @Decimal3(OddsMath.CombinedDecimal(Slip.Legs.Select(l => l.PriceAmerican)))</span>,
                                     which is <span class="num">@Price(Slip.MultipliedPrice!.Value)</span>.
                                     A book's own parlay price replaces it.
                                 </text>
@@ -303,7 +317,7 @@
 
     // Prices typed on closing cards, before Use this price takes them; and cards whose typed
     // number was refused.
-    private readonly Dictionary<Guid, int?> _typed = [];
+    private readonly Dictionary<Guid, decimal?> _typed = [];
     private readonly HashSet<Guid> _badPrice = [];
 
     /// <summary>
@@ -314,7 +328,7 @@
     {
         var price = _typed.TryGetValue(item.Id, out var typed) ? typed : item.PriceAmerican;
 
-        if (price is { } taken && Slip.TakePrice(item.Id, taken))
+        if (price is { } entered && OddsMath.ReadTypedPrice(entered) is { } taken && Slip.TakePrice(item.Id, taken))
         {
             _typed.Remove(item.Id);
             _badPrice.Remove(item.Id);
@@ -325,9 +339,61 @@
         }
     }
 
+    /// <summary>
+    /// What a typed decimal price is read as — "Decimal 2.0435 = +104.35" — so the number logged
+    /// is on screen first. Null for an American price, or nothing typed.
+    /// </summary>
+    private static string? DecimalEcho(decimal? typed)
+        => typed is { } t && Math.Abs(t) < 100 && OddsMath.ReadTypedPrice(t) is { } american
+            ? $"Decimal {t.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)} = {Price(american)}"
+            : null;
+
+    // The parlay's book price as typed, kept only while it is what the slip holds: decimal odds
+    // typed there are said back as the American price the slip took.
+    private decimal? _parlayTyped;
+
+    private bool ParlayTypedHolds
+        => _parlayTyped is { } t && OddsMath.ReadTypedPrice(t) is { } read && read == Slip.ParlayPriceQuoted;
+
+    private void SetParlayPrice(decimal? typed)
+    {
+        _parlayTyped = typed;
+        Slip.SetParlay(Slip.ParlayStake, typed is { } t ? OddsMath.ReadTypedPrice(t) : null, Slip.ParlayBook);
+    }
+
     /// <summary>Decimal odds to two places — what one unit returns, stake included.</summary>
-    private static string Decimal(int american)
+    private static string Decimal(decimal american)
         => OddsMath.ToDecimal(american).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Decimal odds to three places, for the footer's multiplication, which has to check.</summary>
+    private static string Decimal3(decimal odds)
+        => odds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Set by a window that hosts the slip beside its own form (Place wager's Slip tab): the empty
+    /// slip's key then reads Pick a bet and hands back to that form. Unset, the key opens Place
+    /// wager on its game search.
+    /// </summary>
+    [Parameter] public EventCallback? OnPickBet { get; set; }
+
+    private RenderFragment PickBetKey => __builder =>
+    {
+        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                    Icon="@Icons.Material.Filled.Receipt" OnClick="PickBetAsync">
+            @(OnPickBet is null ? "Place wager" : "Pick a bet")
+        </DeskButton>
+    };
+
+    private async Task PickBetAsync()
+    {
+        if (!Manager.Access.CanOperate)
+            return;
+
+        if (OnPickBet is { } pick)
+            await pick.InvokeAsync();
+        else
+            Manager.Open(WindowCatalog.Find(WindowCatalog.Wager)!);
+    }
 
     private CardState StateOf(SlipItem item)
     {
@@ -406,7 +472,7 @@
 
     private string LogLabel
         => Slip.Mode == SlipMode.Straight
-            ? $"Log {Slip.Ready.Count} ready · {Slip.Ready.Sum(i => i.Stake):C0}"
+            ? $"Log {Slip.Ready.Count} ready · {OddsMath.Money(Slip.Ready.Sum(i => i.Stake))}"
             : $"Log parlay · {(Slip.CombinedPrice is { } combined ? Price(combined) : "—")}";
 
     private async Task LogAsync()
@@ -441,11 +507,11 @@
                     ? $"Left on the slip: {i.Selection} — {(i.IsClosing ? "closing line" : parlay ? $"another leg is on this game's {MarketWord(i.Market)}" : "a parlay leg with no stake")}."
                     : parlay
                         ? $"Leg: {i.Selection} ({i.Book})."
-                        : $"Logged {i.Stake:C0} on {i.Selection} ({i.Book}).")
+                        : $"Logged {OddsMath.Money(i.Stake)} on {i.Selection} ({i.Book}).")
                 .ToList();
 
             if (parlay)
-                steps.Add($"Parlay: {Slip.ParlayStake:C0} at {(Slip.CombinedPrice is { } c ? Price(c) : "—")} ({Slip.ParlayBook}).");
+                steps.Add($"Parlay: {OddsMath.Money(Slip.ParlayStake)} at {(Slip.CombinedPrice is { } c ? Price(c) : "—")} ({Slip.ParlayBook}).");
 
             Slip.Logged(ids);
 

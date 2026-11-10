@@ -27,7 +27,7 @@ public sealed record WagerPrefill(
     string Outcome,
     decimal? Line,
     string Book,
-    int? PriceAmerican,
+    decimal? PriceAmerican,
     decimal Stake,
     string? Note,
     string? Described)
@@ -58,9 +58,10 @@ public sealed record WagerPrefill(
 
     /// <summary>
     /// The wager window's parameters, by name. Nothing null goes in: an absent key is the
-    /// window's default. The stake and the line go as invariant text ("110", "-2.5"): the desk
-    /// writes its windows down as JSON and reads a number back as an int or a double, and a
-    /// decimal parameter can be set from neither — a restored copy took the circuit down.
+    /// window's default. The stake, the line and a typed price go as invariant text ("110", "-2.5",
+    /// "104.35"): the desk writes its windows down as JSON and reads a number back as an int or a
+    /// double, and a decimal parameter can be set from neither — a restored copy took the circuit
+    /// down.
     /// </summary>
     public Dictionary<string, object> ToParameters()
     {
@@ -74,7 +75,7 @@ public sealed record WagerPrefill(
         }
         if (Line is { } line) parameters["TakenLine"] = Text(line);
         if (!string.IsNullOrWhiteSpace(Book)) parameters["Book"] = Book;
-        if (PriceAmerican is { } price) parameters["PriceAmerican"] = price;
+        if (PriceAmerican is { } price) parameters["PriceAmerican"] = Text(price);
         if (Stake > 0) parameters["Stake"] = Text(Stake);
         if (Note is not null) parameters["Note"] = Note;
         if (Described is not null) parameters["Described"] = Described;
@@ -82,7 +83,7 @@ public sealed record WagerPrefill(
         return parameters;
     }
 
-    /// <summary>"110", not "110.00": G29 drops the stored scale's trailing zeros.</summary>
+    /// <summary>"110", not "110.00"; "104.35" for a price: G29 drops the stored scale's trailing zeros.</summary>
     private static string Text(decimal value) => value.ToString("G29", CultureInfo.InvariantCulture);
 
     /// <summary>

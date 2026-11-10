@@ -1,0 +1,304 @@
+{
+  "timestamp": "2026-11-09T23:05:54Z",
+  "status": "success",
+  "season": {
+    "year": 2026,
+    "type": 2,
+    "name": "Regular Season",
+    "displayName": "2026"
+  },
+  "injuries": [
+    {
+      "id": "16",
+      "displayName": "Minnesota Vikings",
+      "injuries": [
+        {
+          "id": "-2074214",
+          "status": "Injured Reserve",
+          "shortComment": "ir",
+          "longComment": "ir",
+          "date": "2026-11-09T22:03Z",
+          "athlete": {
+            "firstName": "Demond",
+            "lastName": "Claiborne",
+            "displayName": "Demond Claiborne",
+            "shortName": "D. Claiborne",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/4832846/demond-claiborne",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "9",
+              "name": "Running Back",
+              "abbreviation": "RB"
+            },
+            "team": {
+              "id": "16",
+              "abbreviation": "MIN",
+              "displayName": "Minnesota Vikings"
+            }
+          },
+          "type": {
+            "id": "5",
+            "name": "INJURY_STATUS_IR",
+            "description": "Injured Reserve",
+            "abbreviation": "IR"
+          }
+        },
+        {
+          "id": "646426",
+          "status": "Out",
+          "shortComment": "Head coach Kevin O'Connell said Saturday that Murray (hamstring) has been ruled out for Monday's game versus the Bills.",
+          "longComment": "Murray emerged from last Sunday's loss to the Lions with a sore hamstring, and O'Connell told Alec Lewis of The Athletic on Thursday that the quarterback was unlikely to play in Week 9 but also wasn't an IR consideration. Tom Pelissero of Netflix reported Saturday morning that Murray is in recovery mode from a Grade 2 hamstring strain that will sideline him Monday and potentially beyond that point. Now that Murray officially is out for his second contest of the campaign, Carson Wentz is set to see his first game action since Week 2.",
+          "date": "2026-11-07T19:24Z",
+          "athlete": {
+            "firstName": "Kyler",
+            "lastName": "Murray",
+            "displayName": "Kyler Murray",
+            "shortName": "K. Murray",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/3917315/kyler-murray",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "8",
+              "name": "Quarterback",
+              "abbreviation": "QB"
+            },
+            "team": {
+              "id": "16",
+              "abbreviation": "MIN",
+              "displayName": "Minnesota Vikings"
+            }
+          },
+          "type": {
+            "id": "4",
+            "name": "INJURY_STATUS_OUT",
+            "description": "out",
+            "abbreviation": "O"
+          }
+        },
+        {
+          "id": "-2070571",
+          "status": "Questionable",
+          "shortComment": "questionable",
+          "longComment": "questionable",
+          "date": "2026-11-05T22:32Z",
+          "athlete": {
+            "firstName": "Jay",
+            "lastName": "Ward",
+            "displayName": "Jay Ward",
+            "shortName": "J. Ward",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/4568007/jay-ward",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "36",
+              "name": "Safety",
+              "abbreviation": "S"
+            },
+            "team": {
+              "id": "16",
+              "abbreviation": "MIN",
+              "displayName": "Minnesota Vikings"
+            }
+          },
+          "type": {
+            "id": "2",
+            "name": "INJURY_STATUS_QUESTIONABLE",
+            "description": "questionable",
+            "abbreviation": "Q"
+          }
+        },
+        {
+          "id": "646053",
+          "status": "Active",
+          "shortComment": "Wentz is stated to start Monday night's game against the Bills, Ian Rapoport of NFL Network reports.",
+          "longComment": "Wentz will get the Week 9 assignment at QB for the Vikings, with Kyler Murray viewed as week-to-week with a hamstring strain, per Ian Rapoport of NFL Network. Max Brosmer will be the team's backup versus Buffalo, and perhaps longer than that should Murray's injury linger. Wentz thus represents an option for those in Superflex formats or otherwise are in need of signal-caller help due to injury or bye week issues.",
+          "date": "2026-11-05T18:30Z",
+          "athlete": {
+            "firstName": "Carson",
+            "lastName": "Wentz",
+            "displayName": "Carson Wentz",
+            "shortName": "C. Wentz",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/2573079/carson-wentz",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "8",
+              "name": "Quarterback",
+              "abbreviation": "QB"
+            },
+            "team": {
+              "id": "16",
+              "abbreviation": "MIN",
+              "displayName": "Minnesota Vikings"
+            }
+          },
+          "type": {
+            "id": "0",
+            "name": "INJURY_STATUS_ACTIVE",
+            "description": "active",
+            "abbreviation": "A"
+          }
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "displayName": "Buffalo Bills",
+      "injuries": [
+        {
+          "id": "-2074273",
+          "status": "Injured Reserve",
+          "shortComment": "ir",
+          "longComment": "ir",
+          "date": "2026-11-09T22:39Z",
+          "athlete": {
+            "firstName": "Joshua",
+            "lastName": "Palmer",
+            "displayName": "Joshua Palmer",
+            "shortName": "J. Palmer",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/4242433/joshua-palmer",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "1",
+              "name": "Wide Receiver",
+              "abbreviation": "WR"
+            },
+            "team": {
+              "id": "2",
+              "abbreviation": "BUF",
+              "displayName": "Buffalo Bills"
+            }
+          },
+          "type": {
+            "id": "5",
+            "name": "INJURY_STATUS_IR",
+            "description": "Injured Reserve",
+            "abbreviation": "IR"
+          }
+        },
+        {
+          "id": "646476",
+          "status": "Questionable",
+          "shortComment": "Anderson (ankle) is questionable for Monday's tilt versus the Vikings.",
+          "longComment": "Anderson didn't practice Thursday or Friday due to an ankle injury, but he was able to log a limited session Saturday to have at least a chance of suiting up Monday. If Anderson ends up being sidelined, Austin Corbett could draw the start at left guard.",
+          "date": "2026-11-08T02:09Z",
+          "athlete": {
+            "firstName": "Alec",
+            "lastName": "Anderson",
+            "displayName": "Alec Anderson",
+            "shortName": "A. Anderson",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/4367203/alec-anderson",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "46",
+              "name": "Offensive Tackle",
+              "abbreviation": "OT"
+            },
+            "team": {
+              "id": "2",
+              "abbreviation": "BUF",
+              "displayName": "Buffalo Bills"
+            }
+          },
+          "type": {
+            "id": "2",
+            "name": "INJURY_STATUS_QUESTIONABLE",
+            "description": "questionable",
+            "abbreviation": "Q"
+          }
+        },
+        {
+          "id": "646475",
+          "status": "Active",
+          "shortComment": "Brown (back) does not have a designation for Monday's matchup in Minnesota.",
+          "longComment": "Brown missed last Sunday's win over Baltimore, but he'll be back in action Monday after logging an LP/LP/FP practice progression this week. His return will be especially critical if fellow starting offensive tackle Dion Dawkins (ribs, questionable) isn't able to suit up.",
+          "date": "2026-11-08T02:05Z",
+          "athlete": {
+            "firstName": "Spencer",
+            "lastName": "Brown",
+            "displayName": "Spencer Brown",
+            "shortName": "S. Brown",
+            "links": [
+              {
+                "rel": [
+                  "playercard",
+                  "desktop",
+                  "athlete"
+                ],
+                "href": "https://www.espn.com/nfl/player/_/id/4030899/spencer-brown",
+                "text": "Player Card"
+              }
+            ],
+            "position": {
+              "id": "46",
+              "name": "Offensive Tackle",
+              "abbreviation": "OT"
+            },
+            "team": {
+              "id": "2",
+              "abbreviation": "BUF",
+              "displayName": "Buffalo Bills"
+            }
+          },
+          "type": {
+            "id": "0",
+            "name": "INJURY_STATUS_ACTIVE",
+            "description": "active",
+            "abbreviation": "A"
+          }
+        }
+      ]
+    }
+  ]
+}

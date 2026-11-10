@@ -1,3 +1,4 @@
+using System.Globalization;
 using LineOps.Core.Analytics;
 
 namespace LineOps.Tests.Analytics;
@@ -135,5 +136,100 @@ public class OddsMathTests
 
     [Fact]
     public void CombinedPrice_NeedsALeg()
-        => Assert.Throws<ArgumentException>(() => OddsMath.CombinedAmerican([]));
+        => Assert.Throws<ArgumentException>(() => OddsMath.CombinedAmerican(Array.Empty<int>()));
+
+    // ---- Prices to the cent. Fanatics quoted +104.35 on $500; the desk could only take +104,
+    // and paid $1,020 where the book pays $1,021.75.
+
+    [Fact]
+    public void ToDecimal_OfAPriceToTheCent_IsExact()
+    {
+        Assert.Equal(2.0435m, OddsMath.ToDecimal(104.35m));
+        Assert.Equal(1.5m, OddsMath.ToDecimal(-200m));
+    }
+
+    [Fact]
+    public void PayoutOnWin_AtAPriceToTheCent_PaysToTheCent()
+    {
+        Assert.Equal(521.75m, OddsMath.ProfitOnWin(104.35m, 500m));
+        Assert.Equal(1021.75m, OddsMath.PayoutOnWin(104.35m, 500m));
+        // The price behind it, from the book's decimal odds 2.04348, pays what the book pays.
+        Assert.Equal(1021.74m, OddsMath.PayoutOnWin(OddsMath.FromDecimal(2.04348m), 500m));
+        // A favourite's profit is exact too: risking 110 at -110 wins 100, not 99.9999.
+        Assert.Equal(100m, OddsMath.ProfitOnWin(-110m, 110m));
+    }
+
+    [Fact]
+    public void TheWholePriceOverloads_PayWhatTheDecimalOnesPay()
+    {
+        Assert.Equal(OddsMath.PayoutOnWin(-110m, 25m), OddsMath.PayoutOnWin(-110, 25m));
+        Assert.Equal(OddsMath.ProfitOnWin(150m, 25m), OddsMath.ProfitOnWin(150, 25m));
+    }
+
+    [Theory]
+    [InlineData("2.0435", "104.35")]
+    [InlineData("1.5", "-200")]
+    [InlineData("1.9", "-111.1111")]
+    // Four places: the price behind the +104.35 a book prints, which it pays on.
+    [InlineData("2.04348", "104.348")]
+    [InlineData("2", "100")]
+    public void FromDecimal_ReadsDecimalOddsToFourPlaces(string decimalOdds, string american)
+        => Assert.Equal(decimal.Parse(american, CultureInfo.InvariantCulture),
+            OddsMath.FromDecimal(decimal.Parse(decimalOdds, CultureInfo.InvariantCulture)));
+
+    [Theory]
+    [InlineData("104.35", "+104.35")]
+    [InlineData("104", "+104")]
+    [InlineData("104.00", "+104")]
+    [InlineData("-110", "-110")]
+    [InlineData("-104.5", "-104.50")]
+    // Stored to four places, shown as a book prints it.
+    [InlineData("104.348", "+104.35")]
+    [InlineData("-110.0049", "-110")]
+    public void FormatPrice_ShowsAtMostCentsAndOnlyWhenThePriceHasThem(string american, string expected)
+        => Assert.Equal(expected, OddsMath.FormatPrice(decimal.Parse(american, CultureInfo.InvariantCulture)));
+
+    [Theory]
+    // American as typed, either way of the dead band.
+    [InlineData("104.35", "104.35")]
+    [InlineData("-104.35", "-104.35")]
+    [InlineData("-110", "-110")]
+    // Between 1.01 and 99.99: decimal odds, the number a book shows beside the American price.
+    [InlineData("2.0435", "104.35")]
+    [InlineData("1.5", "-200")]
+    public void ReadTypedPrice_TakesAmericanOrDecimalOdds(string typed, string american)
+        => Assert.Equal(decimal.Parse(american, CultureInfo.InvariantCulture),
+            OddsMath.ReadTypedPrice(decimal.Parse(typed, CultureInfo.InvariantCulture)));
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("-50")]
+    public void ReadTypedPrice_RefusesWhatIsNotAPrice(string typed)
+        => Assert.Null(OddsMath.ReadTypedPrice(decimal.Parse(typed, CultureInfo.InvariantCulture)));
+
+    [Fact]
+    public void CombinedDecimal_OverPricesToTheCent_IsTheExactProduct()
+    {
+        Assert.Equal(2.0435m * 2.0435m, OddsMath.CombinedDecimal([104.35m, 104.35m]));
+        Assert.Equal(317.5892m, OddsMath.CombinedAmerican([104.35m, 104.35m]));
+    }
+
+    [Fact]
+    public void Money_ShowsCentsOnlyWhenTheAmountHasThem()
+    {
+        var before = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+        try
+        {
+            Assert.Equal("$520", OddsMath.Money(520m));
+            Assert.Equal("$521.75", OddsMath.Money(521.75m));
+            Assert.Equal("$1,021.75", OddsMath.Money(1021.75m));
+            Assert.Equal("$190.91", OddsMath.Money(190.909090m));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+    }
 }

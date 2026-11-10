@@ -13,14 +13,14 @@ public sealed record EntryDraft(
     string? FreeTextMarket,
     string Outcome,
     decimal? LineTaken,
-    int PriceTaken,
+    decimal PriceTaken,
     decimal Stake,
     string Book,
     string? Note,
     bool ManualPrice = false);
 
 /// <summary>A parlay as the form holds it: the money on the parlay, the selections on the legs.</summary>
-public sealed record ParlayDraft(string Book, decimal Stake, int? PriceQuoted, string? Note, IReadOnlyList<EntryDraft> Legs);
+public sealed record ParlayDraft(string Book, decimal Stake, decimal? PriceQuoted, string? Note, IReadOnlyList<EntryDraft> Legs);
 
 /// <summary>
 /// What the Journal's edit form changes on a logged parlay: its money, its book and note, and
@@ -30,9 +30,9 @@ public sealed record ParlayDraft(string Book, decimal Stake, int? PriceQuoted, s
 public sealed record ParlayEdit(
     string Book,
     decimal Stake,
-    int? PriceQuoted,
+    decimal? PriceQuoted,
     string? Note,
-    IReadOnlyDictionary<int, int>? LegPrices = null);
+    IReadOnlyDictionary<int, decimal>? LegPrices = null);
 
 /// <summary>What the Journal is showing.</summary>
 public sealed record JournalFilter(
@@ -97,8 +97,22 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         if (filter.Since is { } since)
             query = query.Where(e => e.PlacedAt >= since);
 
-        return await query.OrderByDescending(e => e.PlacedAt).Take(filter.Take).ToListAsync(ct);
+        // Newest game first, not newest placement: a bet placed days ahead on a later game
+        // belongs above one placed an hour ago on tonight's. Ordered before the Take, so the
+        // hundred kept are the hundred latest games. PlacedAt breaks ties and dates an untracked
+        // bet, which has no game. The grid's initial sort is the same key (GameStart).
+        return await query
+            .OrderByDescending(e => e.Game != null ? e.Game.StartsAt : e.PlacedAt)
+            .ThenByDescending(e => e.PlacedAt)
+            .Take(filter.Take).ToListAsync(ct);
     }
+
+    /// <summary>When the bet's game starts, or when it was placed if it is not on a tracked game: the Journal's order.</summary>
+    public static DateTimeOffset GameStart(JournalEntry entry) => entry.Game?.StartsAt ?? entry.PlacedAt;
+
+    /// <summary>When the parlay's last leg starts (its legs' games loaded), or when it was placed if no leg is on a tracked game.</summary>
+    public static DateTimeOffset LastLegStart(Parlay parlay)
+        => parlay.Legs.Where(l => l.Game != null).Select(l => l.Game!.StartsAt).DefaultIfEmpty(parlay.PlacedAt).Max();
 
     /// <summary>Parlays under the same filter, each with its legs and their games.</summary>
     public async Task<IReadOnlyList<Parlay>> ParlaysAsync(JournalFilter filter, CancellationToken ct = default)
@@ -126,7 +140,16 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         if (filter.Since is { } since)
             query = query.Where(p => p.PlacedAt >= since);
 
-        return await query.OrderByDescending(p => p.PlacedAt).Take(filter.Take).ToListAsync(ct);
+        // By the last leg's game, newest first — a parlay is live until its last leg is. Done in
+        // SQL, before the Take: the key is a correlated MAX over the legs' games, which Npgsql
+        // translates, so the database keeps the latest hundred rather than the client sorting
+        // whichever hundred were placed last. A parlay with no leg on a tracked game falls back
+        // to its PlacedAt. Same key as LastLegStart, which the grid sorts by.
+        return await query
+            .OrderByDescending(p => p.Legs.Where(l => l.Game != null)
+                                          .Max(l => (DateTimeOffset?)l.Game!.StartsAt) ?? p.PlacedAt)
+            .ThenByDescending(p => p.PlacedAt)
+            .Take(filter.Take).ToListAsync(ct);
     }
 
     /// <summary>
@@ -363,12 +386,12 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
             throw new ArgumentOutOfRangeException(nameof(edit), "A parlay's stake is above zero.");
 
         var parlay = await db.Parlays.Include(p => p.Legs).FirstAsync(p => p.Id == id, ct);
-        var prices = edit.LegPrices ?? new Dictionary<int, int>();
+        var prices = edit.LegPrices ?? new Dictionary<int, decimal>();
 
         if (prices.Keys.Any(legId => parlay.Legs.All(l => l.Id != legId)))
             throw new InvalidOperationException("A leg is edited with its own parlay.");
 
-        if (prices.Values.Any(p => p is > -100 and < 100))
+        if (prices.Values.Any(p => p is > -100m and < 100m))
             throw new ArgumentOutOfRangeException(nameof(edit), "A leg's price is −100 or lower, or +100 or higher.");
 
         var book = Normalise(edit.Book);
@@ -516,7 +539,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     {
         EntryResult.Loss => new(EntryResult.Loss, 0m),
         EntryResult.Push or EntryResult.Void => new(parlay.Result, parlay.Stake),
-        EntryResult.Win when parlay.PriceQuoted is { } quoted => new(EntryResult.Win, OddsMath.PayoutOnWin(quoted, parlay.Stake)),
+        EntryResult.Win when parlay.PriceQuoted is { } quoted => new(EntryResult.Win, Math.Round(OddsMath.PayoutOnWin(quoted, parlay.Stake), 2)),
         _ => new(EntryResult.Pending, null)
     };
 

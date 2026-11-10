@@ -8,6 +8,8 @@ using LineOps.Web.Components.Panels;
 using LineOps.Web.Services;
 using LineOps.Web.Tests.Support;
 using LineOps.Web.Windowing;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
 
@@ -97,8 +99,74 @@ public class SlipPanelTests : WagerTestContext
 
         var combined = OddsMath.CombinedAmerican([-132, -170]);
         Assert.Equal(OddsMath.FormatPrice(combined), cut.Find(".slip-parlay__price").TextContent.Trim());
-        Assert.Contains("1.76 × 1.59 =", cut.Find(".slip-parlay__note").TextContent);
+        Assert.Contains("1.758 × 1.588 = 2.791", cut.Find(".slip-parlay__note").TextContent);
         Assert.All(cut.FindAll(".slip-card__meta"), m => Assert.Contains("your price", m.TextContent));
+    }
+
+    /// <summary>
+    /// The footer's multiplication checks: three places, and the product of the exact odds. At
+    /// two places, three short favourites read 1.11 × 1.33 × 1.29 = 1.91, which multiplies to 1.90.
+    /// </summary>
+    [Fact]
+    public void The_parlay_footer_multiplies_to_three_places_and_names_the_price()
+    {
+        Slip.AddLeg(Item(-900, gameId: 1));
+        Slip.AddLeg(Item(-300, gameId: 2));
+        Slip.AddLeg(Item(-350, gameId: 3));
+        var cut = RenderComponent<SlipPanel>();
+
+        var note = System.Text.RegularExpressions.Regex.Replace(cut.Find(".slip-parlay__note").TextContent, @"\s+", " ");
+        Assert.Contains("1.111 × 1.333 × 1.286 = 1.905, which is -111.", note);
+    }
+
+    // ---- The empty slip's key ------------------------------------------------------------
+
+    [Fact]
+    public void An_empty_slip_on_its_own_offers_place_wager_on_the_game_search()
+    {
+        var cut = RenderComponent<SlipPanel>();
+
+        var key = cut.Find(".empty__action button");
+        Assert.Equal("Place wager", key.TextContent.Trim());
+
+        key.Click();
+
+        var manager = Services.GetRequiredService<WindowManager>();
+        var window = Assert.Single(manager.Windows, w => w.Definition.Key == WindowCatalog.Wager);
+        Assert.DoesNotContain("GameId", window.Parameters.Keys);
+    }
+
+    [Fact]
+    public void A_host_that_sets_OnPickBet_gets_pick_a_bet_and_the_call()
+    {
+        var picked = 0;
+        var cut = RenderComponent<SlipPanel>(p => p.Add(x => x.OnPickBet,
+            (EventCallback?)EventCallback.Factory.Create(this, () => picked++)));
+
+        var key = cut.Find(".empty__action button");
+        Assert.Equal("Pick a bet", key.TextContent.Trim());
+
+        key.Click();
+
+        Assert.Equal(1, picked);
+        Assert.Empty(Services.GetRequiredService<WindowManager>().Windows);
+    }
+
+    [Fact]
+    public void A_visitor_is_not_offered_a_wager_from_the_empty_slip()
+    {
+        Services.AddSingleton<LineOps.Desk.IDeskAccess>(new Visitor());
+
+        var cut = RenderComponent<SlipPanel>();
+
+        Assert.Contains("Nothing on the slip.", cut.Find(".empty").TextContent);
+        Assert.Empty(cut.FindAll(".empty__action"));
+        Assert.Empty(cut.FindAll(".empty button"));
+    }
+
+    private sealed class Visitor : LineOps.Desk.IDeskAccess
+    {
+        public bool CanOperate => false;
     }
 
     [Fact]
@@ -107,11 +175,46 @@ public class SlipPanelTests : WagerTestContext
         Slip.Add(Item(closing: true));
         var cut = RenderComponent<SlipPanel>();
 
-        cut.Find(".slip-card__take input").Input("50");
+        cut.Find(".slip-card__take input").Input("-50");
         cut.Find(".slip-card__take button").Click();
 
         Assert.True(Slip.Items.Single().IsClosing);
-        Assert.Contains("A price is −100 or lower, or +100 or higher.", cut.Find(".slip-card__take").TextContent);
+        Assert.Contains("A price is −100 or lower, +100 or higher, or decimal odds such as 2.05.", cut.Find(".slip-card__take").TextContent);
+    }
+
+    [Fact]
+    public void Decimal_odds_typed_on_a_closing_card_are_taken_as_the_american_price()
+    {
+        Slip.Add(Item(closing: true));
+        var cut = RenderComponent<SlipPanel>();
+
+        cut.Find(".slip-card__take input").Input("2.0435");
+        Assert.Contains("Decimal 2.0435 = +104.35", cut.Find(".slip-card__take-label").TextContent);
+
+        cut.Find(".slip-card__take button").Click();
+
+        var item = Slip.Items.Single();
+        Assert.False(item.IsClosing);
+        Assert.Equal(104.35m, item.PriceAmerican);
+    }
+
+    [Fact]
+    public void The_books_parlay_price_takes_cents_and_decimal_odds()
+    {
+        Slip.AddLeg(Item(-110, market: Markets.Spread, line: -3m));
+        Slip.AddLeg(Item(-110, market: Markets.Total, outcome: "over", line: 47.5m));
+        Slip.SetParlay(20m, null, "draftkings");
+        var cut = RenderComponent<SlipPanel>();
+
+        var field = cut.Find("input[aria-label='Parlay price']");
+        Assert.Equal("any", field.GetAttribute("step"));
+
+        field.Change("3.6435");
+        Assert.Equal(264.35m, Slip.ParlayPriceQuoted);
+        Assert.Contains("Decimal 3.6435 = +264.35", cut.Find("input[aria-label='Parlay price']").Closest(".wgroup__row")!.QuerySelector(".wbet__echo")!.TextContent);
+
+        cut.Find("input[aria-label='Parlay price']").Change("241.5");
+        Assert.Equal(241.5m, Slip.ParlayPriceQuoted);
     }
 
     [Fact]

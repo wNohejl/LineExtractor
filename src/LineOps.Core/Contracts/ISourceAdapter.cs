@@ -337,3 +337,28 @@ public interface IGameDaySource
 
     Task<GameDays> FetchGameDaysAsync(string sportKey, DateOnly from, DateOnly to, CancellationToken ct);
 }
+
+/// <summary>
+/// One player on a league's injury report, as the provider relays the club's word.
+/// </summary>
+/// <param name="Status">"Out", "Doubtful", "Questionable", "Injured Reserve", "Active" — as given.</param>
+/// <param name="Note">The report's one-line note, cut to its first sentence; null when it has none worth showing.</param>
+public record CanonicalInjury(
+    string SourcePlayerId,
+    string FullName,
+    string? Position,
+    string? SourceTeamId,
+    string TeamName,
+    string Status,
+    string? Note);
+
+/// <summary>
+/// A provider that publishes a league's injury report in one request — who a club has ruled out,
+/// and who is back. ESPN, for the NFL. Empty for a league it does not report on.
+/// </summary>
+public interface IInjurySource
+{
+    string Key { get; }
+
+    Task<IReadOnlyList<CanonicalInjury>> FetchInjuriesAsync(string sportKey, CancellationToken ct);
+}

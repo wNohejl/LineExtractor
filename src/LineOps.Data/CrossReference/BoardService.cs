@@ -99,7 +99,7 @@ public class BoardService(LineOpsDbContext db)
                 games.Where(g => unexplained.Contains(g.SportId)).Select(g => g.Sport!).DistinctBy(s => s.Id).ToList(),
                 ct);
 
-        var passing = await PassingLinesAsync(games, ct);
+        var (passing, injuries) = await PassingLinesAsync(games, now, ct);
 
         // A fight's card and result (ADR 0021), and its place on the card: bouts that share a
         // start are listed main event first, as a card is billed.
@@ -114,24 +114,37 @@ public class BoardService(LineOpsDbContext db)
             closesByGame.GetValueOrDefault(game.Id),
             lastPull.TryGetValue(game.SportId, out var at) ? at : null) with
             {
-                AwayQuarterback = Starters.LastQuarterback(passing, game.AwayTeamId, game.StartsAt),
-                HomeQuarterback = Starters.LastQuarterback(passing, game.HomeTeamId, game.StartsAt),
                 Bout = bouts.GetValueOrDefault(game.Id)
+            })
+            .Select(row =>
+            {
+                var away = Starters.Quarterback(passing, injuries, row.Game.AwayTeamId, row.Game.StartsAt);
+                var home = Starters.Quarterback(passing, injuries, row.Game.HomeTeamId, row.Game.StartsAt);
+
+                return row with
+                {
+                    AwayQuarterback = away.Name,
+                    AwayQuarterbackBasis = away.Basis,
+                    HomeQuarterback = home.Name,
+                    HomeQuarterbackBasis = home.Basis
+                };
             }).ToList();
     }
 
     /// <summary>
     /// Every passing line the slate's NFL clubs recorded before their games, for
-    /// <see cref="Starters.LastQuarterback"/>. A handful of rows a club a week. Reaches back over
-    /// an off-season, so a week-one game still finds the quarterback who ended last season.
-    /// Empty for a slate with no NFL game, which asks nothing of the database.
+    /// <see cref="Starters.Quarterback"/>, and the injury report's word on each passer in them. A
+    /// handful of rows a club a week. Reaches back over an off-season, so a week-one game still
+    /// finds the quarterback who ended last season. Empty for a slate with no NFL game, which asks
+    /// nothing of the database.
     /// </summary>
-    private async Task<List<PassingLine>> PassingLinesAsync(List<Game> games, CancellationToken ct)
+    private async Task<(List<PassingLine> Lines, Dictionary<string, (string Status, string? Note)> Injuries)> PassingLinesAsync(
+        List<Game> games, DateTimeOffset now, CancellationToken ct)
     {
-        var nfl = games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
+        var nfl =games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
 
         if (nfl.Count == 0)
-            return [];
+            return ([], []);
 
         var teams = nfl.SelectMany(g => new[] { g.HomeTeamId, g.AwayTeamId }).Distinct().ToList();
         var from = nfl.Min(g => g.StartsAt) - TimeSpan.FromDays(240);
@@ -147,15 +160,40 @@ public class BoardService(LineOpsDbContext db)
                 TeamId = s.TeamId ?? s.Player!.TeamId,
                 s.GameId,
                 s.Game!.StartsAt,
+                s.Game.SeasonYear,
                 s.Player!.FullName,
+                s.Player.InjuryStatus,
+                s.Player.InjuryNote,
+                s.Player.InjuryUpdatedAt,
                 s.StatLine
             })
             .Where(s => s.TeamId != null && teams.Contains(s.TeamId.Value))
             .AsNoTracking()
             .ToListAsync(ct);
 
-        return rows.Select(r => new PassingLine(r.TeamId!.Value, r.GameId, r.StartsAt, r.FullName, r.StatLine)).ToList();
+        var lines = rows
+            .Select(r => new PassingLine(r.TeamId!.Value, r.GameId, r.StartsAt, r.FullName, r.StatLine, r.SeasonYear))
+            .ToList();
+
+        var injuries = CurrentInjuries(rows.Select(r => (r.FullName, r.InjuryStatus, r.InjuryNote, r.InjuryUpdatedAt)), now);
+
+        return (lines, injuries);
     }
+
+    /// <summary>
+    /// The injury report's word on each named player, for <see cref="Starters.Quarterback"/>:
+    /// only a status the report gave within <see cref="Player.InjuryStatusLife"/> of
+    /// <paramref name="now"/>. An older one is the bottom of a full list, not the club's current
+    /// word, and counts as no status — a quarterback ruled out a month ago and playing since is
+    /// not still out.
+    /// </summary>
+    public static Dictionary<string, (string Status, string? Note)> CurrentInjuries(
+        IEnumerable<(string FullName, string? Status, string? Note, DateTimeOffset? UpdatedAt)> players,
+        DateTimeOffset now)
+        => players
+            .Where(p => p.Status is not null && Player.InjuryStatusHolds(p.UpdatedAt, now))
+            .DistinctBy(p => p.FullName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(p => p.FullName, p => (p.Status!, p.Note), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// When each league was last priced: its newest scan, or its last successful lines pull,
@@ -512,12 +550,22 @@ public record BoardRow(
 
     /// <summary>
     /// The quarterback each NFL club started its last game with (<see cref="Starters"/>), shown
-    /// under the club as baseball's probable pitcher is. Null outside the NFL and for a club
-    /// with no passing on record.
+    /// under the club as baseball's probable pitcher is — or, when the injury report has him out,
+    /// the passer who started without him. Null outside the NFL, for a club with no passing on
+    /// record, and for a club whose starter is out with nobody to replace him.
     /// </summary>
     public string? AwayQuarterback { get; init; }
 
     public string? HomeQuarterback { get; init; }
+
+    /// <summary>
+    /// Why that is the quarterback, as the tooltip says it (<see cref="StartingQuarterback.Basis"/>):
+    /// <see cref="Starters.LastGameBasis"/>, or the injury that moved the job on. Null where there
+    /// is no passing on record.
+    /// </summary>
+    public string? AwayQuarterbackBasis { get; init; }
+
+    public string? HomeQuarterbackBasis { get; init; }
 
     /// <summary>The card and result when the game is a fight (ADR 0021); null for a team sport.</summary>
     public Bout? Bout { get; init; }

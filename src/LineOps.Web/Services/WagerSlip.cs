@@ -10,7 +10,7 @@ public sealed record SlipItem(
     Guid Id,
     int GameId, string Matchup, DateTimeOffset StartsAt, string SportKey,
     string Market, string Outcome, decimal? Line,
-    string Book, int PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing,
+    string Book, decimal PriceAmerican, DateTimeOffset CapturedAt, bool IsClosing,
     decimal Stake, string? Note,
     FairPrice? Fair, double? Ev,
     bool ManualPrice = false)
@@ -59,7 +59,7 @@ public sealed class WagerSlip
     public IReadOnlyList<SlipItem> Items => _items;
     public SlipMode Mode { get; private set; } = SlipMode.Straight;
     public decimal ParlayStake { get; private set; }
-    public int? ParlayPriceQuoted { get; private set; }
+    public decimal? ParlayPriceQuoted { get; private set; }
     public string? ParlayBook { get; private set; }
 
     public event Action? Changed;
@@ -154,7 +154,7 @@ public sealed class WagerSlip
     }
 
     /// <summary>The parlay's money: stake, the book's own price if it gave one, and the book.</summary>
-    public void SetParlay(decimal stake, int? priceQuoted, string? book)
+    public void SetParlay(decimal stake, decimal? priceQuoted, string? book)
     {
         ParlayStake = stake;
         ParlayPriceQuoted = priceQuoted is 0 ? null : priceQuoted;
@@ -193,11 +193,11 @@ public sealed class WagerSlip
     /// was taken, as it is in the wager window's pencil: the item stops being closing, its value is
     /// read against the same fair price, and it can be a leg or a straight bet like any other.
     /// False, and nothing changed, for a number that is not a price (between −100 and +100) or an
-    /// id not on the slip.
+    /// id not on the slip. A price to the cent is kept to the cent: +104.35 is what the book pays on.
     /// </summary>
-    public bool TakePrice(Guid id, int priceAmerican)
+    public bool TakePrice(Guid id, decimal priceAmerican)
     {
-        if (priceAmerican is > -100 and < 100)
+        if (priceAmerican is > -100m and < 100m)
             return false;
 
         var index = _items.FindIndex(i => i.Id == id);
@@ -247,13 +247,19 @@ public sealed class WagerSlip
     /// </summary>
     public bool IsSameGame => Legs.GroupBy(l => l.GameId).Any(g => g.Count() > 1);
 
-    /// <summary>The legs' prices multiplied, whatever the book quoted. Null with fewer than two legs.</summary>
-    public int? MultipliedPrice
+    /// <summary>
+    /// The legs' prices multiplied, whatever the book quoted, as a whole American price — what a
+    /// book prints for it. Null with fewer than two legs. The product is exact over legs taken to
+    /// the cent; only the quote is rounded, and settlement pays on the product, not the quote.
+    /// </summary>
+    public decimal? MultipliedPrice
     {
         get
         {
             var legs = Legs;
-            return legs.Count >= 2 ? OddsMath.CombinedAmerican(legs.Select(l => l.PriceAmerican)) : null;
+            return legs.Count >= 2
+                ? OddsMath.FromDecimal((double)OddsMath.CombinedDecimal(legs.Select(l => l.PriceAmerican)))
+                : null;
         }
     }
 
@@ -262,7 +268,7 @@ public sealed class WagerSlip
     /// multiplied (<see cref="OddsMath.CombinedAmerican"/>). Null with fewer than two legs, and
     /// null for a same-game parlay the book's price has not been given for (<see cref="IsSameGame"/>).
     /// </summary>
-    public int? CombinedPrice
+    public decimal? CombinedPrice
         => ParlayPriceQuoted is { } quoted ? quoted
             : IsSameGame ? null
             : MultipliedPrice;
@@ -281,11 +287,28 @@ public sealed class WagerSlip
     public ParlayDraft ToParlayDraft()
         => new(ParlayBook ?? string.Empty, ParlayStake, ParlayPriceQuoted, null, Legs.Select(l => l.ToDraft(0m)).ToList());
 
-    /// <summary>Takes logged items off the slip, in one change. Whatever was not logged stays.</summary>
+    /// <summary>
+    /// Takes logged items off the slip, in one change. Whatever was not logged stays. The
+    /// parlay's money goes with them: a logged parlay's stake, book price and book belonged to
+    /// that parlay, and kept they priced the next one — a +441 the book quoted for four legs
+    /// standing as the quote for the two built after it. A straight bet logged while the legs
+    /// stay on the slip leaves the parlay's money alone: it is still that parlay.
+    /// </summary>
     public void Logged(IEnumerable<Guid> ids)
     {
         var gone = ids.ToHashSet();
-        if (_items.RemoveAll(i => gone.Contains(i.Id)) > 0)
+        var removed = _items.RemoveAll(i => gone.Contains(i.Id)) > 0;
+        var hadParlay = ParlayStake != 0 || ParlayPriceQuoted is not null || ParlayBook is not null;
+        var parlayGone = hadParlay && Legs.Count == 0;
+
+        if (parlayGone)
+        {
+            ParlayStake = 0;
+            ParlayPriceQuoted = null;
+            ParlayBook = null;
+        }
+
+        if (removed || parlayGone)
             Raise();
     }
 

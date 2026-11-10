@@ -64,7 +64,7 @@ public class WagerPrefillTests : WagerTestContext
         var parameters = WagerPrefill.From(entry).ToParameters();
 
         Assert.False(parameters.ContainsKey("GameId"));
-        Assert.Equal(250, parameters["PriceAmerican"]);
+        Assert.Equal("250", parameters["PriceAmerican"]);
         Assert.Equal("Steelers to win the AFC North", parameters["Described"]);
         Assert.Equal("caesars", parameters["Book"]);
         Assert.Equal("25", parameters["Stake"]);

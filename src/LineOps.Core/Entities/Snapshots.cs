@@ -152,3 +152,32 @@ public class PlayerGameStat
     public DateTimeOffset CapturedAt { get; set; }
     public long IngestionRunId { get; set; }
 }
+
+/// <summary>
+/// A finished game a closing-line source was asked about and had no close for. The refill asks
+/// ESPN one game at a time, and ESPN holds no line for much of the history it is asked about —
+/// a fight card from two seasons ago, an early-season game. Without this row every press asked
+/// the same five hundred games again, took two minutes, wrote nothing and said "Success".
+///
+/// <para>
+/// One row per game and source. A game is asked again once <see cref="RetryAt"/> has passed,
+/// because ESPN does fill a close in after the fact; the row is removed the moment a close is
+/// written. Nothing here is a line: it is only the memory of having asked.
+/// </para>
+/// </summary>
+public class ClosingLineMiss
+{
+    public int GameId { get; set; }
+    public Game? Game { get; set; }
+
+    public int SourceId { get; set; }
+    public Source? Source { get; set; }
+
+    /// <summary>How many runs have asked for this game's close and come away without one.</summary>
+    public int Attempts { get; set; }
+
+    public DateTimeOffset LastTriedAt { get; set; }
+
+    /// <summary>Not asked again before this.</summary>
+    public DateTimeOffset RetryAt { get; set; }
+}

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace LineOps.Core.Analytics;
 
 /// <summary>
@@ -42,13 +44,67 @@ public static class OddsMath
             : (int)Math.Round(-100.0 / (decimalOdds - 1.0));
     }
 
+    /// <summary>Implied probability of a price taken to the cent: +104.35 is 0.4894.</summary>
+    public static double ImpliedProbability(decimal american)
+    {
+        if (american == 0)
+            throw new ArgumentOutOfRangeException(nameof(american), "American odds cannot be zero.");
+
+        return (double)(american > 0
+            ? 100m / (american + 100m)
+            : -american / (-american + 100m));
+    }
+
+    /// <summary>
+    /// Decimal odds of a price taken to the cent, in exact decimal arithmetic: +104.35 is 2.0435.
+    /// Books quote prices like that (a Fanatics boost), and a payout worked out through a double
+    /// drifts off the cent the book pays.
+    /// </summary>
+    public static decimal ToDecimal(decimal american)
+    {
+        if (american == 0)
+            throw new ArgumentOutOfRangeException(nameof(american), "American odds cannot be zero.");
+
+        return american > 0
+            ? 1m + american / 100m
+            : 1m + 100m / -american;
+    }
+
+    /// <summary>
+    /// Decimal odds written as an American price to four places: 2.0435 is +104.35, 2.04348 is
+    /// +104.348, 1.5 is -200. What a typed decimal price is read as; four places, because a book
+    /// pays on the exact price behind the one it prints (+104.35 on the slip, $1,021.74 on $500).
+    /// </summary>
+    public static decimal FromDecimal(decimal decimalOdds)
+    {
+        if (decimalOdds <= 1m)
+            throw new ArgumentOutOfRangeException(nameof(decimalOdds), "Decimal odds must exceed 1.0.");
+
+        return decimalOdds >= 2m
+            ? Math.Round((decimalOdds - 1m) * 100m, 4, MidpointRounding.AwayFromZero)
+            : Math.Round(-100m / (decimalOdds - 1m), 4, MidpointRounding.AwayFromZero);
+    }
+
     /// <summary>Profit (excluding stake) on a winning wager.</summary>
-    public static decimal ProfitOnWin(int american, decimal stake)
-        => stake * (decimal)(ToDecimal(american) - 1.0);
+    public static decimal ProfitOnWin(int american, decimal stake) => ProfitOnWin((decimal)american, stake);
 
     /// <summary>Total returned including stake on a winning wager.</summary>
-    public static decimal PayoutOnWin(int american, decimal stake)
-        => stake * (decimal)ToDecimal(american);
+    public static decimal PayoutOnWin(int american, decimal stake) => PayoutOnWin((decimal)american, stake);
+
+    /// <summary>
+    /// Profit (excluding stake) on a winning wager at a price to the cent, unrounded: $500 at
+    /// +104.35 is 521.75, -110 risking 110 is exactly 100. Round where it is shown or stored.
+    /// </summary>
+    public static decimal ProfitOnWin(decimal american, decimal stake)
+    {
+        if (american == 0)
+            throw new ArgumentOutOfRangeException(nameof(american), "American odds cannot be zero.");
+
+        return american > 0 ? stake * american / 100m : stake * 100m / -american;
+    }
+
+    /// <summary>Total returned including stake at a price to the cent: $500 at +104.35 is 1,021.75.</summary>
+    public static decimal PayoutOnWin(decimal american, decimal stake) => stake + ProfitOnWin(american, stake);
 
     /// <summary>
     /// The legs' decimal prices multiplied: what one unit returns if every leg wins. Unrounded,
@@ -80,6 +136,31 @@ public static class OddsMath
         => FromDecimal(CombinedDecimal(legsAmerican));
 
     /// <summary>
+    /// The legs' decimal prices multiplied, for legs taken to the cent, in exact decimal
+    /// arithmetic. Unrounded, for the same reason as the whole-price product: settlement pays on it.
+    /// </summary>
+    public static decimal CombinedDecimal(IEnumerable<decimal> legsAmerican)
+    {
+        var product = 1m;
+        var any = false;
+
+        foreach (var american in legsAmerican)
+        {
+            product *= ToDecimal(american);
+            any = true;
+        }
+
+        if (!any)
+            throw new ArgumentException("A combined price needs at least one leg.", nameof(legsAmerican));
+
+        return product;
+    }
+
+    /// <summary>A parlay's price from legs taken to the cent, as an American price to the cent.</summary>
+    public static decimal CombinedAmerican(IEnumerable<decimal> legsAmerican)
+        => FromDecimal(CombinedDecimal(legsAmerican));
+
+    /// <summary>
     /// Removes the vig from a two-way market, normalising the pair of implied
     /// probabilities so they sum to 1. Returns the fair probability of the first side.
     /// </summary>
@@ -103,6 +184,51 @@ public static class OddsMath
 
     /// <summary>An American price, always signed. "+150", "-110".</summary>
     public static string FormatPrice(int american) => american > 0 ? $"+{american}" : american.ToString();
+
+    /// <summary>
+    /// A price taken, always signed, written as a book prints it — to the cent at most, and with
+    /// its cents only when it has them: "+104", "+104.35", "-110". A price stored to four places
+    /// (+104.348, read from decimal odds) shows as +104.35 and pays on all four. Invariant, so a
+    /// regional decimal comma never reaches a price.
+    /// </summary>
+    public static string FormatPrice(decimal american)
+    {
+        var shown = Math.Round(american, 2, MidpointRounding.AwayFromZero);
+        var text = shown == decimal.Truncate(shown)
+            ? decimal.Truncate(shown).ToString("0", CultureInfo.InvariantCulture)
+            : shown.ToString("0.00", CultureInfo.InvariantCulture);
+        return american > 0 ? $"+{text}" : text;
+    }
+
+    /// <summary>
+    /// What a typed price means. A number of 100 or more either way is an American price as typed;
+    /// one between 1.01 and 99.99 is decimal odds — what a book shows beside the American price —
+    /// and is read as the American price it stands for (2.0435 is +104.35). Anything else is not a
+    /// price and comes back null.
+    /// </summary>
+    public static decimal? ReadTypedPrice(decimal typed)
+    {
+        var size = Math.Abs(typed);
+
+        if (size >= 100m)
+            return Math.Round(typed, 4, MidpointRounding.AwayFromZero);
+
+        if (typed is >= 1.01m and <= 99.99m)
+            return FromDecimal(typed);
+
+        return null;
+    }
+
+    /// <summary>
+    /// Money to the cent, with the cents only when it has them: "$520", "$521.75", "$1,021.75".
+    /// In the machine's currency format, as the desk's other "C0" money is. "C0" alone rounded
+    /// $521.75 to "$522": a payout the book pays to the cent was shown to the dollar.
+    /// </summary>
+    public static string Money(decimal amount)
+    {
+        var cents = Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+        return cents.ToString(cents == decimal.Truncate(cents) ? "C0" : "C2", CultureInfo.CurrentCulture);
+    }
 
     /// <summary>
     /// A market's number, written the way that market is written.

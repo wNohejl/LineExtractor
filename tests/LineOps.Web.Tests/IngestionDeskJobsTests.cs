@@ -37,9 +37,18 @@ public class IngestionDeskJobsTests
             IngestionDeskJobs.Outcome("Prices", new JobOutcome("odds:lines", false, 10, 2, null)));
 
     [Fact]
-    public void Zero_rows_is_nothing_new()
+    public void Zero_rows_without_a_detail_is_nothing_new()
         => Assert.Equal(new DeskJobOutcome(DeskJobResult.Nothing, "Prices: nothing new to store."),
-            IngestionDeskJobs.Outcome("Prices", new JobOutcome("odds:lines", true, 0, 0, "ignored")));
+            IngestionDeskJobs.Outcome("Prices", new JobOutcome("odds:lines", true, 0, 0, null)));
+
+    [Fact]
+    public void Zero_rows_keeps_the_sentence_that_says_what_was_asked()
+    {
+        const string detail = "0 closing lines written; 0 of 3 games asked got a close; 520 set aside until their retry date.";
+
+        Assert.Equal(new DeskJobOutcome(DeskJobResult.Nothing, detail),
+            IngestionDeskJobs.Outcome("Closing lines owed", new JobOutcome("espn:closing-lines", true, 0, 0, detail)));
+    }
 
     [Fact]
     public void Rows_are_done_and_the_detail_wins_when_there_is_one()

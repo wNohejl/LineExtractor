@@ -309,6 +309,39 @@ public class BoardStarterTests
     }
 
     [Fact]
+    public void A_quarterback_on_the_plain_basis_keeps_the_last_start_title()
+    {
+        var row = Row(awayQb: "Dak Prescott") with { AwayQuarterbackBasis = LineOps.Data.CrossReference.Starters.LastGameBasis };
+
+        Assert.Equal(("QB", "Prescott", "Started at quarterback in the club's last game: Dak Prescott"),
+            LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false));
+    }
+
+    [Fact]
+    public void A_starter_ruled_out_is_replaced_and_the_title_says_why()
+    {
+        const string basis = "Kyler Murray is out; Carson Wentz started the last game the club played without him. " +
+                             "Murray (hamstring) has been ruled out for Monday's game versus the Bills.";
+        var row = Row(awayQb: "Carson Wentz", homeQb: "Josh Allen") with
+        {
+            AwayQuarterbackBasis = basis,
+            HomeQuarterbackBasis = LineOps.Data.CrossReference.Starters.LastGameBasis
+        };
+
+        Assert.Equal(("QB", "Wentz", basis), LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false));
+        Assert.Equal("Allen", LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: true)!.Value.Name);
+    }
+
+    [Fact]
+    public void A_starter_ruled_out_with_nobody_to_replace_him_is_a_dash_titled_with_the_injury()
+    {
+        const string basis = "Kyler Murray is out; no replacement has thrown for the club this season.";
+        var row = Row() with { AwayQuarterbackBasis = basis };
+
+        Assert.Equal(("QB", "—", basis), LineOps.Web.Components.Panels.BoardPanel.Starter(row, home: false));
+    }
+
+    [Fact]
     public void A_game_with_no_starters_known_draws_none()
         => Assert.Null(LineOps.Web.Components.Panels.BoardPanel.Starter(Row(), home: true));
 }

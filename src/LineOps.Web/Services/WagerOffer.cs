@@ -15,7 +15,7 @@ public sealed record WagerOffer(
     string Outcome,
     decimal? Line,
     string Book,
-    int PriceAmerican,
+    decimal PriceAmerican,
     DateTimeOffset CapturedAt,
     bool IsClosing,
     FairPrice? Fair,
@@ -59,7 +59,7 @@ public sealed record WagerOffer(
     /// A price the operator typed. Value is read against the side's fair price only where the typed
     /// number is the fair price's own; a half point off it, value is unread, as for any book.
     /// </summary>
-    public static WagerOffer Typed(string market, string outcome, decimal? line, string book, int priceAmerican,
+    public static WagerOffer Typed(string market, string outcome, decimal? line, string book, decimal priceAmerican,
         BestOffer? side, DateTimeOffset now, string? described = null)
     {
         var fair = side?.Fair is { } f && side.Line == line ? f : null;

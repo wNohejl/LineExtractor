@@ -46,6 +46,10 @@ public static class FairValue
     /// </summary>
     public static double Ev(double fairProbability, int american)
         => fairProbability * OddsMath.ToDecimal(american) - 1;
+
+    /// <summary>Expected return per unit at a price taken to the cent.</summary>
+    public static double Ev(double fairProbability, decimal american)
+        => fairProbability * (double)OddsMath.ToDecimal(american) - 1;
 }
 
 /// <summary>One book's price on one side of a market.</summary>

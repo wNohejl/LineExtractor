@@ -16,6 +16,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
 
     public DbSet<OddsSnapshot> OddsSnapshots => Set<OddsSnapshot>();
     public DbSet<ClosingLine> ClosingLines => Set<ClosingLine>();
+    public DbSet<ClosingLineMiss> ClosingLineMisses => Set<ClosingLineMiss>();
     public DbSet<StatSnapshot> StatSnapshots => Set<StatSnapshot>();
     public DbSet<PlayerGameStat> PlayerGameStats => Set<PlayerGameStat>();
     public DbSet<GamePlay> GamePlays => Set<GamePlay>();
@@ -78,6 +79,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.FullName).HasMaxLength(160).IsRequired();
             e.Property(x => x.Position).HasMaxLength(32);
             e.Property(x => x.Status).HasMaxLength(32);
+            e.Property(x => x.InjuryStatus).HasMaxLength(32);
+            e.Property(x => x.InjuryNote).HasMaxLength(512);
             e.Property(x => x.ExternalIds).HasColumnType("jsonb")
                 .HasConversion(dictConverter, dictComparer);
             e.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId)
@@ -300,6 +303,18 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
         });
 
+        // One row per game a closing-line source could not answer for, keyed by the game and the
+        // source that was asked. The refill skips a game whose RetryAt is still ahead.
+        b.Entity<ClosingLineMiss>(e =>
+        {
+            e.HasKey(x => new { x.GameId, x.SourceId });
+            e.HasIndex(x => x.RetryAt);
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
         b.Entity<JournalEntry>(e =>
         {
             e.Property(x => x.Market).HasMaxLength(64).IsRequired();
@@ -310,6 +325,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.Stake).HasPrecision(12, 2);
             e.Property(x => x.Payout).HasPrecision(12, 2);
             e.Property(x => x.LineTaken).HasPrecision(10, 2);
+            e.Property(x => x.PriceTaken).HasPrecision(11, 4);
             e.Property(x => x.ClosingPoints).HasPrecision(10, 2);
             e.Property(x => x.ClosingBook).HasMaxLength(64);
             e.Property(x => x.ClosingFairBasis).HasMaxLength(32);
@@ -328,6 +344,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.Book).HasMaxLength(64).IsRequired();
             e.Property(x => x.Stake).HasPrecision(12, 2);
             e.Property(x => x.Payout).HasPrecision(12, 2);
+            e.Property(x => x.PriceQuoted).HasPrecision(11, 4);
             e.Property(x => x.Result).HasConversion<string>().HasMaxLength(16);
             e.HasIndex(x => x.PlacedAt);
 

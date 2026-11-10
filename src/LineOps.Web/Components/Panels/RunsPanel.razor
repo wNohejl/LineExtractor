@@ -6,8 +6,9 @@
 
 @* The quiet columns here are .quiet, not .dim. .dim is --text-tertiary — the tier for an
    annotation nobody has to read — and it measures 2.70:1 on the panel, below WCAG AA. A job
-   key, a start time, a duration, a request count and a failure message are the reading, not
-   an aside: they sit a step under the row at --text-secondary (5.71:1), which passes. *@
+   key, a start time, a duration, a request count and a run's detail are the reading, not
+   an aside: they sit a step under the row at --text-secondary (5.71:1), which passes. A failed
+   run's error is .down, --state-negative-ink, which passes too. *@
 
 <PanelToolbar>
     <ChildContent>
@@ -111,9 +112,19 @@
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Error!" Title="Detail">
+    @* What the run did, in its own sentence ("UFC: 37 asked, 0 answered; 37 set aside until
+       Nov 23."), then what went wrong, if anything did. A failed run's error is said in the
+       negative ink, as its tag is; a partial run's is the reading, quiet like the rest. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Detail ?? r.Error!" Title="Detail">
         <CellTemplate>
-            <span class="trunc quiet" title="@context.Item.Error">@context.Item.Error</span>
+            @if (context.Item.Detail is { Length: > 0 })
+            {
+                <span class="trunc quiet" title="@context.Item.Detail">@context.Item.Detail</span>
+            }
+            @if (context.Item.Error is { Length: > 0 })
+            {
+                <span class="trunc @ErrorTone(context.Item.Status)" title="@context.Item.Error">@context.Item.Error</span>
+            }
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
@@ -225,6 +236,8 @@
 
     private string RunsStatus()
         => RecentFailures > 0 ? $"{RecentFailures} recent fails" : $"{_runs.Count} runs";
+
+    private static string ErrorTone(RunStatus status) => status == RunStatus.Failed ? "down" : "quiet";
 
     private static DeskState StatusState(RunStatus status) => status switch
     {

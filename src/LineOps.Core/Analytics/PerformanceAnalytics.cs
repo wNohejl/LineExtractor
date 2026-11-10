@@ -15,7 +15,7 @@ namespace LineOps.Core.Analytics;
 /// <see cref="JournalEntry.ClosingFairProbability"/>.
 /// </param>
 public readonly record struct ClvResult(
-    int PriceTaken, int ClosingPrice, decimal? PointsGained = null, double? FairAtClose = null)
+    decimal PriceTaken, int ClosingPrice, decimal? PointsGained = null, double? FairAtClose = null)
 {
     /// <summary>
     /// What the price taken was worth by the close: expected return per unit at the fair
@@ -43,7 +43,7 @@ public readonly record struct ClvResult(
     /// like-for-like reading when <see cref="SameNumber"/>; averages should skip the rest.
     /// </summary>
     public double CentsPercent
-        => (OddsMath.ToDecimal(PriceTaken) / OddsMath.ToDecimal(ClosingPrice) - 1.0) * 100.0;
+        => ((double)OddsMath.ToDecimal(PriceTaken) / OddsMath.ToDecimal(ClosingPrice) - 1.0) * 100.0;
 
     /// <summary>
     /// Beating the close is the standard proxy for skill. Points decide it when the line moved —
@@ -241,7 +241,7 @@ public static class PerformanceAnalytics
         entry.SettledAt = result == EntryResult.Pending ? null : at ?? DateTimeOffset.UtcNow;
         entry.Payout = result switch
         {
-            EntryResult.Win => OddsMath.PayoutOnWin(entry.PriceTaken, entry.Stake),
+            EntryResult.Win => Math.Round(OddsMath.PayoutOnWin(entry.PriceTaken, entry.Stake), 2),
             EntryResult.Push or EntryResult.Void => entry.Stake,
             EntryResult.Loss => 0m,
             _ => null

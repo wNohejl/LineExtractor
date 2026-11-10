@@ -100,6 +100,9 @@ public abstract class PanelBase : DeskPanelBase
 
     protected static string Price(int american) => american > 0 ? $"+{american}" : american.ToString();
 
+    /// <summary>A price taken to the cent: "+104", "+104.35" (<see cref="OddsMath.FormatPrice(decimal)"/>).</summary>
+    protected static string Price(decimal american) => OddsMath.FormatPrice(american);
+
     /// <summary>
     /// A line as a book prints it: "-3", "+4.5". A line read back from the journal carries the
     /// column's scale, and decimal's own ToString printed it as "-3.00".

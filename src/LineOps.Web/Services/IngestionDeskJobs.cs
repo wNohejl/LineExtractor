@@ -84,7 +84,9 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDe
 
     /// <summary>
     /// A pull's outcome as the sentence the desk toasts. Zero rows is not a failure — the scan may
-    /// simply not have covered a fixture — but it is not "done" either.
+    /// simply not have covered a fixture — but it is not "done" either. It still says what the
+    /// job did when the job says it: "0 of 3 games asked got a close" is the news a press of
+    /// "Closing lines owed" exists to give, and "nothing new to store" hid it.
     /// </summary>
     public static DeskJobOutcome Outcome(string label, JobOutcome outcome)
     {
@@ -92,7 +94,7 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDe
             return new(DeskJobResult.Failed, outcome.Detail ?? $"{label}: {outcome.Failures} source failed.");
 
         if (outcome.Rows == 0)
-            return new(DeskJobResult.Nothing, $"{label}: nothing new to store.");
+            return new(DeskJobResult.Nothing, outcome.Detail ?? $"{label}: nothing new to store.");
 
         return new(DeskJobResult.Done, outcome.Detail ?? $"{label}: {outcome.Rows:N0} rows.");
     }
