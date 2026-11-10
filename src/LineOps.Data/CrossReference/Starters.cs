@@ -40,6 +40,9 @@ public static class Starters
     /// <summary>The basis of a starter nobody has ruled out.</summary>
     public const string LastGameBasis = "Started at quarterback in the club's last game";
 
+    /// <summary>The basis of a starter read from the game itself, once it is under way or over.</summary>
+    public const string ThisGameBasis = "At quarterback in this game";
+
     /// <summary>The report's word for a player who will not play: Out, Doubtful, Injured Reserve.</summary>
     public static bool IsOut(string? status)
         => status is not null
@@ -67,8 +70,16 @@ public static class Starters
         IEnumerable<PassingLine> lines,
         IReadOnlyDictionary<string, (string Status, string? Note)> injuriesByPlayer,
         int teamId,
-        DateTimeOffset before)
+        DateTimeOffset before,
+        int? gameId = null)
     {
+        // A game under way or over has its own box score, and who is throwing in it is not an
+        // inference: on 9 November the Vikings' chip read Murray, from the last game before
+        // tonight's, while Wentz was 7 of 19 in tonight's. The game's own passer comes first.
+        if (gameId is { } id
+            && Leader(lines.Where(l => l.TeamId == teamId && l.GameId == id)) is { } playing)
+            return new StartingQuarterback(playing, ThisGameBasis);
+
         var games = lines
             .Where(l => l.TeamId == teamId && l.StartsAt < before)
             .GroupBy(l => (l.GameId, l.StartsAt))

@@ -662,6 +662,22 @@ public class StatsIngestionService(
             : 0;
     }
 
+    /// <summary>
+    /// How many finals in one sport owed a close <paramref name="sourceKey"/> has set aside until a
+    /// retry date still ahead — counted from the misses themselves, so a final the source cannot
+    /// be asked about at all (no id for it) is not reported as waiting on a retry it will never get.
+    /// </summary>
+    public async Task<int> ClosingLinesSetAsideAsync(
+        string sportKey, string sourceKey, DateTimeOffset now, CancellationToken ct)
+    {
+        var sourceId = await db.Sources.Where(s => s.Key == sourceKey).Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
+
+        return sourceId is { } id
+            ? await ClosingLinesOwed(sportKey)
+                .CountAsync(g => db.ClosingLineMisses.Any(m => m.GameId == g.Id && m.SourceId == id && m.RetryAt > now), ct)
+            : 0;
+    }
+
     private async Task<int> PersistAsync(
         Source sourceRow, StatsFetchResult result, string sportKey, Func<CancellationToken, Task<long>> runId,
         bool live, CancellationToken ct)

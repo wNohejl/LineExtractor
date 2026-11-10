@@ -173,6 +173,11 @@ public class ClosingLineRefillTests(PostgresFixture fixture)
         Assert.Equal(["owed", "no-line"], closer.Asked);
         Assert.Equal(2, (await db.IngestionRuns.AsNoTracking().SingleAsync(r => r.Id == outcome.RunId)).RequestsMade);
         Assert.False(await db.ClosingLineMisses.AnyAsync(m => m.GameId == unknown.Id));
+
+        // Still owed, and neither to ask nor set aside: only the game ESPN had no line for waits
+        // on a retry date, so the roll-up's "set aside" is one, not two.
+        Assert.Contains(unknown.Id, await service.ClosingLinesOwed(seeded.Sport.Key).Select(g => g.Id).ToListAsync());
+        Assert.Equal(1, await service.ClosingLinesSetAsideAsync(seeded.Sport.Key, key, now, CancellationToken.None));
     }
 
     [Fact]

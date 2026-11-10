@@ -121,8 +121,8 @@ public class BoardService(LineOpsDbContext db)
                 // The report is about the next game, not the last: a game under way or finished
                 // was started by whoever started it, whatever the club said of him since.
                 var report = row.Game.StartsAt > now ? injuries : NoInjuries;
-                var away = Starters.Quarterback(passing, report, row.Game.AwayTeamId, row.Game.StartsAt);
-                var home = Starters.Quarterback(passing, report, row.Game.HomeTeamId, row.Game.StartsAt);
+                var away = Starters.Quarterback(passing, report, row.Game.AwayTeamId, row.Game.StartsAt, row.Game.Id);
+                var home = Starters.Quarterback(passing, report, row.Game.HomeTeamId, row.Game.StartsAt, row.Game.Id);
 
                 return row with
                 {
@@ -154,7 +154,9 @@ public class BoardService(LineOpsDbContext db)
         var to = nfl.Max(g => g.StartsAt);
 
         var rows = await db.PlayerGameStats
-            .Where(s => s.Game!.StartsAt >= from && s.Game.StartsAt < to)
+            // Through the slate's own games, not just before them: a game under way or over is
+            // read from its own box score (Starters.Quarterback, ThisGameBasis).
+            .Where(s => s.Game!.StartsAt >= from && s.Game.StartsAt <= to)
             .Where(s => EF.Functions.JsonExists(s.StatLine, "C/ATT"))
             .Select(s => new
             {

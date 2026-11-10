@@ -866,7 +866,7 @@ public class IngestionJobs(
         var now = DateTimeOffset.UtcNow;
         var without = 0;
         var toAsk = 0;
-        var askable = 0;
+        var setAside = 0;
 
         foreach (var sport in sports)
         {
@@ -874,16 +874,15 @@ public class IngestionJobs(
 
             foreach (var closer in closers)
             {
-                var canAsk = await stats.ClosingLinesToAskAsync(sport, closer, now, int.MaxValue, ct);
-                askable += canAsk;
-                toAsk += Math.Min(canAsk, ClosingLinesPerRun);
+                toAsk += await stats.ClosingLinesToAskAsync(sport, closer, now, ClosingLinesPerRun, ct);
+                setAside += await stats.ClosingLinesSetAsideAsync(sport, closer, now, ct);
             }
         }
 
-        // Set aside is what is owed less what could be asked at all — not less what one press
-        // asks, which a run's ceiling caps: 700 owed and none set aside is 600 to ask now and 100
-        // after, not 100 set aside.
-        return new OwedCloses(without, toAsk, Math.Max(0, without - askable));
+        // Set aside is counted from the misses, not derived: "owed less askable" also took in
+        // finals the source has no id for, which wait on no retry, and a run's ceiling, which is
+        // not a setting-aside — 700 owed and none set aside is 600 to ask now and 100 after.
+        return new OwedCloses(without, toAsk, setAside);
     }
 
     /// <summary>

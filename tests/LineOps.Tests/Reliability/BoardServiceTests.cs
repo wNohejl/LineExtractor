@@ -76,6 +76,102 @@ public class BoardServiceTests(PostgresFixture fixture)
         return Assert.Single(rows);
     }
 
+    /// <summary>
+    /// The Board's quarterback, read end to end: the club's last game was Murray's, the injury
+    /// report has him out, and Wentz started an earlier game this season without him — so the
+    /// row names Wentz, and the basis says why. Once the report has not repeated Murray's status
+    /// for two weeks it no longer holds, and the row goes back to the last game's passer.
+    /// </summary>
+    [Fact]
+    public async Task A_quarterback_ruled_out_gives_the_board_row_to_the_one_who_started_without_him()
+    {
+        await using var db = fixture.CreateContext();
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+
+        // The starter is read for the NFL only, so the test's games are NFL games; the read is
+        // the slate's, and the row is found by this test's own game among whatever else is on it.
+        var nfl = await db.Sports.FirstOrDefaultAsync(s => s.Key == "nfl")
+                  ?? db.Sports.Add(new Sport { Key = "nfl", Name = "NFL" }).Entity;
+        await db.SaveChangesAsync();
+
+        var vikings = new Team { SportId = nfl.Id, Name = $"Vikings {suffix}", Abbrev = "MIN" };
+        var bills = new Team { SportId = nfl.Id, Name = $"Bills {suffix}", Abbrev = "BUF" };
+        var other = new Team { SportId = nfl.Id, Name = $"Other {suffix}", Abbrev = "OTH" };
+        var source = new Source { Key = $"qb-{suffix}", Name = "Box scores", Kind = SourceKind.Stats, BaseUrl = "local://qb" };
+        db.Teams.AddRange(vikings, bills, other);
+        db.Sources.Add(source);
+        await db.SaveChangesAsync();
+
+        var now = DateTimeOffset.UtcNow;
+        Game Played(int daysAgo) => new()
+        {
+            SportId = nfl.Id, HomeTeamId = vikings.Id, AwayTeamId = other.Id,
+            StartsAt = now.AddDays(-daysAgo), Status = GameStatus.Final, SeasonYear = 2026
+        };
+
+        var weekTwo = Played(50);
+        var lastWeek = Played(8);
+        var tonight = new Game
+        {
+            SportId = nfl.Id, HomeTeamId = vikings.Id, AwayTeamId = bills.Id,
+            StartsAt = now.AddHours(4), Status = GameStatus.Scheduled, SeasonYear = 2026
+        };
+        db.Games.AddRange(weekTwo, lastWeek, tonight);
+
+        var murray = new Player
+        {
+            SportId = nfl.Id, TeamId = vikings.Id, FullName = $"Kyler Murray {suffix}",
+            InjuryStatus = "Out", InjuryNote = "Murray (hamstring) has been ruled out.", InjuryUpdatedAt = now.AddHours(-2)
+        };
+        var wentz = new Player
+        {
+            SportId = nfl.Id, TeamId = vikings.Id, FullName = $"Carson Wentz {suffix}",
+            InjuryStatus = "Active", InjuryUpdatedAt = now.AddHours(-2)
+        };
+        db.Players.AddRange(murray, wentz);
+        await db.SaveChangesAsync();
+
+        PlayerGameStat Passing(Player p, Game g, string catt) => new()
+        {
+            PlayerId = p.Id, GameId = g.Id, SourceId = source.Id, TeamId = vikings.Id,
+            StatLine = $"{{\"C/ATT\":\"{catt}\"}}", CapturedAt = g.StartsAt
+        };
+
+        db.PlayerGameStats.AddRange(
+            Passing(wentz, weekTwo, "11/20"),
+            Passing(murray, lastWeek, "17/29"));
+        await db.SaveChangesAsync();
+
+        async Task<BoardRow> RowAsync()
+            => (await new BoardService(db).GetAsync("nfl", TimeSpan.FromHours(24))).Single(r => r.Game.Id == tonight.Id);
+
+        var ruledOut = await RowAsync();
+        Assert.Equal(wentz.FullName, ruledOut.HomeQuarterback);
+        Assert.Equal(
+            $"{murray.FullName} is out; {wentz.FullName} started the last game the club played without him. "
+            + "Murray (hamstring) has been ruled out.",
+            ruledOut.HomeQuarterbackBasis);
+
+        // A fortnight without the report naming him again: the status no longer holds.
+        murray.InjuryUpdatedAt = now - Player.InjuryStatusLife - TimeSpan.FromHours(1);
+        await db.SaveChangesAsync();
+
+        var aged = await RowAsync();
+        Assert.Equal(murray.FullName, aged.HomeQuarterback);
+        Assert.Equal(Starters.LastGameBasis, aged.HomeQuarterbackBasis);
+
+        // Kick-off. The game is under way with Wentz in its box score: the row reads tonight's
+        // passer from tonight's game, whatever the report or the last game said.
+        tonight.StartsAt = now.AddHours(-1);
+        tonight.Status = GameStatus.Live;
+        db.PlayerGameStats.Add(Passing(wentz, tonight, "7/19"));
+        await db.SaveChangesAsync();
+
+        var live = (await new BoardService(db).GetAsync("nfl", TimeSpan.FromHours(24))).Single(r => r.Game.Id == tonight.Id);
+        Assert.Equal(wentz.FullName, live.HomeQuarterback);
+        Assert.Equal(Starters.ThisGameBasis, live.HomeQuarterbackBasis);
+    }
+
     [Fact]
     public async Task TheMoneylineBestIsTheOneThatPaysMost()
     {

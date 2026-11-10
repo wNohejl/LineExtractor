@@ -1008,12 +1008,16 @@ else
             var quarterback = home ? row.HomeQuarterback : row.AwayQuarterback;
             var basis = home ? row.HomeQuarterbackBasis : row.AwayQuarterbackBasis;
 
-            // A starter ruled out says so: the tooltip is the injury and who stands in.
-            var title = basis is not null && basis != LineOps.Data.CrossReference.Starters.LastGameBasis
+            // A starter ruled out says so: the tooltip is the injury and who stands in. A plain
+            // basis — the last game's starter, or this game's own passer once it is under way —
+            // is said with the name after it.
+            var plain = basis is LineOps.Data.CrossReference.Starters.LastGameBasis
+                or LineOps.Data.CrossReference.Starters.ThisGameBasis;
+            var title = basis is not null && !plain
                 ? basis
                 : quarterback is null
                     ? "No passing on record for this club"
-                    : $"{LineOps.Data.CrossReference.Starters.LastGameBasis}: {quarterback}";
+                    : $"{basis ?? LineOps.Data.CrossReference.Starters.LastGameBasis}: {quarterback}";
 
             return ("QB", quarterback is null ? "—" : Surname(quarterback), title);
         }
