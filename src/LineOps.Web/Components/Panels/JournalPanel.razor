@@ -274,10 +274,11 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 {
     <PanelSection Title="Entries">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
-        @* Ordered by the game, newest first, as the service reads it: a bet placed days ahead on
+        @* Ordered by when the bet closes — the game's start, when the line closes and CLV is read —
+           newest first, as the service reads it: a bet placed days ahead on
            a later game sits above one placed tonight. The placement is the dim second line; the
            Placed within filter still cuts by it. *@
-        <TemplateColumn T="JournalEntry" Title="Game" Sortable="true" SortBy="@(e => JournalService.GameStart(e))"
+        <TemplateColumn T="JournalEntry" Title="Closes" Sortable="true" SortBy="@(e => JournalService.GameStart(e))"
                         InitialDirection="SortDirection.Descending">
             <CellTemplate>
                 @* An untracked bet has no game to start; its game start falls back to the placement,
@@ -393,7 +394,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         @* A parlay is ordered by its last leg's game: it is open until that one is. *@
-        <TemplateColumn T="Parlay" Title="Game" Sortable="true" SortBy="@(p => JournalService.LastLegStart(p))"
+        <TemplateColumn T="Parlay" Title="Closes" Sortable="true" SortBy="@(p => JournalService.LastLegStart(p))"
                         InitialDirection="SortDirection.Descending">
             <CellTemplate>
                 <div class="journal-when">

@@ -193,6 +193,15 @@ public class ClosingLineRefillTests(PostgresFixture fixture)
         Assert.Equal(-390, lines.Single(l => l.Market == Markets.Moneyline && l.Outcome == "Philadelphia Eagles").PriceAmerican);
         Assert.All(lines.Where(l => l.Market == Markets.Total), l => Assert.Equal(47.5m, l.Line));
 
+        // What the refill adds to the database is the close, and only the close: rows in
+        // ClosingLines under the closing-line source, captured at the game's start, and nothing
+        // in the scan tier — a backported game gets no snapshot, no opening line, no price from
+        // any other moment than the close the source stated.
+        Assert.All(lines, l => Assert.Equal(seeded.Source.Id, l.SourceId));
+        Assert.All(lines.Where(l => l.PriceAmerican != -390),
+            l => Assert.Equal(seeded.Owed.StartsAt, l.CapturedAt, TimeSpan.FromSeconds(1)));
+        Assert.Equal(0, await db.OddsSnapshots.CountAsync(o => o.GameId == seeded.Owed.Id));
+
         // The owed game now has its total and is not asked again; the game with no line is set
         // aside, so the next press asks nothing at all.
         var again = new StubCloser(key);

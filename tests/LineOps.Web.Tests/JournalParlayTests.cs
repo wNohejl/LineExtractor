@@ -286,7 +286,7 @@ public class JournalParlayTests : WagerTestContext
         var (cut, _) = Render(yesterday, nextWeek);   // read in placement order
 
         var grid = cut.FindAll("table").Last();
-        Assert.Equal("Game", grid.QuerySelector("thead th")!.TextContent.Trim());
+        Assert.Equal("Closes", grid.QuerySelector("thead th")!.TextContent.Trim());
         var first = grid.QuerySelector("tbody tr td")!;
         Assert.Contains(DisplayTime.Stamp(games[1].StartsAt), first.TextContent);
         Assert.Equal($"placed {DisplayTime.Stamp(nextWeek.PlacedAt)}", first.QuerySelector(".dim")!.TextContent.Trim());

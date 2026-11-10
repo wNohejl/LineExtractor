@@ -397,7 +397,7 @@ public class JournalPanelTests : WagerTestContext
         var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
         cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
 
-        Assert.Equal("Game", cut.FindAll("thead th").First().TextContent.Trim());
+        Assert.Equal("Closes", cut.FindAll("thead th").First().TextContent.Trim());
         var first = cut.FindAll("tbody tr").First().QuerySelector("td")!;
         Assert.Contains(DisplayTime.Stamp(sunday.Game.StartsAt), first.TextContent);
         Assert.Equal($"placed {DisplayTime.Stamp(sunday.PlacedAt)}", first.QuerySelector(".dim")!.TextContent.Trim());
