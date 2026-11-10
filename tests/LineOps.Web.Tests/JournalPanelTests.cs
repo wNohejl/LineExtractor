@@ -4,6 +4,7 @@ using LineOps.Data;
 using LineOps.Desk.Windowing;
 using LineOps.Web.Components;
 using LineOps.Web.Components.Panels;
+using LineOps.Web.Services;
 using LineOps.Web.Tests.Support;
 using LineOps.Web.Windowing;
 using Microsoft.EntityFrameworkCore;
@@ -333,6 +334,37 @@ public class JournalPanelTests : WagerTestContext
         Assert.Contains("All books", overflow);
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Sport<", overflow);
         Assert.Contains("class=\"ptoolbar__label\" aria-hidden=\"true\">Book<", overflow);
+    }
+
+    /// <summary>
+    /// Beside Performance, the Journal offered a Slip tab that opened onto "nothing on the slip".
+    /// The tab keeps its place but is disabled while the slip is empty — named as such, and a
+    /// click on it turns nothing — and comes alive the moment a wager is banked.
+    /// </summary>
+    [Fact]
+    public void The_journals_slip_tab_is_disabled_while_the_slip_is_empty_and_live_once_a_bet_is_banked()
+    {
+        _journal.Entries.Add(Pending());
+        var window = Services.GetRequiredService<WindowManager>().Open(WindowCatalog.Find(WindowCatalog.Journal)!);
+        var cut = RenderComponent<JournalParlayTests.JournalUnderTest>(p => p.AddCascadingValue("WindowId", window.Id));
+        cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
+
+        var tabs = cut.FindAll("[role=tab]");
+        Assert.Equal(["Journal", "Slip"], tabs.Select(t => t.TextContent.Trim()));
+        Assert.True(tabs[1].HasAttribute("disabled"));
+        Assert.Equal("true", tabs[1].GetAttribute("aria-disabled"));
+        Assert.Equal("Slip: nothing here yet", tabs[1].GetAttribute("title"));
+
+        tabs[1].Click();
+        Assert.Equal("true", cut.FindAll("[role=tab]")[0].GetAttribute("aria-selected"));
+        Assert.Empty(cut.FindAll(".slip-card"));
+
+        cut.InvokeAsync(() => Slip.Add(new SlipItem(Guid.Empty, 7, "Buffalo Bills at Kansas City Chiefs",
+            DateTimeOffset.UtcNow.AddHours(3), "nfl", Markets.Moneyline, "Kansas City Chiefs", null,
+            "draftkings", -110m, DateTimeOffset.UtcNow, false, 50m, null, null, null)));
+
+        cut.WaitForAssertion(() => Assert.False(cut.FindAll("[role=tab]")[1].HasAttribute("disabled")));
+        Assert.Equal("1", cut.FindAll("[role=tab]")[1].QuerySelector(".badge")!.TextContent.Trim());
     }
 
     /// <summary>

@@ -6,9 +6,11 @@ namespace LineOps.Desk.Primitives;
 /// <param name="Value">The value this tab selects.</param>
 /// <param name="Label">What the tab is called. Short — tabs share the bar's width equally.</param>
 /// <param name="Available">
-/// Whether there is anything behind this tab. A section with nothing in it is not
-/// offered at all: a tab that opens onto "no data" spends a click to say so, and the
-/// desk's rule is that a control you can see is a control you can use.
+/// Whether the window has this section at all. A section it does not have is not offered:
+/// the tab never renders, and with one section left the bar folds away. For a section the
+/// window has but which is empty for now, use <paramref name="Enabled"/> instead, so the bar
+/// keeps its shape. Either way the desk's rule holds: a control you can see is a control you
+/// can use, or one that plainly says it cannot be used yet.
 /// </param>
 /// <param name="Count">
 /// How many items the section holds, when that is worth seeing from the bar. Drawn as a
