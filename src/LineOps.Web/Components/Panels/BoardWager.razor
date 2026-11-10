@@ -554,10 +554,14 @@ else
 
     private WagerTab _tab;
 
+    // An empty slip is not offered as a section (the Desk's rule: a control you can see is a
+    // control you can use); the form is the whole window until something is banked. The tab
+    // stays while the operator is on it, so a slip emptied by logging is not pulled from under
+    // the report of what it logged.
     private IReadOnlyList<DeskTab<WagerTab>> Tabs =>
     [
         new(WagerTab.Wager, "Wager"),
-        new(WagerTab.Slip, "Slip", Count: Slip.Items.Count)
+        new(WagerTab.Slip, "Slip", Available: Slip.Items.Count > 0 || _tab == WagerTab.Slip, Count: Slip.Items.Count)
     ];
 
     /// <summary>

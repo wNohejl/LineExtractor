@@ -33,9 +33,11 @@ public class BoardWagerTests : WagerTestContext
     private static IElement Log(IRenderedFragment cut) => cut.Find("button.desk-btn--filled");
 
     /// <summary>The Slip tab's count: its badge's figure, or null where there is no badge.</summary>
+    // The Slip tab's badge; null when it shows no count, and when the tab is not offered at all,
+    // as it is not while the slip is empty and the operator is not on it.
     private static string? SlipCount(IRenderedFragment cut)
-        => cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim().StartsWith("Slip", StringComparison.Ordinal))
-              .QuerySelector(".badge")?.TextContent.Trim();
+        => cut.FindAll("[role=tab]").SingleOrDefault(t => t.TextContent.Trim().StartsWith("Slip", StringComparison.Ordinal))
+              ?.QuerySelector(".badge")?.TextContent.Trim();
 
     private IRenderedComponent<BoardWager> PlaceWagerOnARow()
         => RenderComponent<BoardWager>(p => p.Add(x => x.GameId, BoardRows.GameId));
