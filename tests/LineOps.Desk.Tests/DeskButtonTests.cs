@@ -112,6 +112,8 @@ public class DeskButtonTests : DeskTestContext
         Assert.Contains("desk-btn--busy", button.GetAttribute("class"));
         Assert.Contains("desk-btn--filled", button.GetAttribute("class"));
         Assert.Equal("true", button.GetAttribute("aria-busy"));
+        // Not disabled: it keeps its tab stop and the focus it has while the work runs.
+        Assert.False(button.HasAttribute("disabled"));
     }
 
     [Fact]

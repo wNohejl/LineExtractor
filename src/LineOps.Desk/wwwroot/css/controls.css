@@ -265,10 +265,12 @@
    gets a menu that fits it, and there the label may run to a second line rather than
    be cut — a menu item is read whole, never ellipsized. */
 .menu--wide {
-    min-width: min(320px, calc(100vw - 2 * var(--space-4)));
+    /* The window's width, not the viewport's: a 300px window beside two others on a wide
+       desk is still a 300px window (100cqw is the nearest container, a toolbar's row). */
+    min-width: min(320px, calc(100cqw - 2 * var(--space-4)));
 }
 
-@media (max-width: 400px) {
+@container (max-width: 400px) {
     .menu--wide .menu__label { white-space: normal; overflow: visible; text-overflow: clip; }
 }
 

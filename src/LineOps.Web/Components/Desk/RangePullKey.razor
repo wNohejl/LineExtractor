@@ -27,15 +27,19 @@
                         Icon="@Icons.Material.Filled.DateRange"
                         Busy="@(_phrase is not null)"
                         Title="@Name"
-                        aria-label="Date range"
-                        aria-describedby="@(_phrase is null ? null : "range-key-progress")"
                         aria-haspopup="dialog"
                         aria-expanded="@(_open ? "true" : "false")"
                         data-popover-return="true"
                         OnClick="ToggleAsync">
-                @* The key keeps its name for assistive tech; the day a pull has reached is said
-                   beside it, politely, and stands in for the word while it runs. *@
-                <span class="range-key__word" id="range-key-progress" aria-live="polite">@Name</span>
+                @* The key keeps its name while it runs — "Date range · NFL Sep 8 · 3 of 4" — so a
+                   reader hears what the key is and how far the pull has got, and the words on it
+                   are in its name. The word is a polite live region, kept in the page when the
+                   narrow fold takes it off the screen. *@
+                @if (_phrase is not null)
+                {
+                    <span class="sr-only">Date range · </span>
+                }
+                <span class="range-key__word" aria-live="polite">@Name</span>
             </DeskButton>
         </Anchor>
         <ChildContent>

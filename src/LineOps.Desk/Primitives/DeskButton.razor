@@ -27,8 +27,8 @@
            Ripple="false"
            DropShadow="false"
            ButtonType="@ButtonType"
-           Disabled="@(Disabled || Busy)"
-           OnClick="OnClick"
+           Disabled="@Disabled"
+           OnClick="PressAsync"
            aria-busy="@(Busy ? "true" : null)"
            title="@Title"
            @attributes="Extra">
@@ -71,6 +71,14 @@
     [Parameter] public ButtonType ButtonType { get; set; } = ButtonType.Button;
 
     [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    /// <summary>
+    /// A busy key refuses the press but is not disabled: it keeps its emphasis, its tab stop and
+    /// the focus it has. Disabling it threw focus to the page the moment work began — a popover
+    /// closing onto a key that had just gone busy could not give focus back to it — and a key
+    /// that says it is busy (aria-busy) has already said why it will not act.
+    /// </summary>
+    private Task PressAsync(MouseEventArgs e) => Busy ? Task.CompletedTask : OnClick.InvokeAsync(e);
 
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }

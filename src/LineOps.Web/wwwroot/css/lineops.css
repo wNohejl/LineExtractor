@@ -492,14 +492,20 @@
    stays, with the name as the key's title and accessible name. It is the key's own fold, not the
    row's: More's folding is toolbar.js's, and none of it moves here. */
 @container ptoolbar (max-width: 400px) {
-    .range-key__word { display: none; }
+    /* Out of sight, not out of the page: the word is also the live region that says how far a
+       pull has got, and a hidden live region says nothing. */
+    .range-key__word {
+        position: absolute; width: 1px; height: 1px;
+        padding: 0; margin: -1px; overflow: hidden;
+        clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
     /* The key itself, not the popover's keys: Anchor draws it straight inside the popover root. */
     .range-key > .desk-btn { padding: 0; width: 28px; }
 }
 
 /* The popover hangs from the key's trailing edge, wide enough for League's segments and the two
-   dates side by side, never wider than the window. */
-.range-key > .popover__panel { width: min(360px, 92vw); max-width: none; padding: var(--space-2); }
+   dates side by side, never wider than the window's toolbar (100cqw: the ptoolbar container). */
+.range-key > .popover__panel { width: min(360px, calc(100cqw - 2 * var(--space-2))); max-width: none; padding: var(--space-2); }
 .range-pop { display: flex; flex-direction: column; gap: var(--space-3); }
 /* The popover's own edge is the group's one, as More's panel is: a framed group inside a framed
    material is a box in a box. Rows keep their inset separators. With no frame of its own the group

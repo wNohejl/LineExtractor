@@ -93,7 +93,7 @@ public class RangePullPopoverTests : DeskTestContext
     {
         var cut = Open([Nfl]);
 
-        Segment(cut, "Last 30 days").Click();
+        Segment(cut, "30 days").Click();
         Segment(cut, "Custom").Click();
 
         Assert.Equal(["2026-10-08", "2026-11-06"], Dates(cut).Select(d => d.GetAttribute("value")));

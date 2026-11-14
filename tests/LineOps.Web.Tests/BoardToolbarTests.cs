@@ -167,7 +167,11 @@ public class BoardToolbarTests : DeskTestContext
         Assert.Equal("true", DateRange(cut).GetAttribute("aria-busy"));
 
         _progress!.Report(new RangePullProgress("nfl", new DateOnly(2026, 11, 2), 2, 4, 2, 0));
-        cut.WaitForAssertion(() => Assert.Equal("NFL Nov 2 · 3 of 4", DateRange(cut).TextContent.Trim()));
+        // The word on the key is the day reached; its name keeps "Date range" in front of it, read
+        // but not seen, so the words on the key are in its name and a reader still knows the key.
+        cut.WaitForAssertion(() => Assert.Equal("NFL Nov 2 · 3 of 4", DateRange(cut).QuerySelector(".range-key__word")!.TextContent.Trim()));
+        Assert.Equal("Date range · NFL Nov 2 · 3 of 4", System.Text.RegularExpressions.Regex.Replace(DateRange(cut).TextContent, @"\s+", " ").Trim());
+        Assert.False(DateRange(cut).HasAttribute("disabled"));   // busy, but it keeps its focus
 
         _running!.SetResult(new RangePullSummary("nfl", new DateOnly(2026, 10, 31), new DateOnly(2026, 11, 6),
             7, 4, true, 4, 0, 16, 16, 700, 64, 24, 0, null));
