@@ -300,6 +300,11 @@ Deliberate choices, not defaults:
 
 ### Exposing it beyond localhost
 
+To open the desk from your own laptop or phone, do not expose it at all: put it on your
+tailnet with Tailscale Serve (`compose.tailnet.yml` or `scripts/serve-tailnet.ps1`; see
+`docs/INFRASTRUCTURE.md`, "From another device", and ADR 0022). What follows is for a host
+other people reach.
+
 Do not simply change the port binding to `0.0.0.0`. Terminate TLS at a reverse proxy with a
 real certificate and let it talk to the container over the compose network:
 

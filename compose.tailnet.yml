@@ -1,0 +1,87 @@
+# The desk on your own tailnet: the laptop/desktop stack, reachable from your other devices
+# at https://<TS_HOSTNAME>.<tailnet>.ts.net and from nowhere else. See ADR 0022.
+#
+#   docker compose -f docker-compose.yml -f compose.tailnet.yml up -d
+#
+#   Your device on the tailnet ─► tailscale :443 (Serve, TLS) ─► web :8080 (plain HTTP)
+#                                                                   │
+#                                                               postgres
+#
+# Why Serve, and never Funnel:
+#
+#   * Tailscale Serve answers only on the node's tailnet address. A device reaches it only if
+#     it is signed in to your tailnet and your ACLs let it; there is no public DNS record and
+#     no listener on the internet. That is the laptop's own exposure, reachable from your phone.
+#   * Tailscale Funnel would publish the same handler to the public internet through
+#     Tailscale's relays, which republishes ESPN- and MLB-derived data (going-public plan §4,
+#     §10b). deploy/tailnet/serve.json says "AllowFunnel": false for the one host it serves,
+#     and nothing here asks for the funnel node attribute. Do not turn it on.
+#
+# How web differs from docker-compose.yml, and why it is the same posture as deploy/compose.yml:
+#
+#   * Web listens on plain HTTP :8080 on the compose network and publishes no port (the base's
+#     127.0.0.1:9443 mapping is reset). Only the tailscale container can reach it, which is what
+#     makes trusting its X-Forwarded-For and -Proto (Hosting__BehindProxy) correct (ADR 0019).
+#   * The tailscale container is a separate node with its own network namespace, not
+#     network_mode: service:web. Sharing web's namespace would put :8080 on the tailnet
+#     address too, plain HTTP beside the Serve listener, and anyone on the tailnet could then
+#     send it forwarded headers of their choosing.
+#   * The desk is gated (ADR 0018): your phone is on the tailnet, and so is any device you
+#     share the node with. Make the hash with scripts/new-access-code.ps1.
+#   * Web keeps the in-process scheduler: this is still the one desk, not a second instance.
+#
+# One-time, by hand: install Tailscale on each device, enable MagicDNS and HTTPS certificates
+# in the admin console (DNS page), and make an auth key (Settings → Keys; reusable off,
+# ephemeral off, pre-approved on; optionally tagged). Put it in .env as TS_AUTHKEY. It is used
+# once, at first sign-in; the node's identity then lives on the lineops-tailscale volume.
+services:
+  web:
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      Hosting__BehindProxy: "true"
+      # "*" until you know the node's name; then set LINEOPS_TAILNET_HOST in .env to
+      # <TS_HOSTNAME>.<tailnet>.ts.net and anything else is refused with a 400. Serve passes
+      # the visitor's Host through unchanged.
+      AllowedHosts: ${LINEOPS_TAILNET_HOST:-*}
+      Access__Mode: Gated
+      Access__OperatorCodeHash: ${ACCESS_OPERATOR_CODE_HASH:?make one with scripts/new-access-code.ps1}
+      Access__GuestCodeHash: ${ACCESS_GUEST_CODE_HASH:-}
+      Access__AllowAnonymousVisitors: "false"
+    # No published port: the base's loopback HTTPS mapping would point at nothing now, and a
+    # published port is exactly what would break the forwarded-header trust above.
+    ports: !reset []
+
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: lineops-tailscale
+    hostname: ${TS_HOSTNAME:-lineops}
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env (admin console, Settings, Keys)}
+      TS_HOSTNAME: ${TS_HOSTNAME:-lineops}
+      TS_STATE_DIR: /var/lib/tailscale
+      # Userspace networking: no /dev/net/tun, no NET_ADMIN. Serve still terminates TLS here,
+      # and nothing on this node routes into the compose network.
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+      # Not an exit node, advertises no routes, accepts none.
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - lineops-tailscale:/var/lib/tailscale
+      - ./deploy/tailnet/serve.json:/config/serve.json:ro
+    # No ports: the tailnet is reached over Tailscale's own outbound connections.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+volumes:
+  lineops-tailscale:
