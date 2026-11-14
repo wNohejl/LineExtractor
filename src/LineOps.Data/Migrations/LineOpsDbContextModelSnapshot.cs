@@ -1155,6 +1155,11 @@ namespace LineOps.Data.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<string>("Licence")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<int?>("MonthlyCreditBudget")
                         .HasColumnType("integer");
 

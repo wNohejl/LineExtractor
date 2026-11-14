@@ -209,6 +209,11 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
             }
         };
 
+        // Each provider's terms, from one table (ADR 0024). Set here rather than on each row above
+        // so the seed and the migration that classified existing rows cannot disagree.
+        foreach (var source in wanted)
+            source.Licence = SourceLicences.For(source.Key);
+
         var existing = await db.Sources.Select(s => s.Key).ToListAsync(ct);
 
         foreach (var source in wanted.Where(s => !existing.Contains(s.Key)))
