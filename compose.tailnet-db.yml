@@ -1,0 +1,43 @@
+# Tailnet overlay (ADR 0023). Publishes Postgres on this machine's Tailscale address, so the
+# developer's other machine can run its desk against this database: one dataset, one scheduler.
+# Run on the desktop, the machine that holds the data and runs the scheduler:
+#
+#   docker compose -f docker-compose.yml -f compose.dev.yml -f compose.tailnet-db.yml up -d postgres
+#
+# compose.dev.yml stays in the list so this machine's own `dotnet run` still reaches the
+# database on 127.0.0.1:5433; compose merges the two port entries. TAILNET_IP goes in .env and
+# is this machine's address on the tailnet: `tailscale ip -4`.
+#
+# Why the tailnet address and nothing wider:
+#
+#   * A 100.x.y.z address belongs to the Tailscale interface alone. A port bound to it is reached
+#     only through that interface, which carries only traffic from devices signed in to the
+#     developer's own tailnet (and the tailnet's ACLs can narrow that to the one laptop). It is
+#     not this machine's LAN address, so the café's or the office's network cannot reach it, and
+#     nothing forwards it to the internet.
+#   * Never 0.0.0.0, and never a bare "5433:5432". Either publishes Postgres on every interface,
+#     the LAN included, and Docker writes its own firewall rules, so the host firewall does not
+#     necessarily stop it (the note at the top of docker-compose.yml).
+#   * If Tailscale is not up when the container starts, the address does not exist yet and the
+#     container cannot bind it. Start Tailscale first; it runs as a service and is normally up
+#     before Docker Desktop is.
+#
+# Encryption, and SSL Mode=Disable on the client:
+#
+#   Tailscale carries every packet between the two machines inside WireGuard, encrypted and
+#   authenticated end to end, device to device. Postgres's own TLS would encrypt the same bytes a
+#   second time, so the laptop's connection string says SSL Mode=Disable on purpose, and that is
+#   acceptable here, over the tailnet, and nowhere else. The password still travels: the
+#   container requires SCRAM-SHA-256 (docker-compose.yml), which never sends it in the clear.
+#
+#   If Postgres TLS is wanted anyway (belt and braces, or a path that is not the tailnet), the
+#   server needs a certificate: `tailscale cert <machine>.<tailnet>.ts.net` issues one for the
+#   machine's MagicDNS name. Mount it and its key read-only (the key owned by the postgres user,
+#   mode 0600), add `command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=...",
+#   "-c", "ssl_key_file=..."]` to the service, and have the laptop connect by that name with
+#   SSL Mode=VerifyFull, so the client checks the certificate rather than only encrypting to
+#   whoever answers. scripts/connect-remote-db.ps1 would then write VerifyFull instead of Disable.
+services:
+  postgres:
+    ports:
+      - "${TAILNET_IP:?set TAILNET_IP in .env}:5433:5432"

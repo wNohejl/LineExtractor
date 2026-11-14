@@ -1,5 +1,6 @@
 using LineOps.Data;
 using LineOps.Ingestion;
+using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
 using LineOps.Observability;
 using LineOps.Reliability;
@@ -41,6 +42,22 @@ if (job == IngestionJobs.EspnRange
 
 if (job is null)
 {
+    // The Worker is a scheduler whenever it is not running one named job, so it takes the web
+    // host's guard (ADR 0023): against another machine's database it schedules only when told to
+    // with Ingestion:AllowRemoteScheduling. A single `--job` is a deliberate press, like the
+    // desk's pull menu, and is not refused.
+    var refusal = SchedulerPlacement.Refusal(
+        builder.Configuration.GetConnectionString(ServiceCollectionExtensions.ConnectionStringName),
+        hostsScheduler: true, hostsEvaluator: true,
+        allowRemote: builder.Configuration.GetValue(SchedulerPlacement.AllowRemoteSchedulingKey, false),
+        remedy: "Run one named job with --job instead of the schedule");
+
+    if (refusal is not null)
+    {
+        Console.Error.WriteLine(refusal);
+        return 3;
+    }
+
     builder.Services.AddLineOpsIngestionScheduler();
     builder.Services.AddLineOpsReliabilityEvaluator();
 }
