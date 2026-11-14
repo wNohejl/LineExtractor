@@ -93,6 +93,9 @@ services:
       Access__OperatorCodeHash: ${ACCESS_OPERATOR_CODE_HASH:?make one with scripts/new-access-code.ps1}
       Access__GuestCodeHash: ${ACCESS_GUEST_CODE_HASH:-}
       Access__AllowAnonymousVisitors: ${ACCESS_ALLOW_ANONYMOUS:-false}
+      # What a visitor may read (ADR 0024). Shared keeps ESPN- and MLB-derived data to the
+      # operator; set it before anyone but the operator is given a way in.
+      Sharing__Mode: ${SHARING_MODE:-Local}
 
       # The pull menu calls the providers from the web process, so it needs the keys too.
       Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
