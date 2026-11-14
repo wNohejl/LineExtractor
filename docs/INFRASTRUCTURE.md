@@ -44,6 +44,9 @@ Overlays, deliberately opt-in rather than default:
 - `compose.dev.yml` — publishes Postgres on `127.0.0.1:5433` for psql / host-side `dotnet run`.
 - `compose.telemetry.yml` — Aspire dashboard on `127.0.0.1:18888`, OTLP ingest on `:18889`;
   the OTLP exporter is off in appsettings and switched on here (ADR 0015).
+- `compose.tailnet.yml` — a Tailscale sidecar serving the desk on your own tailnet; web
+  drops to plain HTTP on the compose network, behind the proxy and gated (ADR 0022, and
+  "From another device" below).
 
 Secrets come from a gitignored `.env` (`POSTGRES_PASSWORD`, `CERT_PASSWORD`, `CERT_PATH`,
 provider API keys). There are no fallback credentials: unconfigured means throw.
@@ -101,3 +104,26 @@ suite (Docker running) before committing.
 - Purge scripts in `scripts/` (fixtures the retired demo source invented, exhibitions/orphans,
   preseason) are the only
   sanctioned by-hand database interventions; day re-walks are done from the History window.
+
+## From another device
+
+The desk on the desktop can be opened from the laptop or a phone over your own Tailscale
+tailnet, with Tailscale Serve: HTTPS at `https://<machine>.<tailnet>.ts.net`, reachable by your
+signed-in devices only. It is never Funnel, which would put it on the public internet and
+republish ESPN-derived data (ADR 0022; going-public plan §4, §10b).
+
+Once, by hand: install Tailscale on each device and sign in to the same tailnet; in the admin
+console's DNS page turn on MagicDNS and HTTPS certificates; make an operator code with
+`scripts/new-access-code.ps1`.
+
+- **From source** (`dotnet run --project src/LineOps.Web --launch-profile http`): put
+  `Hosting:BehindProxy = true` and `Access:Mode = Gated` with the operator hash in
+  `src/LineOps.Web/appsettings.Local.json` (`Get-Help scripts/serve-tailnet.ps1` shows the
+  file), then `./scripts/serve-tailnet.ps1`. It prints the URL; `-Off` stops serving.
+- **In containers**: add `TS_AUTHKEY` (admin console → Settings → Keys; not reusable, not
+  ephemeral) and `ACCESS_OPERATOR_CODE_HASH` to `.env`, then
+  `docker compose -f docker-compose.yml -f compose.tailnet.yml up -d`. The node is named
+  `TS_HOSTNAME` (default `lineops`); set `LINEOPS_TAILNET_HOST` to its full name to refuse
+  any other `Host`.
+
+Either way it is still the one desk and its one scheduler; nothing on the other device runs.

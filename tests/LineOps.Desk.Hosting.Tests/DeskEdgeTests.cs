@@ -1,4 +1,11 @@
+using System.Net;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace LineOps.Desk.Hosting.Tests;
 
@@ -45,5 +52,67 @@ public class DeskEdgeTests
         Assert.True(With("true").IsBehindProxy());
         Assert.False(With("false").IsBehindProxy());
         Assert.False(With(null).IsBehindProxy());
+    }
+
+    private static IConfiguration BehindProxy(string? value) => new ConfigurationBuilder()
+        .AddInMemoryCollection([new KeyValuePair<string, string?>("Hosting:BehindProxy", value)])
+        .Build();
+
+    /// <summary>
+    /// One request through the forwarded-headers middleware as <see cref="DeskEdge.AddDeskEdge"/>
+    /// configured it, arriving from <paramref name="proxy"/>: what the rest of the pipeline sees.
+    /// </summary>
+    private static async Task<HttpContext> Forwarded(IConfiguration configuration, IPAddress proxy, string forwardedFor)
+    {
+        var services = new ServiceCollection();
+        services.AddDeskEdge(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var context = new DefaultHttpContext();
+        context.Request.Scheme = "http";
+        context.Request.Host = new HostString("lineops.example-tailnet.ts.net");
+        context.Connection.RemoteIpAddress = proxy;
+        context.Request.Headers["X-Forwarded-For"] = forwardedFor;
+        context.Request.Headers["X-Forwarded-Proto"] = "https";
+
+        var middleware = new ForwardedHeadersMiddleware(
+            _ => Task.CompletedTask,
+            NullLoggerFactory.Instance,
+            provider.GetRequiredService<IOptions<ForwardedHeadersOptions>>());
+        await middleware.Invoke(context);
+        return context;
+    }
+
+    [Fact]
+    public async Task Behind_proxy_the_visitor_s_address_and_scheme_replace_the_proxy_s()
+    {
+        // A sidecar on the compose network (Caddy, or the tailnet's Serve proxy) is not on
+        // loopback, so this also proves the framework's loopback-only trust was cleared.
+        var context = await Forwarded(BehindProxy("true"), IPAddress.Parse("172.18.0.5"), "100.101.102.103");
+
+        Assert.Equal(IPAddress.Parse("100.101.102.103"), context.Connection.RemoteIpAddress);
+        Assert.Equal("https", context.Request.Scheme);
+        Assert.True(context.Request.IsHttps);
+    }
+
+    [Fact]
+    public async Task Behind_proxy_only_the_hop_the_proxy_added_is_believed()
+    {
+        // A proxy appends the address it saw to whatever the client sent, so with one hop
+        // trusted an address the client wrote in itself cannot dodge the sign-in limit. This is
+        // also the host-side case: tailscaled reaches `dotnet run` from loopback.
+        var context = await Forwarded(BehindProxy("true"), IPAddress.Loopback, "203.0.113.9, 100.101.102.103");
+
+        Assert.Equal(IPAddress.Parse("100.101.102.103"), context.Connection.RemoteIpAddress);
+        Assert.Equal("https", context.Request.Scheme);
+    }
+
+    [Fact]
+    public async Task Not_behind_a_proxy_forwarded_headers_change_nothing()
+    {
+        var context = await Forwarded(BehindProxy(null), IPAddress.Parse("172.18.0.5"), "100.101.102.103");
+
+        Assert.Equal(IPAddress.Parse("172.18.0.5"), context.Connection.RemoteIpAddress);
+        Assert.Equal("http", context.Request.Scheme);
     }
 }
