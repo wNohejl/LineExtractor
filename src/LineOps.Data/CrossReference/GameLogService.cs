@@ -1,3 +1,4 @@
+using LineOps.Core.Contracts;
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -29,8 +30,11 @@ namespace LineOps.Data.CrossReference;
 /// dropping them would silently understate a record, which is the failure ADR 0003 is about.
 /// </para>
 /// </summary>
-public class GameLogService(LineOpsDbContext db)
+public class GameLogService(LineOpsDbContext db, IDataTier? tier = null)
 {
+    /// <summary>Who is reading, by tier (ADR 0024). Unregistered means a desk with one person at it.</summary>
+    private IDataTier Tier { get; } = tier ?? FullDataTier.Instance;
+
     /// <summary>
     /// One team's games inside a window, newest first, each graded against the closing line
     /// where one was captured.
@@ -87,7 +91,7 @@ public class GameLogService(LineOpsDbContext db)
 
     /// <summary>The seasons a player has an appearance in, newest first.</summary>
     public async Task<IReadOnlyList<int>> SeasonsForPlayerAsync(int playerId, CancellationToken ct = default)
-        => await db.PlayerGameStats
+        => await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => s.PlayerId == playerId)
             .Join(db.Games, s => s.GameId, g => g.Id, (s, g) => g.SeasonYear)
             .Distinct()
@@ -171,7 +175,8 @@ public class GameLogService(LineOpsDbContext db)
         int? seasonYear = null,
         CancellationToken ct = default)
     {
-        var rows = await db.PlayerGameStats
+        // A visitor to a shared desk sees only lines from a displayable stats source (ADR 0024).
+        var rows = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => s.PlayerId == playerId)
             .Join(db.Games.Include(g => g.HomeTeam).Include(g => g.AwayTeam),
                 s => s.GameId, g => g.Id,
@@ -240,7 +245,9 @@ public class GameLogService(LineOpsDbContext db)
         if (game is null)
             return null;
 
-        var lines = await db.PlayerGameStats
+        // A box score from a personal-use source is the operator's alone (ADR 0024); for anyone
+        // else the game has no box score yet, which the caller already draws as a preview.
+        var lines = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => s.GameId == gameId)
             .Join(db.Players, s => s.PlayerId, p => p.Id,
                 // The side the line was made for; the player's current team only for a line
@@ -287,7 +294,9 @@ public class GameLogService(LineOpsDbContext db)
     private async Task<Dictionary<int, GameClosingLines>> ClosingLinesForAsync(
         List<int> gameIds, CancellationToken ct)
     {
-        var all = await db.ClosingLines
+        // ESPN's reference close is a personal-use source's (ADR 0024). Left out for a visitor, a
+        // game the market never covered has no close and goes ungraded, as it would with none.
+        var all = await db.ClosingLines.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(c => gameIds.Contains(c.GameId)
                         && (c.Market == Markets.Spread || c.Market == Markets.Total))
             .Select(c => new { c.GameId, c.Market, c.Outcome, c.Line, Kind = c.Source!.Kind })

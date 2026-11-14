@@ -16,7 +16,7 @@ namespace LineOps.Core.Entities;
 /// the provider pairs them by play id, and the window reads them together.
 /// </para>
 /// </summary>
-public class GamePlay
+public class GamePlay : Contracts.IFromSource
 {
     public long Id { get; set; }
 
@@ -82,7 +82,7 @@ public class GamePlay
 /// <c>(GameId, SourceId, SourceDriveId)</c> exactly as <see cref="GamePlay"/> is, and never
 /// deleted. The MLB equivalent is the half-inning.
 /// </summary>
-public class GameDrive
+public class GameDrive : Contracts.IFromSource
 {
     public long Id { get; set; }
 

@@ -1,3 +1,4 @@
+using LineOps.Core.Contracts;
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -20,8 +21,11 @@ namespace LineOps.Data.CrossReference;
 /// true until the next scan and a cached board is a board that lies quietly.
 /// </para>
 /// </summary>
-public class BoardService(LineOpsDbContext db)
+public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
 {
+    /// <summary>Who is reading, by tier (ADR 0024). Unregistered means a desk with one person at it.</summary>
+    private IDataTier Tier { get; } = tier ?? FullDataTier.Instance;
+
     /// <summary>
     /// Games inside the window, with the best available price on each market.
     /// </summary>
@@ -57,9 +61,14 @@ public class BoardService(LineOpsDbContext db)
 
         var gameIds = games.Select(g => g.Id).ToList();
 
+        // What this reader may be shown (ADR 0024): every source on a local desk, the displayable
+        // ones for a visitor to a shared one. A personal-use close left out leaves the game with
+        // no close, and the row says "no fair close" as it would for a game nobody priced.
+        var visible = await db.VisibleSourceIdsAsync(Tier, ct);
+
         // Newest observation per book, market and outcome. The scan tier is append-only, so
         // "current" is the latest row rather than a column.
-        var latest = await db.OddsSnapshots
+        var latest = await db.OddsSnapshots.FromVisible(visible)
             .Where(s => gameIds.Contains(s.GameId))
             .GroupBy(s => new { s.GameId, s.Book, s.Market, s.Outcome })
             .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
@@ -77,7 +86,7 @@ public class BoardService(LineOpsDbContext db)
 
         var closesByGame = missing.Count == 0
             ? []
-            : MarketFirst(await db.ClosingLines
+            : MarketFirst(await db.ClosingLines.FromVisible(visible)
                 .Where(c => missing.Contains(c.GameId))
                 .Select(c => new ClosedQuote(c, c.Source!.Kind))
                 .AsNoTracking()
@@ -99,7 +108,7 @@ public class BoardService(LineOpsDbContext db)
                 games.Where(g => unexplained.Contains(g.SportId)).Select(g => g.Sport!).DistinctBy(s => s.Id).ToList(),
                 ct);
 
-        var (passing, injuries) = await PassingLinesAsync(games, now, ct);
+        var (passing, injuries) = await PassingLinesAsync(games, now, visible, ct);
 
         // A fight's card and result (ADR 0021), and its place on the card: bouts that share a
         // start are listed main event first, as a card is billed.
@@ -142,7 +151,7 @@ public class BoardService(LineOpsDbContext db)
     /// nothing of the database.
     /// </summary>
     private async Task<(List<PassingLine> Lines, Dictionary<string, (string Status, string? Note)> Injuries)> PassingLinesAsync(
-        List<Game> games, DateTimeOffset now, CancellationToken ct)
+        List<Game> games, DateTimeOffset now, int[]? visible, CancellationToken ct)
     {
         var nfl = games.Where(g => string.Equals(g.Sport?.Key, "nfl", StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -153,7 +162,7 @@ public class BoardService(LineOpsDbContext db)
         var from = nfl.Min(g => g.StartsAt) - TimeSpan.FromDays(240);
         var to = nfl.Max(g => g.StartsAt);
 
-        var rows = await db.PlayerGameStats
+        var rows = await db.PlayerGameStats.FromVisible(visible)
             // Through the slate's own games, not just before them: a game under way or over is
             // read from its own box score (Starters.Quarterback, ThisGameBasis).
             .Where(s => s.Game!.StartsAt >= from && s.Game.StartsAt <= to)
@@ -371,7 +380,9 @@ public class BoardService(LineOpsDbContext db)
         if (game is null)
             return null;
 
-        var live = (await db.OddsSnapshots
+        var visible = await db.VisibleSourceIdsAsync(Tier, ct);
+
+        var live = (await db.OddsSnapshots.FromVisible(visible)
             .Where(s => s.GameId == gameId)
             .GroupBy(s => new { s.Book, s.Market, s.Outcome })
             .Select(g => g.OrderByDescending(s => s.CapturedAt).First())
@@ -382,7 +393,7 @@ public class BoardService(LineOpsDbContext db)
 
         var closing = live.Count > 0
             ? []
-            : MarketFirst(await db.ClosingLines
+            : MarketFirst(await db.ClosingLines.FromVisible(visible)
                 .Where(c => c.GameId == gameId)
                 .Select(c => new ClosedQuote(c, c.Source!.Kind))
                 .AsNoTracking()
