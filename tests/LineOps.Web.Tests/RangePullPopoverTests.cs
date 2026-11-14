@@ -55,8 +55,8 @@ public class RangePullPopoverTests : DeskTestContext
         var cut = Open([Nfl]);
 
         Segment(cut, "Custom").Click();
-        Dates(cut)[0].Change("2024-09-30");
-        Dates(cut)[1].Change("2024-09-01");
+        Dates(cut)[0].Input("2024-09-30");
+        Dates(cut)[1].Input("2024-09-01");
 
         Assert.Equal("From (2024-09-30) is after To (2024-09-01).", Reason(cut));
         var pull = Key(cut, "Pull");
@@ -138,8 +138,8 @@ public class RangePullPopoverTests : DeskTestContext
 
         Segment(cut, "MLB").Click();
         Segment(cut, "Custom").Click();
-        Dates(cut)[0].Change("2025-04-01");
-        Dates(cut)[1].Change("2025-04-30");
+        Dates(cut)[0].Input("2025-04-01");
+        Dates(cut)[1].Input("2025-04-30");
         cut.Find("input[role=switch]").Change(true);
         Key(cut, "Pull").Click();
 
@@ -158,14 +158,29 @@ public class RangePullPopoverTests : DeskTestContext
         Assert.Single(_pulled);
     }
 
+    /// <summary>A date is committed as it is typed, so Enter pulls the date on screen, not the one before it.</summary>
+    [Fact]
+    public void Enter_pulls_the_date_just_typed()
+    {
+        var cut = Open([Nfl]);
+
+        Segment(cut, "Custom").Click();
+        Dates(cut)[0].Input("2024-09-01");
+        Dates(cut)[1].Input("2024-09-09");
+        Dates(cut)[1].KeyDown("Enter");
+
+        var asked = Assert.Single(_pulled);
+        Assert.Equal((new DateOnly(2024, 9, 1), new DateOnly(2024, 9, 9)), (asked.From, asked.To));
+    }
+
     [Fact]
     public void Enter_does_not_pull_a_range_that_waits()
     {
         var cut = Open([Nfl]);
 
         Segment(cut, "Custom").Click();
-        Dates(cut)[0].Change("2024-09-30");
-        Dates(cut)[1].Change("2024-09-01");
+        Dates(cut)[0].Input("2024-09-30");
+        Dates(cut)[1].Input("2024-09-01");
         Dates(cut)[1].KeyDown("Enter");
 
         Assert.Empty(_pulled);

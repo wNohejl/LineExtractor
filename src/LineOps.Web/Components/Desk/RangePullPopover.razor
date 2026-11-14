@@ -53,11 +53,14 @@
             </FormRow>
             @if (_span == RangeSpan.Custom)
             {
-                @* Enter in either date presses Pull, as Return does in a macOS form. *@
+                @* Enter in either date presses Pull, as Return does in a macOS form. The dates are
+                   bound Immediate (on input, not on blur): a date field commits a whole date at a
+                   time, and Enter arrives before blur would, so Pull must read what was just typed
+                   rather than the value the field held before. *@
                 <div class="wgroup__row range-pop__dates" @onkeydown="OnDateKey">
-                    <DeskField TValue="string" type="date" Label="From" Class="wfield--fill"
+                    <DeskField TValue="string" type="date" Label="From" Class="wfield--fill" Immediate="true"
                                Value="@_from" ValueChanged="@((string v) => _from = v)" />
-                    <DeskField TValue="string" type="date" Label="To" Class="wfield--fill"
+                    <DeskField TValue="string" type="date" Label="To" Class="wfield--fill" Immediate="true"
                                Value="@_to" ValueChanged="@((string v) => _to = v)" />
                 </div>
             }

@@ -69,8 +69,11 @@
     private string _typed = string.Empty;
     private long _typedAt;
 
-    // Every row, in the order it is drawn.
-    private List<DeskMenuItem> Rows() => _entries
+    // Every row, in the order it is drawn. Flattened once and kept until a row or group comes or
+    // goes: every item asks for the Tab stop on every render, which reads this.
+    private List<DeskMenuItem>? _rows;
+
+    private List<DeskMenuItem> Rows() => _rows ??= _entries
         .SelectMany(e => e is DeskMenuGroup g ? g.Items : [(DeskMenuItem)e])
         .ToList();
 
@@ -84,6 +87,8 @@
             group.Items.Add(item);
         else
             _entries.Add(item);
+
+        _rows = null;
     }
 
     internal void Unregister(DeskMenuItem item, DeskMenuGroup? group)
@@ -93,15 +98,22 @@
         else
             _entries.Remove(item);
 
+        _rows = null;
+
         if (ReferenceEquals(_active, item))
             _active = null;
     }
 
-    internal void Register(DeskMenuGroup group) => _entries.Add(group);
+    internal void Register(DeskMenuGroup group)
+    {
+        _entries.Add(group);
+        _rows = null;
+    }
 
     internal void Unregister(DeskMenuGroup group)
     {
         _entries.Remove(group);
+        _rows = null;
 
         if (_active is not null && group.Items.Contains(_active))
             _active = null;

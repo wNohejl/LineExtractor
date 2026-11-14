@@ -1085,16 +1085,29 @@ else
     /// </summary>
     private async Task PullAsync(string key)
     {
-        if (_pull is not null)
+        if (_pull is null || !_pullingKeys.Add(key))
+            return;
+
+        try
+        {
             await _pull.RunAsync(key);
+        }
+        finally
+        {
+            _pullingKeys.Remove(key);
+        }
     }
 
-    /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>
+    /// <summary>
+    /// A pull runs in the menu or on the Date range key; the panel only reflects it on its own
+    /// pulse strip. Counted, not flagged: the two keys can run at once, and the first to finish
+    /// must not read as the end of both.
+    /// </summary>
     private void OnPullBusy(bool busy)
     {
-        _pulling = busy;
+        _pullsRunning = Math.Max(0, _pullsRunning + (busy ? 1 : -1));
 
-        if (busy)
+        if (_pullsRunning > 0)
             Report(PulseState.Active, "pulling");
     }
 
@@ -1209,13 +1222,14 @@ else
                 Key = "pull",
                 // The pull runs on the toolbar's menu, and the row's key says so too: busy, and
                 // worded as what is happening, so a press here is answered here rather than only
-                // by a key at the top of the window.
-                Label = _pulling
+                // by a key at the top of the window. This sport's lines, not any pull: a range
+                // pull for another league leaves this key as it was.
+                Label = _pullingKeys.Contains(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
                     ? $"Pulling {row.Game.Sport!.Key.ToUpperInvariant()} lines"
                     : $"Pull {row.Game.Sport!.Key.ToUpperInvariant()} lines",
                 Icon = Icons.Material.Filled.CloudDownload,
                 Emphasis = DeskEmphasis.Tinted,
-                Busy = _pulling,
+                Busy = _pullingKeys.Contains(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key),
                 OpenWindow = () => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
             });
         }
@@ -1250,8 +1264,11 @@ else
     /// </summary>
     private int _takeSerial;
 
-    /// <summary>A pull is running from the toolbar; the row's own Pull lines key shows it.</summary>
-    private bool _pulling;
+    /// <summary>How many pulls are running from the toolbar's two keys; the pulse strip is Active while any is.</summary>
+    private int _pullsRunning;
+
+    /// <summary>The job keys pressed from a row that are still running; that row's Pull lines key shows it.</summary>
+    private readonly HashSet<string> _pullingKeys = [];
 
     private bool IsTaking(BoardRow row, MarketPair pair, BestOffer? offer)
         => offer is not null && _take is { } take && take.GameId == row.Game.Id

@@ -79,7 +79,7 @@
     private bool _open;
     private IReadOnlyList<RangeLeague>? _leagues;
 
-    // While a pull runs: the day it has reached, or "Pull a date range" before the first is told.
+    // While a pull runs: the day it has reached, or "Starting" before the first day is told.
     private string? _phrase;
 
     private string Name => _phrase ?? "Date range";

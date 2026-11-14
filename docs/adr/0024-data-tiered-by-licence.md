@@ -108,7 +108,8 @@ Not yet gated; each reads ESPN- or MLB-derived data a visitor on a shared desk c
 - `FightService` — `FighterProfiles` (ESPN, no `SourceId`: the whole table is personal-use) and
   `Bouts` (the card, method and result, from ESPN).
 - `GamecastService` — `GamePlays` and `GameDrives` (ESPN; both carry `SourceId`, so `FromVisible`
-  applies directly).
+  applies directly). The header's close already keeps to the tier: it is read through
+  `BoardService` with the same `IDataTier` the board's row was.
 - The live state on `Game` — `LastPlay`, `Situation`, `Linescore`, `StatusDetail`, down and
   distance — and `HomeProbablePitcher`/`AwayProbablePitcher` (MLB): columns, not rows, so they
   need a projection that blanks them rather than a filter.

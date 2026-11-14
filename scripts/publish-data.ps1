@@ -175,11 +175,15 @@ UPDATE "Games" SET "LastPlay" = NULL, "Situation" = NULL, "Linescore" = NULL, "S
   "HomeProbablePitcher" = NULL, "AwayProbablePitcher" = NULL;
 UPDATE "Players" SET "InjuryStatus" = NULL, "InjuryNote" = NULL, "InjuryUpdatedAt" = NULL;
 
--- Refuse rather than publish if anything personal-use is left.
+-- Refuse rather than publish if anything personal-use is left. By licence, as the deletes above
+-- are: a displayable stats source's box scores may stay (the exclusions still leave the table's
+-- data out of this dump), so the check must not fail the day such rows exist.
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM "ClosingLines" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
-     OR EXISTS (SELECT 1 FROM "OddsSnapshots" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
-     OR EXISTS (SELECT 1 FROM "PlayerGameStats") OR EXISTS (SELECT 1 FROM "FighterProfiles") THEN
+  IF EXISTS (SELECT 1 FROM "ClosingLines"    WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "OddsSnapshots"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "PlayerGameStats" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "StatSnapshots"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "FighterProfiles") THEN
     RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
   END IF;
 END $$;

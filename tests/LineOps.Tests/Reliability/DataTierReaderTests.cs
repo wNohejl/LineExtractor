@@ -179,6 +179,33 @@ public class DataTierReaderTests(PostgresFixture fixture)
         Assert.Equal("draftkings", visitorRow.Moneyline.First!.Book);
     }
 
+    /// <summary>
+    /// The gamecast's header carries the board's close for the same reader: a visitor who is shown
+    /// no close on the row is shown none on the chart either.
+    /// </summary>
+    [Fact]
+    public async Task The_gamecast_header_keeps_the_boards_close_to_the_tier()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await SeedAsync(db);
+
+        db.ClosingLines.Add(Close(s, s.Espn, "espn-bet", Markets.Spread, s.Home.Name, -110, -1.5m));
+        await db.SaveChangesAsync();
+
+        var contexts = new Contexts(fixture);
+
+        var operatorHeader = await new LineOps.Data.Gamecast.GamecastService(contexts, Operator).HeaderAsync(s.Game.Id);
+        Assert.Equal(-1.5m, operatorHeader!.Close!.HomeSpread);
+
+        var visitorHeader = await new LineOps.Data.Gamecast.GamecastService(contexts, Guest).HeaderAsync(s.Game.Id);
+        Assert.Null(visitorHeader!.Close);
+    }
+
+    private sealed class Contexts(PostgresFixture fixture) : Microsoft.EntityFrameworkCore.IDbContextFactory<LineOpsDbContext>
+    {
+        public LineOpsDbContext CreateDbContext() => fixture.CreateContext();
+    }
+
     private static OddsSnapshot Scan(Scaffold s, Source source, string book, int american)
         => new()
         {

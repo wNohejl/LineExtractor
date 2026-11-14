@@ -31,8 +31,14 @@ namespace LineOps.Data.Gamecast;
 /// its header and its plays at once, and one scoped context would refuse the second.
 /// </para>
 /// </summary>
-public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts)
+public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineOps.Core.Contracts.IDataTier? tier = null)
 {
+    /// <summary>
+    /// Who is reading, by tier (ADR 0024): the close on the header is the board's, read for the
+    /// same person, so a visitor to a shared desk is not handed here the ESPN close the row withheld.
+    /// </summary>
+    private LineOps.Core.Contracts.IDataTier Tier { get; } = tier ?? LineOps.Core.Contracts.FullDataTier.Instance;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     /// <summary>
@@ -49,7 +55,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        var row = await new BoardService(db).GetRowAsync(gameId, ct);
+        var row = await new BoardService(db, Tier).GetRowAsync(gameId, ct);
 
         if (row is null)
             return null;
