@@ -2,6 +2,7 @@ using LineOps.Data;
 using LineOps.Desk;
 using LineOps.Desk.Hosting;
 using LineOps.Ingestion;
+using LineOps.Ingestion.Configuration;
 using LineOps.Observability;
 using LineOps.Reliability;
 using LineOps.Web.Components;
@@ -73,10 +74,18 @@ builder.Services.AddLineOpsHealthChecks();
 // Single-process deployment: the web app also hosts the schedule and the evaluator, so a
 // personal instance is one `dotnet run`. Both are opt-in registrations, so splitting the
 // worker into its own process later is a startup change rather than a refactor.
-if (builder.Configuration.GetValue("Ingestion:HostScheduler", true))
+var hostsScheduler = builder.Configuration.GetValue(SchedulerPlacement.HostSchedulerKey, true);
+var hostsEvaluator = builder.Configuration.GetValue(SchedulerPlacement.HostEvaluatorKey, true);
+
+// A desk pointed at another machine's database (ADR 0023) must not become that database's second
+// scheduler by accident: it refuses to start until both switches are off, or the override is set.
+SchedulerPlacement.EnsureAllowed(builder.Configuration, ServiceCollectionExtensions.ConnectionStringName,
+    hostsScheduler, hostsEvaluator);
+
+if (hostsScheduler)
     builder.Services.AddLineOpsIngestionScheduler();
 
-if (builder.Configuration.GetValue("Reliability:HostEvaluator", true))
+if (hostsEvaluator)
     builder.Services.AddLineOpsReliabilityEvaluator();
 
 var app = builder.Build();
