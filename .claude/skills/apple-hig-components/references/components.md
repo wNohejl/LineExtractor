@@ -16,6 +16,12 @@ decide its shape. Source: the HIG component pages, read October 2026.
 - **Text labels**: a few words, verb first, title-style capitalization ("Add to Cart").
   Append "…" when the button opens another window or view. Symbols only for familiar
   actions. Tooltip = a brief phrase on hover (macOS).
+  **House rule (LineOps Desk, November 2026): control labels are sentence case** — "Pull
+  data", "Date range", "Catch up", "7 days" — because the Desk's keys, menus, tabs and
+  segments have been written that way since the first window, and a lone title-style label
+  reads as a different system. The HIG's title-style is for Apple's own platforms; what the
+  rule protects is consistency, and the Desk is consistent in sentence case. An audit does
+  not flag sentence case here; it flags a mix.
 - macOS square (gradient) buttons: symbols only, in or under the view they act on, never
   labelled. Image buttons: ~10px padding, label beneath if any. One help button per window.
 - Show an activity indicator (or "Checking out…") for actions that don't complete at once.

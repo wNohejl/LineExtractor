@@ -39,8 +39,9 @@ and colours, and run `references/audit.md` before calling a screen done.
 
 4. **Say hierarchy with the four label levels and the text styles, not with caps, colour
    or boxes.** Label, secondary, tertiary, quaternary; title 2 / title 3 / headline / body /
-   subheadline / footnote. Title-style capitalization for control labels, sentence case for
-   copy; no all-caps eyebrows.
+   subheadline / footnote. Sentence case throughout on this Desk — control labels as well as
+   copy, the house rule in `references/components.md` — and no all-caps eyebrows. (The HIG's
+   title-style for controls is Apple's platforms' convention; what matters is one convention.)
 
 5. **Colour is for state and for the one accent.** Don't rely on colour alone; don't reuse
    the accent for anything that is not interactive; put the accent on a primary button's
