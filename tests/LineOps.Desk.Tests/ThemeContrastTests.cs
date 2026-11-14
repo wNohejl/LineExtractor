@@ -146,6 +146,7 @@ public class ThemeContrastTests
     [InlineData(".snippet__note")]
     [InlineData(".hdr__sub")]
     [InlineData(".bar__key")]
+    [InlineData(".menu__heading")]
     public void Text_people_must_read_is_never_tertiary(string selector)
     {
         foreach (Match rule in Regex.Matches(Css, Regex.Escape(selector) + @"\s*\{([^}]*)\}"))

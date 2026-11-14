@@ -241,13 +241,13 @@
     flex-direction: column;
 }
 
-/* A group's name, quieter than its rows: footnote, tertiary ink, title-style and
-   never capitals. Its left edge is the rows' label edge (the row's own inline
-   padding), so it reads as the head of the column it names. It is not a row: no
-   highlight, no pointer. */
+/* A group's name, quieter than its rows: footnote, secondary ink (it is read, so
+   never tertiary), title-style and never capitals. Its left edge is the rows' label
+   edge (the row's own inline padding), so it reads as the head of the column it
+   names. It is not a row: no highlight, no pointer. */
 .menu__heading {
     padding: var(--space-1) var(--space-3) 0;
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
     letter-spacing: 0;
@@ -262,9 +262,14 @@
    On the menu rather than the panel: the panel sizes to its content, so the menu's
    width is the panel's, and the popover stays a primitive that knows nothing of
    what it holds. Never wider than the window less a gutter each side: a 300px window
-   gets a menu that fits it, with the detail wrapping under the label as it must. */
+   gets a menu that fits it, and there the label may run to a second line rather than
+   be cut — a menu item is read whole, never ellipsized. */
 .menu--wide {
     min-width: min(320px, calc(100vw - 2 * var(--space-4)));
+}
+
+@media (max-width: 400px) {
+    .menu--wide .menu__label { white-space: normal; overflow: visible; text-overflow: clip; }
 }
 
 /* ---- Stepper ----------------------------------------------------------------

@@ -96,8 +96,9 @@
            line — Date range giving up its word there too, its symbol kept (RangePullKey). *@
         <DeskButton Icon="@Icons.Material.Filled.Refresh" Title="Refresh" OnClick="LoadAsync" />
 
-        @* The only control here that spends anything, and a menu, so Tinted with a chevron rather
-           than Filled: the spend is the entry chosen from it. Everything else on this toolbar reads. *@
+        @* One of the two keys here that spend (Date range is the other), and a menu, so Tinted with
+           a chevron rather than Filled: the spend is the entry chosen from it. The rest of this
+           toolbar reads. *@
         <DeskJobMenu @ref="_pull" Label="Pull data" Icon="@Icons.Material.Filled.CloudDownload" OnRan="LoadAsync" OnBusyChanged="OnPullBusy" />
 
         @* A range of days is its own task, so its own key: a popover anchored here asks the league
