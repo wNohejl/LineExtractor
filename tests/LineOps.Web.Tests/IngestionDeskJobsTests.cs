@@ -32,6 +32,44 @@ public class IngestionDeskJobsTests
     }
 
     [Fact]
+    public void An_entry_keeps_its_menu_section()
+        => Assert.Equal(JobGroups.Lines,
+            IngestionDeskJobs.Describe(Job(1, 4) with { Group = JobGroups.Lines }).Group);
+
+    [Fact]
+    public void A_range_pull_is_not_a_menu_entry_but_names_itself_as_one()
+    {
+        Assert.Equal(IngestionJobs.EspnRange, IngestionDeskJobs.RangeJob.Key);
+        Assert.Equal("Pull a date range", IngestionDeskJobs.RangeJob.Label);
+    }
+
+    [Fact]
+    public async Task A_range_run_tells_its_days_as_the_key_s_phrase_and_toasts_the_summary()
+    {
+        RangePullRequest? asked = null;
+        var request = new RangePullRequest("nfl", new DateOnly(2024, 9, 5), new DateOnly(2024, 9, 9));
+
+        var run = IngestionDeskJobs.RangeRun((r, p, _) =>
+        {
+            asked = r;
+            p.Report(new RangePullProgress("nfl", new DateOnly(2024, 9, 8), 2, 4, 2, 0));
+            return Task.FromResult(new RangePullSummary("nfl", r.From, r.To, 5, 4, true, 4, 0, 16, 16, 700, 64, 24, 0, null));
+        }, request);
+
+        var phrases = new List<string>();
+        var outcome = await run(new SyncProgress(phrases.Add), CancellationToken.None);
+
+        Assert.Equal(request, asked);
+        Assert.Equal(["NFL Sep 8 · 3 of 4"], phrases);
+        Assert.Equal(DeskJobResult.Done, outcome.Result);
+    }
+
+    private sealed class SyncProgress(Action<string> report) : IProgress<string>
+    {
+        public void Report(string value) => report(value);
+    }
+
+    [Fact]
     public void A_failure_names_the_failed_sources()
         => Assert.Equal(new DeskJobOutcome(DeskJobResult.Failed, "Prices: 2 source failed."),
             IngestionDeskJobs.Outcome("Prices", new JobOutcome("odds:lines", false, 10, 2, null)));

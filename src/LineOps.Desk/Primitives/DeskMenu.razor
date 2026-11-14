@@ -20,6 +20,10 @@
     DeskMenuItems — the workspace launcher's own buttons, which this primitive must not
     require rewriting — are driven by popover.js instead, against any [role^="menuitem"]
     descendant. Escape works for both, because it is handled here.
+
+    A long menu is put in DeskMenuGroups: each draws its own heading and the hairline above it,
+    and its rows register here through it, so the keyboard walks every row in drawn order and
+    never lands on a heading.
 *@
 
 <div @ref="_element"
@@ -53,25 +57,58 @@
     /// <summary>The popover this menu sits in, if any — what Escape and a choice close.</summary>
     [CascadingParameter] public DeskPopover? Popover { get; set; }
 
-    private readonly List<DeskMenuItem> _items = [];
+    // What the menu holds directly, in drawn order: rows, and DeskMenuGroups that hold their
+    // own rows. A group's rows are created only when the group renders, after the menu has
+    // created everything at its own level, so a single list in creation order would put a row
+    // drawn after a group ahead of the group's rows; each group keeps its rows instead and the
+    // arrow order is read through them.
+    private readonly List<object> _entries = [];
     private ElementReference _element;
     private IJSObjectReference? _module;
     private DeskMenuItem? _active;
     private string _typed = string.Empty;
     private long _typedAt;
 
-    // Items register in the order they are created, which is the order they are drawn: a
-    // render creates every child before any of them renders. An item inserted later lands at
-    // the end of the arrow order; the desk's menus are rebuilt on each open, so none do.
-    internal void Register(DeskMenuItem item) => _items.Add(item);
+    // Every row, in the order it is drawn.
+    private List<DeskMenuItem> Rows() => _entries
+        .SelectMany(e => e is DeskMenuGroup g ? g.Items : [(DeskMenuItem)e])
+        .ToList();
 
-    internal void Unregister(DeskMenuItem item)
+    // Rows and groups register in the order they are created, which is the order they are
+    // drawn: a render creates every child before any of them renders. A row inserted later
+    // lands at the end of its group, or of the menu; the desk's menus are rebuilt on each
+    // open, so none do.
+    internal void Register(DeskMenuItem item, DeskMenuGroup? group)
     {
-        _items.Remove(item);
+        if (group is not null)
+            group.Items.Add(item);
+        else
+            _entries.Add(item);
+    }
+
+    internal void Unregister(DeskMenuItem item, DeskMenuGroup? group)
+    {
+        if (group is not null)
+            group.Items.Remove(item);
+        else
+            _entries.Remove(item);
 
         if (ReferenceEquals(_active, item))
             _active = null;
     }
+
+    internal void Register(DeskMenuGroup group) => _entries.Add(group);
+
+    internal void Unregister(DeskMenuGroup group)
+    {
+        _entries.Remove(group);
+
+        if (_active is not null && group.Items.Contains(_active))
+            _active = null;
+    }
+
+    /// <summary>Whether the group opens the menu, and so draws no hairline above itself.</summary>
+    internal bool IsFirst(DeskMenuGroup group) => _entries.Count == 0 || ReferenceEquals(_entries[0], group);
 
     /// <summary>The item that holds the menu's one Tab stop.</summary>
     internal bool IsTabStop(DeskMenuItem item) => ReferenceEquals(item, Current);
@@ -82,7 +119,17 @@
     // Focus lands on the first item that can do something. A dimmed item can still be reached
     // with the arrows, so its reason is read out, but opening on one would make the first
     // thing the menu says a refusal.
-    private DeskMenuItem? Current => _active ?? _items.FirstOrDefault(i => !i.Disabled) ?? _items.FirstOrDefault();
+    private DeskMenuItem? Current
+    {
+        get
+        {
+            if (_active is not null)
+                return _active;
+
+            var rows = Rows();
+            return rows.FirstOrDefault(i => !i.Disabled) ?? rows.FirstOrDefault();
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -114,16 +161,17 @@
         if (Current is not { } current)
             return;
 
-        var count = _items.Count;
-        var at = _items.IndexOf(current);
+        var items = Rows();
+        var count = items.Count;
+        var at = items.IndexOf(current);
 
         var next = e.Key switch
         {
-            "ArrowDown" => _items[(at + 1) % count],
-            "ArrowUp" => _items[(at - 1 + count) % count],
-            "Home" => _items[0],
-            "End" => _items[count - 1],
-            _ => Typeahead(e, at)
+            "ArrowDown" => items[(at + 1) % count],
+            "ArrowUp" => items[(at - 1 + count) % count],
+            "Home" => items[0],
+            "End" => items[count - 1],
+            _ => Typeahead(e, items, at)
         };
 
         if (next is null || ReferenceEquals(next, current))
@@ -142,7 +190,7 @@
     /// again walks every item that starts with it; a run of letters searches from the focused
     /// item, so "fe" stays on "Fetch files" rather than skipping past it.
     /// </summary>
-    private DeskMenuItem? Typeahead(KeyboardEventArgs e, int at)
+    private DeskMenuItem? Typeahead(KeyboardEventArgs e, List<DeskMenuItem> items, int at)
     {
         if (e.Key.Length != 1 || char.IsWhiteSpace(e.Key[0]) || e.CtrlKey || e.MetaKey || e.AltKey)
             return null;
@@ -155,9 +203,9 @@
         var search = _typed.Distinct().Count() == 1 ? _typed[..1] : _typed;
         var start = search.Length == 1 ? at + 1 : at;
 
-        for (var step = 0; step < _items.Count; step++)
+        for (var step = 0; step < items.Count; step++)
         {
-            var candidate = _items[(start + step) % _items.Count];
+            var candidate = items[(start + step) % items.Count];
 
             if (candidate.Label.StartsWith(search, StringComparison.CurrentCultureIgnoreCase))
                 return candidate;

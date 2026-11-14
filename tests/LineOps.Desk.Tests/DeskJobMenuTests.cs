@@ -263,6 +263,60 @@ public class DeskJobMenuTests : DeskTestContext
         Assert.Empty(Toasts());
     }
 
+    [Fact]
+    public void Runs_are_drawn_under_their_group_headings_in_the_order_the_groups_first_appear()
+    {
+        var jobs = new FakeJobs
+        {
+            Many =
+            [
+                new("a", "Read the inbox", "", null, true, null, Group: "Now"),
+                new("b", "Rebuild the index", "", null, true, null, Group: "Upkeep"),
+                new("c", "Tidy up", "", null, true, null),
+                new("d", "Read the outbox", "", null, true, null, Group: "Now"),
+                new("e", "Copy to the archive", "", "1 unit", true, null, Group: "Upkeep")
+            ]
+        };
+
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, jobs)));
+
+        var groups = cut.FindAll("[role=group]");
+        Assert.Equal(3, groups.Count);
+
+        // The ungrouped run leads, unheaded; then each named group, its runs in their order.
+        Assert.Empty(groups[0].QuerySelectorAll(".menu__heading"));
+        Assert.Equal(["Tidy up"], Labels(groups[0]));
+        Assert.Equal("Now", groups[1].QuerySelector(".menu__heading")?.TextContent);
+        Assert.Equal(["Read the inbox", "Read the outbox"], Labels(groups[1]));
+        Assert.Equal("Upkeep", groups[2].QuerySelector(".menu__heading")?.TextContent);
+        Assert.Equal(["Rebuild the index", "Copy to the archive"], Labels(groups[2]));
+
+        // The arrows follow what is drawn, not the order the runs were described in.
+        Assert.Equal(["Tidy up", "Read the inbox", "Read the outbox", "Rebuild the index", "Copy to the archive"],
+            cut.FindAll("[role=menuitem] .menu__label").Select(l => l.TextContent));
+    }
+
+    [Fact]
+    public void A_menu_of_ungrouped_runs_draws_no_heading_and_no_hairline()
+    {
+        var cut = Open(Menu());
+
+        Assert.Single(cut.FindAll("[role=group]"));
+        Assert.Empty(cut.FindAll(".menu__heading"));
+        Assert.Empty(cut.FindAll(".menu__sep"));
+    }
+
+    [Fact]
+    public void The_job_menu_opens_wide_enough_for_its_costs()
+    {
+        var cut = Open(Menu());
+
+        Assert.Contains("menu--wide", cut.Find("[role=menu]").ClassList);
+    }
+
+    private static IEnumerable<string> Labels(AngleSharp.Dom.IElement group)
+        => group.QuerySelectorAll(".menu__label").Select(l => l.TextContent);
+
     private sealed class Visitor : IDeskAccess
     {
         public bool CanOperate => false;
@@ -275,19 +329,20 @@ public class DeskJobMenuTests : DeskTestContext
         public DeskJobOutcome Next { get; set; } = new(DeskJobResult.Done, "Done.");
         public bool Throws { get; set; }
         public DeskJob? Only { get; init; }
+        public IReadOnlyList<DeskJob>? Many { get; init; }
 
         public Task<IReadOnlyList<DeskJob>> DescribeAsync(CancellationToken ct = default)
         {
             Described++;
 
-            IReadOnlyList<DeskJob> jobs = Only is { } only
+            IReadOnlyList<DeskJob> jobs = Many ?? (Only is { } only
                 ? [only]
                 :
                 [
                     new("index", "Refresh the index", "Reads every record again", "4 units", true, null),
                     new("archive", "Copy to the archive", "Keeps a copy elsewhere", "1 unit", false, "No archive is configured."),
                     new("tidy", "Tidy up", "Clears what has expired", null, true, null)
-                ];
+                ]);
 
             return Task.FromResult(jobs);
         }

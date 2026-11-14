@@ -22,9 +22,15 @@ namespace LineOps.Desk;
 /// (<c>DialogResult.Ok(run)</c>) has that run made as a chosen entry's is — the busy key, the
 /// toast, the reload — and any other way out runs nothing. Its label ends in an ellipsis.
 /// </param>
+/// <param name="Group">
+/// The section of the menu this run sits in — "Today", "Catch up" — so related runs read as one
+/// group under one heading, parted from the next by a hairline. Runs are grouped in the order
+/// their groups first appear; null runs sit together, unheaded, before any named group.
+/// </param>
 public sealed record DeskJob(
     string Key, string Label, string Description, string? Cost, bool Available, string? Unavailable,
-    Func<IDeskSheets, Task<IDeskSheetHandle>>? Sheet = null);
+    Func<IDeskSheets, Task<IDeskSheetHandle>>? Sheet = null,
+    string? Group = null);
 
 /// <summary>
 /// A run a job's sheet has been answered with: what it does once started, telling its progress

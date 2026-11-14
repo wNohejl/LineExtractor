@@ -33,7 +33,7 @@
         </DeskButton>
     </Anchor>
     <ChildContent>
-        <DeskMenu Label="@Label">
+        <DeskMenu Label="@Label" Class="@(Wide ? "menu--wide" : null)">
             @ChildContent
         </DeskMenu>
     </ChildContent>
@@ -57,8 +57,18 @@
     /// <summary>Which edge of the key the menu lines up with; End for a key at the right of a toolbar.</summary>
     [Parameter] public DeskPopoverAlign Align { get; set; } = DeskPopoverAlign.Start;
 
-    /// <summary>The DeskMenuItems.</summary>
+    /// <summary>
+    /// The DeskMenuItems — or, for a long menu, DeskMenuGroups holding them, each under its own
+    /// heading and parted from the one before by a hairline.
+    /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// The rows carry a trailing detail and a line of description: the menu opens at least 320px
+    /// wide, so a detail sits beside its label instead of squeezing it. Leave it off for a menu
+    /// of bare labels, which is as wide as its longest one.
+    /// </summary>
+    [Parameter] public bool Wide { get; set; }
 
     /// <summary>Whether the menu is open, for an owner that binds it.</summary>
     [Parameter] public bool Open { get; set; }

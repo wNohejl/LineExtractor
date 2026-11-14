@@ -216,6 +216,134 @@ public class DeskMenuTests : DeskTestContext
         Assert.Single(cut.FindAll("[role=menu]"));
     }
 
+    /// <summary>
+    /// A menu of two headed groups and an unheaded one before them: "Open" alone, then Recent
+    /// (Fetch files, Find), then Share (Send a copy).
+    /// </summary>
+    private IRenderedComponent<DeskMenu> Grouped()
+        => RenderComponent<DeskMenu>(p => p
+            .Add(x => x.Label, "File")
+            .AddChildContent<DeskMenuGroup>(g => g
+                .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Open")))
+            .AddChildContent<DeskMenuGroup>(g => g
+                .Add(x => x.Label, "Recent")
+                .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Fetch files"))
+                .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Find")))
+            .AddChildContent<DeskMenuGroup>(g => g
+                .Add(x => x.Label, "Share")
+                .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Send a copy"))));
+
+    [Fact]
+    public void A_headed_group_names_itself_and_its_items_answer_to_it()
+    {
+        var menu = Grouped();
+
+        var groups = menu.FindAll("[role=group]");
+        Assert.Equal(3, groups.Count);
+
+        // The unheaded group has nothing to be named by.
+        Assert.Null(groups[0].GetAttribute("aria-labelledby"));
+        Assert.Empty(groups[0].QuerySelectorAll(".menu__heading"));
+
+        var heading = groups[1].QuerySelector(".menu__heading")!;
+        Assert.Equal("Recent", heading.TextContent);
+        Assert.Equal(heading.Id, groups[1].GetAttribute("aria-labelledby"));
+        Assert.Equal(2, groups[1].QuerySelectorAll("[role=menuitem]").Length);
+    }
+
+    [Fact]
+    public void A_heading_is_not_a_row_and_takes_no_focus()
+    {
+        var menu = Grouped();
+
+        Assert.All(menu.FindAll(".menu__heading"), h =>
+        {
+            Assert.Equal("presentation", h.GetAttribute("role"));
+            Assert.Null(h.GetAttribute("tabindex"));
+            Assert.NotEqual("BUTTON", h.TagName);
+        });
+        Assert.Equal(4, menu.FindAll("[role=menuitem]").Count);
+    }
+
+    [Fact]
+    public void The_arrows_walk_the_rows_across_groups_and_step_over_the_headings()
+    {
+        var menu = Grouped();
+        var keys = menu.Find("[role=menu]");
+
+        Assert.Equal("Open", Focused(menu));
+
+        keys.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        Assert.Equal("Fetch files", Focused(menu));
+
+        keys.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        keys.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        Assert.Equal("Send a copy", Focused(menu));
+
+        keys.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        Assert.Equal("Open", Focused(menu));
+
+        keys.KeyDown(new KeyboardEventArgs { Key = "End" });
+        Assert.Equal("Send a copy", Focused(menu));
+    }
+
+    [Fact]
+    public void A_hairline_parts_each_group_from_the_one_before_and_none_leads_the_menu()
+    {
+        var menu = Grouped();
+
+        var children = menu.Find("[role=menu]").Children;
+        Assert.Equal(["group", "separator", "group", "separator", "group"],
+            children.Select(c => c.GetAttribute("role")));
+        Assert.All(menu.FindAll("[role=separator]"), s => Assert.Contains("menu__sep", s.ClassList));
+    }
+
+    [Fact]
+    public void Typeahead_reads_the_rows_and_not_the_headings()
+    {
+        // "S" would land on Share's heading if headings were rows; it lands on the row under it.
+        var menu = Grouped();
+        menu.Find("[role=menu]").KeyDown(new KeyboardEventArgs { Key = "s" });
+        Assert.Equal("Send a copy", Focused(menu));
+
+        // "R" names only a heading, so nothing moves.
+        menu = Grouped();
+        menu.Find("[role=menu]").KeyDown(new KeyboardEventArgs { Key = "r" });
+        Assert.Equal("Open", Focused(menu));
+
+        menu = Grouped();
+        menu.Find("[role=menu]").KeyDown(new KeyboardEventArgs { Key = "f" });
+        Assert.Equal("Fetch files", Focused(menu));
+    }
+
+    [Fact]
+    public void A_row_outside_any_group_keeps_its_place_in_the_arrow_order()
+    {
+        var menu = RenderComponent<DeskMenu>(p => p
+            .Add(x => x.Label, "File")
+            .AddChildContent<DeskMenuGroup>(g => g
+                .Add(x => x.Label, "Recent")
+                .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Fetch files")))
+            .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Quit")));
+
+        menu.Find("[role=menu]").KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        Assert.Equal("Quit", Focused(menu));
+    }
+
+    [Fact]
+    public void A_wide_pull_down_opens_a_menu_with_room_for_its_details()
+    {
+        var cut = RenderComponent<DeskPullDown>(p => p
+            .Add(x => x.Label, "Export")
+            .Add(x => x.Wide, true)
+            .AddChildContent<DeskMenuItem>(i => i.Add(x => x.Label, "Save as CSV").Add(x => x.Detail, "4 rows")));
+
+        cut.Find("button.desk-btn").Click();
+
+        Assert.Contains("menu--wide", cut.Find("[role=menu]").ClassList);
+    }
+
     private static RenderFragment PullDown(string label) => b =>
     {
         b.OpenComponent<DeskPullDown>(0);

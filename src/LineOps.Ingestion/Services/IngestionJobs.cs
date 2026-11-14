@@ -226,7 +226,8 @@ public class IngestionJobs(
                 Description: "Schedules, start times and live scores for every sport in play.",
                 EstimatedRequests: stats * sports.Length,
                 Available: stats > 0,
-                Unavailable: stats > 0 ? null : "No stats source registered."),
+                Unavailable: stats > 0 ? null : "No stats source registered.",
+                Group: JobGroups.Today),
 
             new IngestionJob(
                 Key: EspnLive,
@@ -236,7 +237,8 @@ public class IngestionJobs(
                 EstimatedRequests: stats * (await LeagueDaysInPlayAsync(
                     scope.ServiceProvider.GetRequiredService<LineOpsDbContext>(), DateTimeOffset.UtcNow, ct)).Count,
                 Available: stats > 0,
-                Unavailable: stats > 0 ? null : "No stats source registered."),
+                Unavailable: stats > 0 ? null : "No stats source registered.",
+                Group: JobGroups.Today),
 
             new IngestionJob(
                 Key: EspnResults,
@@ -246,9 +248,10 @@ public class IngestionJobs(
                 // so the estimate is a floor rather than a promise.
                 EstimatedRequests: stats * sports.Length,
                 Available: stats > 0,
-                Unavailable: stats > 0 ? null : "No stats source registered."),
+                Unavailable: stats > 0 ? null : "No stats source registered.",
+                Group: JobGroups.CatchUp),
 
-            await ClosingLinesJobAsync(scope.ServiceProvider, sports, closers, ct),
+            (await ClosingLinesJobAsync(scope.ServiceProvider, sports, closers, ct)) with { Group = JobGroups.CatchUp },
 
         };
 
@@ -267,7 +270,8 @@ public class IngestionJobs(
                 EstimatedRequests: gamecasts ? Math.Min(await backport.OwedCountAsync(DateTimeOffset.UtcNow, ct), batch) * 2 : 0,
                 Available: gamecasts && batch > 0,
                 Unavailable: !gamecasts ? "No gamecast source registered."
-                    : batch > 0 ? null : "Switched off (Gamecast:BackportBatch)."));
+                    : batch > 0 ? null : "Switched off (Gamecast:BackportBatch).",
+                Group: JobGroups.CatchUp));
         }
 
         // Only a desk that holds a fought sport has fighters to describe.
@@ -287,16 +291,9 @@ public class IngestionJobs(
                              + $"{FightersPerRun} fighters a press.",
                 EstimatedRequests: Math.Min(owedFighters, FightersPerRun) * RequestsPerFighter,
                 Available: stats > 0,
-                Unavailable: stats > 0 ? null : "No stats source registered."));
+                Unavailable: stats > 0 ? null : "No stats source registered.",
+                Group: JobGroups.CatchUp));
         }
-
-        jobs.Add(new IngestionJob(
-            Key: Settle,
-            Label: "Settle finished games",
-            Description: "Grades journal entries whose games are final and resolves their CLV.",
-            EstimatedRequests: 0,
-            Available: true,
-            Unavailable: null));
 
         // One entry per sport rather than one for all of them.
         //
@@ -314,8 +311,20 @@ public class IngestionJobs(
                 EstimatedRequests: odds,
                 EstimatedCredits: CreditsFor(sport),
                 Available: odds > 0,
-                Unavailable: odds > 0 ? null : "No odds source registered."));
+                Unavailable: odds > 0 ? null : "No odds source registered.",
+                Group: JobGroups.Lines));
         }
+
+        // Last, after the lines: the menu draws its groups in the order they first appear, and
+        // housekeeping, which spends nothing, is the foot of it (JobGroups).
+        jobs.Add(new IngestionJob(
+            Key: Settle,
+            Label: "Settle finished games",
+            Description: "Grades journal entries whose games are final and resolves their CLV.",
+            EstimatedRequests: 0,
+            Available: true,
+            Unavailable: null,
+            Group: JobGroups.Housekeeping));
 
         return jobs;
     }
@@ -962,6 +971,10 @@ public class IngestionJobs(
 /// unmetered ones. Quoted separately because requests and credits are not interchangeable — a
 /// single call can cost several credits, and it is the credits that run out.
 /// </param>
+/// <param name="Group">
+/// Which section of the pull menu the job sits in (<see cref="JobGroups"/>): the desk draws the
+/// jobs of one group together under its heading, so the three kinds of pull read as three.
+/// </param>
 public record IngestionJob(
     string Key,
     string Label,
@@ -969,7 +982,21 @@ public record IngestionJob(
     int EstimatedRequests,
     bool Available,
     string? Unavailable,
-    int EstimatedCredits = 0);
+    int EstimatedCredits = 0,
+    string? Group = null);
+
+/// <summary>
+/// The pull menu's sections, in the order they are drawn. Today's slate first, because it is
+/// pressed most; the catch-up pulls that fill what history still lacks; the lines, which are
+/// the only pulls that spend credits; and the housekeeping that spends nothing.
+/// </summary>
+public static class JobGroups
+{
+    public const string Today = "Today";
+    public const string CatchUp = "Catch up";
+    public const string Lines = "Lines";
+    public const string Housekeeping = "Housekeeping";
+}
 
 /// <summary>What one run of a job did.</summary>
 /// <param name="More">

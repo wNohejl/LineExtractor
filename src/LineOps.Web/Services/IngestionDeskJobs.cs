@@ -1,8 +1,6 @@
+using System.Globalization;
 using LineOps.Desk;
-using LineOps.Desk.Primitives;
 using LineOps.Ingestion.Services;
-using LineOps.Web.Components.Desk;
-using MudBlazor;
 
 namespace LineOps.Web.Services;
 
@@ -17,12 +15,13 @@ namespace LineOps.Web.Services;
 /// </para>
 ///
 /// <para>
-/// One entry asks before it runs: a date range (<see cref="RangePull"/>), whose league and days
-/// a sheet asks for. It is the Worker's <c>--job espn:range</c>, and it sits under the catalogue
-/// because it is not one of the scheduler's jobs — nothing runs it on a timer.
+/// A date range (<see cref="RangePull"/>, the Worker's <c>--job espn:range</c>) is not in the
+/// menu: it asks for a league and days before it runs, so the Board gives it a key of its own and
+/// a popover (RangePullKey). What it is called, the run it makes and the phrase its busy key
+/// shows are here, beside the menu's, so both report a pull alike.
 /// </para>
 /// </summary>
-public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDeskJobs
+public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
 {
     private readonly Dictionary<string, string> _labels = [];
 
@@ -33,13 +32,7 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDe
         foreach (var job in described)
             _labels[job.Key] = job.Label;
 
-        var entries = described.Select(Describe).ToList();
-
-        // A stats source is what walks it; without one the entry stays, dimmed, with the reason.
-        var stats = described.FirstOrDefault(j => j.Key == IngestionJobs.EspnResults);
-        entries.Add(Range(stats?.Available ?? false, stats?.Unavailable));
-
-        return entries;
+        return described.Select(Describe).ToList();
     }
 
     public async Task<DeskJobOutcome> RunAsync(string key, CancellationToken ct = default)
@@ -54,24 +47,39 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs, RangePull range) : IDe
         return Outcome(label, await jobs.RunAsync(key, ct));
     }
 
-    /// <summary>The date range's entry: its sheet asks for the league and the days, then the menu runs it.</summary>
-    private DeskJob Range(bool available, string? unavailable)
-        => new(IngestionJobs.EspnRange,
-            "Pull a date range…",
-            "One league's games over the days you name, with each final's box score and closing line — "
-            + "for history the backfill seasons do not reach, or a range that came in incomplete.",
-            "1 req a game day + 1 a final",
-            available,
-            unavailable,
-            Sheet: async sheets => await sheets.ShowAsync(new DialogParameters<RangePullSheet>
-            {
-                { x => x.Leagues, await range.LeaguesAsync() },
-                { x => x.Pull, range.RunAsync }
-            }));
+    /// <summary>
+    /// The date range as the runner reports it: its label is the toast's subject ("Pull a date
+    /// range did not finish"). Never in the menu; the Board's Date range key runs it.
+    /// </summary>
+    public static DeskJob RangeJob { get; } = new(
+        IngestionJobs.EspnRange,
+        "Pull a date range",
+        "One league's games over the days you name, with each final's box score and closing line.",
+        "1 req a game day + 1 a final",
+        Available: true,
+        Unavailable: null);
 
-    /// <summary>One pull as a menu entry.</summary>
+    /// <summary>
+    /// The run a range pull is: the pull itself on the host, its progress told as the busy key's
+    /// phrase, and its summary as the sentence the desk toasts.
+    /// </summary>
+    public static DeskJobRun RangeRun(
+        Func<RangePullRequest, IProgress<RangePullProgress>, CancellationToken, Task<RangePullSummary>> pull,
+        RangePullRequest request)
+        => async (progress, ct) => RangeOutcome(await pull(request, new Phrases(progress), ct));
+
+    /// <summary>A day's progress as the phrase the busy key shows: "NFL Sep 8 · 3 of 4".</summary>
+    public static string Phrase(RangePullProgress p)
+        => $"{p.Sport.ToUpperInvariant()} {p.Day.ToString("MMM d", CultureInfo.InvariantCulture)} · {p.Done + 1} of {p.Of}";
+
+    private sealed class Phrases(IProgress<string> key) : IProgress<RangePullProgress>
+    {
+        public void Report(RangePullProgress value) => key.Report(Phrase(value));
+    }
+
+    /// <summary>One pull as a menu entry, in its menu section.</summary>
     public static DeskJob Describe(IngestionJob job)
-        => new(job.Key, job.Label, job.Description, Cost(job), job.Available, job.Unavailable);
+        => new(job.Key, job.Label, job.Description, Cost(job), job.Available, job.Unavailable, Group: job.Group);
 
     /// <summary>
     /// Credits where the provider bills in them, because that is the number that runs out — a

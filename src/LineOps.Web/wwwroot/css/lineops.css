@@ -484,6 +484,49 @@
 /* A note under the Board's table sits under it as it would under a grid. */
 .win__body > .board__table + .note { margin-top: var(--space-2); }
 
+/* ---- Date range key (RangePullKey) and its popover (RangePullPopover). The key folds to its
+   symbol in a narrow toolbar — a Board beside other windows. Measured: More (28), Refresh (28),
+   Pull data (120) and Date range with its word (113) need 313px with their gaps, and a 300px
+   window's row is 272. At 400px, the width the Desk stacks a narrow group's rows at, the search has
+   already folded into More, so the word goes there too and the row keeps its margin. The symbol
+   stays, with the name as the key's title and accessible name. It is the key's own fold, not the
+   row's: More's folding is toolbar.js's, and none of it moves here. */
+@container ptoolbar (max-width: 400px) {
+    .range-key__word { display: none; }
+    /* The key itself, not the popover's keys: Anchor draws it straight inside the popover root. */
+    .range-key > .desk-btn { padding: 0; width: 28px; }
+}
+
+/* The popover hangs from the key's trailing edge, wide enough for League's segments and the two
+   dates side by side, never wider than the window. */
+.range-key > .popover__panel { width: min(360px, 92vw); max-width: none; padding: var(--space-2); }
+.range-pop { display: flex; flex-direction: column; gap: var(--space-3); }
+/* The popover's own edge is the group's one, as More's panel is: a framed group inside a framed
+   material is a box in a box. Rows keep their inset separators. With no frame of its own the group
+   needs no inset either, so its rows, head and foot sit on one edge a step in from the panel's —
+   room the three quick ranges need side by side in a window beside two others. */
+.range-pop__group { background: none; border: 0; border-radius: 0; }
+.range-pop .wgroup__head,
+.range-pop .wgroup__foot,
+.range-pop .wgroup__row { padding-left: var(--space-2); padding-right: var(--space-2); }
+.range-pop .wgroup__row + .wgroup__row::before { left: var(--space-2); }
+/* From and To on one row, sharing its width (forms.md: fields in a group share widths). */
+.wgroup__row.range-pop__dates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-3);
+    align-items: end;
+}
+/* The toggle, then its one-line reason beneath it in the secondary ink. */
+.wgroup__row.range-pop__repull {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+}
+.range-pop__repull > .toggle { justify-content: space-between; }
+.range-pop__why { font-size: var(--text-footnote); line-height: var(--leading-body); color: var(--text-secondary); }
+.range-pop .keyrow { margin: 0; }
+
 /* ------------------------------------------------------- runbook ----------
    The triage procedure, shown inside the incident that needs it. A fill, not a frame,
    and no accent edge: the group is read, and only its disclosure summary is pressed. */

@@ -166,8 +166,12 @@
     min-width: 0;
 }
 
+/* The label and its detail share one line, always: a detail that wrapped under its
+   label, or broke the label into pieces at the panel's width, read as two rows. The
+   label gives way — it ellipsizes — and the detail keeps its figures whole. */
 .menu__row {
     display: flex;
+    flex-wrap: nowrap;
     align-items: baseline;
     justify-content: space-between;
     gap: var(--space-3);
@@ -175,12 +179,16 @@
 
 .menu__label {
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* What a row costs or holds is stated before it is chosen, in figures that line up
    down the menu. */
 .menu__detail {
-    flex: 0 0 auto;
+    flex: none;
+    white-space: nowrap;
     color: var(--text-secondary);
     font-size: var(--text-footnote);
     font-variant-numeric: tabular-nums;
@@ -224,6 +232,39 @@
     margin: var(--space-1) 0;
     background: var(--separator);
     border: 0;
+}
+
+/* A DeskMenuGroup: a column like the menu's own, with no edge of its own — the
+   hairline above it is the only line between groups, and the panel is the box. */
+.menu__group {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A group's name, quieter than its rows: footnote, tertiary ink, title-style and
+   never capitals. Its left edge is the rows' label edge (the row's own inline
+   padding), so it reads as the head of the column it names. It is not a row: no
+   highlight, no pointer. */
+.menu__heading {
+    padding: var(--space-1) var(--space-3) 0;
+    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0;
+    line-height: 20px;
+    text-transform: none;
+    cursor: default;
+    user-select: none;
+}
+
+/* A menu whose rows carry a detail and a line of description (DeskPullDown Wide)
+   opens wide enough that the detail sits beside its label rather than squeezing it.
+   On the menu rather than the panel: the panel sizes to its content, so the menu's
+   width is the panel's, and the popover stays a primitive that knows nothing of
+   what it holds. Never wider than the window less a gutter each side: a 300px window
+   gets a menu that fits it, with the detail wrapping under the label as it must. */
+.menu--wide {
+    min-width: min(320px, calc(100vw - 2 * var(--space-4)));
 }
 
 /* ---- Stepper ----------------------------------------------------------------

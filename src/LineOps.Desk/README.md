@@ -282,14 +282,15 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskErrorPage` | The page a host shows when a request failed: what happened, its reference, and the way back. | — |
 | `DeskField` | A text or number field, with a real label and its error beneath it. | — |
 | `DeskGrid` | The table: sortable columns and actionable rows in the Desk's dense rhythm. | `MudDataGrid` |
-| `DeskJobMenu` | A key that opens a menu of named runs, each saying what it costs before it is chosen. | — |
+| `DeskJobMenu` | A key that opens a menu of named runs, each saying what it costs before it is chosen, grouped under their `DeskJob.Group` headings in first-appearance order. | — |
 | `DeskLink` | A grid cell that opens a window of its own, naming where the click goes. | — |
 | `DeskMenu` | A column of commands the keyboard can drive. | — |
-| `DeskMenuItem` | One row of a menu: a label, a trailing detail, and why it is dimmed. | — |
+| `DeskMenuGroup` | Related rows of a menu under an optional title-style heading, parted from the group before by one hairline; the heading is never a row, so the arrows and typeahead pass over it. | — |
+| `DeskMenuItem` | One row of a menu: a label, a trailing detail that never wraps into it, and why it is dimmed. Sits in a `DeskMenu` or a `DeskMenuGroup`. | — |
 | `DeskNotFound` | The page a host shows for an address that opens nothing, with the way back. | — |
 | `DeskPopover` | A panel anchored to the control that opened it, one at a time. | — |
 | `DeskProgress` | A slim bar for named work that takes long enough to report. | — |
-| `DeskPullDown` | A key that opens a menu of related commands. | — |
+| `DeskPullDown` | A key that opens a menu of related commands; a long one in `DeskMenuGroup`s, and `Wide` (at least 320px) when its rows carry details and descriptions. | — |
 | `DeskRadioGroup` | One choice among options that need room: a sentence each, or a picture of what choosing it does. | — |
 | `DeskRow` | A horizontal group with its gap named from the spacing ramp. | — |
 | `DeskSearch` | A search field with a magnifier, a clear key and a scoped placeholder; given a `ListId` it heads a popover list as a combobox. | — |

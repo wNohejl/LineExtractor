@@ -88,9 +88,12 @@
 
     [CascadingParameter] public DeskMenu? Menu { get; set; }
 
+    /// <summary>The DeskMenuGroup this row sits in, if any; the menu reads its arrow order through it.</summary>
+    [CascadingParameter] public DeskMenuGroup? Group { get; set; }
+
     private ElementReference _element;
 
-    protected override void OnInitialized() => Menu?.Register(this);
+    protected override void OnInitialized() => Menu?.Register(this, Group);
 
     private bool Radio => Menu?.Radio == true;
 
@@ -131,5 +134,5 @@
         await OnClick.InvokeAsync();
     }
 
-    public void Dispose() => Menu?.Unregister(this);
+    public void Dispose() => Menu?.Unregister(this, Group);
 }

@@ -23,17 +23,27 @@
                   Busy="@(_running is not null)"
                   Align="Align"
                   Open="_open"
-                  OpenChanged="OnOpenChanged">
-        @foreach (var job in _jobs)
+                  OpenChanged="OnOpenChanged"
+                  Wide="true">
+        @* Related runs sit together under their group's heading, the groups in the order they
+           first appear, so the application orders its menu by ordering its runs. Runs that name
+           no group lead, unheaded. *@
+        @foreach (var group in Groups)
         {
-            @* What it costs is the trailing detail, so it is read before the row is chosen. An
-               unavailable run stays in the menu with its reason, so the menu explains itself. *@
-            <DeskMenuItem Label="@job.Label"
-                          Detail="@job.Cost"
-                          Description="@job.Description"
-                          Disabled="@(!job.Available)"
-                          DisabledReason="@job.Unavailable"
-                          OnClick="() => RunJobAsync(job)" />
+            <DeskMenuGroup Label="@group.Key">
+                @foreach (var job in group)
+                {
+                    @* What it costs is the trailing detail, so it is read before the row is chosen.
+                       An unavailable run stays in the menu with its reason, so the menu explains
+                       itself. *@
+                    <DeskMenuItem Label="@job.Label"
+                                  Detail="@job.Cost"
+                                  Description="@job.Description"
+                                  Disabled="@(!job.Available)"
+                                  DisabledReason="@job.Unavailable"
+                                  OnClick="() => RunJobAsync(job)" />
+                }
+            </DeskMenuGroup>
         }
     </DeskPullDown>
 }
@@ -66,6 +76,11 @@
     private string _runningLabel = "Running";
 
     private IDeskJobs? Source => Jobs ?? Runner.Jobs;
+
+    // GroupBy keeps the order in which each group first appears; the stable sort then only
+    // brings the unnamed group to the front.
+    private IEnumerable<IGrouping<string?, DeskJob>> Groups
+        => _jobs.GroupBy(j => string.IsNullOrWhiteSpace(j.Group) ? null : j.Group).OrderBy(g => g.Key is null ? 0 : 1);
 
     protected override async Task OnInitializedAsync()
     {

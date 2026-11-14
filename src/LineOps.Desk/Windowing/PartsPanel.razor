@@ -559,19 +559,24 @@
     A pull-down is a key that opens commands related to its purpose. Pressing the key does not
     act — the row chosen from it does — so it stays Tinted and never claims the Filled key. A row
     that cannot run stays in the menu, dimmed, with its reason where its description would be;
-    a destructive row is red, and still asks before it acts.
+    a destructive row is red, and still asks before it acts. Related rows sit in a group under a
+    quiet heading, a hairline between groups; the heading is not a row, so the arrows pass over it.
 </p>
 
 <DeskStack Gap="DeskSpace.Space2">
 <DeskRow Gap="DeskSpace.Space2">
-    <DeskPullDown Label="Export">
-        <DeskMenuItem Label="Copy as text" Description="Every visible row, tab-separated"
-                      OnClick="@(() => _menuChose = "Copy as text")" />
-        <DeskMenuItem Label="Save as CSV" Detail="4 rows"
-                      OnClick="@(() => _menuChose = "Save as CSV")" />
-        <DeskMenuItem Label="Send to the archive" Disabled="true"
-                      DisabledReason="The archive is read-only until Monday." />
-        <DeskMenuItem Label="Clear the list" Destructive="true" OnClick="ClearAsync" />
+    <DeskPullDown Label="Export" Wide="true">
+        <DeskMenuGroup Label="Copy">
+            <DeskMenuItem Label="Copy as text" Description="Every visible row, tab-separated"
+                          OnClick="@(() => _menuChose = "Copy as text")" />
+            <DeskMenuItem Label="Save as CSV" Detail="4 rows"
+                          OnClick="@(() => _menuChose = "Save as CSV")" />
+        </DeskMenuGroup>
+        <DeskMenuGroup Label="Archive">
+            <DeskMenuItem Label="Send to the archive" Disabled="true"
+                          DisabledReason="The archive is read-only until Monday." />
+            <DeskMenuItem Label="Clear the list" Destructive="true" OnClick="ClearAsync" />
+        </DeskMenuGroup>
     </DeskPullDown>
 </DeskRow>
 
