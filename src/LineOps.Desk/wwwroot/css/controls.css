@@ -166,9 +166,11 @@
     min-width: 0;
 }
 
-/* The label and its detail share one line, always: a detail that wrapped under its
-   label, or broke the label into pieces at the panel's width, read as two rows. The
-   label gives way — it ellipsizes — and the detail keeps its figures whole. */
+/* The detail keeps its figures whole and its place at the trailing edge, on the label's
+   first line: it used to be a flex item that wrapped under the label, or broke the label
+   into pieces at the panel's width, and read as two rows. The label is read whole — a
+   menu item is never ellipsized — so a long one runs to a second line beside the detail
+   rather than being cut. */
 .menu__row {
     display: flex;
     flex-wrap: nowrap;
@@ -179,9 +181,8 @@
 
 .menu__label {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* What a row costs or holds is stated before it is chosen, in figures that line up
@@ -242,7 +243,7 @@
 }
 
 /* A group's name, quieter than its rows: footnote, secondary ink (it is read, so
-   never tertiary), title-style and never capitals. Its left edge is the rows' label
+   never tertiary), sentence case and never capitals. Its left edge is the rows' label
    edge (the row's own inline padding), so it reads as the head of the column it
    names. It is not a row: no highlight, no pointer. */
 .menu__heading {
@@ -262,16 +263,11 @@
    On the menu rather than the panel: the panel sizes to its content, so the menu's
    width is the panel's, and the popover stays a primitive that knows nothing of
    what it holds. Never wider than the window less a gutter each side: a 300px window
-   gets a menu that fits it, and there the label may run to a second line rather than
-   be cut — a menu item is read whole, never ellipsized. */
+   gets a menu that fits it, and there a label runs to a second line rather than be cut. */
 .menu--wide {
     /* The window's width, not the viewport's: a 300px window beside two others on a wide
        desk is still a 300px window (100cqw is the nearest container, a toolbar's row). */
     min-width: min(320px, calc(100cqw - 2 * var(--space-4)));
-}
-
-@container (max-width: 400px) {
-    .menu--wide .menu__label { white-space: normal; overflow: visible; text-overflow: clip; }
 }
 
 /* ---- Stepper ----------------------------------------------------------------

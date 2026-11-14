@@ -7,7 +7,7 @@
     A long menu reads as one list until related rows are put together: the HIG groups a menu's
     items by what they are for, parts the groups with a separator, and names a group only where
     the name tells the reader something the rows do not. So the heading is optional, small and
-    quiet — footnote, tertiary ink, title-style — and never a row: it takes no focus, the arrows
+    quiet — footnote, secondary ink, sentence case — and never a row: it takes no focus, the arrows
     and typeahead pass over it, and it is not announced as something to press. It names the
     group instead, through aria-labelledby, so a screen reader says "Recent, group" on the way
     in.
@@ -41,7 +41,7 @@
 
 @code {
     /// <summary>
-    /// The group's heading, title-style: "Recent", "Share". Left null, the group is unheaded —
+    /// The group's heading, sentence case: "Recent", "Shared with me". Left null, the group is unheaded —
     /// still parted from its neighbours by the hairline, but named by its rows alone.
     /// </summary>
     [Parameter] public string? Label { get; set; }

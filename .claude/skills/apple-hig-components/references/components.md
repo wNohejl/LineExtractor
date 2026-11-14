@@ -19,7 +19,8 @@ decide its shape. Source: the HIG component pages, read October 2026.
   **House rule (LineOps Desk, November 2026): control labels are sentence case** — "Pull
   data", "Date range", "Catch up", "7 days" — because the Desk's keys, menus, tabs and
   segments have been written that way since the first window, and a lone title-style label
-  reads as a different system. The HIG's title-style is for Apple's own platforms; what the
+  reads as a different system. Wherever this file or `forms.md` says title-style for a
+  segment, a tab, a column heading or a menu heading, read sentence case on this Desk. The HIG's title-style is for Apple's own platforms; what the
   rule protects is consistency, and the Desk is consistent in sentence case. An audit does
   not flag sentence case here; it flags a mix.
 - macOS square (gradient) buttons: symbols only, in or under the view they act on, never

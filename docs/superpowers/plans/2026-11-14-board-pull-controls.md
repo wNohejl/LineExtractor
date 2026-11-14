@@ -21,7 +21,7 @@ the other pulls as a group, not as a second menu.
 
 ### The grouped menu
 
-`DeskMenu` gains sections. A section has an optional heading (footnote, tertiary ink, title-style,
+`DeskMenu` gains sections. A section has an optional heading (footnote, secondary ink, sentence case,
 not focusable, `role="group"` + `aria-labelledby`) and is parted from the one before by the
 existing `.menu__sep` hairline. Groups, in order:
 
@@ -66,7 +66,7 @@ key (the popover already does this); Enter in a date field presses Pull when it 
 - One Filled key in the popover; the toolbar keeps none (its keys are Plain/Tinted).
 - One hairline per group: the popover panel's own edge, the form group's edge; rows inside are
   inset separators only.
-- Title-style labels, sentence-case copy, no all-caps.
+- Sentence case on labels and copy alike (the Desk's house rule), no all-caps.
 - Hit regions ≥ 28px rows; fields share widths.
 - Both themes screenshotted; narrow window (300px) checked: Refresh, Pull data and Date range fit
   on one line, Date range collapsing to its symbol with a title if it must.
