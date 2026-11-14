@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace LineOps.Data;
 
@@ -31,6 +32,10 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<LineOpsDbContext>(sp =>
             sp.GetRequiredService<IDbContextFactory<LineOpsDbContext>>().CreateDbContext());
+
+        // Which tier the readers below may show (ADR 0024). Everything, unless the host says who is
+        // reading — the web host does, the Worker and the tests do not.
+        services.TryAddSingleton<LineOps.Core.Contracts.IDataTier>(LineOps.Core.Contracts.FullDataTier.Instance);
 
         services.AddScoped<DatabaseInitializer>();
         services.AddScoped<CrossReference.MatchupCrossReference>();

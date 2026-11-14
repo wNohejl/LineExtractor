@@ -94,6 +94,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.Name).HasMaxLength(128).IsRequired();
             e.Property(x => x.BaseUrl).HasMaxLength(256);
             e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+            // Stored by name, as Kind is, so a SQL step (the displayable snapshot's scrub) reads it plainly.
+            e.Property(x => x.Licence).HasConversion<string>().HasMaxLength(16);
             e.Property(x => x.FailureMode).HasMaxLength(32);
         });
 

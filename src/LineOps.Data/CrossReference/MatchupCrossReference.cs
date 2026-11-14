@@ -1,3 +1,4 @@
+using LineOps.Core.Contracts;
 using System.Text.Json;
 using LineOps.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -34,8 +35,11 @@ namespace LineOps.Data.CrossReference;
 /// only one of them belongs on screen.
 /// </para>
 /// </summary>
-public class MatchupCrossReference(LineOpsDbContext db)
+public class MatchupCrossReference(LineOpsDbContext db, IDataTier? tier = null)
 {
+    /// <summary>Who is reading, by tier (ADR 0024). Unregistered means a desk with one person at it.</summary>
+    private IDataTier Tier { get; } = tier ?? FullDataTier.Instance;
+
     /// <summary>
     /// Recent form for both sides of a game.
     /// </summary>
@@ -81,7 +85,8 @@ public class MatchupCrossReference(LineOpsDbContext db)
         // Hop two: their lines from games already played, inside the window and strictly
         // before this one. Joined to Games for the date rather than trusting CapturedAt,
         // which records when we ingested rather than when the game was.
-        var lines = await db.PlayerGameStats
+        // Only lines from sources this reader may see (ADR 0024): a player with none has no form.
+        var lines = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => playerIds.Contains(s.PlayerId))
             .Join(prior,
                 s => s.GameId, g => g.Id,
@@ -221,7 +226,8 @@ public class MatchupCrossReference(LineOpsDbContext db)
         // lists this season's signings with the numbers they put up somewhere else, and a
         // player gone in the offseason vanishes from the season they actually played in. A
         // line stored before sides were recorded falls back to the player's current team.
-        var lines = await db.PlayerGameStats
+        // Only lines from sources this reader may see (ADR 0024): a player with none has no form.
+        var lines = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => s.TeamId == teamId || (s.TeamId == null && s.Player!.TeamId == teamId))
             .Join(prior,
                 s => s.GameId, g => g.Id,

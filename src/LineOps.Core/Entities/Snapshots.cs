@@ -17,7 +17,7 @@ public static class Markets
 /// An observation of one priced outcome at one book at one instant.
 /// Append-only: rows are never updated, so line movement is reconstructible.
 /// </summary>
-public class OddsSnapshot
+public class OddsSnapshot : Contracts.IFromSource
 {
     public long Id { get; set; }
 
@@ -68,7 +68,7 @@ public class OddsSnapshot
 /// <c>ADR 0002</c> does not apply here.
 /// </para>
 /// </summary>
-public class ClosingLine
+public class ClosingLine : Contracts.IFromSource
 {
     public long Id { get; set; }
 
@@ -105,7 +105,7 @@ public class ClosingLine
 }
 
 /// <summary>Raw per-game stats payload. jsonb because stat shapes differ per sport and source.</summary>
-public class StatSnapshot
+public class StatSnapshot : Contracts.IFromSource
 {
     public long Id { get; set; }
     public int GameId { get; set; }
@@ -119,7 +119,7 @@ public class StatSnapshot
 }
 
 /// <summary>A player's box-score line for one game. Upserted on backfill.</summary>
-public class PlayerGameStat
+public class PlayerGameStat : Contracts.IFromSource
 {
     public long Id { get; set; }
 

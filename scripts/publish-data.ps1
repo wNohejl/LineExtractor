@@ -20,15 +20,35 @@
     snapshot is committed, and the repository is public: a bet log is not market data. Their
     tables are still created on restore, empty, so the schema matches the code either way.
 
+.PARAMETER DisplayableOnly
+    Snapshot only the displayable tier (ADR 0024): what a source whose terms allow display
+    supplied. Box scores, raw stat payloads and fighter profiles (ESPN) keep their schema and
+    lose their rows. A closing line or scan from a personal-use source cannot be told apart by
+    pg_dump, so the dump is restored into a throwaway server inside the sidecar, those rows are
+    deleted there, and that copy is what is dumped; the published file never holds them. ESPN's
+    and MLB's prose about a game (last play, situation, linescore, probable pitchers) and the
+    injury report are cleared too. Games, teams and players stay, with their final scores: the
+    odds attach to them (see ADR 0024 on why that is still a gap). The manifest says
+    "tier": "displayable". Not combined with -IncludePersonal.
+
+.PARAMETER OutDir
+    Where the dump and its manifest are written. data/snapshots by default; -Commit only
+    publishes from there.
+
 .EXAMPLE
     .\scripts\publish-data.ps1 -Commit
+
+.EXAMPLE
+    .\scripts\publish-data.ps1 -DisplayableOnly -OutDir $env:TEMP\lineops-shared
 #>
 param(
     [string]$Container = "lineops-postgres",
     [string]$Database = "lineops",
     [string]$User = "lineops",
     [switch]$Commit,
-    [switch]$IncludePersonal
+    [switch]$IncludePersonal,
+    [switch]$DisplayableOnly,
+    [string]$OutDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,11 +58,16 @@ $ErrorActionPreference = "Stop"
 function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue"; & $Block }
 . (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
-$dir = Join-Path (Join-Path $root 'data') 'snapshots'
-$dump = Join-Path $dir "lineops.dump"
-$manifest = Join-Path $dir "lineops.dump.json"
+$snapshots = Join-Path (Join-Path $root 'data') 'snapshots'
+$dir = if ($OutDir) { $OutDir } else { $snapshots }
+
+if ($DisplayableOnly -and $IncludePersonal) { throw "-DisplayableOnly is for a snapshot others may read; it does not carry the journal (-IncludePersonal)." }
 
 New-Item -ItemType Directory -Force $dir | Out-Null
+$dir = (Resolve-Path $dir).Path
+if ($Commit -and $dir -ne (Resolve-Path $snapshots).Path) { throw "-Commit publishes data/snapshots only; -OutDir is for a dump that stays off the repository." }
+$dump = Join-Path $dir "lineops.dump"
+$manifest = Join-Path $dir "lineops.dump.json"
 
 Invoke-Native { docker inspect $Container *> $null }
 if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres" }
@@ -69,20 +94,24 @@ $exclude = if ($IncludePersonal) { '' } else {
 # machine refills it from ESPN with espn:gamecast:backport (unmetered).
 $refillable = @('GamePlays', 'GameDrives', 'GamecastBackportMisses')
 $exclude = (@($exclude) + ($refillable | ForEach-Object { "--exclude-table-data='`"$_`"'" })) -join ' '
-$check = if ($IncludePersonal) { '' } else { @"
-if pg_restore -l /snapshots/lineops.dump.partial | grep -E 'TABLE DATA public "?($($personal -join '|'))"? '; then
-  echo 'refused: the archive holds personal rows; nothing was replaced' >&2
+
+# The displayable tier (ADR 0024) leaves out the tables that are wholly a personal-use source's:
+# box scores and raw stat payloads, which only ESPN fills today, and ESPN's fighter profiles.
+# A balldontlie box score would be displayable, but no adapter writes one yet, so there is
+# nothing to keep; the scrub below deletes by licence in case that changes.
+$statsPort = @('PlayerGameStats', 'StatSnapshots', 'FighterProfiles')
+if ($DisplayableOnly) {
+    $exclude = (@($exclude) + ($statsPort | ForEach-Object { "--exclude-table-data='`"$_`"'" })) -join ' '
+}
+
+$refused = @(if (-not $IncludePersonal) { $personal }) + @(if ($DisplayableOnly) { $statsPort })
+$check = if ($refused.Count -eq 0) { '' } else { @"
+if pg_restore -l /snapshots/lineops.dump.partial | grep -E 'TABLE DATA public "?($($refused -join '|'))"? '; then
+  echo 'refused: the archive holds rows it must not; nothing was replaced' >&2
   rm -f /snapshots/lineops.dump.partial
   exit 3
 fi
 "@ }
-
-$exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory $dir -Script @"
-pg_dump -U $User -Fc -Z 6 $exclude -f /snapshots/lineops.dump.partial $Database
-$check
-mv /snapshots/lineops.dump.partial /snapshots/lineops.dump
-"@
-if ($exit -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed (exit $exit)" }
 
 # A manifest beside the dump, so a reader knows what is in it without restoring it. The
 # SQL goes over stdin: passed as an argument, PowerShell strips the double quotes that
@@ -90,6 +119,7 @@ if ($exit -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024)
 $sql = @"
 select json_build_object(
   'takenAtUtc', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'tier', '$(if ($DisplayableOnly) { 'displayable' } else { 'full' })',
   'games', (select json_object_agg(k, n) from (select s."Key" k, count(*) n from "Games" g join "Sports" s on s."Id"=g."SportId" group by 1) t),
   'players', (select count(*) from "Players"),
   'statLines', (select count(*) from "PlayerGameStats"),
@@ -100,7 +130,92 @@ select json_build_object(
   'seasons', (select json_object_agg(k, ys) from (select s."Key" k, json_agg(distinct g."SeasonYear") ys from "Games" g join "Sports" s on s."Id"=g."SportId" group by 1) t)
 )::text;
 "@
-$counts = (Invoke-Native { $sql | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t }) -join ""
+
+if (-not $DisplayableOnly) {
+    $exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory $dir -Script @"
+pg_dump -U $User -Fc -Z 6 $exclude -f /snapshots/lineops.dump.partial $Database
+$check
+mv /snapshots/lineops.dump.partial /snapshots/lineops.dump
+"@
+    if ($exit -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "pg_dump failed (exit $exit)" }
+
+    $counts = (Invoke-Native { $sql | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t }) -join ""
+}
+else {
+    # The scrub. pg_dump filters whole tables, not rows, and a closing line from ESPN sits in the
+    # same table as one from the book market. So the dump is restored into a throwaway server
+    # started inside the sidecar itself (the image carries one), the personal-use rows are
+    # deleted there, and that copy is dumped. The live database is only read; nothing a
+    # personal-use source supplied reaches the published file.
+    #
+    # Which sources are displayable is read from "Sources"."Licence"; a database from before
+    # that column (migration SourceLicence) is classified by key, from the same table as
+    # SourceLicences.Known in LineOps.Core.
+    $scrub = @'
+-- Which sources may be shown.
+CREATE TEMP TABLE shown AS SELECT "Id" FROM "Sources" WHERE "Key" IN ('the-odds-api', 'balldontlie');
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Sources' AND column_name = 'Licence') THEN
+    DELETE FROM shown;
+    INSERT INTO shown SELECT "Id" FROM "Sources" WHERE "Licence" = 'Displayable';
+  END IF;
+END $$;
+
+-- Rows a personal-use source supplied: ESPN's reference closes, an evaluation feed's scans.
+DELETE FROM "ClosingLines"      WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+DELETE FROM "ClosingLineMisses" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+DELETE FROM "OddsSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+DELETE FROM "PlayerGameStats"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+DELETE FROM "StatSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+
+-- ESPN's and MLB's own words about a game and a player. The schedule and the final score stay:
+-- every odds row hangs off a game.
+UPDATE "Games" SET "LastPlay" = NULL, "Situation" = NULL, "Linescore" = NULL, "StatusDetail" = NULL,
+  "DownDistanceText" = NULL, "PossessionText" = NULL,
+  "HomeProbablePitcher" = NULL, "AwayProbablePitcher" = NULL;
+UPDATE "Players" SET "InjuryStatus" = NULL, "InjuryNote" = NULL, "InjuryUpdatedAt" = NULL;
+
+-- Refuse rather than publish if anything personal-use is left.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM "ClosingLines" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "OddsSnapshots" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+     OR EXISTS (SELECT 1 FROM "PlayerGameStats") OR EXISTS (SELECT 1 FROM "FighterProfiles") THEN
+    RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
+  END IF;
+END $$;
+'@
+
+    $exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory $dir -Script (@'
+pg_dump -U __USER__ -Fc -Z 6 __EXCLUDE__ -f /tmp/full.dump __DB__
+# The throwaway server: owned by the image's postgres user, or by the caller where the sidecar
+# already runs as one (Linux, scripts/_pg.ps1).
+if [ "$(id -u)" = 0 ]; then AS="$(command -v gosu || command -v su-exec) postgres"; else AS=''; fi
+mkdir -p /tmp/scrub && chmod 700 /tmp/scrub
+if [ -n "$AS" ]; then chown postgres /tmp/scrub; fi
+$AS initdb -D /tmp/scrub -U __USER__ --auth=trust < /dev/null > /dev/null
+$AS pg_ctl -D /tmp/scrub -o "-c listen_addresses='' -k /tmp" -l /tmp/scrub.log -w start < /dev/null > /dev/null
+export PGHOST=/tmp
+createdb -U __USER__ __DB__ < /dev/null
+pg_restore -U __USER__ -d __DB__ --no-owner --no-privileges /tmp/full.dump < /dev/null
+psql -U __USER__ -d __DB__ -X -q -v ON_ERROR_STOP=1 <<'SCRUB'
+__SCRUB__
+SCRUB
+# The same exclusions again, so the archive has no data entry for those tables for the check to find.
+pg_dump -U __USER__ -Fc -Z 6 __EXCLUDE__ -f /snapshots/lineops.dump.partial __DB__ < /dev/null
+__CHECK__
+psql -U __USER__ -d __DB__ -X -q -A -t > /snapshots/lineops.dump.json.partial <<'MANIFEST'
+__MANIFEST__
+MANIFEST
+$AS pg_ctl -D /tmp/scrub -m fast stop < /dev/null > /dev/null
+mv /snapshots/lineops.dump.partial /snapshots/lineops.dump
+'@).Replace('__USER__', $User).Replace('__DB__', $Database).Replace('__EXCLUDE__', $exclude).Replace('__SCRUB__', $scrub).Replace('__MANIFEST__', $sql).Replace('__CHECK__', $check)
+    if ($exit -ne 0 -or -not (Test-Path $dump) -or (Get-Item $dump).Length -lt 1024) { throw "displayable snapshot failed (exit $exit); nothing was replaced" }
+
+    $partial = Join-Path $dir 'lineops.dump.json.partial'
+    $counts = (Get-Content $partial -Raw)
+    Remove-Item $partial
+}
+
 if (-not $counts) { throw "manifest query returned nothing" }
 [System.IO.File]::WriteAllText($manifest, $counts.Trim() + "`n")
 
@@ -113,7 +228,8 @@ if ($Commit) {
     try {
         git add -- $dump $manifest
         $date = Get-Date -Format "yyyy-MM-dd"
-        git commit -m "data: snapshot $date" -- $dump $manifest
+        $what = if ($DisplayableOnly) { "data: displayable snapshot $date" } else { "data: snapshot $date" }
+        git commit -m $what -- $dump $manifest
         git push
     }
     finally { Pop-Location }

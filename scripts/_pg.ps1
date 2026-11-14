@@ -46,6 +46,8 @@ function Invoke-PgSidecar {
 
 function Get-PgPassword([string]$Root) {
     $envFile = Join-Path $Root '.env'
+    # A worktree has no .env of its own; PGPASSWORD set by the caller stands in for it.
+    if (-not (Test-Path $envFile) -and $env:PGPASSWORD) { return $env:PGPASSWORD }
     if (-not (Test-Path $envFile)) { throw ".env is missing. Run ./scripts/setup.ps1 first: it generates the database password the container needs." }
     $text = Get-Content $envFile -Raw
     if ($text -notmatch '(?m)^POSTGRES_PASSWORD=(.+)$') { throw ".env has no POSTGRES_PASSWORD. Run ./scripts/setup.ps1 first." }

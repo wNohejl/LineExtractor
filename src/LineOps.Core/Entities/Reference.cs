@@ -82,6 +82,48 @@ public enum SourceKind
     Stats
 }
 
+/// <summary>
+/// What a provider's terms let the desk do with what it supplies (ADR 0024). Declared per
+/// source, because terms belong to the provider rather than to the kind of data it serves.
+/// </summary>
+public enum SourceLicence
+{
+    /// <summary>
+    /// Personal, non-commercial use: shown to the operator, never to anyone else. The default,
+    /// so a source nobody has classified is one the desk keeps to itself.
+    /// </summary>
+    PersonalUse,
+
+    /// <summary>The provider's terms allow display to others, including on a desk others reach.</summary>
+    Displayable
+}
+
+/// <summary>
+/// The licence each known provider is seeded with, by source key, from the terms read in the
+/// going-public plan §4. A key not listed here is <see cref="SourceLicence.PersonalUse"/>.
+/// The initializer seeds from this, and migration <c>SourceLicence</c> writes the same answers
+/// to rows that already exist.
+/// </summary>
+public static class SourceLicences
+{
+    public static readonly IReadOnlyDictionary<string, SourceLicence> Known = new Dictionary<string, SourceLicence>
+    {
+        // Display in a UI, including commercial display; derived values allowed.
+        ["the-odds-api"] = SourceLicence.Displayable,
+        // Public display and betting products expressly allowed.
+        ["balldontlie"] = SourceLicence.Displayable,
+        // Disney's terms prohibit automated extraction and commercial use.
+        ["espn"] = SourceLicence.PersonalUse,
+        // MLBAM: "individual, non-commercial, non-bulk use" only.
+        ["mlb-statsapi"] = SourceLicence.PersonalUse,
+        // The free tier is for evaluation; a paid plan's terms have not been read.
+        ["odds-api-io"] = SourceLicence.PersonalUse
+    };
+
+    public static SourceLicence For(string sourceKey)
+        => Known.TryGetValue(sourceKey, out var licence) ? licence : SourceLicence.PersonalUse;
+}
+
 /// <summary>An external data provider. Rate limits and budgets are enforced against these rows.</summary>
 public class Source
 {
@@ -89,6 +131,13 @@ public class Source
     public string Key { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public SourceKind Kind { get; set; }
+
+    /// <summary>
+    /// Whether what this source supplies may be shown to someone other than the operator. Asked
+    /// through <see cref="Contracts.IDataTier"/> by the readers; see ADR 0024.
+    /// </summary>
+    public SourceLicence Licence { get; set; }
+
     public string BaseUrl { get; set; } = string.Empty;
 
     public bool Enabled { get; set; } = true;

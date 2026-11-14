@@ -6,6 +6,7 @@ using LineOps.Ingestion.Configuration;
 using LineOps.Observability;
 using LineOps.Reliability;
 using LineOps.Web.Components;
+using LineOps.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -64,6 +65,10 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 // cookie keeps the name it had before the gate moved there, so every existing sign-in survives.
 builder.Services.AddDeskAccess(builder.Configuration, o => o.CookieName = "lineops.access");
 builder.Services.AddDeskEdge(builder.Configuration);
+
+// What a visitor may read, by the licence of the source each row came from (ADR 0024). Local, the
+// default, shows everyone everything; Shared keeps personal-use data (ESPN, MLB) to the operator.
+builder.Services.AddDataSharing(builder.Configuration);
 
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
