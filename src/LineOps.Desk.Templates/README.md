@@ -17,7 +17,7 @@ dotnet run --launch-profile http
 ```
 
 From a local build instead, install the `.nupkg` that `dotnet pack src/LineOps.Desk.Templates`
-writes: `dotnet new install ./LineOps.Desk.Templates.0.2.0.nupkg`.
+writes: `dotnet new install ./LineOps.Desk.Templates.0.3.0.nupkg`.
 
 | Option | Default | What it sets |
 | --- | --- | --- |

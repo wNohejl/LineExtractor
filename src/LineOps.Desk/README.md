@@ -385,8 +385,8 @@ publishes them.
 2. Tag the merge with the Desk's version and push the tag:
 
    ```bash
-   git tag desk-v0.4.0 main
-   git push origin desk-v0.4.0
+   git tag desk-v0.5.0 main
+   git push origin desk-v0.5.0
    ```
 
 3. The workflow refuses a tag that disagrees with `LineOps.Desk.csproj`, packs the Desk, Hosting,
