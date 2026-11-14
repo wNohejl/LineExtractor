@@ -79,6 +79,12 @@ else
     /// </summary>
     [Parameter] public EventCallback OnBank { get; set; }
 
+    /// <summary>This price's take is open under the row: the cell stays lit and reports itself expanded.</summary>
+    [Parameter] public bool Taking { get; set; }
+
+    /// <summary>The slip holds this price (this side, this book, this number): the cell says "on slip".</summary>
+    [Parameter] public bool Banked { get; set; }
+
     // A visitor's price is a reading too: there is no wager window on their desk to open (ADR 0018).
     private bool Takeable => Access.CanOperate && OnTake.HasDelegate && Offer is { IsClosing: false };
 
@@ -103,7 +109,10 @@ else
     private RenderFragment Body(bool closing) => @<text>
         @if (Takeable)
         {
-            <button type="button" class="price price--take" title="@Tooltip"
+            @* While its take is open under the row, the cell stays lit and says it controls it, so
+               the strip below reads as this price's and a second press puts it away. *@
+            <button type="button" class="price price--take @(Taking ? "price--taking" : null)" title="@Tooltip"
+                    aria-expanded="@(OnTake.HasDelegate ? (Taking ? "true" : "false") : null)"
                     @onclick="ClickAsync" @onclick:stopPropagation="true">@Inside(closing)</button>
         }
         else
@@ -161,6 +170,14 @@ else
             @if (!closing && Offer.Ev is { } ev)
             {
                 <span class="price__ev @(ev > 0 ? "price__ev--plus" : null)">@EvLabel(ev)</span>
+            }
+
+            @* A Shift-click's leg stays visible on the cell it came from: the toast goes in four
+               seconds, and a parlay is built by scanning back across the rows. Always shown,
+               not revealed on hover, because it is a fact about this price now. *@
+            @if (Banked && !closing)
+            {
+                <span class="price__slip"><Glyph Icon="@Icons.Material.Filled.Check" />on slip</span>
             }
     </text>;
 

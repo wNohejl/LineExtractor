@@ -1706,3 +1706,59 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
     content: "·";
     margin-right: var(--space-2);
 }
+
+/* ---------------------------------------------------------------------------
+   A price taken in its row (QuickTake).
+
+   The pressed cell stays lit while its take is open under the row: the accent's wash, spread
+   past the cell's own box by a shadow so nothing in the row moves, and the number in accent ink.
+   It is the one tie between a cell and the strip below it — the accent here means "chosen",
+   which is what it means everywhere else on the desk.
+   --------------------------------------------------------------------------- */
+.price--taking {
+    background: var(--accent-wash);
+    box-shadow: 0 0 0 4px var(--accent-wash);
+    border-radius: var(--radius-sm);
+}
+.price--taking .price__odds { color: var(--accent-ink); }
+.price--taking .price__edge, .price--taking .price__ev { opacity: 1; }
+
+/* A leg on the slip, said on the cell it came from: a caption in secondary ink with a check,
+   since it reports where the price is, not a judgment of it. */
+.price__slip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: var(--text-caption);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.price__slip svg { width: 12px; height: 12px; flex: 0 0 auto; }
+
+.qtake { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* The bet in one line — side, price, book — with the books to choose from trailing it. */
+.qtake__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+}
+.qtake__bet { display: inline-flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.qtake__sel { font-weight: var(--weight-semibold); color: var(--text-primary); }
+.qtake__price { font-size: var(--text-headline); color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.qtake__at { color: var(--text-secondary); font-size: var(--text-subheadline); }
+
+/* The checks sit in the take's own fill: their group drops its section margin here. */
+.qtake .checks { margin: 0; }
+
+.qtake__keys, .qtake__confirm { margin-top: var(--space-1); }
+
+.qtake__gone { margin: 0; color: var(--text-secondary); font-size: var(--text-subheadline); }
+
+/* The receipt replaces the form: what was logged, and the two ways on. */
+.qtake__receipt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.qtake__receipt-mark { display: inline-flex; color: var(--state-positive); }
+.qtake__receipt-text { flex: 1 1 16rem; color: var(--text-primary); }
+.qtake__receipt-keys { display: inline-flex; gap: var(--space-2); }

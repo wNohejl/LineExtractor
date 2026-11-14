@@ -1,0 +1,333 @@
+@namespace LineOps.Web.Components.Desk
+@using LineOps.Core.Analytics
+@using LineOps.Core.Entities
+@using LineOps.Data.CrossReference
+@using LineOps.Web.Services
+@inject IWagerData Data
+@inject WagerSlip Slip
+@inject DeskToasts Toasts
+@inject ILogger<QuickTake> Log
+
+@*
+    A Board price, taken where it was pressed.
+
+    Pressing a price used to float a wager window over the board: a second surface, three steps,
+    and the board an operator was reading from pushed behind it, for what is usually one number
+    and one stake. The price already says the side, the line and the book; what is left is how
+    much, a glance at what is worth knowing, and a commit. So the answer opens in the row under the
+    game, as the row's glances do, and the full wager form stays one press away for anything the
+    row cannot say — a typed price, a note, a book the desk does not scan.
+
+    Three states in one place, so the operator's eye never leaves the row:
+
+    - Ready: the book (every book quoting the side, best first), the stake with its quick keys and
+      what it returns, the checks that need saying, and Add to slip · Log.
+    - Asking: Log turns the key row into the question — "Log $25 on PHI ML at −120 (DK)?" — with
+      Cancel and Log wager, an InlineConfirm rather than an alert, because the bet is in plain view
+      and easy to void from the Journal.
+    - Logged: the receipt, with Same again (the same side and book, a fresh stake) and Done.
+
+    The offer is read from the row on every render, not kept, so a pull that re-prices the board
+    re-prices this too; a price that has gone to its close says so instead of logging it.
+*@
+
+<SnippetShell Title="Take this price" Icon="@Icons.Material.Filled.Bolt"
+              Note="@Headline" OpenLabel="Full wager form" OnOpen="OpenFormAsync">
+    @* A press or a key inside belongs to the take: the grid row's own click would close the
+       row around it (RowActions stops the same way). *@
+    <div class="qtake" @onkeydown="OnKeyAsync" @onkeydown:stopPropagation="true" @onclick:stopPropagation="true">
+        @if (Best is null)
+        {
+            <p class="qtake__gone">This side is no longer quoted. Pick another price on the row.</p>
+        }
+        else if (Best.IsClosing)
+        {
+            <p class="qtake__gone">This price has closed — the game is under way, so it cannot be taken.</p>
+        }
+        else if (_receipt is { } receipt)
+        {
+            <div class="qtake__receipt" role="status">
+                <span class="qtake__receipt-mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.CheckCircle" /></span>
+                <span class="qtake__receipt-text">@receipt</span>
+                <span class="qtake__receipt-keys">
+                    <DeskButton Size="DeskKeySize.Small" OnClick="Again">Same again</DeskButton>
+                    <DeskButton Size="DeskKeySize.Small" OnClick="CloseAsync">Done</DeskButton>
+                </span>
+            </div>
+        }
+        else if (Offer is { } offer)
+        {
+            <div class="qtake__line">
+                <span class="qtake__bet">
+                    <span class="qtake__sel">@offer.Label</span>
+                    <strong class="qtake__price num">@OddsMath.FormatPrice(offer.PriceAmerican)</strong>
+                    <span class="qtake__at">at @offer.Book</span>
+                </span>
+
+                @if (Books.Count > 1)
+                {
+                    @* Every book quoting the side, best first. A switch while the books fit one
+                       (2–5 is a switch's honest range), a select once they do not. *@
+                    @if (Books.Count <= 5)
+                    {
+                        <DeskSwitch TValue="string" Options="BookOptions" Label="Book" Size="DeskKeySize.Small" Mono="true"
+                                    Value="offer.Book" ValueChanged="ChooseBook" />
+                    }
+                    else
+                    {
+                        <DeskSelect TValue="string" aria-label="Book" Value="offer.Book" ValueChanged="ChooseBook">
+                            @foreach (var option in BookOptions)
+                            {
+                                <option value="@option.Value">@option.Title</option>
+                            }
+                        </DeskSelect>
+                    }
+                }
+            </div>
+
+            <StakeRow Stake="_stake" StakeChanged="SetStake" PriceAmerican="offer.PriceAmerican" />
+
+            @* Only what needs saying: the value always (it is the first thing asked of a price),
+               then a stale price or a side already in the journal. A clean bill reads as nothing
+               more, where the wager window lists every pass for the record. *@
+            <CheckList Items="Worth" Title="Before you log" ShowTitle="false" />
+
+            @if (_error is { } error)
+            {
+                <p class="field-err" role="alert">@error</p>
+            }
+
+            @if (_asking)
+            {
+                @* The question answers its own Escape (Cancel); stopped here, so the same key
+                   does not also reach the take and put the whole row away. *@
+                <div @onkeydown:stopPropagation="true">
+                    <InlineConfirm ConfirmLabel="Log wager" ConfirmIcon="@Icons.Material.Filled.Check"
+                                   Busy="_saving" OnConfirm="LogAsync" OnCancel="() => _asking = false"
+                                   Class="qtake__confirm">
+                        Log <strong>@OddsMath.Money(_stake)</strong> on @offer.Label at @OddsMath.FormatPrice(offer.PriceAmerican) (@offer.Book)?
+                    </InlineConfirm>
+                </div>
+            }
+            else
+            {
+                <KeyRow Class="qtake__keys" Reason="@(_stake > 0 ? null : "A stake comes first.")">
+                    <Secondary>
+                        <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.PlaylistAdd"
+                                    Disabled="@(_stake <= 0)" OnClick="AddToSlip">Add to slip</DeskButton>
+                    </Secondary>
+                    <Primary Context="reason">
+                        @* Tinted, not Filled: the row is the Board's, which holds no primary
+                           (BoardPanel, Place wager); the question that follows is the loud part. *@
+                        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                    Icon="@Icons.Material.Filled.Bolt" Disabled="@(_stake <= 0)"
+                                    aria-describedby="@reason" OnClick="Ask">
+                            Log @(_stake > 0 ? OddsMath.Money(_stake) : "wager")
+                        </DeskButton>
+                    </Primary>
+                </KeyRow>
+            }
+        }
+    </div>
+</SnippetShell>
+
+@code {
+    /// <summary>The game's row as the Board holds it now; read each render, so a pull re-prices the take.</summary>
+    [Parameter, EditorRequired] public BoardRow Row { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string Market { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Outcome { get; set; } = string.Empty;
+
+    /// <summary>The book the press came from — the cell's best, or the value pick's. Null: the best.</summary>
+    [Parameter] public string? Book { get; set; }
+
+    /// <summary>"Phillies at Mets", for the slip card.</summary>
+    [Parameter] public string Matchup { get; set; } = string.Empty;
+
+    /// <summary>Opens the full wager form on this side and book, with the stake typed so far.</summary>
+    [Parameter] public EventCallback<(string Book, decimal Stake)> OnOpenForm { get; set; }
+
+    /// <summary>Puts the take away: Done, or Escape.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Turns the desk to the slip, for the Added toast's key.</summary>
+    [Parameter] public Action? OnViewSlip { get; set; }
+
+    private string? _book;
+    private decimal _stake;
+    private bool _asking;
+    private bool _saving;
+    private string? _error;
+    private string? _receipt;
+
+    private (int Game, string Market, string Outcome)? _readFor;
+    private JournalEntry? _prior;
+    private bool _priorRead;
+    private bool _priorFailed;
+
+    private MarketPair? Pair => Market switch
+    {
+        _ when Row.Moneyline.Market == Market => Row.Moneyline,
+        _ when Row.Spread.Market == Market => Row.Spread,
+        _ when Row.Total.Market == Market => Row.Total,
+        _ => null
+    };
+
+    /// <summary>The side's best offer on the row now, or null once no book quotes it.</summary>
+    private BestOffer? Best
+        => Pair is { } pair
+            ? new[] { pair.First, pair.Second }.FirstOrDefault(o => o is not null && o.Outcome == Outcome)
+            : null;
+
+    private IReadOnlyList<WagerOffer> Books => Best is { } best ? WagerOffer.Books(Market, best) : [];
+
+    /// <summary>The chosen book's price, or the best when that book has stopped quoting.</summary>
+    private WagerOffer? Offer
+        => Best is not { } best ? null
+            : (_book is { } book ? WagerOffer.AtBook(Market, best, book) : null) ?? WagerOffer.Best(Market, best);
+
+    private IReadOnlyList<DeskSwitchOption<string>> BookOptions
+        => Books.Select(b => new DeskSwitchOption<string>(b.Book,
+                $"{PriceCell.Monogram(b.Book)} {OddsMath.FormatPrice(b.PriceAmerican)}",
+                $"{b.Book} {OddsMath.FormatPrice(b.PriceAmerican)}" + (b.IsBest ? " — best" : "")))
+            .ToList();
+
+    /// <summary>The bar's qualifier: the matchup, so a take reads as this game's even scrolled to.</summary>
+    private string? Headline => Matchup.Length > 0 ? Matchup : null;
+
+    private IReadOnlyList<Check> Worth
+    {
+        get
+        {
+            if (Offer is not { } offer)
+                return [];
+
+            var all = Checks.Build(offer, Row.Game.StartsAt, DateTimeOffset.UtcNow,
+                _priorRead, _prior, _stake, null, _priorFailed);
+
+            // The value first and always; the rest only when they have something to say.
+            return all.Take(1).Concat(all.Skip(1).Where(c => c.State != DeskState.Positive)).ToList();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (Row.Game.Id, Market, Outcome);
+        if (_readFor == key)
+            return;
+
+        _readFor = key;
+        _book = Book;
+        await ReadPriorAsync();
+    }
+
+    private async Task ReadPriorAsync()
+    {
+        _priorRead = false;
+        _priorFailed = false;
+
+        try
+        {
+            _prior = await Data.LatestOnSideAsync(Row.Game.Id, Market, Outcome, DateTimeOffset.UtcNow - Checks.DuplicateWindow);
+            _priorRead = true;
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The journal was not read for the Board's duplicate check");
+            _prior = null;
+            _priorFailed = true;
+        }
+    }
+
+    private void ChooseBook(string book)
+    {
+        _book = book;
+        _asking = false;
+    }
+
+    private void SetStake(decimal stake)
+    {
+        _stake = Math.Max(0, stake);
+        _asking = false;
+        _error = null;
+    }
+
+    private void Ask()
+    {
+        if (_stake > 0)
+            _asking = true;
+    }
+
+    private async Task LogAsync()
+    {
+        if (Offer is not { IsClosing: false } offer || _stake <= 0 || _saving)
+            return;
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            await Data.LogStraightsAsync([offer.ToDraft(Row.Game.Id, _stake, null)]);
+
+            var logged = $"Logged {OddsMath.Money(_stake)} on {offer.Label} at {OddsMath.FormatPrice(offer.PriceAmerican)} ({offer.Book}).";
+            Toasts.Success(logged);
+
+            _receipt = logged;
+            _asking = false;
+
+            // The side is in the journal now; the next take on it should say so.
+            await ReadPriorAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The Board's wager was not logged");
+            _error = "The wager was not logged. Try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void AddToSlip()
+    {
+        if (Offer is not { IsClosing: false } offer || _stake <= 0)
+            return;
+
+        Slip.Add(offer.ToSlipItem(Row.Game, Matchup, _stake, null) with
+        {
+            InJournal = _priorRead && _prior is { } prior ? Checks.Prior(prior) : null
+        });
+
+        Toasts.Added($"Added {OddsMath.Money(_stake)} on {offer.Label} at {OddsMath.FormatPrice(offer.PriceAmerican)} ({offer.Book}) to the slip.",
+            OnViewSlip is null ? null : "View slip", OnViewSlip);
+
+        _asking = false;
+    }
+
+    /// <summary>The same side and book again, with the stake to be chosen afresh.</summary>
+    private void Again()
+    {
+        _receipt = null;
+        _stake = 0;
+        _asking = false;
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    private Task OpenFormAsync() => OnOpenForm.InvokeAsync((Offer?.Book ?? Book ?? string.Empty, _stake));
+
+    /// <summary>Escape steps back one state: the question to the keys, the keys to the row.</summary>
+    private async Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+            return;
+
+        if (_asking)
+            _asking = false;
+        else
+            await CloseAsync();
+    }
+}

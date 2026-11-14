@@ -47,6 +47,12 @@ public sealed record RowAction
     /// </summary>
     public Func<Task>? OpenWindow { get; init; }
 
+    /// <summary>
+    /// The work this command started is still running: its key shimmers and takes no further
+    /// press, so a press on the row is answered on the row rather than only somewhere above it.
+    /// </summary>
+    public bool Busy { get; init; }
+
     /// <summary>Labels the escape, e.g. "Full history". Defaults to "Open window".</summary>
     public string? OpenLabel { get; init; }
 }

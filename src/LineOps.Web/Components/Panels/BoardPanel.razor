@@ -318,8 +318,10 @@ else
                 @if (_open?.Game.Id == context.Item.Game.Id)
                 {
                     @* Keyed by the game so moving to another row is a fresh strip rather than
-                       one still showing the previous game's snippet. *@
-                    <RowActions @key="context.Item.Game.Id" Actions="ActionsFor(context.Item)"
+                       one still showing the previous game's snippet — and by the take, so a
+                       price pressed while a glance was open leaves the strip with nothing
+                       chosen rather than a segment lit for a snippet no longer showing. *@
+                    <RowActions @key="(context.Item.Game.Id, _takeSerial)" Actions="ActionsFor(context.Item)"
                                 SnippetHost="@((RenderFragment? snippet) => HostSnippet(context.Item.Game.Id, snippet))" />
                 }
             </CellTemplate>
@@ -437,6 +439,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)" Banked="@IsBanked(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)"
                            OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)"
                            OnBank="() => Bank(context.Item, context.Item.Moneyline, context.Item.Moneyline.First)" />
             </CellTemplate>
@@ -447,6 +450,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)" Banked="@IsBanked(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)"
                            OnTake="() => Take(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)"
                            OnBank="() => Bank(context.Item, context.Item.Moneyline, context.Item.Moneyline.Second)" />
             </CellTemplate>
@@ -458,6 +462,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.First" Selection="@Side(context.Item, true)"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Spread, context.Item.Spread.First)" Banked="@IsBanked(context.Item, context.Item.Spread, context.Item.Spread.First)"
                            OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.First)"
                            OnBank="() => Bank(context.Item, context.Item.Spread, context.Item.Spread.First)" />
             </CellTemplate>
@@ -468,6 +473,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Spread, context.Item.Spread.Second)" Banked="@IsBanked(context.Item, context.Item.Spread, context.Item.Spread.Second)"
                            OnTake="() => Take(context.Item, context.Item.Spread, context.Item.Spread.Second)"
                            OnBank="() => Bank(context.Item, context.Item.Spread, context.Item.Spread.Second)" />
             </CellTemplate>
@@ -479,6 +485,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.First" Selection="O"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Total, context.Item.Total.First)" Banked="@IsBanked(context.Item, context.Item.Total, context.Item.Total.First)"
                            OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.First)"
                            OnBank="() => Bank(context.Item, context.Item.Total, context.Item.Total.First)" />
             </CellTemplate>
@@ -489,6 +496,7 @@ else
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
                            StartsAt="context.Item.Game.StartsAt"
+                           Taking="@IsTaking(context.Item, context.Item.Total, context.Item.Total.Second)" Banked="@IsBanked(context.Item, context.Item.Total, context.Item.Total.Second)"
                            OnTake="() => Take(context.Item, context.Item.Total, context.Item.Total.Second)"
                            OnBank="() => Bank(context.Item, context.Item.Total, context.Item.Total.Second)" />
             </CellTemplate>
@@ -727,6 +735,7 @@ else
         // A row left open under another filter would linger as a detached strip.
         _open = null;
         _snippet = null;
+        _take = null;
         ApplyFilter();
     }
 
@@ -804,7 +813,10 @@ else
         // snippet it no longer owns still hung under it.
         _open = StillOpen(_open, _visible);
         if (_open is null)
+        {
             _snippet = null;
+            _take = null;
+        }
     }
 
     /// <summary>
@@ -897,6 +909,7 @@ else
     {
         _open = _open?.Game.Id == row.Game.Id ? null : row;
         _snippet = null;
+        _take = null;
     }
 
     /// <summary>
@@ -912,8 +925,16 @@ else
     /// </summary>
     private void HostSnippet(int gameId, RenderFragment? snippet)
     {
-        if (_open?.Game.Id == gameId)
-            _snippet = snippet;
+        if (_open?.Game.Id != gameId)
+            return;
+
+        // A take owns the row's snippet until something replaces it: the strip it re-keyed
+        // away hands back null on its way out, and that must not put the take away.
+        if (snippet is null && _take is not null)
+            return;
+
+        _take = null;
+        _snippet = snippet;
     }
 
     private static DeskState StatusState(GameStatus status) => status switch
@@ -1071,6 +1092,8 @@ else
     /// <summary>The pull runs in the menu; the panel only reflects it on its own pulse strip.</summary>
     private void OnPullBusy(bool busy)
     {
+        _pulling = busy;
+
         if (busy)
             Report(PulseState.Active, "pulling");
     }
@@ -1169,9 +1192,13 @@ else
                     Icon = Icons.Material.Filled.Bolt,
                     // Tinted, not Filled: the strip repeats on every row the operator opens, and a
                     // solid accent per row would put a dozen primaries on one slate. The Board is a
-                    // place to look; the wager is committed in the window this opens.
+                    // place to look, and the take this opens holds the commit.
                     Emphasis = DeskEmphasis.Tinted,
-                    OpenWindow = () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
+                    // Door 1 opens on the most value, in the row, as a pressed price does; a game
+                    // with no value read anywhere has no side to start from, so it is the form.
+                    OpenWindow = row.BestPick is { } pick
+                        ? () => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book)
+                        : () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
                 });
             }
         }
@@ -1180,9 +1207,15 @@ else
             actions.Add(new RowAction
             {
                 Key = "pull",
-                Label = $"Pull {row.Game.Sport!.Key.ToUpperInvariant()} lines",
+                // The pull runs on the toolbar's menu, and the row's key says so too: busy, and
+                // worded as what is happening, so a press here is answered here rather than only
+                // by a key at the top of the window.
+                Label = _pulling
+                    ? $"Pulling {row.Game.Sport!.Key.ToUpperInvariant()} lines"
+                    : $"Pull {row.Game.Sport!.Key.ToUpperInvariant()} lines",
                 Icon = Icons.Material.Filled.CloudDownload,
                 Emphasis = DeskEmphasis.Tinted,
+                Busy = _pulling,
                 OpenWindow = () => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
             });
         }
@@ -1205,25 +1238,112 @@ else
         return Task.CompletedTask;
     }
 
+    /// <summary>A price taken in its row: which game, which side, from which book.</summary>
+    private sealed record TakeRequest(int GameId, string Market, string Outcome, string? Book);
+
+    /// <summary>The take open under the open row, or null. It owns the row's snippet while it is.</summary>
+    private TakeRequest? _take;
+
     /// <summary>
-    /// Door 2: a live price opens the wager window on that side at that book. The row's Place
-    /// wager action is Door 1 and still opens on the most value.
+    /// Bumped each time a take opens, and part of the row strip's key, so the strip is redrawn with
+    /// nothing chosen rather than lighting the segment of a glance the take has replaced.
+    /// </summary>
+    private int _takeSerial;
+
+    /// <summary>A pull is running from the toolbar; the row's own Pull lines key shows it.</summary>
+    private bool _pulling;
+
+    private bool IsTaking(BoardRow row, MarketPair pair, BestOffer? offer)
+        => offer is not null && _take is { } take && take.GameId == row.Game.Id
+           && take.Market == pair.Market && take.Outcome == offer.Outcome;
+
+    /// <summary>Whether the slip holds this cell's price: the same side, line and book.</summary>
+    private bool IsBanked(BoardRow row, MarketPair pair, BestOffer? offer)
+        => offer is not null && Slip.Items.Any(i => i.GameId == row.Game.Id && i.Market == pair.Market
+               && i.Outcome == offer.Outcome && i.Line == offer.Line
+               && string.Equals(i.Book, offer.Book, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Door 2: a live price opens its take under the row — the stake, what is worth knowing and
+    /// Log, without a window over the board. The same price pressed again puts it away. The full
+    /// wager form is the take's escape, for what a row cannot say.
     /// </summary>
     private Task Take(BoardRow row, MarketPair pair, BestOffer? offer)
     {
         if (offer is null)
             return Task.CompletedTask;
 
-        _followUps.Launch(Manager, WindowCatalog.Wager, new Dictionary<string, object>
+        if (IsTaking(row, pair, offer))
         {
-            ["GameId"] = row.Game.Id,
-            ["Market"] = pair.Market,
-            ["Outcome"] = offer.Outcome,
-            ["Book"] = offer.Book
-        }, row.Game.Id, Matchup(row.Game), "480px");
+            CloseTake();
+            return Task.CompletedTask;
+        }
 
+        return OpenTake(row, pair.Market, offer.Outcome, offer.Book);
+    }
+
+    /// <summary>Opens the row, if it is not, and draws the take as its snippet.</summary>
+    private Task OpenTake(BoardRow row, string market, string outcome, string? book)
+    {
+        _open = row;
+        _take = new TakeRequest(row.Game.Id, market, outcome, book);
+        _takeSerial++;
+        _snippet = TakeSnippet;
         return Task.CompletedTask;
     }
+
+    private void CloseTake()
+    {
+        _take = null;
+        _snippet = null;
+    }
+
+    /// <summary>
+    /// The take, read from the open row at render time rather than captured, so a reload that
+    /// re-prices the board re-prices the take with it.
+    /// </summary>
+    private RenderFragment TakeSnippet => __builder =>
+    {
+        if (_take is { } take && _open is { } row && row.Game.Id == take.GameId)
+        {
+            <div class="rowacts__snippet">
+                <QuickTake @key="(take, _takeSerial)" Row="row" Market="@take.Market" Outcome="@take.Outcome"
+                           Book="@take.Book" Matchup="@Matchup(row.Game)"
+                           OnClose="CloseTake"
+                           OnOpenForm="@(((string Book, decimal Stake) form) => OpenForm(row, take, form.Book, form.Stake))"
+                           OnViewSlip="ViewSlip" />
+            </div>
+        }
+    };
+
+    /// <summary>The take's escape: the full wager form on the same side and book, with the stake typed so far.</summary>
+    private Task OpenForm(BoardRow row, TakeRequest take, string book, decimal stake)
+    {
+        var parameters = new Dictionary<string, object>
+        {
+            ["GameId"] = row.Game.Id,
+            ["Market"] = take.Market,
+            ["Outcome"] = take.Outcome,
+            ["Book"] = book.Length > 0 ? book : take.Book ?? string.Empty
+        };
+
+        // Invariant text, as WagerPrefill writes it: a window's parameters round-trip as JSON.
+        if (stake > 0)
+            parameters["Stake"] = stake.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        _followUps.Launch(Manager, WindowCatalog.Wager, parameters, row.Game.Id, Matchup(row.Game), "480px");
+        CloseTake();
+        return Task.CompletedTask;
+    }
+
+    private void ViewSlip() => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!));
+
+    protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+
+    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+
+    /// <summary>A leg banked or removed anywhere redraws the cells' "on slip" marks.</summary>
+    private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
 
     /// <summary>
     /// Door 2, shifted: a live price goes onto the slip as a parlay leg, at the book the cell

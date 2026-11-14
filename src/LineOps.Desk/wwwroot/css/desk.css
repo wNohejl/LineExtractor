@@ -3415,6 +3415,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .snippet__icon { display: inline-flex; color: var(--text-secondary); }
 
+/* Glyph draws a bare <svg> with no size of its own; in the bar's flex row it collapsed to
+   nothing beside a short title and swelled beside a long one. Sized as the bar's type. */
+.snippet__icon svg, .snippet__open svg { width: 14px; height: 14px; flex: 0 0 auto; }
+
 .snippet__title {
     font-size: var(--text-footnote);
     font-weight: var(--weight-semibold);
