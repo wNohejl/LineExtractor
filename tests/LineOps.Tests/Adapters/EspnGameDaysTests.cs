@@ -103,6 +103,32 @@ public class EspnGameDaysTests
         Assert.Contains(handler.Urls, u => u.EndsWith("dates=2025"));
     }
 
+    /// <summary>
+    /// The NBA's seasons as ESPN names them, by the year they end: <c>dates=2026</c> is 2025–26,
+    /// to June 2026, and the 2026–27 season opening 20 October 2026 is <c>dates=2027</c>.
+    /// </summary>
+    private static (HttpStatusCode, string) Nba(string url)
+        => url.Contains("dates=2026")
+            ? (HttpStatusCode.OK, """{ "startDate": "2025-10-01T07:00Z", "endDate": "2026-06-27T06:59Z", "eventDate": { "dates": [ "2025-10-21T07:00Z", "2026-06-13T07:00Z" ] } }""")
+            : url.Contains("dates=2027")
+                ? (HttpStatusCode.OK, """{ "startDate": "2026-09-30T07:00Z", "endDate": "2027-06-26T06:59Z", "eventDate": { "dates": [ "2026-10-20T07:00Z", "2026-10-21T07:00Z", "2026-10-23T07:00Z" ] } }""")
+                : (HttpStatusCode.NotFound, "{}");
+
+    [Fact]
+    public async Task An_autumn_range_reads_the_season_named_for_the_year_it_ends()
+    {
+        // The NBA's 2026 calendar closes in June 2026; October 2026 is only in the 2027 one.
+        var (source, handler) = Adapter(Nba);
+
+        var days = await source.FetchGameDaysAsync("nba", new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 24), CancellationToken.None);
+
+        Assert.True(days.FromCalendar);
+        Assert.Equal([new(2026, 10, 20), new(2026, 10, 21), new DateOnly(2026, 10, 23)], days.Days);
+        Assert.Equal(2, days.Cost.Requests);
+        Assert.Contains(handler.Urls, u => u.EndsWith("dates=2026"));
+        Assert.Contains(handler.Urls, u => u.EndsWith("dates=2027"));
+    }
+
     [Fact]
     public async Task A_calendar_that_will_not_answer_falls_back_to_every_day()
     {

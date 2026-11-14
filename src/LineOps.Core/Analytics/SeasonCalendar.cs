@@ -42,6 +42,15 @@ public static class SeasonCalendar
     }
 
     /// <summary>
+    /// ESPN's season year as this desk names it. ESPN names a season that straddles the year
+    /// by the year it ends — the NBA season opening October 2026 is its 2027 — where
+    /// <see cref="YearOf"/> and <see cref="Label"/> name it by the year it starts (2026, "2026–27").
+    /// Football straddles too, but ESPN already names it by its start.
+    /// </summary>
+    public static int FromEspnYear(string sportKey, int espnYear)
+        => Normalise(sportKey) is "nba" or "nhl" or "ncaab" ? espnYear - 1 : espnYear;
+
+    /// <summary>
     /// The part of the season a game on this date falls in, by rule — used only where the
     /// provider gave no stamp. Deliberately conservative: the boundaries are the ones that
     /// have held for years, not the ones that could move.

@@ -564,7 +564,7 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                 AwayScore: awayScore,
                 Home: home,
                 Away: away,
-                SeasonYear: ReadSeasonYear(e),
+                SeasonYear: ReadSeasonYear(e) is { } espnYear ? Core.Analytics.SeasonCalendar.FromEspnYear(sportKey, espnYear) : null,
                 SeasonType: ReadSeasonType(e),
                 Live: ReadLive(comp, homeLines, awayLines));
         }

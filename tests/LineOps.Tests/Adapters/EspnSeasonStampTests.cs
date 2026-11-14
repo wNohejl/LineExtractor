@@ -52,6 +52,20 @@ public class EspnSeasonStampTests
         });
     }
 
+    [Theory]
+    [InlineData("nba")]
+    [InlineData("nhl")]
+    public void A_season_espn_names_for_the_year_it_ends_is_stamped_with_the_year_it_starts(string sport)
+    {
+        // ESPN calls the season opening October 2026 "2027"; the desk calls it 2026, labelled 2026–27.
+        using var doc = ScoreboardWithSeason(2027, 2);
+
+        var games = EspnStatsAdapter.ParseScoreboard(doc.RootElement, sport).ToList();
+
+        Assert.NotEmpty(games);
+        Assert.All(games, g => Assert.Equal(2026, g.SeasonYear));
+    }
+
     [Fact]
     public void A_regular_season_event_is_stamped_regular()
     {

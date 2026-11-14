@@ -59,8 +59,9 @@ dotnet run --project src/LineOps.Web --launch-profile http
 
 ## Scope
 
-- Three leagues: **MLB, NFL and UFC**. `Ingestion:Sports` and `Ingestion:Backfill:Sports` name
-  them; `Sports.Enabled` hides the rest from the desk's pickers. Do not add a league without a
+- Four leagues: **MLB, NBA, NFL and UFC**. NBA is this season only — its history starts at the
+  2026–27 opening night (2026-10-20); nothing earlier is pulled. `Ingestion:Sports` and
+  `Ingestion:Backfill:Sports` name them; `Sports.Enabled` hides the rest from the desk's pickers. Do not add a league without a
   season start in `Ingestion:Backfill:Seasons`.
 - UFC is fought, not played (ADR 0021): a bout is a `Game` between two fighters (each a `Team`
   and a `Player`), its card and result live in `Bouts`, and a fighter's ESPN profile in

@@ -19,7 +19,9 @@ public partial class EspnStatsAdapter
     /// August preseason to the February final, MLB's from spring training to the World Series, and
     /// the UFC's is the calendar year, Contender Series Tuesdays included. One request a season
     /// year the range touches, and one more for the season before when the range starts ahead of
-    /// the first one read: a January range is the previous NFL season's playoffs.
+    /// the first one read: a January range is the previous NFL season's playoffs. And one for the
+    /// season after when the range runs past the last one read: the NBA's seasons are named for
+    /// the year they end, so its October games are in the next year's calendar.
     /// </para>
     ///
     /// <para>
@@ -71,6 +73,11 @@ public partial class EspnStatsAdapter
         }
 
         if (from < calendars.Min(c => c.Start) && !await ReadAsync(from.Year - 1))
+            return new GameDays(every, false, new FetchCost(requests));
+
+        // And the season after when the range runs past the last one read: ESPN names an NBA
+        // season by the year it ends, so 2026's calendar closes in June and October 2026 is 2027's.
+        if (to > calendars.Max(c => c.End) && !await ReadAsync(to.Year + 1))
             return new GameDays(every, false, new FetchCost(requests));
 
         var held = calendars.SelectMany(c => c.Days).ToHashSet();
