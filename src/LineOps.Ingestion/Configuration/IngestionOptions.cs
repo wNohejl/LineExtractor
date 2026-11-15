@@ -490,13 +490,13 @@ public class SourceOptions
     /// <summary>The markets to request for one sport: its own list if it has one, else the common one.</summary>
     public string[] MarketsFor(string sportKey)
         => MarketsBySport.TryGetValue(sportKey, out var own) && own.Length > 0
-            ? own.Select(NormaliseMarket).Where(m => m is not null).Distinct().ToArray()!
+            ? own.Select(NormaliseMarket).OfType<string>().Distinct().ToArray()
             : EffectiveMarkets;
 
     /// <summary>The markets to request, falling back to every market the platform models.</summary>
     public string[] EffectiveMarkets
         => Markets.Length > 0
-            ? Markets.Select(NormaliseMarket).Where(m => m is not null).Distinct().ToArray()!
+            ? Markets.Select(NormaliseMarket).OfType<string>().Distinct().ToArray()
             : Core.Entities.Markets.V1.ToArray();
 
     /// <summary>
