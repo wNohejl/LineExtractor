@@ -232,7 +232,7 @@ else
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
-              ChildRow="@(_snippet is null ? null : r => _open?.Game.Id == r.Game.Id ? _snippet : null)"
+              ChildRow="@(r => _open?.Game.Id == r.Game.Id ? OpenRow(r) : null)"
               ChildRowIndent="1"
               EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
@@ -248,15 +248,18 @@ else
         </TemplateColumn>
 
         @*
-            The matchup cell carries the row's actions.
+            The matchup is where the open row's line starts.
 
-            They belong on the row rather than in a menu or a detail pane — the operator has
-            just decided *this game* is interesting and the next move should be one press away.
-            Putting them in the widest column means no dead width for the rows that are closed,
-            and only the open row changes height. The snippet a key opens is not drawn here: the
-            strip hands it to the board, which draws it in a row of its own under the game,
-            starting at this column's edge, so a book list spans the row rather than wrapping
-            every team name inside this one column.
+            The row's actions belong on the row rather than in a menu or a detail pane — the
+            operator has just decided *this game* is interesting and the next move should be one
+            press away. They are not in this cell, though: they are the first line of the row the
+            grid opens under the game (OpenRow), starting at this column's edge. Wedged under the
+            team chips, in a column 140–200px wide, the glances, More bets and Place wager wrapped
+            into three stacked lines of keys, tight on each other and on the row, and a press a few
+            pixels off a key landed on the game row — whose click is the toggle — and closed it.
+            In a row of their own they sit on one line at the toolbar's spacing, the answer a key
+            opens draws beneath them, and the whole of that row is theirs. Closed rows still lose
+            no width, and only the open row changes height.
 
             The matchup is the two clubs side by side, away then home, each a chip of its mark
             and nickname with its starter in small type beneath: the probable pitcher MLB names,
@@ -315,15 +318,6 @@ else
                     </div>
                 }
 
-                @if (_open?.Game.Id == context.Item.Game.Id)
-                {
-                    @* Keyed by the game so moving to another row is a fresh strip rather than
-                       one still showing the previous game's snippet — and by the take, so a
-                       price pressed while a glance was open leaves the strip with nothing
-                       chosen rather than a segment lit for a snippet no longer showing. *@
-                    <RowActions @key="(context.Item.Game.Id, _takeSerial)" Actions="ActionsFor(context.Item)"
-                                SnippetHost="@((RenderFragment? snippet) => HostSnippet(context.Item.Game.Id, snippet))" />
-                }
             </CellTemplate>
         </TemplateColumn>
 
@@ -563,8 +557,8 @@ else
     private BoardRow? _open;
 
     /// <summary>
-    /// The open row's snippet, which its strip hands over to be drawn under the row rather than in
-    /// the matchup cell. Cleared with the row, so reopening it never shows a stale one.
+    /// The open row's snippet, which its strip hands over to be drawn beneath it in the row under
+    /// the game. Cleared with the row, so reopening it never shows a stale one.
     /// </summary>
     private RenderFragment? _snippet;
 
@@ -920,6 +914,22 @@ else
         => open is not null && visible.FirstOrDefault(r => r.Game.Id == open.Game.Id) is { } row ? row : null;
 
     /// <summary>
+    /// The row the grid opens under the open game: the strip first, on a line of its own, then
+    /// whatever answer is up — a glance the strip handed over, or a take. A press anywhere in it
+    /// stops there (DeskGrid's child row), so only the game row's own click closes the row.
+    /// </summary>
+    private RenderFragment OpenRow(BoardRow row) => __builder =>
+    {
+        @* Keyed by the game so moving to another row is a fresh strip rather than one still
+           showing the previous game's snippet — and by the take, so a price pressed while a
+           glance was open leaves the strip with nothing chosen rather than a segment lit for a
+           snippet no longer showing. *@
+        <RowActions @key="(row.Game.Id, _takeSerial)" Actions="ActionsFor(row)"
+                    SnippetHost="@((RenderFragment? snippet) => HostSnippet(row.Game.Id, snippet))" />
+        @_snippet
+    };
+
+    /// <summary>
     /// A strip handing over its snippet, or taking it back. Only the open game's strip is heard:
     /// a strip going away after another row opened cannot clear the newer row's snippet.
     /// </summary>
@@ -1087,6 +1097,11 @@ else
     {
         if (_pull is null || !_pullingKeys.Add(key))
             return;
+
+        // The row's Pull key runs this as the strip's command, which redraws only the strip; the
+        // key's busy state is this panel's, so it is drawn now rather than when the menu first
+        // reports busy, after its own await (as OpenTake does for the take).
+        StateHasChanged();
 
         try
         {
@@ -1299,13 +1314,24 @@ else
         return OpenTake(row, pair.Market, offer.Outcome, offer.Book);
     }
 
-    /// <summary>Opens the row, if it is not, and draws the take as its snippet.</summary>
+    /// <summary>
+    /// Opens the row, if it is not, and draws the take as its snippet.
+    ///
+    /// <para>
+    /// Drawn here, not left to the event: a price cell's press reaches this panel as its own
+    /// event and renders it, but the row's Place wager key runs it as the strip's command
+    /// (<see cref="RowAction.OpenWindow"/> is a plain delegate), and only the strip is redrawn
+    /// after one. The take then waited for the next thing to redraw the board — a refresh, a
+    /// live score — and the key read as dead, and pressed again.
+    /// </para>
+    /// </summary>
     private Task OpenTake(BoardRow row, string market, string outcome, string? book)
     {
         _open = row;
         _take = new TakeRequest(row.Game.Id, market, outcome, book);
         _takeSerial++;
         _snippet = TakeSnippet;
+        StateHasChanged();
         return Task.CompletedTask;
     }
 

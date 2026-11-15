@@ -1440,7 +1440,13 @@ html, body {
     border: 0;
     border-radius: var(--radius-panel);
     box-shadow: var(--shadow-3);
-    overflow: hidden;
+    /* clip, not hidden: a hidden box is still a scroll container, and the browser scrolls one
+       to bring a focused or pressed control into view. A key pressed near the bottom edge
+       while the row was sliding scrolled the whole column up a few pixels, bar and toolbar
+       with it, and nothing could scroll it back — the title bar's keys and the toolbar's
+       trailing keys sat cut off above the box. A clipped box cannot scroll at all; the
+       body below is the window's one scroll container. */
+    overflow: clip;
     z-index: var(--z-window);
     /* left/width transition is what makes the row "settle" after a reorder, a resize
        commit, an eviction, or a close — every tab slides to its new slot instead of
@@ -3333,9 +3339,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    spent — which matters because spending one evicts something (ADR 0007), and
    browsing must never rearrange the desk out from under the operator.
 
-   Everything here is built to sit *inside* a table cell without disturbing the
-   row rhythm around it: the strip is the width of its own column, and only the
-   open row changes height.
+   The strip sits in one of two places. In a detail window's row it sits inside
+   a cell, under that row's own text, at the cell's width. In a list it is the
+   first line of the row the grid opens under the open one (DeskGrid's child
+   row): a list's columns are narrow and its row click is the toggle, so a strip
+   inside a cell wrapped into stacked keys and a near miss closed the row. Either
+   way only the open row changes height.
    -------------------------------------------------------------------------- */
 
 .rowacts {
@@ -3359,6 +3368,33 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    that row from the first cell's edge, up to a measure a list can be read across. */
 .rowacts__snippet { max-width: 720px; }
 .rowacts__snippet > .snippet { margin: 0; }
+
+/* The strip as a list's open line: the first thing in the child row, keys on one line.
+   No rule above it and no margin — the child row shares the open row's wash, so the row and
+   its keys read as one selection, and a hairline between them would cut it in two.
+
+   28px keys, not the grid row's 24px: here the strip is a row of its own, a toolbar in all
+   but name, so it takes the toolbar's height (.ptoolbar .desk-btn--sm), which is the desk's
+   pointer floor for a control on its own line (HIG: 28pt on macOS; the 44pt hit region is the
+   child row itself, which stops every press inside it). The segmented control's Small track
+   is already 28px with its 2px inset, so the glances and the commands now stand level.
+   --space-2 between keys, so nothing touches; the gap span adds a second to part the
+   glances from the commands. Wraps only as a last resort, a full line apart. */
+.deskgrid__child-cell > .rowacts {
+    margin: 0;
+    border-top: 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys {
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { height: 28px; }
+
+/* The answer under the keys, in the same cell: a step below them, and clear of the row's
+   bottom hairline. */
+.deskgrid__child-cell > .rowacts + .rowacts__snippet { margin: var(--space-1) 0 var(--space-2); }
 
 /* The button whose snippet is showing. Held down rather than merely highlighted,
    because it is a state the operator is in, not a hover. It reads as selected
@@ -3588,6 +3624,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    row so it outranks a host's `.x td { width: 1%; white-space: nowrap }` sizing rule. */
 .deskgrid__child > td { background: var(--accent-wash); }
 .deskgrid__child > .deskgrid__child-cell { width: auto; white-space: normal; }
+
+/* The row a child row opened under gives up its hairline: the two are one selection, and
+   the one edge they share is the child row's, below both. */
+.deskgrid .mud-table-body .mud-table-row:has(+ .deskgrid__child) > .mud-table-cell {
+    border-bottom-color: transparent;
+}
 
 /* Keyboard focus is visible on every new control. The desk answers a press with
    travel, which a keyboard user never sees — so focus gets its own ring rather

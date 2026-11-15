@@ -742,7 +742,7 @@
 
    So every column shrinks to its content — width:1% with nowrap is the standard
    way to say "as narrow as you can" — and the matchup absorbs all the slack,
-   which it can use: it is the column that holds the row's action strip.
+   which it can use: two clubs' chips, their starters, and the tags under them.
    -------------------------------------------------------------------------- */
 
 .deskgrid--board table { width: 100%; }
@@ -764,17 +764,17 @@
    not measured in a browser. */
 .deskgrid--board td { vertical-align: top; }
 
-/* The one column that grows. It also carries the open row's actions, so the
-   space is not merely absorbed — it is used. */
+/* The one column that grows. The open row's actions are not in it: they are the
+   first line of the row under the game (below), which starts at this column's edge. */
 .deskgrid--board th:nth-child(2),
 .deskgrid--board td:nth-child(2) {
     width: auto;
     white-space: normal;
 }
 
-/* The open row's snippet sits in DeskGrid's child row, styled by desk.css: its cell starts
-   under the matchup (the lead cell holds the start time's column), wraps rather than widening
-   the table, and keeps the open row's wash. */
+/* The open row's strip and the snippet under it sit in DeskGrid's child row, styled by
+   desk.css: its cell starts under the matchup (the lead cell holds the start time's column),
+   wraps rather than widening the table, and keeps the open row's wash. */
 
 /* Each market is two columns that belong together — home and away, over and
    under. Extra space before the first of each pair groups them, so the eye reads

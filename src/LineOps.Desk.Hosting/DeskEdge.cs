@@ -58,6 +58,19 @@ public static class DeskEdge
         "form-action 'self'; " +
         "frame-ancestors 'none'";
 
+    /// <summary>
+    /// The default policy with one more connection allowed, for a desk run from the SDK or the
+    /// IDE: the browser-refresh script that <c>dotnet watch</c> injects and Browser Link both
+    /// open a socket to a second port on the developer's own machine, and under the default
+    /// every page load logged them blocked. Local ports only, and only for an application that
+    /// chooses it in Development; a published desk keeps <see cref="DefaultContentSecurityPolicy"/>.
+    /// Derived from the default rather than spelt out again, so the two cannot drift apart in any
+    /// other directive.
+    /// </summary>
+    public static readonly string DevelopmentContentSecurityPolicy = DefaultContentSecurityPolicy.Replace(
+        "connect-src 'self';",
+        "connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*;");
+
     public static bool IsBehindProxy(this IConfiguration configuration)
         => configuration.GetValue("Hosting:BehindProxy", false);
 

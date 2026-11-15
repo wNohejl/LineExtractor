@@ -44,6 +44,14 @@ public sealed record RowAction
     /// <summary>
     /// The escape to a full view. Rendered by <c>SnippetShell</c> when there is a snippet, and
     /// invoked immediately on press when there is not.
+    ///
+    /// <para>
+    /// A plain delegate, run by the strip: the press is the strip's event, so the strip is what
+    /// redraws after it. A command that opens a window is drawn by the window manager; one that
+    /// changes its host's own state — a take opened under the row, a key marked busy — must call
+    /// the host's <c>StateHasChanged</c> itself, or it shows nothing until something else redraws
+    /// the host.
+    /// </para>
     /// </summary>
     public Func<Task>? OpenWindow { get; init; }
 

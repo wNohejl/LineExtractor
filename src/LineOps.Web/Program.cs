@@ -64,7 +64,13 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 // no proxy — so a laptop runs exactly as it always has. Both live in LineOps.Desk.Hosting. The
 // cookie keeps the name it had before the gate moved there, so every existing sign-in survives.
 builder.Services.AddDeskAccess(builder.Configuration, o => o.CookieName = "lineops.access");
-builder.Services.AddDeskEdge(builder.Configuration);
+// In Development the tooling's own sockets (dotnet watch's browser refresh, Browser Link) are let
+// through to localhost; everywhere else the policy is the Desk's default, and nothing leaves.
+builder.Services.AddDeskEdge(builder.Configuration, edge =>
+{
+    if (builder.Environment.IsDevelopment())
+        edge.ContentSecurityPolicy = DeskEdge.DevelopmentContentSecurityPolicy;
+});
 
 // What a visitor may read, by the licence of the source each row came from (ADR 0024). Local, the
 // default, shows everyone everything; Shared keeps personal-use data (ESPN, MLB) to the operator.
