@@ -3625,6 +3625,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .deskgrid__child > td { background: var(--accent-wash); }
 .deskgrid__child > .deskgrid__child-cell { width: auto; white-space: normal; }
 
+/* Under 600px MudBlazor stacks a row's cells as label-and-value flex rows. The child cell
+   holds two things, the strip and the answer under it, and as a flex row it laid them side by
+   side, the answer running past the window's edge. A column keeps them stacked; in the table
+   layout a cell is not a flex box and the declaration is inert. */
+.deskgrid__child > .deskgrid__child-cell { flex-direction: column; align-items: stretch; }
+.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: 100%; min-width: 0; }
+
 /* The row a child row opened under gives up its hairline: the two are one selection, and
    the one edge they share is the child row's, below both. */
 .deskgrid .mud-table-body .mud-table-row:has(+ .deskgrid__child) > .mud-table-cell {
