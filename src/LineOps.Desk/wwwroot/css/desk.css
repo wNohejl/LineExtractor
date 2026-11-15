@@ -3375,22 +3375,72 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
    28px keys, not the grid row's 24px: here the strip is a row of its own, a toolbar in all
    but name, so it takes the toolbar's height (.ptoolbar .desk-btn--sm), which is the desk's
-   pointer floor for a control on its own line (HIG: 28pt on macOS; the 44pt hit region is the
-   child row itself, which stops every press inside it). The segmented control's Small track
+   pointer floor for a control on its own line (HIG: 28pt on macOS; each key's and segment's hit
+   region is 44, below, and the child row stops every press inside it). The segmented control's Small track
    is already 28px with its 2px inset, so the glances and the commands now stand level.
    --space-2 between keys, so nothing touches; the gap span adds a second to part the
-   glances from the commands. Wraps only as a last resort, a full line apart. */
+   glances from the commands. Wraps only as a last resort, --space-5 apart: a wrapped line's
+   hit regions (below) reach 8–10px past what is drawn, and at --space-2 the line above took
+   presses meant for the key under it. */
 .deskgrid__child-cell > .rowacts {
     margin: 0;
     border-top: 0;
 }
 
 .deskgrid__child-cell > .rowacts > .rowacts__keys {
-    gap: var(--space-2);
+    gap: var(--space-5) var(--space-2);
     padding: var(--space-1) 0;
 }
 
 .deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { height: 28px; }
+
+/* A hit region of 44, drawn at 28 (HIG: a control's hit region may be larger than its visible
+   bounds). The strip is where a finger lands on a touch screen beside the desk, and a 28px key
+   is a near miss in waiting. The region grows up and down only, never sideways: keys are 8px
+   apart, so a sideways inset would hand a press between two keys to whichever was drawn last.
+
+   The key's region is its ::before: ::after is the busy sheen. The key clips that sheen with
+   overflow: hidden, which would clip the region too, so here the key lets its box overflow and
+   the sheen stays inside by moving its gradient across a fixed layer (background-position)
+   rather than moving the layer itself (transform) — the layer keeps the key's corners. */
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { overflow: visible; }
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm::before {
+    content: '';
+    position: absolute;
+    inset: -8px 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--busy::after {
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        transparent 33.33%,
+        var(--sheen) 50%,
+        transparent 66.67%) 100% 0 / 300% 100% no-repeat;
+    animation-name: desk-btn-sheen-in-place;
+}
+
+@keyframes desk-btn-sheen-in-place {
+    from { transform: none; background-position: 100% 0; }
+    to { transform: none; background-position: 0% 0; }
+}
+
+/* Still, the sheen rests across the key's middle, as the plain key's still sheen does. */
+@media (prefers-reduced-motion: reduce) {
+    .deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--busy::after {
+        animation: none;
+        background-position: 50% 0;
+    }
+}
+
+/* A segment's region the same way: 24px drawn in a 28px track, 44 to the finger. The segment
+   is already above the cap (position: relative; z-index: 1) and the cap takes no pointer, so the
+   region sits over the track's 2px rim and nothing covers the cap's drawing or its travel. */
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .gate > .gate__opt::after {
+    content: '';
+    position: absolute;
+    inset: -10px 0;
+}
 
 /* The answer under the keys, in the same cell: a step below them, and clear of the row's
    bottom hairline. */
@@ -3461,8 +3511,35 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-secondary);
 }
 
-.snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); }
+.snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); min-width: 0; }
 .snippet__spacer { flex: 1 1 auto; }
+
+/* The snippet asks how wide it is, not the window: the same answer opens in a list's full-width
+   row and in a window beside two others. A container of its own also means its content cannot
+   push it wider than the row it opened in — the row clips nothing because nothing overruns it.
+   The title is a name, kept to one line. */
+.snippet { container: snippet / inline-size; }
+.snippet__title { flex: none; white-space: nowrap; }
+
+/* In a narrow snippet the escape keeps its symbol and gives up its word, as a toolbar key that
+   folds does in a narrow toolbar: the word stays in the page as the key's accessible name, out
+   of sight, and the key's title says it to the pointer. 400px is the width the Desk stacks a
+   narrow group's rows at, and about where a title, a note and a three-word escape stop fitting
+   one line. */
+@container snippet (max-width: 400px) {
+    .snippet__open-word {
+        position: absolute; width: 1px; height: 1px;
+        padding: 0; margin: -1px; overflow: hidden;
+        clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .snippet__open { flex: none; justify-content: center; width: 24px; padding: 0; }
+
+    /* The note takes a line of its own under the title, starting where the title does (past
+       the 14px symbol and the bar's gap), rather than squeezing into a third of a line beside
+       it and breaking a short sentence over three. */
+    .snippet__bar { flex-wrap: wrap; row-gap: 0; }
+    .snippet__note { order: 1; flex: 1 1 100%; padding-left: calc(14px + var(--space-2)); }
+}
 
 /* The escape hatch. Quiet by default — the snippet is usually the answer, and a
    loud "open window" would suggest otherwise. */
@@ -3631,6 +3708,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    layout a cell is not a flex box and the declaration is inert. */
 .deskgrid__child > .deskgrid__child-cell { flex-direction: column; align-items: stretch; }
 .deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: 100%; min-width: 0; }
+
+/* At the narrowest a grid's table can still be wider than its window, and scrolls sideways in
+   its own container (mud-bridge.css). The open row's strip and answer are what the operator is
+   working in, so they keep to the width that is in view — the grid's (100cqw: the deskgrid
+   container), less the cell's inset each side — rather than the table's, and never sit half past
+   the scroll's edge. Wide, the grid is wider than either and nothing changes. */
+.deskgrid__child > .deskgrid__child-cell > .rowacts { max-width: calc(100cqw - 2 * var(--space-2)); }
+.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: min(100%, 720px, calc(100cqw - 2 * var(--space-2))); }
 
 /* The row a child row opened under gives up its hairline: the two are one selection, and
    the one edge they share is the child row's, below both. */

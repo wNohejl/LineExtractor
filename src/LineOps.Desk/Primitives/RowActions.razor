@@ -208,10 +208,10 @@
         </div>
     };
 
-    /// <summary>A window-only action just goes.</summary>
+    /// <summary>A window-only action just goes — and its host is drawn after it, as the callback's owner.</summary>
     private static async Task OpenAsync(RowAction action)
     {
-        if (action.OpenWindow is not null)
-            await action.OpenWindow();
+        if (action.OpenWindow.HasDelegate)
+            await action.OpenWindow.InvokeAsync();
     }
 }

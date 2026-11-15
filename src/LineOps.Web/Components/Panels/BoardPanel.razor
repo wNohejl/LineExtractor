@@ -1098,11 +1098,6 @@ else
         if (_pull is null || !_pullingKeys.Add(key))
             return;
 
-        // The row's Pull key runs this as the strip's command, which redraws only the strip; the
-        // key's busy state is this panel's, so it is drawn now rather than when the menu first
-        // reports busy, after its own await (as OpenTake does for the take).
-        StateHasChanged();
-
         try
         {
             await _pull.RunAsync(key);
@@ -1157,7 +1152,7 @@ else
                 Icon = Icons.Material.Filled.ShowChart,
                 Snippet = @<OddsSnippet GameId="id" />,
                 OpenLabel = "Movement",
-                OpenWindow = () => Launch(WindowCatalog.Odds, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.Odds, "GameId", id, name))
             },
             new()
             {
@@ -1166,7 +1161,7 @@ else
                 Icon = Icons.Material.Filled.CompareArrows,
                 Snippet = @<HeadToHeadSnippet GameId="id" />,
                 OpenLabel = "Full history",
-                OpenWindow = () => Launch(WindowCatalog.HeadToHead, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.HeadToHead, "GameId", id, name))
             },
             new()
             {
@@ -1175,7 +1170,7 @@ else
                 Icon = Icons.Material.Filled.QueryStats,
                 Snippet = @<FormSnippet GameId="id" />,
                 OpenLabel = row.Bout is null ? "Both rosters" : "Tale of the tape",
-                OpenWindow = () => Launch(WindowCatalog.Form, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.Form, "GameId", id, name))
             }
         };
 
@@ -1189,11 +1184,7 @@ else
                 Key = "gamecast",
                 Label = "Gamecast",
                 Icon = Icons.Material.Filled.SportsFootball,
-                OpenWindow = () =>
-                {
-                    Manager.OpenGamecast(id, WindowShortcuts.Describe(row.Game));
-                    return Task.CompletedTask;
-                }
+                OpenWindow = Command(() => Manager.OpenGamecast(id, WindowShortcuts.Describe(row.Game)))
             });
         }
 
@@ -1208,7 +1199,7 @@ else
                 Key = "bets",
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
-                OpenWindow = () => Launch(WindowCatalog.Bets, "GameId", id, name, "680px")
+                OpenWindow = Command(() => Launch(WindowCatalog.Bets, "GameId", id, name, "680px"))
             });
 
             if (operate)
@@ -1225,8 +1216,8 @@ else
                     // Door 1 opens on the most value, in the row, as a pressed price does; a game
                     // with no value read anywhere has no side to start from, so it is the form.
                     OpenWindow = row.BestPick is { } pick
-                        ? () => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book)
-                        : () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
+                        ? Command(() => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book))
+                        : Command(() => Launch(WindowCatalog.Wager, "GameId", id, name, "480px"))
                 });
             }
         }
@@ -1245,12 +1236,22 @@ else
                 Icon = Icons.Material.Filled.CloudDownload,
                 Emphasis = DeskEmphasis.Tinted,
                 Busy = _pullingKeys.Contains(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key),
-                OpenWindow = () => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
+                OpenWindow = Command(() => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key))
             });
         }
 
         return actions;
     }
+
+    /// <summary>
+    /// A row command as a callback this panel owns, so the panel is drawn after it. The press is
+    /// the strip's event; run as a bare delegate from there, a command that changed this panel's
+    /// state — the take opened under the row, a Pull key marked busy — drew nothing until a
+    /// refresh or a live score redrew the board.
+    /// </summary>
+    private EventCallback Command(Func<Task> run) => EventCallback.Factory.Create(this, run);
+
+    private EventCallback Command(Action run) => EventCallback.Factory.Create(this, run);
 
     /// <summary>
     /// Whether pulling lines could still fill this row. No book re-quotes a game that is under
@@ -1315,15 +1316,9 @@ else
     }
 
     /// <summary>
-    /// Opens the row, if it is not, and draws the take as its snippet.
-    ///
-    /// <para>
-    /// Drawn here, not left to the event: a price cell's press reaches this panel as its own
-    /// event and renders it, but the row's Place wager key runs it as the strip's command
-    /// (<see cref="RowAction.OpenWindow"/> is a plain delegate), and only the strip is redrawn
-    /// after one. The take then waited for the next thing to redraw the board — a refresh, a
-    /// live score — and the key read as dead, and pressed again.
-    /// </para>
+    /// Opens the row, if it is not, and draws the take as its snippet. Reached from a price cell's
+    /// own press and from the row's Place wager key (a <see cref="Command"/>), and this panel is
+    /// drawn after either.
     /// </summary>
     private Task OpenTake(BoardRow row, string market, string outcome, string? book)
     {
@@ -1331,7 +1326,6 @@ else
         _take = new TakeRequest(row.Game.Id, market, outcome, book);
         _takeSerial++;
         _snippet = TakeSnippet;
-        StateHasChanged();
         return Task.CompletedTask;
     }
 

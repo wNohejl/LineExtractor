@@ -1762,3 +1762,71 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
 .qtake__receipt-mark { display: inline-flex; color: var(--state-positive); }
 .qtake__receipt-text { flex: 1 1 16rem; color: var(--text-primary); }
 .qtake__receipt-keys { display: inline-flex; gap: var(--space-2); }
+
+/* The take narrow — a Board in a window beside others, or a 300px window. Asked of the take's own
+   width, never the viewport's: the same take opens under a list's full-width row and in a column
+   a quarter of the desk wide. The take's floor was 290px (four books' segments at 66 each, and the
+   stake's field with its three quick values on one line); a 300px window gives it 224.
+
+   The book takes the whole line under the bet, its segments sharing it equally. The stake stacks
+   (HIG: adjacent views stack as space shrinks): the field across the take, the quick values under
+   it sharing their line as a key row does, and what it returns under them, label beside figure as
+   the wager window's narrow form has it. */
+.qtake { container: qtake / inline-size; }
+
+@container qtake (max-width: 400px) {
+    .qtake__bet { flex-wrap: wrap; row-gap: 0; }
+    .qtake__line > .gate {
+        display: grid;
+        grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+        width: 100%;
+    }
+    .qtake__line > .gate > .gate__opt { min-width: 0; padding-left: var(--space-1); padding-right: var(--space-1); }
+
+    /* A check's sentence keeps beside its mark: its 200px basis (desk.css, .check__text) is
+       wider than a narrow take's row, and wrapped the sentence under a lone dot. */
+    .qtake .check__text { flex-basis: 8rem; }
+
+    .qtake .stake-row { row-gap: var(--space-2); }
+    .qtake .stake-row__field { flex: 1 1 100%; max-width: none; }
+    .qtake .stake-row > .desk-btn { flex: 1 1 0; }
+    .qtake .stake-row__returns {
+        flex-basis: 100%;
+        margin-left: 0;
+        flex-direction: row;
+        align-items: baseline;
+        gap: var(--space-2);
+    }
+}
+
+/* Narrower still for the books than one line of "DK +130" per segment allows (~58px a segment):
+   every segment breaks at its one space, the book's monogram over its price, so all of them break
+   in the same place and none is cut to two letters. A min-content column inside the segment is
+   what makes the break unconditional — a segment that happened to fit would otherwise stay on one
+   line beside one that did not. Counted by segments: five books need ~300px, four ~240. */
+@container qtake (max-width: 300px) {
+    .qtake__line > .gate:has(> .gate__opt:nth-of-type(5)) > .gate__opt {
+        display: grid;
+        grid-template-columns: min-content;
+        justify-content: center;
+        height: auto;
+        min-height: 24px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        line-height: var(--leading-tight);
+        white-space: normal;
+    }
+}
+@container qtake (max-width: 240px) {
+    .qtake__line > .gate:has(> .gate__opt:nth-of-type(4)) > .gate__opt {
+        display: grid;
+        grid-template-columns: min-content;
+        justify-content: center;
+        height: auto;
+        min-height: 24px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        line-height: var(--leading-tight);
+        white-space: normal;
+    }
+}

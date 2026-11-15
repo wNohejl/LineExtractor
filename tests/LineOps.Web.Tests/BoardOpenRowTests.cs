@@ -125,6 +125,22 @@ public class BoardOpenRowTests : DeskTestContext
         Assert.Null(host.Instance.Snippet);
     }
 
+    /// <summary>
+    /// A command is the host's callback, not a delegate run by the strip, so the host is drawn
+    /// after it: the Board's Place wager key opened its take and nothing redrew the board until a
+    /// refresh or a live score did, and the key read as dead.
+    /// </summary>
+    [Fact]
+    public void A_command_that_changes_its_host_is_drawn_by_the_host()
+    {
+        var host = RenderComponent<Host>();
+        Assert.Equal("0", host.Find(".cmds").TextContent);
+
+        host.Find(".rowacts__keys button:not([role=radio])").Click();
+
+        Assert.Equal("1", host.Find(".cmds").TextContent);
+    }
+
     [Fact]
     public void Every_key_on_the_strip_is_reachable_from_the_keyboard()
     {
@@ -170,11 +186,7 @@ public class BoardOpenRowTests : DeskTestContext
                 Key = "bets",
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
-                OpenWindow = () =>
-                {
-                    Commands++;
-                    return Task.CompletedTask;
-                }
+                OpenWindow = EventCallback.Factory.Create(this, () => Commands++)
             }
         ];
 
@@ -234,6 +246,13 @@ public class BoardOpenRowTests : DeskTestContext
                 columns.CloseComponent();
             }));
             b.CloseComponent();
+
+            // What a command changed, drawn by this host: the test reads it back without asking
+            // the host to redraw.
+            b.OpenElement(6, "p");
+            b.AddAttribute(7, "class", "cmds");
+            b.AddContent(8, Commands);
+            b.CloseElement();
         }
     }
 }

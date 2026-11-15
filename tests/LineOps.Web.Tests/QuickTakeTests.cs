@@ -182,6 +182,27 @@ public class QuickTakeTests : WagerTestContext
         Assert.Equal(("fanduel", 25m), opened);
     }
 
+    /// <summary>
+    /// A narrow take stacks each book segment's monogram over its price by breaking the label at
+    /// its spaces (lineops.css, @container qtake). That breaks every segment in the same place
+    /// only while each label is a monogram and a price with one space between them.
+    /// </summary>
+    [Fact]
+    public void Every_book_segment_breaks_in_one_place_between_its_book_and_price()
+    {
+        var cut = Render();
+
+        var books = cut.FindAll(".qtake__line [role=radio]").Select(b => b.TextContent.Trim()).ToList();
+
+        Assert.True(books.Count > 1);
+        Assert.All(books, label =>
+        {
+            var parts = label.Split(' ');
+            Assert.Equal(2, parts.Length);
+            Assert.Matches("^[+-]?\\d+(\\.\\d+)?$", parts[1].Replace('−', '-'));
+        });
+    }
+
     // ---- The cell that opened it -----------------------------------------------------
 
     private IRenderedComponent<PriceCell> Cell(bool taking = false, bool banked = false)

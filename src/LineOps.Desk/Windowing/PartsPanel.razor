@@ -1580,18 +1580,15 @@
         new()
         {
             Key = "history", Label = "History", Icon = Icons.Material.Filled.History,
-            Snippet = HistorySnippet, OpenLabel = "Full history", OpenWindow = () => Task.CompletedTask
+            Snippet = HistorySnippet, OpenLabel = "Full history",
+            OpenWindow = EventCallback.Factory.Create(this, () => Task.CompletedTask)
         },
         new() { Key = "notes", Label = "Notes", Icon = Icons.Material.Filled.Notes, Snippet = NotesSnippet },
         new()
         {
             Key = "open", Label = "Open item", Icon = Icons.Material.Filled.OpenInNew,
             Emphasis = DeskEmphasis.Tinted,
-            OpenWindow = () =>
-            {
-                Toasts.Info("A command opens its window directly.");
-                return Task.CompletedTask;
-            }
+            OpenWindow = EventCallback.Factory.Create(this, () => Toasts.Info("A command opens its window directly."))
         }
     ];
 

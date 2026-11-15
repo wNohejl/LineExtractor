@@ -434,11 +434,7 @@ else
                 Icon = Icons.Material.Filled.Timeline,
                 Snippet = @<PlayerRecentSnippet PlayerId="id" />,
                 OpenLabel = "Player window",
-                OpenWindow = () =>
-                {
-                    Manager.OpenPlayer(id, name, WindowId);
-                    return Task.CompletedTask;
-                }
+                OpenWindow = EventCallback.Factory.Create(this, () => Manager.OpenPlayer(id, name, WindowId))
             }
         ];
     }
