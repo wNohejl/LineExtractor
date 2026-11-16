@@ -9,6 +9,7 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<IngestionOptions> IngestionOptions
+@inject LineOps.Core.Contracts.IDataTier Tier
 
 @*
     The roster finder. It used to keep a game log of its own, a second and lesser copy of the
@@ -217,7 +218,8 @@ else
 
         var ids = players.Select(p => p.Id).ToList();
 
-        var counts = await db.PlayerGameStats
+        // The lines this reader may see (ADR 0024): a visitor counts a displayable source's alone.
+        var counts = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier))
             .Where(s => ids.Contains(s.PlayerId))
             .GroupBy(s => s.PlayerId)
             .Select(g => new { g.Key, Count = g.Count() })

@@ -67,7 +67,10 @@ else
             @if (_bout is { } card)
             {
                 @* A fight belongs to a card, not a season (ADR 0021). *@
-                <Tag State="DeskState.Info">@(FightSports.CardName(card))</Tag>
+                @if (FightSports.CardName(card) is { Length: > 0 } cardName)
+                {
+                    <Tag State="DeskState.Info">@cardName</Tag>
+                }
                 @if (card.TitleFight)
                 {
                     <Tag State="DeskState.Info">Title fight</Tag>
@@ -389,7 +392,8 @@ else
         {
             bout.MatchNumber == 1 ? "Main event" : bout.CardSegment,
             bout.WeightClass,
-            $"{bout.ScheduledRounds} rounds"
+            // Zero is a card a visitor is not shown (ADR 0024): no distance rather than a guessed one.
+            bout.ScheduledRounds > 0 ? $"{bout.ScheduledRounds} rounds" : null
         }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     /// <summary>This game's box score. Null until the game has produced one.</summary>

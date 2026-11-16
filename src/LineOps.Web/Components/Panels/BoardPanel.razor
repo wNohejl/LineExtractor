@@ -12,6 +12,7 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<IngestionOptions> IngestionOptions
+@inject LineOps.Core.Contracts.IDataTier Tier
 @inject LineOps.Web.Services.WagerSlip Slip
 @inject DeskToasts Toasts
 @inject RangePull Ranges
@@ -757,7 +758,9 @@ else
             await using var db = await DbFactory.CreateDbContextAsync();
 
             var dayStart = LeagueClock.StartOf(LeagueClock.Today());
-            _movesToday = await db.OddsSnapshots.LongCountAsync(s => s.CapturedAt >= dayStart);
+            // Counted over the scans this reader may see (ADR 0024), as the rows above are priced.
+            _movesToday = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier))
+                .LongCountAsync(s => s.CapturedAt >= dayStart);
 
             _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
             _criticalAlerts = await db.Alerts

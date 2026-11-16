@@ -6,6 +6,7 @@
 @inherits PanelBase
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
+@inject LineOps.Core.Contracts.IDataTier Tier
 
 @*
     Line movement: how one side of a market moved at each book, a row per book.
@@ -343,9 +344,12 @@ else
         {
             await using (var db = await DbFactory.CreateDbContextAsync())
             {
+                // Only games this reader has moves to see (ADR 0024): an evaluation feed's are the operator's.
+                var scans = db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier));
+
                 _games = await db.Games.AsNoTracking()
                     .Include(g => g.HomeTeam).Include(g => g.AwayTeam)
-                    .Where(g => db.OddsSnapshots.Any(s => s.GameId == g.Id))
+                    .Where(g => scans.Any(s => s.GameId == g.Id))
                     .OrderBy(g => g.StartsAt)
                     .Take(120)
                     .ToListAsync();
@@ -454,7 +458,7 @@ else
         {
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            snapshots = await db.OddsSnapshots.AsNoTracking()
+            snapshots = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier)).AsNoTracking()
                 .Where(s => s.GameId == gameId && s.Market == _market)
                 .OrderBy(s => s.CapturedAt)
                 .ToListAsync();
