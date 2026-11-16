@@ -53,3 +53,67 @@ function Get-PgPassword([string]$Root) {
     if ($text -notmatch '(?m)^POSTGRES_PASSWORD=(.+)$') { throw ".env has no POSTGRES_PASSWORD. Run ./scripts/setup.ps1 first." }
     $Matches[1].Trim()
 }
+
+<#
+    Records a snapshot published or restored in "DataTransfers" (ADR 0025), so a machine can say
+    when it last sent or took the data. Best-effort by design: a database from before migration
+    JournalSync has no such table, and the insert is skipped without a word; any other failure is
+    reported in one line and never fails the script that called it. The SQL goes over stdin, for
+    the reason Invoke-PgSidecar gives.
+#>
+function Add-DataTransfer {
+    param(
+        [Parameter(Mandatory)] [string]$Container,
+        [Parameter(Mandatory)] [string]$Password,
+        [Parameter(Mandatory)] [string]$User,
+        [Parameter(Mandatory)] [string]$Database,
+        [Parameter(Mandatory)] [ValidateSet('SnapshotPublished', 'SnapshotRestored')] [string]$Kind,
+        [Parameter(Mandatory)] [string]$File,
+        [string]$Manifest
+    )
+
+    function Quote([string]$Text) { "'" + $Text.Replace("'", "''") + "'" }
+
+    $manifestSql = if ($Manifest -and $Manifest.Trim()) { "$(Quote $Manifest.Trim())::jsonb" } else { 'NULL' }
+    $sql = @'
+DO $$ BEGIN
+  IF to_regclass('public."DataTransfers"') IS NOT NULL THEN
+    INSERT INTO "DataTransfers" ("Kind", "AtUtc", "Machine", "Detail")
+    VALUES (__KIND__, now(), __MACHINE__, jsonb_strip_nulls(jsonb_build_object('file', __FILE__::text, 'manifest', __MANIFEST__)));
+  END IF;
+END $$;
+'@
+    $sql = $sql.Replace('__KIND__', (Quote $Kind)).Replace('__MACHINE__', (Quote ([Environment]::MachineName))).Replace('__FILE__', (Quote $File)).Replace('__MANIFEST__', $manifestSql)
+
+    $ErrorActionPreference = 'Continue'
+    $out = $sql | & docker exec -i -e "PGPASSWORD=$Password" $Container psql -U $User -d $Database -X -q -v ON_ERROR_STOP=1 2>&1
+    if ($LASTEXITCODE -ne 0) { Write-Host "Transfer not logged (the data itself is fine): $(($out | Out-String).Trim())" }
+}
+
+<#
+    Runs one of the Worker's journal jobs (journal:export, journal:import; ADR 0025) and returns
+    its exit code. Used by publish-journal.ps1 and restore-journal.ps1. The Worker reads the
+    database from its own configuration, with the password from .env passed as PGPASSWORD, which
+    Npgsql reads; -ConnectionString points it somewhere else. Its logging is turned down to
+    warnings, so what prints is the job's own report.
+#>
+function Invoke-JournalJob {
+    param(
+        [Parameter(Mandatory)] [string]$Root,
+        [Parameter(Mandatory)] [string[]]$Arguments,
+        [string]$ConnectionString
+    )
+
+    $project = Join-Path (Join-Path $Root 'src') 'LineOps.Worker'
+    $dotnetArgs = @('run', '--project', $project, '--') + $Arguments + @('--Logging:LogLevel:Default=Warning')
+    if ($ConnectionString) { $dotnetArgs += "--ConnectionStrings:LineOps=$ConnectionString" }
+
+    $saved = $env:PGPASSWORD
+    try {
+        if (-not $ConnectionString) { $env:PGPASSWORD = Get-PgPassword $Root }
+        $ErrorActionPreference = 'Continue'
+        & dotnet @dotnetArgs | Out-Host
+        return $LASTEXITCODE
+    }
+    finally { $env:PGPASSWORD = $saved }
+}
