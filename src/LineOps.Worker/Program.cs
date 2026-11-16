@@ -40,6 +40,29 @@ if (job == IngestionJobs.EspnRange
     return 2;
 }
 
+// `--job journal:export --out <file>` and `--job journal:import --in <file> [--dry-run true]` carry the
+// journal between the operator's machines as a file that merges (JournalTransfer, ADR 0025). Checked
+// here too: an export to a path git would commit, or an import with no file, is refused before the
+// host touches the database.
+var journalOut = builder.Configuration["out"];
+var journalIn = builder.Configuration["in"];
+var dryRun = builder.Configuration.GetValue<bool>("dry-run");
+
+if (job == JournalTransfer.ExportJob
+    && (journalOut is not { Length: > 0 } || RepositoryGuard.Refusal(journalOut) is not null))
+{
+    Console.Error.WriteLine(journalOut is { Length: > 0 } ? RepositoryGuard.Refusal(journalOut) : "journal:export needs --out <file>.");
+    Console.Error.WriteLine(JournalTransfer.Usage);
+    return 2;
+}
+
+if (job == JournalTransfer.ImportJob && (journalIn is not { Length: > 0 } || !File.Exists(journalIn)))
+{
+    Console.Error.WriteLine(journalIn is { Length: > 0 } ? $"No journal file at {Path.GetFullPath(journalIn)}." : "journal:import needs --in <file>.");
+    Console.Error.WriteLine(JournalTransfer.Usage);
+    return 2;
+}
+
 if (job is null)
 {
     // The Worker is a scheduler whenever it is not running one named job, so it takes the web
@@ -81,6 +104,33 @@ if (range is not null)
     Console.WriteLine($"{ranged.Key}: {(ranged.Succeeded ? "succeeded" : "failed")}. {ranged.Detail}");
 
     return ranged.Succeeded ? 0 : 1;
+}
+
+if (job is JournalTransfer.ExportJob or JournalTransfer.ImportJob)
+{
+    await using var scope = host.Services.CreateAsyncScope();
+    var transfer = scope.ServiceProvider.GetRequiredService<JournalTransfer>();
+
+    try
+    {
+        if (job == JournalTransfer.ExportJob)
+        {
+            Console.WriteLine($"{job}: succeeded. {await transfer.ExportAsync(journalOut!)}");
+            return 0;
+        }
+
+        var plan = await transfer.ImportAsync(journalIn!, dryRun);
+        Console.WriteLine($"{job}{(dryRun ? " (dry run, nothing written)" : "")}: succeeded. {Path.GetFullPath(journalIn!)}");
+        foreach (var line in plan.Lines())
+            Console.WriteLine($"  {line}");
+
+        return 0;
+    }
+    catch (Exception ex) when (ex is InvalidOperationException or FormatException or IOException or System.Text.Json.JsonException)
+    {
+        Console.Error.WriteLine($"{job}: failed. {ex.Message}");
+        return 1;
+    }
 }
 
 if (job is not null)

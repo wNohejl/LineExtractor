@@ -351,6 +351,9 @@ public class IngestionJobs(
                 // rather than reported as an unknown job.
                 EspnRange => new JobOutcome(key, false, 0, 0, RangePull.Usage),
 
+                // The journal jobs take a file, and only the Worker's command line names one.
+                JournalTransfer.ExportJob or JournalTransfer.ImportJob => new JobOutcome(key, false, 0, 0, JournalTransfer.Usage),
+
                 _ when key.StartsWith(OddsLinesPrefix, StringComparison.Ordinal)
                     => await RunOddsAsync(key[OddsLinesPrefix.Length..], ct),
 
