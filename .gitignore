@@ -23,3 +23,7 @@ appsettings.*.Local.json
 
 # The hosted stack's nightly dumps, if deploy/ is ever run from a clone.
 deploy/backups/
+
+# The journal, parlays and operator settings in transit between your own machines
+# (scripts/publish-journal.ps1). Never committed: the repository is public.
+data/personal/
