@@ -15,10 +15,11 @@
     Also commit the snapshot (author: your git identity, no trailer) and push to origin.
 
 .PARAMETER IncludePersonal
-    Also snapshot the rows that are yours rather than the market's: journal entries, parlays
-    and operator settings (the bankroll, the polling switch). Left out by default because the
-    snapshot is committed, and the repository is public: a bet log is not market data. Their
-    tables are still created on restore, empty, so the schema matches the code either way.
+    Also snapshot the rows that are yours rather than the market's: journal entries, parlays,
+    operator settings (the bankroll, the polling switch), and the journal's deletions and audit
+    (ADR 0025). Left out by default because the snapshot is committed, and the repository is
+    public: a bet log is not market data. Their tables are still created on restore, empty, so
+    the schema matches the code either way. This machine's transfer log is never included.
 
 .PARAMETER DisplayableOnly
     Snapshot only the displayable tier (ADR 0024): what a source whose terms allow display
@@ -83,11 +84,19 @@ $pgEnv = "PGPASSWORD=$pgPassword"
 # Personal tables keep their schema and lose their rows (see -IncludePersonal). The names are
 # double-quoted for pg_dump, which folds an unquoted pattern to lower case. Then the archive is
 # listed and refused if it holds a row from any of them anyway: the repository is public, and
-# this is the one place a bet log could leave the machine.
-$personal = @('JournalEntries', 'Parlays', 'AppSettings')
+# this is the one place a bet log could leave the machine. The journal's deletions and its audit
+# (ADR 0025) are the journal's own and go where it goes.
+$personal = @('JournalEntries', 'Parlays', 'AppSettings', 'JournalTombstones', 'JournalAudit')
 $exclude = if ($IncludePersonal) { '' } else {
     ($personal | ForEach-Object { "--exclude-table-data='`"$_`"'" }) -join ' '
 }
+
+# This machine's log of what it published and restored (ADR 0025) never travels, -IncludePersonal
+# or not: restored on the other machine it would claim transfers that machine never made. A
+# database from before migration JournalSync has no such table; an exclusion that matches nothing
+# is no error to pg_dump.
+$machineLog = @('DataTransfers')
+$exclude = (@($exclude) + ($machineLog | ForEach-Object { "--exclude-table-data='`"$_`"'" })) -join ' '
 
 # Play-by-play keeps its schema and loses its rows too, always: a season of plays is several
 # times the rest of the snapshot, every published version stays in git history, and the other
@@ -104,7 +113,7 @@ if ($DisplayableOnly) {
     $exclude = (@($exclude) + ($statsPort | ForEach-Object { "--exclude-table-data='`"$_`"'" })) -join ' '
 }
 
-$refused = @(if (-not $IncludePersonal) { $personal }) + @(if ($DisplayableOnly) { $statsPort })
+$refused = @(if (-not $IncludePersonal) { $personal }) + $machineLog + @(if ($DisplayableOnly) { $statsPort })
 $check = if ($refused.Count -eq 0) { '' } else { @"
 if pg_restore -l /snapshots/lineops.dump.partial | grep -E 'TABLE DATA public "?($($refused -join '|'))"? '; then
   echo 'refused: the archive holds rows it must not; nothing was replaced' >&2
@@ -226,6 +235,11 @@ if (-not $counts) { throw "manifest query returned nothing" }
 $size = "{0:N1} MB" -f ((Get-Item $dump).Length / 1MB)
 Write-Host "Snapshot written: $dump ($size)"
 Write-Host $counts
+
+# Logged on this machine, after the dump, so the dump never holds its own record (and the table
+# is left out of it anyway). Skipped quietly on a database from before migration JournalSync.
+Add-DataTransfer -Container $Container -Password $pgPassword -User $User -Database $Database `
+    -Kind SnapshotPublished -File (Split-Path $dump -Leaf) -Manifest $counts
 
 if ($Commit) {
     Push-Location $root

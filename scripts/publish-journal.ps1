@@ -1,24 +1,33 @@
 <#
 .SYNOPSIS
-    Write the rows that are yours (journal entries, parlays, operator settings) to a file
-    that stays off the repository, to carry to your other machine by hand.
+    Write the rows that are yours (journal entries, parlays, deletions, operator settings) to a
+    file that stays off the repository, to carry to your other machine by hand.
 
 .DESCRIPTION
-    publish-data.ps1 leaves these three tables out because its dump is committed and the
-    repository is public. This is the other half: a data-only archive of just those tables,
-    written to data/personal/, which .gitignore excludes. Send the file yourself (a USB
-    stick, your own cloud drive, Tailscale's taildrop), then run restore-journal.ps1 there.
+    publish-data.ps1 leaves these tables out because its dump is committed and the repository
+    is public. This is the other half: the Worker's journal:export job (ADR 0025) writes them to
+    data/personal/journal.json, which .gitignore excludes. Send the file yourself (a USB stick,
+    your own cloud drive, Tailscale's taildrop), then run restore-journal.ps1 there.
 
-    A journal entry points at a game and sometimes a player, by id. The other machine must
-    hold the same games: restore the latest snapshot there first.
+    The file names each bet's game the way ESPN, MLB and The Odds API do, not by this
+    database's row id, so the other machine does not need the same snapshot: it finds the game
+    in whatever it holds, and merges rather than replaces. Like any run of the Worker, the job
+    migrates this database to the checkout's schema first.
+
+.PARAMETER OutFile
+    Where to write. data/personal/journal.json by default. Refused if it is inside a repository
+    and git does not ignore it.
+
+.PARAMETER ConnectionString
+    The database to read, when it is not the Worker's configured one.
 
 .EXAMPLE
     .\scripts\publish-journal.ps1
 #>
 param(
     [string]$Container = "lineops-postgres",
-    [string]$Database = "lineops",
-    [string]$User = "lineops"
+    [string]$OutFile,
+    [string]$ConnectionString
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,33 +35,23 @@ function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue
 . (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
 $dir = Join-Path (Join-Path $root 'data') 'personal'
-New-Item -ItemType Directory -Force $dir | Out-Null
-$dump = Join-Path $dir 'journal.dump'
+if (-not $OutFile) {
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $OutFile = Join-Path $dir 'journal.json'
 
-# Refuse to write where git would pick the file up: this is the one place a bet log could
-# leave the machine by accident.
-Push-Location $root
-try { Invoke-Native { git check-ignore -q -- data/personal/journal.dump } ; $ignored = $LASTEXITCODE -eq 0 }
-finally { Pop-Location }
-if (-not $ignored) { throw "data/personal/ is not ignored by git. Add it to .gitignore before writing a journal there." }
+    # Refuse to write where git would pick the file up: this is the one place a bet log could
+    # leave the machine by accident. The job asks git again, for any path it is given.
+    Push-Location $root
+    try { Invoke-Native { git check-ignore -q -- data/personal/journal.json } ; $ignored = $LASTEXITCODE -eq 0 }
+    finally { Pop-Location }
+    if (-not $ignored) { throw "data/personal/ is not ignored by git. Add it to .gitignore before writing a journal there." }
+}
 
-Invoke-Native { docker inspect $Container *> $null }
-if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: $(Format-ComposeCommand $root)" }
-$pgPassword = Get-PgPassword $root
+if (-not $ConnectionString) {
+    Invoke-Native { docker inspect $Container *> $null }
+    if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: $(Format-ComposeCommand $root)" }
+}
 
-# Table names are double-quoted for pg_dump, which folds an unquoted pattern to lower case.
-$exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory $dir -Script @"
-pg_dump -U $User -Fc -Z 6 --data-only -t '"Parlays"' -t '"JournalEntries"' -t '"AppSettings"' -f /snapshots/journal.dump.partial $Database
-mv /snapshots/journal.dump.partial /snapshots/journal.dump
-"@
-if ($exit -ne 0 -or -not (Test-Path $dump)) { throw "pg_dump failed (exit $exit)" }
-
-$sql = @"
-select 'journal entries: ' || (select count(*) from "JournalEntries")
-    || ', parlays: ' || (select count(*) from "Parlays")
-    || ', settings: ' || (select count(*) from "AppSettings");
-"@
-$counts = (Invoke-Native { $sql | docker exec -i -e "PGPASSWORD=$pgPassword" $Container psql -U $User -d $Database -X -q -A -t }) -join ""
-Write-Host "Journal written: $dump ($([math]::Round((Get-Item $dump).Length / 1KB, 1)) KB)"
-Write-Host $counts.Trim()
+$exit = Invoke-JournalJob -Root $root -Arguments @('--job', 'journal:export', '--out', $OutFile) -ConnectionString $ConnectionString
+if ($exit -ne 0) { throw "journal:export failed (exit $exit); nothing was replaced." }
 Write-Host "Not committed. Copy it to data/personal/ on the other machine, then run scripts/restore-journal.ps1 there."

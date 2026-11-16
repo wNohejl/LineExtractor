@@ -16,7 +16,22 @@ public enum EntryResult
 /// </summary>
 public class JournalEntry
 {
+    /// <summary>This database's row id. Not portable: another machine numbers its rows itself.</summary>
     public int Id { get; set; }
+
+    /// <summary>
+    /// The entry's identity on every machine (ADR 0025). <see cref="Id"/> is this database's
+    /// counter, so one bet is row 12 on the desktop and row 40 on the laptop; a journal file
+    /// matches entries by this instead. Given at creation and never changed.
+    /// </summary>
+    public Guid SyncId { get; set; } = Guid.NewGuid();
+
+    /// <summary>
+    /// When the entry last changed, by any writer: the form, settlement, an import. Stamped by
+    /// the context's journal interceptor (<c>JournalAuditInterceptor</c>), never by a caller,
+    /// and what a merge orders two versions of the entry by: the newer wins.
+    /// </summary>
+    public DateTime UpdatedAtUtc { get; set; }
 
     /// <summary>Null when the entry references something we don't have a game row for (e.g. a future).</summary>
     public int? GameId { get; set; }
@@ -163,7 +178,11 @@ public class JournalEntry
 /// </summary>
 public class Parlay
 {
+    /// <summary>Made here, not by the database, so it is already the parlay's identity on every machine.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
+
+    /// <summary>When the parlay last changed; stamped as <see cref="JournalEntry.UpdatedAtUtc"/> is.</summary>
+    public DateTime UpdatedAtUtc { get; set; }
 
     public string Book { get; set; } = string.Empty;
     public decimal Stake { get; set; }
@@ -217,4 +236,86 @@ public class AppSetting
 
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
+
+    /// <summary>When the value was last written; a journal import keeps the newer of two.</summary>
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
+/// <summary>
+/// A journal row that was deleted, kept so a merge can tell "deleted here" from "never seen
+/// here" (ADR 0025). Without it, an import would bring a deleted bet back from the other
+/// machine's file every time.
+/// </summary>
+public class JournalTombstone
+{
+    public const string EntryKind = "entry";
+    public const string ParlayKind = "parlay";
+
+    /// <summary>The <see cref="JournalEntry.SyncId"/> or <see cref="Parlay.Id"/> that was deleted.</summary>
+    public Guid SyncId { get; set; }
+
+    /// <summary><see cref="EntryKind"/> or <see cref="ParlayKind"/>.</summary>
+    public string Kind { get; set; } = EntryKind;
+
+    public DateTime DeletedAtUtc { get; set; }
+}
+
+public enum JournalAuditAction
+{
+    Created,
+    Updated,
+    Deleted,
+    Imported
+}
+
+/// <summary>
+/// One change to a journal row, as it was before and after (ADR 0025). Append-only, written by
+/// the context's interceptor on every save, so no writer can forget it. Nothing on the desk
+/// reads it yet: it is there for the day an entry is not what the operator remembers.
+/// </summary>
+public class JournalAudit
+{
+    public long Id { get; set; }
+
+    /// <summary>The row's portable identity: an entry's <see cref="JournalEntry.SyncId"/> or a parlay's id.</summary>
+    public Guid EntrySyncId { get; set; }
+
+    /// <summary><see cref="JournalTombstone.EntryKind"/> or <see cref="JournalTombstone.ParlayKind"/>.</summary>
+    public string Entity { get; set; } = JournalTombstone.EntryKind;
+
+    public JournalAuditAction Action { get; set; }
+    public DateTime AtUtc { get; set; }
+
+    /// <summary>The machine that made the change: <see cref="Environment.MachineName"/>.</summary>
+    public string Machine { get; set; } = string.Empty;
+
+    /// <summary>The row's columns before the change, as JSON; null for a row just created.</summary>
+    public string? Before { get; set; }
+
+    /// <summary>The row's columns after the change, as JSON; null for a row deleted.</summary>
+    public string? After { get; set; }
+}
+
+public enum DataTransferKind
+{
+    SnapshotPublished,
+    SnapshotRestored,
+    JournalExported,
+    JournalImported
+}
+
+/// <summary>
+/// A time this machine sent data to, or took data from, its other machine: a snapshot published
+/// or restored, a journal file written or read (ADR 0025). The journal jobs write it; the
+/// snapshot scripts add theirs where the table exists.
+/// </summary>
+public class DataTransfer
+{
+    public long Id { get; set; }
+    public DataTransferKind Kind { get; set; }
+    public DateTime AtUtc { get; set; }
+    public string Machine { get; set; } = string.Empty;
+
+    /// <summary>What moved, as JSON: counts, the snapshot's <c>takenAtUtc</c>, the file name.</summary>
+    public string? Detail { get; set; }
 }

@@ -36,8 +36,8 @@ games, stats and closing lines, the data travels with the code as a committed sn
 The snapshot lives at `data/snapshots/lineops.dump` (custom-format pg_dump, ~2–3 MB) with a
 manifest beside it saying what it holds. It leaves out the journal, parlays and operator
 settings (`-IncludePersonal` to keep them), and the script refuses a dump that holds them. Those
-travel by hand instead: `publish-journal.ps1` writes them to the gitignored `data/personal/`,
-and `restore-journal.ps1` loads the copied file on the other machine. The
+travel by hand instead (ADR 0025): `publish-journal.ps1` exports `data/personal/journal.json`
+(gitignored, games named by provider id); `restore-journal.ps1 [-DryRun]` merges it. The
 scripts run under Windows PowerShell 5.1 or PowerShell 7 on any OS: Postgres's tools run in a
 sidecar container, so nothing binary crosses a shell pipe.
 

@@ -26,6 +26,24 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Parlay> Parlays => Set<Parlay>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<JournalTombstone> JournalTombstones => Set<JournalTombstone>();
+    public DbSet<JournalAudit> JournalAudit => Set<JournalAudit>();
+    public DbSet<DataTransfer> DataTransfers => Set<DataTransfer>();
+
+    /// <summary>
+    /// Set by the journal import for the length of its save: the rows it writes keep the
+    /// <c>UpdatedAtUtc</c> the file gave them, and the audit records them as
+    /// <see cref="JournalAuditAction.Imported"/>. Every other writer leaves it false and is
+    /// stamped (<see cref="Changes.JournalAuditInterceptor"/>).
+    /// </summary>
+    public bool ImportingJournal { get; set; }
+
+    /// <summary>
+    /// The journal interceptor is the context's own, not the host's: a context made anywhere —
+    /// a host, a test, <c>dotnet ef</c> — stamps and audits its journal writes the same way.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder options)
+        => options.AddInterceptors(Changes.JournalAuditInterceptor.Instance);
 
     public DbSet<IngestionRun> IngestionRuns => Set<IngestionRun>();
     public DbSet<BackfillCheckpoint> BackfillCheckpoints => Set<BackfillCheckpoint>();
@@ -333,6 +351,13 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.ClosingFairBasis).HasMaxLength(32);
             e.HasIndex(x => x.PlacedAt);
             e.HasIndex(x => x.ParlayGroupId);
+
+            // The portable identity (ADR 0025). The database's default covers a row inserted by
+            // SQL — a pg_dump of the older journal restored into this schema — as the entity's
+            // own initialiser covers one made here.
+            e.Property(x => x.SyncId).HasDefaultValueSql("gen_random_uuid()");
+            e.HasIndex(x => x.SyncId).IsUnique();
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
                 .OnDelete(DeleteBehavior.SetNull);
             e.Ignore(x => x.NetReturn);
@@ -349,6 +374,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.PriceQuoted).HasPrecision(11, 4);
             e.Property(x => x.Result).HasConversion<string>().HasMaxLength(16);
             e.HasIndex(x => x.PlacedAt);
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
 
             // A parlay's legs are part of it: deleting the parlay deletes them.
             e.HasMany(x => x.Legs).WithOne(x => x.Parlay).HasForeignKey(x => x.ParlayGroupId)
@@ -364,6 +390,35 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.HasKey(x => x.Key);
             e.Property(x => x.Key).HasMaxLength(64);
             e.Property(x => x.Value).HasMaxLength(1024).IsRequired();
+            e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now()");
+        });
+
+        // ADR 0025: what the journal merge needs to tell a deletion from an absence, what every
+        // journal write was, and when this machine last moved data. All three are the
+        // operator's own and stay out of the committed snapshot (publish-data.ps1).
+        b.Entity<JournalTombstone>(e =>
+        {
+            e.HasKey(x => x.SyncId);
+            e.Property(x => x.Kind).HasMaxLength(16).IsRequired();
+        });
+
+        b.Entity<JournalAudit>(e =>
+        {
+            e.ToTable("JournalAudit");
+            e.Property(x => x.Entity).HasMaxLength(16).IsRequired();
+            e.Property(x => x.Action).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.Machine).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Before).HasColumnType("jsonb");
+            e.Property(x => x.After).HasColumnType("jsonb");
+            e.HasIndex(x => new { x.EntrySyncId, x.AtUtc });
+        });
+
+        b.Entity<DataTransfer>(e =>
+        {
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Machine).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Detail).HasColumnType("jsonb");
+            e.HasIndex(x => x.AtUtc);
         });
 
         b.Entity<IngestionRun>(e =>
