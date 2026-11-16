@@ -81,3 +81,60 @@ Open decisions for the developer:
 3. Should a desk on a remote database skip migrations at startup?
 4. Should `restore-data.ps1` and `publish-data.ps1` honour the tailnet overlays (`COMPOSE_FILE`)?
 5. Tag the Tailscale auth key and restrict the ACL to the laptop and phone.
+
+## 6. Second round (2026-11-15): research against primary documentation, and what was built
+
+Four Opus agents: one read Tailscale's, Docker's, PostgreSQL's and Npgsql's own documentation
+and source; three implemented. All merged into `LineX_Development`; suites green (982, 803,
+26, 979). Private use between the developer's own devices stays fully featured: nothing below
+hides anything unless `Sharing:Mode=Shared` is set, which only a public desk would do.
+
+### What the research changed
+
+| Finding | Source | Change |
+|---|---|---|
+| An untagged node's key expires after about 180 days; a tagged node's does not, and a tagged node cannot be shared with another person's tailnet | tailscale.com/kb/1068/tags, /kb/1085/auth-keys, /kb/1084/sharing | `compose.tailnet.yml` advertises `tag:lineops` and signs in once (`TS_AUTH_ONCE`) |
+| Docker Desktop on Windows does not document binding a port to a VPN address; the bind fails at boot when Docker starts first and is not retried | docs.docker.com/desktop/features/networking, Tailscale forum 4616 | `serve-tailnet.ps1 -Database` forwards TCP 5433 to loopback; `compose.tailnet-db.yml` kept for Linux |
+| Serve's config schema, `${TS_CERT_DOMAIN}` substitution and WebSocket forwarding are as the trial assumed | tailscale `ipn/serve.go`, `cmd/containerboot/serve.go`, Go `httputil/reverseproxy.go` | None; the config directory is mounted rather than the file, as the docs ask |
+| Without unattended mode Tailscale stops at Windows sign-out | tailscale.com/kb/1088/run-unattended | The script warns and names `tailscale set --unattended=true` |
+| HTTPS certificates publish `<machine>.<tailnet>.ts.net` in certificate-transparency logs | tailscale.com/kb/1153/enabling-https | Default node name is the neutral `desk`; documented beside the setting |
+| Traffic is end-to-end WireGuard, relays cannot read it; Tailscale gives no advice to add TLS inside a tailnet | tailscale.com/kb/1232/derp-servers, /blog/tls-certs | `SSL Mode=Disable` stays; `Keepalive=30;Tcp Keepalive=true` added |
+| Taildrop is still alpha, works between a user's own untagged devices, lands in Downloads | tailscale.com/kb/1106/taildrop | Not adopted; the journal file travels by private repository or by hand |
+
+Still unverified, because Tailscale is not installed on the desktop: everything on a real
+tailnet, including whether Serve in the container resolves `http://web:8080` by Docker DNS name.
+
+Tailnet policy to paste before first use (replace the allow-all default; no `funnel` attribute):
+
+```json
+{
+  "tagOwners": { "tag:lineops": ["autogroup:admin"] },
+  "hosts": { "desktop": "100.x.x.x", "laptop": "100.y.y.y" },
+  "grants": [
+    { "src": ["autogroup:member"], "dst": ["tag:lineops"], "ip": ["tcp:443"] },
+    { "src": ["autogroup:member"], "dst": ["desktop"], "ip": ["tcp:443"] },
+    { "src": ["laptop"], "dst": ["desktop"], "ip": ["tcp:5433"] }
+  ]
+}
+```
+
+### What was built
+
+| Slice | Result |
+|---|---|
+| A desk on another machine's database (ADR 0023 amendment) | Never migrates it. Refuses to start when the schema is older or newer than its code, naming the migrations; `Data:AllowRemoteMigration=true` is the deliberate override. `restore-data.ps1` keeps the overlays `.env` implies |
+| The journal merges (ADR 0025) | `SyncId` and `UpdatedAtUtc` on entries, a tombstone table for deletions, an append-only `JournalAudit` written by an interceptor, and `DataTransfers` logging each publish, restore, export and import. `journal:export` / `journal:import` write and merge a JSON file that names games by provider id, so it survives the two machines numbering games differently. Migration `JournalSync`; existing entries get an id derived from their row id and placement time, so both machines' copies of one bet agree |
+| Licence tier, remaining readers (ADR 0024 amendment) | Gamecast, fights, a game's live-state and probable-pitcher columns, injuries and the panels' direct reads keep to the tier in Shared mode. A guard test fails when a new reader of a tiered table does not ask the tier |
+
+### What remains
+
+1. A first run on a real tailnet (checklist in ADR 0022).
+2. The displayable spine: schedules, scores and names are still ESPN/MLB. The Odds API's free
+   events endpoint and its scores endpoint (about 180 credits a month) cover fixtures and
+   three days of scores, not players, abbreviations, UFC results or older history. Needed
+   only before a public desk.
+3. Nothing in the desk reads `JournalAudit` or `DataTransfers` yet; an Ops panel saying how
+   stale this machine's data is would be their first reader.
+4. The merge is last-writer-wins per row: a note edited on one machine is lost to a later
+   settlement on the other, though the audit keeps it.
+5. The repository is still public (plan §8 decision 2).
