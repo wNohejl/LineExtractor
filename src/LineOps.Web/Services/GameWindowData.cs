@@ -1,4 +1,5 @@
 using LineOps.Core.Analytics;
+using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Data.CrossReference;
@@ -80,12 +81,16 @@ public sealed class GameWindowData(IServiceScopeFactory scopes) : IGameWindowDat
     public async Task<Game?> GameAsync(int gameId, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<LineOpsDbContext>().Games
+        var game = await scope.ServiceProvider.GetRequiredService<LineOpsDbContext>().Games
             .Include(g => g.Sport)
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
             .AsNoTracking()
             .FirstOrDefaultAsync(g => g.Id == gameId, ct);
+
+        // The state of play is ESPN's and the probables MLB's (ADR 0024): the same game the row
+        // carries, blanked for a visitor to a shared desk exactly as BoardService blanks it.
+        return game?.ForTier(scope.ServiceProvider.GetRequiredService<IDataTier>());
     }
 
     public async Task<GameWindowDetail> DetailAsync(Game game, int? seasonYear, bool withBets, CancellationToken ct = default)

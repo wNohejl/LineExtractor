@@ -1,4 +1,5 @@
 using LineOps.Core.Analytics;
+using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,8 +16,10 @@ namespace LineOps.Data.CrossReference;
 /// not come back through the search.
 /// </para>
 /// </summary>
-public class SearchService(LineOpsDbContext db)
+public class SearchService(LineOpsDbContext db, IDataTier? tier = null)
 {
+    private IDataTier Tier { get; } = tier ?? FullDataTier.Instance;
+
     public async Task<IReadOnlyList<Team>> TeamsAsync(string text, int take = 6, CancellationToken ct = default)
     {
         var query = db.Teams.AsNoTracking().Include(t => t.Sport).Where(t => t.Sport!.Enabled);
@@ -42,8 +45,12 @@ public class SearchService(LineOpsDbContext db)
                                      || (p.Team != null && (EF.Functions.ILike(p.Team.Name, pattern, Escape)
                                                             || EF.Functions.ILike(p.Team.Abbrev, pattern, Escape))));
 
+        // Counted over the lines this reader may see (ADR 0024): an order is still a reading of
+        // the box scores, so a visitor's is by name until a displayable source writes them.
+        var lines = db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct));
+
         return await query
-            .OrderByDescending(p => db.PlayerGameStats.Count(s => s.PlayerId == p.Id))
+            .OrderByDescending(p => lines.Count(s => s.PlayerId == p.Id))
             .ThenBy(p => p.FullName)
             .Take(take)
             .ToListAsync(ct);

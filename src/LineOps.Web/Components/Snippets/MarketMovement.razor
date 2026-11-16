@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject ILogger<MarketMovement> Logger
+@inject LineOps.Core.Contracts.IDataTier Tier
 
 @*
     One market opened in place, under its row in the Game window: what the Line movement window
@@ -173,7 +174,8 @@
         {
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            _snapshots = await db.OddsSnapshots.AsNoTracking()
+            // Scans keep to the tier (ADR 0024): an evaluation feed's moves are the operator's.
+            _snapshots = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier)).AsNoTracking()
                 .Where(s => s.GameId == GameId && s.Market == Market)
                 .OrderBy(s => s.CapturedAt)
                 .ToListAsync();

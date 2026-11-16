@@ -36,6 +36,8 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     /// <summary>
     /// Who is reading, by tier (ADR 0024): the close on the header is the board's, read for the
     /// same person, so a visitor to a shared desk is not handed here the ESPN close the row withheld.
+    /// The header's state of play is the board's game too, blanked the same way
+    /// (<see cref="PersonalUseColumns"/>), and the plays and drives keep to the visible sources.
     /// </summary>
     private LineOps.Core.Contracts.IDataTier Tier { get; } = tier ?? LineOps.Core.Contracts.FullDataTier.Instance;
 
@@ -106,7 +108,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        return await PlaysAsync(db.GamePlays.Where(p => p.GameId == gameId), ct);
+        return await PlaysAsync((await VisiblePlaysAsync(db, ct)).Where(p => p.GameId == gameId), ct);
     }
 
     /// <summary>
@@ -125,7 +127,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        return await PlaysAsync(db.GamePlays.Where(p => p.GameId == gameId && p.Sequence > afterSequence), ct);
+        return await PlaysAsync((await VisiblePlaysAsync(db, ct)).Where(p => p.GameId == gameId && p.Sequence > afterSequence), ct);
     }
 
     /// <summary>The scoring plays, in order: the compact "how it got to 17–20" view.</summary>
@@ -133,7 +135,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        return await PlaysAsync(db.GamePlays.Where(p => p.GameId == gameId && p.IsScoring), ct);
+        return await PlaysAsync((await VisiblePlaysAsync(db, ct)).Where(p => p.GameId == gameId && p.IsScoring), ct);
     }
 
     /// <summary>
@@ -151,7 +153,9 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        var drives = await db.GameDrives
+        var visible = await db.VisibleSourceIdsAsync(Tier, ct);
+
+        var drives = await db.GameDrives.FromVisible(visible)
             .AsNoTracking()
             .Where(d => d.GameId == gameId)
             .OrderBy(d => d.Sequence)
@@ -179,7 +183,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
         if (drives.Count == 0)
             return [];
 
-        var spans = await db.GamePlays
+        var spans = await db.GamePlays.FromVisible(visible)
             .AsNoTracking()
             .Where(p => p.GameId == gameId && p.DriveSeq != null)
             .GroupBy(p => p.DriveSeq!.Value)
@@ -210,7 +214,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
 
-        var rows = await db.GamePlays
+        var rows = await (await VisiblePlaysAsync(db, ct))
             .AsNoTracking()
             .Where(p => p.GameId == gameId
                 && (p.HomeWinPct != null || p.SpreadCoverPctHome != null || p.TotalOverPct != null))
@@ -224,6 +228,14 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
                 (double?)p.HomeWinPct, (double?)p.SpreadCoverPctHome, (double?)p.TotalOverPct))
             .ToList();
     }
+
+    /// <summary>
+    /// The plays this reader may see (ADR 0024): every play on a local desk or for the operator,
+    /// whose answer is the table as it was; for a visitor only a displayable source's, which today
+    /// is none, so the window shows the empty state it shows before a game's first play.
+    /// </summary>
+    private async Task<IQueryable<GamePlay>> VisiblePlaysAsync(LineOpsDbContext db, CancellationToken ct)
+        => db.GamePlays.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct));
 
     private static async Task<IReadOnlyList<GamecastPlay>> PlaysAsync(IQueryable<GamePlay> plays, CancellationToken ct)
     {

@@ -16,9 +16,19 @@ namespace LineOps.Data.CrossReference;
 /// fights ESPN kept a sheet for, and say how many that was; a figure with no fights behind it is
 /// absent rather than zero. Which side a row favours is a reading of the number, not advice.
 /// </para>
+///
+/// <para>
+/// All of it is personal-use (ADR 0024): <c>FighterProfiles</c> and <c>Bouts</c> carry no
+/// <c>SourceId</c> because ESPN is the only source that writes them, so the tier is asked as a
+/// yes or no rather than as a set of sources. A visitor to a shared desk gets no profile and a bout
+/// with its card cleared (<see cref="PersonalUseColumns"/>): the tape names the two fighters and
+/// says neither has a profile, which is the state it is already in before the profiles are read.
+/// </para>
 /// </summary>
-public class FightService(LineOpsDbContext db)
+public class FightService(LineOpsDbContext db, IDataTier? tier = null)
 {
+    private IDataTier Tier { get; } = tier ?? FullDataTier.Instance;
+
     /// <summary>How many of each fighter's fights the tape lists.</summary>
     public const int RecentFights = 5;
 
@@ -31,14 +41,15 @@ public class FightService(LineOpsDbContext db)
             .Include(b => b.Game!).ThenInclude(g => g.Sport)
             .FirstOrDefaultAsync(b => b.GameId == gameId, ct);
 
-        return bout?.Game is { } game ? (game, bout) : null;
+        return bout?.Game is { } game ? (game, bout.ForTier(Tier)!) : null;
     }
 
     /// <summary>Each game's bout, for a list of games — the board reads a card's rows at once.</summary>
     public async Task<Dictionary<int, Bout>> BoutsAsync(IReadOnlyCollection<int> gameIds, CancellationToken ct = default)
         => gameIds.Count == 0
             ? []
-            : await db.Bouts.AsNoTracking().Where(b => gameIds.Contains(b.GameId)).ToDictionaryAsync(b => b.GameId, ct);
+            : (await db.Bouts.AsNoTracking().Where(b => gameIds.Contains(b.GameId)).ToListAsync(ct))
+                .ToDictionary(b => b.GameId, b => b.ForTier(Tier)!);
 
     /// <summary>One fighter with their profile read out, or null when the team is not a fighter.</summary>
     public async Task<FighterCard?> FighterAsync(int teamId, CancellationToken ct = default)
@@ -48,7 +59,9 @@ public class FightService(LineOpsDbContext db)
         if (team is null || !FightSports.IsFight(team.Sport?.Key))
             return null;
 
-        var profile = await db.FighterProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.TeamId == teamId, ct);
+        var profile = Tier.CanSeePersonalUseSources
+            ? await db.FighterProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.TeamId == teamId, ct)
+            : null;
         return Card(team, profile, null);
     }
 
@@ -61,9 +74,11 @@ public class FightService(LineOpsDbContext db)
         if (await BoutAsync(gameId, ct) is not var (game, bout))
             return null;
 
-        var profiles = await db.FighterProfiles.AsNoTracking()
-            .Where(p => p.TeamId == game.HomeTeamId || p.TeamId == game.AwayTeamId)
-            .ToDictionaryAsync(p => p.TeamId, ct);
+        var profiles = Tier.CanSeePersonalUseSources
+            ? await db.FighterProfiles.AsNoTracking()
+                .Where(p => p.TeamId == game.HomeTeamId || p.TeamId == game.AwayTeamId)
+                .ToDictionaryAsync(p => p.TeamId, ct)
+            : [];
 
         var red = Card(game.HomeTeam!, profiles.GetValueOrDefault(game.HomeTeamId), bout.HomeRecord, game.StartsAt);
         var blue = Card(game.AwayTeam!, profiles.GetValueOrDefault(game.AwayTeamId), bout.AwayRecord, game.StartsAt);
