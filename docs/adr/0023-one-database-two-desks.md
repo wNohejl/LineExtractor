@@ -142,3 +142,24 @@ is the one the laptop reaches. `restore-data.ps1` brings Postgres up with that l
 messages in `publish-data.ps1` and `publish-journal.ps1` print it, so a restore on the desktop
 no longer takes the tailnet port away. `LINEOPS_COMPOSE_FILES`, semicolon-separated, replaces the
 list for a machine whose overlays are not the ones `.env` implies.
+
+## Amendment, 2026-11-15: the database is forwarded, not published
+
+Research against Tailscale's and Docker's own documentation (recorded in
+`docs/superpowers/specs/2026-11-14-multi-device-access-research.md` §6) found the overlay's
+premise weak on the machine it was written for. Docker Desktop on Windows does not document
+binding a published port to a VPN adapter's address; the address does not exist until
+Tailscale connects, and Docker does not retry a bind that failed at boot; and the inbound
+connection needs a firewall rule on the Tailscale interface.
+
+So on the desktop Postgres stays where `compose.dev.yml` puts it, on `127.0.0.1:5433`, and
+`scripts/serve-tailnet.ps1 -Database` asks Tailscale Serve to forward TCP 5433 on the tailnet
+to it. Serve is tailnet-only, as it is for the desk (ADR 0022). `compose.tailnet-db.yml`
+remains for a Linux host.
+
+One thing moves with it. Behind the forward Postgres sees every client as loopback, so
+`pg_hba.conf` can no longer tell the laptop from the phone. The tailnet policy does that: a
+grant for `tcp:5433` from the laptop to the desktop and from nothing else.
+
+The laptop's connection string gains `Keepalive=30;Tcp Keepalive=true`, for a connection that
+crosses a sleeping lid or a relay.

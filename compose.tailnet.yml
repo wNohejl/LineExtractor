@@ -30,9 +30,13 @@
 #     share the node with. Make the hash with scripts/new-access-code.ps1.
 #   * Web keeps the in-process scheduler: this is still the one desk, not a second instance.
 #
+# The name is public: turning on HTTPS certificates writes <TS_HOSTNAME>.<tailnet>.ts.net into
+# public certificate-transparency logs. Keep the tailnet's random tail<hex> name and choose a
+# TS_HOSTNAME that says nothing you would not publish; the data itself is never logged.
+#
 # One-time, by hand: install Tailscale on each device, enable MagicDNS and HTTPS certificates
 # in the admin console (DNS page), and make an auth key (Settings → Keys; reusable off,
-# ephemeral off, pre-approved on; optionally tagged). Put it in .env as TS_AUTHKEY. It is used
+# ephemeral off, pre-approved on, tagged tag:lineops). Put it in .env as TS_AUTHKEY. It is used
 # once, at first sign-in; the node's identity then lives on the lineops-tailscale volume.
 services:
   web:
@@ -54,14 +58,23 @@ services:
   tailscale:
     image: tailscale/tailscale:stable
     container_name: lineops-tailscale
-    hostname: ${TS_HOSTNAME:-lineops}
+    hostname: ${TS_HOSTNAME:-desk}
     restart: unless-stopped
     depends_on:
       - web
     environment:
       TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env (admin console, Settings, Keys)}
-      TS_HOSTNAME: ${TS_HOSTNAME:-lineops}
+      TS_HOSTNAME: ${TS_HOSTNAME:-desk}
       TS_STATE_DIR: /var/lib/tailscale
+      # The node signs in once and then lives on its state volume; without this it would present
+      # the auth key again at every start, and fail once the key has expired.
+      TS_AUTH_ONCE: "true"
+      # Tagged, and required to be: an untagged node's key expires after about 180 days and the
+      # desk would drop off the tailnet; a tagged node also cannot be shared with another
+      # person's tailnet, which is the licence constraint enforced by Tailscale itself. The auth
+      # key must be created with this tag, and the tailnet policy must name its owner:
+      #   "tagOwners": { "tag:lineops": ["autogroup:admin"] }
+      TS_EXTRA_ARGS: --advertise-tags=${TS_TAG:-tag:lineops}
       # Userspace networking: no /dev/net/tun, no NET_ADMIN. Serve still terminates TLS here,
       # and nothing on this node routes into the compose network.
       TS_USERSPACE: "true"
@@ -70,7 +83,9 @@ services:
       TS_ACCEPT_DNS: "false"
     volumes:
       - lineops-tailscale:/var/lib/tailscale
-      - ./deploy/tailnet/serve.json:/config/serve.json:ro
+      # The directory, not the file: the container watches it for changes, and a single-file
+      # bind mount hides an edited file from that watch.
+      - ./deploy/tailnet:/config:ro
     # No ports: the tailnet is reached over Tailscale's own outbound connections.
     security_opt:
       - no-new-privileges:true

@@ -115,7 +115,7 @@ else {
     if (-not $password) { $password = Get-PgPassword $root; $passwordFrom = 'POSTGRES_PASSWORD' }
 
     # SSL Mode=Disable: the tailnet already encrypts device to device (compose.tailnet-db.yml).
-    Set-Member $connections 'LineOps' "Host=$RemoteHost;Port=$Port;Database=lineops;Username=lineops;Password=$password;SSL Mode=Disable"
+    Set-Member $connections 'LineOps' "Host=$RemoteHost;Port=$Port;Database=lineops;Username=lineops;Password=$password;SSL Mode=Disable;Keepalive=30;Tcp Keepalive=true"
     Set-Member (Get-Section $settings 'Ingestion') 'HostScheduler' $false
     Set-Member (Get-Section $settings 'Reliability') 'HostEvaluator' $false
     $target = "${RemoteHost}:$Port (over the tailnet)"

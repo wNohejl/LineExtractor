@@ -1,3 +1,9 @@
+# PREFER THE FORWARD: `./scripts/serve-tailnet.ps1 -Database` reaches the same end with
+# Postgres left on loopback (ADR 0023, amendment of 2026-11-15). This overlay binds a Docker
+# port to the tailnet address, which on Docker Desktop for Windows is undocumented, fails with
+# "cannot assign requested address" when Docker starts before Tailscale at boot, and needs a
+# firewall rule. It stays for a Linux host, where the bind is ordinary.
+#
 # Tailnet overlay (ADR 0023). Publishes Postgres on this machine's Tailscale address, so the
 # developer's other machine can run its desk against this database: one dataset, one scheduler.
 # Run on the desktop, the machine that holds the data and runs the scheduler:
