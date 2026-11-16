@@ -70,7 +70,7 @@ $dump = Join-Path $dir "lineops.dump"
 $manifest = Join-Path $dir "lineops.dump.json"
 
 Invoke-Native { docker inspect $Container *> $null }
-if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres" }
+if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: $(Format-ComposeCommand $root)" }
 # The container enforces SCRAM for local connections too (docker-compose.yml's
 # POSTGRES_INITDB_ARGS), so psql and pg_restore inside it need the password. It comes from
 # .env, the same place compose reads it, and reaches the tools through PGPASSWORD.

@@ -41,8 +41,11 @@ $pgEnv = "PGPASSWORD=$pgPassword"
 
 Push-Location $root
 try {
-    Invoke-Native { docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres 2>&1 | Out-Null }
-    if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start postgres (exit $LASTEXITCODE)" }
+    # The same compose files this machine runs Postgres with (_pg.ps1), so recreating the
+    # container keeps the tailnet port on the desktop.
+    $composeArgs = Get-ComposeArgs $root
+    Invoke-Native { docker compose @composeArgs up -d postgres 2>&1 | Out-Null }
+    if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start postgres (exit $LASTEXITCODE): $(Format-ComposeCommand $root)" }
 
     $deadline = (Get-Date).AddSeconds(90)
     do {

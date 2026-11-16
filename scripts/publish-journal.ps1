@@ -37,7 +37,7 @@ finally { Pop-Location }
 if (-not $ignored) { throw "data/personal/ is not ignored by git. Add it to .gitignore before writing a journal there." }
 
 Invoke-Native { docker inspect $Container *> $null }
-if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres" }
+if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start it: $(Format-ComposeCommand $root)" }
 $pgPassword = Get-PgPassword $root
 
 # Table names are double-quoted for pg_dump, which folds an unquoted pattern to lower case.

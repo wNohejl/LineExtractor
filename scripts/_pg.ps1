@@ -53,3 +53,49 @@ function Get-PgPassword([string]$Root) {
     if ($text -notmatch '(?m)^POSTGRES_PASSWORD=(.+)$') { throw ".env has no POSTGRES_PASSWORD. Run ./scripts/setup.ps1 first." }
     $Matches[1].Trim()
 }
+
+<#
+    The compose files this machine runs Postgres with, in order: docker-compose.yml and
+    compose.dev.yml always, and compose.tailnet-db.yml when .env names a TAILNET_IP (ADR 0023).
+
+    A script that recreates the container with a shorter list than the one it was started with
+    drops whatever the missing overlay published: run on the desktop, a restore that named only
+    the first two took the tailnet port away from the laptop until someone noticed. So every
+    script that names the list asks for it here, and the list follows .env, which is where the
+    machine already says it is the one the tailnet reaches.
+
+    LINEOPS_COMPOSE_FILES, semicolon-separated, replaces the list outright, for a machine whose
+    overlays are not the ones .env implies.
+#>
+function Get-ComposeFiles([string]$Root) {
+    if ($env:LINEOPS_COMPOSE_FILES) {
+        return @($env:LINEOPS_COMPOSE_FILES -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    }
+
+    $files = @('docker-compose.yml', 'compose.dev.yml')
+    $envFile = Join-Path $Root '.env'
+    if (Test-Path $envFile) {
+        $text = [string](Get-Content $envFile -Raw)
+        # An uncommented assignment, as compose reads it: an unquoted value ends at " #", and the
+        # last assignment wins.
+        $found = [regex]::Matches($text, '(?m)^[ \t]*(?:export[ \t]+)?TAILNET_IP[ \t]*=[ \t]*(?:"([^"]*)"|''([^'']*)''|([^#\r\n]*))')
+        if ($found.Count -gt 0) {
+            $last = $found[$found.Count - 1]
+            $value = ($last.Groups[1].Value + $last.Groups[2].Value + $last.Groups[3].Value).Trim()
+            if ($value) { $files += 'compose.tailnet-db.yml' }
+        }
+    }
+    return $files
+}
+
+# The list as docker compose's arguments: -f a -f b ...
+function Get-ComposeArgs([string]$Root) {
+    $composeArgs = @()
+    foreach ($file in @(Get-ComposeFiles $Root)) { $composeArgs += @('-f', $file) }
+    return $composeArgs
+}
+
+# The command a person should run, for an error message: "docker compose -f a -f b up -d postgres".
+function Format-ComposeCommand([string]$Root, [string]$Tail = 'up -d postgres') {
+    "docker compose $((Get-ComposeArgs $Root) -join ' ') $Tail"
+}

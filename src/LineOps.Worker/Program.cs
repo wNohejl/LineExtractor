@@ -64,10 +64,21 @@ if (job is null)
 
 var host = builder.Build();
 
+// Every run initialises, a single `--job` included, so a press from this machine against another
+// machine's database follows the same rule as a desk (ADR 0023): no migration there, and a
+// refusal when the schema is not the one this code was built for.
 await using (var scope = host.Services.CreateAsyncScope())
 {
     var initialiser = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-    await initialiser.InitialiseAsync();
+    try
+    {
+        await initialiser.InitialiseAsync();
+    }
+    catch (LineOps.Data.Placement.RemoteDatabaseRefusedException refused)
+    {
+        Console.Error.WriteLine(refused.Message);
+        return 4;
+    }
 }
 
 if (range is not null)
