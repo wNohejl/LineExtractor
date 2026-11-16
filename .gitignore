@@ -27,3 +27,5 @@ deploy/backups/
 # The journal, parlays and operator settings in transit between your own machines
 # (scripts/publish-journal.ps1). Never committed: the repository is public.
 data/personal/
+# The clone of the private journal repository (CLAUDE.md, "The journal").
+/lineops-journal/

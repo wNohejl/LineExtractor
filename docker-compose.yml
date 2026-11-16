@@ -12,6 +12,24 @@
 #   * Secrets come from .env (gitignored), never from this file.
 #   * Containers run non-root, with a read-only root filesystem, all capabilities dropped,
 #     and no-new-privileges — so a compromise inside the app has very little to work with.
+# The odds and stats providers, as web and worker both see them. Everything comes from .env:
+# appsettings.Local.json, where a host run keeps its key, is never in the image (.dockerignore),
+# and the image's appsettings.json has every provider off. A key does nothing without its
+# *_ENABLED=true beside it.
+x-providers: &providers
+  Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
+  Ingestion__OddsApiIo__Enabled: ${ODDS_API_IO_ENABLED:-false}
+  Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
+  Ingestion__TheOddsApi__Enabled: ${THE_ODDS_API_ENABLED:-false}
+  # Credits are billed per market on every scan, so totals cost a third of each one. Moneyline
+  # and spread always; THE_ODDS_API_TOTALS= (blank) in .env drops totals, as a host run's
+  # appsettings.Local.json "Markets" list does. A blank entry is ignored by the options binder.
+  Ingestion__TheOddsApi__Markets__0: moneyline
+  Ingestion__TheOddsApi__Markets__1: spread
+  Ingestion__TheOddsApi__Markets__2: ${THE_ODDS_API_TOTALS-total}
+  Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+  Ingestion__BallDontLie__Enabled: ${BALLDONTLIE_ENABLED:-false}
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -76,10 +94,7 @@ services:
       # Populate the dashboard on first boot instead of waiting for the 09:00 slate job.
       Ingestion__RunOnStartup: "true"
 
-      # Real providers: fill the keys in .env and flip Enabled.
-      Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
-      Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
-      Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+      <<: *providers
     ports:
       # 127.0.0.1 prefix is the important part — loopback only, not the LAN.
       - "127.0.0.1:${HTTPS_PORT:-9443}:9443"
@@ -114,9 +129,7 @@ services:
     environment:
       ConnectionStrings__LineOps: "Host=postgres;Port=5432;Database=lineops;Username=lineops;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env};SSL Mode=Prefer;Trust Server Certificate=true"
       DOTNET_ENVIRONMENT: Production
-      Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
-      Ingestion__TheOddsApi__ApiKey: ${THE_ODDS_API_KEY:-}
-      Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+      <<: *providers
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]

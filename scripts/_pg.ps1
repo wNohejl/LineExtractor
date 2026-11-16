@@ -39,9 +39,24 @@ function Invoke-PgSidecar {
     # tr strips the carriage returns Windows PowerShell adds to each line it pipes.
     $dockerArgs += @('postgres:17-alpine', 'sh', '-c', "tr -d '\r' | sh -e")
 
-    $ErrorActionPreference = 'Continue'
-    $Script | & docker @dockerArgs | Out-Host
-    return $LASTEXITCODE
+    # Windows PowerShell 5.1 writes a native command's stdin with the console's input encoding.
+    # Where that is UTF-8 with a byte-order mark (a console on code page 65001), the mark lands in
+    # front of the first command and sh reports "pg_restore: not found", after restore-data.ps1
+    # has already reset the schema. Plain UTF-8, for this call only.
+    $plain = New-Object System.Text.UTF8Encoding $false
+    $savedOutput = $OutputEncoding
+    $savedInput = try { [Console]::InputEncoding } catch { $null }
+    $OutputEncoding = $plain
+    if ($savedInput) { try { [Console]::InputEncoding = $plain } catch { } }
+    try {
+        $ErrorActionPreference = 'Continue'
+        $Script | & docker @dockerArgs | Out-Host
+        return $LASTEXITCODE
+    }
+    finally {
+        $OutputEncoding = $savedOutput
+        if ($savedInput) { try { [Console]::InputEncoding = $savedInput } catch { } }
+    }
 }
 
 function Get-PgPassword([string]$Root) {

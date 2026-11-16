@@ -35,9 +35,7 @@ games, stats and closing lines, the data travels with the code as a committed sn
 
 The snapshot lives at `data/snapshots/lineops.dump` (custom-format pg_dump, ~2–3 MB) with a
 manifest beside it saying what it holds. It leaves out the journal, parlays and operator
-settings (`-IncludePersonal` to keep them), and the script refuses a dump that holds them. Those
-travel by hand instead (ADR 0025): `publish-journal.ps1` exports `data/personal/journal.json`
-(gitignored, games named by provider id); `restore-journal.ps1 [-DryRun]` merges it. The
+settings (`-IncludePersonal` to keep them), and the script refuses a dump that holds them. The
 scripts run under Windows PowerShell 5.1 or PowerShell 7 on any OS: Postgres's tools run in a
 sidecar container, so nothing binary crosses a shell pipe.
 
@@ -56,8 +54,80 @@ git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps
 git checkout LineX_Development
 .\scripts\setup.ps1                      # generates .env with the database password
 .\scripts\restore-data.ps1               # brings Postgres up and loads the snapshot
-dotnet run --project src/LineOps.Web --launch-profile http
+git clone https://github.com/wNohejl/lineops-journal.git lineops-journal   # private
+.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json
+dotnet run --project src/LineOps.Web --launch-profile http   # or the Docker desk, below, if Smart App Control is on
 ```
+
+### The journal: the private repo `lineops-journal`
+
+The journal, parlays and operator settings travel through the **private** repository
+`https://github.com/wNohejl/lineops-journal.git`, never through this public one (ADR 0025). It
+holds one file, `journal.json` (games named by provider id, so it merges into any database
+holding those games). Clone it at `./lineops-journal` in this checkout; `.gitignore` keeps that
+folder out of this repository, and nothing in it is ever committed here.
+
+```powershell
+# On the machine whose journal is newest: export into the clone, then commit and push it there.
+.\scripts\publish-journal.ps1 -OutFile .\lineops-journal\journal.json
+git -C lineops-journal commit -am "journal: export <date>, <n> entries"; git -C lineops-journal push
+
+# On the other machine: data first, then the journal. In this order, always.
+git -C lineops-journal pull
+.\scripts\restore-data.ps1 -Force
+.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json -DryRun   # read the report
+.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json
+```
+
+`restore-data.ps1` drops and recreates the whole schema, journal included: a data restore run
+after the journal merge erases it, and the merge must be run again. The merge itself is
+idempotent (a second run reports everything unchanged), so re-running it is always safe. The
+journal scripts run the Worker on the host (`dotnet run`); where that is blocked (next section),
+run the same job in the worker image with the clone mounted (`--build` if the image is older
+than the code; drop `--dry-run true` to write):
+
+```powershell
+docker compose build worker
+docker compose run --rm --no-deps -v "${PWD}\lineops-journal:/journal:ro" worker `
+  --job journal:import --in /journal/journal.json --dry-run true
+```
+
+If a script "cannot be loaded because running scripts is disabled", run it with the policy
+bypassed for that process only; do not change the machine's execution policy:
+`powershell -ExecutionPolicy Bypass -File .\scripts\restore-data.ps1 -Force`.
+
+### A machine with Smart App Control on: the desk runs in Docker
+
+Windows 11's Smart App Control is on only on a fresh install, and it blocks freshly built,
+unsigned DLLs by reputation: `dotnet run`, `dotnet test` and Visual Studio's F5 fail with
+`FileLoadException … An Application Control policy has blocked this file (0x800711C7)` on
+`LineOps.Core.dll` or another of ours. Nothing is wrong with the code; the desktop has it off
+and runs on the host. Check it with
+`(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy').VerifiedAndReputablePolicyState`
+(1 on, 0 off). Turning it off is the developer's decision, never an agent's: it cannot be turned
+back on without reinstalling Windows. Until then, on that machine:
+
+```powershell
+# The desk, at https://localhost:9443 (built from this checkout; --build after a code change).
+# Always both files: without compose.dev.yml Postgres is recreated without 127.0.0.1:5433,
+# which the data and journal scripts need.
+docker compose -f docker-compose.yml -f compose.dev.yml up -d --build web
+docker compose logs -f web
+
+# One Worker job, in the worker image instead of `dotnet run --project src/LineOps.Worker`.
+docker compose run --rm worker --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30
+
+# Tests: in the SDK container, from a copy (the checkout is mounted read-only, so Linux bin/obj
+# never land in it and Visual Studio's locked .vs is skipped); the docker socket for Testcontainers.
+docker run --rm -v "${PWD}:/repo:ro" -v /var/run/docker.sock:/var/run/docker.sock `
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal mcr.microsoft.com/dotnet/sdk:10.0 sh -c `
+  'mkdir /src && cd /repo && tar --exclude=./.vs --exclude=./lineops-journal --exclude=bin --exclude=obj -cf - . | tar -xf - -C /src && cd /src && dotnet test LineOps.slnx'
+```
+
+The web container schedules ingestion itself; do not also run a host desk or a worker container
+scheduling against the same database. Visual Studio's "An element with the same key but a
+different value already exists … SelfHostWebServer" is unrelated stale IDE state: close it,
+delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the startup project.
 
 ## Scope
 
