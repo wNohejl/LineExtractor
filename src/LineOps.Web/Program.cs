@@ -102,11 +102,22 @@ if (hostsEvaluator)
 var app = builder.Build();
 
 // Migrate, ensure partitions exist ahead of the clock, and seed reference rows.
-// Doing this at startup keeps a cold clone one `docker compose up` away from working.
+// Doing this at startup keeps a cold clone one `docker compose up` away from working. Against
+// another machine's database (ADR 0023) it migrates nothing: it refuses to start when the schema
+// is not the one this code was built for, and says which machine should move.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var initialiser = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-    await initialiser.InitialiseAsync();
+    try
+    {
+        await initialiser.InitialiseAsync();
+    }
+    catch (LineOps.Data.Placement.RemoteDatabaseRefusedException refused)
+    {
+        Console.Error.WriteLine(refused.Message);
+        Environment.ExitCode = 4;
+        return;
+    }
 }
 
 app.UseDeskEdge();

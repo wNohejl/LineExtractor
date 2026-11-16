@@ -1,6 +1,5 @@
-using System.Net;
+using LineOps.Data.Placement;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 
 namespace LineOps.Ingestion.Configuration;
 
@@ -35,56 +34,17 @@ public static class SchedulerPlacement
     public const string HostEvaluatorKey = "Reliability:HostEvaluator";
 
     /// <summary>The compose service name: the database as the web and worker containers reach it.</summary>
-    public const string ComposeServiceHost = "postgres";
+    public const string ComposeServiceHost = DatabasePlacement.ComposeServiceHost;
 
     /// <summary>
-    /// True when every host the connection string names is this machine's own database. A string
-    /// that cannot be read, or names no host, is not judged here: the data layer refuses it on its
-    /// own terms, and the guard's job is the remote case only.
+    /// True when every host the connection string names is this machine's own database. The
+    /// classifier is <see cref="DatabasePlacement"/>, in the data layer, so this guard and the
+    /// initializer's migration guard cannot disagree about the same string.
     /// </summary>
-    public static bool IsOwnDatabase(string? connectionString)
-    {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            return true;
-
-        string? hosts;
-        try
-        {
-            hosts = new NpgsqlConnectionStringBuilder(connectionString).Host;
-        }
-        catch (ArgumentException)
-        {
-            return true;
-        }
-
-        if (string.IsNullOrWhiteSpace(hosts))
-            return true;
-
-        // Npgsql takes a comma-separated list for failover; one remote entry is enough to make it
-        // a database another machine could also be scheduling against.
-        return hosts.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .All(IsOwnHost);
-    }
+    public static bool IsOwnDatabase(string? connectionString) => DatabasePlacement.IsOwnDatabase(connectionString);
 
     /// <summary>True for a single host entry (optionally with a port) that is this machine's own.</summary>
-    public static bool IsOwnHost(string host)
-    {
-        var name = StripPort(host.Trim());
-
-        if (name.Length == 0)
-            return true;
-
-        // A Unix-domain socket directory is on this machine by definition.
-        if (name.StartsWith('/'))
-            return true;
-
-        if (name.Equals("localhost", StringComparison.OrdinalIgnoreCase)
-            || name.Equals(ComposeServiceHost, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        // 127.0.0.0/8 and ::1, however written. A name that is not an address is remote.
-        return IPAddress.TryParse(name, out var address) && IPAddress.IsLoopback(address);
-    }
+    public static bool IsOwnHost(string host) => DatabasePlacement.IsOwnHost(host);
 
     /// <summary>
     /// Why this host may not start, or null when it may. Pure, so the decision is tested without
@@ -132,30 +92,5 @@ public static class SchedulerPlacement
             throw new InvalidOperationException(refusal);
     }
 
-    private static string DescribeHost(string? connectionString)
-    {
-        try
-        {
-            var builder = new NpgsqlConnectionStringBuilder(connectionString);
-            return $"{builder.Host}:{builder.Port}";
-        }
-        catch (ArgumentException)
-        {
-            return "(unreadable)";
-        }
-    }
-
-    /// <summary>"host:5433" → "host", "[::1]:5433" → "::1", "::1" → "::1".</summary>
-    private static string StripPort(string host)
-    {
-        if (host.StartsWith('['))
-        {
-            var close = host.IndexOf(']');
-            return close > 0 ? host[1..close] : host.Trim('[', ']');
-        }
-
-        // More than one colon is a bare IPv6 address, which carries no port in this form.
-        var colon = host.IndexOf(':');
-        return colon >= 0 && colon == host.LastIndexOf(':') ? host[..colon] : host;
-    }
+    private static string DescribeHost(string? connectionString) => DatabasePlacement.DescribeHost(connectionString);
 }
