@@ -27,46 +27,16 @@
     <PanelLoadFailure Message="@LoadError" OnRetry="RetryAsync" />
 }
 
-@if (_eligibility.Count > 0)
-{
-    @* Each source the walk would use, by name, with why it will or will not be used: a grouped
-       list of facts, the name leading and the reason trailing. Only a refusal wears a tag — Free
-       was a green capsule on a row that already said "unmetered and available" — and the raw
-       provider key it showed ("espn") is a configuration value, not a name. *@
-    <PanelSection Title="Sources">
-        <div class="wgroup opsgroup opsgroup--wide">
-            @foreach (var source in _eligibility)
-            {
-                <FormRow Label="@SourceName(source.Key)" @key="source.Key">
-                    <div class="opsrow">
-                        @if (!source.Eligible)
-                        {
-                            <Tag State="DeskState.Warning">Refused</Tag>
-                        }
-                        <span class="opsrow__text quiet">@source.Reason</span>
-                    </div>
-                </FormRow>
-            }
-        </div>
-
-        @if (!_eligibility.Any(s => s.Eligible))
-        {
-            <Note State="DeskState.Warning" Class="opsnote">
-                Nothing to walk. Backfill runs against unmetered providers only, so a metered one
-                cannot be used here even when it is configured and working — its quota is what the
-                live schedule spends.
-            </Note>
-        }
-    </PanelSection>
-}
-
+@* Figures first, then what can walk, then the keys that walk it, then the record: the window
+   opened on the sources, a list of facts that rarely changes, with the coverage it exists to
+   report a screen below. *@
 @if (Loaded || !Failed)
 {
 <PanelSection Title="Coverage">
 
 @if (_coverage is { } c)
 {
-    <MetricRow>
+    <MetricRow Class="ops-metrics--4">
         <Metric Label="Days held"
                 Value='@c.Completed.ToString("N0")'
                 Note='@($"of {c.TargetDayFetches:N0} wanted")'
@@ -99,6 +69,38 @@ else if (!Loaded && !Failed)
     <DeskSkeleton Lines="2" />
 }
 </PanelSection>
+}
+
+@if (_eligibility.Count > 0)
+{
+    @* Each source the walk would use, by name, with why it will or will not be used: a grouped
+       list of facts, the name leading and the reason trailing. Only a refusal wears a tag — Free
+       was a green capsule on a row that already said "unmetered and available" — and the raw
+       provider key it showed ("espn") is a configuration value, not a name. *@
+    <PanelSection Title="Sources">
+        <div class="wgroup opsgroup opsgroup--wide">
+            @foreach (var source in _eligibility)
+            {
+                <FormRow Label="@SourceName(source.Key)" @key="source.Key">
+                    <div class="opsrow">
+                        @if (!source.Eligible)
+                        {
+                            <Tag State="DeskState.Warning">Refused</Tag>
+                        }
+                        <span class="opsrow__text quiet">@source.Reason</span>
+                    </div>
+                </FormRow>
+            }
+        </div>
+
+        @if (!_eligibility.Any(s => s.Eligible))
+        {
+            <Note State="DeskState.Warning" Class="opsnote">
+                Nothing can walk history. Backfill uses unmetered providers only: a metered one's
+                quota is kept for the live schedule, even when it is configured and working.
+            </Note>
+        }
+    </PanelSection>
 }
 
 @* The walk, as one grouped form: a row for what starts it and a row for what corrects it, each
@@ -243,14 +245,13 @@ else if (!Loaded && !Failed)
         }
 
         <p class="wgroup__foot opsfoot">
-            The daily schedule learns one day per day. Gathering reaches back over past days to build
-            the record analytics need — one request per sport per day, against an unmetered provider
-            only.
+            The daily schedule adds one day at a time. Gathering reaches back over past days, one
+            request per sport per day, from an unmetered provider only.
             @if (Manager.Access.CanOperate)
             {
                 <text>
-                    Re-walking walks every held day again, which is how a day stored by older code is
-                    corrected: slow, but rows are re-resolved onto themselves, never duplicated.
+                    Re-walk fetches every held day again to correct one stored by older code. It is
+                    slow, but rows are re-resolved onto themselves, never duplicated.
                 </text>
             }
         </p>
@@ -303,19 +304,24 @@ else if (!Loaded && !Failed)
 {
 <DeskGrid T="SeasonCoverage" Items="_seasons" Loading="@(!Loaded)" LoadingLabel="Reading the seasons"
           SkeletonRows="4" EmptyText="No games on record for the leagues in play.">
-    <PropertyColumn T="SeasonCoverage" TProperty="string" Property="s => s.SportKey" Title="League">
+    @* Every column here is a figure or a short name, so each holds one line; the season takes
+       the slack, keeping the figures together at the right. Finals and closes fold away first in
+       a narrow window: games held and box scores are the two a backfill pass is planned from. *@
+    <PropertyColumn T="SeasonCoverage" TProperty="string" Property="s => s.SportKey" Title="League"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate><span>@context.Item.SportKey.ToUpperInvariant()</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.SeasonYear" Title="Season"
-                    InitialDirection="SortDirection.Descending">
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
         <CellTemplate>
             <span class="num">@context.Item.SeasonYear</span>
             <span class="dim">@context.Item.SeasonType.ToString().ToLowerInvariant()</span>
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Held" Title="Games" Align="Align.Right">
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Held" Title="Games" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
             <span class="num">@context.Item.Held.ToString("N0")</span>
             @if (context.Item.Expected is { } expected)
@@ -333,23 +339,25 @@ else if (!Loaded && !Failed)
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Final" Title="Final" Align="Align.Right">
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.Final" Title="Final" Align="Align.Right"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
         <CellTemplate>
             <span class="num">@context.Item.Final.ToString("N0")</span>
             @if (context.Item.Postponed > 0)
             {
-                <span class="dim num"> · @context.Item.Postponed.ToString("N0") postponed</span>
+                <span class="dim num">@($" ({context.Item.Postponed:N0} postponed)")</span>
             }
         </CellTemplate>
     </PropertyColumn>
 
     @* Every final with its box score is the expected state, said quietly; a shortfall keeps its
        tag, so the season that needs a pass is the one that stands out. *@
-    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.FinalsWithoutStats" Title="Box scores" Align="Align.Right">
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.FinalsWithoutStats" Title="Box scores" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
             @if (context.Item.FinalsWithoutStats == 0)
             {
-                <span class="quiet">All</span>
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">All</span></span>
             }
             else
             {
@@ -363,11 +371,12 @@ else if (!Loaded && !Failed)
 
     @* A book market's close and the stats provider's one-book reference are different things
        (ADR 0011), so the count says how many of each. *@
-    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right">
+    <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
         <CellTemplate>
             <span class="num">@context.Item.WithClose.ToString("N0")</span>
             <DeskTooltip Text="Closed by a book market; the rest by the stats provider's single-book reference.">
-                <span class="dim num" tabindex="0">· @context.Item.WithMarketClose.ToString("N0") market</span>
+                <span class="dim num" tabindex="0">@($" ({context.Item.WithMarketClose:N0} market)")</span>
             </DeskTooltip>
         </CellTemplate>
     </PropertyColumn>
@@ -380,30 +389,32 @@ else if (!Loaded && !Failed)
 @if (Loaded || !Failed)
 {
 <DeskGrid T="BackfillCheckpoint" Items="_recent" Loading="@(!Loaded)" LoadingLabel="Reading recent days"
-          EmptyText="Nothing walked yet. Start a backfill and days land here as they complete.">
+          EmptyText="Nothing walked yet. Gather history above, and days land here as they complete.">
     <PropertyColumn T="BackfillCheckpoint" TProperty="DateOnly" Property="c => c.Date" Title="Day"
-                    InitialDirection="SortDirection.Descending">
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate><span class="num">@LongDay(context.Item.Date)</span></CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="BackfillCheckpoint" TProperty="string" Property="c => c.Sport!.Name" Title="Sport">
+    <PropertyColumn T="BackfillCheckpoint" TProperty="string" Property="c => c.Sport!.Name" Title="Sport"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
         <CellTemplate><span class="dim">@(context.Item.Sport?.Name ?? "—")</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.GamesFound"
-                    Title="Games" Align="Align.Right" Format="N0" />
+                    Title="Games" Align="Align.Right" Format="N0" HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
 
     <PropertyColumn T="BackfillCheckpoint" TProperty="int" Property="c => c.RowsIngested"
-                    Title="Rows" Align="Align.Right" Format="N0" />
+                    Title="Rows" Align="Align.Right" Format="N0" HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
 
     @* Sorting by state is how you find the days that need a retry pass. Held is the expected
-       state and is said quietly; Failed keeps its tag, and its error is the tag's tooltip, which
+       state and is a check mark; Failed keeps its tag, and its error is the tag's tooltip, which
        keyboard focus raises as well as hover. *@
-    <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State">
+    <PropertyColumn T="BackfillCheckpoint" TProperty="bool" Property="@(c => c.Error == null)" Title="State"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
             @if (context.Item.Error is null)
             {
-                <span class="quiet">Held</span>
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Held</span></span>
             }
             else
             {
@@ -500,7 +511,7 @@ else if (!Loaded && !Failed)
 
     /// <summary>Where the walk is: the source, the league and the day it is fetching.</summary>
     private string WalkingAt => Coordinator.Progress is { } p
-        ? $"{SourceName(p.SourceKey)} · {League(p.SportKey)} · {LongDay(p.Date)}"
+        ? $"{League(p.SportKey)}, {LongDay(p.Date)}, from {SourceName(p.SourceKey)}"
         : "Starting…";
 
     /// <summary>Days the record holds, which is what a re-walk would walk again.</summary>
@@ -594,10 +605,18 @@ else if (!Loaded && !Failed)
             ? new BackfillRange(Backfill.Sports.Where(_rangeSports.Contains).ToList(), from, to)
             : null;
 
-    /// <summary>What the range will walk, in words: "MLB, NFL · 34 days".</summary>
+    /// <summary>What the range will walk, in words: "MLB and NFL over 34 days, held days included".</summary>
     private string RangeSummary => RangeAsked is { } r
-        ? $"{string.Join(", ", r.Sports.Select(League))} · {r.To.DayNumber - r.From.DayNumber + 1:N0} {(r.From == r.To ? "day" : "days")}, held days included"
+        ? $"{Joined(r.Sports.Select(League).ToList())} over {r.To.DayNumber - r.From.DayNumber + 1:N0} {(r.From == r.To ? "day" : "days")}, held days included"
         : "Choose a sport and dates";
+
+    /// <summary>A list as a sentence says it: "MLB", "MLB and NFL", "MLB, NBA and NFL".</summary>
+    private static string Joined(IReadOnlyList<string> items) => items.Count switch
+    {
+        0 => string.Empty,
+        1 => items[0],
+        _ => $"{string.Join(", ", items.Take(items.Count - 1))} and {items[^1]}"
+    };
 
     private void BackportRange()
     {

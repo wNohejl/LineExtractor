@@ -48,7 +48,8 @@
 else
 {
     <PanelTitle>
-        <ChildContent><TeamMark Sport="@_team.Sport?.Key" Abbrev="@_team.Abbrev" Size="TeamMarkSize.Large" />@_team.Name</ChildContent>
+        @* The club's hero crest heads its own window; a fighter has none (TeamMark draws nothing). *@
+        <ChildContent><TeamMark Sport="@_team.Sport?.Key" Abbrev="@_team.Abbrev" Size="TeamMarkSize.Hero" />@_team.Name</ChildContent>
         @* The season on screen is said once, by the detail line ("5-2 in the 2026 season"),
            even when there is only one and the gate has nothing to offer — a record without its
            season is a number without a unit. It was also an Info tag on the name's row, which

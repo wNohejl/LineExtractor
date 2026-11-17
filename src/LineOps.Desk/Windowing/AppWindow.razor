@@ -37,7 +37,9 @@
      aria-label="@Window.Title"
      @onpointerdown="OnPointerDown">
 
-    <div class="win__bar" data-tab-handle @ondblclick="OnBarDoubleClick" @onclick="OnBarClick">
+    @* A collapsed column is an icon and nothing else, so its bar names it under the pointer. *@
+    <div class="win__bar" data-tab-handle @ondblclick="OnBarDoubleClick" @onclick="OnBarClick"
+         title="@(Window.Minimised ? $"{FullTitle} — press to restore" : null)">
         @* Back and Forward live on the window they move, at the leading edge of its bar, as a
            Finder or Safari window carries them (HIG, Toolbars). They used to sit in the header,
            where they undid the last open or close anywhere on the desk — a direction the
@@ -79,7 +81,10 @@
 
         @if (!Window.Minimised)
         {
-            <span class="win__title">@Window.Title</span>
+            @* At a column's narrowest the status gives way first and then the title is cut, so
+               the title carries both whole as its tooltip: nothing the bar says is lost to the
+               width, only moved under the pointer. *@
+            <span class="win__title" title="@FullTitle">@Window.Title</span>
 
             @if (!string.IsNullOrEmpty(Window.StatusText))
             {
@@ -163,6 +168,10 @@
     [Parameter] public bool IsFocused { get; set; }
 
     private string ElementId => $"win-{Window.Id}";
+
+    private string FullTitle => string.IsNullOrEmpty(Window.StatusText)
+        ? Window.Title
+        : $"{Window.Title} — {Window.StatusText}";
 
     private WindowInstance? _drawnWindow;
     private int _drawnVersion;

@@ -47,16 +47,21 @@
 
 @if (Loaded || !Failed)
 {
-<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet."
-          Loading="@(!Loaded)" LoadingLabel="Fetching runs">
-    @* Success is the expected outcome and is said quietly; a run that failed or half-failed
-       keeps its tag. Two hundred green capsules was a wall of colour, and the red one it was
-       there to show was hard to find in it. *@
-    <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State">
+@* A run that failed or half-failed reads at full ink across its row, routine ones a step under: the
+   failure stands out by weight of the words, without a tint on anything that can be pressed. *@
+<DeskGrid T="IngestionRun" Items="_runs" EmptyText="No runs recorded yet. A run lands here when a job is pulled or scheduled."
+          Loading="@(!Loaded)" LoadingLabel="Fetching runs"
+          RowClassFunc="@((r, _) => r.Status is RunStatus.Failed or RunStatus.Partial ? "opsrun--exception" : string.Empty)">
+    @* Success is the expected outcome, so it is a check mark in the secondary ink, its word
+       kept for a screen reader; a run that failed or half-failed keeps its tag. Two hundred
+       green capsules was a wall of colour, and two hundred "Success" in grey was a wall of
+       words: either way the failed row it was there to show was hard to find. *@
+    <PropertyColumn T="IngestionRun" TProperty="RunStatus" Property="r => r.Status" Title="State"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
             @if (context.Item.Status == RunStatus.Success)
             {
-                <span class="quiet">Success</span>
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Success</span></span>
             }
             else
             {
@@ -65,8 +70,11 @@
         </CellTemplate>
     </PropertyColumn>
 
-    @* A source's runs are its own window, so the name is the way through to them. *@
-    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Source!.Name" Title="Source">
+    @* A source's runs are its own window, so the name is the way through to them. A name is
+       one reading and does not break; in a narrow window the column gives way to the detail,
+       which names the source itself on a row that has nothing else to say. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Source!.Name" Title="Source"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
         <CellTemplate>
             <DeskLink Destination="source"
                       Icon="@Icons.Material.Filled.MonitorHeart"
@@ -77,36 +85,39 @@
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.JobKey" Title="Job"
-                    HeaderClass="col--wide" CellClass="col--wide">
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
         <CellTemplate><span class="mono quiet">@context.Item.JobKey</span></CellTemplate>
     </PropertyColumn>
 
+    @* To the minute, on one line: the seconds broke the stamp over two lines in a window beside
+       the Board, and how long a run took is the Took column's reading, not this one's. *@
     <PropertyColumn T="IngestionRun" TProperty="DateTimeOffset" Property="r => r.StartedAt"
-                    Title="@($"Started ({DisplayTime.Label})")" Align="Align.Right" InitialDirection="SortDirection.Descending">
+                    Title="@($"Started ({DisplayTime.Label})")" Align="Align.Right" InitialDirection="SortDirection.Descending"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
-            <span class="quiet">@DisplayTime.Format(context.Item.StartedAt, "MMM d HH:mm:ss")</span>
+            <span class="quiet">@DisplayTime.Format(context.Item.StartedAt, "MMM d HH:mm")</span>
         </CellTemplate>
     </PropertyColumn>
 
     @* Sorts on the real duration so "slowest run" is one click, not a scan of formatted text. *@
     <PropertyColumn T="IngestionRun" TProperty="double?"
                     Property="r => r.FinishedAt == null ? null : (r.FinishedAt - r.StartedAt)!.Value.TotalMilliseconds"
-                    Title="Took" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
+                    Title="Took" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
         <CellTemplate>
             <span class="quiet">@(context.Item.Duration is { } d ? $"{d.TotalMilliseconds:N0}ms" : "—")</span>
         </CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RowsIngested" Title="Rows" Align="Align.Right" Format="N0"
-                    HeaderClass="col--wider" CellClass="col--wider" />
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" />
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.RequestsMade" Title="Requests" Align="Align.Right"
-                    HeaderClass="col--wider" CellClass="col--wider">
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
         <CellTemplate><span class="quiet">@context.Item.RequestsMade.ToString("N0")</span></CellTemplate>
     </PropertyColumn>
 
     <PropertyColumn T="IngestionRun" TProperty="int" Property="r => r.CreditsSpent" Title="Credits" Align="Align.Right"
-                    HeaderClass="col--wider" CellClass="col--wider">
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
         <CellTemplate>
             <span class="quiet">@(context.Item.CreditsSpent > 0 ? context.Item.CreditsSpent.ToString("N0") : "—")</span>
         </CellTemplate>
@@ -114,9 +125,19 @@
 
     @* What the run did, in its own sentence ("UFC: 37 asked, 0 answered; 37 set aside until
        Nov 23."), then what went wrong, if anything did. A failed run's error is said in the
-       negative ink, as its tag is; a partial run's is the reading, quiet like the rest. *@
-    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Detail ?? r.Error!" Title="Detail">
+       negative ink, as its tag is; a partial run's is the reading, quiet like the rest.
+
+       The column takes whatever the fixed ones leave, so a sentence wraps once rather than
+       clipping at a third of the window. A row with nothing to say names its source, but only
+       while the Source column is folded away (lineops.css, .opsrun__source): the cell is never
+       blank, and never repeats a column beside it. *@
+    <PropertyColumn T="IngestionRun" TProperty="string" Property="r => r.Detail ?? r.Error!" Title="Detail"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
         <CellTemplate>
+            @if (context.Item.Detail is not { Length: > 0 } && context.Item.Error is not { Length: > 0 })
+            {
+                <span class="opsrun__source quiet">@context.Item.Source?.Name</span>
+            }
             @if (context.Item.Detail is { Length: > 0 })
             {
                 <span class="trunc quiet" title="@context.Item.Detail">@context.Item.Detail</span>
@@ -132,8 +153,8 @@
 @if (Loaded)
 {
     <p class="opsfoot">
-        Every run lands here, successful or not; the KPIs and alerts are computed from this table
-        alone.
+        Every run lands here, successful or not. Ops reads its figures and alerts from this
+        table alone.
         @if (_runs.Count >= RunLimit)
         {
             <text>The latest @RunLimit.ToString("N0") are shown.</text>

@@ -95,7 +95,10 @@ else
             <CellTemplate>
                 @if (context.Item.Player.Team is { } team)
                 {
-                    <DeskLink Destination="team" OnClick="() => Manager.OpenTeam(team.Id, team.Name)">@team.Name</DeskLink>
+                    <span class="playerteam">
+                        <TeamMark Sport="@context.Item.Player.Sport?.Key" Abbrev="@team.Abbrev" />
+                        <DeskLink Destination="team" OnClick="() => Manager.OpenTeam(team.Id, team.Name)">@team.Name</DeskLink>
+                    </span>
                 }
                 else
                 {

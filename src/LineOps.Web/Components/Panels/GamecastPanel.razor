@@ -179,8 +179,10 @@ else
         <PanelSection Title="Box score">
             @if (_box is { IsEmpty: false } box)
             {
-                <BoxScoreSide Side="box.Away" Team="@(game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenPlayer" />
-                <BoxScoreSide Side="box.Home" Team="@(game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenPlayer" />
+                <BoxScoreSide Side="box.Away" Team="@(game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenPlayer"
+                              Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />
+                <BoxScoreSide Side="box.Home" Team="@(game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenPlayer"
+                              Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />
             }
             else
             {
@@ -747,7 +749,7 @@ else
                                 aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
                                 @onclick="() => ToggleDrive(sequence)">
                             <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
-                            <span class="gc__team">@(drive.TeamAbbrev ?? "—")</span>
+                            <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@drive.TeamAbbrev" />@(drive.TeamAbbrev ?? "—")</span>
                             <span class="gc__result">@DriveLine(drive)</span>
                         </button>
                         @if (drive.IsScore)
@@ -910,7 +912,7 @@ else
                 {
                     <div class="wgroup__row gc__score" @key="play.Id">
                         <span class="gc__when">@When(play)</span>
-                        <span class="gc__team">@TeamAbbrev(play.TeamId)</span>
+                        <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@TeamAbbrev(play.TeamId)" />@TeamAbbrev(play.TeamId)</span>
                         <span class="gc__text">@(play.Text ?? play.Type)</span>
                         @if (play.AwayScore is { } a && play.HomeScore is { } h)
                         {

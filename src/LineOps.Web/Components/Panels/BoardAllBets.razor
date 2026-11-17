@@ -73,13 +73,16 @@ else
 
                 @* The prices are rendered rather than projected — the best-price lighting lives
                    in Cell — so there is nothing here for Mud to sort on. *@
+                @* A club's column is headed by its crest and name; Over and Under are words. *@
                 <TemplateColumn T="string" Title="@SideName(market, first: true)"
                                 Align="Align.Right" Sortable="false">
+                    <HeaderTemplate>@SideHeader(market, first: true)</HeaderTemplate>
                     <CellTemplate>@Cell(market, market.First, context.Item)</CellTemplate>
                 </TemplateColumn>
 
                 <TemplateColumn T="string" Title="@SideName(market, first: false)"
                                 Align="Align.Right" Sortable="false">
+                    <HeaderTemplate>@SideHeader(market, first: false)</HeaderTemplate>
                     <CellTemplate>@Cell(market, market.Second, context.Item)</CellTemplate>
                 </TemplateColumn>
 
@@ -161,6 +164,20 @@ else
             ? (first ? "Over" : "Under")
             : (first ? Row!.Game.HomeTeam?.Name ?? "Home" : Row!.Game.AwayTeam?.Name ?? "Away");
     }
+
+    /// <summary>
+    /// A side's column heading: the club's crest before its name, on a moneyline or a spread.
+    /// Every market lists home first (BoardRow), so the first column is the home club's.
+    /// </summary>
+    private RenderFragment SideHeader(MarketPair market, bool first) => __builder =>
+    {
+        if (market.Market != LineOps.Core.Entities.Markets.Total)
+        {
+            var team = first ? Row?.Game.HomeTeam : Row?.Game.AwayTeam;
+            <TeamMark Sport="@Row?.Game.Sport?.Key" Abbrev="@team?.Abbrev" />
+        }
+        @SideName(market, first)
+    };
 
     /// <summary>Every book quoting either side, so a book missing one side still gets a row.</summary>
     private static IReadOnlyList<string> BooksIn(MarketPair market)

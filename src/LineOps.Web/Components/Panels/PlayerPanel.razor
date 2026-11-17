@@ -52,8 +52,13 @@ else
             }
             @if (_player.Team?.Name is { } team)
             {
-                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                          OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team, WindowId)">@team</DeskLink>
+                @* The club's crest before its name, outside the link: the crest identifies the
+                   club, the name is what is pressed. *@
+                <span class="playerteam">
+                    <TeamMark Sport="@_player.Sport?.Key" Abbrev="@_player.Team.Abbrev" />
+                    <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                              OnClick="() => Manager.OpenTeam(_player.TeamId!.Value, team, WindowId)">@team</DeskLink>
+                </span>
             }
         </Tags>
         <Detail>

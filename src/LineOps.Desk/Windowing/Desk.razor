@@ -26,8 +26,9 @@
                     <div class="desk-empty">
                         <div class="desk-empty__mark">@Brand.Wordmark<em>@Brand.Emphasis</em></div>
                         <p class="desk-empty__hint">
-                            An empty desk. Windows open as tabs in a row — @PrimaryHint
-                            Drag a tab past another to reorder them.
+                            An empty desk. Windows open as columns in one row — @PrimaryHint
+                            Drag a column by its title to reorder the row, or the gap between two
+                            to share their width differently.
                         </p>
                         <DeskRow>
                             <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.AddBox" OnClick="OpenPrimary">
@@ -70,17 +71,34 @@
                         }
 
                         var key = $"{left.Id}|{right.Id}";
+                        var range = SplitRange.Of(left, right);
 
+                        @* A focusable separator is a slider in all but name: it says where it
+                           stands (the leading column's width) and how far it can go, so a
+                           screen reader hears the split rather than only that there is one.
+                           The readout says the same to the eye, and only while the divider is
+                           held or focused from the keyboard; windowing.js keeps its figures
+                           current through a drag, before the server hears of it. *@
                         <div class="divider"
                              @key="key"
                              style="left:@Px(left.X + left.Width)"
                              role="separator"
                              aria-orientation="vertical"
                              aria-label="@($"Resize {left.Title} and {right.Title}")"
+                             aria-controls="@($"win-{left.Id} win-{right.Id}")"
+                             aria-valuenow="@range.Now"
+                             aria-valuemin="@range.Min"
+                             aria-valuemax="@range.Max"
+                             aria-valuetext="@($"{left.Title} {range.Now} pixels wide, {right.Title} {range.Total - range.Now}")"
+                             aria-keyshortcuts="ArrowLeft ArrowRight Shift+ArrowLeft Shift+ArrowRight Home End"
                              tabindex="0"
                              @onkeydown="e => OnDividerKey(e, left, right)"
                              @ref="_dividerHandles[key]">
                             <span class="divider__grip"></span>
+                            <span class="divider__readout num" aria-hidden="true">
+                                <span class="divider__width" data-split-left data-width="@range.Now"></span>
+                                <span class="divider__width" data-split-right data-width="@(range.Total - range.Now)"></span>
+                            </span>
                         </div>
                     }
                 }
@@ -123,7 +141,7 @@
     private string PrimaryTitle => Primary?.Title ?? "a window";
 
     private string PrimaryHint => Manager.Settings.PrimaryWindowKey is null
-        ? "every tab gets an equal share."
+        ? "every column gets an equal share."
         : $"{PrimaryTitle} is primary, so it takes the larger share wherever it sits.";
 
     private static string Px(double value)
@@ -350,22 +368,69 @@
     /// </summary>
     private void OnDividerKey(KeyboardEventArgs e, WindowInstance left, WindowInstance right)
     {
-        var step = e.ShiftKey ? 48d : 16d;
+        if (SplitByKey(e.Key, e.ShiftKey, left, right) is var (leftWidth, rightWidth))
+            Manager.AdjustSplit(left.Id, right.Id, leftWidth, rightWidth);
+    }
 
-        var delta = e.Key switch
+    /// <summary>
+    /// Where a key on the divider between <paramref name="left"/> and <paramref name="right"/>
+    /// moves it, as the two widths it leaves; null for a key that does not move it, or a move
+    /// that is already at its stop. The arrows step 16px, 48px with Shift; Home and End go to
+    /// either stop, as they do on any slider.
+    ///
+    /// <para>
+    /// The pair's combined width never changes, and neither column crosses its minimum — the
+    /// bounds a drag has (windowing.js). The keys once clamped each column on its own, so a
+    /// press at a stop grew one column without shrinking the other, and the row's other
+    /// columns paid for a divider that was meant to be local.
+    /// </para>
+    /// </summary>
+    public static (double Left, double Right)? SplitByKey(string key, bool shift, WindowInstance left, WindowInstance right)
+    {
+        var step = shift ? 48d : 16d;
+        var total = left.Width + right.Width;
+
+        // As the drag bounds them: on a desk too narrow for both minimums a column may grow
+        // but not shrink further, rather than the bounds crossing.
+        var lowest = Math.Min(left.Definition.MinWidth - left.Width, 0);
+        var highest = Math.Max(right.Width - right.Definition.MinWidth, 0);
+
+        var delta = key switch
         {
             "ArrowLeft" => -step,
             "ArrowRight" => step,
+            "Home" => lowest,
+            "End" => highest,
             _ => 0d
         };
 
+        delta = Math.Clamp(delta, lowest, highest);
+
         if (delta == 0)
-            return;
+            return null;
 
-        var leftWidth = Math.Max(left.Definition.MinWidth, left.Width + delta);
-        var rightWidth = Math.Max(right.Definition.MinWidth, right.Width - delta);
+        return (left.Width + delta, total - (left.Width + delta));
+    }
 
-        Manager.AdjustSplit(left.Id, right.Id, leftWidth, rightWidth);
+    /// <summary>
+    /// The divider between two columns read as a slider: the leading column's width now, the
+    /// least and most it can be while both keep their minimums, and the pair's combined width.
+    /// Whole pixels, because that is how a reader hears them and how the readout draws them.
+    /// </summary>
+    public readonly record struct SplitRange(int Now, int Min, int Max, int Total)
+    {
+        public static SplitRange Of(WindowInstance left, WindowInstance right)
+        {
+            var now = (int)Math.Round(left.Width);
+            var total = (int)Math.Round(left.Width + right.Width);
+
+            // A desk too narrow for both minimums already has a column under its own; the range
+            // still contains where the divider stands rather than claiming a value outside it.
+            var min = Math.Min(left.Definition.MinWidth, now);
+            var max = Math.Max(total - right.Definition.MinWidth, now);
+
+            return new SplitRange(now, min, max, total);
+        }
     }
 
     private Workspace? FirstWorkspace => Manager.Catalog.Workspaces.FirstOrDefault();

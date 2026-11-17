@@ -50,6 +50,9 @@ public class WagerWindowBooksTests : WagerTestContext
     /// <summary>The book menu's rows: one radio item per book quoting the side.</summary>
     private static IReadOnlyList<IElement> Books(IRenderedFragment cut) => cut.FindAll("[role=menuitemradio]");
 
+    /// <summary>Text with its runs of whitespace folded, as it reads: a crest between two names adds layout, not words.</summary>
+    private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
     // ---- Books ----------------------------------------------------------------------------
 
     [Fact]
@@ -342,7 +345,7 @@ public class WagerWindowBooksTests : WagerTestContext
 
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".game-search__opt").Count));
         var options = cut.FindAll(".game-search__opt");
-        Assert.Contains("Pittsburgh Steelers at New Orleans Saints", options[0].TextContent);
+        Assert.Contains("Pittsburgh Steelers at New Orleans Saints", Squash(options[0].TextContent));
         Assert.Contains("No game", options[2].TextContent);
         Assert.Equal(new[] { "steelers" }, Data.Searches);
     }
@@ -357,7 +360,7 @@ public class WagerWindowBooksTests : WagerTestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
         cut.FindAll(".game-search__opt")[0].Click();
 
-        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", cut.Find(".whead .game-search__chosen").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".whead .game-search__chosen").TextContent)));
         Assert.Equal(6, cut.FindAll(".selection-chip").Count);
         Assert.Empty(cut.FindAll(".selection-chip--on"));
         Assert.Contains("Pick the side you bet", cut.Markup);
@@ -379,7 +382,7 @@ public class WagerWindowBooksTests : WagerTestContext
         cut.Find("input[aria-label='Find a game']").KeyDown("ArrowDown");
         cut.Find("input[aria-label='Find a game']").KeyDown("Enter");
 
-        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", cut.Find(".game-search__chosen").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".game-search__chosen").TextContent)));
     }
 
     [Fact]

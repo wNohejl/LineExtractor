@@ -91,9 +91,8 @@ else if (!Loaded)
     @if (Loaded && !Failed)
     {
         <EmptyState Kind="EmptyStateKind.Filtered">
-            No stored prices for this game and market. A book that does not price the market has
-            nothing to show, and once a game starts its moves are folded into one closing line,
-            which the Game window shows.
+            No stored prices for this game and market. Try another market, or open the game: once
+            it starts, its moves are folded into one closing line, which the Game window shows.
         </EmptyState>
     }
 }
@@ -104,21 +103,31 @@ else
        the table shows, so the sentence and the rows never disagree about who moved. *@
     <div class="movement">
         <div class="movement__cap">
-            <p class="movement__headline">@_headline</p>
+            @* The side in focus leads with its club's crest when the side is a club: a total's Over
+               and Under name none, and a bout's fighters carry none. *@
+            <p class="movement__headline">
+                @if (_market != Markets.Total && Club(_side) is { } club)
+                {
+                    <TeamMark Sport="@CrestSport" Abbrev="@club.Abbrev" Size="TeamMarkSize.Small" />
+                }
+                @_headline
+            </p>
             <p class="movement__span">@_span</p>
         </div>
 
         <DeskGrid T="MovementRow" Items="_rows" Resizable="false" EmptyText="No prices on this side.">
             @* The book by its name, as Every book names it: the feed's key ("draftkings") is
                for joining rows, not for reading. *@
+            @* Every value here holds one line; the trend takes what is left, so the book's name
+               and its figures never break while the sparkline has room to draw its path. *@
             <PropertyColumn T="MovementRow" TProperty="string" Property="r => r.Book" Title="Book"
-                            InitialDirection="SortDirection.Ascending">
+                            InitialDirection="SortDirection.Ascending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                 <CellTemplate>@BookNames.Display(context.Item.Book)</CellTemplate>
             </PropertyColumn>
 
             @* No colour and no axis: the numbers are in the next cells, and the shape only has
                to say which way and when. A book seen once draws a dash, not a flat line. *@
-            <TemplateColumn T="MovementRow" Title="Trend" Sortable="false">
+            <TemplateColumn T="MovementRow" Title="Trend" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
                 <CellTemplate>
                     <DeskSparkline Values="context.Item.Trend" Positions="context.Item.Positions" Step="true"
                                    Label="@TrendLabel(context.Item)" />
@@ -126,7 +135,7 @@ else
             </TemplateColumn>
 
             <TemplateColumn T="MovementRow" Title="Open" Align="Align.Right" Sortable="true"
-                            SortBy="@(r => Rank(r.Open))" HeaderClass="col--wide" CellClass="col--wide">
+                            SortBy="@(r => Rank(r.Open))" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
                 <CellTemplate>
                     @* When the open was seen is a tooltip on a trigger that takes focus, not a title
                        only a pointer raises (HIG 12). *@
@@ -138,7 +147,7 @@ else
 
             @* Sorting on the current number is how you find the best one across books. *@
             <TemplateColumn T="MovementRow" Title="Now" Align="Align.Right" Sortable="true"
-                            SortBy="@(r => Rank(r.Now))">
+                            SortBy="@(r => Rank(r.Now))" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                 <CellTemplate>
                     <span class="movement__quote">@Quote(context.Item.Now)</span>
                 </CellTemplate>
@@ -148,7 +157,7 @@ else
                sparkline draws it, and nothing more: the ink is neutral because a price moving
                is not good or bad. The tooltip says it in words — shortened or drifted. *@
             <TemplateColumn T="MovementRow" Title="Move" Align="Align.Right" Sortable="true"
-                            SortBy="@(r => MoveSize(r))">
+                            SortBy="@(r => MoveSize(r))" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                 <CellTemplate>
                     <DeskTooltip Text="@MoveTitle(context.Item, _market)">
                         <span class="movement__move @(context.Item.Moved ? null : "dim")" tabindex="0">@MoveText(context.Item)</span>
@@ -158,7 +167,7 @@ else
 
             <TemplateColumn T="MovementRow" Title="Last moved" Align="Align.Right" Sortable="true"
                             SortBy="@(r => r.LastMoved ?? DateTimeOffset.MinValue)"
-                            HeaderClass="col--wide" CellClass="col--wide">
+                            HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
                 <CellTemplate>
                     @if (context.Item.LastMoved is { } at)
                     {
@@ -221,8 +230,8 @@ else
         </span>
     </DeskRow>
 
-    @RenderSide(_form.Away, _form.Game.AwayTeam?.Name ?? "Away")
-    @RenderSide(_form.Home, _form.Game.HomeTeam?.Name ?? "Home")
+    @RenderSide(_form.Away, _form.Game.AwayTeam?.Name ?? "Away", _form.Game.AwayTeam)
+    @RenderSide(_form.Home, _form.Game.HomeTeam?.Name ?? "Home", _form.Game.HomeTeam)
 }
 </PanelSection>
 }
@@ -279,12 +288,39 @@ else
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
         => StatColumns.Pick(side.Select(p => p.Totals.Keys), 5);
 
-    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
+    /// <summary>
+    /// The chosen game's sport, for a crest — null for a bout, whose fighters carry none, and
+    /// before a game is chosen. Read off the game the window already holds with its sport.
+    /// </summary>
+    private string? CrestSport => _picked is { } game && !FightSports.IsFight(game.Sport?.Key) ? game.Sport?.Key : null;
+
+    /// <summary>The chosen game's club by the name an outcome gives it, or null for Over, Under or a bout.</summary>
+    private Team? Club(string? name)
+    {
+        if (CrestSport is null || _picked is not { } game || string.IsNullOrEmpty(name))
+            return null;
+
+        return string.Equals(name, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam
+            : string.Equals(name, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam
+            : null;
+    }
+
+    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName, Team? team) => @<text>
         @if (side.Count > 0)
         {
             var columns = ColumnsFor(side);
 
-            <PanelSection Title="@teamName">
+            @* Each roster under its club's name and crest. The crest is drawn only where the form
+               is about the game the window holds, which is where its sport is known. *@
+            <PanelSection>
+            <TitleContent>
+                @if (CrestSport is { } sport && _picked?.Id == _form?.Game.Id && team is not null)
+                {
+                    <TeamMark Sport="@sport" Abbrev="@team.Abbrev" Size="TeamMarkSize.Small" />
+                }
+                @teamName
+            </TitleContent>
+            <ChildContent>
             <div class="gridwrap">
                 <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
                     <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
@@ -330,6 +366,7 @@ else
                     </PropertyColumn>
                 </DeskGrid>
             </div>
+            </ChildContent>
             </PanelSection>
         }
     </text>;
@@ -688,17 +725,19 @@ else
     }
 
     /// <summary>
-    /// A game as the picker lists it: "Oct 26 · Dallas Cowboys at Philadelphia Eagles". The day
+    /// A game as the picker lists it: "Oct 26, Dallas Cowboys at Philadelphia Eagles". The day
     /// leads because the list is in date order and the day is what tells two games of a series
     /// apart; and a select too narrow for the whole label loses the end of a club's name rather
-    /// than leaving a separator with nothing after it.
+    /// than leaving a separator with nothing after it. A comma, as a sentence would put it, not
+    /// a middle dot, which read as two tags.
     /// </summary>
-    public static string GameOption(Game game) => $"{Day(game.StartsAt)} · {Matchup(game)}";
+    public static string GameOption(Game game) => $"{Day(game.StartsAt)}, {Matchup(game)}";
 
     /// <summary>
-    /// The secondary line: the span the rows cover and how many moves are in it — "Aug 24 to
-    /// Oct 24 · 14 moves". A single day gives its hours instead, and a single instant says it
-    /// was one reading.
+    /// The secondary line, in words: how many moves the rows hold and the span they cover —
+    /// "14 moves from Aug 24 to Oct 24". A single day gives its hours instead, and a single
+    /// instant says it was one reading. It was the span and the count joined by a middle dot,
+    /// two facts with nothing to say how they related.
     /// </summary>
     public static string SpanText(IReadOnlyList<MovementRow> rows)
     {
@@ -708,13 +747,19 @@ else
         var first = rows.Min(r => r.Open.CapturedAt);
         var last = rows.Max(r => r.Now.CapturedAt);
 
-        var when = first == last
-            ? $"Seen once, {DisplayTime.Stamp(first)}"
-            : DisplayTime.Day(first) == DisplayTime.Day(last)
-                ? $"{DisplayTime.Format(first, "MMM d HH:mm")} to {DisplayTime.Format(last, "HH:mm")} {DisplayTime.Label}"
-                : $"{DisplayTime.Day(first)} to {DisplayTime.Day(last)}";
+        // One instant is one reading, so there is nothing to have moved.
+        if (first == last)
+            return $"Seen once, {DisplayTime.Stamp(first)}";
 
-        return $"{when} · {MovesText(rows.Sum(r => r.Moves))}";
+        var span = DisplayTime.Day(first) == DisplayTime.Day(last)
+            ? $"{DisplayTime.Format(first, "MMM d HH:mm")} to {DisplayTime.Format(last, "HH:mm")} {DisplayTime.Label}"
+            : $"{DisplayTime.Day(first)} to {DisplayTime.Day(last)}";
+
+        var moves = rows.Sum(r => r.Moves);
+
+        return moves == 0
+            ? $"No moves yet, {span}"
+            : $"{MovesText(moves)} from {span}";
     }
 
     /// <summary>A count of moves, as the window's status and the span line both say it.</summary>

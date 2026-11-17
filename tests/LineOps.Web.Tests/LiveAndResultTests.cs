@@ -251,6 +251,34 @@ public class BoardMatchupCellTests
     }
 
     [Fact]
+    public void The_clubs_are_two_lines_on_one_grid_with_no_capsule_behind_them()
+    {
+        // The crest identifies the club now; a fill behind every nickname was a second shape
+        // saying the same thing, and side by side the clubs did not sit level with the score's
+        // two lines.
+        Assert.DoesNotContain("board__chip", Razor);
+        Assert.DoesNotContain("board__chip", Css);
+        Assert.Matches(@"\.board__sides\s*\{[^}]*display:\s*grid;", Css);
+        Assert.Matches(@"\.board__side\s*\{\s*display:\s*contents;", Css);
+    }
+
+    [Fact]
+    public void The_start_cell_is_the_time_over_the_league_with_no_joiner()
+    {
+        Assert.Contains("<span class=\"board__league\">", Razor);
+        Assert.DoesNotContain("<span class=\"dim\"> · @sport.Key", Razor);
+    }
+
+    [Fact]
+    public void A_market_pair_keeps_its_rhythm_at_a_narrow_width()
+    {
+        // The narrow board's padding names four classes; the pair rules name five, so they win it.
+        Assert.Matches(@"\.deskgrid\.deskgrid--board \.mud-table-body \.mud-table-cell\.board__pair\s*\{\s*padding-left:", Css);
+        Assert.Matches(@"\.deskgrid\.deskgrid--board \.mud-table-body \.mud-table-cell\.board__pair-end\s*\{\s*padding-left:", Css);
+        Assert.Matches(@"\.deskgrid--board \.price__empty\s*\{[^}]*min-width:", Css);
+    }
+
+    [Fact]
     public void The_matchup_links_shortcut_is_out_of_the_flow()
     {
         Assert.Matches(@"\.board__matchup-link\s*\{\s*position:\s*relative;", Css);

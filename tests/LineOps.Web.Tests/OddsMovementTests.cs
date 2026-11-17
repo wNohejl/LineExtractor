@@ -267,7 +267,7 @@ public class OddsMovementTests
             Snap("fanduel", Away, -115, 0)
         ], Away);
 
-        Assert.Equal("Oct 20 to Oct 24 · 2 moves", OddsPanel.SpanText(rows));
+        Assert.Equal("2 moves from Oct 20 to Oct 24", OddsPanel.SpanText(rows));
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public class OddsMovementTests
     {
         var rows = OddsPanel.MovementRows([Snap("draftkings", Away, -110, 1), Snap("draftkings", Away, -120, 3.5)], Away);
 
-        Assert.Equal("Oct 24 13:00 to 15:30 ET · 1 move", OddsPanel.SpanText(rows));
+        Assert.Equal("1 move from Oct 24 13:00 to 15:30 ET", OddsPanel.SpanText(rows));
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class OddsMovementTests
     {
         var rows = OddsPanel.MovementRows([Snap("draftkings", Away, -110, 0)], Away);
 
-        Assert.Equal("Seen once, Oct 24 12:00 ET · no moves yet", OddsPanel.SpanText(rows));
+        Assert.Equal("Seen once, Oct 24 12:00 ET", OddsPanel.SpanText(rows));
     }
 
     [Fact]
@@ -307,7 +307,7 @@ public class OddsMovementTests
             HomeTeam = new Team { Name = Home }
         };
 
-        Assert.Equal("Oct 24 · Dallas Cowboys at Philadelphia Eagles", OddsPanel.GameOption(game));
+        Assert.Equal("Oct 24, Dallas Cowboys at Philadelphia Eagles", OddsPanel.GameOption(game));
     }
 
     /// <summary>A book is read by its name; the feed's key is only for joining rows.</summary>

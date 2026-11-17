@@ -183,7 +183,7 @@
     background: var(--surface-2);
     border-bottom: 1px solid var(--separator);
     color: var(--text-secondary);
-    font-size: var(--text-footnote);
+    font-size: var(--text-subheadline);
     font-weight: var(--weight-semibold);
     text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
     letter-spacing: normal;
@@ -202,8 +202,19 @@
    scrolled sideways instead — taking the metrics, the notes and every other table with it, so a
    three-column desk read as three windows with their right edges cut off and the scrollbar a
    screen below. What still cannot fit at the narrowest scrolls here, inside the table alone.
-   The grid is also the container its columns ask about: see .col--wide below. */
-.deskgrid { container: deskgrid / inline-size; }
+   The grid is also the container its columns ask about: see .col--wide below.
+
+   Two measures every cell rule below spends, named once so a narrow grid changes them in one
+   place. --deskgrid-inset is a cell's side padding, and so half the gap between two columns'
+   text: two neighbours always stand twice it apart, whichever edge each is set on. --deskgrid-sort
+   is what a heading's sort arrow occupies — its 12px box and the 2px between it and the word —
+   which a sortable heading reserves beside its label so the arrow never reaches the next column
+   (see the heading rules below). Local to the grid, not tokens: no other component spends them. */
+.deskgrid {
+    container: deskgrid / inline-size;
+    --deskgrid-inset: 10px;
+    --deskgrid-sort: 14px;
+}
 .deskgrid .mud-table-container { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 
 /* Columns worth having when there is room, and not worth a sideways scroll when there is not.
@@ -211,11 +222,12 @@
 @container deskgrid (max-width: 640px) {
     .deskgrid .col--wide { display: none; }
 
-    /* Doubled to outrank the cell rules below, which come later in this file. The empty line
-       keeps the cells' inset, so it still starts where their text would. */
-    .deskgrid.deskgrid .mud-table-head .mud-table-cell,
-    .deskgrid.deskgrid .mud-table-body .mud-table-cell,
-    .deskgrid.deskgrid .deskgrid__empty { padding-inline: 8px; }
+    /* The inset narrows, and with it the gap between columns, which stays twice the inset.
+       Set on the grid's children because a container query cannot style the container itself;
+       every cell, the empty line and the skeleton inherit it, so the empty line still starts
+       where a row's text would. It used to be a padding rule with a doubled class to outrank
+       the cell rules below, and every rule that touched a cell's padding had to know about it. */
+    .deskgrid > * { --deskgrid-inset: 8px; }
 }
 
 @container deskgrid (max-width: 820px) {
@@ -227,21 +239,44 @@
     .deskgrid .mud-table-body .desklink__shortcut { font-size: 0; gap: 0; }
 }
 
-/* A long name or message wraps to a second line and stops there, rather than holding its whole
-   length on one line — a nowrap cell's width is its text's width, so one long incident title set
-   the width of the whole table. Two lines keeps the row rhythm; a .trunc keeps its full text in
-   its title. */
+/* Overflow: one line per cell, ending in an ellipsis, and the column that gives way is the one
+   holding a sentence, not the one holding a name.
+
+   A long name or message used to wrap to a second line and stop there. That kept one long title
+   from setting the width of the whole table (a nowrap cell's width is its text's width), but it
+   left the row's height to chance: a two-word name broke under itself in one row and not in the
+   row beside it, while the sentence in the next column was cut short anyway.
+   Rows of one grid now share one height.
+
+   A sentence (.trunc, which keeps its full text in its title) is clamped to one line but may
+   still wrap inside the clamp, so its narrowest is its longest word and it takes whatever width
+   the table has left over. That is what lets it give way. */
 .deskgrid .mud-table-body .mud-table-cell .desklink__label,
 .deskgrid .mud-table-body .mud-table-cell .trunc:not(.mud-table-cell) {
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
     width: auto;
     max-width: none;
     white-space: normal;
     overflow-wrap: break-word;
     overflow: hidden;
+}
+
+/* A name is held on its line: a link whose label is plain text (no marks or chips inside it, so
+   `:not(:has(*))`, which adds no specificity) does not wrap at all, and so the table gives it its
+   whole width before it gives the sentence beside it anything. Up to a ceiling — the larger of
+   24 characters and 40% of the grid — past which it ends in an ellipsis like everything else, so
+   one long title cannot set the width of the table either. A label built from elements keeps the
+   one-line clamp above, which an application may lift for a cell that is meant to stack. */
+.deskgrid .mud-table-body .mud-table-cell .desklink__label:not(:has(*)) {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    max-width: max(24ch, 40cqw);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .deskgrid .mud-table-body .mud-table-cell .desklink { max-width: 100%; }
@@ -256,7 +291,7 @@
    Body text, regular, in secondary ink, as .empty sets an absence everywhere else. */
 .deskgrid__empty {
     margin: 0;
-    padding: var(--space-1) 10px;
+    padding: var(--space-1) var(--deskgrid-inset);
     color: var(--text-secondary);
     font-size: var(--text-body);
     font-weight: var(--weight-regular);
@@ -264,15 +299,22 @@
     text-align: start;
 }
 
+/* The heading row reads as headings: subheadline, semibold, secondary ink, sentence case — the
+   voice of a section header (.panel-h) one step down, which is what a column heading is. It was
+   footnote size on a 1.2 line, the smallest type in the grid and the tightest, so in a dark window
+   the names of the columns were the hardest thing in it to read. Its line box is the body's 20px,
+   so the heading row stands the same 29px as every row under it and the band does not look like
+   a different table pinned on top. */
 .deskgrid .mud-table-head .mud-table-cell {
-    padding: var(--space-1) 10px;
+    padding: var(--space-1) var(--deskgrid-inset);
     border-bottom: 1px solid var(--separator);
     background: var(--surface-2);
     color: var(--text-secondary);
-    font-size: var(--text-footnote);
+    font-size: var(--text-subheadline);
     font-weight: var(--weight-semibold);
-    line-height: 1.2;
+    line-height: 20px;
     white-space: nowrap;
+    vertical-align: middle;
     text-transform: none; /* Mud's subtitle2 default is tracked; the desk's header is not */
     letter-spacing: normal;
 }
@@ -284,13 +326,65 @@
    too, on every cell, not only .mud-align-right/.mud-align-end — see the plain .mud-table-cell
    rule above for why that hook cannot be trusted alone. */
 .deskgrid .mud-table-body .mud-table-cell {
-    padding: var(--space-1) 10px;
+    padding: var(--space-1) var(--deskgrid-inset);
     border-bottom: 1px solid var(--separator);
     color: var(--text-primary);
     font-size: var(--text-body);
     line-height: 20px;
     font-variant-numeric: tabular-nums;
 }
+
+/* MudBlazor gives a dense table's last cell a 16px trailing pad (`.mud-table-dense * .mud-table-row
+   .mud-table-cell:last-child`, four classes), so the last column alone sat inset from the window's
+   edge by more than every other column's gap, and any heading rule here written at three classes
+   lost to it on that one cell. Matched at four and won on load order. */
+.deskgrid .mud-table-row > .mud-table-cell:last-child { padding-inline-end: var(--deskgrid-inset); }
+
+/* A sortable heading reserves room for its arrow on the side the arrow hangs, so the arrow sits
+   inside its own column. It used to hang in the padding and 4px past it, into the neighbour's, so
+   a revealed arrow stood 6px from the next heading's word, and at a narrow grid's 8px inset it
+   touched it. The reservation is padding, present whether the arrow shows or not, so revealing
+   or sorting never moves a word, and the label still starts (or ends) on the same line as the
+   cells under it, because the side that lines up with them keeps the plain inset.
+
+   The arrow trails a heading on the leading edge, and leads one on the trailing edge (see
+   .deskgrid__end below), so the reserve goes on that side instead. `:where()` adds nothing to
+   either selector, so both stay at the plain heading rule's three classes and win on load order
+   alone, and a host's own column padding (a grouped pair of columns, say, written at three
+   classes and an element) still wins over them. A heading that does not sort draws no arrow and
+   reserves nothing. */
+.deskgrid .mud-table-head .mud-table-cell:where(:has(.sort-direction-icon)) {
+    padding-inline-end: calc(var(--deskgrid-inset) + var(--deskgrid-sort));
+}
+
+.deskgrid .mud-table-head .mud-table-cell:where(:has(.sort-direction-icon)):where(.deskgrid__end) {
+    padding-inline-start: calc(var(--deskgrid-inset) + var(--deskgrid-sort));
+    padding-inline-end: var(--deskgrid-inset);
+}
+
+/* A centred heading reserves on both sides, so its word stays centred over its cells' figures. */
+.deskgrid .mud-table-head .mud-table-cell:where(:has(.sort-direction-icon)):where(.deskgrid__center) {
+    padding-inline-start: calc(var(--deskgrid-inset) + var(--deskgrid-sort));
+}
+
+/* The trailing reservation again for the last heading, which the last-cell rule above, at four
+   classes, would otherwise hand back the plain inset. A trailing-edge heading is left out: its
+   arrow leads, and its trailing side lines up with its cells at the plain inset. */
+.deskgrid .mud-table-head .mud-table-cell:last-child:where(:has(.sort-direction-icon)):where(:not(.deskgrid__end)) {
+    padding-inline-end: calc(var(--deskgrid-inset) + var(--deskgrid-sort));
+}
+
+/* A sticky heading (FixedHeader) stays a heading while the rows scroll under it. MudBlazor's
+   sticky rule repaints the band in --mud-palette-surface at four classes, which beat the band
+   above and turned the heading row the colour of the rows going under it, so the two could not be
+   told apart mid-scroll; and it rounds the band's outer corners at five, which drew the heading
+   row as a tab with the table hanging under it. Both answered at matching depth. The hairline
+   under the band stays put, because Mud's table separates its borders rather than collapsing
+   them, so the line belongs to the heading cell and travels with it. */
+.deskgrid .mud-table-sticky-header .mud-table-head .mud-table-cell { background: var(--surface-2); }
+
+.deskgrid .mud-table-sticky-header .mud-table-head .mud-table-cell:first-child,
+.deskgrid .mud-table-sticky-header .mud-table-head .mud-table-cell:last-child { border-radius: 0; }
 
 /* A sortable header is a control, so it gets the same highlight language as everything else:
    the label brightens on hover and the arrow is the only thing that appears.
@@ -316,13 +410,27 @@
     vertical-align: middle;
 }
 
-/* The label is its own width, not the cell's, so the arrow can follow the word. */
+/* The label is its own width, not the cell's, so the arrow can follow the word. In a table laid
+   out by its content the heading is never narrower than its label; where a host fixes the
+   column widths it can be, and then the label ends in an ellipsis inside its own column rather
+   than running under the next heading. The arrow is not inside the label, so it is not clipped. */
 .deskgrid .mud-table-head .mud-table-cell .column-header .sortable-column-header {
     width: auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     transition: color var(--dur-fast) var(--ease-standard);
 }
 
 .deskgrid .mud-table-head .mud-table-cell .column-header:hover .sortable-column-header { color: var(--text-primary); }
+
+/* The column the rows are sorted by says so in its word as well as its arrow: primary ink, the
+   one heading in the row that is. The arrow alone is 12px of accent at the word's edge, easy to
+   lose in a row of nine headings. */
+.deskgrid .mud-table-head .mud-table-cell .column-header:has(.mud-direction-asc, .mud-direction-desc) .sortable-column-header {
+    color: var(--text-primary);
+}
 
 /* The arrow hangs just past the label's trailing edge instead of taking width beside it. In
    flow, the arrow and the sort index cost every column ~40px whether it was sorted or not — a
@@ -378,6 +486,16 @@
 .deskgrid .mud-table-head .mud-table-cell .column-header .column-options .sort-direction-icon.mud-direction-desc { opacity: 1; }
 
 .deskgrid .sort-direction-icon .mud-icon-root { font-size: 12px; width: 12px; height: 12px; }
+
+/* The arrow is the heading's keyboard target (MudBlazor's label takes the pointer only), so a
+   keyboard reaching it gets the desk's ring and the arrow at full strength, not the faded offer
+   a passing pointer gets. */
+.deskgrid .mud-table-head .mud-table-cell .column-header .column-options .sort-direction-icon:focus-visible {
+    opacity: 1;
+    outline: none;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--focus-ring);
+}
 
 .deskgrid .mud-table-cell.mud-table-cell-hide { display: none; }
 
@@ -441,20 +559,73 @@
    pointer is on it. Under the pointer, and while it is dragged, it is a control in use and
    lights as one: a 1px accent line centred in Mud's 8px grab strip, in place of Mud's 2px
    Material-primary bar. The strip keeps its width and Mud's col-resize cursor, so the edge is
-   as easy to find and hit as it was. */
+   as easy to find and hit as it was.
+
+   Drawing nothing at rest made the handle a thing found by accident. So while the pointer is on
+   the heading row, or a heading's arrow has the keyboard, each boundary between headings shows a
+   short --separator-strong tick, half the row's height — where a column can be dragged, said
+   only when the operator is at the headings — and the tick under the pointer grows to the full
+   height in the accent. The last heading has no neighbour to give way, so it shows no tick until
+   its own handle is pointed at. A grid that does not resize has no handles and shows nothing. */
 .deskgrid .mud-table-cell .mud-resizer {
     border-right: 0;
     background: none;
 }
 
+.deskgrid .mud-table-cell .mud-resizer::after {
+    content: "";
+    position: absolute;
+    top: 25%;
+    bottom: 25%;
+    left: calc(50% - .5px);
+    width: 1px;
+    background: var(--separator-strong);
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.deskgrid .mud-table-head .mud-table-row:hover > .mud-table-cell:not(:last-child) .mud-resizer::after,
+.deskgrid .mud-table-head .mud-table-row:focus-within > .mud-table-cell:not(:last-child) .mud-resizer::after { opacity: 1; }
+
 .deskgrid .mud-table-cell .mud-resizer:hover,
-.deskgrid .mud-table-cell .mud-resizing {
-    border-right: 0;
-    background: linear-gradient(var(--accent), var(--accent)) center / 1px 100% no-repeat;
+.deskgrid .mud-table-cell .mud-resizing { border-right: 0; }
+
+.deskgrid .mud-table-head .mud-table-cell .mud-resizer:hover::after,
+.deskgrid .mud-table-head .mud-table-cell .mud-resizing::after {
+    top: 0;
+    bottom: 0;
+    background: var(--accent);
+    opacity: 1;
 }
 
 /* A grid whose rows go somewhere says so on the row, not just in a cell. */
 .deskgrid--clickable .mud-table-body .mud-table-row { cursor: pointer; }
+
+/* Row states, quietest first, all within the one accent.
+
+   Pointed at: a row you can only read lifts to --surface-2, the band the headings sit on, which
+   is enough to keep the eye on its line across a wide table. A row that does something when
+   pressed lifts further, halfway to --surface-3, the tier the desk's controls take under the
+   pointer: in a dark window --surface-2 over --surface-1 was too faint to say "this answers a
+   press". Not --surface-3 itself, because a neutral tag rests on --surface-3 and would vanish
+   into its own row. Pointer only (MudBlazor's row hover is under the same media query), so a
+   touch never leaves a row lit. Four classes and no more: an application's open-row rule is
+   written at four and loads later, so a row it lit stays lit under the pointer; `:where()` keeps
+   the body out of the count while keeping the heading row out of the rule. */
+@media (hover: hover) and (pointer: fine) {
+    .deskgrid--clickable :where(.mud-table-body) > .mud-table-row:hover > .mud-table-cell {
+        background-color: color-mix(in srgb, var(--surface-2) 50%, var(--surface-3));
+    }
+}
+
+/* Open: the row whose child row is showing (DeskGrid's ChildRow) is the selection, and takes the
+   accent's stronger wash; its child row keeps the plain wash, so the pair reads as one thing with
+   the row at its head. An application's own open-row class sets the plain wash at four classes;
+   this is five, because the child row's presence is the fact, whichever class says so. A pointer
+   on the open row leaves it as it is — it is already the brightest thing in the grid. */
+.deskgrid .mud-table-body .mud-table-row:has(+ .deskgrid__child) > .mud-table-cell {
+    background-color: var(--accent-wash-strong);
+}
 
 .deskgrid--clickable .mud-table-row:focus-visible {
     outline: 2px solid var(--accent);

@@ -26,8 +26,8 @@ else if (!_anySettled)
     @* The one step out of an empty screen belongs on the screen. *@
     <EmptyState Kind="EmptyStateKind.New">
         <ChildContent>
-            No settled entries yet. Log entries in the Journal and settle them once games
-            finish — closing-line value resolves at the same time.
+            No settled bets yet. Log bets in the Journal and settle them when their games
+            finish; closing-line value is read at the same time.
         </ChildContent>
         <Action>
             <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
@@ -104,7 +104,9 @@ else
            share a left and a right edge. At 1600px the chart sat small in the middle of the
            window and each table put its figures somewhere else along a 1584px row. *@
         <div class="perf">
-        <MetricRow>
+        @* Four to six tiles, as the bets allow; the class says how many so the row can wrap
+           them evenly (lineops.css, "The Performance window") rather than leave an orphan. *@
+        <MetricRow Class="@($"perf-metrics--{4 + (_valueAtClose is null ? 0 : 1) + (_startingBankroll > 0 ? 1 : 0)}")">
             <Metric Label="ROI"
                     Value="@Percent(_summary.Roi)"
                     Note='@($"{_summary.SettledCount:N0} {(_summary.SettledCount == 1 ? "bet" : "bets")}")'
@@ -115,7 +117,7 @@ else
                     State="@Sign(_summary.NetProfit)" />
             <Metric Label="Win rate"
                     Value='@_summary.WinRate.ToString("P0")'
-                    Note='@($"{_summary.Wins} W · {_summary.Losses} L · {_summary.Pushes} P")' />
+                    Note="@WonLost" />
             <Metric Label="Beat the close"
                     Value="@_beatRate"
                     Note="@_clvNote"
@@ -240,7 +242,7 @@ else
                     @if (context.Item.Value is { } v)
                     {
                         <span class="@(v.Rate > 0 ? "up" : v.Rate < 0 ? "down" : "dim")">@v.Rate.ToString("+0.0%;−0.0%")</span>
-                        <span class="dim"> · @Signed(v.Expected)</span>
+                        <span class="dim">@($" ({Signed(v.Expected)})")</span>
                     }
                     else
                     {
@@ -437,7 +439,7 @@ else
         var value = PerformanceAnalytics.ValueAtClose(selections);
         _valueAtClose = value?.Rate;
         _valueNote = value is { } v
-            ? $"{Signed(v.Expected)} expected · {v.Bets:N0} of {readings.Count:N0} bets"
+            ? $"{Signed(v.Expected)} expected over {v.Bets:N0} of {readings.Count:N0} bets"
             : null;
 
         // Split by what the fair close was read from, so a headline carried by consensus closes
@@ -489,6 +491,14 @@ else
         // The read reports its own failure as the window's PanelLoadFailure, so it sits outside the catch.
         await LoadAsync();
     }
+
+    /// <summary>
+    /// The record under the win rate, in words: "12 won, 8 lost", with the pushes only when
+    /// there were any. It was "12 W · 8 L · 0 P", three abbreviations joined by middle dots.
+    /// </summary>
+    private string WonLost
+        => $"{_summary.Wins:N0} won, {_summary.Losses:N0} lost"
+           + (_summary.Pushes > 0 ? $", {_summary.Pushes:N0} pushed" : "");
 
     private static DeskState Sign(decimal value)
         => value > 0 ? DeskState.Positive : value < 0 ? DeskState.Negative : DeskState.Neutral;

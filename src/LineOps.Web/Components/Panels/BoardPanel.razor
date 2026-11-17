@@ -222,14 +222,7 @@ else if (Visible.Count == 0)
 }
 else
 {
-    @* In a column too narrow for all six market cells, spread and totals fold away (col--wider)
-       rather than pushing the board off the side of its window. Said, so nothing is missing
-       without a word. *@
     <div class="board__table">
-    <div class="board__folded" role="note">
-        Spread and totals are folded away at this width — widen the board or maximise it to see them.
-    </div>
-
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
@@ -239,12 +232,18 @@ else
 
         <TemplateColumn T="BoardRow" Sortable="true" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
-                <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
-                @* Which league, and only while the board is showing more than one. *@
-                @if (_sport.Length == 0 && context.Item.Game.Sport is { } sport)
-                {
-                    <span class="dim"> · @sport.Key.ToUpperInvariant()</span>
-                }
+                @* The time on the away line and the league under it on the home line, each on its
+                   own terms: the time in the cell's ink, the league a caption in secondary. Joined
+                   by a middot they were one run of grey that wrapped at the dot in a narrow Board,
+                   leaving "· NBA" to start the second line. Which league is said only while the
+                   board is showing more than one. *@
+                <span class="board__when">
+                    <span class="board__time num">@Starts(context.Item.Game.StartsAt)</span>
+                    @if (_sport.Length == 0 && context.Item.Game.Sport is { } sport)
+                    {
+                        <span class="board__league">@sport.Key.ToUpperInvariant()</span>
+                    }
+                </span>
             </CellTemplate>
         </TemplateColumn>
 
@@ -262,18 +261,18 @@ else
             opens draws beneath them, and the whole of that row is theirs. Closed rows still lose
             no width, and only the open row changes height.
 
-            The matchup is the two clubs side by side, away then home, each a chip of its mark
-            and nickname with its starter in small type beneath: the probable pitcher MLB names,
-            or the quarterback an NFL club started its last game with — unless the injury report
-            has him out, when it is the passer who started without him, and the starter's tooltip
-            carries the injury ("Kyler Murray is out; Carson Wentz started the club's last game
-            without him"), or a dash when nobody has thrown in his place. Stacked as two plain
-            lines over a "Gasser v Peralta" line and a stale-price warning, the clubs, their
-            starters and the gap all read as one grey block; as chips, each club is an object and
-            its starter sits under the club it pitches or throws for. The full names stay on the
-            link's tooltip and each starter's on its own, and a hidden "at" keeps the link
-            reading "Brewers at Rays". When a game is final the loser drops to secondary ink, as
-            its score does beside it.
+            The matchup is two lines, away over home as the Game window's scoreboard reads, each
+            the club's crest, its nickname and its starter in secondary ink: the probable pitcher
+            MLB names, or the quarterback an NFL club started its last game with — unless the
+            injury report has him out, when it is the passer who started without him, and the
+            link's tooltip carries the injury ("Kyler Murray is out; Carson Wentz started the
+            club's last game without him"), or a dash when nobody has thrown in his place. The
+            clubs were capsule chips side by side, which made each club an object when all it had
+            was a nickname; the crest now does that, and a fill behind every name was a second
+            shape saying the same thing. Stacked, the two lines sit level with the score's two
+            lines beside them, and the starters share one left edge. The full names stay on the
+            link's tooltip, and a hidden "at" keeps the link reading "Brewers at Rays". When a
+            game is final the loser drops to secondary ink, as its score does beside it.
         *@
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
@@ -296,26 +295,40 @@ else
                         }
                     </span>
                 </DeskLink>
-                @if (context.Item.Game.DoubleHeaderGame is { } number)
-                {
-                    <Tag State="DeskState.Info">Game @number</Tag>
+                @{
+                    var doubleHeader = context.Item.Game.DoubleHeaderGame;
+                    var billed = context.Item.Bout is { } b && (b.MatchNumber == 1 || b.TitleFight) ? context.Item.Bout : null;
+                    var unpriced = context.Item.Unpriced;
                 }
-                @if (context.Item.Bout is { } card && (card.MatchNumber == 1 || card.TitleFight))
+                @* What qualifies the game — which of a doubleheader, the bout a card is sold on, that
+                   it has no price — is one quiet line under the two clubs, started at the nicknames'
+                   edge rather than under the crests, so the cell reads as the matchup and its
+                   footnote. Not drawn at all for a game with nothing to add. *@
+                @if (doubleHeader is not null || billed is not null || unpriced is not null)
                 {
-                    @* The bouts a card is sold on say so; the rest of the card is its order. *@
-                    <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
-                }
+                    <div class="board__notes@(FightSports.IsFight(context.Item.Game.Sport?.Key) ? "" : " board__notes--inset")">
+                        @if (doubleHeader is { } number)
+                        {
+                            <Tag State="DeskState.Info">Game @number</Tag>
+                        }
+                        @if (billed is { } card)
+                        {
+                            @* The bouts a card is sold on say so; the rest of the card is its order. *@
+                            <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
+                        }
 
-                @* The row says only that it has no price, in secondary ink. The reason is the
-                   banner's when every unpriced row shares it — thirteen orange copies of "No lines
-                   pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
-                   reasons differ the banner says to open a row, so the open row gives its own.
-                   No title: the reason is always in visible text, on the banner or the open row,
-                   and a title on text that takes no focus reaches only a pointer (HIG 12). *@
-                @if (context.Item.Unpriced is { } reason)
-                {
-                    <div class="board__gap">
-                        No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
+                        @* The row says only that it has no price, in secondary ink. The reason is the
+                           banner's when every unpriced row shares it — thirteen orange copies of "No lines
+                           pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
+                           reasons differ the banner says to open a row, so the open row gives its own.
+                           No title: the reason is always in visible text, on the banner or the open row,
+                           and a title on text that takes no focus reaches only a pointer (HIG 12). *@
+                        @if (unpriced is { } reason)
+                        {
+                            <span class="board__gap">
+                                No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
+                            </span>
+                        }
                     </div>
                 }
 
@@ -440,7 +453,8 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Moneyline, away" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Moneyline, away" Align="Align.Right" Sortable="false"
+                        HeaderClass="board__pair-end" CellClass="board__pair-end">
             <HeaderTemplate>@SideHeader("Moneyline", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
@@ -463,7 +477,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread, away" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Spread, away" Align="Align.Right" Sortable="false" HeaderClass="col--wider board__pair-end" CellClass="col--wider board__pair-end">
             <HeaderTemplate>@SideHeader("Spread", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
@@ -486,7 +500,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Total, under" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Total, under" Align="Align.Right" Sortable="false" HeaderClass="col--wider board__pair-end" CellClass="col--wider board__pair-end">
             <HeaderTemplate>@SideHeader("Total", "under")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
@@ -498,6 +512,15 @@ else
         </TemplateColumn>
 
     </DeskGrid>
+
+    @* In a column too narrow for all six market cells, spread and totals fold away (col--wider)
+       rather than pushing the board off the side of its window. Said, so nothing is missing
+       without a word — under the table, as a footnote to it: above it, the sentence was a third
+       thing stacked over the rows with the banner and the figures, and pushed the first game
+       down a line in exactly the narrow window that has the least height to spare. *@
+    <div class="board__folded" role="note">
+        Spread and totals are hidden at this width. Widen the Board to see them.
+    </div>
     </div>
 
     @if (_closing > 0)
@@ -966,22 +989,31 @@ else
     private static string MissingScoreHint(GameStatus status)
         => status == GameStatus.Postponed ? "not played" : "no score yet";
 
-    /// <summary>One club in the matchup cell: its chip, and its starter beneath where one is known.</summary>
+    /// <summary>
+    /// One club in the matchup cell: a line of its crest, its nickname and its starter. The line
+    /// dissolves into the cell's grid (.board__sides), so the away and home lines share their
+    /// columns and the two starters start at one edge.
+    /// </summary>
     private static RenderFragment Side(BoardRow row, bool home, bool loser) => __builder =>
     {
         var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;
         var starter = Starter(row, home);
 
         <span class="board__side@(loser ? " board__team--loser" : "")">
-            <span class="board__chip board__team">
-                <TeamMark Sport="@row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />@TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))
-            </span>
+            <TeamMark Sport="@row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />
+            <span class="board__team">@TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))</span>
             @if (starter is { } s)
             {
                 @* No title of its own: the starter sits inside the matchup link, which takes focus,
                    so the full name and what the role means ride on the link's tooltip
                    (MatchupTooltip) instead of a title only a pointer raises (HIG 12). *@
-                <span class="board__starter"><span class="board__starter-role">@s.Role</span> @s.Name</span>
+                <span class="board__starter">
+                    @if (s.Role.Length > 0)
+                    {
+                        <span class="board__starter-role">@s.Role</span>@(" ")
+                    }
+                    @s.Name
+                </span>
             }
         </span>
     };

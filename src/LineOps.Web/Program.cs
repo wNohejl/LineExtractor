@@ -70,6 +70,10 @@ builder.Services.AddDeskEdge(builder.Configuration, edge =>
 {
     if (builder.Environment.IsDevelopment())
         edge.ContentSecurityPolicy = DeskEdge.DevelopmentContentSecurityPolicy;
+
+    // The one thing fetched from another origin: a club's crest, from the host ESPN serves
+    // them on (TeamLogos). An image only; script, style and data still come from here alone.
+    edge.ExtraImageSources.Add(LineOps.Web.Components.Desk.TeamLogos.Origin);
 });
 
 // What a visitor may read, by the licence of the source each row came from (ADR 0024). Local, the

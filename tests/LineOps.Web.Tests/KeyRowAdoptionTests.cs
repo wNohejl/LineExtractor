@@ -81,7 +81,7 @@ public class KeyRowAdoptionTests
         Assert.DoesNotContain("Run ingest", Source("OpsPanel"));
 
         var history = Source("HistoryPanel");
-        Assert.Contains(" postponed</span>", history);
+        Assert.Contains(" postponed)", history);
         Assert.DoesNotContain(" pp</span>", history);
     }
 

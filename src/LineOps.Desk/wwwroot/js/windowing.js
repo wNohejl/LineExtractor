@@ -169,6 +169,7 @@ export function attachDivider(handle, leftId, rightId) {
 
     const onDown = (e) => beginSplit(e, handle, leftId, rightId);
     handle.addEventListener('pointerdown', onDown);
+    handle.addEventListener('keydown', holdSplitKeys);
     handle.__deskSplit = onDown;
 }
 
@@ -176,7 +177,26 @@ export function detachDivider(handle) {
     if (!handle || !handle.__deskSplit) return;
 
     handle.removeEventListener('pointerdown', handle.__deskSplit);
+    handle.removeEventListener('keydown', holdSplitKeys);
     handle.__deskSplit = null;
+}
+
+// The divider's own keys (Desk.razor, SplitByKey) are also the desk's scroll keys: the desk
+// scrolls sideways when the row overflows, and Home or an arrow pressed on a divider moved the
+// columns and scrolled the desk under them in the same keystroke. Prevented here rather than
+// with Blazor's preventDefault, which cannot tell these keys from Tab.
+const SPLIT_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+
+function holdSplitKeys(e) {
+    if (SPLIT_KEYS.has(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) e.preventDefault();
+}
+
+// The readout's two figures, written as the drag goes. The server draws them too, on every
+// render; these only keep them current between the pointer moving and the server hearing of it,
+// and are set as attributes (the stylesheet draws them) so the next render simply overwrites them.
+function showWidths(handle, left, right) {
+    handle.querySelector('[data-split-left]')?.setAttribute('data-width', String(Math.round(left)));
+    handle.querySelector('[data-split-right]')?.setAttribute('data-width', String(Math.round(right)));
 }
 
 function beginSplit(event, handle, leftId, rightId) {
@@ -214,6 +234,7 @@ function beginSplit(event, handle, leftId, rightId) {
         right.style.left = `${rightOrigin + delta}px`;
         right.style.width = `${rightStart - delta}px`;
         handle.style.transform = `translateX(${delta}px)`;
+        showWidths(handle, leftStart + delta, rightStart - delta);
     };
 
     const onUp = () => {
