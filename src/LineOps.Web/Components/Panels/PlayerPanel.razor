@@ -126,7 +126,8 @@ else
             <DeskGrid T="PlayerGameRow" Items="_rows"
                       EmptyText="No appearances on record for this player.">
                 <PropertyColumn T="PlayerGameRow" TProperty="DateTimeOffset" Property="r => r.StartsAt"
-                                Title="Date" InitialDirection="SortDirection.Descending">
+                                Title="Date" InitialDirection="SortDirection.Descending"
+                                HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                     <CellTemplate><span class="dim">@Day(context.Item.StartsAt)</span></CellTemplate>
                 </PropertyColumn>
 

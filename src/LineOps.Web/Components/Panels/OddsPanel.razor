@@ -324,7 +324,7 @@ else
             <div class="gridwrap">
                 <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
                     <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
-                                    Title="Player" CellClass="trunc">
+                                    Title="Player" HeaderClass="ops-col--grow" CellClass="trunc ops-col--grow">
                         <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
                     </PropertyColumn>
 
@@ -359,7 +359,8 @@ else
                     }
 
                     <PropertyColumn T="PlayerForm" TProperty="DateTimeOffset" Property="p => p.LastPlayed"
-                                    Title="Last" Align="Align.Right">
+                                    Title="Last" Align="Align.Right"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>
                             <span class="dim">@DisplayTime.Day(context.Item.LastPlayed)</span>
                         </CellTemplate>

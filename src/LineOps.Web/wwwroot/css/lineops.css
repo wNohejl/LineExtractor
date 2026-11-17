@@ -476,6 +476,10 @@
 .teammark__img--light { display: none; }
 [data-theme$="-light"] .teammark__img--light { display: block; }
 [data-theme$="-light"] .teammark__img--dark { display: none; }
+/* ESPN's dark-ground drawing is often the light one again: the Falcons' black bird, the
+   Panthers', the Colts' and the Raiders' navy and black, sank into a dark window. A hairline
+   halo in the tertiary ink gives every crest an edge there; a colourful one barely shows it. */
+.teammark__img--dark { filter: drop-shadow(0 0 1px var(--text-tertiary)); }
 
 /* A game's title as a scoreboard: away over home, name | score, the score the largest thing in
    the window. The rows are subgrids of one grid, so both scores share a right edge whatever the
@@ -495,8 +499,10 @@
     line-height: var(--leading-title);
     font-size: var(--text-title3);
 }
+/* Each club is one unbreakable unit, crest, name and score: dissolved into the line, a narrow
+   wager window broke after the home name and left its score alone on the next line. */
 .scoreboard--compact {
-    --scoreboard-row: contents;
+    --scoreboard-row: inline-flex;
     --scoreboard-score: var(--text-title3);
     display: inline-flex;
     flex-wrap: wrap;
@@ -513,6 +519,8 @@
     font-weight: var(--weight-semibold);
 }
 .scoreboard__row--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
+/* A flex row drops the space written between the name and the score, so the gap stands in. */
+.scoreboard--compact .scoreboard__row { column-gap: var(--space-2); }
 .scoreboard__name { display: inline-flex; align-items: baseline; min-width: 0; font-size: var(--text-title3); }
 /* The full scoreboard leads each row with the club's hero crest, so a row is the crest's height
    and the name and the score centre on it; on the baseline the 44px crest set the name at its
@@ -1646,7 +1654,18 @@ button.gamelines__cell { align-items: stretch; }
    over two lines while a sentence beside it was cut at a third of the window. Set on a
    column as HeaderClass and CellClass both. */
 .ops-col--fit { width: 1%; white-space: nowrap; }
-.ops-col--grow { width: 100%; }
+/* The growing column keeps a floor. Where the fitted columns already fill the window, "take
+   what is left" was nothing, and the Journal's selection was cut to "San…" while its stake and
+   result scrolled off the edge. At the floor the sentence still reads, and what cannot fit
+   scrolls inside the table, as the Desk lets a grid do at its narrowest. */
+.ops-col--grow { width: 100%; min-width: 16ch; }
+/* The sentence itself takes two lines before its ellipsis, not the one a name or a value is
+   held to: a selection with a crest in it is a label built from elements, which the Desk
+   clamps to one line, and one line of a selection at the floor was a club and no side. */
+.deskgrid .mud-table-body .mud-table-cell.ops-col--grow .desklink__label {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
 /* A name that opens a window is a DeskLink, whose label the Desk lets wrap to two lines. In a
    fitted column it is one line, as every other value there is. Four classes, as the Desk's
    rule has, and later in the cascade. */

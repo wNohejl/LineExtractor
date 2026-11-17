@@ -311,16 +311,17 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        @* Market and Book fold away under 820px with CLV: at the Journal's usual width the figures
+           and the selection fill the window, and the selection already says the side. *@
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@SelectionText.MarketName(context.Item.Market)</span></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.PriceTaken" Title="Price" Align="Align.Right"
-                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.PriceTaken" Title="Price" Align="Align.Right">
             <CellTemplate>
                 @* Said where the number is: a typed price is the operator's word, not an observation. *@
                 @if (context.Item.ManualPrice)
@@ -441,7 +442,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </TemplateColumn>
 
         <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book"
-                        HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                        HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 

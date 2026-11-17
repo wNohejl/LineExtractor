@@ -372,7 +372,7 @@ else if (!Loaded && !Failed)
     @* A book market's close and the stats provider's one-book reference are different things
        (ADR 0011), so the count says how many of each. *@
     <PropertyColumn T="SeasonCoverage" TProperty="int" Property="s => s.WithClose" Title="Closes" Align="Align.Right"
-                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+                    HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
         <CellTemplate>
             <span class="num">@context.Item.WithClose.ToString("N0")</span>
             <DeskTooltip Text="Closed by a book market; the rest by the stats provider's single-book reference.">
