@@ -78,7 +78,7 @@ Clone, add one API key, start Docker. About ten minutes, most of it the first im
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose v2), running | Postgres and the desk run in containers |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | `setup.ps1` uses it to make the HTTPS development certificate |
 | PowerShell | built into Windows; on macOS or Linux install [`pwsh`](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) and run the same scripts |
-| A free key from [The Odds API](https://the-odds-api.com/) | prices. Optional: without one the desk still fills with games, scores and box scores |
+| A free key from [The Odds API](https://the-odds-api.com/#get-access) | prices. Optional: without one the desk still fills with games, scores and box scores |
 
 **1. Clone, on the development branch.** `main` is the stable branch and trails it; the steps
 below are written for `LineX_Development`.
@@ -102,15 +102,37 @@ leaves an existing `.env` alone.
 If Windows says running scripts is disabled, bypass the policy for that one run rather than
 changing the machine's: `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1`.
 
-**3. Put the key in `.env`.** Sign up at <https://the-odds-api.com/> (free tier, 500 credits a
-month, no card), then set both lines. A key does nothing without its switch beside it.
+**3. Get a free key and put it in `.env`.** Prices come from **The Odds API**:
+
+| | |
+|---|---|
+| Sign up: free **Starter** plan, 500 credits a month, all sports | <https://the-odds-api.com/#get-access> → Starter → **START**. The key arrives by email. |
+| Your account, usage and the key again | <https://dash.the-odds-api.com/> |
+| API documentation | <https://the-odds-api.com/liveapi/guides/v4/> |
+
+> **Not odds-api.io.** `odds-api.io` is a different provider with a near-identical name and its
+> own keys. A The Odds API key goes in `THE_ODDS_API_KEY`; put in `ODDS_API_IO_KEY` it is
+> refused with 401.
+
+Set both lines in `.env`. A key does nothing without its switch beside it.
 
 ```ini
 THE_ODDS_API_KEY=your-key-here
 THE_ODDS_API_ENABLED=true
 ```
 
-Skip this step to run without prices; add it later and `docker compose up -d` again.
+Check the key without spending a credit (the sports list is free); it reads the key from
+`.env`, so it never lands in your shell history:
+
+```powershell
+$key = (Select-String .env -Pattern '^THE_ODDS_API_KEY=(.+)$').Matches.Groups[1].Value.Trim(); $r = Invoke-WebRequest "https://api.the-odds-api.com/v4/sports?apiKey=$key" -UseBasicParsing; "status $($r.StatusCode), credits remaining $($r.Headers['x-requests-remaining'])"
+```
+
+**What a credit buys:** one pull of one league costs a credit per market. `setup.ps1` asks for
+moneyline and spread, so 2 credits a pull; delete the `THE_ODDS_API_TOTALS=` line in `.env` to
+add over/unders at 3. Nothing is pulled unless you press for it.
+
+Skip this step to run without prices; add the key later and `docker compose up -d` again.
 
 **4. Load the committed dataset (optional).** The repository carries a snapshot of games, box
 scores and closing lines, so the desk opens with seasons of history instead of an empty
@@ -158,28 +180,32 @@ docker compose logs -f web                      # ingestion and alert activity
 | `set POSTGRES_PASSWORD in .env` | Step 2 has not run in this folder. |
 | Port 9443 is taken | Set `HTTPS_PORT` in `.env` and start again. |
 | The board has games but no prices | The key or its `_ENABLED=true` line is missing, or no one has pulled: **Ops → Odds feeds** says which. |
+| The key check answers 401 | A mistyped key, or an odds-api.io key. Get one from <https://the-odds-api.com/#get-access>. |
 | `restore-data.ps1` refuses: the database already holds games | It replaces rather than merges. `-Force` if that is what you want. |
 | `dotnet run` fails with "An Application Control policy has blocked this file" | Windows Smart App Control. Stay on the Docker path above; do not turn it off for this. |
 
 ### Hand it to an agent
 
-Paste this into Claude Code, or any coding agent with a shell, in an empty folder:
+The repository ships its setup procedure as a Claude Code skill,
+[`.claude/skills/lineops-setup/SKILL.md`](.claude/skills/lineops-setup/SKILL.md): the steps above
+plus what to check, what to ask you, the key check, and what never to do unasked. Any agent can
+follow it; it is plain Markdown.
+
+**Already cloned?** Open Claude Code in the `LineOps` folder and say:
 
 ```text
-Set up LineOps from https://github.com/wNohejl/LineExtractor (branch LineX_Development) and
-get the desk running in Docker. Follow the README's "Quick start" exactly, in order.
+/lineops-setup
+```
 
-- Check the prerequisites first (git, a running Docker, the .NET 10 SDK, PowerShell) and stop
-  and tell me what is missing rather than installing anything system-wide without asking.
-- Run scripts/setup.ps1 to create .env. Never print, commit or paste the contents of .env.
-- Ask me for my The Odds API key (https://the-odds-api.com), or leave me to put it in .env
-  myself, and set THE_ODDS_API_ENABLED=true beside it. If I have no key, carry on without one.
-- Run scripts/restore-data.ps1 to load the committed snapshot, then start the stack with
-  docker compose -f docker-compose.yml -f compose.dev.yml up -d --build.
-- Done means: docker compose ps shows lineops-postgres healthy and lineops-web up, and
-  https://localhost:9443/ready answers Healthy. Show me both, then give me the URL.
-- Do not pull lines, change system security settings, trust certificates or delete volumes
-  without asking me. Pulling lines spends API credits.
+**Starting from an empty folder?** Paste this into Claude Code, or any coding agent with a shell:
+
+```text
+Clone https://github.com/wNohejl/LineExtractor.git into ./LineOps on branch LineX_Development,
+then read LineOps/.claude/skills/lineops-setup/SKILL.md and follow it to get the desk running
+in Docker on this machine. Work inside LineOps. Check prerequisites before installing anything,
+ask me for my The Odds API key (or let me paste it into .env myself), never print .env, and do
+not pull lines or change security settings without asking. Done is docker compose ps healthy
+and https://localhost:9443/ready answering Healthy: show me both, then give me the URL.
 ```
 
 `CLAUDE.md` holds the repository's working rules (branches, authorship, verification) for an
@@ -467,7 +493,7 @@ worker containers, so nothing secret enters the repo or an image:
 ```ini
 THE_ODDS_API_KEY=your-key-here
 THE_ODDS_API_ENABLED=true
-THE_ODDS_API_TOTALS=          # blank drops over/unders: each market is billed on every scan
+THE_ODDS_API_TOTALS=          # blank drops over/unders (each market is billed on every scan); delete the line to add them
 
 ODDS_API_IO_KEY=
 ODDS_API_IO_ENABLED=false

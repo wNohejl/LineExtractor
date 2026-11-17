@@ -47,7 +47,13 @@ overwrite a database that already holds games unless told to with `-Force`.
 
 A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`): `dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or the Board's Date range key on the desk.
 
-Laptop bootstrap, from nothing:
+**Setting up on anyone else's machine** (a first run, "get it running", an API key): use the
+`lineops-setup` skill (`.claude/skills/lineops-setup/SKILL.md`), the README's Quick start for an
+agent. Prices come from **The Odds API** (`the-odds-api.com`, free Starter plan of 500 credits a
+month, sign-up at <https://the-odds-api.com/#get-access>), not odds-api.io. The private journal
+below is the owner's alone; skip it.
+
+The owner's laptop bootstrap, from nothing:
 
 ```powershell
 git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps

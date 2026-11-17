@@ -54,9 +54,15 @@ CERT_PATH=$($certDir -replace '\\', '/')
 HTTPS_PORT=9443
 
 # Provider keys. Blank is fine: ESPN needs no key. Prices need one, and a key does nothing
-# without its *_ENABLED=true beside it. https://the-odds-api.com (free tier, 500 credits a month)
+# without its *_ENABLED=true beside it.
+# The Odds API (the-odds-api.com), free Starter plan, 500 credits a month:
+#   sign up   https://the-odds-api.com/#get-access   (the key arrives by email)
+#   account   https://dash.the-odds-api.com/
+# Not odds-api.io: a different provider whose ODDS_API_IO_KEY below refuses this key with 401.
 THE_ODDS_API_KEY=
 THE_ODDS_API_ENABLED=false
+# Moneyline and spread are always requested. Leave this line out to add totals; blank drops them.
+THE_ODDS_API_TOTALS=
 ODDS_API_IO_KEY=
 ODDS_API_IO_ENABLED=false
 BALLDONTLIE_KEY=
