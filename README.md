@@ -66,27 +66,133 @@ notices when a feed silently breaks at 3am and produces a written RCA afterwards
 
 ---
 
-## Running it
+## Quick start
 
-### First time
+Clone, add one API key, start Docker. About ten minutes, most of it the first image build.
+
+**You need**
+
+| | Why |
+|---|---|
+| [Git](https://git-scm.com/downloads) | to clone |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose v2), running | Postgres and the desk run in containers |
+| [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | `setup.ps1` uses it to make the HTTPS development certificate |
+| PowerShell | built into Windows; on macOS or Linux install [`pwsh`](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) and run the same scripts |
+| A free key from [The Odds API](https://the-odds-api.com/) | prices. Optional: without one the desk still fills with games, scores and box scores |
+
+**1. Clone, on the development branch.** `main` is the stable branch and trails it; the steps
+below are written for `LineX_Development`.
 
 ```powershell
-./scripts/setup.ps1              # generates .env secrets + the HTTPS dev certificate
-dotnet dev-certs https --trust   # optional, removes browser warnings
-docker compose up -d
+git clone -b LineX_Development https://github.com/wNohejl/LineExtractor.git LineOps
 ```
 
-Open **<https://localhost:9443>**. That's it — no .NET SDK required to run it.
+```powershell
+cd LineOps
+```
+
+**2. Generate the local secrets.** Writes `.env` (a random database password and certificate
+password; gitignored) and exports the HTTPS development certificate. Safe to run again: it
+leaves an existing `.env` alone.
+
+```powershell
+.\scripts\setup.ps1
+```
+
+If Windows says running scripts is disabled, bypass the policy for that one run rather than
+changing the machine's: `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1`.
+
+**3. Put the key in `.env`.** Sign up at <https://the-odds-api.com/> (free tier, 500 credits a
+month, no card), then set both lines. A key does nothing without its switch beside it.
+
+```ini
+THE_ODDS_API_KEY=your-key-here
+THE_ODDS_API_ENABLED=true
+```
+
+Skip this step to run without prices; add it later and `docker compose up -d` again.
+
+**4. Load the committed dataset (optional).** The repository carries a snapshot of games, box
+scores and closing lines, so the desk opens with seasons of history instead of an empty
+database. Without it the desk starts empty and fills from ESPN as it runs.
+
+```powershell
+.\scripts\restore-data.ps1
+```
+
+**5. Start it.**
+
+```powershell
+docker compose -f docker-compose.yml -f compose.dev.yml up -d --build
+```
+
+Open **<https://localhost:9443>**. The browser warns about the certificate until you trust it
+(`dotnet dev-certs https --trust`, your call: it changes the machine's trust store).
+
+`compose.dev.yml` only publishes Postgres on `127.0.0.1:5433`, which the data scripts and a
+host-side `dotnet run` use. Plain `docker compose up -d` runs the desk without it.
+
+**6. Pull prices.** Lines are fetched when you ask, not on a timer (`LinePolling:Mode` is
+`Manual`, so a metered key is never spent unattended). Use **Pull data → Pull lines**
+for a league; it states the cost in credits first. **Ops → Odds feeds** shows whether the key
+was accepted and what is left of the month.
+
+**Check it worked**
+
+```powershell
+docker compose ps                               # lineops-postgres healthy, lineops-web up
+```
+
+```powershell
+curl.exe -k https://localhost:9443/ready        # Healthy once the database is migrated
+```
+
+```powershell
+docker compose logs -f web                      # ingestion and alert activity
+```
+
+`docker compose down` stops it and keeps the data; `docker compose down -v` deletes the data.
+
+| If | Then |
+|---|---|
+| `set POSTGRES_PASSWORD in .env` | Step 2 has not run in this folder. |
+| Port 9443 is taken | Set `HTTPS_PORT` in `.env` and start again. |
+| The board has games but no prices | The key or its `_ENABLED=true` line is missing, or no one has pulled: **Ops → Odds feeds** says which. |
+| `restore-data.ps1` refuses: the database already holds games | It replaces rather than merges. `-Force` if that is what you want. |
+| `dotnet run` fails with "An Application Control policy has blocked this file" | Windows Smart App Control. Stay on the Docker path above; do not turn it off for this. |
+
+### Hand it to an agent
+
+Paste this into Claude Code, or any coding agent with a shell, in an empty folder:
+
+```text
+Set up LineOps from https://github.com/wNohejl/LineExtractor (branch LineX_Development) and
+get the desk running in Docker. Follow the README's "Quick start" exactly, in order.
+
+- Check the prerequisites first (git, a running Docker, the .NET 10 SDK, PowerShell) and stop
+  and tell me what is missing rather than installing anything system-wide without asking.
+- Run scripts/setup.ps1 to create .env. Never print, commit or paste the contents of .env.
+- Ask me for my The Odds API key (https://the-odds-api.com), or leave me to put it in .env
+  myself, and set THE_ODDS_API_ENABLED=true beside it. If I have no key, carry on without one.
+- Run scripts/restore-data.ps1 to load the committed snapshot, then start the stack with
+  docker compose -f docker-compose.yml -f compose.dev.yml up -d --build.
+- Done means: docker compose ps shows lineops-postgres healthy and lineops-web up, and
+  https://localhost:9443/ready answers Healthy. Show me both, then give me the URL.
+- Do not pull lines, change system security settings, trust certificates or delete volumes
+  without asking me. Pulling lines spends API credits.
+```
+
+`CLAUDE.md` holds the repository's working rules (branches, authorship, verification) for an
+agent that goes on to change code; `docs/INFRASTRUCTURE.md` and `docs/adr/` say why things are
+the way they are.
+
+---
+
+## Running it
 
 The web container waits for Postgres to report *healthy* (not merely started, since the app
 migrates on boot), applies migrations, creates the monthly partitions, seeds reference data,
 and runs one ingest at startup so the dashboard has data on first load.
-
-```bash
-docker compose logs -f web     # follow ingestion and alert activity
-docker compose down            # stop, keeping the database volume
-docker compose down -v         # stop and delete all data
-```
 
 **No API keys are needed to start.** ESPN is on by default and needs no authentication, so real
 schedules, scores, box scores and season history flow in for free. Odds are the part that wants
@@ -186,8 +292,9 @@ Stats come from ESPN, free and unauthenticated. **Odds need a key**, because a m
 several books and the free feeds that carry several want one. ESPN publishes odds too, but only
 one book — a price rather than a market — so it stays the stats port.
 
-Copy `src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
-key. That file is gitignored and loaded last, so it wins over everything else — the
+In Docker the key goes in `.env` (Quick start, step 3). For a host run (`dotnet run`), copy
+`src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
+key. That file never enters an image; it is gitignored and loaded last, so it wins over everything else — the
 environment-named files are *not* ignored, which is why a key put in the obvious place ends up in
 the repository with it.
 
@@ -354,17 +461,22 @@ exposed database is something you opt into rather than something you forget is o
 
 ### Using real providers
 
-Put keys in `.env` and enable the source. Any configuration key can be overridden by
-environment variable using `__` as the separator, so nothing secret needs to enter the repo:
+In Docker, every provider is a key and a switch in `.env`; compose hands both to the web and
+worker containers, so nothing secret enters the repo or an image:
 
-```bash
-ODDS_API_IO_KEY=your-key-here
+```ini
+THE_ODDS_API_KEY=your-key-here
+THE_ODDS_API_ENABLED=true
+THE_ODDS_API_TOTALS=          # blank drops over/unders: each market is billed on every scan
+
+ODDS_API_IO_KEY=
+ODDS_API_IO_ENABLED=false
+BALLDONTLIE_KEY=
+BALLDONTLIE_ENABLED=false
 ```
 
-```yaml
-# then, on the web service
-Ingestion__OddsApiIo__Enabled: "true"
-```
+Any other configuration key can be overridden by environment variable with `__` as the
+separator (`Ingestion__LinePolling__Mode`), added to the service in `docker-compose.yml`.
 
 ---
 
@@ -375,7 +487,7 @@ Ingestion__OddsApiIo__Enabled: "true"
 | Provider | Free tier | Notes |
 |---|---|---|
 | odds-api.io | 100 req/h, 500 req/day | Moneyline/spread/total, 2 books, no card |
-| The Odds API | 500 credits/mo | Billed as markets × regions; used only for reconciliation |
+| The Odds API | 500 credits/mo | Billed as markets × regions; the feed the Quick start sets up |
 | balldontlie | Free tier | Players and stats |
 | ESPN (unofficial) | Free, unauthenticated | Schedules, scores, box scores; can change without notice |
 

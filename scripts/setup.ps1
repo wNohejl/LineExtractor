@@ -53,10 +53,14 @@ CERT_PASSWORD=$certPassword
 CERT_PATH=$($certDir -replace '\\', '/')
 HTTPS_PORT=9443
 
-# Provider keys — blank runs on the free demo and ESPN sources.
-ODDS_API_IO_KEY=
+# Provider keys. Blank is fine: ESPN needs no key. Prices need one, and a key does nothing
+# without its *_ENABLED=true beside it. https://the-odds-api.com (free tier, 500 credits a month)
 THE_ODDS_API_KEY=
+THE_ODDS_API_ENABLED=false
+ODDS_API_IO_KEY=
+ODDS_API_IO_ENABLED=false
 BALLDONTLIE_KEY=
+BALLDONTLIE_ENABLED=false
 "@ | Set-Content -Path $envFile -Encoding utf8
 
     Write-Host "Wrote .env with fresh secrets." -ForegroundColor Green
