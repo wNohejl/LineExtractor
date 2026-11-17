@@ -22,7 +22,7 @@ working from stale data, and CLV in particular is *unrecoverable* if the close i
 a game starts, the closing price that was never captured cannot be backfilled.
 
 **Triage**
-1. **Ingestion Runs** page, filter to the source. Is it failing, or not running at all?
+1. **Runs** window, filter to the source. Is it failing, or not running at all?
 2. Failing → read the error on the most recent run.
    - `HttpRequestException` / 5xx → provider outage. Check the provider's status page. Usually
      resolves itself; the circuit breaker will re-close automatically.
@@ -30,8 +30,11 @@ a game starts, the closing price that was never captured cannot be backfilled.
    - `429` → rate limited. Check whether the budget guard should have caught this; if the
      provider's real limit is lower than the configured ceiling, correct the `Source` row.
 3. Not running at all → is the scheduler alive? Look for "Ingestion scheduler started" in the
-   logs. If the host restarted and the schedule has drifted, trigger a manual **Ingest now**
-   from the dashboard to close the gap immediately.
+   logs. If the host restarted and the schedule has drifted, close the gap by hand from the
+   Board's **Pull data** menu (**Today's games**, **Results owed**, or **Pull lines** for an odds
+   source, which spends credits). Odds are pulled only on request unless
+   `Ingestion:LinePolling:Mode` is `Scheduled`, so a quiet odds source in `Manual` mode is
+   expected, not a fault.
 4. If the provider is down for an extended period, the platform degrades rather than breaks —
    other sources continue, and this alert auto-resolves on the next success.
 
@@ -47,7 +50,7 @@ least 3 runs. `Partial` runs count as failures (see
 wrong and it usually degrades further.
 
 **Triage**
-1. Look for a pattern in the failures on the Ingestion Runs page — every run, or one sport?
+1. Look for a pattern in the failures in the Runs window — every run, or one sport?
    One time of day? A single sport failing usually means a sport-key mapping is wrong after a
    provider change.
 2. A mix of `Partial` runs means the provider is returning empty payloads intermittently — go
@@ -165,12 +168,18 @@ the ESPN summary stopped carrying `pickcenter`, or the odds promotion at first p
 
 You do not have to wait for a real outage to practise this.
 
-1. **Ops Center → On-call drill**, pick a source and a failure mode:
+1. **Ops → On-call drill**. Where a registered source accepts an injected fault, pick one and a
+   failure mode:
    - **Upstream 503** — hard failure, exercises retry and the breaker.
    - **Request timeout** — slow failure.
    - **Empty payload** — the silent one; returns `HTTP 200` and no rows.
-2. **Run ingest and evaluate**.
-3. Watch the alert appear, promote it to an incident, work the timeline, then write the RCA
-   and resolve it.
+
+   No adapter accepts one today, and the section says so: "No registered source accepts an
+   injected fault."
+2. **Run the drill**. It runs an ingest, the KPI rollup and the alert rules.
+   **With no fault injected it is a real, metered pull** of the league with the most games still
+   to start, so it spends credits like Pull lines does.
+3. Watch for an alert, promote it to an incident, work the timeline, then write the RCA and
+   resolve it.
 4. Set the source back to **Healthy** and confirm the alert auto-resolves on the next
    evaluation.

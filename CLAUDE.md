@@ -60,8 +60,8 @@ git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps
 git checkout LineX_Development
 .\scripts\setup.ps1                      # generates .env with the database password
 .\scripts\restore-data.ps1               # brings Postgres up and loads the snapshot
-git clone https://github.com/wNohejl/lineops-journal.git lineops-journal   # private
-.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json
+git clone https://github.com/wNohejl/lineops-journal.git data/personal   # private
+.\scripts\restore-journal.ps1
 dotnet run --project src/LineOps.Web --launch-profile http   # or the Docker desk, below, if Smart App Control is on
 ```
 
@@ -70,19 +70,20 @@ dotnet run --project src/LineOps.Web --launch-profile http   # or the Docker des
 The journal, parlays and operator settings travel through the **private** repository
 `https://github.com/wNohejl/lineops-journal.git`, never through this public one (ADR 0025). It
 holds one file, `journal.json` (games named by provider id, so it merges into any database
-holding those games). Clone it at `./lineops-journal` in this checkout; `.gitignore` keeps that
-folder out of this repository, and nothing in it is ever committed here.
+holding those games). Clone it at `data/personal`, where the journal scripts read and write by
+default; `.gitignore` keeps that folder out of this repository, and nothing in it is ever
+committed here. (A clone at `./lineops-journal`, also ignored, works with `-OutFile`/`-InFile`.)
 
 ```powershell
 # On the machine whose journal is newest: export into the clone, then commit and push it there.
-.\scripts\publish-journal.ps1 -OutFile .\lineops-journal\journal.json
-git -C lineops-journal commit -am "journal: export <date>, <n> entries"; git -C lineops-journal push
+.\scripts\publish-journal.ps1
+git -C data/personal commit -am "journal: export <date>, <n> entries"; git -C data/personal push
 
 # On the other machine: data first, then the journal. In this order, always.
-git -C lineops-journal pull
+git -C data/personal pull
 .\scripts\restore-data.ps1 -Force
-.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json -DryRun   # read the report
-.\scripts\restore-journal.ps1 -InFile .\lineops-journal\journal.json
+.\scripts\restore-journal.ps1 -DryRun   # read the report
+.\scripts\restore-journal.ps1
 ```
 
 `restore-data.ps1` drops and recreates the whole schema, journal included: a data restore run
@@ -94,7 +95,7 @@ than the code; drop `--dry-run true` to write):
 
 ```powershell
 docker compose build worker
-docker compose run --rm --no-deps -v "${PWD}\lineops-journal:/journal:ro" worker `
+docker compose run --rm --no-deps -v "${PWD}\data\personal:/journal:ro" worker `
   --job journal:import --in /journal/journal.json --dry-run true
 ```
 
@@ -127,7 +128,7 @@ docker compose run --rm worker --job espn:range --sport nfl --from 2024-09-01 --
 # never land in it and Visual Studio's locked .vs is skipped); the docker socket for Testcontainers.
 docker run --rm -v "${PWD}:/repo:ro" -v /var/run/docker.sock:/var/run/docker.sock `
   -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal mcr.microsoft.com/dotnet/sdk:10.0 sh -c `
-  'mkdir /src && cd /repo && tar --exclude=./.vs --exclude=./lineops-journal --exclude=bin --exclude=obj -cf - . | tar -xf - -C /src && cd /src && dotnet test LineOps.slnx'
+  'mkdir /src && cd /repo && tar --exclude=./.vs --exclude=./lineops-journal --exclude=./data/personal --exclude=bin --exclude=obj -cf - . | tar -xf - -C /src && cd /src && dotnet test LineOps.slnx'
 ```
 
 The web container schedules ingestion itself; do not also run a host desk or a worker container
@@ -153,7 +154,8 @@ delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the s
 
 ## Verification before "done"
 
-- `dotnet build` clean on `src/LineOps.Web` and both test projects; `dotnet test` green.
+- `dotnet build LineOps.slnx` clean (eleven projects and four test projects); `dotnet test
+  LineOps.slnx` green, with Docker running for the Testcontainers suites.
 - The Worker host starts (`dotnet run --project src/LineOps.Worker`); its `appsettings.json`
   comment keys must be unique (`"//1"`, `"//2"` …) or the configuration provider refuses it.
 - For data changes: the coverage queries in

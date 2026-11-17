@@ -379,8 +379,8 @@ publishes them.
    `src/LineOps.Desk.Templates/content/deskapp/Directory.Packages.props`, and the template's own
    `<Version>` with them (`DeskTemplateTests` fails until the two agree). The HIG skills a new
    application's agent reads are packed from this repository's `.claude/skills` as the template
-   builds, so a skill edit needs no copy step (`DeskTemplateSkillsTests` holds every skill there
-   to being packed). Commit on
+   builds, so a skill edit needs no copy step (`DeskTemplateSkillsTests` holds every Desk skill
+   there to being packed; the application's own `lineops-*` skills are left out). Commit on
    `LineX_Development`, merge to `main`, and push.
 2. Tag the merge with the Desk's version and push the tag:
 

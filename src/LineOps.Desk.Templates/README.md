@@ -71,6 +71,6 @@ A freshly made application passes it unchanged.
 
 `dotnet pack src/LineOps.Desk.Templates` writes the package. The skills and the `nuget.config`
 are read from this repository's `.claude/skills` and `docs/desk` as it packs, so each has one
-source. The Desk packages workflow packs and publishes it beside the Desk and Hosting; the
+source. The Desk packages workflow packs and publishes it beside the Desk, Hosting and Testing packages; the
 template's `Directory.Packages.props` names the versions they declare, and a Desk test holds it
 to them.

@@ -108,7 +108,7 @@ Work from the repository root. PowerShell on every OS (`pwsh` on macOS and Linux
 |---|---|
 | `set POSTGRES_PASSWORD in .env` | Step 3 has not run in this folder. |
 | Port 9443 in use | Set `HTTPS_PORT` in `.env`, start again, use that port. |
-| Games but no prices | Key or `THE_ODDS_API_ENABLED=true` missing (restart after fixing `.env`: `up -d` again), or nobody has pulled yet. **Ops → Odds feeds** names which. |
+| Games but no prices | Key or `THE_ODDS_API_ENABLED=true` missing (after fixing `.env`, run step 6's command again), or nobody has pulled yet. **Ops → Odds feeds** names which. |
 | Key check returns 401 | Wrong key, or an odds-api.io key. Get one from the sign-up link above. |
 | `restore-data.ps1`: "pg_restore: not found" | An older checkout; `git pull` and run it again. |
 | `dotnet run` fails: "An Application Control policy has blocked this file" | Windows Smart App Control. Stay on Docker; the person decides about the setting, not you. |

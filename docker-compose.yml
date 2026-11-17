@@ -115,7 +115,8 @@ services:
           memory: 512M
 
   # Only starts with `--profile worker`. Use it to run ingestion as its own process;
-  # set Ingestion__HostScheduler=false on `web` at the same time so they don't both poll.
+  # set Ingestion__HostScheduler=false and Reliability__HostEvaluator=false on `web` at the same
+  # time so they don't both poll and both evaluate the alert rules.
   worker:
     build:
       context: .
