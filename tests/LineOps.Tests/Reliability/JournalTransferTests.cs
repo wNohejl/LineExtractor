@@ -419,6 +419,56 @@ public class JournalTransferTests(PostgresFixture fixture)
         Assert.Null(RepositoryGuard.Refusal(Path.Combine(Path.GetTempPath(), "lineops-" + Guid.NewGuid().ToString("N"), "journal.json")));
     }
 
+    [Fact]
+    public void A_private_repository_in_an_ignored_folder_may_hold_the_journal()
+    {
+        // The operator's arrangement: the public repository ignores a folder, and that folder is
+        // a repository of its own which tracks the journal on purpose.
+        var outer = Path.Combine(Path.GetTempPath(), "lineops-" + Guid.NewGuid().ToString("N"));
+        var inner = Path.Combine(outer, "private");
+        Directory.CreateDirectory(inner);
+
+        try
+        {
+            Git(outer, "init", "-q");
+            File.WriteAllText(Path.Combine(outer, ".gitignore"), "private/\n");
+            Git(inner, "init", "-q");
+
+            Assert.Null(RepositoryGuard.Refusal(Path.Combine(inner, "journal.json")));
+            Assert.NotNull(RepositoryGuard.Refusal(Path.Combine(outer, "journal.json")));
+
+            // A nested repository the outer one does not ignore is no shelter: asked on its own
+            // terms, it would commit the file.
+            var open = Path.Combine(outer, "open");
+            Directory.CreateDirectory(open);
+            Git(open, "init", "-q");
+            Assert.NotNull(RepositoryGuard.Refusal(Path.Combine(open, "journal.json")));
+        }
+        finally
+        {
+            foreach (var file in Directory.EnumerateFiles(outer, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(outer, recursive: true);
+        }
+    }
+
+    private static void Git(string directory, params string[] args)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git")
+        {
+            WorkingDirectory = directory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        foreach (var arg in args)
+            start.ArgumentList.Add(arg);
+
+        using var git = System.Diagnostics.Process.Start(start)!;
+        git.WaitForExit(15_000);
+        Assert.Equal(0, git.ExitCode);
+    }
+
     private static string RepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

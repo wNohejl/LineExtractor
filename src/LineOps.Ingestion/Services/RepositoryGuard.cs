@@ -18,24 +18,16 @@ public static class RepositoryGuard
         if (root is null)
             return null;
 
-        var relative = Path.GetRelativePath(root, full).Replace('\\', '/');
-
         try
         {
-            var start = new ProcessStartInfo("git")
-            {
-                WorkingDirectory = root,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-            foreach (var arg in new[] { "check-ignore", "-q", "--", relative })
-                start.ArgumentList.Add(arg);
+            // The ignored folder may itself be a repository: the operator keeps the journal in a
+            // private one there, where the file is tracked on purpose. A repository the one around
+            // it ignores is not where the file would be published from, so the question passes
+            // outward to the repository that could publish it.
+            while (RepositoryOf(root) is { } outer && Ignores(outer, root))
+                root = outer;
 
-            using var git = Process.Start(start)!;
-            git.WaitForExit(15_000);
-
-            return git.HasExited && git.ExitCode == 0
+            return Ignores(root, full)
                 ? null
                 : $"{full} is inside the repository at {root} and git does not ignore it. The repository is public: "
                   + "write the journal under data/personal/ (ignored), or outside the repository.";
@@ -45,6 +37,27 @@ public static class RepositoryGuard
             // No git to ask: inside a repository, fail closed.
             return $"{full} is inside the repository at {root}, and git could not be asked whether it is ignored ({ex.Message}).";
         }
+    }
+
+    /// <summary>Whether the repository at <paramref name="root"/> ignores the path, as <c>git check-ignore</c> answers.</summary>
+    private static bool Ignores(string root, string fullPath)
+    {
+        var relative = Path.GetRelativePath(root, fullPath).Replace('\\', '/');
+
+        var start = new ProcessStartInfo("git")
+        {
+            WorkingDirectory = root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        foreach (var arg in new[] { "check-ignore", "-q", "--", relative })
+            start.ArgumentList.Add(arg);
+
+        using var git = Process.Start(start)!;
+        git.WaitForExit(15_000);
+
+        return git.HasExited && git.ExitCode == 0;
     }
 
     /// <summary>The nearest directory above the path holding a <c>.git</c> (a directory, or a worktree's file).</summary>

@@ -43,8 +43,25 @@ public class DeskTemplateSkillsTests
     {
         var data = new TheoryData<string>();
         foreach (var dir in Directory.EnumerateDirectories(Path.Combine(Repo.Root(), ".claude", "skills")))
-            data.Add(Path.GetFileName(dir));
+            if (!IsTheApplicationsOwn(Path.GetFileName(dir)))
+                data.Add(Path.GetFileName(dir));
         return data;
+    }
+
+    // A skill named for the application this repository also holds (setting that application up
+    // on a machine) is no use to a new application and names records the Desk does not know, so
+    // the template leaves it behind and only the skills about the Desk are packed.
+    private static bool IsTheApplicationsOwn(string skill) => skill.StartsWith("lineops-", StringComparison.OrdinalIgnoreCase);
+
+    [Fact]
+    public void The_template_packs_no_skill_of_the_application_s_own()
+    {
+        var packed = XDocument.Load(Path.Combine(Root, "src", "LineOps.Desk.Templates", "LineOps.Desk.Templates.csproj"))
+            .Descendants("None")
+            .Select(n => (string?)n.Attribute("Include") ?? "")
+            .ToList();
+
+        Assert.DoesNotContain(packed, include => include.Contains(@"skills\lineops-", StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
