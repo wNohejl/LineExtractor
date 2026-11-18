@@ -96,10 +96,11 @@ internet, where (b)'s works only inside the tailnet.
 - **Both desks migrate the one database.** Each host migrates at startup. A laptop on a branch
   with a new migration applies it to the desktop's database, and the desktop's desk then runs
   older code against a newer schema. Keep both machines on the same commit of `LineX_Development`
-  while connected, or switch the laptop to `-Local` while working on a migration.
+  while connected, or switch the laptop to `-Local` while working on a migration. *(Superseded by
+  the amendment below: the remote desk no longer migrates, it refuses.)*
 - `restore-data.ps1` and `publish-data.ps1` name only `compose.dev.yml`. Run on the desktop, the
   restore's `up -d postgres` recreates the container without the tailnet port until it is
-  brought up again with the overlay.
+  brought up again with the overlay. *(Fixed by the amendment below.)*
 - The tailnet port binds only if the Tailscale address exists when the container starts. A boot
   where Docker starts before Tailscale leaves Postgres unpublished on the tailnet, or, depending
   on Docker Desktop, not started at all.
@@ -107,3 +108,58 @@ internet, where (b)'s works only inside the tailnet.
   becomes less pressing, since the snapshot is now refreshed only for the fallback.
 - If this holds up, the snapshot could become a manual export rather than a regular commit,
   which takes the derived data out of the repository's history going forward.
+
+## Amendment (2026-11-15): only the owner migrates, and the scripts keep the overlays
+
+Two of the consequences above were the cost of trusting both machines to be on the same commit
+and the scripts to know which machine they were on. Neither needs trusting.
+
+**A desk on another machine's database does not migrate it.** The initializer asks the same
+question the scheduler guard does, from the same classifier (`DatabasePlacement`, in the data
+layer, which `SchedulerPlacement` now calls), and on a remote database it migrates nothing,
+seeds nothing and cleans nothing; it only keeps the odds partitions ahead of the clock, as every
+pull already does. It compares the migrations the database has applied with the
+ones this code holds (`MigrationPlacement.Decide`, pure and tested branch by branch):
+
+- the same set: the desk starts and uses the database as it is;
+- this code holds migrations the database has not applied, so this code is newer: it refuses to
+  start, names them, and says to migrate from the machine that owns the database;
+- the database has migrations this code does not know, so this code is older: it refuses, and
+  says to pull the newer commit;
+- both at once, two branches that each added a migration: it refuses and names both sides.
+
+The failure moves from the desktop, later and somewhere else, to the laptop, at startup, with
+the remedy in the message. `Data:AllowRemoteMigration=true` is the deliberate way past it, for a
+machine that is meant to migrate a database it reaches by a non-loopback name; with it the
+initializer runs exactly as on a local database. The Worker initializes on every run, a single
+`--job` included, so a press from a terminal on the laptop follows the same rule. A local
+database is migrated exactly as before, without being asked anything first.
+
+**The snapshot scripts start Postgres with the machine's own compose list.** `_pg.ps1`'s
+`Get-ComposeFiles` returns `docker-compose.yml` and `compose.dev.yml`, and `compose.tailnet-db.yml`
+when `.env` has an uncommented, non-empty `TAILNET_IP`: the machine that set its tailnet address
+is the one the laptop reaches. `restore-data.ps1` brings Postgres up with that list, and the
+messages in `publish-data.ps1` and `publish-journal.ps1` print it, so a restore on the desktop
+no longer takes the tailnet port away. `LINEOPS_COMPOSE_FILES`, semicolon-separated, replaces the
+list for a machine whose overlays are not the ones `.env` implies.
+
+## Amendment, 2026-11-15: the database is forwarded, not published
+
+Research against Tailscale's and Docker's own documentation (recorded in
+`docs/superpowers/specs/2026-11-14-multi-device-access-research.md` §6) found the overlay's
+premise weak on the machine it was written for. Docker Desktop on Windows does not document
+binding a published port to a VPN adapter's address; the address does not exist until
+Tailscale connects, and Docker does not retry a bind that failed at boot; and the inbound
+connection needs a firewall rule on the Tailscale interface.
+
+So on the desktop Postgres stays where `compose.dev.yml` puts it, on `127.0.0.1:5433`, and
+`scripts/serve-tailnet.ps1 -Database` asks Tailscale Serve to forward TCP 5433 on the tailnet
+to it. Serve is tailnet-only, as it is for the desk (ADR 0022). `compose.tailnet-db.yml`
+remains for a Linux host.
+
+One thing moves with it. Behind the forward Postgres sees every client as loopback, so
+`pg_hba.conf` can no longer tell the laptop from the phone. The tailnet policy does that: a
+grant for `tcp:5433` from the laptop to the desktop and from nothing else.
+
+The laptop's connection string gains `Keepalive=30;Tcp Keepalive=true`, for a connection that
+crosses a sleeping lid or a relay.

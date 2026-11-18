@@ -470,4 +470,23 @@ public class WagerSlipTests
     [InlineData("total", "Over", 47.5, "Total · Over o47.5")]
     public void A_selection_reads_the_same_everywhere(string market, string outcome, double? line, string expected)
         => Assert.Equal(expected, SelectionText.Of(market, outcome, (decimal?)line));
+
+    // The card's crest is the club the wager backs: a side that names one of the game's two
+    // clubs, and nothing for a total or a fighter.
+    [Theory]
+    [InlineData("nfl", "Buffalo Bills", "BUF")]
+    [InlineData("nfl", "kansas city chiefs", "KC")]
+    [InlineData("nfl", "Over", null)]
+    [InlineData("ufc", "Buffalo Bills", null)]
+    public void A_slip_item_knows_the_club_it_backs(string sport, string outcome, string? abbrev)
+    {
+        var game = new Game
+        {
+            Sport = new Sport { Key = sport, Name = sport.ToUpperInvariant() },
+            AwayTeam = new Team { Name = "Buffalo Bills", Abbrev = "BUF" },
+            HomeTeam = new Team { Name = "Kansas City Chiefs", Abbrev = "KC" },
+        };
+
+        Assert.Equal(abbrev, SlipItem.ClubAbbrev(game, outcome));
+    }
 }

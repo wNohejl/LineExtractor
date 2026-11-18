@@ -25,8 +25,9 @@ notices when a feed silently breaks at 3am and produces a written RCA afterwards
 ## What it does
 
 **Ingestion**
-- Adapters for four providers behind two interfaces (`IOddsSource`, `IStatsSource`), so
-  adding a provider is a registration change, not a code change.
+- Odds and stats adapters behind two interfaces (`IOddsSource`, `IStatsSource`), so adding a
+  provider is a registration change, not a code change; the MLB Stats API sits beside them as
+  the identity spine for MLB games and players.
 - Three integration styles: synchronous REST pulls, a scheduled bulk slate ingest, and
   post-final settlement processing.
 - Resilience per source: retry with jittered backoff, circuit breaking, per-attempt timeouts.
@@ -66,27 +67,159 @@ notices when a feed silently breaks at 3am and produces a written RCA afterwards
 
 ---
 
-## Running it
+## Quick start
 
-### First time
+Clone, add one API key, start Docker. About ten minutes, most of it the first image build.
+
+**You need**
+
+| | Why |
+|---|---|
+| [Git](https://git-scm.com/downloads) | to clone |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose v2), running | Postgres and the desk run in containers |
+| [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | `setup.ps1` uses it to make the HTTPS development certificate |
+| PowerShell | built into Windows; on macOS or Linux install [`pwsh`](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) and run the same scripts |
+| A free key from [The Odds API](https://the-odds-api.com/#get-access) | prices. Optional: without one the desk still fills with games, scores and box scores |
+
+**1. Clone, on the development branch.** `main` is the stable branch and trails it; the steps
+below are written for `LineX_Development`.
 
 ```powershell
-./scripts/setup.ps1              # generates .env secrets + the HTTPS dev certificate
-dotnet dev-certs https --trust   # optional, removes browser warnings
-docker compose up -d
+git clone -b LineX_Development https://github.com/wNohejl/LineExtractor.git LineOps
 ```
 
-Open **<https://localhost:9443>**. That's it — no .NET SDK required to run it.
+```powershell
+cd LineOps
+```
+
+**2. Generate the local secrets.** Writes `.env` (a random database password and certificate
+password; gitignored) and exports the HTTPS development certificate. Safe to run again: it
+leaves an existing `.env` alone.
+
+```powershell
+.\scripts\setup.ps1
+```
+
+If Windows says running scripts is disabled, bypass the policy for that one run rather than
+changing the machine's: `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1`.
+
+**3. Get a free key and put it in `.env`.** Prices come from **The Odds API**:
+
+| | |
+|---|---|
+| Sign up: free **Starter** plan, 500 credits a month, all sports | <https://the-odds-api.com/#get-access> → Starter → **START**. The key arrives by email. |
+| Your account, usage and the key again | <https://dash.the-odds-api.com/> |
+| API documentation | <https://the-odds-api.com/liveapi/guides/v4/> |
+
+> **Not odds-api.io.** `odds-api.io` is a different provider with a near-identical name and its
+> own keys. A The Odds API key goes in `THE_ODDS_API_KEY`; put in `ODDS_API_IO_KEY` it is
+> refused with 401.
+
+Set both lines in `.env`. A key does nothing without its switch beside it.
+
+```ini
+THE_ODDS_API_KEY=your-key-here
+THE_ODDS_API_ENABLED=true
+```
+
+Check the key without spending a credit (the sports list is free); it reads the key from
+`.env`, so it never lands in your shell history:
+
+```powershell
+$key = (Select-String .env -Pattern '^THE_ODDS_API_KEY=(.+)$').Matches.Groups[1].Value.Trim(); $r = Invoke-WebRequest "https://api.the-odds-api.com/v4/sports?apiKey=$key" -UseBasicParsing; "status $($r.StatusCode), credits remaining $($r.Headers['x-requests-remaining'])"
+```
+
+**What a credit buys:** one pull of one league costs a credit per market. `setup.ps1` asks for
+moneyline and spread, so 2 credits a pull; delete the `THE_ODDS_API_TOTALS=` line in `.env` to
+add over/unders at 3. Nothing is pulled unless you press for it.
+
+Skip this step to run without prices; add the key later and run step 5's command again.
+
+**4. Load the committed dataset (optional).** The repository carries a snapshot of games, box
+scores and closing lines, so the desk opens with seasons of history instead of an empty
+database. Without it the desk starts empty and fills from ESPN as it runs.
+
+```powershell
+.\scripts\restore-data.ps1
+```
+
+**5. Start it.**
+
+```powershell
+docker compose -f docker-compose.yml -f compose.dev.yml up -d --build
+```
+
+Open **<https://localhost:9443>**. The browser warns about the certificate until you trust it
+(`dotnet dev-certs https --trust`, your call: it changes the machine's trust store).
+
+`compose.dev.yml` only publishes Postgres on `127.0.0.1:5433`, which the data scripts and a
+host-side `dotnet run` use. Plain `docker compose up -d` runs the desk without it.
+
+**6. Pull prices.** Lines are fetched when you ask, not on a timer (`LinePolling:Mode` is
+`Manual`, so a metered key is never spent unattended). Use **Pull data → Pull lines**
+for a league; it states the cost in credits first. **Ops → Odds feeds** shows whether the key
+was accepted and what is left of the month.
+
+**Check it worked**
+
+```powershell
+docker compose ps                               # lineops-postgres healthy, lineops-web up
+```
+
+```powershell
+curl.exe -k https://localhost:9443/ready        # Healthy once the database is migrated
+```
+
+```powershell
+docker compose logs -f web                      # ingestion and alert activity
+```
+
+`docker compose down` stops it and keeps the data; `docker compose down -v` deletes the data.
+
+| If | Then |
+|---|---|
+| `set POSTGRES_PASSWORD in .env` | Step 2 has not run in this folder. |
+| Port 9443 is taken | Set `HTTPS_PORT` in `.env` and start again. |
+| The board has games but no prices | The key or its `_ENABLED=true` line is missing, or no one has pulled: **Ops → Odds feeds** says which. |
+| The key check answers 401 | A mistyped key, or an odds-api.io key. Get one from <https://the-odds-api.com/#get-access>. |
+| `restore-data.ps1` refuses: the database already holds games | It replaces rather than merges. `-Force` if that is what you want. |
+| `dotnet run` fails with "An Application Control policy has blocked this file" | Windows Smart App Control. Stay on the Docker path above; do not turn it off for this. |
+
+### Hand it to an agent
+
+The repository ships its setup procedure as a Claude Code skill,
+[`.claude/skills/lineops-setup/SKILL.md`](.claude/skills/lineops-setup/SKILL.md): the steps above
+plus what to check, what to ask you, the key check, and what never to do unasked. Any agent can
+follow it; it is plain Markdown.
+
+**Already cloned?** Open Claude Code in the `LineOps` folder and say:
+
+```text
+/lineops-setup
+```
+
+**Starting from an empty folder?** Paste this into Claude Code, or any coding agent with a shell:
+
+```text
+Clone https://github.com/wNohejl/LineExtractor.git into ./LineOps on branch LineX_Development,
+then read LineOps/.claude/skills/lineops-setup/SKILL.md and follow it to get the desk running
+in Docker on this machine. Work inside LineOps. Check prerequisites before installing anything,
+ask me for my The Odds API key (or let me paste it into .env myself), never print .env, and do
+not pull lines or change security settings without asking. Done is docker compose ps healthy
+and https://localhost:9443/ready answering Healthy: show me both, then give me the URL.
+```
+
+`CLAUDE.md` holds the repository's working rules (branches, authorship, verification) for an
+agent that goes on to change code; `docs/INFRASTRUCTURE.md` and `docs/adr/` say why things are
+the way they are.
+
+---
+
+## Running it
 
 The web container waits for Postgres to report *healthy* (not merely started, since the app
 migrates on boot), applies migrations, creates the monthly partitions, seeds reference data,
 and runs one ingest at startup so the dashboard has data on first load.
-
-```bash
-docker compose logs -f web     # follow ingestion and alert activity
-docker compose down            # stop, keeping the database volume
-docker compose down -v         # stop and delete all data
-```
 
 **No API keys are needed to start.** ESPN is on by default and needs no authentication, so real
 schedules, scores, box scores and season history flow in for free. Odds are the part that wants
@@ -107,8 +240,8 @@ confirmed — are left alone there, because removing a game can take a journal e
 ### The board
 
 Open the **Board** window for today's slate with the best available number on each market and
-the book holding it — moneyline, spread and total, across DraftKings, FanDuel, bet365 and
-BetMGM.
+the book holding it — moneyline, spread and total, across DraftKings, FanDuel and BetMGM, with
+Pinnacle as the sharp price the others' value is measured against.
 
 Under each price is a **spread rail**: one tick per book, placed by how good its price is.
 Books that agree collapse to a single mark; a market worth shopping visibly spreads out, so a
@@ -158,23 +291,28 @@ a rounds total is graded on how long the fight lasted.
 
 ### Pulling data by hand
 
-**Pull data** on the Slate window offers each fetch by name, with what it will cost:
+**Pull data** on the Board offers each fetch by name, with what it will cost:
 
 | Pull | What it gets | Cost |
 |---|---|---|
-| Today's games | Schedules, start times, live scores | 1 request per sport |
-| Yesterday's results | Final scores and box scores | 1 per sport, plus 1 per finished game |
-| Fresh lines | One price scan across every book | 2 per sport per odds source |
+| Today's games | Schedules, start times, live scores | ESPN, unmetered |
+| Games in play | Live scores and state for games under way | ESPN, unmetered |
+| Results owed | Finals and box scores for started games not yet settled | ESPN, unmetered |
+| Play-by-play owed | Plays for finals that have none yet | ESPN, unmetered |
+| Fighter profiles owed | Profiles of fighters on a card ahead or just fought | ESPN, unmetered |
+| Closing lines owed | ESPN's close for finals no book market covered | ESPN, unmetered |
+| Pull lines — *league* | One price scan across every book for that league's unstarted games | The Odds API: a credit per market |
 | Settle finished games | Grades entries and resolves CLV | none — reads what is already stored |
 
 These are the same jobs the scheduler runs, so the manual and automatic paths cannot drift.
 
 ### Nothing runs on a fixed hour
 
-- **Lines** are scanned at a cadence *derived* from the provider's remaining daily allowance —
-  what is left, minus a reserve, divided by the cost of one scan, spread over the hours that
-  remain. The allotment gets used without being exceeded, and the cadence adjusts itself as the
-  day is spent. Ops shows the interval in force and what is pacing it.
+- **Lines** are pulled on request by default (`Ingestion:LinePolling:Mode` is `Manual`), so a
+  metered key is never spent unattended. With `Mode: Scheduled` they are scanned at a cadence
+  *derived* from the provider's remaining allowance — what is left, minus a reserve, divided by
+  the cost of one scan, spread over the time that remains. Ops shows the interval in force and
+  what is pacing it.
 - **ESPN runs around games:** the slate refreshes when the next start is close, and results are
   swept once a started game is old enough to have finished — then retried until it is, with
   settlement following immediately. A game finishing at 22:00 settles at 22:00.
@@ -186,8 +324,9 @@ Stats come from ESPN, free and unauthenticated. **Odds need a key**, because a m
 several books and the free feeds that carry several want one. ESPN publishes odds too, but only
 one book — a price rather than a market — so it stays the stats port.
 
-Copy `src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
-key. That file is gitignored and loaded last, so it wins over everything else — the
+In Docker the key goes in `.env` (Quick start, step 3). For a host run (`dotnet run`), copy
+`src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
+key. That file never enters an image; it is gitignored and loaded last, so it wins over everything else — the
 environment-named files are *not* ignored, which is why a key put in the obvious place ends up in
 the repository with it.
 
@@ -211,17 +350,17 @@ Check **Ops → Odds feeds** to see which providers are live and, when one is no
 standing 50% surcharge on every scan for the rest of the month. Books, by contrast, cost nothing
 extra: a region returns whoever it returns, which on `us` is nine.
 
-The cadence is derived from whatever the provider actually meters — requests over a day, credits
-over a month — so the schedule fits inside the allowance rather than relying on the budget guard
-to refuse it. **Ops → Odds feeds** states the interval and what is left.
+In `Scheduled` mode the cadence is derived from whatever the provider actually meters — requests
+over a day, credits over a month — so the schedule fits inside the allowance rather than relying
+on the budget guard to refuse it. **Ops → Odds feeds** states the interval and what is left.
 
 ### Pulling lines on request
 
-**Pull data → Pull lines — MLB** fetches moneyline and spread across every book for that sport's
-unstarted games, and says what it will cost in credits before you press it. One entry per sport,
-because that is how the provider bills and how the allowance is spent.
+**Pull data → Pull lines — MLB** fetches the configured markets across every book for that
+sport's unstarted games, and says what it will cost in credits before you press it. One entry per
+sport, because that is how the provider bills and how the allowance is spent.
 
-Manual and automatic pulls draw on the same pool, so pulling by hand lengthens the automatic
+Manual and scheduled pulls draw on the same pool, so pulling by hand lengthens the scheduled
 cadence rather than competing with it. Prices are stored on change, so a second pull minutes after
 the first costs the same credits and stores almost nothing — worth knowing before reaching for it.
 
@@ -263,17 +402,20 @@ free-tier quota the live schedule depends on.
 ```jsonc
 "Backfill": {
   "Enabled": false,          // auto-start on boot; off so the first run is a decision
-  "Since": "2026-03-01",     // a fixed target beats a rolling day count for a season
   "Sources": [ "espn" ],
-  "Sports": [ "mlb" ],       // the only sport in season; add leagues as they start
+  "Sports": [ "mlb", "nba", "nfl", "ufc" ],
+  // Where each league's walk stops: its season start (UFC: UFC 300).
+  "Seasons": { "mlb": "2026-03-25", "nba": "2026-10-20", "nfl": "2025-09-04", "ufc": "2024-04-13" },
+  "Since": "2026-03-01",     // fallback for a league not named in Seasons
   "RequestDelay": "00:00:00.600",
   "RetryFailedDays": false
 }
 ```
 
-`Since` pins the walk to a date. A rolling `Days` count covers a different stretch every time
-it runs — "180 days" reaches opening day in July and misses it in September — so a season, which
-has a start rather than a length, is expressed as a date.
+Each league walks back to its own date in `Seasons`; `Since` is the fallback for one that is not
+named there. A rolling `Days` count covers a different stretch every time it runs — "180 days"
+reaches opening day in July and misses it in September — so a season, which has a start rather
+than a length, is expressed as a date.
 
 Expect it to take hours rather than minutes — a full MLB slate is sixteen requests, not one.
 It is built for that: the walk goes newest-first, records every completed day, and resumes
@@ -281,7 +423,8 @@ where it left off after a restart. Stop it whenever you like and press the butto
 
 **Odds history cannot be backfilled.** Every provider that sells historical prices meters
 them, which is the cost model working as intended rather than a gap. Line movement accumulates
-forward from the intraday poll, so CLV is available on games the platform watched live.
+forward from the pulls made before a game starts, so CLV against a book market is available on
+games the platform priced; ESPN's close stands in where none did.
 
 ### Security posture
 
@@ -291,7 +434,7 @@ Deliberate choices, not defaults:
 |---|---|
 | **HTTPS only, port 9443** | No HTTP listener exists to downgrade to or forget about. 9443 avoids the 8080/8443 crowd, so it is unlikely to collide with anything else you run. |
 | **`127.0.0.1:9443:9443`** | Published to loopback only. A bare `9443:9443` binds `0.0.0.0` and exposes the app to every machine on your network — and because Docker writes its own iptables rules, the host firewall does not necessarily stop it. |
-| **Postgres not published** | The app reaches it over the compose network, so it needs no host port at all. Opt in with `compose.dev.yml` when you want `psql` access. |
+| **Postgres not published by the base file** | The app reaches it over the compose network, so it needs no host port at all. `compose.dev.yml`, which the Quick start uses for the data scripts, publishes it on `127.0.0.1:5433` — loopback only. |
 | **Certificate volume-mounted read-only** | Never `COPY`ed into the image: that breaks dev/prod parity and risks shipping a private key in a layer. |
 | **No credentials in the repo** | Passwords live in `.env` (gitignored); `.env.example` is the committed template. `*.pfx`/`*.pem`/`*.key` are gitignored regardless of location. |
 | **Non-root, read-only rootfs, `cap_drop: ALL`, `no-new-privileges`** | The app writes only to `/keys` and `/tmp`, so everything else can be immutable. A compromise inside the container has very little to escalate with. |
@@ -306,15 +449,9 @@ tailnet with Tailscale Serve (`compose.tailnet.yml` or `scripts/serve-tailnet.ps
 other people reach.
 
 Do not simply change the port binding to `0.0.0.0`. Terminate TLS at a reverse proxy with a
-real certificate and let it talk to the container over the compose network:
-
-```yaml
-# Caddy handles ACME/Let's Encrypt automatically
-caddy:
-  image: caddy:2-alpine
-  ports: ["443:443", "80:80"]
-  # Caddyfile: lineops.example.com { reverse_proxy web:9443 { transport http { tls } } }
-```
+real certificate and let it talk to the container over the compose network. `deploy/` is that
+stack — Caddy with automatic certificates in front of the web container, the worker scheduling,
+nightly backups, a gated desk — and `deploy/README.md` walks through it.
 
 The dev certificate is `localhost`-only and must not be used for this — it is untrusted
 everywhere except the machine that generated it, and for Kubernetes you would use a TLS
@@ -329,8 +466,9 @@ deployment. To split it out:
 docker compose --profile worker up -d
 ```
 
-Set `Ingestion__HostScheduler=false` on the `web` service at the same time, or both processes
-will poll the same providers and burn the free-tier budget twice.
+Set `Ingestion__HostScheduler=false` and `Reliability__HostEvaluator=false` on the `web` service
+at the same time, or both processes will poll the same providers and burn the free-tier budget
+twice, and both will evaluate the alert rules.
 
 ### Developing against the code
 
@@ -346,25 +484,28 @@ dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which setup writes
 for both hosts from the password in `.env`; compose reads `.env` itself. Both launch profiles run
 as Development, which is the environment user-secrets load in. Running the worker beside a web
-host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` to
-false on one of them, as for the containers above.
+host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` and
+`Reliability:HostEvaluator` to false on the web host, as for the containers above.
 
 The dev overlay is what publishes Postgres on `127.0.0.1:5433`; it is a separate file so an
 exposed database is something you opt into rather than something you forget is on.
 
 ### Using real providers
 
-Put keys in `.env` and enable the source. Any configuration key can be overridden by
-environment variable using `__` as the separator, so nothing secret needs to enter the repo:
+In Docker, every provider is a key and a switch in `.env`; compose hands both to the web and
+worker containers, so nothing secret enters the repo or an image:
 
-```bash
-ODDS_API_IO_KEY=your-key-here
+```ini
+THE_ODDS_API_KEY=your-key-here
+THE_ODDS_API_ENABLED=true
+THE_ODDS_API_TOTALS=          # blank drops over/unders (each market is billed on every scan); delete the line to add them
+
+ODDS_API_IO_KEY=             # odds-api.io: an alternative feed, off; its free tier is evaluation-only
+ODDS_API_IO_ENABLED=false
 ```
 
-```yaml
-# then, on the web service
-Ingestion__OddsApiIo__Enabled: "true"
-```
+Any other configuration key can be overridden by environment variable with `__` as the
+separator (`Ingestion__LinePolling__Mode`), added to the service in `docker-compose.yml`.
 
 ---
 
@@ -374,10 +515,10 @@ Ingestion__OddsApiIo__Enabled: "true"
 
 | Provider | Free tier | Notes |
 |---|---|---|
-| odds-api.io | 100 req/h, 500 req/day | Moneyline/spread/total, 2 books, no card |
-| The Odds API | 500 credits/mo | Billed as markets × regions; used only for reconciliation |
-| balldontlie | Free tier | Players and stats |
-| ESPN (unofficial) | Free, unauthenticated | Schedules, scores, box scores; can change without notice |
+| The Odds API | 500 credits/mo | The book market: moneyline, spread, total. Billed as markets × regions; the feed the Quick start sets up |
+| ESPN (unofficial) | Free, unauthenticated | Schedules, scores, box scores, play-by-play, fighter profiles; can change without notice |
+| MLB Stats API | Free, unauthenticated | MLB game and player identity, probable pitchers; on by default |
+| odds-api.io | 100 req/h, 500 req/day | Alternative odds feed, off by default; free tier is for evaluation |
 
 The budget guard enforces these ceilings rather than trusting the schedule to stay inside
 them. Player props at volume are the first thing that would cost money — the schema is
@@ -390,24 +531,39 @@ rather than a migration.
 
 ```
 src/
-  LineOps.Core          Domain entities, odds maths, grading, analytics (no dependencies)
-  LineOps.Data          EF Core model, migrations, partition maintenance, seeding
-  LineOps.Reliability   Shared reliability library: KPIs, alert engine, incidents
-  LineOps.Ingestion     Provider adapters, scheduler, settlement (library)
-  LineOps.Worker        Standalone ingestion host (optional; Web can host the schedule)
-  LineOps.Web           Blazor UI — a window manager; every view is a panel on one desk
+  LineOps.Core            Domain entities, odds maths, grading, analytics (no dependencies)
+  LineOps.Data            EF Core model, migrations, partition maintenance, seeding
+  LineOps.Reliability     Shared reliability library: KPIs, alert engine, incidents
+  LineOps.Ingestion       Provider adapters, scheduler, settlement (library)
+  LineOps.Observability   OpenTelemetry wiring and the KPI gauges
+  LineOps.Worker          Standalone ingestion host (optional; Web can host the schedule)
+  LineOps.Web             Blazor UI — every view is a window on one desk
+  LineOps.Desk            The desk itself as a reusable Razor package: windows, tokens, controls
+  LineOps.Desk.Hosting    Access gate, sign-in and edge headers for a Desk app
+  LineOps.Desk.Templates  `dotnet new deskapp`
+  LineOps.Desk.Testing    bUnit bench for Desk components
 tests/
-  LineOps.Tests         Unit, fixture, and Testcontainers integration tests
+  LineOps.Tests           Unit, fixture, and Testcontainers integration tests
+  LineOps.Web.Tests       The desk's windows and services
+  LineOps.Desk.Tests      The Desk package, its theme contrast and template
+  LineOps.Desk.Hosting.Tests
+deploy/                   A hosted stack: Caddy, web, worker, Postgres, backups
+scripts/                  Setup, data snapshot and journal transfer, tailnet
+data/snapshots/           The committed dataset restore-data.ps1 loads
+.claude/skills/           Agent skills: setup, and the Desk's design rules
 docs/
-  adr/                  Architecture decision records
-  runbook.md            What each alert means and how to triage it
+  adr/                    Architecture decision records
+  runbook.md              What each alert means and how to triage it
 ```
 
 ## Tests
 
 ```bash
-dotnet test
+dotnet test LineOps.slnx
 ```
+
+Integration tests need Docker running (Testcontainers). CI runs on pushes and pull requests to
+`main` only, so run the suite before merging `LineX_Development`.
 
 Unit tests cover the odds maths, grading and analytics. Adapter tests parse recorded provider
 payloads — including nested shapes, string-encoded prices and malformed rows — so parsing is

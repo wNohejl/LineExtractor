@@ -53,10 +53,20 @@ CERT_PASSWORD=$certPassword
 CERT_PATH=$($certDir -replace '\\', '/')
 HTTPS_PORT=9443
 
-# Provider keys — blank runs on the free demo and ESPN sources.
-ODDS_API_IO_KEY=
+# Provider keys. Blank is fine: ESPN needs no key. Prices need one, and a key does nothing
+# without its *_ENABLED=true beside it.
+# The Odds API (the-odds-api.com), free Starter plan, 500 credits a month:
+#   sign up   https://the-odds-api.com/#get-access   (the key arrives by email)
+#   account   https://dash.the-odds-api.com/
+# Not odds-api.io: a different provider whose ODDS_API_IO_KEY below refuses this key with 401.
 THE_ODDS_API_KEY=
+THE_ODDS_API_ENABLED=false
+# Moneyline and spread are always requested. Leave this line out to add totals; blank drops them.
+THE_ODDS_API_TOTALS=
+ODDS_API_IO_KEY=
+ODDS_API_IO_ENABLED=false
 BALLDONTLIE_KEY=
+BALLDONTLIE_ENABLED=false
 "@ | Set-Content -Path $envFile -Encoding utf8
 
     Write-Host "Wrote .env with fresh secrets." -ForegroundColor Green
@@ -100,5 +110,6 @@ else {
 
 Write-Host ""
 Write-Host "Next:" -ForegroundColor Cyan
-Write-Host "    docker compose up -d" -ForegroundColor White
+Write-Host "    .\scripts\restore-data.ps1          (optional: load the committed dataset)" -ForegroundColor White
+Write-Host "    docker compose -f docker-compose.yml -f compose.dev.yml up -d --build" -ForegroundColor White
 Write-Host "    https://localhost:$(if ($env:HTTPS_PORT) { $env:HTTPS_PORT } else { '9443' })" -ForegroundColor White

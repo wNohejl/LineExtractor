@@ -41,8 +41,11 @@ $pgEnv = "PGPASSWORD=$pgPassword"
 
 Push-Location $root
 try {
-    Invoke-Native { docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres 2>&1 | Out-Null }
-    if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start postgres (exit $LASTEXITCODE)" }
+    # The same compose files this machine runs Postgres with (_pg.ps1), so recreating the
+    # container keeps the tailnet port on the desktop.
+    $composeArgs = Get-ComposeArgs $root
+    Invoke-Native { docker compose @composeArgs up -d postgres 2>&1 | Out-Null }
+    if ($LASTEXITCODE -ne 0) { throw "docker compose failed to start postgres (exit $LASTEXITCODE): $(Format-ComposeCommand $root)" }
 
     $deadline = (Get-Date).AddSeconds(90)
     do {
@@ -56,7 +59,7 @@ try {
     # the PascalCase identifiers need, and a fresh database has no "Games" to count yet.
     $existing = Invoke-Native { 'select count(*) from "Games"' | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t 2>$null }
     if ($existing -and [int]$existing.Trim() -gt 0 -and -not $Force) {
-        throw "This database already holds $($existing.Trim()) games. Re-run with -Force to replace them with the snapshot."
+        throw "This database already holds $($existing.Trim()) games. Re-run with -Force to replace them with the snapshot. The journal goes too: run scripts/publish-journal.ps1 first, and scripts/restore-journal.ps1 after, to keep it."
     }
 
     # The schema is dropped and recreated rather than restored with --clean: the odds tables
@@ -71,6 +74,15 @@ try {
 pg_restore -U $User -d $Database --no-owner --no-privileges /snapshots/$(Split-Path $dump -Leaf)
 "@
     if ($exit -ne 0) { throw "pg_restore failed (exit $exit)" }
+
+    # Logged after the restore, never before: the restore dropped the schema and every row this
+    # machine had in "DataTransfers" with it, and a row written first would be gone too. A
+    # snapshot from before migration JournalSync has no such table; the log is then skipped
+    # quietly, and the desk's next start migrates it in.
+    $manifestFile = "$dump.json"
+    $manifestText = if (Test-Path $manifestFile) { Get-Content $manifestFile -Raw } else { $null }
+    Add-DataTransfer -Container $Container -Password $pgPassword -User $User -Database $Database `
+        -Kind SnapshotRestored -File (Split-Path $dump -Leaf) -Manifest $manifestText
 
     $games = Invoke-Native { 'select s."Key" || '': '' || count(*) from "Games" g join "Sports" s on s."Id"=g."SportId" group by s."Key" order by s."Key"' | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -A -t }
     Write-Host "Restored. Games by sport:"; Write-Host $games

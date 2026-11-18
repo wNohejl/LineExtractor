@@ -16,7 +16,10 @@
 {
     var columns = GameBoxScore.ColumnsFor(Side);
 
-    <PanelSection Title="@Team">
+    @* The side's crest leads its rule at the large size, as it does any section about one club. *@
+    <PanelSection>
+        <TitleContent><TeamMark Sport="@Sport" Abbrev="@Abbrev" Size="TeamMarkSize.Large" />@Team</TitleContent>
+        <ChildContent>
         <div class="gridwrap gameplayers boxside">
             <DeskGrid T="BoxScoreLine" Items="Side" EmptyText="No box score lines for this side.">
                 <PropertyColumn T="BoxScoreLine" TProperty="string" Property="p => p.Name"
@@ -46,6 +49,7 @@
                 }
             </DeskGrid>
         </div>
+        </ChildContent>
     </PanelSection>
 }
 
@@ -55,6 +59,12 @@
 
     /// <summary>The side's name, as the section's rule.</summary>
     [Parameter, EditorRequired] public string Team { get; set; } = string.Empty;
+
+    /// <summary>The game's sport key, for the side's crest. A fighter's side draws none.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    /// <summary>The side's abbreviation as ESPN spells it, for its crest.</summary>
+    [Parameter] public string? Abbrev { get; set; }
 
     /// <summary>A player's name followed: their id and name, for the host to open the Player window.</summary>
     [Parameter] public EventCallback<(int PlayerId, string Name)> OnPlayer { get; set; }

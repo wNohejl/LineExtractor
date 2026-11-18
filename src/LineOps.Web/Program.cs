@@ -64,7 +64,17 @@ if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 // no proxy — so a laptop runs exactly as it always has. Both live in LineOps.Desk.Hosting. The
 // cookie keeps the name it had before the gate moved there, so every existing sign-in survives.
 builder.Services.AddDeskAccess(builder.Configuration, o => o.CookieName = "lineops.access");
-builder.Services.AddDeskEdge(builder.Configuration);
+// In Development the tooling's own sockets (dotnet watch's browser refresh, Browser Link) are let
+// through to localhost; everywhere else the policy is the Desk's default, and nothing leaves.
+builder.Services.AddDeskEdge(builder.Configuration, edge =>
+{
+    if (builder.Environment.IsDevelopment())
+        edge.ContentSecurityPolicy = DeskEdge.DevelopmentContentSecurityPolicy;
+
+    // The one thing fetched from another origin: a club's crest, from the host ESPN serves
+    // them on (TeamLogos). An image only; script, style and data still come from here alone.
+    edge.ExtraImageSources.Add(LineOps.Web.Components.Desk.TeamLogos.Origin);
+});
 
 // What a visitor may read, by the licence of the source each row came from (ADR 0024). Local, the
 // default, shows everyone everything; Shared keeps personal-use data (ESPN, MLB) to the operator.
@@ -96,11 +106,22 @@ if (hostsEvaluator)
 var app = builder.Build();
 
 // Migrate, ensure partitions exist ahead of the clock, and seed reference rows.
-// Doing this at startup keeps a cold clone one `docker compose up` away from working.
+// Doing this at startup keeps a cold clone one `docker compose up` away from working. Against
+// another machine's database (ADR 0023) it migrates nothing: it refuses to start when the schema
+// is not the one this code was built for, and says which machine should move.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var initialiser = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-    await initialiser.InitialiseAsync();
+    try
+    {
+        await initialiser.InitialiseAsync();
+    }
+    catch (LineOps.Data.Placement.RemoteDatabaseRefusedException refused)
+    {
+        Console.Error.WriteLine(refused.Message);
+        Environment.ExitCode = 4;
+        return;
+    }
 }
 
 app.UseDeskEdge();

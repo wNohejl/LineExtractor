@@ -392,8 +392,14 @@ public class ClosingLineRefillTests(PostgresFixture fixture)
 
         static ClosingLine Close(Game g, int sourceId, string market, string outcome, decimal? line) => new()
         {
-            GameId = g.Id, SourceId = sourceId, Book = "ESPN BET", Market = market, Outcome = outcome,
-            Line = line, PriceAmerican = -150, CapturedAt = g.StartsAt
+            GameId = g.Id,
+            SourceId = sourceId,
+            Book = "ESPN BET",
+            Market = market,
+            Outcome = outcome,
+            Line = line,
+            PriceAmerican = -150,
+            CapturedAt = g.StartsAt
         };
 
         db.ClosingLines.AddRange(

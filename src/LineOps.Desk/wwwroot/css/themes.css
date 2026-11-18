@@ -80,7 +80,7 @@
        nord0, so its ink is the same red lifted until it reads. */
     --state-positive-ink: #A3BE8C; /* 6.13:1 */
     --state-warning-ink: #EBCB8B; /* 8.00:1 */
-    --state-negative-ink: #D99197; /* 5.02:1 */
+    --state-negative-ink: #DE9FA4; /* 4.60:1 raised, more on the panel */
     --accent-ink: #88C0D0; /* 6.24:1 */
 
     --chart-neutral: #7B88A1;
@@ -118,11 +118,11 @@
     --text-secondary: rgba(46, 52, 64, .76);
     --text-tertiary: rgba(46, 52, 64, .34);
 
-    --accent: #5E81AC; /* nord10 */
-    --accent-hover: #52739C;
-    --accent-press: #486690;
-    --accent-wash: rgba(94, 129, 172, .12);
-    --accent-wash-strong: rgba(94, 129, 172, .20);
+    --accent: #57779F; /* nord10 */
+    --accent-hover: #527096;
+    --accent-press: #4C688B;
+    --accent-wash: rgba(87, 119, 159, .12);
+    --accent-wash-strong: rgba(87, 119, 159, .20);
     --on-accent: #FFFFFF;
 
     --state-positive: #7A9A5E;
@@ -135,10 +135,10 @@
 
     /* Ink. Every Aurora hue is a fill on Snow Storm (2.6 to 3.8:1 as text), so each ink
        is its hue deepened; the accent ink is --accent-press. */
-    --state-positive-ink: #557140; /* 5.07:1 */
-    --state-warning-ink: #9C5A44; /* 4.90:1 */
-    --state-negative-ink: #A8505A; /* 4.90:1 */
-    --accent-ink: #486690; /* 5.42:1 */
+    --state-positive-ink: #4E683B; /* 4.62:1 raised, more on the panel */
+    --state-warning-ink: #8D513E; /* 4.60:1 raised, more on the panel */
+    --state-negative-ink: #974851; /* 4.62:1 raised, more on the panel */
+    --accent-ink: #45628B; /* 4.61:1 raised, more on the panel */
 
     --chart-neutral: #7B88A1;
     --chart-neutral-dim: #A5AFC0;
@@ -189,11 +189,11 @@
     --text-secondary: rgba(238, 232, 213, .62);
     --text-tertiary: rgba(238, 232, 213, .30);
 
-    --accent: #268BD2;
-    --accent-hover: #3E9BDC;
-    --accent-press: #1F77B4;
-    --accent-wash: rgba(38, 139, 210, .18);
-    --accent-wash-strong: rgba(38, 139, 210, .28);
+    --accent: #2075B1;
+    --accent-hover: #217AB9;
+    --accent-press: #1E6CA4;
+    --accent-wash: rgba(32, 117, 177, .18);
+    --accent-wash-strong: rgba(32, 117, 177, .28);
     --on-accent: #FFFFFF;
 
     --state-positive: #859900;
@@ -206,10 +206,10 @@
 
     /* Ink. Green and yellow read on base03; red (3.25:1) and blue (4.08:1) do not, so
        red is lifted and blue takes --accent-hover. */
-    --state-positive-ink: #859900; /* 4.69:1 */
-    --state-warning-ink: #B58900; /* 4.68:1 */
-    --state-negative-ink: #F26562; /* 4.87:1 */
-    --accent-ink: #3E9BDC; /* 4.95:1 */
+    --state-positive-ink: #91A318; /* 4.62:1 raised, more on the panel */
+    --state-warning-ink: #BC951A; /* 4.61:1 raised, more on the panel */
+    --state-negative-ink: #F3726F; /* 4.61:1 raised, more on the panel */
+    --accent-ink: #4AA1DE; /* 4.61:1 raised, more on the panel */
 
     --chart-neutral: #839496; /* base0 */
     --chart-neutral-dim: #586E75; /* base01 */
@@ -246,11 +246,11 @@
     --text-secondary: rgba(7, 54, 66, .74);
     --text-tertiary: rgba(7, 54, 66, .32);
 
-    --accent: #268BD2;
-    --accent-hover: #1F77B4;
-    --accent-press: #1A6699;
-    --accent-wash: rgba(38, 139, 210, .14);
-    --accent-wash-strong: rgba(38, 139, 210, .22);
+    --accent: #217AB9;
+    --accent-hover: #1F73AD;
+    --accent-press: #1D6BA2;
+    --accent-wash: rgba(33, 122, 185, .14);
+    --accent-wash-strong: rgba(33, 122, 185, .22);
     --on-accent: #FFFFFF;
 
     --state-positive: #859900;
@@ -263,8 +263,8 @@
 
     /* Ink. On base3 the accents are fills (green and yellow under 3:1), so each ink is
        its hue deepened; red takes --state-negative-hover, blue --accent-press. */
-    --state-positive-ink: #5F6E00; /* 5.24:1 */
-    --state-warning-ink: #856400; /* 5.10:1 */
+    --state-positive-ink: #5A6800; /* 4.61:1 raised, more on the panel */
+    --state-warning-ink: #7C5D00; /* 4.60:1 raised, more on the panel */
     --state-negative-ink: #B8201D; /* 5.97:1 */
     --accent-ink: #1A6699; /* 5.72:1 */
 
@@ -369,11 +369,11 @@
     --text-secondary: rgba(87, 82, 121, .90);
     --text-tertiary: rgba(87, 82, 121, .40);
 
-    --accent: #907AA9; /* Dawn iris */
-    --accent-hover: #7F6899;
-    --accent-press: #6F5889;
-    --accent-wash: rgba(144, 122, 169, .14);
-    --accent-wash-strong: rgba(144, 122, 169, .22);
+    --accent: #806D96; /* Dawn iris */
+    --accent-hover: #79668E;
+    --accent-press: #715F84;
+    --accent-wash: rgba(128, 109, 150, .14);
+    --accent-wash-strong: rgba(128, 109, 150, .22);
     --on-accent: #FFFFFF;
 
     --state-positive: #56949F; /* Dawn foam */
@@ -388,8 +388,8 @@
        palette's deeper teal; gold is deepened; love takes --state-negative-hover and
        iris --accent-press. */
     --state-positive-ink: #286983; /* 5.88:1 */
-    --state-warning-ink: #9A6114; /* 4.94:1 */
-    --state-negative-ink: #9E4F66; /* 5.37:1 */
+    --state-warning-ink: #8C5812; /* 4.66:1 raised, more on the panel */
+    --state-negative-ink: #984C62; /* 4.63:1 raised, more on the panel */
     --accent-ink: #6F5889; /* 5.89:1 */
 
     --chart-neutral: #9893A5; /* Dawn muted */
@@ -512,9 +512,9 @@
     --state-warning-wash: rgba(163, 90, 0, .14);
 
     /* Ink. Already built to be read: the inks are the fills. */
-    --state-positive-ink: #007A1F; /* 5.52:1 */
-    --state-warning-ink: #A35A00; /* 5.22:1 */
-    --state-negative-ink: #C8001E; /* 6.04:1 */
+    --state-positive-ink: #006A1B; /* 4.60:1 raised, more on the panel */
+    --state-warning-ink: #884B00; /* 4.64:1 raised, more on the panel */
+    --state-negative-ink: #B9001C; /* 4.60:1 raised, more on the panel */
     --accent-ink: #0050C8; /* 7.04:1 */
 
     --chart-neutral: #6E6E6E;
@@ -574,26 +574,26 @@
    ============================================================================ */
 
 [data-theme="apple-dark"][data-accent="teal"] {
-    --accent: #40C8E0;
-    --accent-hover: #5FD3E7;
-    --accent-press: #2BB7CF;
-    --accent-wash: rgba(64, 200, 224, .15);
-    --accent-wash-strong: rgba(64, 200, 224, .24);
+    --accent: #277A89;
+    --accent-hover: #297F8F;
+    --accent-press: #24717F;
+    --accent-wash: rgba(39, 122, 137, .15);
+    --accent-wash-strong: rgba(39, 122, 137, .24);
     --accent-ink: #5FD3E7; /* 8.92:1 */
 }
 [data-theme="apple-light"][data-accent="teal"] {
-    --accent: #30B0C7;
-    --accent-hover: #2A9DB2;
-    --accent-press: #24899C;
-    --accent-wash: rgba(48, 176, 199, .12);
-    --accent-wash-strong: rgba(48, 176, 199, .20);
+    --accent: #238090;
+    --accent-hover: #217888;
+    --accent-press: #1F707F;
+    --accent-wash: rgba(35, 128, 144, .12);
+    --accent-wash-strong: rgba(35, 128, 144, .20);
     /* The press measures 4.09:1 on white; one step deeper reads. */
-    --accent-ink: #1F7A8C; /* 4.98:1 */
+    --accent-ink: #1C6F7F; /* 4.61:1 raised, more on the panel */
 }
 
 [data-theme="apple-dark"][data-accent="indigo"] {
     --accent: #5E5CE6;
-    --accent-hover: #7C7AEB;
+    --accent-hover: #6260E7;
     --accent-press: #4B49D9;
     --accent-wash: rgba(94, 92, 230, .15);
     --accent-wash-strong: rgba(94, 92, 230, .24);
@@ -610,35 +610,35 @@
 }
 
 [data-theme="apple-dark"][data-accent="purple"] {
-    --accent: #BF5AF2;
-    --accent-hover: #CB78F5;
-    --accent-press: #AD3FE6;
-    --accent-wash: rgba(191, 90, 242, .15);
-    --accent-wash-strong: rgba(191, 90, 242, .24);
+    --accent: #9E4AC8;
+    --accent-hover: #A44DD0;
+    --accent-press: #9144B8;
+    --accent-wash: rgba(158, 74, 200, .15);
+    --accent-wash-strong: rgba(158, 74, 200, .24);
     --accent-ink: #CB78F5; /* 5.63:1 */
 }
 [data-theme="apple-light"][data-accent="purple"] {
-    --accent: #AF52DE;
-    --accent-hover: #A046CF;
-    --accent-press: #8F3DB8;
-    --accent-wash: rgba(175, 82, 222, .12);
-    --accent-wash-strong: rgba(175, 82, 222, .20);
+    --accent: #A44DD1;
+    --accent-hover: #9A48C4;
+    --accent-press: #9043B7;
+    --accent-wash: rgba(164, 77, 209, .12);
+    --accent-wash-strong: rgba(164, 77, 209, .20);
     --accent-ink: #8F3DB8; /* 5.95:1 */
 }
 
 [data-theme="apple-dark"][data-accent="graphite"] {
-    --accent: #8E8E93;
-    --accent-hover: #A1A1A6;
-    --accent-press: #7C7C81;
-    --accent-wash: rgba(142, 142, 147, .15);
-    --accent-wash-strong: rgba(142, 142, 147, .24);
+    --accent: #707074;
+    --accent-hover: #747479;
+    --accent-press: #67676B;
+    --accent-wash: rgba(112, 112, 116, .15);
+    --accent-wash-strong: rgba(112, 112, 116, .24);
     --accent-ink: #A1A1A6; /* 6.09:1 */
 }
 [data-theme="apple-light"][data-accent="graphite"] {
-    --accent: #8E8E93;
-    --accent-hover: #7D7D82;
-    --accent-press: #6C6C70;
-    --accent-wash: rgba(142, 142, 147, .12);
-    --accent-wash-strong: rgba(142, 142, 147, .20);
-    --accent-ink: #6C6C70; /* 5.23:1 */
+    --accent: #747479;
+    --accent-hover: #6D6D71;
+    --accent-press: #66666A;
+    --accent-wash: rgba(116, 116, 121, .12);
+    --accent-wash-strong: rgba(116, 116, 121, .20);
+    --accent-ink: #656569; /* 4.62:1 raised, more on the panel */
 }

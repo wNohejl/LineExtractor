@@ -46,11 +46,11 @@
     /* --- Accent -------------------------------------------------------------
        One accent, systemBlue. Interactivity, focus, and selection — nothing
        else. A second accent is how an interface stops meaning anything. */
-    --accent: #0A84FF;
-    --accent-hover: #3D9BFF;
-    --accent-press: #0871DB;
-    --accent-wash: rgba(10, 132, 255, .15);
-    --accent-wash-strong: rgba(10, 132, 255, .24);
+    --accent: #086FD7;
+    --accent-hover: #0973DE;
+    --accent-press: #0866C6;
+    --accent-wash: rgba(8, 111, 215, .15);
+    --accent-wash-strong: rgba(8, 111, 215, .24);
     --on-accent: #FFFFFF;
 
     /* --- Semantic state -----------------------------------------------------
@@ -303,15 +303,15 @@
        page a blue that lightens under the pointer reads as fading, so here both
        states deepen. The names still mean "more prominent" — the direction that
        delivers it is a property of the ground, not of the token. */
-    --accent: #007AFF;
-    --accent-hover: #0071E3;
-    --accent-press: #0062CC;
+    --accent: #0071EB;
+    --accent-hover: #006ADE;
+    --accent-press: #0063CE;
 
     /* Washes are lighter than the dark desk's: a tint over white composites to a
        far more saturated result than the same tint over near-black, so holding
        .15 would have made "selected" shout. */
-    --accent-wash: rgba(0, 122, 255, .12);
-    --accent-wash-strong: rgba(0, 122, 255, .20);
+    --accent-wash: rgba(0, 113, 235, .12);
+    --accent-wash-strong: rgba(0, 113, 235, .20);
 
     /* Unchanged, and not by accident: this is the ink for any saturated fill, and
        a filled systemBlue button is exactly as saturated in either theme. */
@@ -333,9 +333,9 @@
     /* Ink. Apple's light fills read as areas and fail as words: green 2.22:1,
        orange 2.20, red 3.55 and blue 4.02 on white. The inks are Apple's
        increased-contrast values, and the accent ink is --accent-press. */
-    --state-positive-ink: #008932; /* 4.54:1 */
-    --state-warning-ink: #C55300; /* 4.55:1 */
-    --state-negative-ink: #E9152D; /* 4.56:1 */
+    --state-positive-ink: #00762B; /* 4.61:1 raised, more on the panel */
+    --state-warning-ink: #AA4800; /* 4.60:1 raised, more on the panel */
+    --state-negative-ink: #CA1227; /* 4.61:1 raised, more on the panel */
     --accent-ink: #0062CC; /* 5.80:1 */
 
     /* --- Chart neutrals -----------------------------------------------------
@@ -515,12 +515,26 @@ html, body {
        measure the window below uses, so the chrome agrees with itself. */
     height: calc(var(--titlebar-h) + var(--space-4));
     padding: 0 var(--space-3);
-    background: var(--material-thin);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
+    position: relative;
     border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: var(--z-chrome);
+}
+
+/* The header's material is a layer under its contents, not the header itself. An
+   element with a backdrop-filter is a backdrop root: a group drawer hanging from the
+   header could blur only what lay inside the header, so below the header's edge it
+   showed the window behind it sharp through its 14% (HIG audit, 17 November). With
+   the blur on this layer, the drawer's own material samples the desk under it. */
+.hdr::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--material-thin);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
@@ -536,9 +550,11 @@ html, body {
     align-items: center;
     gap: var(--space-1);
     /* Shrinks only by the notice's sentence, the one thing in it that can give; every key
-       keeps its size. The large factor makes it give before the window strip does (.bar). */
+       keeps its size. The large factor makes it give before the window strip does (.bar).
+       Its floor is the automatic one — its keys, the sentence having none — so once the
+       sentence is gone the strip gives way rather than the cluster spilling its keys and the
+       count past the header's edge. */
     flex: 0 50 auto;
-    min-width: 0;
 }
 
 .hdr__brand {
@@ -967,8 +983,15 @@ html, body {
 
    Thresholds are container widths, so they hold whatever the viewport does. */
 @container bar (max-width: 700px) {
-    .bar__group-name { display: none; }
     .bar__group { padding: 0 var(--space-1); }
+}
+
+/* A group drawer has no icon: its name is its only visible label, so it stays
+   until the strip truly cannot hold four short words. At 700px an empty desk,
+   whose header still carries its subtitle, showed four bare chevrons that could
+   not be told apart (HIG audit, 17 November). */
+@container bar (max-width: 380px) {
+    .bar__group-name { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -989,13 +1012,15 @@ html, body {
    the HIG keeps a bottom bar for status that is never critical, and a window vanishing is
    the one thing on the desk that must be seen. One line in the warning wash, which is its
    whole grouping — an edge as well would frame the keys inside it. The sentence gives way
-   first and keeps its whole self as the title; the keys never do. */
+   first and keeps its whole self as the title; the keys never do. So the notice's own floor
+   is its automatic one — the icon and the two keys, the sentence having none — and not 0,
+   which let it shrink under its keys at a 1024px window until "Reopen …" ran over the count
+   beside it (HIG audit, 17 November). */
 .hdr__notice {
     display: flex;
     align-items: center;
     gap: var(--space-1);
     flex: 0 1 auto;
-    min-width: 0;
     max-width: 420px;
     padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
     background: var(--state-warning-wash);
@@ -1006,12 +1031,18 @@ html, body {
 
 .hdr__notice svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
+/* One line, clamped, but allowed to wrap between words: an unwrappable sentence counts its
+   whole length as the least it can take, which became the tools cluster's floor and folded
+   the window strip to chevrons. Wrapping lets its least be one word ("Closed…"), and the
+   clamp keeps it to the line. */
 .hdr__notice-text {
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
 }
 
 /* The way back, said where the closing is. A plain key: its semibold words on the wash say
@@ -1440,7 +1471,13 @@ html, body {
     border: 0;
     border-radius: var(--radius-panel);
     box-shadow: var(--shadow-3);
-    overflow: hidden;
+    /* clip, not hidden: a hidden box is still a scroll container, and the browser scrolls one
+       to bring a focused or pressed control into view. A key pressed near the bottom edge
+       while the row was sliding scrolled the whole column up a few pixels, bar and toolbar
+       with it, and nothing could scroll it back — the title bar's keys and the toolbar's
+       trailing keys sat cut off above the box. A clipped box cannot scroll at all; the
+       body below is the window's one scroll container. */
+    overflow: clip;
     z-index: var(--z-window);
     /* left/width transition is what makes the row "settle" after a reorder, a resize
        commit, an eviction, or a close — every tab slides to its new slot instead of
@@ -1454,7 +1491,7 @@ body.splitting .win, body.tab-dragging .win { transition: none; user-select: non
 /* The dragged tab floats in front of whatever it passes over while it looks for a slot —
    this is the interaction the row is built around: a window is its own tab, and moving it
    is a direct, physical drag, not a trip through a menu. */
-.win--dragging-tab {
+.win.win--dragging-tab {
     z-index: var(--z-divider);
     box-shadow: var(--shadow-sheet);
     cursor: grabbing;
@@ -1479,10 +1516,26 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 .win--collapsed .win__icon { color: var(--text-secondary); }
 
 /* A window body is opaque and borderless, so focus is signalled by the title bar and the
-   pulse strip only — no ambient glow, no ring around the whole column. Unfocused windows
-   recede a shade, as if the bar had settled back into the body it sits on. */
+   window's depth — no ambient glow, no ring around the whole column. Unfocused windows
+   recede a shade, as if the bar had settled back into the body it sits on.
+
+   Two signals, said the way the rest of the desk says them. The focused column's icon wears the
+   wash the current key in the header strip wears, because it is the same fact — this is the
+   one you are in — and the accent is for selection. And it stands a step nearer: the focused
+   column keeps the window's full shadow while the others sit closer to the ground, the way a
+   Mac's key window casts the larger shadow. The bar's shade alone was one step of the surface
+   ramp, too slight to find across a row of three. */
 .win--focused .win__title {
     color: var(--text-primary);
+}
+
+.win:not(.win--focused) {
+    box-shadow: var(--shadow-2);
+}
+
+.win--focused .win__icon {
+    background: var(--accent-wash);
+    color: var(--accent-ink);
 }
 
 .win:not(.win--focused) .win__bar {
@@ -1501,6 +1554,9 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     padding: 0 4px 0 10px;
     background: var(--surface-2);
     flex: 0 0 auto;
+    /* The bar answers to its own column's width, not the viewport's: three columns on a wide
+       screen are each as narrow as one on a laptop. See "The bar at a column's narrowest". */
+    container: winbar / inline-size;
 }
 
 /* A subject window's own Back and Forward, at the leading edge of its bar the way a browser
@@ -1545,10 +1601,15 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
 .win__nav-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* A 22px plate every icon has, washed only on the focused column, so focusing a window lights
+   the plate without moving the title beside it. */
 .win__icon {
     flex: 0 0 auto;
     display: grid;
     place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-sm);
     color: var(--text-tertiary);
 }
 
@@ -1561,18 +1622,43 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    /* Keeps a few letters however narrow the column, so a cut title is still a word. */
     flex: 0 1 auto;
+    min-width: 4ch;
 }
 
+/* The window's own reading beside its name ("3 open"). It gives way long before the title
+   does — a far larger shrink factor, so the title keeps its width until the status has none —
+   and stands a step further off than the bar's gap, so the two read as a name and a remark
+   rather than one run of words. */
 .win__status {
     font-size: var(--text-subheadline);
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 0 40 auto;
+    min-width: 0;
+    margin-left: var(--space-1);
 }
 
 .win__spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* ---- The bar at a column's narrowest -------------------------------------
+   A column can be as narrow as its window's minimum, and three keys at each end leave little
+   between them. The bar gives width back in a fixed order rather than letting everything shrink
+   at once: the status first (the title's tooltip still carries it), then the icon, which only
+   repeats what the title says. The keys never shrink, and Close keeps its step apart from the
+   others: a 28px target is the smallest the desk draws, and a narrow bar is where a hurried
+   click is likeliest. A collapsed column's bar is narrow by design and is nothing but its
+   icon, so it is left out. */
+@container winbar (max-width: 380px) {
+    .win__status { display: none; }
+}
+
+@container winbar (max-width: 300px) {
+    .win:not(.win--collapsed) .win__icon { display: none; }
+}
 
 /* A step of the ramp between the keys, so a hover fill reads as one key lit rather than a
    strip lighting in thirds, and a second step before Close: the key that ends the window
@@ -1688,13 +1774,14 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 /* ------------------------------------------------------------- divider ---- */
 
 /* The only geometry an operator can change: where two adjacent columns meet.
-   Sits in the 8px gutter between them, with a hit area wider than it looks. */
+   Sits in the 8px gutter between them, with a hit area twice as wide as the gutter: 4px
+   over each column's edge, which is where a reaching pointer lands. */
 .divider {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 14px;
-    margin-left: -3px; /* centres the 14px target on the 8px gutter */
+    width: 16px;
+    margin-left: -4px; /* centres the 16px target on the 8px gutter */
     z-index: var(--z-divider);
     cursor: col-resize;
     display: grid;
@@ -1704,33 +1791,96 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     touch-action: none; /* the pointer gesture owns the drag, not the browser's scroll */
 }
 
-.divider__grip {
+/* The seam: the line the two columns actually meet on, drawn the full height of the row once
+   the divider is reached for, so what moves is the whole edge and not a handle floating in a
+   gap. Nothing at rest — the gutter is already the edge. */
+.divider::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
     width: 2px;
-    height: 34px;
+    transform: translateX(-50%);
     border-radius: 1px;
-    background: var(--surface-3);
+    background: transparent;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+/* At rest, a short rounded grip in tertiary ink: enough to say "this gap is a handle" across
+   the room without competing with the columns either side. It was a 2px stroke of --surface-3
+   on the desk's ground, one step of the ramp from what it sat on, and nobody found it. */
+.divider__grip {
+    position: relative;
+    width: 4px;
+    height: 36px;
+    border-radius: 2px;
+    background: var(--text-tertiary);
     transition: background-color var(--dur-fast) var(--ease-standard), height var(--dur-fast) var(--ease-standard);
 }
 
 /* Accent, not the neutral hover fill, and deliberately: this is not a plate behind a
    row, it is the grip itself, and the same declaration serves --active (the live drag)
    and :focus-visible. Splitting hover off to a neutral would either land on the grip's
-   own resting --surface-3 — a hover that paints nothing — or flip colour the instant a
-   drag began. The desk's one accent is what "you have hold of this" looks like. */
+   own resting ink — a hover that paints nothing — or flip colour the instant a drag began.
+   The desk's one accent is what "you have hold of this" looks like. Hover lights the seam in
+   the wash, as a preview; holding it, by pointer or keyboard, draws the seam in the accent. */
 .divider:hover .divider__grip,
-.divider--active .divider__grip {
+.divider--active .divider__grip,
+.divider:focus-visible .divider__grip {
     background: var(--accent);
     height: 64px;
 }
 
+.divider:hover::before { background: var(--accent-wash-strong); }
+
+.divider--active::before,
+.divider:focus-visible::before { background: var(--accent); }
+
 .divider:focus-visible { outline: none; }
 
-.divider:focus-visible .divider__grip {
-    background: var(--accent);
-    height: 100%;
-    border-radius: 0;
-    box-shadow: 0 0 0 1px var(--accent);
+/* The two widths, while the divider is held: each figure on its own side of the seam, against
+   the column it measures, so a drag reads as "this one, that one" without a key to decode.
+   They float over the columns' edges, so they take a material and a shadow; they are not
+   controls, so they take no edge and no pointer. Drawn from data-width (set by the render and,
+   mid-drag, by windowing.js), because the figure is the readout's and the reader already hears
+   it from the divider's own value. */
+.divider__readout {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    visibility: hidden;
 }
+
+/* Shown while the divider is moving — a drag, or a beat after each split key (windowing.js) —
+   never merely because it has focus: at rest the pills would sit over the neighbours' text. */
+.divider--active .divider__readout,
+.divider--keyed .divider__readout { visibility: visible; }
+
+.divider__width {
+    position: absolute;
+    top: 0;
+    transform: translateY(-50%);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    box-shadow: var(--shadow-2);
+    color: var(--text-primary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.divider__width::before { content: attr(data-width); }
+
+.divider__width[data-split-left] { right: var(--space-2); }
+.divider__width[data-split-right] { left: var(--space-2); }
 
 /* While splitting, the whole desk shows the resize cursor — the pointer often leaves the
    14px handle mid-drag and a flickering cursor reads as the gesture breaking. */
@@ -1989,10 +2139,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     font-size: var(--text-body);
 }
 
+/* Headings are set as DeskGrid's are (mud-bridge.css): subheadline, semibold, secondary ink, on
+   the body's 20px line, so a hand-written table in a snippet reads like the grid beside it. */
 .grid th {
     text-align: left;
-    font-size: var(--text-footnote);
+    font-size: var(--text-subheadline);
     font-weight: var(--weight-semibold);
+    line-height: 20px;
     color: var(--text-secondary);
     padding: var(--space-1) var(--space-2);
     border-bottom: 1px solid var(--separator);
@@ -2794,6 +2947,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     margin: calc(-1 * var(--space-1)) 0 var(--space-2);
     font-size: var(--text-subheadline);
     color: var(--text-secondary);
+    /* A meta line is mostly counts ("14 of 21 with a closing line") that change as the section
+       refreshes; tabular figures keep the words after them from shuffling sideways each time. */
+    font-variant-numeric: tabular-nums;
 }
 /* The reading on a meta line that qualifies the rest of it — "14 of 21 with a closing line" —
    pinned to the trailing edge. */
@@ -3137,13 +3293,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* 29px with its hairline and the cell's 10px inset, which is what a real row measures
    (mud-bridge.css: --space-1 either side of a 20px line box, plus the hairline). It was 30px
    at an 8px inset, so a page of six rows landed 6px shorter than its placeholders and every
-   first bar started 2px left of the text that replaced it. */
+   first bar started 2px left of the text that replaced it. The inset is the grid's own
+   (--deskgrid-inset, mud-bridge.css), so a narrow grid's placeholders narrow with its cells. */
 .deskgrid__skeleton-row {
     display: flex;
     align-items: center;
     gap: var(--space-4);
     height: 29px;
-    padding: 0 10px;
+    padding: 0 var(--deskgrid-inset, 10px);
     box-sizing: border-box;
     border-bottom: 1px solid var(--separator);
 }
@@ -3333,9 +3490,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    spent — which matters because spending one evicts something (ADR 0007), and
    browsing must never rearrange the desk out from under the operator.
 
-   Everything here is built to sit *inside* a table cell without disturbing the
-   row rhythm around it: the strip is the width of its own column, and only the
-   open row changes height.
+   The strip sits in one of two places. In a detail window's row it sits inside
+   a cell, under that row's own text, at the cell's width. In a list it is the
+   first line of the row the grid opens under the open one (DeskGrid's child
+   row): a list's columns are narrow and its row click is the toggle, so a strip
+   inside a cell wrapped into stacked keys and a near miss closed the row. Either
+   way only the open row changes height.
    -------------------------------------------------------------------------- */
 
 .rowacts {
@@ -3359,6 +3519,83 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    that row from the first cell's edge, up to a measure a list can be read across. */
 .rowacts__snippet { max-width: 720px; }
 .rowacts__snippet > .snippet { margin: 0; }
+
+/* The strip as a list's open line: the first thing in the child row, keys on one line.
+   No rule above it and no margin — the child row shares the open row's wash, so the row and
+   its keys read as one selection, and a hairline between them would cut it in two.
+
+   28px keys, not the grid row's 24px: here the strip is a row of its own, a toolbar in all
+   but name, so it takes the toolbar's height (.ptoolbar .desk-btn--sm), which is the desk's
+   pointer floor for a control on its own line (HIG: 28pt on macOS; each key's and segment's hit
+   region is 44, below, and the child row stops every press inside it). The segmented control's Small track
+   is already 28px with its 2px inset, so the glances and the commands now stand level.
+   --space-2 between keys, so nothing touches; the gap span adds a second to part the
+   glances from the commands. Wraps only as a last resort, --space-5 apart: a wrapped line's
+   hit regions (below) reach 8–10px past what is drawn, and at --space-2 the line above took
+   presses meant for the key under it. */
+.deskgrid__child-cell > .rowacts {
+    margin: 0;
+    border-top: 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys {
+    gap: var(--space-5) var(--space-2);
+    padding: var(--space-1) 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { height: 28px; }
+
+/* A hit region of 44, drawn at 28 (HIG: a control's hit region may be larger than its visible
+   bounds). The strip is where a finger lands on a touch screen beside the desk, and a 28px key
+   is a near miss in waiting. The region grows up and down only, never sideways: keys are 8px
+   apart, so a sideways inset would hand a press between two keys to whichever was drawn last.
+
+   The key's region is its ::before: ::after is the busy sheen. The key clips that sheen with
+   overflow: hidden, which would clip the region too, so here the key lets its box overflow and
+   the sheen stays inside by moving its gradient across a fixed layer (background-position)
+   rather than moving the layer itself (transform) — the layer keeps the key's corners. */
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { overflow: visible; }
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm::before {
+    content: '';
+    position: absolute;
+    inset: -8px 0;
+}
+
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--busy::after {
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        transparent 33.33%,
+        var(--sheen) 50%,
+        transparent 66.67%) 100% 0 / 300% 100% no-repeat;
+    animation-name: desk-btn-sheen-in-place;
+}
+
+@keyframes desk-btn-sheen-in-place {
+    from { transform: none; background-position: 100% 0; }
+    to { transform: none; background-position: 0% 0; }
+}
+
+/* Still, the sheen rests across the key's middle, as the plain key's still sheen does. */
+@media (prefers-reduced-motion: reduce) {
+    .deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--busy::after {
+        animation: none;
+        background-position: 50% 0;
+    }
+}
+
+/* A segment's region the same way: 24px drawn in a 28px track, 44 to the finger. The segment
+   is already above the cap (position: relative; z-index: 1) and the cap takes no pointer, so the
+   region sits over the track's 2px rim and nothing covers the cap's drawing or its travel. */
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .gate > .gate__opt::after {
+    content: '';
+    position: absolute;
+    inset: -10px 0;
+}
+
+/* The answer under the keys, in the same cell: a step below them, and clear of the row's
+   bottom hairline. */
+.deskgrid__child-cell > .rowacts + .rowacts__snippet { margin: var(--space-1) 0 var(--space-2); }
 
 /* The button whose snippet is showing. Held down rather than merely highlighted,
    because it is a state the operator is in, not a hover. It reads as selected
@@ -3425,8 +3662,35 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-secondary);
 }
 
-.snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); }
+.snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); min-width: 0; }
 .snippet__spacer { flex: 1 1 auto; }
+
+/* The snippet asks how wide it is, not the window: the same answer opens in a list's full-width
+   row and in a window beside two others. A container of its own also means its content cannot
+   push it wider than the row it opened in — the row clips nothing because nothing overruns it.
+   The title is a name, kept to one line. */
+.snippet { container: snippet / inline-size; }
+.snippet__title { flex: none; white-space: nowrap; }
+
+/* In a narrow snippet the escape keeps its symbol and gives up its word, as a toolbar key that
+   folds does in a narrow toolbar: the word stays in the page as the key's accessible name, out
+   of sight, and the key's title says it to the pointer. 400px is the width the Desk stacks a
+   narrow group's rows at, and about where a title, a note and a three-word escape stop fitting
+   one line. */
+@container snippet (max-width: 400px) {
+    .snippet__open-word {
+        position: absolute; width: 1px; height: 1px;
+        padding: 0; margin: -1px; overflow: hidden;
+        clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .snippet__open { flex: none; justify-content: center; width: 24px; padding: 0; }
+
+    /* The note takes a line of its own under the title, starting where the title does (past
+       the 14px symbol and the bar's gap), rather than squeezing into a third of a line beside
+       it and breaking a short sentence over three. */
+    .snippet__bar { flex-wrap: wrap; row-gap: 0; }
+    .snippet__note { order: 1; flex: 1 1 100%; padding-left: calc(14px + var(--space-2)); }
+}
 
 /* The escape hatch. Quiet by default — the snippet is usually the answer, and a
    loud "open window" would suggest otherwise. */
@@ -3588,6 +3852,27 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    row so it outranks a host's `.x td { width: 1%; white-space: nowrap }` sizing rule. */
 .deskgrid__child > td { background: var(--accent-wash); }
 .deskgrid__child > .deskgrid__child-cell { width: auto; white-space: normal; }
+
+/* Under 600px MudBlazor stacks a row's cells as label-and-value flex rows. The child cell
+   holds two things, the strip and the answer under it, and as a flex row it laid them side by
+   side, the answer running past the window's edge. A column keeps them stacked; in the table
+   layout a cell is not a flex box and the declaration is inert. */
+.deskgrid__child > .deskgrid__child-cell { flex-direction: column; align-items: stretch; }
+.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: 100%; min-width: 0; }
+
+/* At the narrowest a grid's table can still be wider than its window, and scrolls sideways in
+   its own container (mud-bridge.css). The open row's strip and answer are what the operator is
+   working in, so they keep to the width that is in view — the grid's (100cqw: the deskgrid
+   container), less the cell's inset each side — rather than the table's, and never sit half past
+   the scroll's edge. Wide, the grid is wider than either and nothing changes. */
+.deskgrid__child > .deskgrid__child-cell > .rowacts { max-width: calc(100cqw - 2 * var(--space-2)); }
+.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: min(100%, 720px, calc(100cqw - 2 * var(--space-2))); }
+
+/* The row a child row opened under gives up its hairline: the two are one selection, and
+   the one edge they share is the child row's, below both. */
+.deskgrid .mud-table-body .mud-table-row:has(+ .deskgrid__child) > .mud-table-cell {
+    border-bottom-color: transparent;
+}
 
 /* Keyboard focus is visible on every new control. The desk answers a press with
    travel, which a keyboard user never sees — so focus gets its own ring rather
@@ -3960,6 +4245,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    the bridge's single-class .mud-dialog, which source order alone would not do. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
+    .hdr::before { background: none; }
     .bar__menu .bar__menu-panel { background: var(--surface-1); }
     .palette__panel { background: var(--surface-2); }
     .deskdialog { background: var(--surface-2); }
@@ -3984,8 +4270,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .palette__panel { background: var(--surface-2); }
     .deskdialog { background: var(--surface-2); }
     .mud-dialog.desk-sheet { background: var(--surface-2); }
+    .hdr::before { background: none; }
 
-    .hdr, .ftr, .bar__menu .bar__menu-panel, .palette__panel,
+    .hdr, .hdr::before, .ftr, .bar__menu .bar__menu-panel, .palette__panel,
     .deskdialog, .mud-dialog.desk-sheet {
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
@@ -3998,6 +4285,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 [data-reduced-transparency="true"] .deskdialog,
 [data-reduced-transparency="true"] .mud-dialog.desk-sheet {
     background: var(--surface-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+[data-reduced-transparency="true"] .hdr::before {
+    background: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }

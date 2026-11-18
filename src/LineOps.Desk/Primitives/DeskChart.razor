@@ -116,11 +116,10 @@
     /// </summary>
     [Parameter] public bool ShowLegend { get; set; } = true;
 
-    // No Y-axis unit parameter: MudBlazor 9.7 keeps YAxisFormat on
-    // MudBlazor.Charts.IAxisChartOptions, which MudChart does not accept through
-    // ChartOptions, so a caller cannot label the axis without reaching around the seam.
-    // Until that moves, the unit belongs in Takeaway — which is where a reader looks for
-    // what is being counted anyway.
+    // No Y-axis unit parameter. MudChart takes any IChartOptions, and Rebuild hands an axis
+    // chart its own options type (LineChartOptions, BarChartOptions) for the tick limit, so
+    // YAxisFormat is reachable there; the unit still belongs in Takeaway, which is where a
+    // reader looks for what is being counted.
 
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
@@ -213,7 +212,7 @@
     // changes, so a fresh instance per render would rebuild the whole SVG every time an
     // unrelated part of the panel updated.
     private List<ChartSeries<double>> _series = [];
-    private ChartOptions _options = new();
+    private MudBlazor.Charts.IChartOptions _options = new ChartOptions();
 
     // A chart is the one part of the desk a token block cannot re-theme: MudChart writes
     // these colours into SVG attributes and legend markup, where a var() does not resolve.
@@ -237,10 +236,41 @@
         // can hand over an array without the component being able to scribble on its data.
         _series = [.. Series];
 
-        _options = new ChartOptions
+        // An axis chart is handed its own options type, the one that carries the axis: the
+        // base ChartOptions has no tick limit, and MudBlazor's default of twenty drew a label
+        // every 320 down a 200px plot (HIG audit, 17 November). Six is the most a reader
+        // takes in at a glance; MudBlazor rounds the step to fit under it.
+        var palette = DeskChartPalette.For(Family, Theme.Palette);
+        var values = _series.SelectMany(s => s.Data.Values ?? []).ToArray();
+        var step = values.Length == 0 ? 20 : RoundStep(values.Min(), values.Max());
+
+        _options = Kind switch
         {
-            ChartPalette = DeskChartPalette.For(Family, Theme.Palette),
-            ShowLegend = ShowLegend
+            DeskChartKind.Line => new LineChartOptions { ChartPalette = palette, ShowLegend = ShowLegend, YAxisTicks = step, MaxNumYAxisTicks = MaxValueTicks },
+            DeskChartKind.Bar => new BarChartOptions { ChartPalette = palette, ShowLegend = ShowLegend, YAxisTicks = step, MaxNumYAxisTicks = MaxValueTicks },
+            DeskChartKind.StackedBar => new StackedBarChartOptions { ChartPalette = palette, ShowLegend = ShowLegend, YAxisTicks = step, MaxNumYAxisTicks = MaxValueTicks },
+            _ => new ChartOptions { ChartPalette = palette, ShowLegend = ShowLegend }
         };
+    }
+
+    private const int MaxValueTicks = 6;
+
+    /// <summary>
+    /// A round value-axis step for data spanning <paramref name="min"/> to <paramref name="max"/>:
+    /// about a quarter of the range, rounded up to 1, 2 or 5 times a power of ten, and never
+    /// under 1 (MudBlazor's step is a whole number).
+    /// </summary>
+    public static int RoundStep(double min, double max)
+    {
+        var span = Math.Max(max, 0) - Math.Min(min, 0);
+        if (span <= 0)
+            return 1;
+
+        var raw = span / 4;
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+        var fraction = raw / magnitude;
+        var nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+
+        return (int)Math.Max(1, nice * magnitude);
     }
 }

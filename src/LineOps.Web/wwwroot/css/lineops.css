@@ -217,7 +217,7 @@
 
 .board__folded {
     display: none;
-    margin-bottom: var(--space-2);
+    margin-top: var(--space-2);
     color: var(--text-secondary);
     font-size: var(--text-footnote);
 }
@@ -232,7 +232,6 @@
    banner above the board (or on the open row when the reasons differ). Secondary, not
    warning ink: an orange line under every unpriced row repeated the banner's alarm. */
 .board__gap {
-    margin-top: 3px;
     color: var(--text-secondary);
     font-size: var(--text-footnote);
     line-height: 1.35;
@@ -265,70 +264,82 @@
 .board__score { color: var(--text-primary); font-weight: var(--weight-semibold); }
 .board__score--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
 
-/* The matchup: a club per line, mark then nickname, inside the game link. A final's loser
-   drops to secondary ink to match its score; the names keep the cell's regular weight, so the
-   figures carry the contrast. */
+/* The matchup: two lines, away over home, each the club's crest, its nickname and its starter.
+   The crest is the bold thing on the line; the nickname is plain medium-weight text with no
+   fill behind it, and the starter is secondary ink. A final's loser drops to secondary ink to
+   match its score, so the figures beside it carry the contrast. */
 .board__team {
     display: block;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: var(--weight-medium);
 }
 .board__team--loser { color: var(--text-secondary); }
 
-/* The two clubs side by side, each a chip with its starter beneath. Equal columns, so the two
-   starters sit level under their chips; a cell too narrow for two wraps the home club under
-   the away one, each still with its own starter. */
+/* One grid for both lines, each club's line dissolved into it (display: contents), so the
+   crests, the nicknames and the starters each keep a column of their own and the two starters
+   begin at one edge however long the nicknames are. Every part names its column, so a fighter
+   with no crest, or a club with no starter, leaves its cell empty rather than shifting the
+   rest of its line a column left. No column gap: the crest carries its own trailing margin, so
+   a row with no crest has no empty gutter before the names either. */
 .board__sides {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--space-1) var(--space-2);
-    /* Its own max-content, fractions and all: sized by the shrink-to-fit link around it, the
-       row came out a fraction of a pixel short of two chips and wrapped the home club under
-       the away one in a cell with room for both. */
+    display: grid;
+    grid-template-columns: auto minmax(0, max-content) minmax(0, max-content);
+    align-items: baseline;
+    /* Its own max-content: sized by the shrink-to-fit link around it, a fraction of a pixel
+       short would ellipsize a nickname in a cell with room for it. */
     width: max-content;
     max-width: 100%;
 }
+.board__side { display: contents; }
+.board__side > .teammark { grid-column: 1; }
+.board__side > .board__team { grid-column: 2; }
+.board__side > .board__starter { grid-column: 3; }
 
-.board__side {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    max-width: 100%;
-}
-
-/* A club as an object: a capsule of fill, no outline (a chip inside a grid cell is a shape,
-   not a box), its mark and nickname inside. The hover lights the chip rather than underlining
-   a two-line label. */
-.board__chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    align-self: flex-start;
-    max-width: 100%;
-    padding: 2px var(--space-2);
-    background: var(--surface-2);
-    border-radius: 999px;
-    font-weight: var(--weight-medium);
-}
-.board__chip .teammark { margin-right: 0; }
-.board__matchup-link:hover .board__chip,
-.board__matchup-link:focus-visible .board__chip { background: var(--surface-3); color: var(--accent-ink); }
+/* The link says it is one by the names taking the accent ink under the pointer or the focus,
+   not by a rule under a two-line label. */
+.board__matchup-link:hover .board__team,
+.board__matchup-link:focus-visible .board__team { color: var(--accent-ink); }
 .deskgrid--board .mud-table-body .mud-table-cell .board__matchup-link:hover .desklink__label { border-bottom-color: transparent; }
 
-/* The starter under the club: caption size, the role in semibold so "SP" and "QB" read as a
-   kind and the surname as a name; inset to the chip's text. */
+/* The starter beside its club, in secondary ink at footnote size, the role a tertiary word
+   ("SP", "QB") ahead of the surname so the name is what reads. */
 .board__starter {
-    padding: 0 var(--space-2);
+    min-width: 0;
+    margin-left: var(--space-3);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--text-footnote);
     color: var(--text-secondary);
 }
-.board__starter-role { font-size: var(--text-caption); font-weight: var(--weight-semibold); }
+.board__starter-role { color: var(--text-tertiary); }
+
+/* What qualifies the game — a doubleheader's number, the bout a card is sold on, that it has no
+   price — on one line under the two clubs. Inset past the crest column (the small crest and its
+   margin) so it starts at the nicknames' edge and reads as their footnote. */
+.board__notes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    margin-top: var(--space-1);
+}
+.board__notes--inset { padding-left: calc(18px + var(--space-2)); }
+
+/* The start: the time in the cell's ink on the away line, the league a caption in secondary
+   ink on the home line, so the cell is the same two lines as the matchup beside it. */
+.board__when { display: flex; flex-direction: column; align-items: flex-start; }
+.board__time { white-space: nowrap; }
+.board__league {
+    font-size: var(--text-caption);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    /* The body line's height, not its own: the caption then sits on the home club's line. */
+    line-height: calc(var(--text-body) * var(--leading-body));
+}
 
 /* The matchup link holds two clubs, a line each, so the grid's two-line clamp on a link's
    label (mud-bridge) cut the home line off whenever a narrow cell wrapped a mark away from its
@@ -344,6 +355,9 @@
     -webkit-line-clamp: unset;
     line-clamp: unset;
     min-width: 0;
+    /* Each nickname and starter ellipsizes itself; the label clipping as well would shave the
+       top of a crest drawn a pixel above the line on a font with a taller ascent. */
+    overflow: visible;
 }
 
 .board__matchup-link { position: relative; }
@@ -388,20 +402,17 @@
    The title and toolbar are the Desk's (desk.css, "Panel anatomy"); what they hold here is
    this app's: a team's mark, a game's scoreboard, the game search, the Board's table. */
 
-/* A team's mark: a disc in the club's colour before its name. Team colour is content, not
-   chrome; TeamMark sets --team from the one map in C#, and nothing else here reads it. The
-   ring keeps a navy or black club legible on a dark surface. The disc sits on the baseline
-   and is lifted half the gap between its size and the cap height, so it centres on the
-   capitals in running text and in a baseline-aligned flex row alike. */
+/* A team's mark before its name: the club's crest, or a disc in the club's colour where no
+   crest is served. Team identity is content, not chrome; TeamMark draws it and nothing else
+   here does. Either form sits on the baseline and is moved half the gap between its size and
+   the cap height, so it centres on the capitals in running text and in a baseline-aligned
+   flex row alike. */
 .teammark {
     --teammark-size: 8px;
     display: inline-block;
     flex: none;
     width: var(--teammark-size);
     height: var(--teammark-size);
-    border-radius: 50%;
-    background: var(--team);
-    box-shadow: 0 0 0 1px var(--separator-strong);
     vertical-align: baseline;
     position: relative;
     bottom: calc((0.7em - var(--teammark-size)) / 2);
@@ -410,6 +421,65 @@
 }
 .teammark--sm { --teammark-size: 8px; }
 .teammark--lg { --teammark-size: 12px; }
+.teammark--hero { --teammark-size: 16px; }
+
+/* The disc, where no crest is served: the club's colour, set by TeamMark as --team from the
+   one map in C#. The ring keeps a navy or black club legible on a dark surface. */
+.teammark--disc {
+    border-radius: 50%;
+    background: var(--team);
+    box-shadow: 0 0 0 1px var(--separator-strong);
+}
+
+/* The crest: a square the image is contained in, so a wide wordmark and a tall shield take the
+   same room. A negative top margin gives back everything the crest stands above the capitals,
+   so the box the line lays out is cap-high and sits wholly inside the line's own ascent: a row
+   or a table line with a crest in it is exactly as tall as one without. The margin the line
+   box used to be measured against (1lh) gave nothing back while the crest was shorter than the
+   line, and an 18px crest on a 13px line still stood above the ascent and grew the row by about
+   4px. The relative offset above then draws it centred on the capitals, which layout ignores. */
+.teammark--crest {
+    margin-right: var(--space-2);
+    margin-top: calc(0.7em - var(--teammark-size));
+    margin-top: calc(1cap - var(--teammark-size));
+}
+.teammark--crest.teammark--sm { --teammark-size: 18px; }
+.teammark--crest.teammark--lg { --teammark-size: 28px; }
+.teammark--crest.teammark--hero { --teammark-size: 44px; }
+/* The hero is the one crest meant to own its room: it heads a window (the game's scoreboard, a
+   team's title), where the rows are laid out around it rather than it being slipped into a line
+   of text. It takes its full height and centres on the line it sits in. */
+.teammark--crest.teammark--hero {
+    margin-top: 0;
+    bottom: 0;
+    vertical-align: middle;
+    margin-right: var(--space-3);
+}
+/* A crest leading a heading's own text — a window's title, a section's rule — heads what follows
+   rather than sitting in a row of it, so it owns its height too, centred on the heading's line.
+   Only as the heading's direct child: inside the scoreboard it is a flex item, which the
+   scoreboard aligns itself. */
+.ptitle__name > .teammark--crest,
+.panel-h > .teammark--crest {
+    margin-top: 0;
+    bottom: 0;
+    vertical-align: middle;
+}
+.teammark__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    user-select: none;
+}
+/* One crest per ground: the dark-ground drawing unless the theme is a light one. */
+.teammark__img--light { display: none; }
+[data-theme$="-light"] .teammark__img--light { display: block; }
+[data-theme$="-light"] .teammark__img--dark { display: none; }
+/* ESPN's dark-ground drawing is often the light one again: the Falcons' black bird, the
+   Panthers', the Colts' and the Raiders' navy and black, sank into a dark window. A hairline
+   halo in the tertiary ink gives every crest an edge there; a colourful one barely shows it. */
+.teammark__img--dark { filter: drop-shadow(0 0 1px var(--text-tertiary)); }
 
 /* A game's title as a scoreboard: away over home, name | score, the score the largest thing in
    the window. The rows are subgrids of one grid, so both scores share a right edge whatever the
@@ -429,12 +499,16 @@
     line-height: var(--leading-title);
     font-size: var(--text-title3);
 }
+/* Each club is one unbreakable unit, crest, name and score: dissolved into the line, a narrow
+   wager window broke after the home name and left its score alone on the next line. */
 .scoreboard--compact {
-    --scoreboard-row: contents;
+    --scoreboard-row: inline-flex;
     --scoreboard-score: var(--text-title3);
     display: inline-flex;
     flex-wrap: wrap;
     column-gap: var(--space-2);
+    /* The large crests stand above and below the line; wrapped, two lines keep them apart. */
+    row-gap: var(--space-2);
 }
 .scoreboard__row {
     display: var(--scoreboard-row);
@@ -445,7 +519,16 @@
     font-weight: var(--weight-semibold);
 }
 .scoreboard__row--loser { color: var(--text-secondary); font-weight: var(--weight-regular); }
+/* A flex row drops the space written between the name and the score, so the gap stands in. */
+.scoreboard--compact .scoreboard__row { column-gap: var(--space-2); }
 .scoreboard__name { display: inline-flex; align-items: baseline; min-width: 0; font-size: var(--text-title3); }
+/* The full scoreboard leads each row with the club's hero crest, so a row is the crest's height
+   and the name and the score centre on it; on the baseline the 44px crest set the name at its
+   foot and the score beside the name's line, low against the mark. The compact scoreboard keeps
+   the baseline: it is one line of text with a cap-high crest in it. */
+.scoreboard:not(.scoreboard--compact) { align-items: center; row-gap: var(--space-2); }
+.scoreboard:not(.scoreboard--compact) .scoreboard__row { align-items: center; }
+.scoreboard:not(.scoreboard--compact) .scoreboard__name { align-items: center; }
 .scoreboard__score {
     justify-self: end;
     text-align: right;
@@ -618,6 +701,8 @@
 }
 
 .snippet__side--empty { color: var(--text-tertiary); }
+/* The side's own gap already sets the crest off its name. */
+.snippet__side > .teammark { margin-right: 0; }
 .snippet__sel { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .snippet__line { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .snippet__price { color: var(--text-primary); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
@@ -673,6 +758,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* In a grid, the opponent is a link whose label now holds a crest, which the Desk treats as a
+   label built from elements and clamps until it gives way to nothing ("at ◆ …"). It is a name,
+   so it is held on its line the way the Desk holds a plain-text name: up to the same ceiling,
+   then an ellipsis. */
+.deskgrid .mud-table-body .mud-table-cell.logrow__opp .desklink__label {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    max-width: max(24ch, 40cqw);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
@@ -742,7 +840,7 @@
 
    So every column shrinks to its content — width:1% with nowrap is the standard
    way to say "as narrow as you can" — and the matchup absorbs all the slack,
-   which it can use: it is the column that holds the row's action strip.
+   which it can use: two clubs' chips, their starters, and the tags under them.
    -------------------------------------------------------------------------- */
 
 .deskgrid--board table { width: 100%; }
@@ -764,17 +862,17 @@
    not measured in a browser. */
 .deskgrid--board td { vertical-align: top; }
 
-/* The one column that grows. It also carries the open row's actions, so the
-   space is not merely absorbed — it is used. */
+/* The one column that grows. The open row's actions are not in it: they are the
+   first line of the row under the game (below), which starts at this column's edge. */
 .deskgrid--board th:nth-child(2),
 .deskgrid--board td:nth-child(2) {
     width: auto;
     white-space: normal;
 }
 
-/* The open row's snippet sits in DeskGrid's child row, styled by desk.css: its cell starts
-   under the matchup (the lead cell holds the start time's column), wraps rather than widening
-   the table, and keeps the open row's wash. */
+/* The open row's strip and the snippet under it sit in DeskGrid's child row, styled by
+   desk.css: its cell starts under the matchup (the lead cell holds the start time's column),
+   wraps rather than widening the table, and keeps the open row's wash. */
 
 /* Each market is two columns that belong together — home and away, over and
    under. Extra space before the first of each pair groups them, so the eye reads
@@ -806,17 +904,42 @@
 
 .deskgrid--board td .price { display: inline-flex; flex-direction: column; align-items: flex-end; }
 
-/* A narrow board has folded spread and totals away (.board__folded), and still needs the
-   start time and the value pick to give up a line each rather than hold the row wide: the
-   league tag drops under the time, and the pick's book under its selection. */
+/* The two columns of a pair sit close, so home and away (over and under) read as one market;
+   the space between markets is the wide one, before .board__pair. */
+.deskgrid--board th.mud-table-cell.board__pair-end,
+.deskgrid--board td.mud-table-cell.board__pair-end {
+    padding-left: var(--space-1);
+}
+
+/* An unpriced side is a dash as wide as a price, at the price's right edge. A bare dash let its
+   column shrink to the glyph, so a slate of unpriced games drew its pairs a few pixels wide, the
+   dashes bunched at the window's edge and the market's centred heading spilled left over Value. */
+.deskgrid--board .price__empty {
+    display: inline-block;
+    min-width: 84px;
+    text-align: right;
+}
+
+/* A narrow board has folded spread and totals away (.board__folded), and still needs the value
+   pick to give up a line rather than hold the row wide: the pick's book drops under its
+   selection. The cells close up, and the prices with them, but the rhythm holds at a smaller
+   step: a pair's two columns stay close and the gap before each market stays the wider one.
+   The pair rules name one class more than the narrow padding below, so they still win it. */
 @container board (max-width: 820px) {
-    .deskgrid--board td:nth-child(1) { white-space: normal; }
     .deskgrid--board td .value__bet { white-space: normal; text-align: right; }
 
-    .deskgrid--board td:nth-child(1) .num { white-space: nowrap; }
-
     .deskgrid.deskgrid--board .mud-table-head .mud-table-cell,
-    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell { padding-inline: 8px; }
+    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell { padding-inline: var(--space-2); }
+
+    .deskgrid.deskgrid--board .mud-table-head .mud-table-cell.board__pair,
+    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell.board__pair { padding-left: var(--space-3); }
+    .deskgrid.deskgrid--board .mud-table-head .mud-table-cell.board__pair-end,
+    .deskgrid.deskgrid--board .mud-table-body .mud-table-cell.board__pair-end { padding-left: var(--space-1); }
+
+    .deskgrid--board .price,
+    .deskgrid--board .price__empty { min-width: 64px; }
+    .deskgrid--board .value { min-width: 72px; }
+    .deskgrid--board .rail { width: 56px; }
 }
 
 /* ---- The Performance window ------------------------------------------------------
@@ -827,8 +950,24 @@
    The tiles get a smaller floor here so six of them still make one line inside the column
    rather than five and an orphan. The tiles sit in the column rather than straight in
    .win__body, so the air beneath them is restated. */
-.perf { max-width: 720px; }
+.perf { max-width: 720px; container: perf / inline-size; }
 .perf > .metrics { margin: 0 0 var(--space-4); grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
+/* The panel says how many tiles there are, four to six, so the row wraps them evenly: two
+   columns beside the Board, three where three fit, and all of them on one line when the column
+   holds them. Fitting as many as the width allows left four and an orphan, or five and one. */
+.perf > .perf-metrics--4, .perf > .perf-metrics--5, .perf > .perf-metrics--6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container perf (min-width: 420px) {
+    .perf > .perf-metrics--5, .perf > .perf-metrics--6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container perf (min-width: 540px) {
+    .perf > .perf-metrics--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container perf (min-width: 640px) {
+    .perf > .perf-metrics--5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@container perf (min-width: 700px) {
+    .perf > .perf-metrics--6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 
 /* The chart spans the column and keeps its own proportions. MudChart draws into a fixed
    700×350 view box and was given a 200px box to fit it in, so it scaled itself down to 400px
@@ -1510,6 +1649,62 @@ button.gamelines__cell { align-items: stretch; }
 /* The RCA is a form's width, so its keys sit under the fields they commit. */
 .opsrca { max-width: 720px; }
 
+/* Rows of tiles that wrap evenly. The Desk's row fits as many 132px tiles as the width allows,
+   so four tiles in a window beside the Board broke three and one, and three broke two and one,
+   an orphan tile reading as a different kind of figure. Four go two by two until there is room
+   for all four on one line (the clamp picks a half or a quarter of the row, never a third);
+   three always share one line, since three short figures fit a 300px window. */
+.ops-metrics--4 {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(calc(25% - var(--space-2)), calc((560px - 100%) * 999), calc(50% - var(--space-2))), 1fr));
+}
+.ops-metrics--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* ---- Columns in the operations and analytics windows ------------------------------------
+   A column is one of two kinds. A fitted column — a state, a date-time, a figure, a name —
+   holds its value on one line and takes only the width that needs; the growing column, the
+   one sentence a row says, takes everything the fitted ones leave and wraps there, at most
+   twice (the Desk clamps it). Without the split every column took a share, so a stamp broke
+   over two lines while a sentence beside it was cut at a third of the window. Set on a
+   column as HeaderClass and CellClass both. */
+.ops-col--fit { width: 1%; white-space: nowrap; }
+/* The growing column keeps a floor. Where the fitted columns already fill the window, "take
+   what is left" was nothing, and the Journal's selection was cut to "San…" while its stake and
+   result scrolled off the edge. At the floor the sentence still reads, and what cannot fit
+   scrolls inside the table, as the Desk lets a grid do at its narrowest. */
+.ops-col--grow { width: 100%; min-width: 16ch; }
+/* The sentence itself takes two lines before its ellipsis, not the one a name or a value is
+   held to: a selection with a crest in it is a label built from elements, which the Desk
+   clamps to one line, and one line of a selection at the floor was a club and no side. */
+.deskgrid .mud-table-body .mud-table-cell.ops-col--grow .desklink__label {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+/* A name that opens a window is a DeskLink, whose label the Desk lets wrap to two lines. In a
+   fitted column it is one line, as every other value there is. Four classes, as the Desk's
+   rule has, and later in the cascade. */
+.ops-col--fit.mud-table-cell .desklink .desklink__label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The expected state of a row — a run that succeeded, a source in its SLO, a day held, an RCA
+   written — is a check mark in the secondary ink, with its word for a screen reader. A column
+   of the same grey word down every row was a wall the exception had to be found in; the mark
+   is quiet enough that the one tag in the column is what the eye lands on. */
+.ops-ok { display: inline-flex; align-items: center; color: var(--text-secondary); vertical-align: -3px; }
+.ops-ok .mud-icon-root { width: 16px; height: 16px; font-size: 16px; }
+
+/* Runs: a run that failed or half-failed reads at full ink across its row, routine runs a step
+   under it, so an exception stands out by its words, with no tint on anything pressable. */
+.opsrun--exception .quiet { color: var(--text-primary); }
+/* A row with no detail names its source, but only while the Source column is folded away. */
+.opsrun__source { display: none; }
+@container deskgrid (max-width: 640px) {
+    .opsrun__source { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
 
 /* ---- The Game window's lines --------------------------------------------------------------
    One grouped row per market, the market's name leading as a form label, its two sides
@@ -1536,6 +1731,16 @@ button.gamelines__cell { align-items: stretch; }
     font-variant-numeric: tabular-nums;
 }
 .gamelines__side { font-weight: var(--weight-semibold); }
+/* A club's side leads with its crest; the book beneath starts under the name, past the crest,
+   its margin and the price line's gap. */
+.gamelines__book--crested { padding-left: calc(18px + var(--space-2) + var(--space-1)); }
+
+/* A player's club, its crest before the link to the Team window: in the Player window's title
+   row and the Players list's Team column. One line, the crest on the name's capitals. */
+.playerteam { display: inline-flex; align-items: baseline; min-width: 0; white-space: nowrap; }
+
+/* A side's name in Team data, its crest before the link. */
+.gameteam__name { display: inline-flex; align-items: baseline; min-width: 0; font-weight: var(--weight-semibold); }
 
 /* The market's name is its disclosure: the triangle leads, the name follows, and the pair is one
    press (HIG, disclosure triangles). Wide enough for "Total rounds" and its triangle. It is a
@@ -1762,3 +1967,71 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
 .qtake__receipt-mark { display: inline-flex; color: var(--state-positive); }
 .qtake__receipt-text { flex: 1 1 16rem; color: var(--text-primary); }
 .qtake__receipt-keys { display: inline-flex; gap: var(--space-2); }
+
+/* The take narrow — a Board in a window beside others, or a 300px window. Asked of the take's own
+   width, never the viewport's: the same take opens under a list's full-width row and in a column
+   a quarter of the desk wide. The take's floor was 290px (four books' segments at 66 each, and the
+   stake's field with its three quick values on one line); a 300px window gives it 224.
+
+   The book takes the whole line under the bet, its segments sharing it equally. The stake stacks
+   (HIG: adjacent views stack as space shrinks): the field across the take, the quick values under
+   it sharing their line as a key row does, and what it returns under them, label beside figure as
+   the wager window's narrow form has it. */
+.qtake { container: qtake / inline-size; }
+
+@container qtake (max-width: 400px) {
+    .qtake__bet { flex-wrap: wrap; row-gap: 0; }
+    .qtake__line > .gate {
+        display: grid;
+        grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+        width: 100%;
+    }
+    .qtake__line > .gate > .gate__opt { min-width: 0; padding-left: var(--space-1); padding-right: var(--space-1); }
+
+    /* A check's sentence keeps beside its mark: its 200px basis (desk.css, .check__text) is
+       wider than a narrow take's row, and wrapped the sentence under a lone dot. */
+    .qtake .check__text { flex-basis: 8rem; }
+
+    .qtake .stake-row { row-gap: var(--space-2); }
+    .qtake .stake-row__field { flex: 1 1 100%; max-width: none; }
+    .qtake .stake-row > .desk-btn { flex: 1 1 0; }
+    .qtake .stake-row__returns {
+        flex-basis: 100%;
+        margin-left: 0;
+        flex-direction: row;
+        align-items: baseline;
+        gap: var(--space-2);
+    }
+}
+
+/* Narrower still for the books than one line of "DK +130" per segment allows (~58px a segment):
+   every segment breaks at its one space, the book's monogram over its price, so all of them break
+   in the same place and none is cut to two letters. A min-content column inside the segment is
+   what makes the break unconditional — a segment that happened to fit would otherwise stay on one
+   line beside one that did not. Counted by segments: five books need ~300px, four ~240. */
+@container qtake (max-width: 300px) {
+    .qtake__line > .gate:has(> .gate__opt:nth-of-type(5)) > .gate__opt {
+        display: grid;
+        grid-template-columns: min-content;
+        justify-content: center;
+        height: auto;
+        min-height: 24px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        line-height: var(--leading-tight);
+        white-space: normal;
+    }
+}
+@container qtake (max-width: 240px) {
+    .qtake__line > .gate:has(> .gate__opt:nth-of-type(4)) > .gate__opt {
+        display: grid;
+        grid-template-columns: min-content;
+        justify-content: center;
+        height: auto;
+        min-height: 24px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        line-height: var(--leading-tight);
+        white-space: normal;
+    }
+}

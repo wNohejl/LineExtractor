@@ -67,7 +67,10 @@ else
             @if (_bout is { } card)
             {
                 @* A fight belongs to a card, not a season (ADR 0021). *@
-                <Tag State="DeskState.Info">@(FightSports.CardName(card))</Tag>
+                @if (FightSports.CardName(card) is { Length: > 0 } cardName)
+                {
+                    <Tag State="DeskState.Info">@cardName</Tag>
+                }
                 @if (card.TitleFight)
                 {
                     <Tag State="DeskState.Info">Title fight</Tag>
@@ -154,6 +157,7 @@ else
        record; open, the last meetings, with the full record one key further. *@
     <GameHeadToHead GameId="GameId" HomeName="@SideName(true)" AwayName="@SideName(false)"
                     IsFight="@(_bout is not null)"
+                    Sport="@game.Sport?.Key" HomeAbbrev="@game.HomeTeam?.Abbrev" AwayAbbrev="@game.AwayTeam?.Abbrev"
                     OnOpenWindow="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)" />
 
     @* The journal wired into the desk: what you have riding on this game, where you are
@@ -389,7 +393,8 @@ else
         {
             bout.MatchNumber == 1 ? "Main event" : bout.CardSegment,
             bout.WeightClass,
-            $"{bout.ScheduledRounds} rounds"
+            // Zero is a card a visitor is not shown (ADR 0024): no distance rather than a guessed one.
+            bout.ScheduledRounds > 0 ? $"{bout.ScheduledRounds} rounds" : null
         }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
     /// <summary>This game's box score. Null until the game has produced one.</summary>
@@ -434,11 +439,7 @@ else
                 Icon = Icons.Material.Filled.Timeline,
                 Snippet = @<PlayerRecentSnippet PlayerId="id" />,
                 OpenLabel = "Player window",
-                OpenWindow = () =>
-                {
-                    Manager.OpenPlayer(id, name, WindowId);
-                    return Task.CompletedTask;
-                }
+                OpenWindow = EventCallback.Factory.Create(this, () => Manager.OpenPlayer(id, name, WindowId))
             }
         ];
     }
@@ -530,16 +531,16 @@ else
                        (home) first, as its card bills it and the Board's row now leads (ADR 0021). *@
                     @if (_bout is null)
                     {
-                        @LineRow("Moneyline", _row.Moneyline.Second, _row.Moneyline.First, SideName(false), SideName(true), total: false)
+                        @LineRow("Moneyline", _row.Moneyline.Second, _row.Moneyline.First, SideName(false), SideName(true), total: false, SideAbbrev(false), SideAbbrev(true))
                     }
                     else
                     {
-                        @LineRow("Moneyline", _row.Moneyline.First, _row.Moneyline.Second, SideName(true), SideName(false), total: false)
+                        @LineRow("Moneyline", _row.Moneyline.First, _row.Moneyline.Second, SideName(true), SideName(false), total: false, SideAbbrev(true), SideAbbrev(false))
                     }
                     @* A fight has no spread (ADR 0021). *@
                     @if (_bout is null)
                     {
-                        @LineRow("Spread", _row.Spread.Second, _row.Spread.First, SideName(false), SideName(true), total: false)
+                        @LineRow("Spread", _row.Spread.Second, _row.Spread.First, SideName(false), SideName(true), total: false, SideAbbrev(false), SideAbbrev(true))
                     }
                     @LineRow(_bout is null ? "Total" : "Total rounds", _row.Total.First, _row.Total.Second, "Over", "Under", total: true)
                 </div>
@@ -559,7 +560,7 @@ else
     /// on every other list on the desk.
     /// </para>
     /// </summary>
-    private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total) => @<text>
+    private RenderFragment LineRow(string market, BestOffer? first, BestOffer? second, string firstSide, string secondSide, bool total, string? firstAbbrev = null, string? secondAbbrev = null) => @<text>
         @{
             var key = MarketKey(market);
             var open = _openMarket == key;
@@ -575,8 +576,8 @@ else
                 <span>@market</span>
             </button>
             <div class="gamelines__sides">
-                @LineCell(first, firstSide, total, key)
-                @LineCell(second, secondSide, total, key)
+                @LineCell(first, firstSide, total, key, firstAbbrev)
+                @LineCell(second, secondSide, total, key, secondAbbrev)
             </div>
         </div>
         @if (open)
@@ -584,6 +585,7 @@ else
             <div class="wgroup__row gamelines__detail">
                 <MarketMovement Id="@region" GameId="GameId" Market="@key" MarketName="@market"
                                 First="first" Second="second" FirstSide="@firstSide" SecondSide="@secondSide"
+                                Sport="@_row!.Game.Sport?.Key" FirstAbbrev="@(total ? null : firstAbbrev)" SecondAbbrev="@(total ? null : secondAbbrev)"
                                 Closing="@_row!.PricesAreClosing" PricedAt="@_row.PricedAt"
                                 OnOpenWindow="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(_row.Game))" />
             </div>
@@ -650,7 +652,7 @@ else
     /// reading. One reset rule in lineops.css makes the two look the same.
     /// </para>
     /// </summary>
-    private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market) => @<text>
+    private RenderFragment LineCell(BestOffer? offer, string side, bool total, string market, string? abbrev) => @<text>
         @* Every book's price is the cell's tooltip, raised by keyboard focus as well as hover —
            a title on the reading reached a pointer only — and its line breaks are kept. A cell
            with no price has no books to list and no tooltip. *@
@@ -658,24 +660,34 @@ else
         {
             <DeskTooltip Text="@(EveryBook(offer!) + "\nPress to place a wager on this side.")">
                 <button type="button" class="gamelines__cell gamelines__cell--take"
-                        @onclick="() => Take(market, offer)">@LineInside(offer, side, total)</button>
+                        @onclick="() => Take(market, offer)">@LineInside(offer, side, total, abbrev)</button>
             </DeskTooltip>
         }
         else if (offer is not null)
         {
             <DeskTooltip Text="@EveryBook(offer)">
-                <div class="gamelines__cell" tabindex="0">@LineInside(offer, side, total)</div>
+                <div class="gamelines__cell" tabindex="0">@LineInside(offer, side, total, abbrev)</div>
             </DeskTooltip>
         }
         else
         {
-            <div class="gamelines__cell">@LineInside(offer, side, total)</div>
+            <div class="gamelines__cell">@LineInside(offer, side, total, abbrev)</div>
         }
     </text>;
 
     /// <summary>What a side's cell shows: spans only, since a button holds phrasing content.</summary>
-    private RenderFragment LineInside(BestOffer? offer, string side, bool total) => @<text>
+    private RenderFragment LineInside(BestOffer? offer, string side, bool total, string? abbrev) => @<text>
+        @{
+            // A club's side leads with its crest, and the book beneath starts at the name rather
+            // than under the crest; Over and Under, and a fighter, have none.
+            var sport = _row?.Game.Sport?.Key;
+            var crested = !total && TeamLogos.Has(sport, abbrev);
+        }
         <span class="gamelines__price">
+            @if (crested)
+            {
+                <TeamMark Sport="@sport" Abbrev="@abbrev" />
+            }
             <span class="gamelines__side">@side</span>
             @if (offer is null)
             {
@@ -690,7 +702,7 @@ else
                 <span>@OddsMath.FormatPrice(offer.PriceAmerican)</span>
             }
         </span>
-        <span class="gamelines__book">
+        <span class="gamelines__book@(crested ? " gamelines__book--crested" : "")">
             @if (offer is null)
             {
                 @:Not priced
@@ -734,12 +746,15 @@ else
         => string.Join("\n", offer.Rungs.Select(r =>
             $"{BookNames.Display(r.Book)} {(r.Line is { } l ? OddsMath.FormatLine(l, offer.Outcome) + " " : "")}{OddsMath.FormatPrice(r.PriceAmerican)}"));
 
-    /// <summary>A side as the lines name it: the club's nickname, as the Board's chips do.</summary>
+    /// <summary>A side as the lines name it: the club's nickname, as the Board's matchup does.</summary>
     private string SideName(bool home)
     {
         var team = home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam;
         return TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"));
     }
+
+    /// <summary>A side's abbreviation as ESPN spells it, for its crest.</summary>
+    private string? SideAbbrev(bool home) => (home ? _row?.Game.HomeTeam : _row?.Game.AwayTeam)?.Abbrev;
 
     /// <summary>The group's footer: what the numbers are, and when a close, what that means.</summary>
     private string LinesFoot
@@ -754,15 +769,20 @@ else
 
     private RenderFragment RenderTeamData() => @<text>
         <DeskRow Gap="DeskSpace.Space6">
-            @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away")
-            @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home")
+            @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away", SideAbbrev(false))
+            @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home", SideAbbrev(true))
         </DeskRow>
     </text>;
 
-    private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name) => @<text>
+    private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name, string? abbrev) => @<text>
         <DeskStack Gap="DeskSpace.Space1" Align="DeskAlign.Start">
-            <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
-                      OnClick="() => Manager.OpenTeam(teamId, name, WindowId)">@name</DeskLink>
+            @* The crest before the link, not inside it: the link's hover rule runs under its label,
+               and a crest is not part of what is pressed. *@
+            <span class="gameteam__name">
+                <TeamMark Sport="@_row?.Game.Sport?.Key" Abbrev="@abbrev" />
+                <DeskLink Destination="team" Icon="@Icons.Material.Filled.Shield"
+                          OnClick="() => Manager.OpenTeam(teamId, name, WindowId)">@name</DeskLink>
+            </span>
 
             @* "In the window" read as the desk window this sits in; the reach is the season
                switched above. One game is a game. *@
@@ -795,8 +815,10 @@ else
     private RenderFragment RenderPlayers() => @<text>
         @if (HasBox)
         {
-            <BoxScoreSide Side="_box!.Away" Team="@(_row!.Game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenBoxPlayer" />
-            <BoxScoreSide Side="_box.Home" Team="@(_row.Game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenBoxPlayer" />
+            <BoxScoreSide Side="_box!.Away" Team="@(_row!.Game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenBoxPlayer"
+                          Sport="@_row.Game.Sport?.Key" Abbrev="@SideAbbrev(false)" />
+            <BoxScoreSide Side="_box.Home" Team="@(_row.Game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenBoxPlayer"
+                          Sport="@_row.Game.Sport?.Key" Abbrev="@SideAbbrev(true)" />
         }
         else
         {
@@ -804,11 +826,11 @@ else
                chosen by the side's defenders showed a row of dashes. *@
             @foreach (var (unit, players) in Units(_matchup!.Away))
             {
-                @RenderRoster(players, Titled(_row!.Game.AwayTeam?.Name ?? "Away", unit))
+                @RenderRoster(players, Titled(_row!.Game.AwayTeam?.Name ?? "Away", unit), SideAbbrev(false))
             }
             @foreach (var (unit, players) in Units(_matchup.Home))
             {
-                @RenderRoster(players, Titled(_row!.Game.HomeTeam?.Name ?? "Home", unit))
+                @RenderRoster(players, Titled(_row!.Game.HomeTeam?.Name ?? "Home", unit), SideAbbrev(true))
             }
         }
     </text>;
@@ -845,12 +867,15 @@ else
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
         => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
 
-    private RenderFragment RenderRoster(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
+    private RenderFragment RenderRoster(IReadOnlyList<PlayerForm> side, string teamName, string? abbrev) => @<text>
         @if (side.Count > 0)
         {
             var columns = ColumnsFor(side);
 
-            <PanelSection Title="@teamName">
+            @* The side's crest leads its rule at the large size, as the box score's does. *@
+            <PanelSection>
+                <TitleContent><TeamMark Sport="@_row?.Game.Sport?.Key" Abbrev="@abbrev" Size="TeamMarkSize.Large" />@teamName</TitleContent>
+                <ChildContent>
                 @*
                     The row opens the way every other row on the desk opens.
 
@@ -909,6 +934,7 @@ else
                         }
                     </DeskGrid>
                 </div>
+                </ChildContent>
             </PanelSection>
         }
     </text>;

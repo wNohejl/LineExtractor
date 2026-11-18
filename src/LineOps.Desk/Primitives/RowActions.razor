@@ -28,7 +28,9 @@
    Clicks stop here too. The strip lives inside a grid row whose own click opens and closes
    that row, so a press on a key reached the row as well: the snippet opened and the same click
    closed the row around it, and the key appeared to do nothing. A press inside the strip, or
-   inside the snippet it opens, belongs to the strip. *@
+   inside the snippet it opens, belongs to the strip. A list goes further and draws the strip in
+   the row it opens under the open one (DeskGrid's child row), which stops every press inside it,
+   so a near miss between keys is not a press on the row either. *@
 <div class="rowacts" @onkeydown="OnKeyDown" @onkeydown:stopPropagation="true"
      @onclick:stopPropagation="true">
     @* Selection first, then commands, never mixed in one control (HIG: a segmented control does
@@ -206,10 +208,10 @@
         </div>
     };
 
-    /// <summary>A window-only action just goes.</summary>
+    /// <summary>A window-only action just goes — and its host is drawn after it, as the callback's owner.</summary>
     private static async Task OpenAsync(RowAction action)
     {
-        if (action.OpenWindow is not null)
-            await action.OpenWindow();
+        if (action.OpenWindow.HasDelegate)
+            await action.OpenWindow.InvokeAsync();
     }
 }

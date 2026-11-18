@@ -20,7 +20,9 @@
 
 @if (Offer is null)
 {
-    <span class="dim">—</span>
+    @* As wide as a price, so a column of dashes holds the width a priced row would and the
+       market's heading above it stays over its pair (.price__empty). *@
+    <span class="price__empty dim">—</span>
 }
 else if (Takeable)
 {

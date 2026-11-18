@@ -31,9 +31,9 @@ public static class DeskSignInPage
             <meta name="robots" content="noindex" />
             <title>Sign in · {{e(brand.Wordmark + brand.Emphasis)}}</title>
             <style>
-              :root { --bg:#1c1c1e; --panel:#2c2c2e; --text:#f5f5f7; --dim:#98989d; --line:#3a3a3c; --accent:#0a84ff; --bad:#ff453a; }
+              :root { --bg:#1c1c1e; --panel:#2c2c2e; --text:#f5f5f7; --dim:#98989d; --line:#3a3a3c; --accent:#086fd7; --bad:#ff453a; }
               @media (prefers-color-scheme: light) {
-                :root { --bg:#f2f2f7; --panel:#ffffff; --text:#1c1c1e; --dim:#6e6e73; --line:#d1d1d6; --accent:#007aff; --bad:#d70015; }
+                :root { --bg:#f2f2f7; --panel:#ffffff; --text:#1c1c1e; --dim:#6e6e73; --line:#d1d1d6; --accent:#0071eb; --bad:#d70015; }
               }
               * { box-sizing: border-box; }
               body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px;

@@ -33,7 +33,11 @@
 }
 else
 {
-<MetricRow>
+@* The window reads top to bottom as figures, what needs attention, then the record: the tiles
+   and the key that recomputes them, the open alerts, each source's health, and last the odds
+   feeds with the switch that prices them. Alerts used to sit under two tables and a switch,
+   so the one section that asks for action was the last a reader reached. *@
+<MetricRow Class="ops-metrics--4">
     <Metric Label="Sources in SLO"
             State="@(_healthy == _health.Count ? DeskState.Positive : DeskState.Warning)">
         @_healthy/@_health.Count
@@ -72,6 +76,150 @@ else
     </KeyRow>
 }
 
+<PanelSection Title="Open alerts">
+
+@* Nothing open is a sentence, not an empty table: a header row with nothing under it reads as a
+   table that failed to fill, and this is the all-clear the window exists to give. *@
+@if (_alerts.Count == 0)
+{
+    <EmptyState>No open alerts. Every source is inside its SLO.</EmptyState>
+}
+else
+{
+<DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
+    <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* The rule's name in words; its key, which is what the runbook is filed under, in a tooltip
+       that keyboard focus raises as well as hover — a title on text reached a pointer only.
+       Folded away in a narrow window: the message beside it says what the rule found. *@
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate>
+            <DeskTooltip Text="@($"Rule key: {context.Item.RuleKey}")">
+                <span class="dim" tabindex="0">@RuleName(context.Item.RuleKey)</span>
+            </DeskTooltip>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate><span class="trunc" title="@context.Item.Message">@context.Item.Message</span></CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="Alert" TProperty="DateTimeOffset" Property="a => a.TriggeredAt" Title="Age" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="dim">@Age((DateTimeOffset.UtcNow - context.Item.TriggeredAt).TotalMinutes)</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <TemplateColumn T="Alert" Title="" Sortable="false" Align="Align.Right"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            @if (context.Item.IncidentId is null)
+            {
+                @if (Manager.Access.CanOperate)
+                {
+                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
+                                OnClick="() => PromoteAsync(context.Item.Id)">
+                        Open incident
+                    </DeskButton>
+                }
+            }
+            else
+            {
+                <DeskLink Destination="incident"
+                          Icon="@Icons.Material.Filled.ReportProblem"
+                          OnClick="() => Manager.OpenIncident(context.Item.IncidentId.Value)">
+                    <span class="num">#@context.Item.IncidentId</span>
+                </DeskLink>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+}
+</PanelSection>
+
+<PanelSection Title="Source health">
+
+<DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered. A source appears here once it is configured and has run.">
+    @* The source name goes through to its runs — "why is this stale" is answered there. *@
+    <PropertyColumn T="SourceHealth" TProperty="string" Property="h => h.Source.Name" Title="Source"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <DeskLink Destination="runs"
+                      Icon="@Icons.Material.Filled.History"
+                      OnClick="() => Manager.OpenRuns(context.Item.Source.Id, context.Item.Source.Name)">
+                @context.Item.Source.Name
+            </DeskLink>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind"
+                    HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
+        <CellTemplate><span class="dim">@context.Item.Source.Kind</span></CellTemplate>
+    </PropertyColumn>
+
+    @* Sorts on minutes, so "stalest first" is a click. A never-run source sorts as the worst
+       rather than as zero, which is the two-kinds-of-zero rule from ADR 0003. *@
+    <PropertyColumn T="SourceHealth" TProperty="double"
+                    Property="h => h.FreshnessMinutes ?? double.MaxValue"
+                    Title="Freshness" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <span class="@(IsStale(context.Item) ? "down" : null)">
+                @(context.Item.FreshnessMinutes is { } m ? Age(m) : "never")
+            </span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
+                    Title="Success 7d" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+        <CellTemplate>
+            <Note Inline State="@(IsRateLow(context.Item) ? DeskState.Warning : DeskState.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
+        </CellTemplate>
+    </PropertyColumn>
+
+    <PropertyColumn T="SourceHealth" TProperty="int" Property="h => h.RowsToday"
+                    Title="Rows today" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" Align="Align.Right" Format="N0" />
+
+    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.VolumeRatio ?? -1"
+                    Title="Volume" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit" Align="Align.Right">
+        <CellTemplate>
+            <span class="dim">@(context.Item.VolumeRatio is { } v ? v.ToString("P0") : "—")</span>
+        </CellTemplate>
+    </PropertyColumn>
+
+    @* Healthy is a check mark, as a successful run is: a column of the same word on every row
+       hid the one row that was not. Stale, Degraded and Not run keep their tags. The column
+       takes the slack, so the figures sit together beside the name they describe. *@
+    <TemplateColumn T="SourceHealth" Title="State" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
+        <CellTemplate>
+            @if (context.Item.NeverRun)
+            {
+                <Tag>Not run</Tag>
+            }
+            else if (IsStale(context.Item))
+            {
+                <Tag State="DeskState.Negative">Stale</Tag>
+            }
+            else if (IsRateLow(context.Item))
+            {
+                <Tag State="DeskState.Warning">Degraded</Tag>
+            }
+            else
+            {
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Healthy</span></span>
+            }
+        </CellTemplate>
+    </TemplateColumn>
+</DeskGrid>
+</PanelSection>
+
 @*
     Odds feeds get their own section because their failure mode is silence: an unconfigured
     provider is never registered, so it writes no runs and appears nowhere in source health.
@@ -79,15 +227,15 @@ else
 *@
 <PanelSection Title="Odds feeds">
 
-<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds providers configured.">
-    @* Live is the state a feed is meant to be in, so it is said quietly; Off keeps its tag,
+<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds provider is configured, so nothing prices the board. A provider's key in the web host's configuration adds one.">
+    @* Live is the state a feed is meant to be in, so it is a check mark; Off keeps its tag,
        because it is the one an operator is looking for. *@
     <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
-                    InitialDirection="SortDirection.Descending">
+                    InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
             @if (context.Item.IsLive)
             {
-                <span class="quiet">Live</span>
+                <span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Live</span></span>
             }
             else
             {
@@ -96,15 +244,17 @@ else
         </CellTemplate>
     </PropertyColumn>
 
-    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Name" Title="Provider" />
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Name" Title="Provider"
+                    HeaderClass="ops-col--fit" CellClass="ops-col--fit" />
 
-    <TemplateColumn T="OddsProviderState" Title="Books" Sortable="false">
+    <TemplateColumn T="OddsProviderState" Title="Books" Sortable="false" HeaderClass="col--wide" CellClass="col--wide">
         <CellTemplate>
             <span class="dim">@string.Join(", ", context.Item.Books.Select(BookNames.Display))</span>
         </CellTemplate>
     </TemplateColumn>
 
-    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Reason" Title="Notes">
+    <PropertyColumn T="OddsProviderState" TProperty="string" Property="f => f.Reason" Title="Notes"
+                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
         <CellTemplate><span class="trunc dim" title="@context.Item.Reason">@context.Item.Reason</span></CellTemplate>
     </PropertyColumn>
 </DeskGrid>
@@ -146,142 +296,6 @@ else
 else
 {
     @ScanningCost()
-}
-</PanelSection>
-
-<PanelSection Title="Source health">
-
-<DeskGrid T="SourceHealth" Items="_health" EmptyText="No sources registered.">
-    @* The source name goes through to its runs — "why is this stale" is answered there. *@
-    <PropertyColumn T="SourceHealth" TProperty="string" Property="h => h.Source.Name" Title="Source">
-        <CellTemplate>
-            <DeskLink Destination="runs"
-                      Icon="@Icons.Material.Filled.History"
-                      OnClick="() => Manager.OpenRuns(context.Item.Source.Id, context.Item.Source.Name)">
-                @context.Item.Source.Name
-            </DeskLink>
-        </CellTemplate>
-    </PropertyColumn>
-
-    <PropertyColumn T="SourceHealth" TProperty="SourceKind" Property="h => h.Source.Kind" Title="Kind" HeaderClass="col--wide" CellClass="col--wide">
-        <CellTemplate><span class="dim">@context.Item.Source.Kind</span></CellTemplate>
-    </PropertyColumn>
-
-    @* Sorts on minutes, so "stalest first" is a click. A never-run source sorts as the worst
-       rather than as zero, which is the two-kinds-of-zero rule from ADR 0003. *@
-    <PropertyColumn T="SourceHealth" TProperty="double"
-                    Property="h => h.FreshnessMinutes ?? double.MaxValue"
-                    Title="Freshness" Align="Align.Right">
-        <CellTemplate>
-            <span class="@(IsStale(context.Item) ? "down" : null)">
-                @(context.Item.FreshnessMinutes is { } m ? Age(m) : "never")
-            </span>
-        </CellTemplate>
-    </PropertyColumn>
-
-    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.SuccessRate"
-                    Title="Success 7d" Align="Align.Right">
-        <CellTemplate>
-            <Note Inline State="@(IsRateLow(context.Item) ? DeskState.Warning : DeskState.Neutral)">@context.Item.SuccessRate.ToString("P0")</Note>
-        </CellTemplate>
-    </PropertyColumn>
-
-    <PropertyColumn T="SourceHealth" TProperty="int" Property="h => h.RowsToday"
-                    Title="Rows today" HeaderClass="col--wider" CellClass="col--wider" Align="Align.Right" Format="N0" />
-
-    <PropertyColumn T="SourceHealth" TProperty="double" Property="h => h.VolumeRatio ?? -1"
-                    Title="Volume" HeaderClass="col--wide" CellClass="col--wide" Align="Align.Right">
-        <CellTemplate>
-            <span class="dim">@(context.Item.VolumeRatio is { } v ? v.ToString("P0") : "—")</span>
-        </CellTemplate>
-    </PropertyColumn>
-
-    @* Healthy is said quietly, as Live is above: a column of green capsules on every row is a
-       wall of colour that hides the one row that is not. Stale and Degraded keep their tags. *@
-    <TemplateColumn T="SourceHealth" Title="State" Sortable="false">
-        <CellTemplate>
-            @if (context.Item.NeverRun)
-            {
-                <Tag>Not run</Tag>
-            }
-            else if (IsStale(context.Item))
-            {
-                <Tag State="DeskState.Negative">Stale</Tag>
-            }
-            else if (IsRateLow(context.Item))
-            {
-                <Tag State="DeskState.Warning">Degraded</Tag>
-            }
-            else
-            {
-                <span class="quiet">Healthy</span>
-            }
-        </CellTemplate>
-    </TemplateColumn>
-</DeskGrid>
-</PanelSection>
-
-<PanelSection Title="Open alerts">
-
-@* Nothing open is a sentence, not an empty table: a header row with nothing under it reads as a
-   table that failed to fill, and this is the all-clear the window exists to give. *@
-@if (_alerts.Count == 0)
-{
-    <EmptyState>No open alerts. Every source is inside its SLO.</EmptyState>
-}
-else
-{
-<DeskGrid T="Alert" Items="_alerts" EmptyText="No open alerts. Every source is inside its SLO.">
-    <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
-                    InitialDirection="SortDirection.Descending">
-        <CellTemplate>
-            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
-        </CellTemplate>
-    </PropertyColumn>
-
-    @* The rule's name in words; its key, which is what the runbook is filed under, in a tooltip
-       that keyboard focus raises as well as hover — a title on text reached a pointer only. *@
-    <PropertyColumn T="Alert" TProperty="string" Property="a => a.RuleKey" Title="Rule">
-        <CellTemplate>
-            <DeskTooltip Text="@($"Rule key: {context.Item.RuleKey}")">
-                <span class="dim" tabindex="0">@RuleName(context.Item.RuleKey)</span>
-            </DeskTooltip>
-        </CellTemplate>
-    </PropertyColumn>
-
-    <PropertyColumn T="Alert" TProperty="string" Property="a => a.Message" Title="What happened">
-        <CellTemplate><span class="trunc" title="@context.Item.Message">@context.Item.Message</span></CellTemplate>
-    </PropertyColumn>
-
-    <PropertyColumn T="Alert" TProperty="DateTimeOffset" Property="a => a.TriggeredAt" Title="Age" Align="Align.Right">
-        <CellTemplate>
-            <span class="dim">@Age((DateTimeOffset.UtcNow - context.Item.TriggeredAt).TotalMinutes)</span>
-        </CellTemplate>
-    </PropertyColumn>
-
-    <TemplateColumn T="Alert" Title="" Sortable="false" Align="Align.Right">
-        <CellTemplate>
-            @if (context.Item.IncidentId is null)
-            {
-                @if (Manager.Access.CanOperate)
-                {
-                    <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                                OnClick="() => PromoteAsync(context.Item.Id)">
-                        Open incident
-                    </DeskButton>
-                }
-            }
-            else
-            {
-                <DeskLink Destination="incident"
-                          Icon="@Icons.Material.Filled.ReportProblem"
-                          OnClick="() => Manager.OpenIncident(context.Item.IncidentId.Value)">
-                    <span class="num">#@context.Item.IncidentId</span>
-                </DeskLink>
-            }
-        </CellTemplate>
-    </TemplateColumn>
-</DeskGrid>
 }
 </PanelSection>
 }
@@ -331,8 +345,8 @@ else
                control rather than as a missing adapter. With no rows there is no group, so both
                sentences are footnotes of the section rather than a footer under nothing. *@
             <p class="opsfoot">
-                No registered source accepts fault injection, so there is nothing to break on
-                purpose. The drill still exercises the ingest → rollup → alert path.
+                No registered source accepts an injected fault. The drill still runs an ingest,
+                the rollup and the alert rules.
             </p>
             <p class="opsfoot">@WhatTheDrillDoes()</p>
         }
@@ -444,7 +458,7 @@ else
         @if (!_unattended)
         {
             <p class="@FootClass">
-                Lines are pulled on request only — nothing is fetched unasked.
+                Lines are pulled on request only; nothing is fetched unasked.
                 @if (_plan?.ScansRemainingToday is { } available)
                 {
                     <text>
@@ -469,13 +483,17 @@ else
                cadence, which is the real cost of adding one. *@
             @if (_plan is { } projected && _marketsBySport.Count > 0)
             {
+                @* One clause per league, parted by semicolons as a sentence parts a list of lists;
+                   the leagues used to be strung together with middle dots, which read as a row of
+                   tags rather than as what a scan asks for. *@
                 <p class="@FootClass">
+                    A scan asks for
                     @foreach (var (sport, index) in _marketsBySport.Select((m, i) => (m, i)))
                     {
-                        @(index > 0 ? " · " : "")<span>@sport.Sport.ToUpperInvariant()</span>
+                        @(index > 0 ? "; " : "")<span>@sport.Sport.ToUpperInvariant()</span>
                         @* Spelled as one expression: a leading space inside <text> before code was dropped, and
                            the sport ran into its markets ("MLBmoneyline"). *@
-                        @($" {string.Join(", ", sport.Markets.Select(MarketName))}")
+                        @($" {string.Join(", ", sport.Markets.Select(m => MarketName(m).ToLowerInvariant()))}")
                         @if (sport.Credits > 0)
                         {
                             <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
@@ -484,10 +502,10 @@ else
                     @if (projected.ScansRemainingToday is { } left && left > 0)
                     {
                         <text>
-                            Switched to automatic, this list would scan about every
+                            On automatic that is a scan about every
                             <span class="num">@Cadence(projected.BudgetInterval)</span> for the rest of
-                            @(projected.Window == BudgetWindow.Month ? "the month" : "the day") — sooner near
-                            first pitch, slower far from it.
+                            @(projected.Window == BudgetWindow.Month ? "the month" : "the day"), more
+                            often near game time.
                         </text>
                     }
                 </p>
@@ -510,7 +528,7 @@ else
                 }
                 else
                 {
-                    <text>— nothing metered, so this is the politeness floor rather than a budget</text>
+                    <text>— nothing is metered, so this is the politeness floor, not a budget</text>
                 }.
                 @Provenance
             </p>
@@ -813,9 +831,8 @@ else
 
     /// <summary>What a drill does and what it spends, under the faults it injects.</summary>
     private static RenderFragment WhatTheDrillDoes() => @<text>
-        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> is the
-        one that matters — it returns HTTP 200 with no rows, so it would otherwise pass silently.
-        With no fault injected the run is a real metered pull, so it scans the league with the most
-        games still to start rather than a league named in the code.
+        Inject a fault, run an ingest, and watch the alert fire. <strong>Empty payload</strong> matters
+        most: it answers HTTP 200 with no rows, so nothing else would catch it. With no fault injected
+        the drill is a real, metered pull of the league with the most games still to start.
     </text>;
 }

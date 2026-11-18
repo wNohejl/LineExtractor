@@ -92,6 +92,48 @@ public class DeskGridTests : DeskTestContext
         Assert.Single(cells);
         Assert.Contains("under three", cells[0].TextContent);
     }
+
+    // The child row belongs to what it holds. A list's row click is its toggle, and a host may
+    // listen above the grid as well, so a press that lands in the child row — on its content, the
+    // padding round it, or the lead cell under the first column — goes no further than the child
+    // row: a near miss on a key there must not close or reach anything the key is not part of.
+    [Fact]
+    public void A_press_anywhere_in_the_child_row_stops_in_the_child_row()
+    {
+        var cut = RenderComponent<Listening>();
+
+        cut.Find(".deskgrid__child p").Click();
+        cut.Find(".deskgrid__child-cell").Click();
+        cut.Find(".deskgrid__child-lead").Click();
+        Assert.Equal(0, cut.Instance.Above);
+        Assert.Equal(0, cut.Instance.RowClicks);
+
+        // The row itself still answers, so it can still be closed by its own click.
+        cut.FindAll("tbody tr")[1].Children[1].Click();
+        Assert.Equal(1, cut.Instance.RowClicks);
+    }
+
+    // A grid with a child row under row two, inside an element that counts the clicks reaching it.
+    public class Listening : ComponentBase
+    {
+        public int Above { get; private set; }
+        public int RowClicks { get; private set; }
+
+        protected override void BuildRenderTree(RenderTreeBuilder b)
+        {
+            b.OpenElement(0, "div");
+            b.AddAttribute(1, "onclick", EventCallback.Factory.Create<Microsoft.AspNetCore.Components.Web.MouseEventArgs>(this, () => Above++));
+            b.OpenComponent<DeskGrid<Row>>(2);
+            b.AddAttribute(3, "Items", AllRows);
+            b.AddAttribute(4, "ChildContent", Columns);
+            b.AddAttribute(5, "ChildRow", (Func<Row, RenderFragment?>)(r => r.Id == 2 ? Text("under two") : null));
+            b.AddAttribute(6, "ChildRowIndent", 1);
+            b.AddAttribute(7, "OnRowClick",
+                EventCallback.Factory.Create<DataGridRowClickEventArgs<Row>>(this, () => RowClicks++));
+            b.CloseComponent();
+            b.CloseElement();
+        }
+    }
 }
 
 /// <summary>

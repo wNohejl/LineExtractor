@@ -509,10 +509,13 @@
 }
 
 /* The message keeps its words on one line and does not shrink under them: a row
-   that cannot fit it folds instead of squeezing it to nothing. */
+   that cannot fit it folds instead of squeezing it to nothing. It is usually a count
+   of what the filters left, so its figures are tabular: a count that changes as a
+   filter is typed does not jostle the keys beside it. */
 .ptoolbar__msg {
     min-width: auto;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* An Overflow control on the row: the control alone, sized to its words, its

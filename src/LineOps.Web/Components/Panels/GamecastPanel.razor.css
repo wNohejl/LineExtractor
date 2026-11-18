@@ -72,9 +72,15 @@ button.gc__toggle:hover {
     background: var(--surface-3);
 }
 
+/* The side with the ball, its crest before its abbreviation (TeamMark's own rules, from
+   lineops.css). Wide enough for the crest and three letters, so a drive by BUF and one by KC
+   start their results at one edge. */
 .gc__team {
     flex: 0 0 auto;
-    min-width: 3ch;
+    display: inline-flex;
+    align-items: baseline;
+    min-width: calc(18px + var(--space-2) + 3ch);
+    white-space: nowrap;
     font-weight: var(--weight-semibold);
 }
 
@@ -150,7 +156,7 @@ button.gc__toggle:hover {
 
 .gc__score {
     display: grid;
-    grid-template-columns: 7ch 4ch minmax(0, 1fr) auto;
+    grid-template-columns: 7ch calc(18px + var(--space-2) + 4ch) minmax(0, 1fr) auto;
     column-gap: var(--space-3);
     align-items: baseline;
 }

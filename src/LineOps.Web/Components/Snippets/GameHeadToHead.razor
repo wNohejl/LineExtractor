@@ -23,7 +23,11 @@
             @(IsFight ? "Previous fights" : "Head to head")
             @if (!_loading && _error is null)
             {
-                <span class="gameh2h__summary"> · @Summary(_rows, HomeName, AwayName, IsFight)</span>
+                @* The side the record leads with carries its crest, before its name. *@
+                <span class="gameh2h__summary"> · @if (LeaderAbbrev is { } leader)
+                    {
+                        <TeamMark Sport="@Sport" Abbrev="@leader" />
+                    }@Summary(_rows, HomeName, AwayName, IsFight)</span>
             }
         </span>
         <span class="gameh2h__chevron" aria-hidden="true">
@@ -69,6 +73,27 @@
 
     /// <summary>A bout (ADR 0021): "Previous fights", which is usually none.</summary>
     [Parameter] public bool IsFight { get; set; }
+
+    /// <summary>The game's sport key and both clubs' abbreviations, for the leader's crest.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    [Parameter] public string? HomeAbbrev { get; set; }
+
+    [Parameter] public string? AwayAbbrev { get; set; }
+
+    /// <summary>
+    /// The abbreviation of the side <see cref="Summary"/> names first, by the same count; null
+    /// when the record is level, empty or unresolved, where no club leads the label.
+    /// </summary>
+    private string? LeaderAbbrev
+    {
+        get
+        {
+            var home = _rows.Count(r => r.SubjectWon == true);
+            var away = _rows.Count(r => r.SubjectWon == false);
+            return home == away ? null : home > away ? HomeAbbrev : AwayAbbrev;
+        }
+    }
 
     /// <summary>Opens the Head to head window, for the sortable record beyond the last few.</summary>
     [Parameter] public EventCallback OnOpenWindow { get; set; }

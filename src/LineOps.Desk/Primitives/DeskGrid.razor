@@ -314,15 +314,26 @@
         };
     }
 
+    private static readonly EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> ChildRowPress =
+        new(null, (Action<Microsoft.AspNetCore.Components.Web.MouseEventArgs>)(static _ => { }));
+
     // Not a MudBlazor row: it takes no row click and no row hover, and holds whatever the
     // caller opened; its cells take the grid's cell class for the same padding and hairline.
     // colspan 1000 is HTML's ceiling and MudDataGrid's own idiom for "the rest".
+    //
+    // A press in it stops here. What it holds is its opener's — a row's keys, the answer one of
+    // them opened — and the whole row is that thing's hit area, padding and lead cell included:
+    // a near miss between two keys is a press on nothing, never one on whatever listens above the
+    // grid. The row's own click is a sibling and cannot hear it; a host that listens round the
+    // grid (to close what is open on an outside press, say) would, so it is stopped once here for
+    // every list rather than by each thing drawn inside. The handler does nothing and has no
+    // receiver, so a press here redraws nothing; it is there so the press has somewhere to land.
     private RenderFragment<CellContext<T>> ChildRowFor => context => __builder =>
     {
         if (ChildRow?.Invoke(context.Item) is not { } content)
             return;
 
-        <tr class="deskgrid__child">
+        <tr class="deskgrid__child" @onclick="ChildRowPress" @onclick:stopPropagation="true">
             @if (ChildRowIndent > 0)
             {
                 <td class="mud-table-cell deskgrid__child-lead" colspan="@ChildRowIndent"></td>

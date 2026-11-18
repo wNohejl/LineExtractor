@@ -342,7 +342,8 @@ public class OperationsWindowsTests : DeskTestContext
 
         var tags = panel.FindAll(".deskgrid .tag").Select(t => t.TextContent.Trim()).ToList();
         Assert.Equal(["Failed"], tags);
-        Assert.Contains(panel.FindAll(".deskgrid .quiet"), q => q.TextContent.Trim() == "Success");
+        // Success is a check mark whose word is kept for a screen reader, not a column of grey words.
+        Assert.Contains(panel.FindAll(".deskgrid .ops-ok .sr-only"), q => q.TextContent.Trim() == "Success");
     }
 
     [Fact]

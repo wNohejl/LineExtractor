@@ -47,17 +47,33 @@
     The port to proxy to. Left out, the http profile's port is read from
     src/LineOps.Web/Properties/launchSettings.json.
 
+.PARAMETER Database
+    Forwards this machine's Postgres to the tailnet instead of the desk: raw TCP on
+    -DatabasePort, to the same port on 127.0.0.1 where compose.dev.yml publishes it. This is
+    how the laptop's desk reaches the desktop's database (ADR 0023). Postgres stays bound to
+    loopback, so there is no Docker port on the tailnet address to fail at boot and no
+    firewall rule to keep. Limit who may reach the port in the tailnet policy: Postgres sees
+    every tailnet client as 127.0.0.1 and cannot tell them apart itself.
+
+.PARAMETER DatabasePort
+    The Postgres port, on both sides of the forward. 5433 unless you changed compose.dev.yml.
+
 .PARAMETER Off
-    Stops serving HTTPS on 443 from this machine. Other Serve handlers you set up are left
-    alone; `tailscale serve reset` clears all of them.
+    Stops serving HTTPS on 443 from this machine, or with -Database stops the Postgres
+    forward. Other Serve handlers are left alone; `tailscale serve reset` clears all of them,
+    the desk and the database alike.
 
 .EXAMPLE
-    ./scripts/serve-tailnet.ps1          # serve the http profile's port on the tailnet
-    ./scripts/serve-tailnet.ps1 -Off     # stop serving it
+    ./scripts/serve-tailnet.ps1                  # serve the http profile's port on the tailnet
+    ./scripts/serve-tailnet.ps1 -Off             # stop serving it
+    ./scripts/serve-tailnet.ps1 -Database        # forward Postgres to the tailnet
+    ./scripts/serve-tailnet.ps1 -Database -Off   # stop forwarding it
 #>
 [CmdletBinding()]
 param(
     [int]$Port,
+    [switch]$Database,
+    [int]$DatabasePort = 5433,
     [switch]$Off
 )
 
@@ -77,6 +93,20 @@ function Invoke-Tailscale {
     return ($output -join "`n")
 }
 
+# Serve and Funnel share one configuration. If Funnel is on for this host, what is served is on
+# the public internet, which the data's terms do not allow. Returns the offending entries.
+function Get-FunnelOn([string]$HostName) {
+    $serve = Invoke-Tailscale @('serve', 'status', '--json') | ConvertFrom-Json
+    if (-not $serve -or -not $serve.AllowFunnel) { return @() }
+    return @($serve.AllowFunnel.PSObject.Properties | Where-Object { $_.Name -like "$HostName*" -and $_.Value })
+}
+
+if ($Off -and $Database) {
+    Invoke-Tailscale @('serve', "--tcp=$DatabasePort", 'off') | Out-Null
+    Write-Host "No longer forwarding Postgres to the tailnet." -ForegroundColor Cyan
+    return
+}
+
 if ($Off) {
     Invoke-Tailscale @('serve', '--https=443', 'off') | Out-Null
     Write-Host "No longer serving the desk on the tailnet." -ForegroundColor Cyan
@@ -87,6 +117,38 @@ $status = Invoke-Tailscale @('status', '--json') | ConvertFrom-Json
 if ($status.BackendState -ne 'Running') {
     throw "Tailscale is '$($status.BackendState)', not Running. Sign in with 'tailscale up' (or the tray app) first."
 }
+$hostName = $status.Self.DNSName.TrimEnd('.')
+
+# Before anything is served, not only after: a handler added while Funnel is on is public from
+# its first second.
+if ((Get-FunnelOn $hostName).Count -gt 0) {
+    throw "Funnel is on for $hostName, which would publish whatever is served to the internet. Turn it off ('tailscale funnel reset') before running this again."
+}
+
+# Without unattended mode Tailscale disconnects when you sign out of Windows and stays down
+# after a reboot until someone signs in, taking the desk and the database forward with it.
+$prefs = $null
+try { $prefs = Invoke-Tailscale @('debug', 'prefs') | ConvertFrom-Json } catch { }
+if ($prefs -and -not $prefs.ForceDaemon) {
+    Write-Warning "Unattended mode is off: this stops at sign-out and after a reboot until you sign in. Turn it on with: tailscale set --unattended=true"
+}
+
+if ($Database) {
+    Invoke-Tailscale @('serve', '--bg', "--tcp=$DatabasePort", "tcp://127.0.0.1:$DatabasePort") | Out-Null
+    if ((Get-FunnelOn $hostName).Count -gt 0) {
+        Invoke-Tailscale @('serve', "--tcp=$DatabasePort", 'off') | Out-Null
+        throw "Funnel is on for $hostName. The Postgres forward was taken down again."
+    }
+    Write-Host ""
+    Write-Host "Postgres on your tailnet (tailnet devices only, never the internet):" -ForegroundColor Cyan
+    Write-Host "  ${hostName}:$DatabasePort -> 127.0.0.1:$DatabasePort"
+    Write-Host ""
+    Write-Host "On the laptop: ./scripts/connect-remote-db.ps1 -Host $hostName" -ForegroundColor Cyan
+    Write-Host "In the tailnet policy, allow tcp:$DatabasePort to this machine from the laptop only." -ForegroundColor Cyan
+    Write-Host "Stop with: ./scripts/serve-tailnet.ps1 -Database -Off" -ForegroundColor DarkGray
+    return
+}
+
 if (-not $status.CurrentTailnet.MagicDNSEnabled) {
     throw "MagicDNS is off for this tailnet. Turn it on in the admin console (DNS page); Serve's HTTPS name depends on it."
 }
@@ -103,18 +165,10 @@ if (-not $Port) {
     }
 }
 
-$hostName = $status.Self.DNSName.TrimEnd('.')
-
 Invoke-Tailscale @('serve', '--bg', '--https=443', "http://127.0.0.1:$Port") | Out-Null
 
-# Serve and Funnel share one configuration. If Funnel is on for this host the desk is on the
-# public internet, which the data's terms do not allow: take it down rather than warn.
-$serve = Invoke-Tailscale @('serve', 'status', '--json') | ConvertFrom-Json
-$funnelOn = @()
-if ($serve.AllowFunnel) {
-    $funnelOn = @($serve.AllowFunnel.PSObject.Properties | Where-Object { $_.Name -like "$hostName*" -and $_.Value })
-}
-if ($funnelOn.Count -gt 0) {
+# Checked again now that the handler exists: take it down rather than warn.
+if ((Get-FunnelOn $hostName).Count -gt 0) {
     Invoke-Tailscale @('serve', '--https=443', 'off') | Out-Null
     throw "Funnel is on for $hostName, which would publish the desk to the internet. Serving stopped; turn Funnel off ('tailscale funnel --https=443 off') before running this again."
 }

@@ -169,6 +169,7 @@ export function attachDivider(handle, leftId, rightId) {
 
     const onDown = (e) => beginSplit(e, handle, leftId, rightId);
     handle.addEventListener('pointerdown', onDown);
+    handle.addEventListener('keydown', holdSplitKeys);
     handle.__deskSplit = onDown;
 }
 
@@ -176,7 +177,46 @@ export function detachDivider(handle) {
     if (!handle || !handle.__deskSplit) return;
 
     handle.removeEventListener('pointerdown', handle.__deskSplit);
+    handle.removeEventListener('keydown', holdSplitKeys);
     handle.__deskSplit = null;
+}
+
+// The divider's own keys (Desk.razor, SplitByKey) are also the desk's scroll keys: the desk
+// scrolls sideways when the row overflows, and Home or an arrow pressed on a divider moved the
+// columns and scrolled the desk under them in the same keystroke. Prevented here rather than
+// with Blazor's preventDefault, which cannot tell these keys from Tab.
+const SPLIT_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+
+function holdSplitKeys(e) {
+    if (!SPLIT_KEYS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    showReadoutBriefly(e.currentTarget);
+}
+
+// The readout floats over both columns' edges, so it is shown while the divider is being moved —
+// for as long as a drag holds it, and for a beat after each key — not for as long as focus rests
+// there: a focused divider kept the pills over the neighbouring window's text indefinitely (HIG
+// audit, 17 November). The lit seam says "focused"; the divider's value says the widths aloud.
+const READOUT_LINGER_MS = 1200;
+
+function showReadoutBriefly(handle) {
+    handle.classList.add('divider--keyed');
+    clearTimeout(handle.__deskReadoutTimer);
+    handle.__deskReadoutTimer = setTimeout(() => handle.classList.remove('divider--keyed'), READOUT_LINGER_MS);
+    handle.addEventListener('blur', hideReadout, { once: true });
+}
+
+function hideReadout(e) {
+    clearTimeout(e.currentTarget.__deskReadoutTimer);
+    e.currentTarget.classList.remove('divider--keyed');
+}
+
+// The readout's two figures, written as the drag goes. The server draws them too, on every
+// render; these only keep them current between the pointer moving and the server hearing of it,
+// and are set as attributes (the stylesheet draws them) so the next render simply overwrites them.
+function showWidths(handle, left, right) {
+    handle.querySelector('[data-split-left]')?.setAttribute('data-width', String(Math.round(left)));
+    handle.querySelector('[data-split-right]')?.setAttribute('data-width', String(Math.round(right)));
 }
 
 function beginSplit(event, handle, leftId, rightId) {
@@ -214,6 +254,7 @@ function beginSplit(event, handle, leftId, rightId) {
         right.style.left = `${rightOrigin + delta}px`;
         right.style.width = `${rightStart - delta}px`;
         handle.style.transform = `translateX(${delta}px)`;
+        showWidths(handle, leftStart + delta, rightStart - delta);
     };
 
     const onUp = () => {

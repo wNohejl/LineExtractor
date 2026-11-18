@@ -155,7 +155,7 @@ else
        is not edited here — a different side is a different parlay, logged from the slip — but
        the price it was taken at is a number, and a mistyped one is corrected like any other. *@
     <PanelForm Title="Edit parlay" Class="pform--grouped">
-    <Detail>@($"{edited.Parlay.Legs.Count} legs · placed {Starts(edited.Parlay.PlacedAt)}")</Detail>
+    <Detail>@($"{edited.Parlay.Legs.Count} legs, placed {Starts(edited.Parlay.PlacedAt)}")</Detail>
     <ChildContent>
 
         @if (edited.Parlay.IsGraded)
@@ -279,7 +279,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
            a later game sits above one placed tonight. The placement is the dim second line; the
            Placed within filter still cuts by it. *@
         <TemplateColumn T="JournalEntry" Title="Closes" Sortable="true" SortBy="@(e => JournalService.GameStart(e))"
-                        InitialDirection="SortDirection.Descending">
+                        InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 @* An untracked bet has no game to start; its game start falls back to the placement,
                    which would print the same time twice. It says so instead, dim like the line under it. *@
@@ -297,7 +297,11 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection">
+        @* The selection is the row's sentence and takes the width the figures leave; every other
+           column is a value held on one line (lineops.css, "Columns in the operations and
+           analytics windows"). *@
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Outcome" Title="Selection"
+                        HeaderClass="ops-col--grow" CellClass="ops-col--grow">
             <CellTemplate>
                 @Selection(context.Item)
                 @if (context.Item.Note is { } note)
@@ -307,11 +311,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market" HeaderClass="col--wide" CellClass="col--wide">
+        @* Market and Book fold away under 820px with CLV: at the Journal's usual width the figures
+           and the selection fill the window, and the selection already says the side. *@
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Market" Title="Market" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@SelectionText.MarketName(context.Item.Market)</span></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wide" CellClass="col--wide">
+        <PropertyColumn T="JournalEntry" TProperty="string" Property="e => e.Book" Title="Book" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
@@ -328,15 +334,18 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right">
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.Stake" Title="Stake" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result">
+        <PropertyColumn T="JournalEntry" TProperty="EntryResult" Property="e => e.Result" Title="Result"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right">
+        <PropertyColumn T="JournalEntry" TProperty="decimal" Property="e => e.NetReturn" Title="Net" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
                     @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
@@ -348,12 +357,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
 
         @* Sorts on the reading itself, so "worst CLV" is a click; an unresolved entry sorts below
            every real one rather than as zero. A TemplateColumn because the key is computed. *@
-        <TemplateColumn T="JournalEntry" Sortable="true" Title="CLV" HeaderClass="col--wider" CellClass="col--wider" Align="Align.Right"
+        <TemplateColumn T="JournalEntry" Sortable="true" Title="CLV" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit" Align="Align.Right"
                         SortBy="@(e => Clv(e)?.CentsPercent ?? double.MinValue)">
             <CellTemplate>@ClvCell(context.Item)</CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right">
+        <TemplateColumn T="JournalEntry" Title="" Sortable="false" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
                     @* Graded rows are done; a void stays open to a correction, because an automatic
@@ -395,7 +405,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         @* A parlay is ordered by its last leg's game: it is open until that one is. *@
         <TemplateColumn T="Parlay" Title="Closes" Sortable="true" SortBy="@(p => JournalService.LastLegStart(p))"
-                        InitialDirection="SortDirection.Descending">
+                        InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 <div class="journal-when">
                     @Starts(JournalService.LastLegStart(context.Item))
@@ -404,7 +414,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="Parlay" Title="Legs" Sortable="false">
+        <TemplateColumn T="Parlay" Title="Legs" Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
             <CellTemplate>
                 @foreach (var leg in context.Item.Legs.OrderBy(l => l.Id))
                 {
@@ -431,23 +441,28 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
 
-        <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book">
+        <PropertyColumn T="Parlay" TProperty="string" Property="p => p.Book" Title="Book"
+                        HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit">
             <CellTemplate><span class="dim">@BookNames.Display(context.Item.Book)</span></CellTemplate>
         </PropertyColumn>
 
-        <TemplateColumn T="Parlay" Title="Price" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="Parlay" Title="Price" Align="Align.Right" Sortable="false"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>@(context.Item.PriceQuoted is { } q ? Price(q) : "—")</CellTemplate>
         </TemplateColumn>
 
-        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.Stake" Title="Stake" Align="Align.Right">
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.Stake" Title="Stake" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>@OddsMath.Money(context.Item.Stake)</CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="Parlay" TProperty="EntryResult" Property="p => p.Result" Title="Result">
+        <PropertyColumn T="Parlay" TProperty="EntryResult" Property="p => p.Result" Title="Result"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate><Tag State="@ResultState(context.Item.Result)">@context.Item.Result</Tag></CellTemplate>
         </PropertyColumn>
 
-        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.NetReturn" Title="Net" Align="Align.Right">
+        <PropertyColumn T="Parlay" TProperty="decimal" Property="p => p.NetReturn" Title="Net" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 <span class="@(context.Item.NetReturn > 0 ? "up" : context.Item.NetReturn < 0 ? "down" : null)">
                     @* Performance's signed money, so a loss reads "−$20" in both windows: "C0"
@@ -457,7 +472,8 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </PropertyColumn>
 
-        <TemplateColumn T="Parlay" Title="" Sortable="false" Align="Align.Right">
+        <TemplateColumn T="Parlay" Title="" Sortable="false" Align="Align.Right"
+                        HeaderClass="ops-col--fit" CellClass="ops-col--fit">
             <CellTemplate>
                 <DeskRow Justify="DeskJustify.End" Gap="DeskSpace.Space1">
                     @* Legs grade themselves and the parlay follows. This is for the parlay a
@@ -1060,7 +1076,10 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 leg.Market, leg.Outcome, leg.LineTaken,
                 parlay.Book, leg.PriceTaken, leg.PlacedAt, IsClosing: false,
                 Stake: 0m, Note: null, Fair: null, Ev: null,
-                ManualPrice: true));
+                ManualPrice: true)
+            {
+                OutcomeAbbrev = SlipItem.ClubAbbrev(game, leg.Outcome),
+            });
         }
 
         Slip.SetMode(SlipMode.Parlay);
@@ -1308,6 +1327,22 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         </DeskSelect>
     </text>;
 
+    /// <summary>
+    /// The club a selection names, when it names one: a moneyline or a spread on a tracked game
+    /// is a side, and its outcome is that side's name. A total names no club, and a bout's
+    /// fighters carry no crest, so both answer null. Read off the row's own game, which the
+    /// journal's read already brings with its teams and sport.
+    /// </summary>
+    private static Team? SelectedClub(JournalEntry e)
+    {
+        if (e.Game is not { } game || FightSports.IsFight(game.Sport?.Key))
+            return null;
+
+        return string.Equals(e.Outcome, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam
+            : string.Equals(e.Outcome, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam
+            : null;
+    }
+
     private RenderFragment Selection(JournalEntry e) => @<text>
         @if (!string.IsNullOrWhiteSpace(e.FreeTextMarket))
         {
@@ -1315,8 +1350,13 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         }
         else if (e.GameId is { } gameId)
         {
-            @* An entry against a tracked game reaches its market. *@
+            @* An entry against a tracked game reaches its market. The club it backs leads with its
+               crest, decorative beside the name that says who it is. *@
             <DeskLink Destination="game" OnClick="() => OpenGameAsync(gameId)">
+                @if (SelectedClub(e) is { } club)
+                {
+                    <TeamMark Sport="@e.Game!.Sport?.Key" Abbrev="@club.Abbrev" Size="TeamMarkSize.Small" />
+                }
                 @e.Outcome
                 @if (e.LineTaken is { } l)
                 {

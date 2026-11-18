@@ -22,7 +22,7 @@ public class RowActionsTests : DeskTestContext
             Icon = MudBlazor.Icons.Material.Filled.History,
             Snippet = Markup($"{key} snippet"),
             OpenLabel = openLabel,
-            OpenWindow = open
+            OpenWindow = open is null ? default : new EventCallback(null, open)
         };
 
     private static RowAction Destination(string key, string label, Func<Task> open)
@@ -31,7 +31,7 @@ public class RowActionsTests : DeskTestContext
             Key = key,
             Label = label,
             Icon = MudBlazor.Icons.Material.Filled.OpenInNew,
-            OpenWindow = open
+            OpenWindow = new EventCallback(null, open)
         };
 
     private IRenderedComponent<RowActions> Strip(IReadOnlyList<RowAction> actions)
@@ -311,6 +311,23 @@ public class RowActionsTests : DeskTestContext
 
         escape.Click();
         Assert.Equal(1, opened);
+    }
+
+    /// <summary>
+    /// A narrow snippet folds the way out to its symbol (desk.css, @container snippet). The word
+    /// has a span of its own so the fold can take it out of sight without taking it out of the
+    /// page, where it stays the key's accessible name; the title says it to the pointer.
+    /// </summary>
+    [Fact]
+    public void The_way_out_keeps_its_name_when_its_word_folds_away()
+    {
+        var cut = Strip([Snippet("h2h", "Head to head", "Full history", () => Task.CompletedTask)]);
+
+        cut.Find(".rowacts__keys button").Click();
+
+        var escape = cut.Find(".snippet__open");
+        Assert.Equal("Full history", escape.QuerySelector(".snippet__open-word")?.TextContent);
+        Assert.Equal("Full history", escape.GetAttribute("title"));
     }
 
     /// <summary>

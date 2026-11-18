@@ -12,6 +12,7 @@
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject IServiceScopeFactory ScopeFactory
 @inject IOptions<IngestionOptions> IngestionOptions
+@inject LineOps.Core.Contracts.IDataTier Tier
 @inject LineOps.Web.Services.WagerSlip Slip
 @inject DeskToasts Toasts
 @inject RangePull Ranges
@@ -221,55 +222,57 @@ else if (Visible.Count == 0)
 }
 else
 {
-    @* In a column too narrow for all six market cells, spread and totals fold away (col--wider)
-       rather than pushing the board off the side of its window. Said, so nothing is missing
-       without a word. *@
     <div class="board__table">
-    <div class="board__folded" role="note">
-        Spread and totals are folded away at this width — widen the board or maximise it to see them.
-    </div>
-
     <DeskGrid T="BoardRow" Items="Visible" Class="deskgrid--clickable deskgrid--board"
               RowClassFunc="@((r, _) => _open?.Game.Id == r.Game.Id ? "board__row--open" : string.Empty)"
               OnRowClick="@(e => Toggle(e.Item))"
-              ChildRow="@(_snippet is null ? null : r => _open?.Game.Id == r.Game.Id ? _snippet : null)"
+              ChildRow="@(r => _open?.Game.Id == r.Game.Id ? OpenRow(r) : null)"
               ChildRowIndent="1"
               EmptyText="@(string.IsNullOrWhiteSpace(_team) ? "No games in this window." : $"No game in this window matches \"{_team}\".")">
 
         <TemplateColumn T="BoardRow" Sortable="true" Title="Starts" SortBy="@(r => r.Game.StartsAt)">
             <CellTemplate>
-                <span class="dim num">@Starts(context.Item.Game.StartsAt)</span>
-                @* Which league, and only while the board is showing more than one. *@
-                @if (_sport.Length == 0 && context.Item.Game.Sport is { } sport)
-                {
-                    <span class="dim"> · @sport.Key.ToUpperInvariant()</span>
-                }
+                @* The time on the away line and the league under it on the home line, each on its
+                   own terms: the time in the cell's ink, the league a caption in secondary. Joined
+                   by a middot they were one run of grey that wrapped at the dot in a narrow Board,
+                   leaving "· NBA" to start the second line. Which league is said only while the
+                   board is showing more than one. *@
+                <span class="board__when">
+                    <span class="board__time num">@Starts(context.Item.Game.StartsAt)</span>
+                    @if (_sport.Length == 0 && context.Item.Game.Sport is { } sport)
+                    {
+                        <span class="board__league">@sport.Key.ToUpperInvariant()</span>
+                    }
+                </span>
             </CellTemplate>
         </TemplateColumn>
 
         @*
-            The matchup cell carries the row's actions.
+            The matchup is where the open row's line starts.
 
-            They belong on the row rather than in a menu or a detail pane — the operator has
-            just decided *this game* is interesting and the next move should be one press away.
-            Putting them in the widest column means no dead width for the rows that are closed,
-            and only the open row changes height. The snippet a key opens is not drawn here: the
-            strip hands it to the board, which draws it in a row of its own under the game,
-            starting at this column's edge, so a book list spans the row rather than wrapping
-            every team name inside this one column.
+            The row's actions belong on the row rather than in a menu or a detail pane — the
+            operator has just decided *this game* is interesting and the next move should be one
+            press away. They are not in this cell, though: they are the first line of the row the
+            grid opens under the game (OpenRow), starting at this column's edge. Wedged under the
+            team chips, in a column 140–200px wide, the glances, More bets and Place wager wrapped
+            into three stacked lines of keys, tight on each other and on the row, and a press a few
+            pixels off a key landed on the game row — whose click is the toggle — and closed it.
+            In a row of their own they sit on one line at the toolbar's spacing, the answer a key
+            opens draws beneath them, and the whole of that row is theirs. Closed rows still lose
+            no width, and only the open row changes height.
 
-            The matchup is the two clubs side by side, away then home, each a chip of its mark
-            and nickname with its starter in small type beneath: the probable pitcher MLB names,
-            or the quarterback an NFL club started its last game with — unless the injury report
-            has him out, when it is the passer who started without him, and the starter's tooltip
-            carries the injury ("Kyler Murray is out; Carson Wentz started the club's last game
-            without him"), or a dash when nobody has thrown in his place. Stacked as two plain
-            lines over a "Gasser v Peralta" line and a stale-price warning, the clubs, their
-            starters and the gap all read as one grey block; as chips, each club is an object and
-            its starter sits under the club it pitches or throws for. The full names stay on the
-            link's tooltip and each starter's on its own, and a hidden "at" keeps the link
-            reading "Brewers at Rays". When a game is final the loser drops to secondary ink, as
-            its score does beside it.
+            The matchup is two lines, away over home as the Game window's scoreboard reads, each
+            the club's crest, its nickname and its starter in secondary ink: the probable pitcher
+            MLB names, or the quarterback an NFL club started its last game with — unless the
+            injury report has him out, when it is the passer who started without him, and the
+            link's tooltip carries the injury ("Kyler Murray is out; Carson Wentz started the
+            club's last game without him"), or a dash when nobody has thrown in his place. The
+            clubs were capsule chips side by side, which made each club an object when all it had
+            was a nickname; the crest now does that, and a fill behind every name was a second
+            shape saying the same thing. Stacked, the two lines sit level with the score's two
+            lines beside them, and the starters share one left edge. The full names stay on the
+            link's tooltip, and a hidden "at" keeps the link reading "Brewers at Rays". When a
+            game is final the loser drops to secondary ink, as its score does beside it.
         *@
         <TemplateColumn T="BoardRow" Sortable="true" Title="Matchup" SortBy="@(r => r.Game.HomeTeam!.Name)">
             <CellTemplate>
@@ -292,38 +295,43 @@ else
                         }
                     </span>
                 </DeskLink>
-                @if (context.Item.Game.DoubleHeaderGame is { } number)
-                {
-                    <Tag State="DeskState.Info">Game @number</Tag>
+                @{
+                    var doubleHeader = context.Item.Game.DoubleHeaderGame;
+                    var billed = context.Item.Bout is { } b && (b.MatchNumber == 1 || b.TitleFight) ? context.Item.Bout : null;
+                    var unpriced = context.Item.Unpriced;
                 }
-                @if (context.Item.Bout is { } card && (card.MatchNumber == 1 || card.TitleFight))
+                @* What qualifies the game — which of a doubleheader, the bout a card is sold on, that
+                   it has no price — is one quiet line under the two clubs, started at the nicknames'
+                   edge rather than under the crests, so the cell reads as the matchup and its
+                   footnote. Not drawn at all for a game with nothing to add. *@
+                @if (doubleHeader is not null || billed is not null || unpriced is not null)
                 {
-                    @* The bouts a card is sold on say so; the rest of the card is its order. *@
-                    <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
-                }
+                    <div class="board__notes@(FightSports.IsFight(context.Item.Game.Sport?.Key) ? "" : " board__notes--inset")">
+                        @if (doubleHeader is { } number)
+                        {
+                            <Tag State="DeskState.Info">Game @number</Tag>
+                        }
+                        @if (billed is { } card)
+                        {
+                            @* The bouts a card is sold on say so; the rest of the card is its order. *@
+                            <Tag State="DeskState.Info">@(card.TitleFight ? "Title" : "Main event") · @(FightSports.CardName(card))</Tag>
+                        }
 
-                @* The row says only that it has no price, in secondary ink. The reason is the
-                   banner's when every unpriced row shares it — thirteen orange copies of "No lines
-                   pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
-                   reasons differ the banner says to open a row, so the open row gives its own.
-                   No title: the reason is always in visible text, on the banner or the open row,
-                   and a title on text that takes no focus reaches only a pointer (HIG 12). *@
-                @if (context.Item.Unpriced is { } reason)
-                {
-                    <div class="board__gap">
-                        No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
+                        @* The row says only that it has no price, in secondary ink. The reason is the
+                           banner's when every unpriced row shares it — thirteen orange copies of "No lines
+                           pulled in 2 days" under thirteen matchups said one fact thirteen times. When the
+                           reasons differ the banner says to open a row, so the open row gives its own.
+                           No title: the reason is always in visible text, on the banner or the open row,
+                           and a title on text that takes no focus reaches only a pointer (HIG 12). *@
+                        @if (unpriced is { } reason)
+                        {
+                            <span class="board__gap">
+                                No price@(SharedGap is null && _open?.Game.Id == context.Item.Game.Id ? $" · {reason}" : "")
+                            </span>
+                        }
                     </div>
                 }
 
-                @if (_open?.Game.Id == context.Item.Game.Id)
-                {
-                    @* Keyed by the game so moving to another row is a fresh strip rather than
-                       one still showing the previous game's snippet — and by the take, so a
-                       price pressed while a glance was open leaves the strip with nothing
-                       chosen rather than a segment lit for a snippet no longer showing. *@
-                    <RowActions @key="(context.Item.Game.Id, _takeSerial)" Actions="ActionsFor(context.Item)"
-                                SnippetHost="@((RenderFragment? snippet) => HostSnippet(context.Item.Game.Id, snippet))" />
-                }
             </CellTemplate>
         </TemplateColumn>
 
@@ -445,7 +453,8 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Moneyline, away" Align="Align.Right" Sortable="false">
+        <TemplateColumn T="BoardRow" Title="Moneyline, away" Align="Align.Right" Sortable="false"
+                        HeaderClass="board__pair-end" CellClass="board__pair-end">
             <HeaderTemplate>@SideHeader("Moneyline", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Moneyline.Second" Selection="@Side(context.Item, false)"
@@ -468,7 +477,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Spread, away" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Spread, away" Align="Align.Right" Sortable="false" HeaderClass="col--wider board__pair-end" CellClass="col--wider board__pair-end">
             <HeaderTemplate>@SideHeader("Spread", "away")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Spread.Second" Selection="@Side(context.Item, false)"
@@ -491,7 +500,7 @@ else
             </CellTemplate>
         </TemplateColumn>
 
-        <TemplateColumn T="BoardRow" Title="Total, under" Align="Align.Right" Sortable="false" HeaderClass="col--wider" CellClass="col--wider">
+        <TemplateColumn T="BoardRow" Title="Total, under" Align="Align.Right" Sortable="false" HeaderClass="col--wider board__pair-end" CellClass="col--wider board__pair-end">
             <HeaderTemplate>@SideHeader("Total", "under")</HeaderTemplate>
             <CellTemplate>
                 <PriceCell Offer="context.Item.Total.Second" Selection="U"
@@ -503,6 +512,15 @@ else
         </TemplateColumn>
 
     </DeskGrid>
+
+    @* In a column too narrow for all six market cells, spread and totals fold away (col--wider)
+       rather than pushing the board off the side of its window. Said, so nothing is missing
+       without a word — under the table, as a footnote to it: above it, the sentence was a third
+       thing stacked over the rows with the banner and the figures, and pushed the first game
+       down a line in exactly the narrow window that has the least height to spare. *@
+    <div class="board__folded" role="note">
+        Spread and totals are hidden at this width. Widen the Board to see them.
+    </div>
     </div>
 
     @if (_closing > 0)
@@ -563,8 +581,8 @@ else
     private BoardRow? _open;
 
     /// <summary>
-    /// The open row's snippet, which its strip hands over to be drawn under the row rather than in
-    /// the matchup cell. Cleared with the row, so reopening it never shows a stale one.
+    /// The open row's snippet, which its strip hands over to be drawn beneath it in the row under
+    /// the game. Cleared with the row, so reopening it never shows a stale one.
     /// </summary>
     private RenderFragment? _snippet;
 
@@ -763,7 +781,9 @@ else
             await using var db = await DbFactory.CreateDbContextAsync();
 
             var dayStart = LeagueClock.StartOf(LeagueClock.Today());
-            _movesToday = await db.OddsSnapshots.LongCountAsync(s => s.CapturedAt >= dayStart);
+            // Counted over the scans this reader may see (ADR 0024), as the rows above are priced.
+            _movesToday = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier))
+                .LongCountAsync(s => s.CapturedAt >= dayStart);
 
             _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
             _criticalAlerts = await db.Alerts
@@ -920,6 +940,22 @@ else
         => open is not null && visible.FirstOrDefault(r => r.Game.Id == open.Game.Id) is { } row ? row : null;
 
     /// <summary>
+    /// The row the grid opens under the open game: the strip first, on a line of its own, then
+    /// whatever answer is up — a glance the strip handed over, or a take. A press anywhere in it
+    /// stops there (DeskGrid's child row), so only the game row's own click closes the row.
+    /// </summary>
+    private RenderFragment OpenRow(BoardRow row) => __builder =>
+    {
+        @* Keyed by the game so moving to another row is a fresh strip rather than one still
+           showing the previous game's snippet — and by the take, so a price pressed while a
+           glance was open leaves the strip with nothing chosen rather than a segment lit for a
+           snippet no longer showing. *@
+        <RowActions @key="(row.Game.Id, _takeSerial)" Actions="ActionsFor(row)"
+                    SnippetHost="@((RenderFragment? snippet) => HostSnippet(row.Game.Id, snippet))" />
+        @_snippet
+    };
+
+    /// <summary>
     /// A strip handing over its snippet, or taking it back. Only the open game's strip is heard:
     /// a strip going away after another row opened cannot clear the newer row's snippet.
     /// </summary>
@@ -953,22 +989,31 @@ else
     private static string MissingScoreHint(GameStatus status)
         => status == GameStatus.Postponed ? "not played" : "no score yet";
 
-    /// <summary>One club in the matchup cell: its chip, and its starter beneath where one is known.</summary>
+    /// <summary>
+    /// One club in the matchup cell: a line of its crest, its nickname and its starter. The line
+    /// dissolves into the cell's grid (.board__sides), so the away and home lines share their
+    /// columns and the two starters start at one edge.
+    /// </summary>
     private static RenderFragment Side(BoardRow row, bool home, bool loser) => __builder =>
     {
         var team = home ? row.Game.HomeTeam : row.Game.AwayTeam;
         var starter = Starter(row, home);
 
         <span class="board__side@(loser ? " board__team--loser" : "")">
-            <span class="board__chip board__team">
-                <TeamMark Sport="@row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />@TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))
-            </span>
+            <TeamMark Sport="@row.Game.Sport?.Key" Abbrev="@team?.Abbrev" />
+            <span class="board__team">@TeamNames.Short(team, Scoreline.Abbrev(team, home ? "Home" : "Away"))</span>
             @if (starter is { } s)
             {
                 @* No title of its own: the starter sits inside the matchup link, which takes focus,
                    so the full name and what the role means ride on the link's tooltip
                    (MatchupTooltip) instead of a title only a pointer raises (HIG 12). *@
-                <span class="board__starter"><span class="board__starter-role">@s.Role</span> @s.Name</span>
+                <span class="board__starter">
+                    @if (s.Role.Length > 0)
+                    {
+                        <span class="board__starter-role">@s.Role</span>@(" ")
+                    }
+                    @s.Name
+                </span>
             }
         </span>
     };
@@ -1142,7 +1187,7 @@ else
                 Icon = Icons.Material.Filled.ShowChart,
                 Snippet = @<OddsSnippet GameId="id" />,
                 OpenLabel = "Movement",
-                OpenWindow = () => Launch(WindowCatalog.Odds, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.Odds, "GameId", id, name))
             },
             new()
             {
@@ -1151,7 +1196,7 @@ else
                 Icon = Icons.Material.Filled.CompareArrows,
                 Snippet = @<HeadToHeadSnippet GameId="id" />,
                 OpenLabel = "Full history",
-                OpenWindow = () => Launch(WindowCatalog.HeadToHead, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.HeadToHead, "GameId", id, name))
             },
             new()
             {
@@ -1160,7 +1205,7 @@ else
                 Icon = Icons.Material.Filled.QueryStats,
                 Snippet = @<FormSnippet GameId="id" />,
                 OpenLabel = row.Bout is null ? "Both rosters" : "Tale of the tape",
-                OpenWindow = () => Launch(WindowCatalog.Form, "GameId", id, name)
+                OpenWindow = Command(() => Launch(WindowCatalog.Form, "GameId", id, name))
             }
         };
 
@@ -1174,11 +1219,7 @@ else
                 Key = "gamecast",
                 Label = "Gamecast",
                 Icon = Icons.Material.Filled.SportsFootball,
-                OpenWindow = () =>
-                {
-                    Manager.OpenGamecast(id, WindowShortcuts.Describe(row.Game));
-                    return Task.CompletedTask;
-                }
+                OpenWindow = Command(() => Manager.OpenGamecast(id, WindowShortcuts.Describe(row.Game)))
             });
         }
 
@@ -1193,7 +1234,7 @@ else
                 Key = "bets",
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
-                OpenWindow = () => Launch(WindowCatalog.Bets, "GameId", id, name, "680px")
+                OpenWindow = Command(() => Launch(WindowCatalog.Bets, "GameId", id, name, "680px"))
             });
 
             if (operate)
@@ -1210,8 +1251,8 @@ else
                     // Door 1 opens on the most value, in the row, as a pressed price does; a game
                     // with no value read anywhere has no side to start from, so it is the form.
                     OpenWindow = row.BestPick is { } pick
-                        ? () => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book)
-                        : () => Launch(WindowCatalog.Wager, "GameId", id, name, "480px")
+                        ? Command(() => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book))
+                        : Command(() => Launch(WindowCatalog.Wager, "GameId", id, name, "480px"))
                 });
             }
         }
@@ -1230,12 +1271,22 @@ else
                 Icon = Icons.Material.Filled.CloudDownload,
                 Emphasis = DeskEmphasis.Tinted,
                 Busy = _pullingKeys.Contains(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key),
-                OpenWindow = () => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key)
+                OpenWindow = Command(() => PullAsync(IngestionJobs.OddsLinesPrefix + row.Game.Sport!.Key))
             });
         }
 
         return actions;
     }
+
+    /// <summary>
+    /// A row command as a callback this panel owns, so the panel is drawn after it. The press is
+    /// the strip's event; run as a bare delegate from there, a command that changed this panel's
+    /// state — the take opened under the row, a Pull key marked busy — drew nothing until a
+    /// refresh or a live score redrew the board.
+    /// </summary>
+    private EventCallback Command(Func<Task> run) => EventCallback.Factory.Create(this, run);
+
+    private EventCallback Command(Action run) => EventCallback.Factory.Create(this, run);
 
     /// <summary>
     /// Whether pulling lines could still fill this row. No book re-quotes a game that is under
@@ -1299,7 +1350,11 @@ else
         return OpenTake(row, pair.Market, offer.Outcome, offer.Book);
     }
 
-    /// <summary>Opens the row, if it is not, and draws the take as its snippet.</summary>
+    /// <summary>
+    /// Opens the row, if it is not, and draws the take as its snippet. Reached from a price cell's
+    /// own press and from the row's Place wager key (a <see cref="Command"/>), and this panel is
+    /// drawn after either.
+    /// </summary>
     private Task OpenTake(BoardRow row, string market, string outcome, string? book)
     {
         _open = row;

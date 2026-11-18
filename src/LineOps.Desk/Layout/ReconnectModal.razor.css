@@ -103,6 +103,11 @@
     color: var(--on-accent);
     font: inherit;
     font-weight: var(--weight-semibold);
+    /* MudBlazor styles this very button (#components-reconnect-modal button) in capitals and
+       tracked out; the desk's keys are sentence case, so "Retry" says Retry (HIG audit,
+       17 November). */
+    text-transform: none;
+    letter-spacing: normal;
     box-shadow: var(--shadow-1);
     cursor: pointer;
     transition: background-color var(--dur-fast) var(--ease-standard);

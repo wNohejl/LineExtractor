@@ -54,8 +54,8 @@ public class ScoreboardTests : DeskTestContext
         Assert.DoesNotContain("scoreboard__row--loser", rows[0].ClassList);
         Assert.Contains("scoreboard__row--loser", rows[1].ClassList);
 
-        // Each row carries the team's mark, at the large size.
-        Assert.All(rows, r => Assert.NotNull(r.QuerySelector(".teammark.teammark--lg")));
+        // Each row carries the team's mark, at the hero size: the scoreboard heads the window.
+        Assert.All(rows, r => Assert.NotNull(r.QuerySelector(".teammark.teammark--hero")));
 
         // Heading semantics survive the shape: the name still reads as one line.
         Assert.Equal("Pittsburgh Steelers 16, New Orleans Saints 10", Spoken(cut.Find(".scoreboard")));

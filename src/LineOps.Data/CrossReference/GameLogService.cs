@@ -51,6 +51,7 @@ public class GameLogService(LineOpsDbContext db, IDataTier? tier = null)
         var played = db.Games
             .Include(g => g.HomeTeam)
             .Include(g => g.AwayTeam)
+            .Include(g => g.Sport)
             .Where(g => (g.HomeTeamId == teamId || g.AwayTeamId == teamId) && g.StartsAt <= now);
 
         // A season is the honest bound wherever the reader is about a record: "this season"
@@ -178,7 +179,7 @@ public class GameLogService(LineOpsDbContext db, IDataTier? tier = null)
         // A visitor to a shared desk sees only lines from a displayable stats source (ADR 0024).
         var rows = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => s.PlayerId == playerId)
-            .Join(db.Games.Include(g => g.HomeTeam).Include(g => g.AwayTeam),
+            .Join(db.Games.Include(g => g.HomeTeam).Include(g => g.AwayTeam).Include(g => g.Sport),
                 s => s.GameId, g => g.Id,
                 (s, g) => new { s.StatLine, s.TeamId, Game = g })
             // A season, when named, bounds the log; the count is then the season's, not a cap.
@@ -214,7 +215,9 @@ public class GameLogService(LineOpsDbContext db, IDataTier? tier = null)
                 ScoreFor: isHome ? g.HomeScore : g.AwayScore,
                 ScoreAgainst: isHome ? g.AwayScore : g.HomeScore,
                 Status: g.Status,
-                Stats: ReadStatLine(x.StatLine));
+                Stats: ReadStatLine(x.StatLine),
+                SportKey: g.Sport?.Key,
+                OpponentAbbrev: isHome ? g.AwayTeam?.Abbrev : g.HomeTeam?.Abbrev);
         }).ToList();
     }
 
@@ -389,7 +392,9 @@ public class GameLogService(LineOpsDbContext db, IDataTier? tier = null)
             ClosingSpread: spread,
             AtsResult: ats,
             ClosingTotal: total,
-            TotalResult: overUnder);
+            TotalResult: overUnder,
+            SportKey: game.Sport?.Key,
+            OpponentAbbrev: isHome ? game.AwayTeam?.Abbrev : game.HomeTeam?.Abbrev);
     }
 
     /// <summary>
@@ -469,7 +474,10 @@ public record TeamGameLogRow(
     decimal? ClosingSpread,
     EntryResult? AtsResult,
     decimal? ClosingTotal,
-    EntryResult? TotalResult)
+    EntryResult? TotalResult,
+    // The sport and the opponent's abbreviation, so a log can draw the opponent's crest.
+    string? SportKey = null,
+    string? OpponentAbbrev = null)
 {
     /// <summary>Null until the game is final — a game in progress has no result yet.</summary>
     public bool? Won => Status == GameStatus.Final && ScoreFor is { } f && ScoreAgainst is { } a
@@ -537,7 +545,10 @@ public record PlayerGameRow(
     int? ScoreFor,
     int? ScoreAgainst,
     GameStatus Status,
-    IReadOnlyDictionary<string, string> Stats)
+    IReadOnlyDictionary<string, string> Stats,
+    // As on TeamGameLogRow: the sport and the opponent's abbreviation, for the opponent's crest.
+    string? SportKey = null,
+    string? OpponentAbbrev = null)
 {
     public bool? Won => Status == GameStatus.Final && ScoreFor is { } f && ScoreAgainst is { } a
         ? f > a

@@ -37,6 +37,11 @@ public static class ServiceCollectionExtensions
         // reading — the web host does, the Worker and the tests do not.
         services.TryAddSingleton<LineOps.Core.Contracts.IDataTier>(LineOps.Core.Contracts.FullDataTier.Instance);
 
+        // Against another machine's database the initializer migrates nothing unless told to by
+        // name (ADR 0023): the machine that owns the database is the one that migrates it.
+        services.AddSingleton(new MigrationPlacementOptions(
+            bool.TryParse(configuration[Placement.MigrationPlacement.AllowRemoteMigrationKey], out var allowRemote)
+            && allowRemote));
         services.AddScoped<DatabaseInitializer>();
         services.AddScoped<CrossReference.MatchupCrossReference>();
         services.AddScoped<CrossReference.GameLogService>();

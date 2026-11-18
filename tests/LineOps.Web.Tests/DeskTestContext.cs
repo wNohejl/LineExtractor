@@ -16,5 +16,8 @@ public abstract class DeskTestContext : LineOps.Desk.Testing.DeskTestContext
         Services.AddSingleton(new LineOps.Desk.DeskClock(
             LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
+        // The tier a panel reads to (ADR 0024): everything, as AddLineOpsData answers for a host
+        // that says nothing about who is reading.
+        Services.AddSingleton<LineOps.Core.Contracts.IDataTier>(LineOps.Core.Contracts.FullDataTier.Instance);
     }
 }

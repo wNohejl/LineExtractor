@@ -42,6 +42,24 @@ public class DeskEdgeTests
         Assert.EndsWith("frame-ancestors 'none'", csp);
     }
 
+    /// <summary>
+    /// The Development policy differs from the default in one directive, and only lets the
+    /// tooling's sockets reach the developer's own machine: nothing else is widened.
+    /// </summary>
+    [Fact]
+    public void Development_policy_lets_the_tooling_sockets_through_and_nothing_else()
+    {
+        var dev = DeskEdge.DevelopmentContentSecurityPolicy;
+
+        Assert.Contains("connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*;", dev);
+
+        static IEnumerable<string> Others(string policy) => policy.Split(';')
+            .Select(d => d.Trim())
+            .Where(d => d.Length > 0 && !d.StartsWith("connect-src", StringComparison.Ordinal));
+
+        Assert.Equal(Others(DeskEdge.DefaultContentSecurityPolicy), Others(dev));
+    }
+
     [Fact]
     public void Behind_proxy_reads_its_key()
     {

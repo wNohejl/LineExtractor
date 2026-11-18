@@ -1,10 +1,10 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
-**Status: BUILT.** All seven phases implemented and verified. More than 600 tests (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
+**Status: BUILT.** All seven phases implemented and verified. More than 2,000 tests (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
 **Cost:** $0 for the v1 scope (see §0) — all sources on permanent free tiers, hosted locally.
-**v1 scope:** Games, players, and stats for **MLB and NFL**, named in `Ingestion:Sports` — the seeded NBA and NHL rows are switched off at startup by `ReferenceReconciler`, which hides them from the desk's pickers; mainstream markets only (moneyline, spread, totals). Player props and exotic markets are the designed extension path, not v1.
+**Scope:** Games, players, and stats for **MLB, NBA (this season, from 2026-10-20), NFL and UFC**, named in `Ingestion:Sports` — the seeded NHL row is switched off at startup by `ReferenceReconciler`, which hides it from the desk's pickers; mainstream markets only (moneyline, spread, totals). Player props and exotic markets are the designed extension path, not v1.
 **Repository:** `C:\Deploy\LineOps` — see §8 for build and run steps.
 
 **Purpose (public):** An operations platform that ingests sports statistics and market line data daily from multiple external sources, stores line-movement history as time-series, computes performance analytics (closing-line value, ROI, bankroll), and monitors its own ingestion health with KPIs, alerting, and an incident log.
@@ -419,7 +419,7 @@ Deliberate choices, not defaults. → [ADR 0006]
 | **SCRAM-SHA-256 at initdb** | Password auth can never negotiate down to md5 or trust. |
 | **Memory limits** | A runaway query degrades one container, not the host. |
 
-**Beyond localhost:** do not change the binding to `0.0.0.0`. Terminate TLS at a reverse proxy with a real certificate (README shows a Caddy service handling ACME automatically, proxying to `web:9443`). The dev certificate is `localhost`-only and trusted solely on the machine that generated it; Kubernetes would use a TLS secret rather than a mounted PFX.
+**Beyond localhost:** do not change the binding to `0.0.0.0`. Terminate TLS at a reverse proxy with a real certificate (`deploy/` is that stack: Caddy handling ACME automatically in front of the web container; see `deploy/README.md`). The dev certificate is `localhost`-only and trusted solely on the machine that generated it; Kubernetes would use a TLS secret rather than a mounted PFX.
 
 ---
 
@@ -488,7 +488,7 @@ Both Dockerfiles use the **repository root** as build context (they need `Direct
 docker compose --profile worker up -d
 ```
 
-Set `Ingestion__HostScheduler=false` on the `web` service at the same time, or both processes poll the same providers and burn the free-tier budget twice.
+Set `Ingestion__HostScheduler=false` and `Reliability__HostEvaluator=false` on the `web` service at the same time, or both processes poll the same providers and burn the free-tier budget twice, and both evaluate the alert rules.
 
 ### 8.5 Develop against the code (hot reload)
 
@@ -499,7 +499,7 @@ dotnet run --project src/LineOps.Web --launch-profile http   # http://localhost:
 dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
 
-Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `LineOps.Web` and `LineOps.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` to false on the web host, as in §8.4.
+Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which `setup.ps1` writes for both `LineOps.Web` and `LineOps.Worker` from the password in `.env`; compose reads `.env` itself. The credential is deliberately not in `appsettings.json`. Both hosts' launch profiles run as Development, which is the environment user-secrets load in. Running the worker beside a web host that also schedules ingestion polls the providers twice — set `Ingestion:HostScheduler` and `Reliability:HostEvaluator` to false on the web host, as in §8.4.
 
 `compose.dev.yml` is what publishes Postgres on `127.0.0.1:5433` — a separate overlay, so an exposed database is opted into, not forgotten. `restore-data.ps1` loads the committed snapshot (`data/snapshots/lineops.dump`) so a second machine develops against the same games, stats and closing lines; it refuses to overwrite a database that already holds games unless given `-Force`.
 
@@ -509,8 +509,8 @@ Use this loop for UI work — hot reload and a debugger beat a 30-second image r
 
 ```powershell
 dotnet restore
-dotnet build                              # solution: 8 projects + 2 test projects
-dotnet test                               # 800+ tests
+dotnet build                              # solution: 11 projects + 4 test projects
+dotnet test                               # 2,000+ tests
 dotnet format --verify-no-changes         # CI enforces this
 ```
 
@@ -547,9 +547,9 @@ The app migrates itself on startup, so this is only needed when *authoring* a sc
 
 ## 9. Engineering practices
 
-- **Repo layout:** `src/` (8 projects), `tests/` (2), `docs/adr/`, `docs/runbook.md`, `scripts/`, `data/snapshots/` (the committed database snapshot), `.github/workflows/`.
+- **Repo layout:** `src/` (11 projects), `tests/` (4), `docs/adr/`, `docs/runbook.md`, `scripts/`, `data/snapshots/` (the committed database snapshot), `.github/workflows/`.
 - **Central package management** — `Directory.Packages.props` pins every version once, with transitive pinning on. Added after a real EF Core 10.0.4-vs-10.0.10 mismatch broke the build; this is the fix that stops it recurring.
-- **Tests (800+):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
+- **Tests (2,000+):** hand-checked odds maths; grading including every push case; adapter parsing against recorded fixtures containing the awkward real shapes (nested team objects, string prices, an unmodelled market, a malformed row); Testcontainers integration covering freshness, success rate, volume anomaly, alert reconciliation, auto-resolution, rollup idempotency, and full settlement with CLV; bUnit component tests covering the desk design system.
 - **CI:** GitHub Actions — restore, build, `dotnet format --verify-no-changes`, test, plus a job that fails if the model has pending migrations.
 - **Docs:** seventeen ADRs and a runbook that names each alert, its urgency, and its triage steps. Runbooks are an operations-maturity signal reviewers rarely see in a side project.
 
@@ -628,7 +628,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 | Alert engine + on-call drills | "participate in **on-call support**, troubleshoot and remediate incidents" |
 | Incident log + enforced RCAs + corrective-action commits | "lead **root-cause analysis**" |
 | Partitioned time-series, entity resolution, CLV join | "data models, batch jobs" / advanced platform components |
-| 800+ tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
+| 2,000+ tests: xUnit + fixtures + Testcontainers + GitHub Actions | "automate test coverage and support continuous build/integration" |
 | 17 ADRs + runbook + README | "maintaining clear documentation for operations and users" |
 | Runbook rendered in-incident + bijection test against `AlertRules` | documentation that cannot silently drift from the system it documents |
 | OpenTelemetry traces/metrics → Aspire dashboard, `/health` + `/ready` | "monitoring", "supportability" — the standard tooling an ops team already runs |
@@ -644,7 +644,7 @@ Three bugs that only containerisation revealed, all worth mentioning: the publis
 |---|---|---|
 | **Player props** | New `market` values + populate the existing `player_id`; one adapter method | First paid feature — The Odds API 20K ($30/mo) is the cheapest on-ramp |
 | **More books** (true line shopping) | Config change on a paid odds tier | Paid tier |
-| **More sports** (NBA, NHL, soccer, NCAA…) | Name the league in `Ingestion:Sports` with a season start in `Ingestion:Backfill:Seasons` — NBA and NHL are already seeded and mapped to ESPN; anything else also needs a `sport` row and an `EspnLeagues` entry. The odds free tiers already cover them | Free |
+| **More sports** (NHL, soccer, NCAA…) | Name the league in `Ingestion:Sports` with a season start in `Ingestion:Backfill:Seasons` — NHL is already seeded and mapped to ESPN; anything else also needs a `sport` row and an `EspnLeagues` entry. The odds free tiers already cover them | Free |
 | **Parlay modeling** | *Built:* a `parlay` row carries the one stake, and `ParlayGrading` grades the legs and reprices after a push or void | Free |
 | **Futures markets** | Same `market`-as-text mechanism + a season-long settlement job | Free |
 | **Cloud hosting** | Containerised already; add a reverse proxy for a real cert (§7) | Free–$5/mo |
@@ -657,4 +657,4 @@ None of these change the core tables. `market` as text, nullable `player_id`, an
 **Resume bullet for the PROJECTS section:**
 
 > **LineOps — Sports-Data Ingestion & Analytics Operations Platform** — .NET 10 / Blazor / MudBlazor / PostgreSQL / Docker
-> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 800+ unit, fixture and Testcontainers integration tests in GitHub Actions CI.
+> Built and operate a multi-source data platform that ingests daily sports statistics and betting-market data via resilient REST integrations (retry, circuit breaking, per-provider rate/credit budgeting), stores line movement as monthly-partitioned time-series in PostgreSQL, and computes closing-line-value, ROI and bankroll analytics. Designed a reusable reliability library reporting operational KPIs (freshness, success rate, volume-anomaly detection) with automated alerting and an incident log that enforces written root-cause analyses. Containerised over HTTPS with non-root, read-only, capability-dropped services; 2,000+ unit, fixture and Testcontainers integration tests in GitHub Actions CI.

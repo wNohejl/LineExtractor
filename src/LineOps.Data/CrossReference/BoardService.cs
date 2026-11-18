@@ -59,6 +59,11 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
         if (games.Count == 0)
             return [];
 
+        // ESPN's state of play and MLB's probables are columns, not rows: blanked for a visitor
+        // to a shared desk (ADR 0024), unchanged for everyone else.
+        foreach (var g in games)
+            g.ForTier(Tier);
+
         var gameIds = games.Select(g => g.Id).ToList();
 
         // What this reader may be shown (ADR 0024): every source on a local desk, the displayable
@@ -113,6 +118,10 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
         // A fight's card and result (ADR 0021), and its place on the card: bouts that share a
         // start are listed main event first, as a card is billed.
         var bouts = await db.Bouts.AsNoTracking().Where(b => gameIds.Contains(b.GameId)).ToDictionaryAsync(b => b.GameId, ct);
+
+        // The card is ESPN's alone, so a visitor's bout says only that the game is a fight.
+        foreach (var bout in bouts.Values)
+            bout.ForTier(Tier);
 
         return games
             .OrderBy(g => g.StartsAt)
@@ -189,7 +198,11 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
             .Select(r => new PassingLine(r.TeamId!.Value, r.GameId, r.StartsAt, r.FullName, r.StatLine, r.SeasonYear))
             .ToList();
 
-        var injuries = CurrentInjuries(rows.Select(r => (r.FullName, r.InjuryStatus, r.InjuryNote, r.InjuryUpdatedAt)), now);
+        // The injury report is ESPN's (ADR 0024): a visitor's starter is read from the lines
+        // alone, as if no report named anyone.
+        var injuries = Tier.CanSeePersonalUseSources
+            ? CurrentInjuries(rows.Select(r => (r.FullName, r.InjuryStatus, r.InjuryNote, r.InjuryUpdatedAt)), now)
+            : new Dictionary<string, (string Status, string? Note)>(StringComparer.OrdinalIgnoreCase);
 
         return (lines, injuries);
     }
@@ -380,6 +393,8 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
         if (game is null)
             return null;
 
+        game.ForTier(Tier);
+
         var visible = await db.VisibleSourceIdsAsync(Tier, ct);
 
         var live = (await db.OddsSnapshots.FromVisible(visible)
@@ -410,7 +425,7 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
 
         return Compose(game, live, closing, scanned) with
         {
-            Bout = await db.Bouts.AsNoTracking().FirstOrDefaultAsync(b => b.GameId == gameId, ct)
+            Bout = (await db.Bouts.AsNoTracking().FirstOrDefaultAsync(b => b.GameId == gameId, ct)).ForTier(Tier)
         };
     }
 

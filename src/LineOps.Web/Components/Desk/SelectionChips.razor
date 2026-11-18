@@ -53,7 +53,9 @@
                            they sit on one line; narrow, every segment breaks in the same place. *@
                         @if (Team(choice) is { Length: > 0 } team)
                         {
-                            <span class="selection-chip__team">@team</span>
+                            @* The club's crest leads its name, so the two segments are told apart
+                               before either is read. Decorative: the label says who it is. *@
+                            <span class="selection-chip__team"><TeamMark Sport="@Row?.Game.Sport?.Key" Abbrev="@ClubAbbrev(choice)" />@team</span>
                         }
                         <span class="selection-chip__nums">
                             @if (Side(choice) is { Length: > 0 } side)
@@ -119,6 +121,17 @@
         Markets.Total => "Total: the two teams' combined score, over or under the book's number.",
         _ => string.Empty
     };
+
+    /// <summary>The club a segment is for, by its outcome's name, as ESPN abbreviates it; null for a total.</summary>
+    private string? ClubAbbrev(SelectionChoice choice)
+    {
+        if (choice.Market == Markets.Total || Row?.Game is not { } game)
+            return null;
+
+        return string.Equals(choice.Outcome, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam?.Abbrev
+            : string.Equals(choice.Outcome, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam?.Abbrev
+            : null;
+    }
 
     /// <summary>The team a segment is, said short ("Chiefs"); a total's segments say Over or Under in <see cref="Side"/>.</summary>
     private static string Team(SelectionChoice choice)

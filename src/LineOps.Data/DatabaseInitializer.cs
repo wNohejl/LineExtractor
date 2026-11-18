@@ -1,17 +1,73 @@
 using LineOps.Core.Entities;
+using LineOps.Data.Placement;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace LineOps.Data;
 
+/// <summary>The initializer's one setting: <see cref="MigrationPlacement.AllowRemoteMigrationKey"/>.</summary>
+public sealed record MigrationPlacementOptions(bool AllowRemoteMigration);
+
 /// <summary>
 /// Applies migrations, keeps partitions ahead of the clock, and seeds reference rows.
 /// Safe to run on every start: each step is idempotent.
+///
+/// <para>
+/// Only on this machine's own database. Against another machine's (ADR 0023) it migrates
+/// nothing, seeds nothing and cleans nothing: it checks that the schema is the one this code was
+/// built for, and refuses with <see cref="RemoteDatabaseRefusedException"/> when it is not
+/// (<see cref="MigrationPlacement"/>).
+/// </para>
 /// </summary>
-public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitializer> logger)
+public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitializer> logger,
+    MigrationPlacementOptions? placement = null)
 {
     public async Task InitialiseAsync(CancellationToken ct = default)
     {
+        var connectionString = db.Database.GetConnectionString();
+        var isOwn = DatabasePlacement.IsOwnDatabase(connectionString);
+
+        // A local database is migrated without asking it anything first, exactly as before.
+        if (!isOwn)
+        {
+            var host = DatabasePlacement.DescribeHost(connectionString);
+            // An empty database has no history table, and asking it for one logs a failed command.
+            // The catalog is asked directly: checking through EF's history repository still logged it.
+            var hasHistory = await db.Database
+                .SqlQuery<bool>($"SELECT to_regclass('\"__EFMigrationsHistory\"') IS NOT NULL AS \"Value\"")
+                .SingleAsync(ct);
+            IEnumerable<string> applied = hasHistory
+                ? await db.Database.GetAppliedMigrationsAsync(ct)
+                : [];
+            var decision = MigrationPlacement.Decide(isOwn,
+                applied,
+                db.Database.GetMigrations(),
+                placement?.AllowRemoteMigration ?? false,
+                host);
+
+            switch (decision.Action)
+            {
+                case MigrationAction.Refuse:
+                    throw new RemoteDatabaseRefusedException(decision.Message!);
+
+                case MigrationAction.Proceed:
+                    // The owner's startup migrates, seeds and cleans. Partitions are the one step
+                    // kept: every pull ensures them anyway, and a month boundary must not fail an
+                    // insert pressed from this desk.
+                    logger.LogInformation(
+                        "The database at {Host} is not this machine's own and its schema matches this code: "
+                        + "using it as it is, with no migration and no seed", host);
+                    await EnsurePartitionsAsync(ct);
+                    return;
+
+                default:
+                    logger.LogWarning(
+                        "The database at {Host} is not this machine's own; migrating it anyway because {Key}=true",
+                        host, MigrationPlacement.AllowRemoteMigrationKey);
+                    break;
+            }
+        }
+
         await db.Database.MigrateAsync(ct);
         await EnsurePartitionsAsync(ct);
         await SeedSportsAsync(ct);

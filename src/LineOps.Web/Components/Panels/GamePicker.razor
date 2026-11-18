@@ -28,7 +28,7 @@
         <div class="game-search__chosen">
             <DeskLink Class="game-search__match" Destination="change" Icon="@Icons.Material.Filled.Search"
                       Tooltip="Find a different game" OnClick="StartSearch">
-                @Matchup(chosen)
+                @Marked(chosen)
             </DeskLink>
             <span class="game-search__when">@When(chosen)</span>
         </div>
@@ -81,7 +81,7 @@
                                 aria-selected="@(active ? "true" : "false")"
                                 class="menu__item game-search__opt @(active ? "game-search__opt--active" : null)"
                                 @onclick="() => PickAsync(game)">
-                            <span class="game-search__match">@Matchup(game)</span>
+                            <span class="game-search__match">@Marked(game)</span>
                             <span class="game-search__when">@When(game)</span>
                         </button>
                     }
@@ -164,6 +164,16 @@
 
     private static string Matchup(Game game)
         => $"{game.AwayTeam?.Name ?? "Away"} at {game.HomeTeam?.Name ?? "Home"}";
+
+    /// <summary>
+    /// The matchup as the list and the chosen game draw it: each club's crest before its name, so
+    /// a list of one club's games is told apart by the opponent's crest before a name is read. The
+    /// small crest: it sits inside a link's label, which clips anything taller than its line.
+    /// </summary>
+    private static RenderFragment Marked(Game game) => __builder =>
+    {
+        <TeamMark Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />@(game.AwayTeam?.Name ?? "Away")@(" at ")<TeamMark Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />@(game.HomeTeam?.Name ?? "Home")
+    };
 
     /// <summary>
     /// The chosen game's detail line: "Oct 26 20:20 ET · NFL · final". Each part is written only

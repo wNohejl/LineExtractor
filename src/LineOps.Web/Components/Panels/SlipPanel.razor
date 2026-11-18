@@ -86,7 +86,7 @@
                     <div class="wgroup__row slip-card @(state.State == DeskState.Negative ? "slip-card--blocked" : null)" role="listitem" @key="item.Id">
                         <div class="slip-card__top">
                             <div>
-                                <div class="slip-card__sel">@item.Selection</div>
+                                <div class="slip-card__sel"><TeamMark Sport="@item.SportKey" Abbrev="@item.OutcomeAbbrev" />@item.Selection</div>
                                 <div class="slip-card__meta">@item.Matchup · @Day(item.StartsAt) · @item.Book@(item.ManualPrice ? " · your price" : "")</div>
                             </div>
 
@@ -163,7 +163,7 @@
                     @foreach (var leg in Slip.Legs)
                     {
                         <div class="wgroup__row slip-leg" @key="leg.Id">
-                            <span class="slip-leg__sel">@SelectionText.Of(leg.Market, leg.Outcome, leg.Line)</span>
+                            <span class="slip-leg__sel"><TeamMark Sport="@leg.SportKey" Abbrev="@leg.OutcomeAbbrev" />@SelectionText.Of(leg.Market, leg.Outcome, leg.Line)</span>
                             <span class="slip-leg__price num">@Price(leg.PriceAmerican)</span>
                             <DeskTooltip Text="Decimal odds: what one unit returns if this leg wins">
                                 <span class="slip-leg__x num" tabindex="0">×@Decimal(leg.PriceAmerican)</span>

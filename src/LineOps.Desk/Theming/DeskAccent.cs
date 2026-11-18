@@ -101,21 +101,21 @@ public static class DeskAccents
     /// <summary>The accent on the Standard dark desk.</summary>
     public static AccentPalette Dark(DeskAccent accent) => accent switch
     {
-        DeskAccent.Teal => new("#40C8E0", "#5FD3E7", "#2BB7CF", "rgba(64, 200, 224, .15)", "rgba(64, 200, 224, .24)", "#5FD3E7"),
-        DeskAccent.Indigo => new("#5E5CE6", "#7C7AEB", "#4B49D9", "rgba(94, 92, 230, .15)", "rgba(94, 92, 230, .24)", "#8E8CF0"),
-        DeskAccent.Purple => new("#BF5AF2", "#CB78F5", "#AD3FE6", "rgba(191, 90, 242, .15)", "rgba(191, 90, 242, .24)", "#CB78F5"),
-        DeskAccent.Graphite => new("#8E8E93", "#A1A1A6", "#7C7C81", "rgba(142, 142, 147, .15)", "rgba(142, 142, 147, .24)", "#A1A1A6"),
-        _ => new(DeskTheme.Accent, DeskTheme.AccentHover, "#0871DB", "rgba(10, 132, 255, .15)", "rgba(10, 132, 255, .24)", DeskTheme.AccentInk)
+        DeskAccent.Teal => new("#277A89", "#297F8F", "#24717F", "rgba(39, 122, 137, .15)", "rgba(39, 122, 137, .24)", "#5FD3E7"),
+        DeskAccent.Indigo => new("#5E5CE6", "#6260E7", "#4B49D9", "rgba(94, 92, 230, .15)", "rgba(94, 92, 230, .24)", "#8E8CF0"),
+        DeskAccent.Purple => new("#9E4AC8", "#A44DD0", "#9144B8", "rgba(158, 74, 200, .15)", "rgba(158, 74, 200, .24)", "#CB78F5"),
+        DeskAccent.Graphite => new("#707074", "#747479", "#67676B", "rgba(112, 112, 116, .15)", "rgba(112, 112, 116, .24)", "#A1A1A6"),
+        _ => new(DeskTheme.Accent, DeskTheme.AccentHover, "#0866C6", "rgba(8, 111, 215, .15)", "rgba(8, 111, 215, .24)", DeskTheme.AccentInk)
     };
 
     /// <summary>The accent on the Standard light desk.</summary>
     public static AccentPalette Light(DeskAccent accent) => accent switch
     {
-        DeskAccent.Teal => new("#30B0C7", "#2A9DB2", "#24899C", "rgba(48, 176, 199, .12)", "rgba(48, 176, 199, .20)", "#1F7A8C"),
+        DeskAccent.Teal => new("#238090", "#217888", "#1F707F", "rgba(35, 128, 144, .12)", "rgba(35, 128, 144, .20)", "#1C6F7F"),
         DeskAccent.Indigo => new("#5856D6", "#4F4DC4", "#4644AD", "rgba(88, 86, 214, .12)", "rgba(88, 86, 214, .20)", "#4644AD"),
-        DeskAccent.Purple => new("#AF52DE", "#A046CF", "#8F3DB8", "rgba(175, 82, 222, .12)", "rgba(175, 82, 222, .20)", "#8F3DB8"),
-        DeskAccent.Graphite => new("#8E8E93", "#7D7D82", "#6C6C70", "rgba(142, 142, 147, .12)", "rgba(142, 142, 147, .20)", "#6C6C70"),
-        _ => new(DeskTheme.LightAccent, DeskTheme.LightAccentHover, "#0062CC", "rgba(0, 122, 255, .12)", "rgba(0, 122, 255, .20)", DeskTheme.LightAccentInk)
+        DeskAccent.Purple => new("#A44DD1", "#9A48C4", "#9043B7", "rgba(164, 77, 209, .12)", "rgba(164, 77, 209, .20)", "#8F3DB8"),
+        DeskAccent.Graphite => new("#747479", "#6D6D71", "#66666A", "rgba(116, 116, 121, .12)", "rgba(116, 116, 121, .20)", "#656569"),
+        _ => new(DeskTheme.LightAccent, DeskTheme.LightAccentHover, "#0063CE", "rgba(0, 113, 235, .12)", "rgba(0, 113, 235, .20)", DeskTheme.LightAccentInk)
     };
 
     /// <summary>The accent in the appearance showing.</summary>

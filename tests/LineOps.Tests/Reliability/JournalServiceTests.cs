@@ -428,8 +428,12 @@ public class JournalServiceTests(PostgresFixture fixture)
 
         var games = starts.Select(s => new Game
         {
-            SportId = sport.Id, HomeTeamId = h.Id, AwayTeamId = a.Id,
-            StartsAt = s, Status = GameStatus.Scheduled, SeasonYear = 2026
+            SportId = sport.Id,
+            HomeTeamId = h.Id,
+            AwayTeamId = a.Id,
+            StartsAt = s,
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
         }).ToArray();
         db.Games.AddRange(games);
         await db.SaveChangesAsync();
@@ -438,8 +442,14 @@ public class JournalServiceTests(PostgresFixture fixture)
 
     private static JournalEntry Bet(Game game, DateTimeOffset placed, decimal stake = 10m) => new()
     {
-        GameId = game.Id, Market = Markets.Moneyline, Outcome = "Home", Book = "draftkings",
-        PriceTaken = -110, Stake = stake, PlacedAt = placed, Result = EntryResult.Pending
+        GameId = game.Id,
+        Market = Markets.Moneyline,
+        Outcome = "Home",
+        Book = "draftkings",
+        PriceTaken = -110,
+        Stake = stake,
+        PlacedAt = placed,
+        Result = EntryResult.Pending
     };
 
     [Fact]
@@ -483,10 +493,20 @@ public class JournalServiceTests(PostgresFixture fixture)
 
         // Placed first, but its last leg is the latest game of all: it leads. The other was
         // placed later and its first leg is the earliest game; its last leg is day three.
-        var longShot = new Parlay { Book = "draftkings", Stake = 5m, PlacedAt = now.AddDays(-4),
-            Legs = [Bet(g[0], now.AddDays(-4), 0m), Bet(g[3], now.AddDays(-4), 0m)] };
-        var recent = new Parlay { Book = "draftkings", Stake = 5m, PlacedAt = now.AddHours(-1),
-            Legs = [Bet(g[1], now.AddHours(-1), 0m), Bet(g[2], now.AddHours(-1), 0m)] };
+        var longShot = new Parlay
+        {
+            Book = "draftkings",
+            Stake = 5m,
+            PlacedAt = now.AddDays(-4),
+            Legs = [Bet(g[0], now.AddDays(-4), 0m), Bet(g[3], now.AddDays(-4), 0m)]
+        };
+        var recent = new Parlay
+        {
+            Book = "draftkings",
+            Stake = 5m,
+            PlacedAt = now.AddHours(-1),
+            Legs = [Bet(g[1], now.AddHours(-1), 0m), Bet(g[2], now.AddHours(-1), 0m)]
+        };
         db.Parlays.AddRange(recent, longShot);
         await db.SaveChangesAsync();
 

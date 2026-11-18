@@ -104,9 +104,14 @@ public static class TeamColors
     }
 }
 
-/// <summary>A team mark's size: an 8px disc beside body text, a 12px one beside a title.</summary>
+/// <summary>
+/// A team mark's size. Small sits in a row of text or a table cell (an 18px crest, an 8px disc),
+/// Large beside a title (28px, 12px), Hero beside a scoreboard's score or a team's own window
+/// title (44px, 16px).
+/// </summary>
 public enum TeamMarkSize
 {
     Small,
     Large,
+    Hero,
 }

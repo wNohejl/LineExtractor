@@ -1,6 +1,6 @@
 # Hosting the desk
 
-One VM, four containers, Caddy in front. What this is for and why it is shaped this way:
+One VM, five containers, Caddy in front. What this is for and why it is shaped this way:
 [ADR 0019](../docs/adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) and the
 [going-public plan](../docs/superpowers/specs/2026-09-27-going-public-plan.md) §3.
 

@@ -5,8 +5,10 @@ obj/
 *.user
 *.suo
 
-# Local agent/editor tooling. Machine-specific and nobody else's business.
-.claude/
+# Local agent/editor tooling. Machine-specific and nobody else's business, except the
+# project's skills, which are shared: a new one is committed without needing `git add -f`.
+.claude/*
+!.claude/skills/
 
 # Local secrets: API keys belong in user-secrets or environment variables, never in the repo.
 # .env holds the database and certificate passwords; .env.example is the committed template.
@@ -23,3 +25,9 @@ appsettings.*.Local.json
 
 # The hosted stack's nightly dumps, if deploy/ is ever run from a clone.
 deploy/backups/
+
+# The journal, parlays and operator settings in transit between your own machines
+# (scripts/publish-journal.ps1). Never committed: the repository is public.
+data/personal/
+# The clone of the private journal repository (CLAUDE.md, "The journal").
+/lineops-journal/

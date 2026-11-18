@@ -20,7 +20,7 @@
     }
     else
     {
-    <MetricRow>
+    <MetricRow Class="ops-metrics--3">
         <Metric Label="Open"
                 Value='@_open.ToString("N0")'
                 State="@(_open > 0 ? DeskState.Negative : DeskState.Positive)" />
@@ -35,8 +35,8 @@
            had ever filled one. *@
         <EmptyState Kind="EmptyStateKind.New">
             <ChildContent>
-                No incidents recorded. The on-call drill exercises the whole
-                detect → alert → incident → RCA loop.
+                No incidents yet. The on-call drill in Ops raises one on purpose, so the path
+                from alert to RCA can be walked before it is needed.
             </ChildContent>
             <Action>
                 <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
@@ -59,17 +59,19 @@
                 <DeskGrid T="Incident" Items="_openIncidents" Class="deskgrid--clickable"
                           OnRowClick="@(e => SelectAsync(e.Item.Id))"
                           EmptyText="No open incidents.">
-                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
                         <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>
                             <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
                         </CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened"
+                                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
                         <CellTemplate>
                             <DeskLink Destination="RCA"
                                       Icon="@Icons.Material.Filled.Description"
@@ -79,11 +81,12 @@
                         </CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State">
+                    <PropertyColumn T="Incident" TProperty="IncidentStatus" Property="i => i.Status" Title="State"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate><Tag State="@StatusState(context.Item.Status)">@context.Item.Status</Tag></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit"
                                     Align="Align.Right" InitialDirection="SortDirection.Descending">
                         <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
                     </PropertyColumn>
@@ -92,7 +95,8 @@
                        window exists to enforce. A written one is said quietly; a missing one
                        keeps its tag, so it is the thing that stands out. *@
                     <PropertyColumn T="Incident" TProperty="bool"
-                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>@Rca(context.Item)</CellTemplate>
                     </PropertyColumn>
                 </DeskGrid>
@@ -108,15 +112,17 @@
                 <DeskGrid T="Incident" Items="_resolvedIncidents" Class="deskgrid--clickable"
                           OnRowClick="@(e => SelectAsync(e.Item.Id))"
                           EmptyText="No resolved incidents.">
-                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide" CellClass="col--wide">
+                    <PropertyColumn T="Incident" TProperty="int" Property="i => i.Id" Title="#" Align="Align.Right" HeaderClass="col--wide ops-col--fit" CellClass="col--wide ops-col--fit">
                         <CellTemplate><span class="num dim">@context.Item.Id</span></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity">
+                    <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate><span class="quiet">@SeverityName(context.Item.Severity)</span></CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened">
+                    <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened"
+                                    HeaderClass="ops-col--grow" CellClass="ops-col--grow">
                         <CellTemplate>
                             <DeskLink Destination="RCA"
                                       Icon="@Icons.Material.Filled.Description"
@@ -126,7 +132,7 @@
                         </CellTemplate>
                     </PropertyColumn>
 
-                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider" CellClass="col--wider"
+                    <PropertyColumn T="Incident" TProperty="DateTimeOffset" Property="i => i.OpenedAt" Title="Opened" HeaderClass="col--wider ops-col--fit" CellClass="col--wider ops-col--fit"
                                     Align="Align.Right" InitialDirection="SortDirection.Descending">
                         <CellTemplate><span class="dim">@Starts(context.Item.OpenedAt)</span></CellTemplate>
                     </PropertyColumn>
@@ -134,14 +140,15 @@
                     @* Sorts on the real duration, so "slowest to resolve" is a click. *@
                     <PropertyColumn T="Incident" TProperty="double"
                                     Property="i => i.TimeToResolve == null ? 0 : i.TimeToResolve.Value.TotalMinutes"
-                                    Title="Took" Align="Align.Right">
+                                    Title="Took" Align="Align.Right" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>
                             <span class="num dim">@(context.Item.TimeToResolve is { } took ? Duration(took) : "—")</span>
                         </CellTemplate>
                     </PropertyColumn>
 
                     <PropertyColumn T="Incident" TProperty="bool"
-                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA">
+                                    Property="@(i => !string.IsNullOrWhiteSpace(i.RootCause))" Title="RCA"
+                                    HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>@Rca(context.Item)</CellTemplate>
                     </PropertyColumn>
                 </DeskGrid>
@@ -162,7 +169,7 @@ else
             <Tag State="@SeverityState(_selected.Severity)">@SeverityName(_selected.Severity)</Tag>
             <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
         </Tags>
-        <Detail>#@_selected.Id · opened @Starts(_selected.OpenedAt)</Detail>
+        <Detail>Incident <span class="num">#@_selected.Id</span>, opened @Starts(_selected.OpenedAt)</Detail>
     </PanelTitle>
 
     <PanelToolbar>
@@ -548,15 +555,16 @@ else
     };
 
     /// <summary>
-    /// Whether the RCA is written. Written is the expected state and is said quietly; Missing
-    /// keeps its tag, so down a column of incidents it is the one that stands out.
+    /// Whether the RCA is written. Written is the expected state and is a check mark, its word
+    /// kept for a screen reader; Missing keeps its tag, so down a column of incidents it is the
+    /// one that stands out.
     /// </summary>
     private RenderFragment Rca(Incident incident)
     {
         if (string.IsNullOrWhiteSpace(incident.RootCause))
             return @<Tag State="DeskState.Warning">Missing</Tag>;
 
-        return @<span class="quiet">Written</span>;
+        return @<span class="ops-ok"><MudIcon Icon="@Icons.Material.Filled.Check" aria-hidden="true" /><span class="sr-only">Written</span></span>;
     }
 
     private static string Duration(TimeSpan t) => t.TotalMinutes switch

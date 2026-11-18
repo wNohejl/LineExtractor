@@ -58,7 +58,9 @@ else
        beside a record says nothing about whether the market data is missing or the games were
        never priced. *@
     <PanelTitle>
-        <ChildContent>@_awayName vs @_homeName</ChildContent>
+        @* Each club's crest before its name, at the large size a window title takes; the title is
+           the matchup, so the crest is its own most legible part. A fight draws none. *@
+        <ChildContent><TeamMark Sport="@_sport" Abbrev="@_awayAbbrev" Size="TeamMarkSize.Large" />@_awayName@(" vs ")<TeamMark Sport="@_sport" Abbrev="@_homeAbbrev" Size="TeamMarkSize.Large" />@_homeName</ChildContent>
         <Detail>
             <span>
                 @_rows.Count.ToString("N0") @(_rows.Count == 1 ? "meeting" : "meetings") ·
@@ -92,7 +94,7 @@ else
                 <CellTemplate>
                     <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
                               OnClick="() => OpenGameAsync(context.Item.GameId)">
-                        @context.Item.AwayTeam at @context.Item.HomeTeam
+                        <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.AwayAbbrev" />@context.Item.AwayTeam at <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.HomeAbbrev" />@context.Item.HomeTeam
                     </DeskLink>
                 </CellTemplate>
             </PropertyColumn>
@@ -191,6 +193,9 @@ else
     private IReadOnlyList<HeadToHeadRow> _rows = [];
     private string _homeName = "Home";
     private string _awayName = "Away";
+    private string? _sport;
+    private string? _homeAbbrev;
+    private string? _awayAbbrev;
     private string _record = "0-0";
     private int _covered;
 
@@ -224,6 +229,9 @@ else
             {
                 _homeName = row.Game.HomeTeam?.Name ?? "Home";
                 _awayName = row.Game.AwayTeam?.Name ?? "Away";
+                _sport = row.Game.Sport?.Key;
+                _homeAbbrev = row.Game.HomeTeam?.Abbrev;
+                _awayAbbrev = row.Game.AwayTeam?.Abbrev;
             }
 
             _rows = await log.HeadToHeadAsync(GameId, Take);

@@ -68,8 +68,8 @@ else
         </span>
     </PanelToolbar>
 
-    @RenderSide(_form.Away, Row?.Game.AwayTeam?.Name ?? "Away")
-    @RenderSide(_form.Home, Row?.Game.HomeTeam?.Name ?? "Home")
+    @RenderSide(_form.Away, Row?.Game.AwayTeam?.Name ?? "Away", Row?.Game.AwayTeam?.Abbrev)
+    @RenderSide(_form.Home, Row?.Game.HomeTeam?.Name ?? "Home", Row?.Game.HomeTeam?.Abbrev)
 }
 
 @code {
@@ -122,12 +122,15 @@ else
     private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
         => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
 
-    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName) => @<text>
+    private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName, string? abbrev) => @<text>
         @if (side.Count > 0)
         {
             var columns = ColumnsFor(side);
 
-            <PanelSection Class="psection--subject" Title="@teamName">
+            @* The side's crest leads its rule at the large size, as the Game window's rosters do. *@
+            <PanelSection Class="psection--subject">
+            <TitleContent><TeamMark Sport="@Row?.Game.Sport?.Key" Abbrev="@abbrev" Size="TeamMarkSize.Large" />@teamName</TitleContent>
+            <ChildContent>
             <div class="gridwrap">
                 <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
                     <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
@@ -164,6 +167,7 @@ else
                     }
                 </DeskGrid>
             </div>
+            </ChildContent>
             </PanelSection>
         }
     </text>;

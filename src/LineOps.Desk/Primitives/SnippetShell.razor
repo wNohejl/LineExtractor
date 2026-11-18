@@ -30,10 +30,13 @@
 
         <span class="snippet__spacer"></span>
 
-        @if (OnOpen is not null)
+        @if (OnOpen.HasDelegate)
         {
-            <button type="button" class="snippet__open" @onclick="OnOpen" @onclick:stopPropagation="true">
-                <Glyph Icon="@Icons.Material.Filled.OpenInNew" />@(OpenLabel ?? "Open window")
+            @* The word in a span of its own, so a narrow snippet can fold the key to its symbol
+               (desk.css, @container snippet) and keep the word as the key's accessible name; the
+               title says it to the pointer once the word is out of sight. *@
+            <button type="button" class="snippet__open" title="@OpenText" @onclick="OnOpen" @onclick:stopPropagation="true">
+                <Glyph Icon="@Icons.Material.Filled.OpenInNew" /><span class="snippet__open-word">@OpenText</span>
             </button>
         }
     </div>
@@ -59,8 +62,13 @@
 
     [Parameter] public string? OpenLabel { get; set; }
 
-    /// <summary>Null hides the escape, for a snippet that is complete on the row.</summary>
-    [Parameter] public Func<Task>? OnOpen { get; set; }
+    /// <summary>
+    /// No delegate hides the escape, for a snippet that is complete on the row. A callback, so
+    /// the host that owns it is drawn after it (see <c>RowAction.OpenWindow</c>).
+    /// </summary>
+    [Parameter] public EventCallback OnOpen { get; set; }
+
+    private string OpenText => OpenLabel ?? "Open window";
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

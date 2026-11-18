@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<LineOpsDbContext> DbFactory
 @inject ILogger<MarketMovement> Logger
+@inject LineOps.Core.Contracts.IDataTier Tier
 
 @*
     One market opened in place, under its row in the Game window: what the Line movement window
@@ -118,6 +119,13 @@
 
     [Parameter, EditorRequired] public string SecondSide { get; set; } = string.Empty;
 
+    /// <summary>The game's sport key and the two clubs' abbreviations, for their crests; none on a total.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    [Parameter] public string? FirstAbbrev { get; set; }
+
+    [Parameter] public string? SecondAbbrev { get; set; }
+
     /// <summary>Whether the row's prices are closes: the game has started and the scans are gone.</summary>
     [Parameter] public bool Closing { get; set; }
 
@@ -173,7 +181,8 @@
         {
             await using var db = await DbFactory.CreateDbContextAsync();
 
-            _snapshots = await db.OddsSnapshots.AsNoTracking()
+            // Scans keep to the tier (ADR 0024): an evaluation feed's moves are the operator's.
+            _snapshots = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier)).AsNoTracking()
                 .Where(s => s.GameId == GameId && s.Market == Market)
                 .OrderBy(s => s.CapturedAt)
                 .ToListAsync();
@@ -237,8 +246,9 @@
                 <thead>
                     <tr>
                         <th>@(Closing ? "Close" : "Book")</th>
-                        <th class="r">@FirstSide</th>
-                        <th class="r">@SecondSide</th>
+                        @* Each club's column is headed by its crest and nickname; Over and Under are words. *@
+                        <th class="r"><TeamMark Sport="@Sport" Abbrev="@FirstAbbrev" />@FirstSide</th>
+                        <th class="r"><TeamMark Sport="@Sport" Abbrev="@SecondAbbrev" />@SecondSide</th>
                     </tr>
                 </thead>
                 <tbody>

@@ -43,9 +43,19 @@ public sealed record RowAction
 
     /// <summary>
     /// The escape to a full view. Rendered by <c>SnippetShell</c> when there is a snippet, and
-    /// invoked immediately on press when there is not.
+    /// invoked immediately on press when there is not. Default (no delegate) for an action with
+    /// nowhere further to go.
+    ///
+    /// <para>
+    /// An <see cref="EventCallback"/>, made by the host with <c>EventCallback.Factory.Create(this,
+    /// …)</c>, not a plain delegate: the press is the strip's event, and a delegate run from it
+    /// redrew only the strip. A command that changes its host's own state — a take opened under
+    /// the row, a key marked busy — then showed nothing until something else redrew the host, and
+    /// the key read as dead. The callback carries its owner, so the host is drawn after every
+    /// command, as it is after any event of its own.
+    /// </para>
     /// </summary>
-    public Func<Task>? OpenWindow { get; init; }
+    public EventCallback OpenWindow { get; init; }
 
     /// <summary>
     /// The work this command started is still running: its key shimmers and takes no further

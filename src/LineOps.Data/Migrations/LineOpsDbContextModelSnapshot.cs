@@ -74,6 +74,11 @@ namespace LineOps.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
                     b.Property<string>("Value")
                         .IsRequired()
                         .HasMaxLength(1024)
@@ -281,6 +286,37 @@ namespace LineOps.Data.Migrations
                     b.HasIndex("SourceId");
 
                     b.ToTable("ClosingLineMisses");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.DataTransfer", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("AtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Detail")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Machine")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AtUtc");
+
+                    b.ToTable("DataTransfers");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.FighterProfile", b =>
@@ -781,6 +817,48 @@ namespace LineOps.Data.Migrations
                     b.ToTable("IngestionRuns");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.JournalAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("After")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("AtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Entity")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("EntrySyncId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Machine")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntrySyncId", "AtUtc");
+
+                    b.ToTable("JournalAudit", (string)null);
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.JournalEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -874,6 +952,16 @@ namespace LineOps.Data.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<Guid>("SyncId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
                     b.HasKey("Id");
 
                     b.HasIndex("GameId");
@@ -884,7 +972,29 @@ namespace LineOps.Data.Migrations
 
                     b.HasIndex("PlayerId");
 
+                    b.HasIndex("SyncId")
+                        .IsUnique();
+
                     b.ToTable("JournalEntries");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.JournalTombstone", b =>
+                {
+                    b.Property<Guid>("SyncId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("SyncId");
+
+                    b.ToTable("JournalTombstones");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.KpiDaily", b =>
@@ -1017,6 +1127,11 @@ namespace LineOps.Data.Migrations
                     b.Property<decimal>("Stake")
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
 
                     b.HasKey("Id");
 
