@@ -66,6 +66,49 @@ public class DeskChartTests : DeskTestContext
     }
 
     /// <summary>
+    /// A value axis is a handful of round figures, not a ruler. MudBlazor's default allows
+    /// twenty ticks, and the Performance window's cumulative profit drew twenty labels from
+    /// -320 to 5,760 in a 200px plot, each overlapping the next (HIG audit, 17 November;
+    /// HIG Charting data: few gridlines, labelled sparingly).
+    /// </summary>
+    [Theory]
+    [InlineData(DeskChartKind.Line)]
+    [InlineData(DeskChartKind.Bar)]
+    public void A_value_axis_carries_at_most_six_labels(DeskChartKind kind)
+    {
+        var labels = Enumerable.Range(1, 30).Select(i => $"d{i}").ToArray();
+        List<ChartSeries<double>> series =
+            [new() { Name = "Profit", Data = Enumerable.Range(0, 30).Select(i => i * 200.0 - 300).ToArray() }];
+
+        var cut = RenderComponent<DeskChart>(p => p
+            .Add(x => x.Series, series)
+            .Add(x => x.Labels, labels)
+            .Add(x => x.Kind, kind)
+            .Add(x => x.Description, "Profit"));
+
+        var figures = cut.FindAll("svg text")
+            .Count(t => double.TryParse(t.TextContent, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.CurrentCulture, out _));
+
+        Assert.InRange(figures, 2, 6);
+    }
+
+    /// <summary>
+    /// The step is a round figure taken from the data's own range — 1, 2 or 5 times a power of
+    /// ten — rather than MudBlazor's twenty doubled until it fits, which labelled a profit
+    /// curve topping out near 5,800 at -2,560, 0, 2,560, 5,120 and 7,680.
+    /// </summary>
+    [Theory]
+    [InlineData(-300, 5760, 2000)]
+    [InlineData(0, 120, 50)]
+    [InlineData(-14, 12, 10)]
+    [InlineData(0, 3, 1)]
+    public void The_value_step_is_a_round_figure_from_the_range(double min, double max, int step)
+    {
+        Assert.Equal(step, DeskChart.RoundStep(min, max));
+    }
+
+    /// <summary>
     /// What <c>.deskchart--alternate</c> in mud-bridge.css stands on. MudBlazor 9.7 has no
     /// per-series dash — <c>ChartSeries</c> is a name and data, and its per-series line
     /// overrides reach interpolation, fill and opacity only — so the dashed second channel

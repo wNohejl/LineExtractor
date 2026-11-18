@@ -550,9 +550,11 @@ html, body {
     align-items: center;
     gap: var(--space-1);
     /* Shrinks only by the notice's sentence, the one thing in it that can give; every key
-       keeps its size. The large factor makes it give before the window strip does (.bar). */
+       keeps its size. The large factor makes it give before the window strip does (.bar).
+       Its floor is the automatic one — its keys, the sentence having none — so once the
+       sentence is gone the strip gives way rather than the cluster spilling its keys and the
+       count past the header's edge. */
     flex: 0 50 auto;
-    min-width: 0;
 }
 
 .hdr__brand {
@@ -1010,13 +1012,15 @@ html, body {
    the HIG keeps a bottom bar for status that is never critical, and a window vanishing is
    the one thing on the desk that must be seen. One line in the warning wash, which is its
    whole grouping — an edge as well would frame the keys inside it. The sentence gives way
-   first and keeps its whole self as the title; the keys never do. */
+   first and keeps its whole self as the title; the keys never do. So the notice's own floor
+   is its automatic one — the icon and the two keys, the sentence having none — and not 0,
+   which let it shrink under its keys at a 1024px window until "Reopen …" ran over the count
+   beside it (HIG audit, 17 November). */
 .hdr__notice {
     display: flex;
     align-items: center;
     gap: var(--space-1);
     flex: 0 1 auto;
-    min-width: 0;
     max-width: 420px;
     padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
     background: var(--state-warning-wash);
@@ -1027,12 +1031,18 @@ html, body {
 
 .hdr__notice svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
+/* One line, clamped, but allowed to wrap between words: an unwrappable sentence counts its
+   whole length as the least it can take, which became the tools cluster's floor and folded
+   the window strip to chevrons. Wrapping lets its least be one word ("Closed…"), and the
+   clamp keeps it to the line. */
 .hdr__notice-text {
     flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
 }
 
 /* The way back, said where the closing is. A plain key: its semibold words on the wash say

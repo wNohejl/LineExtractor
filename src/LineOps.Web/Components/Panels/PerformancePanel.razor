@@ -375,9 +375,23 @@ else
         // on every render of the panel.
         _bankrollSeries = [new ChartSeries<double> { Name = _startingBankroll > 0 ? "Bankroll" : "Profit", Data = _bankroll }];
 
+        // About six dates along the axis, and never the same date twice: a day with several
+        // settlements put "Nov 9" under three ticks in a row (HIG audit, 17 November).
         var stride = Math.Max(1, curve.Count / 6);
+        string? lastDay = null;
         _labels = curve
-            .Select((p, i) => i % stride == 0 ? DisplayTime.Day(p.At) : string.Empty)
+            .Select((p, i) =>
+            {
+                if (i % stride != 0)
+                    return string.Empty;
+
+                var day = DisplayTime.Day(p.At);
+                if (day == lastDay)
+                    return string.Empty;
+
+                lastDay = day;
+                return day;
+            })
             .ToArray();
 
         // The span is said in the sentence under the plot as well as on its axis, so the reader

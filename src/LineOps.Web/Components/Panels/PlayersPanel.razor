@@ -16,12 +16,19 @@
     Player window; a player's name now opens that window, and a team's name the Team window —
     this list finds people, and the windows it opens say how they have been going.
 *@
+@* The sport is the picker that folds and the search the field that follows it, in the slots the
+   toolbar folds from: a narrow Players window kept both on the row, which cannot fold content it
+   was not told may leave, and pushed Sync stats past the window's edge (HIG audit, 17 November). *@
 <PanelToolbar Actions="@(Manager.Access.CanOperate ? SyncKey : null)">
-    <ChildContent>
+    <Overflow>
         @* All and the enabled leagues: a fixed set, so a segment, as in the Journal. *@
-        <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
-                    Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
-
+        <div class="ptoolbar__item">
+            <span class="ptoolbar__label" aria-hidden="true">Sport</span>
+            <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                        Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
+        </div>
+    </Overflow>
+    <Search>
         @* Filters as you type, after a pause: two queries per keystroke was a query storm for
            anyone typing a whole name. A player's team works too — "judge nyy" — which the field's
            accessible name says, since a placeholder is too short to.
@@ -30,8 +37,7 @@
            Value="_search" handed it the literal text "_search", and the empty field showed it. *@
         <DeskSearch Placeholder="Search players" Label="Search players by name or team"
                     Value="@_search" ValueChanged="OnSearchChanged" />
-    </ChildContent>
-
+    </Search>
 </PanelToolbar>
 
 @if (_syncError is not null)
