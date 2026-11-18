@@ -937,6 +937,12 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                     if (playerId is null || fullName is null)
                         continue;
 
+                    // ESPN lists the club itself among some groups' athletes (team fumbles and
+                    // the like) under a negative id and the name " Team". That is not a person,
+                    // and taking it as one put a "Team" on a roster with a stat line.
+                    if (playerId.StartsWith('-'))
+                        continue;
+
                     var position = a.TryGetProperty("position", out var pos)
                                    && pos.TryGetProperty("abbreviation", out var pa)
                         ? pa.GetString()
