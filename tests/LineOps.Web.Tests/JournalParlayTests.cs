@@ -279,8 +279,15 @@ public class JournalParlayTests : WagerTestContext
         foreach (var game in games)
             nextWeek.Legs.Add(new JournalEntry
             {
-                Id = id++, GameId = game.Id, Game = game, Market = Markets.Moneyline, Outcome = game.HomeTeam!.Name,
-                PriceTaken = -110, Book = "fanduel", PlacedAt = nextWeek.PlacedAt, ParlayGroupId = nextWeek.Id
+                Id = id++,
+                GameId = game.Id,
+                Game = game,
+                Market = Markets.Moneyline,
+                Outcome = game.HomeTeam!.Name,
+                PriceTaken = -110,
+                Book = "fanduel",
+                PlacedAt = nextWeek.PlacedAt,
+                ParlayGroupId = nextWeek.Id
             });
 
         var (cut, _) = Render(yesterday, nextWeek);   // read in placement order

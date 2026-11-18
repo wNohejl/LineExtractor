@@ -59,13 +59,19 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
 
         var market = new Source
         {
-            Key = $"tier2-market-{suffix}", Name = "Market", Kind = SourceKind.Odds,
-            BaseUrl = "local://market", Licence = SourceLicence.Displayable
+            Key = $"tier2-market-{suffix}",
+            Name = "Market",
+            Kind = SourceKind.Odds,
+            BaseUrl = "local://market",
+            Licence = SourceLicence.Displayable
         };
         var espn = new Source
         {
-            Key = $"tier2-espn-{suffix}", Name = "Stats", Kind = SourceKind.Stats,
-            BaseUrl = "local://stats", Licence = SourceLicence.PersonalUse
+            Key = $"tier2-espn-{suffix}",
+            Name = "Stats",
+            Kind = SourceKind.Stats,
+            BaseUrl = "local://stats",
+            Licence = SourceLicence.PersonalUse
         };
         db.Sources.AddRange(market, espn);
         await db.SaveChangesAsync();
@@ -120,8 +126,14 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
 
         db.GameDrives.Add(new GameDrive
         {
-            GameId = s.Game.Id, SourceId = s.Espn.Id, SourceDriveId = "d1", Sequence = 1,
-            TeamId = s.Away.Id, Result = "TD", IsScore = true, UpdatedAt = DateTimeOffset.UtcNow
+            GameId = s.Game.Id,
+            SourceId = s.Espn.Id,
+            SourceDriveId = "d1",
+            Sequence = 1,
+            TeamId = s.Away.Id,
+            Result = "TD",
+            IsScore = true,
+            UpdatedAt = DateTimeOffset.UtcNow
         });
         db.GamePlays.AddRange(
             Play(s, 1001, scoring: false),
@@ -269,10 +281,22 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
         s.Game.Status = GameStatus.Final;
         db.Bouts.Add(new Bout
         {
-            GameId = s.Game.Id, EventId = "600041234", EventName = "UFC 300: Pereira vs. Hill",
-            EventShortName = "UFC 300", CardSegment = "Main Card", MatchNumber = 1, WeightClass = "Light Heavyweight",
-            ScheduledRounds = 5, TitleFight = true, HomeRecord = "9-2-0", AwayRecord = "12-1-0",
-            Outcome = BoutOutcome.Win, Method = "KO/TKO", MethodDetail = "Punch", EndRound = 1, EndSeconds = 194
+            GameId = s.Game.Id,
+            EventId = "600041234",
+            EventName = "UFC 300: Pereira vs. Hill",
+            EventShortName = "UFC 300",
+            CardSegment = "Main Card",
+            MatchNumber = 1,
+            WeightClass = "Light Heavyweight",
+            ScheduledRounds = 5,
+            TitleFight = true,
+            HomeRecord = "9-2-0",
+            AwayRecord = "12-1-0",
+            Outcome = BoutOutcome.Win,
+            Method = "KO/TKO",
+            MethodDetail = "Punch",
+            EndRound = 1,
+            EndSeconds = 194
         });
         db.FighterProfiles.AddRange(
             new FighterProfile { TeamId = s.Home.Id, Nickname = "Poatan", Stance = "Orthodox", Record = "9-2-0", RefreshedAt = DateTimeOffset.UtcNow },
@@ -347,8 +371,12 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
 
         Game Played(int daysAgo) => new()
         {
-            SportId = s.Sport.Id, HomeTeamId = s.Home.Id, AwayTeamId = s.Away.Id,
-            StartsAt = now.AddDays(-daysAgo), Status = GameStatus.Final, SeasonYear = 2026
+            SportId = s.Sport.Id,
+            HomeTeamId = s.Home.Id,
+            AwayTeamId = s.Away.Id,
+            StartsAt = now.AddDays(-daysAgo),
+            Status = GameStatus.Final,
+            SeasonYear = 2026
         };
 
         var weekTwo = Played(50);
@@ -358,13 +386,20 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
         var suffix = s.Home.Name[^8..];
         var murray = new Player
         {
-            SportId = s.Sport.Id, TeamId = s.Home.Id, FullName = $"Kyler Murray {suffix}",
-            InjuryStatus = "Out", InjuryNote = "Ruled out.", InjuryUpdatedAt = now.AddHours(-2)
+            SportId = s.Sport.Id,
+            TeamId = s.Home.Id,
+            FullName = $"Kyler Murray {suffix}",
+            InjuryStatus = "Out",
+            InjuryNote = "Ruled out.",
+            InjuryUpdatedAt = now.AddHours(-2)
         };
         var wentz = new Player
         {
-            SportId = s.Sport.Id, TeamId = s.Home.Id, FullName = $"Carson Wentz {suffix}",
-            InjuryStatus = "Active", InjuryUpdatedAt = now.AddHours(-2)
+            SportId = s.Sport.Id,
+            TeamId = s.Home.Id,
+            FullName = $"Carson Wentz {suffix}",
+            InjuryStatus = "Active",
+            InjuryUpdatedAt = now.AddHours(-2)
         };
         db.Players.AddRange(murray, wentz);
         await db.SaveChangesAsync();
@@ -372,8 +407,12 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
         // Lines from the displayable source, so the only personal-use input left is the report.
         PlayerGameStat Passing(Player p, Game g, string catt) => new()
         {
-            PlayerId = p.Id, GameId = g.Id, SourceId = s.Market.Id, TeamId = s.Home.Id,
-            StatLine = $"{{\"C/ATT\":\"{catt}\"}}", CapturedAt = g.StartsAt
+            PlayerId = p.Id,
+            GameId = g.Id,
+            SourceId = s.Market.Id,
+            TeamId = s.Home.Id,
+            StatLine = $"{{\"C/ATT\":\"{catt}\"}}",
+            CapturedAt = g.StartsAt
         };
         db.PlayerGameStats.AddRange(Passing(wentz, weekTwo, "11/20"), Passing(murray, lastWeek, "17/29"));
         await db.SaveChangesAsync();
@@ -410,8 +449,12 @@ public class DataTierRemainingReaderTests(PostgresFixture fixture)
 
         db.PlayerGameStats.Add(new PlayerGameStat
         {
-            PlayerId = zed.Id, GameId = s.Game.Id, SourceId = s.Espn.Id, TeamId = s.Home.Id,
-            StatLine = """{"H":"2"}""", CapturedAt = s.Game.StartsAt
+            PlayerId = zed.Id,
+            GameId = s.Game.Id,
+            SourceId = s.Espn.Id,
+            TeamId = s.Home.Id,
+            StatLine = """{"H":"2"}""",
+            CapturedAt = s.Game.StartsAt
         });
         await db.SaveChangesAsync();
 

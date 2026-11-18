@@ -50,18 +50,27 @@ public class DataTierReaderTests(PostgresFixture fixture)
 
         var market = new Source
         {
-            Key = $"tier-market-{suffix}", Name = "Market", Kind = SourceKind.Odds,
-            BaseUrl = "local://market", Licence = SourceLicence.Displayable
+            Key = $"tier-market-{suffix}",
+            Name = "Market",
+            Kind = SourceKind.Odds,
+            BaseUrl = "local://market",
+            Licence = SourceLicence.Displayable
         };
         var espn = new Source
         {
-            Key = $"tier-espn-{suffix}", Name = "Stats", Kind = SourceKind.Stats,
-            BaseUrl = "local://stats", Licence = SourceLicence.PersonalUse
+            Key = $"tier-espn-{suffix}",
+            Name = "Stats",
+            Kind = SourceKind.Stats,
+            BaseUrl = "local://stats",
+            Licence = SourceLicence.PersonalUse
         };
         var evaluation = new Source
         {
-            Key = $"tier-eval-{suffix}", Name = "Evaluation odds", Kind = SourceKind.Odds,
-            BaseUrl = "local://eval", Licence = SourceLicence.PersonalUse
+            Key = $"tier-eval-{suffix}",
+            Name = "Evaluation odds",
+            Kind = SourceKind.Odds,
+            BaseUrl = "local://eval",
+            Licence = SourceLicence.PersonalUse
         };
         db.Sources.AddRange(market, espn, evaluation);
         await db.SaveChangesAsync();

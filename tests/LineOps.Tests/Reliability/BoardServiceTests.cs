@@ -105,36 +105,55 @@ public class BoardServiceTests(PostgresFixture fixture)
         var now = DateTimeOffset.UtcNow;
         Game Played(int daysAgo) => new()
         {
-            SportId = nfl.Id, HomeTeamId = vikings.Id, AwayTeamId = other.Id,
-            StartsAt = now.AddDays(-daysAgo), Status = GameStatus.Final, SeasonYear = 2026
+            SportId = nfl.Id,
+            HomeTeamId = vikings.Id,
+            AwayTeamId = other.Id,
+            StartsAt = now.AddDays(-daysAgo),
+            Status = GameStatus.Final,
+            SeasonYear = 2026
         };
 
         var weekTwo = Played(50);
         var lastWeek = Played(8);
         var tonight = new Game
         {
-            SportId = nfl.Id, HomeTeamId = vikings.Id, AwayTeamId = bills.Id,
-            StartsAt = now.AddHours(4), Status = GameStatus.Scheduled, SeasonYear = 2026
+            SportId = nfl.Id,
+            HomeTeamId = vikings.Id,
+            AwayTeamId = bills.Id,
+            StartsAt = now.AddHours(4),
+            Status = GameStatus.Scheduled,
+            SeasonYear = 2026
         };
         db.Games.AddRange(weekTwo, lastWeek, tonight);
 
         var murray = new Player
         {
-            SportId = nfl.Id, TeamId = vikings.Id, FullName = $"Kyler Murray {suffix}",
-            InjuryStatus = "Out", InjuryNote = "Murray (hamstring) has been ruled out.", InjuryUpdatedAt = now.AddHours(-2)
+            SportId = nfl.Id,
+            TeamId = vikings.Id,
+            FullName = $"Kyler Murray {suffix}",
+            InjuryStatus = "Out",
+            InjuryNote = "Murray (hamstring) has been ruled out.",
+            InjuryUpdatedAt = now.AddHours(-2)
         };
         var wentz = new Player
         {
-            SportId = nfl.Id, TeamId = vikings.Id, FullName = $"Carson Wentz {suffix}",
-            InjuryStatus = "Active", InjuryUpdatedAt = now.AddHours(-2)
+            SportId = nfl.Id,
+            TeamId = vikings.Id,
+            FullName = $"Carson Wentz {suffix}",
+            InjuryStatus = "Active",
+            InjuryUpdatedAt = now.AddHours(-2)
         };
         db.Players.AddRange(murray, wentz);
         await db.SaveChangesAsync();
 
         PlayerGameStat Passing(Player p, Game g, string catt) => new()
         {
-            PlayerId = p.Id, GameId = g.Id, SourceId = source.Id, TeamId = vikings.Id,
-            StatLine = $"{{\"C/ATT\":\"{catt}\"}}", CapturedAt = g.StartsAt
+            PlayerId = p.Id,
+            GameId = g.Id,
+            SourceId = source.Id,
+            TeamId = vikings.Id,
+            StatLine = $"{{\"C/ATT\":\"{catt}\"}}",
+            CapturedAt = g.StartsAt
         };
 
         db.PlayerGameStats.AddRange(

@@ -112,8 +112,16 @@ public class JournalTransfer(LineOpsDbContext db)
             Entries = entries.Select(ToFile).ToList(),
             Parlays = parlays.Select(p => new JournalFileParlay
             {
-                Id = p.Id, UpdatedAtUtc = p.UpdatedAtUtc, Book = p.Book, Stake = p.Stake, PriceQuoted = p.PriceQuoted,
-                PlacedAt = p.PlacedAt, Result = p.Result, Payout = p.Payout, SettledAt = p.SettledAt, Note = p.Note
+                Id = p.Id,
+                UpdatedAtUtc = p.UpdatedAtUtc,
+                Book = p.Book,
+                Stake = p.Stake,
+                PriceQuoted = p.PriceQuoted,
+                PlacedAt = p.PlacedAt,
+                Result = p.Result,
+                Payout = p.Payout,
+                SettledAt = p.SettledAt,
+                Note = p.Note
             }).ToList(),
             Tombstones = tombstones.Select(t => new JournalFileTombstone(t.SyncId, t.Kind, t.DeletedAtUtc)).ToList(),
             Settings = settings.Where(s => !JournalFile.MachineSettings.Contains(s.Key))

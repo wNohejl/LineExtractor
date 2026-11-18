@@ -68,15 +68,25 @@ public class JournalTransferTests(PostgresFixture fixture)
         for (var i = 0; i < fillers; i++)
             db.Games.Add(new Game
             {
-                SportId = sport.Id, HomeTeamId = ravens.Id, AwayTeamId = bills.Id, SeasonYear = 2024,
-                StartsAt = Kickoff.AddDays(-400 - i), ExternalIds = new() { ["espn"] = $"filler-{i}" }
+                SportId = sport.Id,
+                HomeTeamId = ravens.Id,
+                AwayTeamId = bills.Id,
+                SeasonYear = 2024,
+                StartsAt = Kickoff.AddDays(-400 - i),
+                ExternalIds = new() { ["espn"] = $"filler-{i}" }
             });
         await db.SaveChangesAsync();
 
         var game = new Game
         {
-            SportId = sport.Id, HomeTeamId = bills.Id, AwayTeamId = ravens.Id, SeasonYear = 2025,
-            StartsAt = startsAt ?? Kickoff, Status = GameStatus.Final, HomeScore = 41, AwayScore = 40,
+            SportId = sport.Id,
+            HomeTeamId = bills.Id,
+            AwayTeamId = ravens.Id,
+            SeasonYear = 2025,
+            StartsAt = startsAt ?? Kickoff,
+            Status = GameStatus.Final,
+            HomeScore = 41,
+            AwayScore = 40,
             ExternalIds = espnId is null ? new() : new() { ["espn"] = espnId }
         };
         db.Games.Add(game);
