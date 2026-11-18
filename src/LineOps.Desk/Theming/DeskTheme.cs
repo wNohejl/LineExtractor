@@ -39,8 +39,8 @@ public static class DeskTheme
     public const string TextTertiary = "rgba(255, 255, 255, .30)";
 
     // One accent. Interactivity, focus, selection — nothing else.
-    public const string Accent = "#0A84FF";
-    public const string AccentHover = "#3D9BFF";
+    public const string Accent = "#086FD7";
+    public const string AccentHover = "#0973DE";
     public const string OnAccent = "#FFFFFF";
 
     // Semantic state. Apple's dark-mode system colours, applied where a state
@@ -92,8 +92,8 @@ public static class DeskTheme
 
     // systemBlue, light. Hover deepens rather than lightens: against white, a blue
     // that lightens under the pointer reads as fading rather than as answering.
-    public const string LightAccent = "#007AFF";
-    public const string LightAccentHover = "#0071E3";
+    public const string LightAccent = "#0071EB";
+    public const string LightAccentHover = "#006ADE";
     public const string LightOnAccent = "#FFFFFF";
 
     public const string LightStatePositive = "#34C759";
@@ -102,9 +102,9 @@ public static class DeskTheme
 
     // Apple's increased-contrast values: the light fills measure 2.2 to 3.6:1 as text on
     // white, these 4.54 to 4.56. The accent ink is --accent-press, 5.80:1.
-    public const string LightStatePositiveInk = "#008932";
-    public const string LightStateWarningInk = "#C55300";
-    public const string LightStateNegativeInk = "#E9152D";
+    public const string LightStatePositiveInk = "#00762B";
+    public const string LightStateWarningInk = "#AA4800";
+    public const string LightStateNegativeInk = "#CA1227";
     public const string LightAccentInk = "#0062CC";
 
     public const string LightSeparator = "rgba(0, 0, 0, .10)";

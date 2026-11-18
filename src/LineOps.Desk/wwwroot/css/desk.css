@@ -46,11 +46,11 @@
     /* --- Accent -------------------------------------------------------------
        One accent, systemBlue. Interactivity, focus, and selection — nothing
        else. A second accent is how an interface stops meaning anything. */
-    --accent: #0A84FF;
-    --accent-hover: #3D9BFF;
-    --accent-press: #0871DB;
-    --accent-wash: rgba(10, 132, 255, .15);
-    --accent-wash-strong: rgba(10, 132, 255, .24);
+    --accent: #086FD7;
+    --accent-hover: #0973DE;
+    --accent-press: #0866C6;
+    --accent-wash: rgba(8, 111, 215, .15);
+    --accent-wash-strong: rgba(8, 111, 215, .24);
     --on-accent: #FFFFFF;
 
     /* --- Semantic state -----------------------------------------------------
@@ -303,15 +303,15 @@
        page a blue that lightens under the pointer reads as fading, so here both
        states deepen. The names still mean "more prominent" — the direction that
        delivers it is a property of the ground, not of the token. */
-    --accent: #007AFF;
-    --accent-hover: #0071E3;
-    --accent-press: #0062CC;
+    --accent: #0071EB;
+    --accent-hover: #006ADE;
+    --accent-press: #0063CE;
 
     /* Washes are lighter than the dark desk's: a tint over white composites to a
        far more saturated result than the same tint over near-black, so holding
        .15 would have made "selected" shout. */
-    --accent-wash: rgba(0, 122, 255, .12);
-    --accent-wash-strong: rgba(0, 122, 255, .20);
+    --accent-wash: rgba(0, 113, 235, .12);
+    --accent-wash-strong: rgba(0, 113, 235, .20);
 
     /* Unchanged, and not by accident: this is the ink for any saturated fill, and
        a filled systemBlue button is exactly as saturated in either theme. */
@@ -333,9 +333,9 @@
     /* Ink. Apple's light fills read as areas and fail as words: green 2.22:1,
        orange 2.20, red 3.55 and blue 4.02 on white. The inks are Apple's
        increased-contrast values, and the accent ink is --accent-press. */
-    --state-positive-ink: #008932; /* 4.54:1 */
-    --state-warning-ink: #C55300; /* 4.55:1 */
-    --state-negative-ink: #E9152D; /* 4.56:1 */
+    --state-positive-ink: #00762B; /* 4.61:1 raised, more on the panel */
+    --state-warning-ink: #AA4800; /* 4.60:1 raised, more on the panel */
+    --state-negative-ink: #CA1227; /* 4.61:1 raised, more on the panel */
     --accent-ink: #0062CC; /* 5.80:1 */
 
     /* --- Chart neutrals -----------------------------------------------------
@@ -515,12 +515,26 @@ html, body {
        measure the window below uses, so the chrome agrees with itself. */
     height: calc(var(--titlebar-h) + var(--space-4));
     padding: 0 var(--space-3);
-    background: var(--material-thin);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
+    position: relative;
     border-bottom: 1px solid var(--separator);
     flex: 0 0 auto;
     z-index: var(--z-chrome);
+}
+
+/* The header's material is a layer under its contents, not the header itself. An
+   element with a backdrop-filter is a backdrop root: a group drawer hanging from the
+   header could blur only what lay inside the header, so below the header's edge it
+   showed the window behind it sharp through its 14% (HIG audit, 17 November). With
+   the blur on this layer, the drawer's own material samples the desk under it. */
+.hdr::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--material-thin);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
 }
 
 /* The header's own controls, as one cluster: the plate slides between them
@@ -967,8 +981,15 @@ html, body {
 
    Thresholds are container widths, so they hold whatever the viewport does. */
 @container bar (max-width: 700px) {
-    .bar__group-name { display: none; }
     .bar__group { padding: 0 var(--space-1); }
+}
+
+/* A group drawer has no icon: its name is its only visible label, so it stays
+   until the strip truly cannot hold four short words. At 700px an empty desk,
+   whose header still carries its subtitle, showed four bare chevrons that could
+   not be told apart (HIG audit, 17 November). */
+@container bar (max-width: 380px) {
+    .bar__group-name { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1824,8 +1845,10 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     visibility: hidden;
 }
 
+/* Shown while the divider is moving — a drag, or a beat after each split key (windowing.js) —
+   never merely because it has focus: at rest the pills would sit over the neighbours' text. */
 .divider--active .divider__readout,
-.divider:focus-visible .divider__readout { visibility: visible; }
+.divider--keyed .divider__readout { visibility: visible; }
 
 .divider__width {
     position: absolute;
@@ -4212,6 +4235,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    the bridge's single-class .mud-dialog, which source order alone would not do. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .hdr, .ftr { background: var(--surface-2); }
+    .hdr::before { background: none; }
     .bar__menu .bar__menu-panel { background: var(--surface-1); }
     .palette__panel { background: var(--surface-2); }
     .deskdialog { background: var(--surface-2); }
@@ -4236,8 +4260,9 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .palette__panel { background: var(--surface-2); }
     .deskdialog { background: var(--surface-2); }
     .mud-dialog.desk-sheet { background: var(--surface-2); }
+    .hdr::before { background: none; }
 
-    .hdr, .ftr, .bar__menu .bar__menu-panel, .palette__panel,
+    .hdr, .hdr::before, .ftr, .bar__menu .bar__menu-panel, .palette__panel,
     .deskdialog, .mud-dialog.desk-sheet {
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
@@ -4250,6 +4275,12 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 [data-reduced-transparency="true"] .deskdialog,
 [data-reduced-transparency="true"] .mud-dialog.desk-sheet {
     background: var(--surface-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+[data-reduced-transparency="true"] .hdr::before {
+    background: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }

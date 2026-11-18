@@ -188,7 +188,27 @@ export function detachDivider(handle) {
 const SPLIT_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 function holdSplitKeys(e) {
-    if (SPLIT_KEYS.has(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) e.preventDefault();
+    if (!SPLIT_KEYS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    showReadoutBriefly(e.currentTarget);
+}
+
+// The readout floats over both columns' edges, so it is shown while the divider is being moved —
+// for as long as a drag holds it, and for a beat after each key — not for as long as focus rests
+// there: a focused divider kept the pills over the neighbouring window's text indefinitely (HIG
+// audit, 17 November). The lit seam says "focused"; the divider's value says the widths aloud.
+const READOUT_LINGER_MS = 1200;
+
+function showReadoutBriefly(handle) {
+    handle.classList.add('divider--keyed');
+    clearTimeout(handle.__deskReadoutTimer);
+    handle.__deskReadoutTimer = setTimeout(() => handle.classList.remove('divider--keyed'), READOUT_LINGER_MS);
+    handle.addEventListener('blur', hideReadout, { once: true });
+}
+
+function hideReadout(e) {
+    clearTimeout(e.currentTarget.__deskReadoutTimer);
+    e.currentTarget.classList.remove('divider--keyed');
 }
 
 // The readout's two figures, written as the drag goes. The server draws them too, on every

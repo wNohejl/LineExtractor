@@ -91,6 +91,102 @@ public class ThemeContrastTests
     }
 
     /// <summary>
+    /// A Filled key is a label on the accent, at rest, under the pointer and while pressed, so
+    /// --on-accent is held to 4.5:1 over --accent, --accent-hover and --accent-press in every
+    /// block, the chosen accents included (they inherit the Standard block's --on-accent). Apple's
+    /// own blue measured 4.02:1 under white on the light desk and 3.65:1 on the dark one (HIG
+    /// audit, 17 November); the fills were deepened rather than the label changed.
+    /// </summary>
+    [Fact]
+    public void A_filled_key_label_passes_over_every_accent_fill()
+    {
+        var failures = new List<string>();
+        string[] fills = ["--accent", "--accent-hover", "--accent-press"];
+        var labels = new Dictionary<string, string>();
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var label = Require(tokens, "--on-accent", name, failures);
+            if (label is null)
+                continue;
+            labels[name] = label;
+
+            foreach (var fill in fills)
+            {
+                var value = Require(tokens, fill, name, failures);
+                if (value is null)
+                    continue;
+
+                var ratio = Contrast(label, value);
+                if (ratio < 4.5)
+                    failures.Add($"{name} --on-accent {label} measures {ratio:F2}:1 over {fill} {value}");
+            }
+        }
+
+        foreach (var (theme, accent, tokens) in AccentBlocks())
+        {
+            if (!labels.TryGetValue(theme, out var label))
+                continue;
+
+            foreach (var fill in fills)
+            {
+                if (!tokens.TryGetValue(fill, out var value))
+                    continue;
+
+                var ratio = Contrast(label, value);
+                if (ratio < 4.5)
+                    failures.Add($"{theme} {accent} --on-accent {label} measures {ratio:F2}:1 over {fill} {value}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// An ink is read on the raised surface as often as on the panel: a metric tile, a title bar,
+    /// a raised row and a resting control are all --surface-2. The light desk's first inks were
+    /// tuned to 4.5:1 on white and measured 3.6:1 on the tiles (HIG audit, 17 November), so every
+    /// ink — the three states and the accent, the chosen accents included — is held over both.
+    /// </summary>
+    [Fact]
+    public void Every_ink_also_passes_over_the_raised_surface()
+    {
+        var failures = new List<string>();
+        var raised = new Dictionary<string, string>();
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var surface = Require(tokens, "--surface-2", name, failures);
+            if (surface is null)
+                continue;
+            raised[name] = surface;
+
+            foreach (var ink in StateInks.Append("--accent-ink"))
+            {
+                var value = Require(tokens, ink, name, failures);
+                if (value is null)
+                    continue;
+
+                var ratio = Contrast(value, surface);
+                if (ratio < 4.5)
+                    failures.Add($"{name} {ink} {value} measures {ratio:F2}:1 over {surface}");
+            }
+        }
+
+        foreach (var (theme, accent, tokens) in AccentBlocks())
+        {
+            if (!tokens.TryGetValue("--accent-ink", out var ink) || !raised.TryGetValue(theme, out var surface))
+                continue;
+
+            var ratio = Contrast(ink, surface);
+            if (ratio < 4.5)
+                failures.Add($"{theme} {accent} --accent-ink {ink} measures {ratio:F2}:1 over {surface}");
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
     /// The Standard desk's chosen accents carry inks of their own, and each is held to the same
     /// 4.5:1 over the Standard panel it sits on — apple-dark's or apple-light's --surface-1, since
     /// an accent block redeclares the accent and nothing under it. The pale hues are why this
