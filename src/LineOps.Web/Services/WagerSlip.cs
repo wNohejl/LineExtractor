@@ -33,6 +33,23 @@ public sealed record SlipItem(
     /// </summary>
     public bool AsLeg { get; init; }
 
+    /// <summary>
+    /// The abbreviation of the club this wager backs, for its crest on the card: set where the
+    /// outcome names one of the game's two clubs, null for a total, a fight or a free-text side.
+    /// </summary>
+    public string? OutcomeAbbrev { get; init; }
+
+    /// <summary>The club <paramref name="outcome"/> names in <paramref name="game"/>, by abbreviation, or null.</summary>
+    public static string? ClubAbbrev(LineOps.Core.Entities.Game game, string outcome)
+    {
+        if (FightSports.IsFight(game.Sport?.Key))
+            return null;
+
+        return string.Equals(outcome, game.AwayTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.AwayTeam?.Abbrev
+            : string.Equals(outcome, game.HomeTeam?.Name, StringComparison.OrdinalIgnoreCase) ? game.HomeTeam?.Abbrev
+            : null;
+    }
+
     public EntryDraft ToDraft(decimal stake)
         => new(GameId, Market, null, Outcome, Line, PriceAmerican, stake, Book, Note, ManualPrice);
 }

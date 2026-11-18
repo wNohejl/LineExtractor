@@ -86,5 +86,8 @@ public sealed record WagerOffer(
     public SlipItem ToSlipItem(Game game, string matchup, decimal stake, string? note)
         => new(Guid.Empty, game.Id, matchup, game.StartsAt, game.Sport?.Key ?? string.Empty,
             Market, Outcome, Line, Book, PriceAmerican, CapturedAt, IsClosing, stake,
-            string.IsNullOrWhiteSpace(note) ? null : note, Fair, Ev, Manual);
+            string.IsNullOrWhiteSpace(note) ? null : note, Fair, Ev, Manual)
+        {
+            OutcomeAbbrev = SlipItem.ClubAbbrev(game, Outcome),
+        };
 }

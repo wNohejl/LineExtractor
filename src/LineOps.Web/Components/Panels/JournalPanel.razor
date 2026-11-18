@@ -1076,7 +1076,10 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
                 leg.Market, leg.Outcome, leg.LineTaken,
                 parlay.Book, leg.PriceTaken, leg.PlacedAt, IsClosing: false,
                 Stake: 0m, Note: null, Fair: null, Ev: null,
-                ManualPrice: true));
+                ManualPrice: true)
+            {
+                OutcomeAbbrev = SlipItem.ClubAbbrev(game, leg.Outcome),
+            });
         }
 
         Slip.SetMode(SlipMode.Parlay);
