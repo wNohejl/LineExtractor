@@ -126,7 +126,7 @@ else
                                     OpenChanged="@((bool open) => SetGame(row.GameId, open))">
                         <Summary>
                             <span class="logrow__date dim">@Day(row.StartsAt)</span>
-                            <span class="logrow__opp trunc">@(row.Home || IsFight ? "vs" : "at") @row.Opponent</span>
+                            <span class="logrow__opp trunc">@(row.Home || IsFight ? "vs" : "at") <TeamMark Sport="@row.SportKey" Abbrev="@row.OpponentAbbrev" />@row.Opponent</span>
 
                             @if (!IsFight)
                             {

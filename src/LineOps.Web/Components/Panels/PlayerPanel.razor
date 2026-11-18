@@ -140,11 +140,11 @@ else
                     </PropertyColumn>
                 }
 
-                <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Opponent" Title="Opponent">
+                <PropertyColumn T="PlayerGameRow" TProperty="string" Property="r => r.Opponent" Title="Opponent" CellClass="logrow__opp">
                     <CellTemplate>
                         <DeskLink Destination="game" Icon="@Icons.Material.Filled.SportsScore"
                                   OnClick="() => OpenGameAsync(context.Item.GameId)">
-                            @(context.Item.Home ? "vs" : "at") @context.Item.Opponent
+                            @(context.Item.Home ? "vs" : "at") <TeamMark Sport="@context.Item.SportKey" Abbrev="@context.Item.OpponentAbbrev" />@context.Item.Opponent
                         </DeskLink>
                     </CellTemplate>
                 </PropertyColumn>

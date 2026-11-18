@@ -162,5 +162,32 @@ public class AppearanceTeamTests(PostgresFixture fixture)
         Assert.Equal(s.Old, last.Team);
         Assert.Equal(s.Third, last.Opponent);
         Assert.False(last.Home);
+
+        // And it carries what the opponent's crest is keyed by: the sport and the opponent's
+        // own abbreviation, not the side the player was on.
+        var third = await db.Teams.SingleAsync(t => t.Name == s.Third);
+        Assert.False(string.IsNullOrEmpty(third.Abbrev));
+        Assert.Equal(s.Sport.Key, last.SportKey);
+        Assert.Equal(third.Abbrev, last.OpponentAbbrev);
+    }
+
+    [Fact]
+    public async Task The_team_log_names_each_opponent_by_its_abbreviation()
+    {
+        await using var db = fixture.CreateContext();
+        var s = await MovedBetweenSeasonsAsync(db);
+        var third = await db.Teams.SingleAsync(t => t.Name == s.Third);
+        var fresh = await db.Teams.SingleAsync(t => t.Name == s.New);
+
+        var log = new GameLogService(db);
+        var rows = await log.TeamGameLogAsync(third.Id, TimeSpan.FromDays(3650));
+
+        // Home to the old club in 2025, away at the new one in 2026: the abbreviation follows
+        // the opponent in each game, whichever side the subject was.
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, r => Assert.Equal(s.Sport.Key, r.SportKey));
+        Assert.Equal(fresh.Abbrev, rows.Single(r => r.Opponent == s.New).OpponentAbbrev);
+        var old = await db.Teams.SingleAsync(t => t.Name == s.Old);
+        Assert.Equal(old.Abbrev, rows.Single(r => r.Opponent == s.Old).OpponentAbbrev);
     }
 }

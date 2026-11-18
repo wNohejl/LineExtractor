@@ -760,6 +760,19 @@
     white-space: nowrap;
 }
 
+/* In a grid, the opponent is a link whose label now holds a crest, which the Desk treats as a
+   label built from elements and clamps until it gives way to nothing ("at ◆ …"). It is a name,
+   so it is held on its line the way the Desk holds a plain-text name: up to the same ceiling,
+   then an ellipsis. */
+.deskgrid .mud-table-body .mud-table-cell.logrow__opp .desklink__label {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    max-width: max(24ch, 40cqw);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .logrow__score { color: var(--text-secondary); min-width: 6ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Which side a price is for. Two prices sit side by side in every market and the
