@@ -78,6 +78,10 @@ public class IngestionScheduler(
     {
         logger.LogInformation("Ingestion scheduler started");
 
+        if (!_options.Espn.Enabled)
+            logger.LogInformation("ESPN is off ({Switch} is false): fixtures and scores come from The Odds API while a key is held, and no box-score pass will run. ESPN is opt-in; see the desk's Ops window",
+                EspnOptIn.Switch);
+
         // Startup fetches the slate, which is free, and never the lines, which are not.
         //
         // This ran the odds job — the single most expensive thing in the catalog — so every
@@ -213,6 +217,26 @@ public class IngestionScheduler(
             }
         }
 
+        // ESPN off: the default stats source (ADR 0026), if a key is held. Its fixtures are free and
+        // keep the schedule as the slate did; its scores are metered, so they run only when the
+        // operator chose automatic scanning, at most once a league a day, never into the reserve —
+        // the job decides each of those (IngestionJobs.RunScoresAsync), this only asks it often
+        // enough to notice a slate that has finished. With ESPN on, none of this runs.
+        if (!_options.Espn.Enabled && _options.GamePasses.Enabled && await HasScheduleSourceAsync(ct))
+        {
+            if (FixturesAreDue(now) || await FixturesAreDueForStartAsync(now, ct))
+            {
+                await RunJobAsync(IngestionJobs.OddsFixtures, ct);
+                _lastFixtures = now;
+            }
+
+            if (Due(_lastScoresCheck, ScoresCheck, now))
+            {
+                _lastScoresCheck = now;
+                await RunJobAsync(IngestionJobs.OddsScores, ct);
+            }
+        }
+
         // Lines are the one thing the scheduler will not fetch on its own initiative unless
         // explicitly told it may. Everything above this line is free; this is not.
         //
@@ -224,6 +248,37 @@ public class IngestionScheduler(
             await ScanLinesAsync(ct);
             _lastLineScan = now;
         }
+    }
+
+    private DateTimeOffset? _lastFixtures;
+    private DateTimeOffset? _lastScoresCheck;
+
+    /// <summary>The fixtures are read at least this often, games starting or not, so a week ahead stays filled.</summary>
+    private static readonly TimeSpan FixtureRefresh = TimeSpan.FromHours(6);
+
+    /// <summary>How often the scores job is asked whether a league is due. Asking costs nothing; the call does.</summary>
+    private static readonly TimeSpan ScoresCheck = TimeSpan.FromMinutes(15);
+
+    /// <summary>Whether a key is held for the default source, asked each time: one typed into the desk counts at once.</summary>
+    private async Task<bool> HasScheduleSourceAsync(CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return scope.ServiceProvider.GetRequiredService<SourceRegistry>().Port == StatsPort.TheOddsApi;
+    }
+
+    private bool FixturesAreDue(DateTimeOffset now) => Due(_lastFixtures, FixtureRefresh, now);
+
+    /// <summary>As the slate: a game starting within the pre-game lead, and not read in the last slate interval.</summary>
+    private async Task<bool> FixturesAreDueForStartAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        if (!Due(_lastFixtures, _options.GamePasses.SlateRefresh, now))
+            return false;
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+        var horizon = now + _options.GamePasses.PreGameLead;
+
+        return await db.Games.AnyAsync(g => g.StartsAt > now && g.StartsAt <= horizon, ct);
     }
 
     private async Task<bool> LinesRunUnattendedAsync(CancellationToken ct)
@@ -343,6 +398,11 @@ public class IngestionScheduler(
 
     private async Task RunJobAsync(string key, CancellationToken ct)
     {
+        // ESPN off (EspnOptIn): its passes are not run at all, rather than run against no source
+        // and logged as empty every tick. Settlement and the lines are not ESPN's and still run.
+        if (!_options.Espn.Enabled && EspnOptIn.IsEspnJob(key))
+            return;
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var jobs = scope.ServiceProvider.GetRequiredService<IngestionJobs>();
 

@@ -69,7 +69,9 @@ notices when a feed silently breaks at 3am and produces a written RCA afterwards
 
 ## Quick start
 
-Clone, add one API key, start Docker. About ten minutes, most of it the first image build.
+Clone, run setup, start Docker, enter your free key in the desk: fixtures and prices appear.
+About ten minutes, most of it the first image build. The default runs on The Odds API alone
+(ADR 0026); ESPN is an optional extra you can turn on for box scores and player stats.
 
 **You need**
 
@@ -79,7 +81,8 @@ Clone, add one API key, start Docker. About ten minutes, most of it the first im
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine with Compose v2), running | Postgres and the desk run in containers |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | `setup.ps1` uses it to make the HTTPS development certificate |
 | PowerShell | built into Windows; on macOS or Linux install [`pwsh`](https://learn.microsoft.com/powershell/scripting/install/installing-powershell) and run the same scripts |
-| A free key from [The Odds API](https://the-odds-api.com/#get-access) | prices. Optional: without one the desk still fills with games, scores and box scores |
+| A free key from [The Odds API](https://the-odds-api.com/#get-access) | the default source: fixtures (free), prices and final scores (credits), 500 credits a month |
+| Optionally, your decision about ESPN | an extra: box scores, player stats, play-by-play, injuries and UFC cards. Off unless you turn it on in step 2 |
 
 **1. Clone, on the development branch.** `main` is the stable branch and trails it; the steps
 below are written for `LineX_Development`.
@@ -92,18 +95,33 @@ git clone -b LineX_Development https://github.com/wNohejl/LineExtractor.git Line
 cd LineOps
 ```
 
-**2. Generate the local secrets.** Writes `.env` (a random database password and certificate
-password; gitignored) and exports the HTTPS development certificate. Safe to run again: it
-leaves an existing `.env` alone.
+**2. Generate the local secrets, and decide about ESPN.** Writes `.env` (a random database
+password and certificate password; gitignored) and exports the HTTPS development certificate.
+Safe to run again: it leaves an existing `.env` alone.
 
 ```powershell
 .\scripts\setup.ps1
 ```
 
+It asks one question first: whether to turn ESPN on. You do not need it: without it the desk
+runs on The Odds API's fixtures and scores. ESPN adds box scores, player stats, play-by-play,
+injuries and UFC cards, read through unofficial, undocumented endpoints; its terms of use license its services for
+personal, non-commercial use and prohibit automated access. Turning it on is your decision, and
+it is for keeping data in your own local database only, never for hosting, redistributing or
+selling it. The answer defaults to No and is written to `.env` as `ESPN_ENABLED`; the MLB Stats
+API follows it. To answer yes without the question (a script, an agent):
+
+```powershell
+.\scripts\setup.ps1 -EnableEspn
+```
+
+A run that cannot ask, and has no `-EnableEspn`, writes `ESPN_ENABLED=false`. Change your mind
+later by editing that line in `.env` and starting the stack again (step 4).
+
 If Windows says running scripts is disabled, bypass the policy for that one run rather than
 changing the machine's: `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1`.
 
-**3. Get a free key and put it in `.env`.** Prices come from **The Odds API**:
+**3. Get a free key.** Fixtures, prices and final scores come from **The Odds API**:
 
 | | |
 |---|---|
@@ -115,7 +133,15 @@ changing the machine's: `powershell -ExecutionPolicy Bypass -File .\scripts\setu
 > own keys. A The Odds API key goes in `THE_ODDS_API_KEY`; put in `ODDS_API_IO_KEY` it is
 > refused with 401.
 
-Set both lines in `.env`. A key does nothing without its switch beside it.
+**The short way: enter it in the desk.** Skip the rest of this step, start the desk (step 4),
+open **Ops → Odds feeds**, paste the key into **The Odds API key** and press **Check and
+save**. The desk asks the provider whether the key is good before keeping it (free, no credit
+spent) and says how many credits are left. No restart: with ESPN off the key is also the stats
+source, and fixtures for the next eight days arrive within a minute. The key is
+kept encrypted on your machine, outside the database, so it is in no snapshot and no export.
+
+**Or in `.env`**, which is also where a separately run Worker reads it. Set both lines; a key
+there does nothing without its switch beside it. A key saved in the desk takes precedence.
 
 ```ini
 THE_ODDS_API_KEY=your-key-here
@@ -129,21 +155,25 @@ Check the key without spending a credit (the sports list is free); it reads the 
 $key = (Select-String .env -Pattern '^THE_ODDS_API_KEY=(.+)$').Matches.Groups[1].Value.Trim(); $r = Invoke-WebRequest "https://api.the-odds-api.com/v4/sports?apiKey=$key" -UseBasicParsing; "status $($r.StatusCode), credits remaining $($r.Headers['x-requests-remaining'])"
 ```
 
-**What a credit buys:** one pull of one league costs a credit per market. `setup.ps1` asks for
-moneyline and spread, so 2 credits a pull; delete the `THE_ODDS_API_TOTALS=` line in `.env` to
-add over/unders at 3. Nothing is pulled unless you press for it.
+**What a credit buys** (the free month is 500, reset on the 1st):
 
-Skip this step to run without prices; add the key later and run step 5's command again.
+| Pull | Cost |
+|---|---|
+| Fixtures (the schedule, eight days ahead) | free; runs by itself |
+| Pull lines — one league | a credit per market: 2 with `setup.ps1`'s moneyline and spread; 3 if you delete the `THE_ODDS_API_TOTALS=` line in `.env` to add over/unders |
+| Pull scores — one league | 2 credits; finals from the last three days |
 
-**4. Load the committed dataset (optional).** The repository carries a snapshot of games, box
-scores and closing lines, so the desk opens with seasons of history instead of an empty
-database. Without it the desk starts empty and fills from ESPN as it runs.
+Nothing that costs a credit runs unless you press for it, or switch **Ops → Scanning** to
+Automatic. On Automatic the scheduler paces lines to the month and pulls each league's scores once
+a night, always keeping 100 credits back for your own pulls. The arithmetic for November, NBA and
+NFL in season, at 2 markets: scores about 4 credits a day (120 a month), leaving 280 for lines,
+about one two-league scan every 10 hours. On request only, pricing and scoring one league once a
+day is 4 credits a day, 120 a month; three leagues so is 360. Ops shows the month's own numbers.
 
-```powershell
-.\scripts\restore-data.ps1
-```
+Skip this step and the desk starts with nothing on it; add the key later in the desk, or in
+`.env` and run step 4's command again.
 
-**5. Start it.**
+**4. Start it.**
 
 ```powershell
 docker compose -f docker-compose.yml -f compose.dev.yml up -d --build
@@ -155,9 +185,26 @@ Open **<https://localhost:9443>**. The browser warns about the certificate until
 `compose.dev.yml` only publishes Postgres on `127.0.0.1:5433`, which the data scripts and a
 host-side `dotnet run` use. Plain `docker compose up -d` runs the desk without it.
 
-**6. Pull prices.** Lines are fetched when you ask, not on a timer (`LinePolling:Mode` is
-`Manual`, so a metered key is never spent unattended). Use **Pull data → Pull lines**
-for a league; it states the cost in credits first. **Ops → Odds feeds** shows whether the key
+**5. Fill the database.** A new desk starts empty; this repository carries no data. With a key,
+the next eight days of fixtures arrive by themselves (free), and **Pull data → Pull scores**
+fetches the last three days' finals for a league (2 credits). The Odds API holds no history before
+that and no box scores. With ESPN on, ESPN is the stats source instead: today's slate arrives by
+itself, and history is a pull — the Board's **Date range** key takes a league and a span of days
+(up to 200), or the same job runs in the worker image:
+
+```powershell
+docker compose run --rm worker --job espn:range --sport nfl --from 2025-09-04 --to 2025-09-30
+```
+
+Both read ESPN only and spend no odds credits. With ESPN off they are refused, and say what The
+Odds API can do instead. With neither ESPN nor a key the board stays empty and **Ops** says to
+enter a key.
+
+**6. Pull prices and scores.** Both are fetched when you ask, not on a timer (`LinePolling:Mode`
+is `Manual`, so a metered key is never spent unattended). Use **Pull data → Pull lines** or
+**Pull scores** for a league: the menu keeps every pull that costs credits under **Costs credits**,
+states the price and what is left, asks before a pull that would dip into the reserve, and does
+not offer one the month cannot cover. **Ops → Odds feeds** shows whether the key
 was accepted and what is left of the month.
 
 **Check it worked**
@@ -180,9 +227,13 @@ docker compose logs -f web                      # ingestion and alert activity
 |---|---|
 | `set POSTGRES_PASSWORD in .env` | Step 2 has not run in this folder. |
 | Port 9443 is taken | Set `HTTPS_PORT` in `.env` and start again. |
-| The board has games but no prices | The key or its `_ENABLED=true` line is missing, or no one has pulled: **Ops → Odds feeds** says which. |
+| The board has games but no prices | No one has pulled lines yet (**Pull data → Pull lines**), or the month is spent: **Ops → Odds feeds** says which. |
+| The board is empty, and Ops says "No stats source" | No key is held and ESPN is off. Enter your key under **Ops → Odds feeds**. |
+| Games stay unfinished | Scores are a pull (2 credits a league) unless Scanning is Automatic. A game more than three days old with no final cannot get one from The Odds API; the scores pull says how many. |
+| UFC is missing or unpriced | UFC needs ESPN: The Odds API keeps no MMA scores, and a fight is priced only against a bout ESPN holds. |
 | The key check answers 401 | A mistyped key, or an odds-api.io key. Get one from <https://the-odds-api.com/#get-access>. |
-| `restore-data.ps1` refuses: the database already holds games | It replaces rather than merges. `-Force` if that is what you want. |
+| No box scores, player logs or play-by-play | Those are ESPN's (`ESPN_ENABLED=false` by default). If you decide to turn it on, set `ESPN_ENABLED=true` in `.env` and run step 4's command again. |
+| `--job espn:range` exits at once: "ESPN is off on this host" | The same switch. The worker reads `.env` too. |
 | `dotnet run` fails with "An Application Control policy has blocked this file" | Windows Smart App Control. Stay on the Docker path above; do not turn it off for this. |
 
 ### Hand it to an agent
@@ -204,8 +255,9 @@ follow it; it is plain Markdown.
 Clone https://github.com/wNohejl/LineExtractor.git into ./LineOps on branch LineX_Development,
 then read LineOps/.claude/skills/lineops-setup/SKILL.md and follow it to get the desk running
 in Docker on this machine. Work inside LineOps. Check prerequisites before installing anything,
-ask me for my The Odds API key (or let me paste it into .env myself), never print .env, and do
-not pull lines or change security settings without asking. Done is docker compose ps healthy
+show me the ESPN notice and ask before turning ESPN on (it is optional), let me enter my The Odds
+API key in the desk myself (or paste it into .env), never print .env, and do not pull lines or
+scores, switch scanning to Automatic, or change security settings without asking. Done is docker compose ps healthy
 and https://localhost:9443/ready answering Healthy: show me both, then give me the URL.
 ```
 
@@ -219,12 +271,16 @@ the way they are.
 
 The web container waits for Postgres to report *healthy* (not merely started, since the app
 migrates on boot), applies migrations, creates the monthly partitions, seeds reference data,
-and runs one ingest at startup so the dashboard has data on first load.
+and, with ESPN on, runs one ingest at startup so the dashboard has data on first load.
 
-**No API keys are needed to start.** ESPN is on by default and needs no authentication, so real
-schedules, scores, box scores and season history flow in for free. Odds are the part that wants
-a key: every provider is a book market behind one, so until a key is supplied there is no odds
-source at all and price cells are empty. **Ops → Odds feeds** names each provider and says why
+**No API keys are needed to start, and one free key is all the default needs.** With ESPN off —
+the default — The Odds API is the stats source as well as the prices (ADR 0026): its fixtures are
+free and refresh on their own, its final scores cost 2 credits a league a pull. ESPN is the opt-in
+extra (Quick start, step 2; `ESPN_ENABLED` in `.env`, or `Ingestion:Espn:Enabled` for a host run):
+on, it is the stats source instead, needs no authentication, and adds box scores, player stats,
+play-by-play, injuries, UFC cards and season history. With neither, nothing is pulled and **Ops**
+says to enter a key. Until a key is supplied there is no odds source at all and price cells are
+empty. **Ops → Odds feeds** names each provider and says why
 it is not running, and the alert rules skip a source that has never run — an unconfigured feed
 is not an outage.
 
@@ -295,6 +351,8 @@ a rounds total is graded on how long the fight lasted.
 
 | Pull | What it gets | Cost |
 |---|---|---|
+| Fixtures | The next eight days' schedule (ESPN off) | The Odds API: free |
+| Pull scores — *league* | Finals from the last three days, then settles (ESPN off) | The Odds API: 2 credits |
 | Today's games | Schedules, start times, live scores | ESPN, unmetered |
 | Games in play | Live scores and state for games under way | ESPN, unmetered |
 | Results owed | Finals and box scores for started games not yet settled | ESPN, unmetered |
@@ -305,6 +363,9 @@ a rounds total is graded on how long the fight lasted.
 | Settle finished games | Grades entries and resolves CLV | none — reads what is already stored |
 
 These are the same jobs the scheduler runs, so the manual and automatic paths cannot drift.
+The menu lists ESPN's pulls when ESPN is on and The Odds API's Fixtures and Pull scores when it
+is off; everything that costs credits sits under **Costs credits** with its price, and free pulls
+say "free". With ESPN off the Date range key is refused with a line naming the switch.
 
 ### Nothing runs on a fixed hour
 
@@ -316,19 +377,26 @@ These are the same jobs the scheduler runs, so the manual and automatic paths ca
 - **ESPN runs around games:** the slate refreshes when the next start is close, and results are
   swept once a started game is old enough to have finished — then retried until it is, with
   settlement following immediately. A game finishing at 22:00 settles at 22:00.
+- **The Odds API, with ESPN off:** fixtures are read every six hours, and every half hour while a
+  game starts within three; free. Scores run unattended only on Automatic: once a night per league,
+  after its last game has had time to finish, never into the 100-credit reserve, and set aside in
+  the lines' pacing so the two share the month.
 - A slate with nothing starting soon spends nothing at all.
 
 ### Turning on real odds
 
-Stats come from ESPN, free and unauthenticated. **Odds need a key**, because a market needs
-several books and the free feeds that carry several want one. ESPN publishes odds too, but only
+Stats come from The Odds API on that same key by default (ADR 0026), or from ESPN, free and
+unauthenticated, once you have turned it on. **Odds need a key**, because a market needs several books and the free feeds that carry several want one. ESPN publishes odds too, but only
 one book — a price rather than a market — so it stays the stats port.
 
-In Docker the key goes in `.env` (Quick start, step 3). For a host run (`dotnet run`), copy
+The key can be entered in the desk itself, under **Ops → Odds feeds** (Quick start, step 3).
+In Docker it can also go in `.env`. For a host run (`dotnet run`), copy
 `src/LineOps.Web/appsettings.Local.example.json` to `appsettings.Local.json` and fill in the
 key. That file never enters an image; it is gitignored and loaded last, so it wins over everything else — the
 environment-named files are *not* ignored, which is why a key put in the obvious place ends up in
-the repository with it.
+the repository with it. The example file ships `Ingestion:Espn:Enabled` as false, with the
+ESPN notice beside it, so copying it as it is leaves ESPN off. Setting that to true is the
+opt-in for a host run; do it only once you have read the notice and decided to.
 
 ```jsonc
 {
@@ -397,7 +465,8 @@ It runs against **unmetered sources only**, and that is enforced in code rather 
 configuration: a source is eligible only when its row declares no rate limit and no credit
 budget. Naming a metered provider in `Ingestion:Backfill:Sources` gets it refused, with the
 reason shown in the window. Today that means ESPN, and it means a backfill cannot spend the
-free-tier quota the live schedule depends on.
+free-tier quota the live schedule depends on. With ESPN off there is no eligible source, so
+there is nothing to gather.
 
 ```jsonc
 "Backfill": {
@@ -476,10 +545,16 @@ Run Postgres in Docker and the hosts on the host, for hot reload and a debugger:
 
 ```powershell
 .\scripts\setup.ps1                   # .env, and the connection string in both hosts' user-secrets
-.\scripts\restore-data.ps1            # starts Postgres (compose.dev.yml) and loads the snapshot
+docker compose -f docker-compose.yml -f compose.dev.yml up -d postgres
 dotnet run --project src/LineOps.Web --launch-profile http
 dotnet run --project src/LineOps.Worker   # optional: ingestion on its own host
 ```
+
+A host run does not read `.env`, so `ESPN_ENABLED` does not reach it. To turn ESPN on there,
+put `"Ingestion": { "Espn": { "Enabled": true } }` in the host's `appsettings.Local.json`
+(`src/LineOps.Web/`, and `src/LineOps.Worker/` for the Worker), or set
+`Ingestion__Espn__Enabled=true` in the environment. The owner restores their private snapshot
+between the first two lines instead of starting Postgres alone (`CLAUDE.md`, "Data").
 
 Host-side runs read `ConnectionStrings:LineOps` from `dotnet user-secrets`, which setup writes
 for both hosts from the password in `.env`; compose reads `.env` itself. Both launch profiles run
@@ -515,15 +590,44 @@ separator (`Ingestion__LinePolling__Mode`), added to the service in `docker-comp
 
 | Provider | Free tier | Notes |
 |---|---|---|
-| The Odds API | 500 credits/mo | The book market: moneyline, spread, total. Billed as markets × regions; the feed the Quick start sets up |
-| ESPN (unofficial) | Free, unauthenticated | Schedules, scores, box scores, play-by-play, fighter profiles; can change without notice |
-| MLB Stats API | Free, unauthenticated | MLB game and player identity, probable pitchers; on by default |
+| The Odds API | 500 credits/mo | The default source: fixtures (free), the book market — moneyline, spread, total, a credit per market a league — and final scores (2 credits a league). The feed the Quick start sets up |
+| ESPN (unofficial) | Free, unauthenticated | The opt-in extra: schedules, scores, box scores, play-by-play, injuries, fighter profiles; can change without notice. Off by default |
+| MLB Stats API | Free, unauthenticated | MLB game and player identity, probable pitchers. Opt-in, off by default: it follows ESPN's switch |
 | odds-api.io | 100 req/h, 500 req/day | Alternative odds feed, off by default; free tier is for evaluation |
 
 The budget guard enforces these ceilings rather than trusting the schedule to stay inside
 them. Player props at volume are the first thing that would cost money — the schema is
 already built for them (`market` is text, `PlayerId` is nullable), so it is an addition
 rather than a migration.
+
+### Whose data it is, and what you may do with it
+
+LineOps is a personal tool. It runs on your machine, pulls with your own key, and stores what
+it pulls in your own Docker Postgres. Nothing is sent to the project or to anyone else.
+
+- **The Odds API.** You sign up yourself and use your own key (Quick start, step 3); the
+  project never supplies or shares one. By default it supplies the desk's fixtures and scores as
+  well as its prices, so a desk without ESPN holds nothing but this provider's data and your own. Its
+  [terms](https://the-odds-api.com/terms-and-conditions.html) allow storing its data and
+  showing it in an application. They do not allow passing the raw data on as a data product,
+  so do not publish a database or dump that holds it. This repository carries none: what your
+  desk holds, it pulled itself.
+- **ESPN.** These are unofficial, undocumented endpoints, read only so that an individual can
+  keep games, scores and box scores in their own local database. ESPN's
+  [terms of use](https://disneytermsofuse.com/english/) license its services for personal,
+  non-commercial use and prohibit automated access; this notice does not change that, and
+  whether to run the ESPN pull is your decision. So the desk ships with ESPN off and calls
+  nothing until you turn it on: `.\scripts\setup.ps1 -EnableEspn` or `ESPN_ENABLED=true` in
+  `.env` for Docker, `Ingestion:Espn:Enabled` in `appsettings.Local.json` for a host run. Do
+  not host a desk that shows ESPN-derived data to other people, do not use it commercially,
+  and do not redistribute it.
+- **MLB Stats API.** MLB Advanced Media permits
+  [individual, non-commercial, non-bulk use](http://gdx.mlb.com/components/copyright.txt) only.
+  It is off whenever ESPN is.
+
+LineOps is not affiliated with or endorsed by ESPN, Disney, MLB, The Odds API or any
+sportsbook. It takes no bets and is not betting advice. If you gamble, do it legally where
+you are, at the legal age, and within your means.
 
 ---
 
@@ -548,8 +652,8 @@ tests/
   LineOps.Desk.Tests      The Desk package, its theme contrast and template
   LineOps.Desk.Hosting.Tests
 deploy/                   A hosted stack: Caddy, web, worker, Postgres, backups
-scripts/                  Setup, data snapshot and journal transfer, tailnet
-data/snapshots/           The committed dataset restore-data.ps1 loads
+scripts/                  Setup, the owner's private snapshot and journal transfer, tailnet
+data/personal/            Gitignored: the owner's private clone (journal, snapshot); absent elsewhere
 .claude/skills/           Agent skills: setup, and the Desk's design rules
 docs/
   adr/                    Architecture decision records
@@ -570,3 +674,11 @@ payloads — including nested shapes, string-encoded prices and malformed rows �
 verified offline and for free. Integration tests run against real PostgreSQL via
 Testcontainers, because the features worth testing (native partitioning, `jsonb`,
 `timestamptz` offsets) do not exist in an in-memory provider.
+
+## Licence
+
+The code is released under the [MIT License](LICENSE). The licence covers the code in this
+repository and nothing else: it grants no rights in any provider's data, which stays under that
+provider's own terms. Who those providers are, what their terms allow, and the fact that none
+of them is affiliated with LineOps are under
+[Whose data it is, and what you may do with it](#whose-data-it-is-and-what-you-may-do-with-it).

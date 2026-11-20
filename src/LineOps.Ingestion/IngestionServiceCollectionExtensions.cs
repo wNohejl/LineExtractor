@@ -15,9 +15,10 @@ public static class IngestionServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the ingestion pipeline. Adapters are registered only when configured, so a
-    /// cold clone with no API keys still starts — it runs on ESPN, which needs none, and has
-    /// no odds feed until a key is supplied. No odds source is <i>unconfigured</i>, not broken;
-    /// the reliability layer is careful to say so (see <c>AlertEngine</c>).
+    /// cold clone with no API keys still starts — with no stats source until its operator opts in
+    /// to ESPN (<see cref="EspnOptIn"/>), and no odds feed until a key is supplied. A missing
+    /// source is <i>unconfigured</i>, not broken; the reliability layer is careful to say so
+    /// (see <c>AlertEngine</c>).
     /// </summary>
     public static IServiceCollection AddLineOpsIngestion(
         this IServiceCollection services,
@@ -52,6 +53,7 @@ public static class IngestionServiceCollectionExtensions
         services.AddScoped<OddsRetentionService>();
         services.AddScoped<OddsFeedStatus>();
         services.AddScoped<LinePollPlanner>();
+        services.AddScoped<CreditAllowance>();
 
         // Singleton: it creates a scope per job, so it has no scoped state and both the
         // scheduler and the desk's pull menu can hold it directly.
@@ -77,7 +79,10 @@ public static class IngestionServiceCollectionExtensions
 
         // Runs once at start, after the initialiser has seeded the reference rows: the
         // enabled flags on sports and sources follow the configuration rather than a hand edit.
-        services.AddHostedService<ReferenceReconciler>();
+        // A singleton as well as hosted, so a host whose odds key can change while it runs can
+        // ask for the same reconciliation again (AddRuntimeOddsKey).
+        services.AddSingleton<ReferenceReconciler>();
+        services.AddHostedService(sp => sp.GetRequiredService<ReferenceReconciler>());
 
         var options = configuration.GetSection(IngestionOptions.SectionName).Get<IngestionOptions>()
                       ?? new IngestionOptions();
@@ -138,7 +143,10 @@ public static class IngestionServiceCollectionExtensions
         // The entity spine. Registered as itself rather than as an IStatsSource: it issues
         // identity, and the box-score job stays ESPN's (ADR 0011). Nothing here competes for the
         // stats-source slot, so it cannot displace what already works.
-        if (options.MlbStatsApi.Enabled)
+        //
+        // Only when ESPN is on (EspnOptIn): it annotates the games ESPN writes, so without ESPN it
+        // has nothing to match, and its data is personal-use as ESPN's is — one opt-in covers both.
+        if (options.MlbStatsApi.Enabled && options.Espn.Enabled)
         {
             services.AddHttpClient<MlbStatsApiAdapter>(client =>
                 {
@@ -166,16 +174,65 @@ public static class IngestionServiceCollectionExtensions
         }
 
         if (options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey))
-        {
-            services.AddHttpClient<TheOddsApiAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                .AddStandardResilienceHandler();
+            AddTheOddsApi(services);
 
-            services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<TheOddsApiAdapter>());
-        }
+        // The default stats source (ADR 0026): The Odds API's fixtures and scores, on the same key —
+        // only while ESPN is off. One stats port at a time (ADR 0011): ESPN on, this is not registered,
+        // so nothing it would write or spend can reach a desk that runs on ESPN.
+        if (!options.Espn.Enabled && options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey))
+            AddTheOddsApiSchedule(services);
+
+        return services;
+    }
+
+    private static void AddTheOddsApi(IServiceCollection services)
+    {
+        services.AddHttpClient<TheOddsApiAdapter>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddStandardResilienceHandler();
+
+        services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<TheOddsApiAdapter>());
+    }
+
+    /// <summary>The fixtures-and-scores adapter, as the stats port and the score port, on the odds key's client settings.</summary>
+    private static void AddTheOddsApiSchedule(IServiceCollection services)
+    {
+        services.AddHttpClient<TheOddsApiScheduleAdapter>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddStandardResilienceHandler();
+
+        services.AddScoped<IStatsSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());
+        services.AddScoped<IScoreSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());
+    }
+
+    /// <summary>
+    /// Lets this host's operator supply The Odds API key while it runs (the desk's Ops window),
+    /// instead of only through configuration at start. Call after <see cref="AddLineOpsIngestion"/>.
+    ///
+    /// <para>
+    /// The adapter is registered here if configuration did not already register it, and says for
+    /// itself whether it holds a key (<see cref="IOddsSource.IsConfigured"/>), which is what the
+    /// registry lists by. A host that does not call this is unchanged: no key at start, no adapter.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddRuntimeOddsKey(this IServiceCollection services)
+    {
+        services.AddSingleton<RuntimeOddsKey>();
+
+        if (!services.Any(d => d.ServiceType == typeof(TheOddsApiAdapter)))
+            AddTheOddsApi(services);
+
+        // And, while ESPN is off, the default stats source on the same key, which likewise says for
+        // itself whether it holds one. ESPN registered means ESPN is on, and then it is the stats port.
+        if (!services.Any(d => d.ServiceType == typeof(EspnStatsAdapter))
+            && !services.Any(d => d.ServiceType == typeof(TheOddsApiScheduleAdapter)))
+            AddTheOddsApiSchedule(services);
 
         return services;
     }

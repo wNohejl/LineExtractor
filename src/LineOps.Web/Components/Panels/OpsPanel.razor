@@ -1,6 +1,7 @@
 @using LineOps.Data
 @using LineOps.Reliability
 @using LineOps.Ingestion.Services
+@using LineOps.Ingestion.Configuration
 @using LineOps.Core.Contracts
 @using LineOps.Desk.Windowing
 @using Microsoft.EntityFrameworkCore
@@ -75,6 +76,60 @@ else
         </Primary>
     </KeyRow>
 }
+
+@* ESPN is opt-in (EspnOptIn): a clone calls it only once its operator has read why and turned it
+   on. Off, nothing writes schedules, scores or box scores, and every section below reads as quiet
+   for that reason alone — so this says so first, says why, and says exactly how to turn it on.
+   Read from configuration, so it stands whether or not the database answered. *@
+@* Three states, one statement (ADR 0026): ESPN on, it is the stats source as it always was; off
+   with a key, The Odds API supplies fixtures (free) and scores (metered) and the rest needs ESPN;
+   off with no key, nothing does, and the fix is the key field under Odds feeds. The statement is a
+   focusable sentence whose tooltip says what a stats source is; the ESPN notice follows whenever
+   ESPN is off, unchanged. *@
+<PanelSection Title="Stats source">
+    @switch (_port)
+    {
+        case StatsPort.Espn:
+            <div class="opsfoot">
+                <DeskTooltip Text="@StatsSourceTip">
+                    <span tabindex="0">ESPN is the stats source on this host: schedules, scores, box scores, player stats, play-by-play, injuries and UFC cards.</span>
+                </DeskTooltip>
+                The Odds API supplies prices only.
+            </div>
+            break;
+
+        case StatsPort.TheOddsApi:
+            <div class="opsfoot">
+                <DeskTooltip Text="@StatsSourceTip">
+                    <span tabindex="0">The Odds API is the stats source on this host, on your key.</span>
+                </DeskTooltip>
+                Fixtures are free and refresh on their own. Final scores cost
+                <span class="num">@ScoresCredits</span> credits a league a pull: on request from
+                <strong>Pull data → Pull scores</strong>, or once a night per league when scanning is Automatic.
+                Scores reach back three days; a game older than that with no final stays unfinished.
+                Box scores, player stats, play-by-play, injuries and UFC need ESPN, which is off.
+            </div>
+            break;
+
+        default:
+            @* The tooltip wraps the whole statement: EmptyState is a paragraph, which cannot hold the
+               tooltip's block, so the paragraph takes focus and the tooltip sits outside it. *@
+            <DeskTooltip Text="@StatsSourceTip">
+                <EmptyState tabindex="0">
+                    No stats source: ESPN is off and no Odds API key is held, so no fixtures or scores are pulled.
+                    Enter your free key under <strong>Odds feeds</strong> below and fixtures and prices appear; scores cost credits.
+                </EmptyState>
+            </DeskTooltip>
+            break;
+    }
+
+    @if (!Ingestion.Value.Espn.Enabled)
+    {
+        <p class="opsfoot">@EspnOptIn.Notice</p>
+        <p class="opsfoot"><strong>To turn it on</strong> with @EspnOptIn.DockerHowTo</p>
+        <p class="opsfoot"><strong>Or</strong> with @EspnOptIn.HostHowTo</p>
+    }
+</PanelSection>
 
 <PanelSection Title="Open alerts">
 
@@ -227,7 +282,7 @@ else
 *@
 <PanelSection Title="Odds feeds">
 
-<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="No odds provider is configured, so nothing prices the board. A provider's key in the web host's configuration adds one.">
+<DeskGrid T="OddsProviderState" Items="_feeds" EmptyText="@NoFeedText">
     @* Live is the state a feed is meant to be in, so it is a check mark; Off keeps its tag,
        because it is the one an operator is looking for. *@
     <PropertyColumn T="OddsProviderState" TProperty="bool" Property="f => f.IsLive" Title="State"
@@ -259,6 +314,57 @@ else
     </PropertyColumn>
 </DeskGrid>
 
+@* The key, where the feed it turns on is listed. An operator's alone: it is a credential and a
+   month of credits. One row: with no key held here it is the field and the key that checks and
+   keeps it; with one, the last four characters and the two things to do about it. The provider
+   is asked before anything is kept, so a wrong key is refused here and not found as an
+   unpriced board. Drawn only on a host that takes a key this way (DeskOddsKey registered). *@
+@if (Manager.Access.CanOperate && _oddsKey is not null)
+{
+    <section class="wsection" aria-label="The Odds API key">
+        <div class="wgroup opsgroup opsgroup--wide">
+            <FormRow Label="The Odds API key">
+                <LabelContent>
+                    <DeskTooltip Text="@KeyTip">
+                        <span tabindex="0">The Odds API key</span>
+                    </DeskTooltip>
+                </LabelContent>
+                <ChildContent>
+                <div class="opsrow">
+                    @if (_keyHint is not null && !_replacingKey)
+                    {
+                        <span class="opsrow__text">Ends in @_keyHint</span>
+                        <DeskButton Size="DeskKeySize.Small" OnClick="() => _replacingKey = true">Replace</DeskButton>
+                        <DeskButton Size="DeskKeySize.Small" OnClick="RemoveKeyAsync" Busy="@_keyBusy">Remove</DeskButton>
+                    }
+                    else
+                    {
+                        <DeskField TValue="string" Class="opsrow__fill" type="password" Immediate="true"
+                                   autocomplete="off" spellcheck="false" aria-label="The Odds API key"
+                                   placeholder="Paste your key" @bind-Value="_keyDraft" />
+                        <DeskButton Emphasis="DeskEmphasis.Tinted" Size="DeskKeySize.Small"
+                                    OnClick="SaveKeyAsync" Busy="@_keyBusy"
+                                    Disabled="@string.IsNullOrWhiteSpace(_keyDraft)">
+                            Check and save
+                        </DeskButton>
+                        @if (_replacingKey)
+                        {
+                            <DeskButton Size="DeskKeySize.Small" OnClick="CancelReplace">Cancel</DeskButton>
+                        }
+                    }
+                </div>
+                    </ChildContent>
+            </FormRow>
+        </div>
+        <p class="wgroup__foot opsfoot">
+            A free key (500 credits a month) comes by email from
+            <a href="https://the-odds-api.com/#get-access" target="_blank" rel="noopener noreferrer">the-odds-api.com</a>.
+            Checking it spends nothing. It is kept encrypted on this machine, outside the database,
+            and replaces a key set in configuration.
+        </p>
+    </section>
+}
+
 @* The switch the footers below price. Held with the data, so the web host and the worker obey
    the same choice and it outlives a restart. Turning scanning on is confirmed beside its price;
    turning it off stops spending and needs no second thought. Only offered with a live feed:
@@ -277,8 +383,15 @@ else
     <section class="wsection" aria-label="Scanning">
         <div class="wgroup opsgroup">
             <FormRow Label="Scanning">
+                <LabelContent>
+                    <DeskTooltip Text="@ScanningTip">
+                        <span tabindex="0">Scanning</span>
+                    </DeskTooltip>
+                </LabelContent>
+                <ChildContent>
                 <DeskSwitch TValue="bool" Options="ScanModes" Label="Scanning" Size="DeskKeySize.Small"
                             Value="@(_unattended || _confirmAutomatic)" ValueChanged="ChooseScanningAsync" />
+                </ChildContent>
             </FormRow>
             @if (_confirmAutomatic)
             {
@@ -287,6 +400,10 @@ else
                                OnConfirm="() => SetPollingAsync(automatic: true)"
                                OnCancel="() => _confirmAutomatic = false">
                     Scan at this price until switched back, from this host and the worker alike?
+                    @if (_scores is { } plan && plan.Leagues.Count > 0)
+                    {
+                        @($" Scores are pulled too: once a night per league, about {plan.PerDay:N0} credits a day.")
+                    }
                 </InlineConfirm>
             }
         </div>
@@ -408,12 +525,132 @@ else
         }
     }
 
+    // The Odds API key, entered here. Null on a host that takes its key from configuration only.
+    private LineOps.Web.Services.DeskOddsKey? _oddsKey;
+    private string? _keyHint;
+    private string? _keyDraft;
+    private bool _replacingKey;
+    private bool _keyBusy;
+
+    private string NoFeedText => _oddsKey is not null && Manager.Access.CanOperate
+        ? "No odds provider is configured, so nothing prices the board. A key for The Odds API, entered below, adds one."
+        : "No odds provider is configured, so nothing prices the board. A provider's key in the web host's configuration adds one.";
+
+    private void CancelReplace()
+    {
+        _replacingKey = false;
+        _keyDraft = null;
+    }
+
+    private async Task SaveKeyAsync()
+    {
+        if (_oddsKey is null || string.IsNullOrWhiteSpace(_keyDraft) || _keyBusy)
+            return;
+
+        _keyBusy = true;
+        try
+        {
+            var check = await _oddsKey.SaveAsync(_keyDraft);
+
+            switch (check.Verdict)
+            {
+                case LineOps.Web.Services.OddsKeyVerdict.Accepted:
+                    _keyDraft = null;
+                    _replacingKey = false;
+                    Toasts.Success(check.CreditsRemaining is { } left
+                        ? $"Key accepted and saved. {left:N0} credits left this month."
+                        : "Key accepted and saved.");
+                    await LoadAsync();
+                    break;
+
+                case LineOps.Web.Services.OddsKeyVerdict.Rejected:
+                    Toasts.Fail("The Odds API refused that key. Check it against the email from the-odds-api.com; an odds-api.io key is a different provider's.");
+                    break;
+
+                default:
+                    Toasts.Fail("The Odds API could not be reached, so the key was not saved. Try again.");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The type only: nothing that could carry the key reaches the log.
+            Log.LogError("The odds key was not saved ({Kind})", ex.GetType().Name);
+            Toasts.Fail("The key was not saved. Try again.");
+        }
+        finally
+        {
+            _keyBusy = false;
+        }
+    }
+
+    private async Task RemoveKeyAsync()
+    {
+        if (_oddsKey is null || _keyBusy)
+            return;
+
+        _keyBusy = true;
+        try
+        {
+            await _oddsKey.RemoveAsync();
+            Toasts.Success("Key removed from this desk.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "The odds key was not removed");
+            Toasts.Fail("The key was not removed. Try again.");
+        }
+        finally
+        {
+            _keyBusy = false;
+        }
+    }
+
     /// <summary>The two ways lines are fetched, as the Scanning row's segments.</summary>
     private static readonly IReadOnlyList<DeskSwitchOption<bool>> ScanModes =
     [
-        new(false, "On request", "Lines are pulled only when Pull lines is pressed"),
-        new(true, "Automatic", "Lines are scanned on a schedule, paced to the allowance")
+        new(false, "On request", "Nothing is spent unasked: lines and scores are pulled only from Pull data"),
+        new(true, "Automatic", "Lines are scanned on a schedule paced to the month's credits; scores, where The Odds API supplies them, once a night per league")
     ];
+
+    // ---- The stats source and the month (ADR 0026) ---------------------------------------------
+
+    /// <summary>What supplies the schedule here. Configuration's answer until the registry has been read.</summary>
+    private StatsPort _port;
+
+    /// <summary>The Odds API account's month, where its feed or its scores are in use here.</summary>
+    private AllowanceState? _allowance;
+
+    /// <summary>What scores would take from the month, where they are metered here.</summary>
+    private ScoresPlan? _scores;
+
+    private int ScoresCredits => _scores?.CreditsPerCall ?? LineOps.Ingestion.Adapters.TheOddsApiScheduleAdapter.CreditsWithDaysFrom;
+
+    protected override void OnInitialized()
+    {
+        _port = Ingestion.Value.Espn.Enabled ? StatsPort.Espn : StatsPort.None;
+        base.OnInitialized();
+    }
+
+    private const string StatsSourceTip =
+        "The stats source writes each game's schedule and result, which the board lists and settlement grades. "
+        + "One runs at a time: ESPN when you turn it on, otherwise The Odds API on your key.";
+
+    private const string KeyTip =
+        "Your key for the-odds-api.com. Free keys carry 500 credits a month, reset on the 1st. "
+        + "Lines cost one credit per market per league; scores two a league; fixtures nothing.";
+
+    private const string ScanningTip =
+        "On request spends nothing unless you choose a pull from Pull data. Automatic scans lines on a schedule "
+        + "paced so the month's credits last, keeping a reserve for pulls on request, and pulls scores once a night "
+        + "per league where The Odds API is the stats source. Credits reset on the 1st.";
+
+    private static string CreditsTip(AllowanceState month)
+        => (month.Reported
+               ? "The Odds API reports what is left on the key with every call; this is its latest word this month, so it counts spend from any machine using the key."
+               : "No call this month has reported what is left on the key yet, so this is this desk's own count; another machine using the key would not show here.")
+           + $" {month.Reserve:N0} credits are kept back from automatic scanning for pulls on request. The month resets on {month.ResetsOnText}.";
 
     /// <summary>
     /// The segment pressed. Automatic is held on the confirm row until it is said yes to, so the
@@ -451,6 +688,31 @@ else
     /// and the footnotes cannot drift apart.
     /// </summary>
     private RenderFragment ScanningCost() => @<text>
+        @* The month in one place (ADR 0026): what is left, by whose count, when it resets, and what the
+           settings in force will take from it — lines and scores together — so the arithmetic is on the
+           page before anything is spent. The figure is focusable and its tooltip says how it is counted;
+           the figure itself is always text. *@
+        @if (_allowance is { } month)
+        {
+            @* A div, not a paragraph: the figure's tooltip is a block, which a paragraph cannot hold. *@
+            <div class="@FootClass">
+                <DeskTooltip Text="@CreditsTip(month)">
+                    <span tabindex="0"><span class="num">@month.Remaining.ToString("N0")</span> of <span class="num">@month.Budget.ToString("N0")</span> credits left this month</span>
+                </DeskTooltip>@($", {(month.Reported ? "by The Odds API's own count" : "by this desk's count")}; they reset on {month.ResetsOnText}.")
+                @if (_scores is { } scores && scores.Leagues.Count > 0)
+                {
+                    @if (scores.Automatic)
+                    {
+                        @($" Scores take one call a night per league in play ({string.Join(", ", scores.Leagues.Select(l => l.ToUpperInvariant()))}) at {scores.CreditsPerCall} credits: about {scores.PerDay:N0} a day, {scores.ToMonthEnd:N0} to the month's end, set aside before lines are paced.")
+                    }
+                    else
+                    {
+                        @($" Scores cost {scores.CreditsPerCall} credits a league a pull; on Automatic they would take about {scores.PerDay:N0} a day ({string.Join(", ", scores.Leagues.Select(l => l.ToUpperInvariant()))}).")
+                    }
+                }
+            </div>
+        }
+
         @* Manual is the default, so the usual case is that nothing is scanning. Reporting a cadence
            here regardless would describe a schedule that is not running — the number would be real
            arithmetic about an allowance nobody is spending. What is left still matters, because that is
@@ -618,6 +880,9 @@ else
 
         _feeds = scope.ServiceProvider.GetRequiredService<OddsFeedStatus>().Describe();
 
+        _oddsKey = scope.ServiceProvider.GetService<LineOps.Web.Services.DeskOddsKey>();
+        _keyHint = _oddsKey?.Hint;
+
         _pollingSetHere = await db.GetSettingAsync(AppSetting.LinePolling) is not null;
         _unattended = await db.LinesRunUnattendedAsync(LinePolling.RunsUnattended);
 
@@ -628,6 +893,12 @@ else
         var oddsKeys = registry.OddsSources.Select(s => s.Key).ToList();
         _plan = await planner.PlanAsync(oddsKeys);
         _marketsBySport = oddsKeys.Count == 0 ? [] : planner.MarketsBySport(oddsKeys);
+
+        _port = registry.Port;
+        _scores = await planner.ScoresPlanAsync();
+        _allowance = registry.FindOdds(LineOps.Ingestion.Adapters.TheOddsApiAdapter.SourceKey) is not null || registry.Scores is not null
+            ? await scope.ServiceProvider.GetRequiredService<CreditAllowance>().ReadAsync()
+            : null;
 
         var o = Options.Value;
 

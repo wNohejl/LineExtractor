@@ -187,19 +187,59 @@ else if (_rows.Count == 0)
 {
     @* An honest empty state offers the fix rather than naming a control on another window.
        The pull is the first step, so it is the one action this state carries. *@
+    @* With ESPN off (EspnOptIn) there is nothing for the pull to fetch from, so the state says
+       why and where the switch is explained, and offers no key that would only be refused. *@
+    @* Three states (ADR 0026). ESPN on: Today's games, as always. The Odds API on a key: Fixtures,
+       which is free, and the key says so; prices and scores are metered pulls in Pull data, where
+       their prices are stated. Neither: the key is the fix, and it is entered in Ops. *@
     <EmptyState Kind="EmptyStateKind.New">
         <ChildContent>
-            Nothing on the board in this window. <strong>Today's games</strong> fetches the
-            schedule and the live scores from ESPN, which needs no key; a lines pull prices
-            what it finds, and prices need an odds provider key — see Ops.
+            @switch (Port)
+            {
+                case StatsPort.Espn:
+                    <text>Nothing on the board in this window. <strong>Today's games</strong> fetches the
+                    schedule and the live scores from ESPN, which needs no key; a lines pull prices
+                    what it finds, and prices need an odds provider key — see Ops.</text>
+                    break;
+
+                case StatsPort.TheOddsApi:
+                    <text>Nothing on the board in this window. <strong>Fixtures</strong> fetches the next
+                    eight days from The Odds API and is free; <strong>Pull lines</strong> prices them and
+                    <strong>Pull scores</strong> finishes them, each for the credits Pull data states.
+                    Box scores and UFC need ESPN — see Ops.</text>
+                    break;
+
+                default:
+                    <text>Nothing on the board in this window. No fixtures are pulled until a stats source
+                    is set up: enter your free Odds API key in Ops → Odds feeds, or turn on ESPN, which is
+                    opt-in — Ops says how.</text>
+                    break;
+            }
         </ChildContent>
         <Action>
-            @if (Manager.Access.CanOperate)
+            @if (Manager.Access.CanOperate && Port == StatsPort.Espn)
             {
                 <DeskButton Size="DeskKeySize.Small"
                             Icon="@Icons.Material.Filled.CalendarMonth"
                             OnClick="() => PullAsync(IngestionJobs.EspnSlate)">
                     Today's games
+                </DeskButton>
+            }
+            else if (Manager.Access.CanOperate && Port == StatsPort.TheOddsApi)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.CalendarMonth"
+                            Title="Calls The Odds API's events list, which does not count against your credits"
+                            OnClick="() => PullAsync(IngestionJobs.OddsFixtures)">
+                    Fixtures · free
+                </DeskButton>
+            }
+            else if (Manager.Access.CanOperate)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.Key"
+                            OnClick="Manager.OpenOps">
+                    Open Ops
                 </DeskButton>
             }
         </Action>
@@ -772,6 +812,9 @@ else
             _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
             _priced = _rows.Count(r => r.HasPrices);
             _unpriced = _rows.Count - _priced;
+
+            // Which stats source fills the board (ADR 0026), for the empty state's sentence and key.
+            _port = scope.ServiceProvider.GetService<SourceRegistry>()?.Port;
 
             // Age is only reported for the live market. BoardRow already withholds it from a
             // closing row, so this reads "how long since anything moved" rather than "how old
@@ -1411,6 +1454,12 @@ else
     private void ViewSlip() => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!));
 
     protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+
+    /// <summary>The stats source the registry reported at the last load; configuration's answer before one.</summary>
+    private StatsPort? _port;
+
+    /// <summary>What fills the board: ESPN, The Odds API on a key, or nothing yet (ADR 0026).</summary>
+    internal StatsPort Port => _port ?? (IngestionOptions.Value.Espn.Enabled ? StatsPort.Espn : StatsPort.None);
 
     protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
 

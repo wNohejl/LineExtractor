@@ -100,13 +100,19 @@ public class EntityResolver(LineOpsDbContext db)
         team ??= unclaimed.FirstOrDefault(t => t.Name == reference.Name)
                  ?? unclaimed.FirstOrDefault(t => Normalise(t.Name) == normalised);
 
+        // A source that gives only a full name says, from the desk's own table, what else the club
+        // is called and its abbreviation, so it lands on the team another provider created rather
+        // than beside it (ADR 0026). Only such a source sends these; nothing about the matched team
+        // is changed but the id this source knows it by, below.
+        team ??= KnownAsMatch(unclaimed, reference);
+
         if (team is null)
         {
             team = new Team
             {
                 SportId = sport.Id,
                 Name = UnusedName(known, reference),
-                Abbrev = reference.Abbrev ?? Abbreviate(reference.Name)
+                Abbrev = reference.Abbrev ?? reference.DeskAbbrev ?? Abbreviate(reference.Name)
             };
             db.Teams.Add(team);
             await db.SaveChangesAsync(ct);
@@ -145,6 +151,36 @@ public class EntityResolver(LineOpsDbContext db)
 
         _teamCache[cacheKey] = team;
         return team;
+    }
+
+    /// <summary>
+    /// The one team held under another of the club's names, else the one team with the desk's
+    /// abbreviation for it — and none when two qualify, since a guess between two clubs is worse
+    /// than a new row an operator can see.
+    /// </summary>
+    private static Team? KnownAsMatch(IReadOnlyList<Team> unclaimed, CanonicalTeamRef reference)
+    {
+        if (reference.KnownAs is { Count: > 0 } names)
+        {
+            var aliases = names.Select(Normalise).ToHashSet();
+            var byName = unclaimed.Where(t => aliases.Contains(Normalise(t.Name))).ToList();
+            if (byName.Count == 1)
+                return byName[0];
+        }
+
+        // The abbreviation alone is not enough: a table that gave one club another's letters would
+        // merge two franchises. The club's last word ("Clippers", "Athletics") has to agree too.
+        if (reference.DeskAbbrev is { Length: > 0 } abbrev
+            && reference.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries) is { Length: > 0 } words)
+        {
+            var nickname = Normalise(words[^1]);
+            var byAbbrev = unclaimed.Where(t => string.Equals(t.Abbrev, abbrev, StringComparison.OrdinalIgnoreCase)
+                                                && Normalise(t.Name).EndsWith(nickname, StringComparison.Ordinal)).ToList();
+            if (byAbbrev.Count == 1)
+                return byAbbrev[0];
+        }
+
+        return null;
     }
 
     /// <summary>Whether this row carries an id from this source that is not the one being resolved.</summary>
@@ -273,6 +309,28 @@ public class EntityResolver(LineOpsDbContext db)
         // Whether the provider is talking about a fixture it has already named. Only then is
         // it authoritative about when that fixture starts — see the refresh below.
         var knownToThisProvider = game is not null;
+
+        // The same provider under another row of its account (SourceAccounts): The Odds API's events
+        // and its odds name one game by one id, so a game the schedule created is the game the book
+        // prices — exactly, even for a doubleheader's two games four hours apart. Only an account
+        // with two rows has a sibling; every other source skips this.
+        if (game is null)
+        {
+            var siblings = SourceAccounts.Sharing(sourceKey).Where(k => k != sourceKey).ToList();
+
+            var sibling = siblings.Count == 0
+                ? null
+                : candidates.FirstOrDefault(g =>
+                    siblings.Any(k => g.ExternalIds.TryGetValue(k, out var id) && id == canonical.SourceGameId)
+                    && !ClaimedByAnotherGameFrom(g, sourceKey, canonical.SourceGameId));
+
+            if (sibling is not null)
+            {
+                sibling.ExternalIds = new Dictionary<string, string>(sibling.ExternalIds) { [sourceKey] = canonical.SourceGameId };
+                await db.SaveChangesAsync(ct);
+                game = sibling;
+            }
+        }
 
         // Team identity is refreshed even when the game is already known.
         //

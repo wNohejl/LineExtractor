@@ -27,10 +27,21 @@ namespace LineOps.Desk;
 /// group under one heading, parted from the next by a hairline. Runs are grouped in the order
 /// their groups first appear; null runs sit together, unheaded, before any named group.
 /// </param>
+/// <param name="Confirm">
+/// For a run that spends enough to be worth a second thought: the question asked in place, beside
+/// the key, before it starts — a sentence naming what it spends and ending with a question mark.
+/// Choosing the entry asks; only the confirm runs it, and Cancel runs nothing. Null runs on the press.
+/// </param>
+/// <param name="Hint">
+/// The entry's tooltip: what the run calls, what it spends, when that comes back. It adds the
+/// explanation; the price itself is <paramref name="Cost"/>, which is always visible text.
+/// </param>
 public sealed record DeskJob(
     string Key, string Label, string Description, string? Cost, bool Available, string? Unavailable,
     Func<IDeskSheets, Task<IDeskSheetHandle>>? Sheet = null,
-    string? Group = null);
+    string? Group = null,
+    string? Confirm = null,
+    string? Hint = null);
 
 /// <summary>
 /// A run a job's sheet has been answered with: what it does once started, telling its progress
@@ -162,6 +173,13 @@ public sealed class DeskJobRunner(IServiceProvider services, DeskToasts toasts, 
         if (!job.Available)
         {
             toasts.Warn(job.Unavailable ?? $"{job.Label} cannot run here.");
+            return false;
+        }
+
+        // A run that asks first is never started from a key with nowhere to ask: the menu asks.
+        if (job.Confirm is not null)
+        {
+            toasts.Warn($"{job.Label.TrimEnd('…')} asks before it runs: choose it from the menu.");
             return false;
         }
 

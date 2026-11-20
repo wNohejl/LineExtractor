@@ -41,6 +41,25 @@ public class StatsIngestionService(
         => IngestAsync(source, sportKey, jobKey, date, schedulesOnly: true, ct);
 
     /// <summary>
+    /// A fixtures pull from a source whose schedule call is free though the source is metered (The
+    /// Odds API's <c>/events</c>, ADR 0026): the schedule pass without the budget guard, so a spent
+    /// month still keeps the fixtures current. Its run row says what the provider billed — nothing.
+    /// </summary>
+    public Task<IngestionOutcome> IngestFixturesAsync(
+        IStatsSource source, string sportKey, string jobKey, DateOnly date, CancellationToken ct)
+        => IngestAsync(source.Key, source, sportKey, jobKey,
+            c => source.FetchScheduleAsync(sportKey, date, c), ct, guarded: false);
+
+    /// <summary>
+    /// A league's final scores from a metered score source (<see cref="IScoreSource"/>): through the
+    /// same run row, budget guard and persist as any stats pass, so the finals it writes are graded
+    /// by settlement exactly as a box-score pass's are.
+    /// </summary>
+    public Task<IngestionOutcome> IngestScoresAsync(
+        IScoreSource source, string sportKey, string jobKey, CancellationToken ct)
+        => IngestAsync(source.Key, source, sportKey, jobKey, c => source.FetchScoresAsync(sportKey, c), ct);
+
+    /// <summary>
     /// The scoreboard for a day, written only for the events being played or just finished.
     ///
     /// <para>
@@ -212,7 +231,8 @@ public class StatsIngestionService(
         CancellationToken ct,
         Func<StatsFetchResult, string, CancellationToken, Task<StatsFetchResult>>? narrow = null,
         bool live = false,
-        bool quietPoll = false)
+        bool quietPoll = false,
+        bool guarded = true)
     {
         var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
             ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
@@ -242,7 +262,7 @@ public class StatsIngestionService(
 
         try
         {
-            if (!await budget.TryReserveAsync(sourceRow, estimatedRequests: 2, ct))
+            if (guarded && !await budget.TryReserveAsync(sourceRow, estimatedRequests: 2, ct))
             {
                 run.Status = RunStatus.Partial;
                 run.Error = "Skipped: source is at its configured rate/credit budget.";
@@ -261,6 +281,10 @@ public class StatsIngestionService(
 
             run.RequestsMade = result.Cost.Requests;
             run.CreditsSpent = result.Cost.Credits;
+
+            // What the provider says is left on the key, where it says (The Odds API does; ESPN never
+            // does, so its runs keep null as before) — the count MonthlyCredits reconciles against.
+            run.ProviderCreditsRemaining = result.Cost.CreditsRemaining;
 
             // Every save in the pass, the resolver's own included: what tells a poll that changed
             // something from one that only read.

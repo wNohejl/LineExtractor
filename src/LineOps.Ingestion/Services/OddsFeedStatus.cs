@@ -48,7 +48,7 @@ public class OddsFeedStatus(IOptions<IngestionOptions> options, SourceRegistry r
 
         var reason = live.Contains(key) ? tier
             : !config.Enabled ? "Disabled. Set Enabled=true in the Ingestion section."
-            : !hasKey ? "Enabled, but no API key. Supply one out of band — never in the repo."
+            : !hasKey ? "Enabled, but no API key. Enter one below, or supply it in configuration; never in the repo."
             : "Configured but not registered; check the startup log.";
 
         return new OddsProviderState(

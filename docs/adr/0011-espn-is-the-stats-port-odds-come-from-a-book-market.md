@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+**Amended by:** [ADR 0026](0026-the-odds-api-is-the-default-source.md), which makes The Odds API the default stats port and ESPN the opt-in one; one stats port at a time still holds.
+
 ## Context
 
 Two feeds, two different jobs, and until now both were half-wired. ESPN was a working stats

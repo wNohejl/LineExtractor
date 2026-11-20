@@ -8,6 +8,8 @@ between a stats port and a book market is what makes the tiers separable, and
 
 **Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §4.
 
+**Extended by:** [ADR 0026](0026-the-odds-api-is-the-default-source.md), which builds the Odds API spine adapter the amendment's spine analysis describes.
+
 ## Context
 
 The desk is reached from more than one device, and one day by people who are not its operator.

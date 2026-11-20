@@ -51,6 +51,11 @@ public class RangePull(
         "A range pull takes a league and two dates: --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30 "
         + "[--refresh true]. Dates are league days (Eastern), inclusive, at most 200 days apart.";
 
+    /// <summary>What the default source can and cannot do in a range's place (ADR 0026).</summary>
+    public const string WithoutEspn =
+        "Without ESPN, The Odds API supplies fixtures from today and final scores from the last three days "
+        + "(Pull data → Pull scores, 2 credits a league); it holds no history before that and no box scores.";
+
     private readonly IngestionOptions _options = options.Value;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -105,6 +110,16 @@ public class RangePull(
 
         var refusal = Check(request.Sport, request.From, request.To)
                       ?? (sport is null ? $"'{request.Sport}' is not a configured league." : null);
+
+        // ESPN off (EspnOptIn): nothing to walk with, said so rather than reported as an empty range —
+        // and what the default source can do instead, since it is a stats source with no history
+        // (ADR 0026). A range is ESPN's alone; the default source never walks one.
+        if (refusal is null)
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            if (scope.ServiceProvider.GetService<SourceRegistry>() is { Espn: null })
+                refusal = EspnOptIn.Refusal(IngestionJobs.EspnRange) + " " + WithoutEspn;
+        }
 
         if (refusal is not null)
             return RangePullSummary.Refusal(request, refusal);

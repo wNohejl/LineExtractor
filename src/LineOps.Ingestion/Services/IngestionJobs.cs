@@ -1,4 +1,5 @@
 using LineOps.Core.Analytics;
+using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
 using LineOps.Ingestion.Configuration;
@@ -112,6 +113,23 @@ public class IngestionJobs(
     public const string Settle = "settle";
 
     /// <summary>
+    /// The default stats source's schedule (ADR 0026): The Odds API's <c>/events</c> for every league
+    /// it schedules, eight days ahead. Free — the call does not count against the quota — so it runs
+    /// on the schedule as ESPN's slate does. Never scores: those are <see cref="OddsScores"/>.
+    /// </summary>
+    public const string OddsFixtures = "odds:fixtures";
+
+    /// <summary>
+    /// The default stats source's final scores, automatically: each league owed one, at most one
+    /// metered call a league a day, and only when the operator chose automatic scanning
+    /// (<see cref="ScoresDueAsync"/>). Two credits a league a call.
+    /// </summary>
+    public const string OddsScores = "odds:scores";
+
+    /// <summary>One league's scores on request, e.g. <c>odds:scores:nfl</c>: two credits, stated before the press.</summary>
+    public const string OddsScoresPrefix = "odds:scores:";
+
+    /// <summary>
     /// The closing lines a finished game is still owed, asked of ESPN's odds endpoint one game at
     /// a time. The backport for a season walked while the summary carried no odds block.
     /// </summary>
@@ -196,9 +214,18 @@ public class IngestionJobs(
         var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
 
         var sports = _options.EffectiveSports;
-        var stats = registry.StatsSources.Count;
+
+        // ESPN's jobs are served by ESPN alone: the default source (ADR 0026) is a stats source too,
+        // but it has no scoreboard, box score or fighter to serve them with.
+        var stats = registry.Espn is null ? 0 : 1;
         var odds = registry.OddsSources.Count;
         var closers = registry.StatsSources.OfType<Core.Contracts.IClosingLineSource>().Count();
+
+        // The Odds API's month, for every pull that spends it: its price and what is left are stated
+        // before the press, a pull the guard would refuse is not offered, and a large one asks first.
+        var allowance = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null);
+        int? left = allowance is { Reported: true } ? allowance.Remaining : null;
+        var resets = allowance?.ResetsOnText ?? "the 1st";
 
         // What one sport's lines actually cost, in the unit the provider bills. Stated per sport
         // because that is how it is charged and how it is now spent.
@@ -218,8 +245,136 @@ public class IngestionJobs(
             return names.Count == 0 ? "Lines" : char.ToUpperInvariant(names[0][0]) + string.Join(", ", names)[1..];
         }
 
-        var jobs = new List<IngestionJob>
+        var jobs = new List<IngestionJob>();
+
+        // ESPN's pulls only where ESPN is turned on (EspnOptIn). Off, the default source's two jobs
+        // stand in their place — fixtures, free; scores, metered — and the menu offers nothing that
+        // could only be refused.
+        if (_options.Espn.Enabled || registry.Espn is not null
+            || scope.ServiceProvider.GetService<Adapters.IGamecastSource>() is not null)
+            await DescribeEspnAsync(jobs, scope.ServiceProvider, sports, stats, closers, ct);
+        else
+            DescribeTheOddsApiSchedule(jobs, registry, sports, allowance, left, resets);
+
+        // One entry per sport rather than one for all of them.
+        //
+        // "Fresh lines" used to scan every configured league at once, which on a credit-billed
+        // provider is the whole month's allowance being spent on leagues that are out of season
+        // and quoting nothing. Naming the sport makes the price legible before the press and lets
+        // an operator buy only the league they are working.
+        var billsCredits = registry.FindOdds(Adapters.TheOddsApiAdapter.SourceKey) is not null;
+
+        foreach (var sport in sports)
         {
+            var credits = CreditsFor(sport);
+            var check = billsCredits && allowance is not null ? allowance.Check(credits) : CreditCheck.Go;
+            var priced = _options.PricedSportsWith(registry.Espn is not null).Contains(sport, StringComparer.OrdinalIgnoreCase);
+            var league = sport.ToUpperInvariant();
+
+            jobs.Add(new IngestionJob(
+                Key: OddsLinesPrefix + sport,
+                Label: $"Pull lines — {league}",
+                Description: $"{MarketsFor(sport)} across every book for {league} "
+                             + "games that have not started.",
+                EstimatedRequests: odds,
+                EstimatedCredits: CreditsFor(sport),
+                Available: odds > 0 && priced && check.Allowed,
+                Unavailable: odds == 0 ? NoOddsKey
+                    : !priced ? $"{league} is priced only against bouts ESPN holds, and ESPN is off: a pull would spend {credits} credits and attach nothing."
+                    : check.Refusal,
+                Group: JobGroups.Lines,
+                Confirm: check.Question,
+                Hint: billsCredits
+                    ? $"Calls The Odds API's odds for {league}: {credits} credits, one per market at one region. "
+                      + $"The free month is 500 credits; it resets on {resets}."
+                    : odds == 0
+                        ? $"Pulls {league} prices from The Odds API, a credit per market. " + NoOddsKey
+                        : null,
+                CreditsLeft: billsCredits ? left : null,
+                Metered: true,
+                NeedsKey: odds == 0));
+        }
+
+        // Last, after the lines: the menu draws its groups in the order they first appear, and
+        // housekeeping, which spends nothing, is the foot of it (JobGroups).
+        jobs.Add(new IngestionJob(
+            Key: Settle,
+            Label: "Settle finished games",
+            Description: "Grades journal entries whose games are final and resolves their CLV.",
+            EstimatedRequests: 0,
+            Available: true,
+            Unavailable: null,
+            Group: JobGroups.Housekeeping));
+
+        return jobs;
+    }
+
+    /// <summary>
+    /// What a metered pull with no key says as its reason and in its tooltip: where the key goes,
+    /// the desk first and configuration second. Never "no source registered" — a person reads it.
+    /// </summary>
+    public const string NoOddsKey =
+        "Needs a The Odds API key: enter yours under Ops → Odds feeds (or set THE_ODDS_API_KEY in .env).";
+
+    /// <summary>
+    /// The default stats source's two pulls (ADR 0026): fixtures, free, under Today; and one scores pull
+    /// per league, metered, beside the lines. Without a key both say where to enter one.
+    /// </summary>
+    private static void DescribeTheOddsApiSchedule(
+        List<IngestionJob> jobs, SourceRegistry registry, IReadOnlyList<string> sports,
+        AllowanceState? allowance, int? left, string resets)
+    {
+        var scores = registry.Scores;
+        const string NoKey = NoOddsKey;
+
+        var scheduled = sports.Where(s => !FightSports.IsFight(s)).Select(s => s.ToUpperInvariant()).ToList();
+
+        jobs.Add(new IngestionJob(
+            Key: OddsFixtures,
+            Label: "Fixtures",
+            Description: $"The schedule for the next eight days in {string.Join(", ", scheduled)} from The Odds API. "
+                         + "No scores: those are their own pull.",
+            EstimatedRequests: scores is null ? 0 : scheduled.Count,
+            Available: scores is not null,
+            Unavailable: scores is null ? NoKey : null,
+            Group: JobGroups.Today,
+            Hint: "Calls The Odds API's events list, one request a league, which does not count against the 500 credits."));
+
+        foreach (var sport in sports)
+        {
+            var league = sport.ToUpperInvariant();
+            var covered = scores?.CoversScores(sport) ?? !FightSports.IsFight(sport);
+            var credits = scores?.CreditsPerScoresCall ?? Adapters.TheOddsApiScheduleAdapter.CreditsWithDaysFrom;
+            var check = allowance?.Check(credits) ?? CreditCheck.Go;
+
+            jobs.Add(new IngestionJob(
+                Key: OddsScoresPrefix + sport,
+                Label: $"Pull scores — {league}",
+                Description: $"Final scores for {league} games completed in the last three days, then settles the journal. "
+                             + "Older finals are beyond what The Odds API returns.",
+                EstimatedRequests: covered && scores is not null ? 1 : 0,
+                EstimatedCredits: credits,
+                Available: scores is not null && covered && check.Allowed,
+                Unavailable: scores is null ? NoKey
+                    : !covered ? $"The Odds API keeps no {league} results; they need ESPN."
+                    : check.Refusal,
+                Group: JobGroups.Lines,
+                Confirm: check.Question,
+                Hint: $"Calls The Odds API's scores for {league} reaching back three days: {credits} credits. "
+                      + $"The free month is 500 credits; it resets on {resets}."
+                      + (scores is null ? " " + NoOddsKey : ""),
+                CreditsLeft: left,
+                Metered: true,
+                NeedsKey: scores is null));
+        }
+    }
+
+    /// <summary>ESPN's pulls, as the menu has always listed them, for a desk that has turned ESPN on.</summary>
+    private async Task DescribeEspnAsync(
+        List<IngestionJob> jobs, IServiceProvider provider, string[] sports, int stats, int closers, CancellationToken ct)
+    {
+        jobs.AddRange(
+        [
             new IngestionJob(
                 Key: EspnSlate,
                 Label: "Today's games",
@@ -235,7 +390,7 @@ public class IngestionJobs(
                 Description: "Live scores and status for games under way, and the final for any that have just finished. "
                              + "Nothing is fetched when no game is on.",
                 EstimatedRequests: stats * (await LeagueDaysInPlayAsync(
-                    scope.ServiceProvider.GetRequiredService<LineOpsDbContext>(), DateTimeOffset.UtcNow, ct)).Count,
+                    provider.GetRequiredService<LineOpsDbContext>(), DateTimeOffset.UtcNow, ct)).Count,
                 Available: stats > 0,
                 Unavailable: stats > 0 ? null : "No stats source registered.",
                 Group: JobGroups.Today),
@@ -251,15 +406,15 @@ public class IngestionJobs(
                 Unavailable: stats > 0 ? null : "No stats source registered.",
                 Group: JobGroups.CatchUp),
 
-            (await ClosingLinesJobAsync(scope.ServiceProvider, sports, closers, ct)) with { Group = JobGroups.CatchUp },
+            (await ClosingLinesJobAsync(provider, sports, closers, ct)) with { Group = JobGroups.CatchUp },
 
-        };
+        ]);
 
         // Plays for the finals from before the feed: two requests a game, a batch a press.
-        var gamecasts = scope.ServiceProvider.GetService<Adapters.IGamecastSource>() is not null;
+        var gamecasts = provider.GetService<Adapters.IGamecastSource>() is not null;
         var batch = Math.Max(0, _options.Gamecast.BackportBatch);
 
-        if (scope.ServiceProvider.GetService<GamecastBackport>() is { } backport)
+        if (provider.GetService<GamecastBackport>() is { } backport)
         {
             jobs.Add(new IngestionJob(
                 Key: EspnGamecastBackport,
@@ -278,7 +433,7 @@ public class IngestionJobs(
         if (sports.Any(FightSports.IsFight))
         {
             var owedFighters = 0;
-            var fighters = scope.ServiceProvider.GetRequiredService<FighterProfileService>();
+            var fighters = provider.GetRequiredService<FighterProfileService>();
 
             foreach (var sport in sports.Where(FightSports.IsFight))
                 owedFighters += await fighters.OwedCountAsync(sport, ct);
@@ -294,45 +449,27 @@ public class IngestionJobs(
                 Unavailable: stats > 0 ? null : "No stats source registered.",
                 Group: JobGroups.CatchUp));
         }
+    }
 
-        // One entry per sport rather than one for all of them.
-        //
-        // "Fresh lines" used to scan every configured league at once, which on a credit-billed
-        // provider is the whole month's allowance being spent on leagues that are out of season
-        // and quoting nothing. Naming the sport makes the price legible before the press and lets
-        // an operator buy only the league they are working.
-        foreach (var sport in sports)
-        {
-            jobs.Add(new IngestionJob(
-                Key: OddsLinesPrefix + sport,
-                Label: $"Pull lines — {sport.ToUpperInvariant()}",
-                Description: $"{MarketsFor(sport)} across every book for {sport.ToUpperInvariant()} "
-                             + "games that have not started.",
-                EstimatedRequests: odds,
-                EstimatedCredits: CreditsFor(sport),
-                Available: odds > 0,
-                Unavailable: odds > 0 ? null : "No odds source registered.",
-                Group: JobGroups.Lines));
-        }
-
-        // Last, after the lines: the menu draws its groups in the order they first appear, and
-        // housekeeping, which spends nothing, is the foot of it (JobGroups).
-        jobs.Add(new IngestionJob(
-            Key: Settle,
-            Label: "Settle finished games",
-            Description: "Grades journal entries whose games are final and resolves their CLV.",
-            EstimatedRequests: 0,
-            Available: true,
-            Unavailable: null,
-            Group: JobGroups.Housekeeping));
-
-        return jobs;
+    /// <summary>Whether anything serves ESPN's jobs: a stats source or a gamecast source.</summary>
+    private async Task<bool> HasEspnAsync()
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return scope.ServiceProvider.GetService<SourceRegistry>() is not { } registry
+               || registry.Espn is not null
+               || scope.ServiceProvider.GetService<Adapters.IGamecastSource>() is not null;
     }
 
     /// <summary>Runs one job by key. Unknown keys are refused rather than silently ignored.</summary>
     public async Task<JobOutcome> RunAsync(string key, CancellationToken ct = default)
     {
         var started = DateTimeOffset.UtcNow;
+
+        // ESPN is opt-in (EspnOptIn). Off, nothing serves its jobs, and they are refused by name,
+        // saying how to turn it on, rather than reported as succeeding with nothing to read from.
+        // Asked of the registry, as DescribeAsync is: what is registered is what can run.
+        if (EspnOptIn.IsEspnJob(key) && key != EspnRange && !await HasEspnAsync())
+            return new JobOutcome(key, false, 0, 0, EspnOptIn.Refusal(key));
 
         try
         {
@@ -346,6 +483,11 @@ public class IngestionJobs(
                 EspnGamecastBackport => await RunGamecastBackportAsync(ct),
                 OddsLines => await RunOddsAsync(null, ct),
                 Settle => await RunSettleAsync(ct),
+                OddsFixtures => await RunFixturesAsync(ct),
+                OddsScores => await RunScoresAsync(null, unattended: true, ct),
+
+                _ when key.StartsWith(OddsScoresPrefix, StringComparison.Ordinal)
+                    => await RunScoresAsync(key[OddsScoresPrefix.Length..], unattended: false, ct),
 
                 // A range is nothing without its league and dates, so it is refused by name here
                 // rather than reported as an unknown job.
@@ -590,6 +732,222 @@ public class IngestionJobs(
     }
 
     /// <summary>
+    /// The default source's fixtures for every league it schedules, from today (the league's day)
+    /// eight days ahead (ADR 0026). Free: the guard is not asked, and the run rows say nothing was billed.
+    /// </summary>
+    private async Task<JobOutcome> RunFixturesAsync(CancellationToken ct)
+    {
+        var rows = 0;
+        var failures = 0;
+        var leagues = 0;
+
+        foreach (var sportKey in _options.EffectiveSports.Where(s => !FightSports.IsFight(s)))
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+
+            if (registry.FindStats(Adapters.TheOddsApiScheduleAdapter.SourceKey) is not { } source)
+                return new JobOutcome(OddsFixtures, false, 0, 0, NoScheduleSource(registry));
+
+            var outcome = await scope.ServiceProvider.GetRequiredService<StatsIngestionService>()
+                .IngestFixturesAsync(source, sportKey, OddsFixtures, LeagueClock.Today(), ct);
+
+            rows += outcome.RowsIngested;
+            leagues++;
+
+            if (outcome.Status == RunStatus.Failed)
+                failures++;
+        }
+
+        return new JobOutcome(OddsFixtures, failures == 0, rows, failures,
+            $"Fixtures for {leagues} {(leagues == 1 ? "league" : "leagues")}, eight days ahead: {rows:N0} games read. No credits spent.");
+    }
+
+    /// <summary>Why the default source's jobs cannot run on this host, in the words the desk uses.</summary>
+    private static string NoScheduleSource(SourceRegistry registry)
+        => registry.Espn is not null
+            ? "ESPN is the stats source on this host; its own jobs fetch schedules and scores."
+            : "No Odds API key is held. Enter your free key in Ops → Odds feeds.";
+
+    /// <summary>
+    /// Final scores from the default source (ADR 0026), at two credits a league a call.
+    ///
+    /// <para>
+    /// On request (<paramref name="onlySport"/>): that league, whatever is owed — the person pressing
+    /// it saw the price. Unattended (<see cref="OddsScores"/>): only when automatic scanning is chosen,
+    /// only the leagues <see cref="ScoresDueAsync"/> names, and only while the month affords the call
+    /// above the reserve held for pulls on request — so the scheduler never spends what an operator
+    /// might want. Settles afterwards when a final arrived.
+    /// </para>
+    /// </summary>
+    private async Task<JobOutcome> RunScoresAsync(string? onlySport, bool unattended, CancellationToken ct)
+    {
+        var jobKey = onlySport is null ? OddsScores : OddsScoresPrefix + onlySport;
+
+        IScoreSource? source;
+        AllowanceState? allowance;
+        IReadOnlyList<string> sports;
+        ScoresOwed owed;
+
+        await using (var scope = scopeFactory.CreateAsyncScope())
+        {
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+            source = registry.Scores;
+            if (source is null)
+                return new JobOutcome(jobKey, false, 0, 0, NoScheduleSource(registry));
+
+            // Never metered unattended unless the operator chose automatic: the same stored choice
+            // the lines obey, so On request means nothing is spent unasked, scores included.
+            if (unattended && !await db.LinesRunUnattendedAsync(_options.LinePolling.RunsUnattended, ct))
+                return new JobOutcome(jobKey, true, 0, 0, "Scores are pulled on request only; nothing was spent.");
+
+            allowance = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null);
+            owed = await ScoresOwedAsync(db, _options.EffectiveSports.Where(source.CoversScores).ToList(),
+                DateTimeOffset.UtcNow, _options.GamePasses.ResultsAfterStart, source.ScoresReachDays, ct);
+
+            if (onlySport is not null)
+            {
+                var league = _options.EffectiveSports.FirstOrDefault(s => string.Equals(s, onlySport, StringComparison.OrdinalIgnoreCase));
+                if (league is null)
+                    return new JobOutcome(jobKey, false, 0, 0, $"'{onlySport}' is not a configured sport.");
+                if (!source.CoversScores(league))
+                    return new JobOutcome(jobKey, false, 0, 0, $"The Odds API keeps no {league.ToUpperInvariant()} results; they need ESPN.");
+
+                sports = [league];
+            }
+            else
+            {
+                sports = await ScoresDueAsync(db, owed, DateTimeOffset.UtcNow, ct);
+            }
+        }
+
+        if (sports.Count == 0)
+            return new JobOutcome(jobKey, true, 0, 0, "No league is owed scores now; nothing was spent." + Beyond(owed));
+
+        var rows = 0;
+        var failures = 0;
+        var spent = 0;
+        var held = new List<string>();
+
+        foreach (var sportKey in sports)
+        {
+            if (ct.IsCancellationRequested)
+                break;
+
+            var cost = source.CreditsPerScoresCall;
+
+            // Asked again before each league: the last one's spend is already counted.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var state = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null) ?? allowance;
+
+            if (state is not null && (unattended ? !state.AffordsUnattended(cost) : !state.Check(cost).Allowed))
+            {
+                held.Add(sportKey.ToUpperInvariant());
+                continue;
+            }
+
+            var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+            if (registry.Scores is not { } scores)
+                break;
+
+            var outcome = await scope.ServiceProvider.GetRequiredService<StatsIngestionService>()
+                .IngestScoresAsync(scores, sportKey, OddsScoresPrefix + sportKey, ct);
+
+            rows += outcome.RowsIngested;
+            if (outcome.Status == RunStatus.Failed)
+                failures++;
+
+            var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+            spent += await db.IngestionRuns.Where(r => r.Id == outcome.RunId).Select(r => r.CreditsSpent).FirstOrDefaultAsync(ct);
+        }
+
+        if (rows > 0)
+            await RunSettleAsync(ct);
+
+        var detail = $"{string.Join(", ", sports.Select(s => s.ToUpperInvariant()).Except(held))}: {rows:N0} games read, {spent:N0} credits spent"
+                     + (rows > 0 ? ", then settled" : "")
+                     + "."
+                     + (held.Count > 0
+                         ? unattended
+                             ? $" Held back for {string.Join(", ", held)}: the call would dip into the credits kept for pulls on request."
+                             : $" Not pulled for {string.Join(", ", held)}: the month cannot cover it."
+                         : "")
+                     + Beyond(owed);
+
+        return new JobOutcome(jobKey, failures == 0, rows, failures, detail);
+    }
+
+    /// <summary>"3 games started more than three days ago have no final and cannot get one from The Odds API."</summary>
+    private static string Beyond(ScoresOwed owed)
+        => owed.Unrecoverable == 0
+            ? ""
+            : $" {owed.Unrecoverable:N0} {(owed.Unrecoverable == 1 ? "game" : "games")} started more than three days ago "
+              + $"{(owed.Unrecoverable == 1 ? "has" : "have")} no final and cannot get one from The Odds API.";
+
+    /// <summary>
+    /// Per league, the games a scores call could finish now — started at least
+    /// <paramref name="afterStart"/> ago, within the provider's reach, and neither final nor postponed;
+    /// the games still being played; and, across leagues, the games beyond the reach that never went
+    /// final here, which no call can finish (they are counted for the desk to say so, never asked for).
+    /// </summary>
+    public static async Task<ScoresOwed> ScoresOwedAsync(
+        LineOpsDbContext db, IReadOnlyList<string> sports, DateTimeOffset now, TimeSpan afterStart, int reachDays,
+        CancellationToken ct = default)
+    {
+        var reach = now.AddDays(-reachDays);
+        var settled = now - afterStart;
+        var lookback = now.AddDays(-45);
+
+        var open = await db.Games
+            .Where(g => sports.Contains(g.Sport!.Key)
+                        && g.StartsAt <= now
+                        && g.StartsAt >= lookback
+                        && g.Status != GameStatus.Final
+                        && g.Status != GameStatus.Postponed)
+            .Select(g => new { Sport = g.Sport!.Key, g.StartsAt })
+            .ToListAsync(ct);
+
+        var byLeague = sports.ToDictionary(
+            s => s,
+            s => new LeagueScores(
+                Owed: open.Count(g => g.Sport == s && g.StartsAt <= settled && g.StartsAt > reach),
+                Playing: open.Count(g => g.Sport == s && g.StartsAt > settled)),
+            StringComparer.OrdinalIgnoreCase);
+
+        return new ScoresOwed(byLeague, open.Count(g => g.StartsAt <= reach));
+    }
+
+    /// <summary>
+    /// The leagues an unattended scores call is due for: owed a final, none of its games still being
+    /// played (so one call takes the whole night's slate), and not yet asked on this league day — at
+    /// most one call a league a day, manual pulls included.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> ScoresDueAsync(
+        LineOpsDbContext db, ScoresOwed owed, DateTimeOffset now, CancellationToken ct = default)
+    {
+        var dayStart = LeagueClock.StartOf(LeagueClock.DateOf(now));
+        var keys = owed.Leagues.Keys.Select(s => OddsScoresPrefix + s).ToList();
+
+        var askedToday = (await db.IngestionRuns
+                .Where(r => keys.Contains(r.JobKey) && r.StartedAt >= dayStart)
+                .Select(r => r.JobKey)
+                .Distinct()
+                .ToListAsync(ct))
+            .Select(k => k[OddsScoresPrefix.Length..])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return owed.Leagues
+            .Where(kv => kv.Value.Owed > 0 && kv.Value.Playing == 0 && !askedToday.Contains(kv.Key))
+            .Select(kv => kv.Key)
+            .ToList();
+    }
+
+    /// <summary>
     /// A price scan, over one sport or over every configured one.
     /// </summary>
     /// <param name="onlySport">
@@ -601,21 +959,28 @@ public class IngestionJobs(
     {
         var jobKey = onlySport is null ? OddsLines : OddsLinesPrefix + onlySport;
 
+        // The leagues a scan can price: every configured one with ESPN on, as always; without ESPN a
+        // fought league is left out, since its fights attach only to bouts ESPN holds (ADR 0026).
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+        var priced = _options.PricedSportsWith(registry.Espn is not null);
+
         var sports = onlySport is null
-            ? _options.EffectiveSports
-            : _options.EffectiveSports
+            ? priced
+            : priced
                 .Where(s => string.Equals(s, onlySport, StringComparison.OrdinalIgnoreCase))
                 .ToArray();
 
         if (sports.Length == 0)
-            return new JobOutcome(jobKey, false, 0, 0, $"'{onlySport}' is not a configured sport.");
+            return new JobOutcome(jobKey, false, 0, 0,
+                _options.EffectiveSports.Contains(onlySport, StringComparer.OrdinalIgnoreCase)
+                    ? $"{onlySport!.ToUpperInvariant()} is priced only against bouts ESPN holds, and ESPN is off."
+                    : $"'{onlySport}' is not a configured sport.");
 
         var rows = 0;
         var failures = 0;
         var credits = 0;
 
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
         var ingestion = scope.ServiceProvider.GetRequiredService<OddsIngestionService>();
         var initialiser = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
@@ -903,6 +1268,12 @@ public class IngestionJobs(
     /// </summary>
     internal readonly record struct OwedCloses(int WithoutClose, int ToAsk, int SetAside = 0);
 
+    /// <summary>Each league's scores standing, and the games across them no scores call can finish.</summary>
+    public sealed record ScoresOwed(IReadOnlyDictionary<string, LeagueScores> Leagues, int Unrecoverable);
+
+    /// <summary>Games a scores call could finish now, and games still being played.</summary>
+    public readonly record struct LeagueScores(int Owed, int Playing);
+
     private async Task<JobOutcome> RunSettleAsync(CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -978,6 +1349,17 @@ public class IngestionJobs(
 /// Which section of the pull menu the job sits in (<see cref="JobGroups"/>): the desk draws the
 /// jobs of one group together under its heading, so the three kinds of pull read as three.
 /// </param>
+/// <param name="Confirm">
+/// The question a metered pull asks before it spends — more than a trivial price, or into the
+/// reserve (<see cref="CreditAllowance"/>). Null runs on the press.
+/// </param>
+/// <param name="Hint">What the pull calls, what it costs and when credits reset, for the entry's tooltip.</param>
+/// <param name="CreditsLeft">The account's credits left this month, where the provider has said; drawn beside the price.</param>
+/// <param name="Metered">
+/// The pull spends a provider's credits. Its price is never stated as "free", even when it is
+/// unknown because no source is registered to quote one.
+/// </param>
+/// <param name="NeedsKey">A metered pull that cannot be priced or run because no key is held.</param>
 public record IngestionJob(
     string Key,
     string Label,
@@ -986,7 +1368,12 @@ public record IngestionJob(
     bool Available,
     string? Unavailable,
     int EstimatedCredits = 0,
-    string? Group = null);
+    string? Group = null,
+    string? Confirm = null,
+    string? Hint = null,
+    int? CreditsLeft = null,
+    bool Metered = false,
+    bool NeedsKey = false);
 
 /// <summary>
 /// The pull menu's sections, in the order they are drawn. Today's slate first, because it is
@@ -997,7 +1384,11 @@ public static class JobGroups
 {
     public const string Today = "Today";
     public const string CatchUp = "Catch up";
-    public const string Lines = "Lines";
+    /// <summary>
+    /// Every pull that spends credits — lines, and the default source's scores — and nothing else, so
+    /// a metered pull is told apart from a free one by where it sits as well as by its price.
+    /// </summary>
+    public const string Lines = "Costs credits";
     public const string Housekeeping = "Housekeeping";
 }
 

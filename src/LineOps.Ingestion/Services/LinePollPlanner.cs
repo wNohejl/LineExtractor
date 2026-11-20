@@ -47,6 +47,9 @@ public class LinePollPlanner(
 {
     private readonly IngestionOptions _options = options.Value;
 
+    /// <summary>The leagues a scan prices (<see cref="IngestionOptions.PricedSportsWith"/>): all of them with ESPN on.</summary>
+    private string[] Priced => registry is null ? _options.EffectiveSports : _options.PricedSportsWith(registry.Espn is not null);
+
     /// <summary>
     /// What one scan of every configured sport bills a source, in credits. The adapter's own
     /// forecast where it gives one — it knows its market list and its provider's rule — and the
@@ -55,17 +58,17 @@ public class LinePollPlanner(
     private int CreditsPerScan(string sourceKey)
     {
         var declared = registry?.FindOdds(sourceKey) is { } source
-            ? _options.EffectiveSports.Sum(source.CreditsPerScan)
+            ? Priced.Sum(source.CreditsPerScan)
             : 0;
 
         return declared > 0
             ? declared
-            : _options.EffectiveSports.Length * _options.LinePolling.CreditsPerSportPerScan;
+            : Priced.Length * _options.LinePolling.CreditsPerSportPerScan;
     }
 
     /// <summary>The markets each sport is scanned for, and what that costs, per source that bills credits.</summary>
     public IReadOnlyList<SportMarkets> MarketsBySport(IReadOnlyList<string> oddsSourceKeys)
-        => _options.EffectiveSports
+        => Priced
             .Select(sport =>
             {
                 var sources = oddsSourceKeys.Select(k => registry?.FindOdds(k)).OfType<Core.Contracts.IOddsSource>().ToList();
@@ -86,7 +89,7 @@ public class LinePollPlanner(
             return null;
 
         var settings = _options.LinePolling;
-        var sports = _options.EffectiveSports.Length;
+        var sports = Priced.Length;
 
         // Cost of one scan: two requests per sport per source, which is the whole point of the
         // batched /odds/multi call — it does not grow with the size of the slate.
@@ -214,7 +217,10 @@ public class LinePollPlanner(
 
             var creditsPerScan = Math.Max(1, CreditsPerScan(source.Key));
 
-            var usable = Math.Max(0, monthly - settings.MonthlyCreditReserve - spent);
+            // Scores share the month (ADR 0026): what the scheduler will spend on them to the month's
+            // end is set aside before lines are paced, so the cadence shown is the one both can afford.
+            var usable = Math.Max(0, monthly - settings.MonthlyCreditReserve - spent
+                                     - await ScoresForecastAsync(source, now, monthStart.AddMonths(1), ct));
             fromMonthly = usable / creditsPerScan;
 
             // Spread across the hours the month has left. A manual pull therefore lengthens the
@@ -261,6 +267,44 @@ public class LinePollPlanner(
         governedByMonth |= fromDaily is null && fromHourly is null && fromMonthly is not null;
 
         return (interval, scans, governedByMonth);
+    }
+
+    /// <summary>
+    /// What the default source's scores will spend (ADR 0026): the leagues with a game in the last
+    /// three days or the coming week, at one call a league a day. Null where scores are not metered
+    /// here — ESPN on, or no key — so a desk on ESPN plans exactly as it did.
+    /// </summary>
+    public async Task<ScoresPlan?> ScoresPlanAsync(CancellationToken ct = default)
+    {
+        if (registry?.Scores is not { } scores)
+            return null;
+
+        var now = DateTimeOffset.UtcNow;
+        var monthEnd = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(1);
+        var sports = _options.EffectiveSports.Where(scores.CoversScores).ToList();
+        var from = now.AddDays(-scores.ScoresReachDays);
+        var to = now.AddDays(7);
+
+        var active = await db.Games
+            .Where(g => sports.Contains(g.Sport!.Key) && g.StartsAt >= from && g.StartsAt <= to)
+            .Select(g => g.Sport!.Key)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var automatic = await db.LinesRunUnattendedAsync(_options.LinePolling.RunsUnattended, ct);
+        var perDay = active.Count * scores.CreditsPerScoresCall;
+        var daysLeft = Math.Max(1, (int)Math.Ceiling((monthEnd - now).TotalDays));
+
+        return new ScoresPlan(active.Order(StringComparer.Ordinal).ToList(), scores.CreditsPerScoresCall, perDay, daysLeft, automatic);
+    }
+
+    /// <summary>The scores spend to the month's end, set aside from a source on the same account; zero otherwise.</summary>
+    private async Task<int> ScoresForecastAsync(Source source, DateTimeOffset now, DateTimeOffset monthEnd, CancellationToken ct)
+    {
+        if (!Core.Entities.SourceAccounts.Sharing(source.Key).Contains(Core.Entities.SourceAccounts.TheOddsApiSchedule))
+            return 0;
+
+        return await ScoresPlanAsync(ct) is { Automatic: true } plan ? plan.ToMonthEnd : 0;
     }
 
     /// <summary>
@@ -344,6 +388,17 @@ public class LinePollPlanner(
 /// </param>
 /// <summary>One sport's scan: the markets asked for and the credits they bill.</summary>
 public record SportMarkets(string Sport, IReadOnlyList<string> Markets, int Credits);
+
+/// <summary>
+/// The default source's scores against the month (ADR 0026): the leagues in play this week, the
+/// price of one call, and what automatic scanning would spend on them a day and to the month's end.
+/// </summary>
+/// <param name="Automatic">Whether the operator chose automatic: only then does the scheduler spend any of it.</param>
+public record ScoresPlan(IReadOnlyList<string> Leagues, int CreditsPerCall, int PerDay, int DaysLeft, bool Automatic)
+{
+    /// <summary>What automatic scores would spend from now to the month's end, at one call a league a day.</summary>
+    public int ToMonthEnd => PerDay * DaysLeft;
+}
 
 public record PollPlan(
     TimeSpan Interval,

@@ -20,6 +20,21 @@ public class IngestionOptions
 
     public static readonly string[] DefaultSports = ["nfl", "nba", "mlb", "nhl"];
 
+    /// <summary>
+    /// The leagues a lines pull can price. Every configured league with ESPN on; without it a fought
+    /// league is left out, because a book's fight is only ever attached to a bout ESPN created
+    /// (ADR 0021) — a UFC scan with ESPN off would bill its credits and attach nothing (ADR 0026).
+    /// </summary>
+    public string[] PricedSports => PricedSportsWith(espnRegistered: false);
+
+    /// <summary>
+    /// <see cref="PricedSports"/>, counting a registered ESPN-like stats source as ESPN on — which is
+    /// what the registry knows and configuration may not (a host or a test that registers its own).
+    /// </summary>
+    public string[] PricedSportsWith(bool espnRegistered) => Espn.Enabled || espnRegistered
+        ? EffectiveSports
+        : EffectiveSports.Where(s => !Core.Analytics.FightSports.IsFight(s)).ToArray();
+
     /// <summary>Only snapshot games starting inside this window, to conserve free-tier requests.</summary>
     public TimeSpan MovementWindow { get; set; } = TimeSpan.FromHours(36);
 
@@ -32,12 +47,17 @@ public class IngestionOptions
     public SourceOptions OddsApiIo { get; set; } = new();
     public SourceOptions TheOddsApi { get; set; } = new();
     public SourceOptions BallDontLie { get; set; } = new();
-    public SourceOptions Espn { get; set; } = new() { Enabled = true };
+    /// <summary>
+    /// The stats source, off until the operator opts in (<see cref="EspnOptIn"/>): its terms
+    /// prohibit automated access, so turning it on is a person's decision, never a default.
+    /// </summary>
+    public SourceOptions Espn { get; set; } = new() { Enabled = false };
 
     /// <summary>
     /// MLB's own schedule API: free, unauthenticated, and the issuer of the ids baseball runs on.
-    /// On by default because it is the entity spine rather than one more feed — every other
-    /// source resolves into its <c>gamePk</c> and MLBAM team and player ids.
+    /// Its own switch defaults on, but it registers only when <see cref="Espn"/> is on too: it
+    /// annotates games ESPN has written and is useless without them, and its data is licensed for
+    /// personal use as ESPN's is, so it rides the same opt-in rather than asking a second time.
     /// </summary>
     public SourceOptions MlbStatsApi { get; set; } = new()
     {

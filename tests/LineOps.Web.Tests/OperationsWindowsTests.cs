@@ -7,6 +7,7 @@ using LineOps.Ingestion.Services;
 using LineOps.Reliability;
 using LineOps.Web.Components.Panels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
@@ -187,9 +188,165 @@ public class OperationsWindowsTests : DeskTestContext
         var panel = RenderOps();
 
         Assert.Empty(panel.FindAll(".wgroup__label"));
-        var footnote = panel.Find(".opsfoot");
+        var footnote = panel.FindAll("section.psection")
+            .Single(s => s.QuerySelector(".psection__head")!.TextContent.Trim() == "Odds feeds")
+            .QuerySelector(".opsfoot")!;
         Assert.DoesNotContain("wgroup__foot", footnote.ClassName);
         Assert.Contains("Lines are pulled on request only", footnote.TextContent);
+    }
+
+    // ---- The stats source, three states (ADR 0026) ------------------------------------------
+
+    private static string StatsSection(IRenderedFragment panel)
+    {
+        var section = panel.FindAll("section.psection")
+            .Single(s => s.QuerySelector(".psection__head")!.TextContent.Trim() == "Stats source");
+        return string.Join(' ', section.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static IReadOnlyList<string> Tooltips(IRenderedFragment panel)
+        => panel.FindComponents<DeskTooltip>().Select(t => t.Instance.Text).ToList();
+
+    /// <summary>
+    /// ESPN off and no key — a fresh clone: Ops says first that nothing supplies fixtures or scores
+    /// and that the fix is the key field below, then why ESPN is opt-in and exactly how to turn it on.
+    /// </summary>
+    [Fact]
+    public void Ops_with_espn_off_and_no_key_asks_for_a_key_and_says_how_espn_is_turned_on()
+    {
+        var panel = RenderOps();
+
+        var titles = panel.FindAll(".psection__head").Select(h => h.TextContent.Trim()).ToList();
+        Assert.Equal("Stats source", titles[0]);
+
+        var section = panel.FindAll("section.psection")
+            .Single(s => s.QuerySelector(".psection__head")!.TextContent.Trim() == "Stats source");
+        var text = StatsSection(panel);
+
+        Assert.Contains("No stats source: ESPN is off and no Odds API key is held", section.QuerySelector(".empty")!.TextContent);
+        Assert.Equal("0", section.QuerySelector(".empty")!.GetAttribute("tabindex"));
+        Assert.Contains("Enter your free key under Odds feeds below", text);
+        Assert.Contains("unofficial and undocumented", text);
+        Assert.Contains("personal, non-commercial use and prohibit automated access", text);
+        Assert.Contains("never to host, redistribute or sell it", text);
+        Assert.Contains("ESPN_ENABLED=true in .env", text);
+        Assert.Contains("start the stack again", text);
+        Assert.Contains("appsettings.Local.json", text);
+
+        // Prose and an empty state: no group, no grid, no second edge around the notice.
+        Assert.Empty(section.QuerySelectorAll(".wgroup, .deskgrid"));
+    }
+
+    [Fact]
+    public void Ops_with_a_key_and_espn_off_says_the_odds_api_supplies_fixtures_and_scores_and_what_needs_espn()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_port", StatsPort.TheOddsApi);
+        panel.Render();
+
+        var text = StatsSection(panel);
+        Assert.Contains("The Odds API is the stats source on this host, on your key.", text);
+        Assert.Contains("Fixtures are free", text);
+        Assert.Contains("Final scores cost 2 credits a league a pull", text);
+        Assert.Contains("Pull data → Pull scores", text);
+        Assert.Contains("Box scores, player stats, play-by-play, injuries and UFC need ESPN, which is off.", text);
+        Assert.Contains("ESPN_ENABLED=true in .env", text);
+
+        // Not an empty state: the desk has a source, it is said in prose.
+        Assert.DoesNotContain("No stats source", text);
+    }
+
+    [Fact]
+    public void Ops_with_espn_on_says_espn_is_the_stats_source_and_has_no_notice()
+    {
+        Services.Configure<LineOps.Ingestion.Configuration.IngestionOptions>(o => o.Espn.Enabled = true);
+
+        var panel = RenderOps();
+
+        Assert.Contains("ESPN is the stats source on this host", StatsSection(panel));
+        Assert.DoesNotContain("ESPN_ENABLED", panel.Markup);
+        Assert.DoesNotContain("No stats source", panel.Markup);
+    }
+
+    [Fact]
+    public void The_stats_source_statement_carries_a_tooltip_saying_what_a_stats_source_is()
+    {
+        var panel = RenderOps();
+
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("The stats source writes each game's schedule and result"));
+    }
+
+    // ---- The month in one place (owner's request, 2026-11-20) ---------------------------------
+
+    [Fact]
+    public void Ops_states_credits_left_by_whose_count_when_they_reset_and_what_scores_would_take()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_allowance", new AllowanceState(500, 88, true, 100, new DateOnly(2026, 12, 1)));
+        Set(panel.Instance, "_scores", new ScoresPlan(["nba", "nfl"], 2, 4, 11, Automatic: false));
+        panel.Render();
+
+        var section = panel.Find("section.wsection[aria-label=Scanning]");
+        var text = string.Join(' ', section.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        Assert.Contains("412 of 500 credits left this month, by The Odds API's own count; they reset on Dec 1.", text);
+        Assert.Contains("Scores cost 2 credits a league a pull; on Automatic they would take about 4 a day (NBA, NFL).", text);
+
+        // The figure explains itself on hover and focus; the figure itself is text.
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("The Odds API reports what is left on the key"));
+        Assert.NotEmpty(section.QuerySelectorAll("span[tabindex='0'] .num"));
+    }
+
+    [Fact]
+    public void On_automatic_the_scores_spend_to_the_months_end_is_stated_as_set_aside()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_allowance", new AllowanceState(500, 300, false, 100, new DateOnly(2026, 12, 1)));
+        Set(panel.Instance, "_scores", new ScoresPlan(["nfl"], 2, 2, 11, Automatic: true));
+        panel.Render();
+
+        var text = panel.Find("section.wsection[aria-label=Scanning]").TextContent;
+
+        Assert.Contains("by this desk's count", text);
+        Assert.Contains("about 2 a day, 22 to the month's end, set aside before lines are paced", text);
+    }
+
+    [Fact]
+    public void The_scanning_switch_carries_a_tooltip_and_its_segments_say_what_each_spends()
+    {
+        var panel = RenderOps(LiveFeed());
+
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("On request spends nothing unless you choose a pull"));
+
+        var segments = panel.FindAll("[role=radio]").Select(b => b.GetAttribute("title")).ToList();
+        Assert.Contains(segments, t => t!.StartsWith("Nothing is spent unasked"));
+        Assert.Contains(segments, t => t!.Contains("scores") && t.Contains("once a night"));
+    }
+
+    [Fact]
+    public void The_odds_api_key_row_carries_a_tooltip_with_what_each_pull_costs()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "lineops-opskey-" + Guid.NewGuid().ToString("N"));
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [LineOps.Web.Services.DeskOddsKey.StorePathKey] = directory })
+            .Build();
+        var key = new LineOps.Web.Services.DeskOddsKey(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(), new RuntimeOddsKey(),
+            _ => Task.CompletedTask, new NoClients(), configuration,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LineOps.Web.Services.DeskOddsKey>.Instance);
+
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_oddsKey", key);
+        panel.Render();
+
+        var row = panel.Find("section.wsection[aria-label='The Odds API key'] .wgroup__label");
+        Assert.Equal("The Odds API key", row.TextContent.Trim());
+        Assert.Contains(Tooltips(panel), t => t.Contains("500 credits a month") && t.Contains("scores two a league") && t.Contains("fixtures nothing"));
+    }
+
+    private sealed class NoClients : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new NotSupportedException("No call is made in this test.");
     }
 
     // ---- Incidents ---------------------------------------------------------------------------

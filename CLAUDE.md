@@ -26,15 +26,21 @@ not start. The desk was good; the git management was not. Keep it this way inste
 ## Data: the desk targets one dataset from any machine
 
 The database is a local Docker Postgres. To develop from another machine against the same
-games, stats and closing lines, the data travels with the code as a committed snapshot:
+games, stats and closing lines, the data travels as a snapshot through the owner's **private**
+journal repository (next section), never with the code: ESPN's and MLB's data may not be
+redistributed, so this public repository carries no snapshot.
 
 ```powershell
-.\scripts\publish-data.ps1 -Commit    # on the machine that has the data: dump, commit, push
-.\scripts\restore-data.ps1            # on the other machine: start Postgres, restore
+.\scripts\publish-data.ps1 -Commit    # on the machine that has the data: dump, commit and push in data/personal
+git -C data/personal pull             # on the other machine: fetch the snapshot
+.\scripts\restore-data.ps1            # then start Postgres and restore it
 ```
 
-The snapshot lives at `data/snapshots/lineops.dump` (custom-format pg_dump, ~2–3 MB) with a
-manifest beside it saying what it holds. It leaves out the journal, parlays and operator
+The snapshot lives at `data/personal/snapshots/lineops.dump` (custom-format pg_dump, ~6 MB),
+inside the private clone, with a manifest beside it saying what it holds. `-Commit` commits and
+pushes in that clone only, and refuses if `data/personal` is not a clone of its own; nothing is
+ever added to this repository (`data/snapshots/` is gitignored). `restore-data.ps1 -InFile`
+takes a dump from elsewhere. The dump leaves out the journal, parlays and operator
 settings (`-IncludePersonal` to keep them), and the script refuses a dump that holds them. The
 scripts run under Windows PowerShell 5.1 or PowerShell 7 on any OS: Postgres's tools run in a
 sidecar container, so nothing binary crosses a shell pipe.
@@ -45,32 +51,42 @@ database's own count, so the month is not spent twice. Refresh it whenever the d
 machine should see — after a backfill, after a season closes. `restore-data.ps1` refuses to
 overwrite a database that already holds games unless told to with `-Force`.
 
-A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`): `dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or the Board's Date range key on the desk.
+A league's games over any range of days, with box scores and closing lines (≤200 days; complete days skipped unless `--refresh true`), with ESPN on (Scope): `dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30` — or the Board's Date range key on the desk. With ESPN off the Worker refuses an `espn:` job in one line and exits 5.
 
 **Setting up on anyone else's machine** (a first run, "get it running", an API key): use the
 `lineops-setup` skill (`.claude/skills/lineops-setup/SKILL.md`), the README's Quick start for an
-agent. Prices come from **The Odds API** (`the-odds-api.com`, free Starter plan of 500 credits a
-month, sign-up at <https://the-odds-api.com/#get-access>), not odds-api.io. The private journal
-below is the owner's alone; skip it.
+agent. Fixtures, prices and final scores come from **The Odds API** (`the-odds-api.com`, free
+Starter plan of 500 credits a month, sign-up at <https://the-odds-api.com/#get-access>), not
+odds-api.io: clone, setup, start, enter the key in Ops, and fixtures and prices appear. The
+private journal and the snapshot in it are the owner's alone; skip them. Anyone else gets no
+snapshot: their desk fills from The Odds API on their key (fixtures free, scores 2 credits a
+league, history only from the day they start), or from ESPN if they turn it on.
 
-The owner's laptop bootstrap, from nothing:
+The owner's laptop bootstrap, from nothing (the private clone before the restore, which reads
+the snapshot from it):
 
 ```powershell
 git clone https://github.com/wNohejl/LineExtractor.git LineOps; cd LineOps
 git checkout LineX_Development
-.\scripts\setup.ps1                      # generates .env with the database password
-.\scripts\restore-data.ps1               # brings Postgres up and loads the snapshot
-git clone https://github.com/wNohejl/lineops-journal.git data/personal   # private
+.\scripts\setup.ps1 -EnableEspn          # generates .env with the database password, ESPN_ENABLED=true
+git clone https://github.com/wNohejl/lineops-journal.git data/personal   # private: journal and snapshot
+.\scripts\restore-data.ps1               # brings Postgres up and loads data/personal/snapshots/lineops.dump
 .\scripts\restore-journal.ps1
 dotnet run --project src/LineOps.Web --launch-profile http   # or the Docker desk, below, if Smart App Control is on
 ```
+
+`.env` reaches only the containers. For `dotnet run`, ESPN is turned on with
+`"Ingestion": { "Espn": { "Enabled": true } }` in `src/LineOps.Web/appsettings.Local.json` (and
+in `src/LineOps.Worker/appsettings.Local.json` for the Worker), or
+`Ingestion__Espn__Enabled=true` in the environment.
 
 ### The journal: the private repo `lineops-journal`
 
 The journal, parlays and operator settings travel through the **private** repository
 `https://github.com/wNohejl/lineops-journal.git`, never through this public one (ADR 0025). It
-holds one file, `journal.json` (games named by provider id, so it merges into any database
-holding those games). Clone it at `data/personal`, where the journal scripts read and write by
+holds `journal.json` (games named by provider id, so it merges into any database holding those
+games) and, since the snapshot left this repository, `snapshots/` with the database dump
+(above). Clone it at `data/personal`, where the journal scripts read and write by
 default; `.gitignore` keeps that folder out of this repository, and nothing in it is ever
 committed here. (A clone at `./lineops-journal`, also ignored, works with `-OutFile`/`-InFile`.)
 
@@ -79,7 +95,7 @@ committed here. (A clone at `./lineops-journal`, also ignored, works with `-OutF
 .\scripts\publish-journal.ps1
 git -C data/personal commit -am "journal: export <date>, <n> entries"; git -C data/personal push
 
-# On the other machine: data first, then the journal. In this order, always.
+# On the other machine: data first, then the journal. In this order, always. One pull brings both.
 git -C data/personal pull
 .\scripts\restore-data.ps1 -Force
 .\scripts\restore-journal.ps1 -DryRun   # read the report
@@ -122,6 +138,7 @@ docker compose -f docker-compose.yml -f compose.dev.yml up -d --build web
 docker compose logs -f web
 
 # One Worker job, in the worker image instead of `dotnet run --project src/LineOps.Worker`.
+# An espn: job needs ESPN_ENABLED=true in .env, as the desk's ESPN pulls do.
 docker compose run --rm worker --job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30
 
 # Tests: in the SDK container, from a copy (the checkout is mounted read-only, so Linux bin/obj
@@ -147,9 +164,24 @@ delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the s
   `FighterProfiles`. Ask `FightSports.IsFight`, never compare the key. Books only attach to bouts
   ESPN holds; Contender Series and Road to UFC cards are not UFC and are not read. History reaches
   back to UFC 300 (2024-04-13).
+- One stats source at a time (ADR 0011, ADR 0026). **The default is The Odds API** on the user's
+  own key (`TheOddsApiScheduleAdapter`, row `the-odds-api-schedule`): fixtures from `/events`
+  (free; job `odds:fixtures`), final scores from `/scores?daysFrom=3` (2 credits a league; jobs
+  `odds:scores:{league}` on request, `odds:scores` unattended only when Scanning is Automatic, once
+  a league a day, never into the reserve). No box scores, players, injuries or UFC, and nothing
+  older than three days. It registers only while ESPN is off; a key typed into Ops activates it
+  without a restart. Both rows are one account: `SourceAccounts`/`MonthlyCredits` count the month
+  across them.
+- ESPN, the opt-in extra, and the MLB Stats API with it: `Ingestion:Espn:Enabled` (`ESPN_ENABLED`
+  in `.env`, `setup.ps1 -EnableEspn`) is false on a fresh clone, and the notice and how-to text
+  live in `EspnOptIn`. On, ESPN is the stats source exactly as before and the default source is
+  not registered. With neither ESPN nor a key the desk is empty and Ops asks for a key. This public
+  repository never carries a snapshot or any provider's data.
+- Every metered press states its price first (`CreditAllowance`, `DeskJob.Confirm`): no credit is
+  spent unattended while Scanning is On request.
 - Odds come from a book market (ADR 0011); ESPN's closing line fills games no market covered.
   Where ESPN has no line — early-season history — there is no line, and nothing fabricates one.
-- Every game carries `SeasonYear` and `SeasonType`, stamped by the provider. Filter by season,
+- Every game carries `SeasonYear` and `SeasonType`, stamped by the provider (by `SeasonCalendar` where it states none, as The Odds API does not). Filter by season,
   not by a rolling day count, wherever a reader is about a team's or player's record.
 
 ## Verification before "done"

@@ -20,13 +20,25 @@ namespace LineOps.Ingestion.Adapters;
 public class TheOddsApiAdapter(
     HttpClient http,
     IOptions<IngestionOptions> options,
-    ILogger<TheOddsApiAdapter> logger) : IOddsSource
+    ILogger<TheOddsApiAdapter> logger,
+    Services.RuntimeOddsKey? runtimeKey = null) : IOddsSource
 {
     public const string SourceKey = "the-odds-api";
 
     private readonly SourceOptions _config = options.Value.TheOddsApi;
 
+    private readonly TheOddsApiKey _key = new(options.Value.TheOddsApi, runtimeKey);
+
     public string Key => SourceKey;
+
+    /// <summary>The key in force: the desk's where there is one, else configuration's (<see cref="TheOddsApiKey"/>).</summary>
+    private string? ApiKey => _key.Value;
+
+    /// <summary>
+    /// A supplied key needs no <c>Enabled</c> switch beside it: supplying it is the switch.
+    /// Configuration's key still needs its switch, as it always has.
+    /// </summary>
+    public bool IsConfigured => _key.IsConfigured;
 
     /// <summary>
     /// The markets configuration asks for, not every market the platform models.
@@ -51,8 +63,8 @@ public class TheOddsApiAdapter(
         IReadOnlyList<string> markets,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(_config.ApiKey))
-            throw new InvalidOperationException($"{SourceKey}: no API key configured.");
+        var apiKey = ApiKey
+            ?? throw new InvalidOperationException($"{SourceKey}: no API key configured.");
 
         var providerMarkets = markets.Select(ToProviderMarket).Distinct().ToArray();
         var books = _config.EffectiveBookmakers;
@@ -73,7 +85,7 @@ public class TheOddsApiAdapter(
             : "&regions=us";
 
         var url = $"sports/{MapSport(sportKey)}/odds/"
-                + $"?apiKey={_config.ApiKey}"
+                + $"?apiKey={Uri.EscapeDataString(apiKey)}"
                 + selector
                 + $"&markets={string.Join(',', providerMarkets)}"
                 + "&oddsFormat=american";
@@ -216,16 +228,7 @@ public class TheOddsApiAdapter(
         _ => null
     };
 
-    private static string MapSport(string sportKey) => sportKey switch
-    {
-        "nfl" => "americanfootball_nfl",
-        "nba" => "basketball_nba",
-        "mlb" => "baseball_mlb",
-        "nhl" => "icehockey_nhl",
-        // Every promotion under one key; only fights matching a UFC bout on the desk are kept (ADR 0021).
-        "ufc" => "mma_mixed_martial_arts",
-        _ => sportKey
-    };
+    private static string MapSport(string sportKey) => TheOddsApiWire.MapSport(sportKey);
 
     /// <summary>
     /// Ten bookmakers bill as one region, so a list at or under this costs exactly what a single
@@ -234,16 +237,8 @@ public class TheOddsApiAdapter(
     private const int BooksPerRegionUnit = 10;
 
     private static DateTimeOffset? ReadTimestamp(JsonElement element, string property)
-        => element.TryGetProperty(property, out var value)
-           && value.ValueKind == JsonValueKind.String
-           && DateTimeOffset.TryParse(value.GetString(), CultureInfo.InvariantCulture,
-               DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
-            ? parsed
-            : null;
+        => TheOddsApiWire.ReadTimestamp(element, property);
 
     private static int? ReadHeaderInt(HttpResponseMessage response, string header)
-        => response.Headers.TryGetValues(header, out var values)
-           && int.TryParse(values.FirstOrDefault(), out var parsed)
-            ? parsed
-            : null;
+        => TheOddsApiWire.ReadHeaderInt(response, header);
 }

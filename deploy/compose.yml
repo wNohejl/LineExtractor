@@ -102,6 +102,8 @@ services:
       Ingestion__TheOddsApi__Enabled: ${THE_ODDS_API_ENABLED:-false}
       Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
       Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+      # The stats source, off until the operator opts in (ESPN_ENABLED=true in .env; .env.example says why).
+      Ingestion__Espn__Enabled: ${ESPN_ENABLED:-false}
     volumes:
       - web-keys:/keys
     <<: *hardening
@@ -124,6 +126,8 @@ services:
       Ingestion__TheOddsApi__Enabled: ${THE_ODDS_API_ENABLED:-false}
       Ingestion__OddsApiIo__ApiKey: ${ODDS_API_IO_KEY:-}
       Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
+      # The stats source, off until the operator opts in (ESPN_ENABLED=true in .env; .env.example says why).
+      Ingestion__Espn__Enabled: ${ESPN_ENABLED:-false}
     <<: *hardening
     deploy:
       resources:

@@ -82,6 +82,23 @@ builder.Services.AddDataSharing(builder.Configuration);
 
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
+
+// The Odds API key can be typed into Ops as well as set in configuration: checked for free
+// against the provider, kept encrypted beside the Data Protection keys, used from the next pull.
+builder.Services.AddRuntimeOddsKey();
+builder.Services.AddHttpClient(DeskOddsKey.CheckClient, client =>
+{
+    client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton(sp => new DeskOddsKey(
+    sp.GetRequiredService<IDataProtectionProvider>(),
+    sp.GetRequiredService<LineOps.Ingestion.Services.RuntimeOddsKey>(),
+    sp.GetRequiredService<LineOps.Ingestion.Services.ReferenceReconciler>().ReconcileAsync,
+    sp.GetRequiredService<IHttpClientFactory>(),
+    sp.GetRequiredService<IConfiguration>(),
+    sp.GetRequiredService<ILogger<DeskOddsKey>>()));
+
 builder.Services.AddLineOpsReliability(builder.Configuration);
 builder.Services.AddLineOpsObservability(builder.Configuration);
 builder.Services.AddLineOpsHealthChecks();
@@ -104,6 +121,9 @@ if (hostsEvaluator)
     builder.Services.AddLineOpsReliabilityEvaluator();
 
 var app = builder.Build();
+
+// Before anything asks which sources are configured: the reference reconciler does at start.
+app.Services.GetRequiredService<DeskOddsKey>().Load();
 
 // Migrate, ensure partitions exist ahead of the clock, and seed reference rows.
 // Doing this at startup keeps a cold clone one `docker compose up` away from working. Against

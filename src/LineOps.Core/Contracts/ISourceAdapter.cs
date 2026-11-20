@@ -18,6 +18,21 @@ public record CanonicalTeamRef(string Name, string? SourceTeamId = null, string?
     /// a name, so a club sends none.
     /// </summary>
     public string? Qualifier { get; init; }
+
+    /// <summary>
+    /// Other names the same club is held under by another provider ("LA Clippers" for "Los Angeles
+    /// Clippers"), from the desk's own table, for a source that gives a full name and nothing else.
+    /// Read only when the name itself matched no team, and only by a source that sends it — ESPN and
+    /// the books send none, so their resolution is exactly what it was.
+    /// </summary>
+    public IReadOnlyList<string>? KnownAs { get; init; }
+
+    /// <summary>
+    /// The abbreviation the desk's own table gives this club: used to recognise a team another
+    /// provider created under that abbreviation when no name matched, and as the new team's
+    /// abbreviation when none did. Never written over an existing team's (that is <see cref="Abbrev"/>).
+    /// </summary>
+    public string? DeskAbbrev { get; init; }
 }
 
 /// <summary>
@@ -211,6 +226,14 @@ public interface IOddsSource
     /// added a market.
     /// </summary>
     int CreditsPerScan(string sportKey) => 0;
+
+    /// <summary>
+    /// Whether this source can be called at all right now. True for a source registered only
+    /// when configured, which is every one but a source whose key may arrive, or leave, while the
+    /// host runs: that one is registered regardless and says here whether it holds a key. The
+    /// registry lists only the sources that answer yes.
+    /// </summary>
+    bool IsConfigured => true;
 }
 
 /// <summary>
@@ -236,6 +259,39 @@ public interface IStatsSource
     Task<StatsFetchResult> FetchRosterAsync(string sportKey, CancellationToken ct);
 
     Task<StatsFetchResult> FetchBoxScoresAsync(string sportKey, DateOnly date, CancellationToken ct);
+
+    /// <summary>
+    /// Whether this source can be called at all right now, as <see cref="IOddsSource.IsConfigured"/>
+    /// says for an odds source: true for one registered only when configured, and the source's own
+    /// answer for one whose key may arrive or leave while the host runs. The registry lists only the
+    /// sources that answer yes.
+    /// </summary>
+    bool IsConfigured => true;
+}
+
+/// <summary>
+/// A stats provider whose final scores are a separate, metered call from its free schedule (The Odds
+/// API's <c>/scores</c>, ADR 0026). Kept apart from <see cref="IStatsSource.FetchScheduleAsync"/> so
+/// that asking for fixtures can never spend a credit: the schedule is one job, the scores another.
+/// </summary>
+public interface IScoreSource
+{
+    string Key { get; }
+
+    /// <summary>Whether the provider keeps scores for this league at all (none for a fight).</summary>
+    bool CoversScores(string sportKey);
+
+    /// <summary>What one scores call for one league bills, in the provider's credits, before it is made.</summary>
+    int CreditsPerScoresCall { get; }
+
+    /// <summary>
+    /// How many days back a scores call reaches. A game that started earlier than this and was never
+    /// seen final cannot be finished from this source.
+    /// </summary>
+    int ScoresReachDays { get; }
+
+    /// <summary>The league's live and recently completed games, with their scores.</summary>
+    Task<StatsFetchResult> FetchScoresAsync(string sportKey, CancellationToken ct);
 }
 
 /// <summary>One figure as ESPN states it: its key, the label it gives it, and the value as written.</summary>

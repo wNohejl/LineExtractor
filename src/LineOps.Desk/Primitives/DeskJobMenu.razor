@@ -41,11 +41,24 @@
                                   Description="@job.Description"
                                   Disabled="@(!job.Available)"
                                   DisabledReason="@job.Unavailable"
+                                  Title="@job.Hint"
                                   OnClick="() => RunJobAsync(job)" />
                 }
             </DeskMenuGroup>
         }
     </DeskPullDown>
+
+    @* A run that spends enough to ask first asks here, beside the key it was chosen from, rather than
+       in a dialog: the question names what it spends, Cancel runs nothing, and the confirm — the
+       run's own name — starts it as a chosen entry starts. *@
+    @if (_confirming is { } pending)
+    {
+        <InlineConfirm ConfirmLabel="@pending.Label.TrimEnd('…')"
+                       OnConfirm="() => ConfirmAsync(pending)"
+                       OnCancel="() => _confirming = null">
+            @pending.Confirm
+        </InlineConfirm>
+    }
 }
 
 @* A run's outcome is a toast, not a Note. A Note is the ambient tier — it sits beside the thing
@@ -74,6 +87,9 @@
     private bool _open;
     private string? _running;
     private string _runningLabel = "Running";
+
+    /// <summary>The run whose question is open beside the key, waiting on its answer.</summary>
+    private DeskJob? _confirming;
 
     private IDeskJobs? Source => Jobs ?? Runner.Jobs;
 
@@ -141,6 +157,14 @@
 
         _open = false;
 
+        // A run that asks first: the question opens beside the key, and nothing is spent until it is
+        // answered yes (ConfirmAsync).
+        if (job.Confirm is not null)
+        {
+            _confirming = job;
+            return;
+        }
+
         // A run that asks first: its sheet asks, and only a sheet answered with a run starts one.
         // The key is busy for the run, not for the asking — nothing is spent while the sheet is open.
         if (job.Sheet is { } sheet)
@@ -156,6 +180,17 @@
 
             return;
         }
+
+        await RunWhileBusyAsync(job, () => Runner.RunAsync(jobs, job));
+    }
+
+    /// <summary>The question answered yes: the run starts as a chosen entry's does.</summary>
+    private async Task ConfirmAsync(DeskJob job)
+    {
+        _confirming = null;
+
+        if (!Access.CanOperate || Source is not { } jobs)
+            return;
 
         await RunWhileBusyAsync(job, () => Runner.RunAsync(jobs, job));
     }

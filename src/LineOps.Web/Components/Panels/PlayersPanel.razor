@@ -253,7 +253,9 @@ else
             var yesterday = LeagueClock.Today().AddDays(-1);
             var rows = 0;
 
-            foreach (var source in registry.StatsSources)
+            // Box scores are ESPN's: the default source (ADR 0026) has none, and asking it would only
+            // write an empty run under a metered row. With ESPN on this is every stats source, as before.
+            foreach (var source in registry.StatsSources.Where(s => s is not LineOps.Core.Contracts.IScoreSource))
             {
                 foreach (var sport in IngestionOptions.Value.EffectiveSports)
                 {
