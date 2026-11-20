@@ -1,7 +1,7 @@
 // The desk's theme, on the browser side.
 //
 // Three jobs, and only three: read and write the operator's choices in localStorage,
-// stamp the resolved theme (and Reduce Transparency) onto <html> so the stylesheet switches,
+// stamp the resolved theme (and Reduce Transparency, and the glass) onto <html> so the stylesheet switches,
 // and report what the machine's appearance, contrast and transparency settings currently say.
 // Everything about *which* theme should be showing is decided in ThemeService; this file
 // holds no policy, because a policy living in two languages is a policy that disagrees with
@@ -84,6 +84,26 @@ export function storeAccent(accent) {
     }
 }
 
+// The glass — Clear or Tinted — under its own key, for the reason the accent has one, and with no
+// older key either: it too arrived after the Desk carried its own name.
+const GLASS_KEY = 'desk.glass';
+
+export function readGlass() {
+    try {
+        return localStorage.getItem(GLASS_KEY);
+    } catch {
+        return null;
+    }
+}
+
+export function storeGlass(glass) {
+    try {
+        localStorage.setItem(GLASS_KEY, glass);
+    } catch {
+        /* forgotten, not fatal */
+    }
+}
+
 export function prefersDark() {
     return window.matchMedia
         ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -133,6 +153,17 @@ export function applyTransparency(reduced) {
         document.documentElement.setAttribute('data-reduced-transparency', 'true');
     } else {
         document.documentElement.removeAttribute('data-reduced-transparency');
+    }
+}
+
+// The glass, the same way. ThemeService sends "tinted" or null — null for Clear and under Reduce
+// Transparency — and null removes the attribute, so the inspector shows a tint only when one was
+// chosen and something answers it.
+export function applyGlass(glass) {
+    if (glass) {
+        document.documentElement.setAttribute('data-glass', glass);
+    } else {
+        document.documentElement.removeAttribute('data-glass');
     }
 }
 

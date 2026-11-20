@@ -87,6 +87,36 @@ public class WindowManagerControlsTests : DeskTestContext
     }
 
     /// <summary>
+    /// The glass is two positions, so it is the same gate as the mode, in the appearance group under
+    /// the theme. Choosing Tinted moves the desk's glass, not just the gate; and while the machine
+    /// reduces transparency there is no glass to tint, so the row is not offered and the footer
+    /// says why.
+    /// </summary>
+    [Fact]
+    public async Task The_glass_is_a_gate_offered_only_while_there_is_glass_to_tint()
+    {
+        var theme = Services.GetRequiredService<ThemeService>();
+        var cut = RenderComponent<WindowManagerPanel>();
+
+        var gate = cut.Find("[role='radiogroup'][aria-label='Glass']");
+        Assert.Equal(["Clear", "Tinted"], gate.QuerySelectorAll(".gate__opt").Select(o => o.TextContent.Trim()));
+        Assert.Equal(DeskGlass.Clear, theme.Glass);
+
+        var appearance = cut.FindAll(".wm > .wsection")[0];
+        Assert.NotNull(appearance.QuerySelector("[aria-label='Glass']"));
+        Assert.Contains("Tinted makes the glass more opaque", appearance.QuerySelector("p.wgroup__foot")!.TextContent);
+
+        cut.FindAll("[aria-label='Glass'] .gate__opt").Single(o => o.TextContent.Trim() == "Tinted").Click();
+        Assert.Equal(DeskGlass.Tinted, theme.Glass);
+
+        await cut.InvokeAsync(() => theme.OnSystemPreferenceChanged(theme.IsDark, moreContrast: false, reducedTransparency: true));
+
+        Assert.Empty(cut.FindAll("[aria-label='Glass']"));
+        Assert.Contains("reduces transparency", cut.FindAll(".wm > .wsection")[0].QuerySelector("p.wgroup__foot")!.TextContent);
+        Assert.Equal(DeskGlass.Tinted, theme.Glass);
+    }
+
+    /// <summary>
     /// The primary window's share is a value along a range, so it is the desk's slider: the reader
     /// hears the percentage, the readout beside it says the same, and dragging moves the share.
     /// </summary>

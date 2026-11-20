@@ -413,11 +413,11 @@ public class DeskThemeTests
 
     // ---- Every desk ---------------------------------------------------------
     //
-    // Five families, each with a dark and a light block — ten desks where there were two. The
+    // Nine families, each with a dark and a light block — eighteen desks where there were two. The
     // gates above were written for one pair and each one is the same question asked of every
     // block: does it redeclare everything, invent nothing, match its C# mirror, and keep the
     // text hierarchy's promise. They are asked here by iterating the catalogue rather than by
-    // listing blocks, so an eleventh desk added to DeskThemeFamilies is checked without anyone
+    // listing blocks, so a nineteenth desk added to DeskThemeFamilies is checked without anyone
     // remembering to add it here.
 
     public static TheoryData<DeskThemeFamily, bool> EveryDesk()

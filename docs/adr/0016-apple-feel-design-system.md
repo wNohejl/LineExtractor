@@ -251,6 +251,10 @@ the catalogue rather than of one pair:
 MudBlazor gets one `MudTheme` per family from `DeskTheme.For`, and charts take the showing
 `DeskPalette`, so a chart on a Nord desk is drawn in Nord.
 
+*2026-11-20.* Four more families — Catppuccin, Gruvbox, Tokyo Night and Dracula — landed exactly
+as the promise said: eight more blocks in `themes.css`, eight more palettes, four enum members.
+High contrast stays last in the picker; nothing below the token blocks changed.
+
 **Scale is two settings in the Window manager.** Interface (80–150%) is CSS `zoom` on `<html>`;
 Text (90–140%) multiplies the type ramp and every literal `font-size`. Both are kept with the desk
 layout. Zoom reports rectangles and pointer positions in visual pixels while positions are written

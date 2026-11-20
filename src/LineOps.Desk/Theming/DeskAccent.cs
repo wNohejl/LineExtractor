@@ -12,8 +12,8 @@ namespace LineOps.Desk.Theming;
 /// </para>
 ///
 /// <para>
-/// The choice belongs to the Standard family alone. Nord, Solarized, Rosé Pine and High contrast
-/// each chose their accent as part of what makes them themselves — Frost is half of what Nord
+/// The choice belongs to the Standard family alone. Nord, Solarized, Rosé Pine, Catppuccin,
+/// Gruvbox, Tokyo Night, Dracula and High contrast each chose their accent as part of what makes them themselves — Frost is half of what Nord
 /// is — so a teal laid over them would be a fifth palette nobody designed. ThemeService carries
 /// the choice whatever family is showing, and spends it only while Standard is.
 /// </para>

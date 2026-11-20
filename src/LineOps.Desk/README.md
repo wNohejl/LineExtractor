@@ -279,6 +279,15 @@ so MudBlazor and the charts wear it too. The Window manager offers it beneath th
 | `DeskCheckbox` | One setting that is on or off. | — |
 | `DeskDialog` | A floating, non-modal panel for comparing things beside the desk. | — |
 | `DeskDisclosure` | Details hidden behind a label until they are wanted. | — |
+Every family takes a chosen glass (`DeskGlass`: Clear, Tinted — macOS's Liquid Glass setting).
+Clear is the materials as each block declares them; Tinted raises them halfway to the opaque
+tier Reduce Transparency uses and keeps their blur. It is derived, not declared: under
+`[data-glass="tinted"]` the end of `desk.css` mixes each `--material-*` from the showing family's
+own value toward its `--surface-2` by `--glass-tint`, so no family block carries a tinted tier and
+none is named. `ThemeService.Glass` persists the choice under `desk.glass` and stamps `data-glass`
+only for Tinted, and not while the machine reduces transparency — which is fully opaque and wins.
+The Window manager offers it last in the appearance group, and not under Reduce Transparency.
+
 | `DeskErrorPage` | The page a host shows when a request failed: what happened, its reference, and the way back. | — |
 | `DeskField` | A text or number field, with a real label and its error beneath it. | — |
 | `DeskGrid` | The table: sortable columns and actionable rows in the Desk's dense rhythm. | `MudDataGrid` |

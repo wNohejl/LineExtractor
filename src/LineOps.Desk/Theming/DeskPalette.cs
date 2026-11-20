@@ -280,6 +280,203 @@ public static class DeskPalettes
         Overlay = "rgba(87, 82, 121, .28)"
     };
 
+    // ---- Catppuccin -----------------------------------------------------------
+    // Mocha by night, Latte by day. Mauve, the palette's signature, is the accent in both: pale
+    // on Mocha, where a filled control takes base as ink, and deep enough on Latte for white.
+
+    public static DeskPalette CatppuccinDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#181825",
+        Surface1 = "#1E1E2E",
+        Surface2 = "#313244",
+        Surface3 = "#45475A",
+        TextPrimary = "rgba(205, 214, 244, .92)",
+        TextSecondary = "rgba(205, 214, 244, .66)",
+        TextTertiary = "rgba(205, 214, 244, .30)",
+        Accent = "#CBA6F7",
+        AccentHover = "#D3B3F8",
+        OnAccent = "#1E1E2E",
+        StatePositive = "#A6E3A1",
+        StateNegative = "#F38BA8",
+        StateWarning = "#F9E2AF",
+        Separator = "rgba(205, 214, 244, .10)",
+        ChartNeutral = "#7F849C",
+        ChartNeutralDim = "#585B70",
+        Overlay = "rgba(24, 24, 37, .66)"
+    };
+
+    public static DeskPalette CatppuccinLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E6E9EF",
+        Surface1 = "#EFF1F5",
+        Surface2 = "#DCE0E8",
+        Surface3 = "#CCD0DA",
+        TextPrimary = "rgba(76, 79, 105, 1)",
+        TextSecondary = "rgba(76, 79, 105, .92)",
+        TextTertiary = "rgba(76, 79, 105, .40)",
+        Accent = "#8839EF",
+        AccentHover = "#8136E3",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#40A02B",
+        StateNegative = "#D20F39",
+        StateWarning = "#DF8E1D",
+        Separator = "rgba(76, 79, 105, .12)",
+        ChartNeutral = "#8C8FA1",
+        ChartNeutralDim = "#BCC0CC",
+        Overlay = "rgba(76, 79, 105, .30)"
+    };
+
+
+    // ---- Gruvbox --------------------------------------------------------------
+    // morhetz's retro palette at medium contrast: dark0 by night, light0 by day. The accent is blue
+    // in both — bright blue taking dark ink, faded blue taking light0 — because green, red and
+    // yellow are the states and aqua is too near green to tell from positive.
+
+    public static DeskPalette GruvboxDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#1D2021",
+        Surface1 = "#282828",
+        Surface2 = "#3C3836",
+        Surface3 = "#504945",
+        TextPrimary = "rgba(235, 219, 178, .92)",
+        TextSecondary = "rgba(235, 219, 178, .67)",
+        TextTertiary = "rgba(235, 219, 178, .30)",
+        Accent = "#83A598",
+        AccentHover = "#96B4A8",
+        OnAccent = "#282828",
+        StatePositive = "#B8BB26",
+        StateNegative = "#FB4934",
+        StateWarning = "#FABD2F",
+        Separator = "rgba(235, 219, 178, .10)",
+        ChartNeutral = "#928374",
+        ChartNeutralDim = "#665C54",
+        Overlay = "rgba(29, 32, 33, .66)"
+    };
+
+    public static DeskPalette GruvboxLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#F2E5BC",
+        Surface1 = "#FBF1C7",
+        Surface2 = "#EBDBB2",
+        Surface3 = "#D5C4A1",
+        TextPrimary = "rgba(60, 56, 54, .92)",
+        TextSecondary = "rgba(60, 56, 54, .79)",
+        TextTertiary = "rgba(60, 56, 54, .36)",
+        Accent = "#076678",
+        AccentHover = "#065C6C",
+        OnAccent = "#FBF1C7",
+        StatePositive = "#98971A",
+        StateNegative = "#CC241D",
+        StateWarning = "#D79921",
+        Separator = "rgba(60, 56, 54, .12)",
+        ChartNeutral = "#928374",
+        ChartNeutralDim = "#BDAE93",
+        Overlay = "rgba(60, 56, 54, .30)"
+    };
+
+
+    // ---- Tokyo Night ----------------------------------------------------------
+    // Night by night, Day by day. The accent is the palette's blue in both: #7AA2F7 is pale enough
+    // that a filled control takes the ground as ink; Day's #2E7DE9 is deepened until white reads.
+
+    public static DeskPalette TokyoNightDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#16161E",
+        Surface1 = "#1A1B26",
+        Surface2 = "#24283B",
+        Surface3 = "#292E42",
+        TextPrimary = "rgba(192, 202, 245, .92)",
+        TextSecondary = "rgba(192, 202, 245, .69)",
+        TextTertiary = "rgba(192, 202, 245, .32)",
+        Accent = "#7AA2F7",
+        AccentHover = "#93B4F9",
+        OnAccent = "#1A1B26",
+        StatePositive = "#9ECE6A",
+        StateNegative = "#F7768E",
+        StateWarning = "#E0AF68",
+        Separator = "rgba(192, 202, 245, .10)",
+        ChartNeutral = "#737AA2",
+        ChartNeutralDim = "#414868",
+        Overlay = "rgba(22, 22, 30, .66)"
+    };
+
+    public static DeskPalette TokyoNightLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E1E2E7",
+        Surface1 = "#F2F3F6",
+        Surface2 = "#D0D5E3",
+        Surface3 = "#C4C8DA",
+        TextPrimary = "rgba(52, 59, 88, .92)",
+        TextSecondary = "rgba(52, 59, 88, .80)",
+        TextTertiary = "rgba(52, 59, 88, .34)",
+        Accent = "#2A73D6",
+        AccentHover = "#276BC8",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#587539",
+        StateNegative = "#F52A65",
+        StateWarning = "#B15C00",
+        Separator = "rgba(52, 59, 88, .12)",
+        ChartNeutral = "#68709A",
+        ChartNeutralDim = "#A8AECB",
+        Overlay = "rgba(52, 59, 88, .30)"
+    };
+
+
+    // ---- Dracula --------------------------------------------------------------
+    // Dracula by night, Alucard — the spec's own light variant — by day. Purple is the accent in
+    // both: pale on Dracula, where a filled control takes near-black ink, deeper on Alucard's cream,
+    // where it takes white. The states are the palette's own green, red and orange.
+
+    public static DeskPalette DraculaDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#21222C",
+        Surface1 = "#282A36",
+        Surface2 = "#343746",
+        Surface3 = "#424450",
+        TextPrimary = "rgba(248, 248, 242, .92)",
+        TextSecondary = "rgba(248, 248, 242, .59)",
+        TextTertiary = "rgba(248, 248, 242, .30)",
+        Accent = "#BD93F9",
+        AccentHover = "#CAA8FA",
+        OnAccent = "#191A21",
+        StatePositive = "#50FA7B",
+        StateNegative = "#FF5555",
+        StateWarning = "#FFB86C",
+        Separator = "rgba(248, 248, 242, .10)",
+        ChartNeutral = "#6272A4",
+        ChartNeutralDim = "#44475A",
+        Overlay = "rgba(33, 34, 44, .66)"
+    };
+
+    public static DeskPalette DraculaLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#ECE9DF",
+        Surface1 = "#FFFBEB",
+        Surface2 = "#DEDCCF",
+        Surface3 = "#CECCC0",
+        TextPrimary = "rgba(31, 31, 31, .92)",
+        TextSecondary = "rgba(31, 31, 31, .68)",
+        TextTertiary = "rgba(31, 31, 31, .32)",
+        Accent = "#644AC9",
+        AccentHover = "#5A41B8",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#14710A",
+        StateNegative = "#CB3A2A",
+        StateWarning = "#A34D14",
+        Separator = "rgba(31, 31, 31, .12)",
+        ChartNeutral = "#8A8573",
+        ChartNeutralDim = "#BCBAB3",
+        Overlay = "rgba(31, 31, 31, .28)"
+    };
+
     // ---- High contrast --------------------------------------------------------
     // Secondary text clears AAA (7:1), hairlines are visible at a glance, and the accent carries
     // ink that clears 7:1 on it. Tertiary still sits below AA: a hint is a hint on any desk.

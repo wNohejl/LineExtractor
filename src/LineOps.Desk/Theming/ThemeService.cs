@@ -16,6 +16,8 @@ namespace LineOps.Desk.Theming;
 /// — dark, light, or whatever the machine says. They are independent on purpose; see
 /// <see cref="DeskThemeFamily"/> for why a family is not a fourth appearance. A third, the
 /// <see cref="Accent"/>, refines the Standard family alone and is ignored while any other shows.
+/// A fourth, the <see cref="Glass"/>, belongs to every family: it changes what the materials are
+/// made of, not which palette they are in.
 /// </para>
 ///
 /// <para>
@@ -109,6 +111,27 @@ public sealed class ThemeService : IAsyncDisposable
         => ShowingFamily == DeskThemeFamily.Standard && Accent != DeskAccent.Blue ? DeskAccents.Key(Accent) : null;
 
     /// <summary>
+    /// The operator's glass. Clear until they choose, and after anything unreadable. Kept while the
+    /// machine reduces transparency, so the tint they chose is waiting when the setting goes off.
+    /// </summary>
+    public DeskGlass Glass { get; private set; } = DeskGlass.Clear;
+
+    /// <summary>
+    /// Whether the machine's Reduce Transparency is on. Then every material is opaque and there is
+    /// no glass to tint, so the Window manager does not offer <see cref="Glass"/> while it is.
+    /// </summary>
+    public bool ReducesTransparency => _systemReducedTransparency;
+
+    /// <summary>
+    /// The value stamped as <c>data-glass</c> on <c>&lt;html&gt;</c>, or null to remove it. Null for
+    /// Clear, because Clear is what every family's block already declares and the inspector should
+    /// show a choice only when one was made; null under Reduce Transparency, because the opaque
+    /// tier wins there and an attribute nothing answers is a claim the desk is not keeping.
+    /// </summary>
+    public string? GlassAttribute
+        => Glass == DeskGlass.Tinted && !_systemReducedTransparency ? "tinted" : null;
+
+    /// <summary>
     /// The showing desk's colours, for the charts, which cannot read a token block. On the
     /// Standard desk it wears the chosen accent, so a chart's accent series is the colour of the
     /// keys around it.
@@ -187,11 +210,22 @@ public sealed class ThemeService : IAsyncDisposable
             Accent = accent;
         }
 
+        // And the glass, by the same rule again.
+        var storedGlass = await module.InvokeAsync<string?>("readGlass");
+
+        if (Enum.TryParse<DeskGlass>(storedGlass, ignoreCase: true, out var glass)
+            && Enum.IsDefined(glass)
+            && !int.TryParse(storedGlass, out _))
+        {
+            Glass = glass;
+        }
+
         _self ??= DotNetObjectReference.Create(this);
         await module.InvokeVoidAsync("watch", _self);
 
         await PaintAsync();
         await module.InvokeVoidAsync("applyTransparency", _systemReducedTransparency);
+        await module.InvokeVoidAsync("applyGlass", GlassAttribute);
         await NotifyAsync();
     }
 
@@ -249,6 +283,25 @@ public sealed class ThemeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Records a new glass, persists it, and restamps it. A no-op if nothing moved. Recorded even
+    /// while the machine reduces transparency — the row is hidden then, but a caller that sets it
+    /// is stating the glass for when the setting goes off.
+    /// </summary>
+    public async Task SetGlassAsync(DeskGlass glass)
+    {
+        if (glass == Glass)
+            return;
+
+        Glass = glass;
+
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("storeGlass", glass.ToString());
+        await module.InvokeVoidAsync("applyGlass", GlassAttribute);
+
+        await NotifyAsync();
+    }
+
+    /// <summary>
     /// The machine changed its mind — sunset, or a settings toggle. Called from theme.js.
     /// </summary>
     /// <remarks>
@@ -259,7 +312,9 @@ public sealed class ThemeService : IAsyncDisposable
     /// <para>
     /// The same rule holds for Increase Contrast and Reduce Transparency: theme.js reports all
     /// three whenever any one moves, every one is recorded, and the desk is repainted only if
-    /// what is showing actually changed.
+    /// what is showing actually changed. Reduce Transparency moving is always announced, even when
+    /// no palette moved: the glass comes off or goes back on with it, and the Window manager's
+    /// Glass row is offered only while there is glass to tint.
     /// </para>
     /// </remarks>
     [JSInvokable]
@@ -276,13 +331,16 @@ public sealed class ThemeService : IAsyncDisposable
         {
             var module = await ModuleAsync();
             await module.InvokeVoidAsync("applyTransparency", reducedTransparency);
+            await module.InvokeVoidAsync("applyGlass", GlassAttribute);
         }
 
-        if ((Attribute, AccentAttribute) == showing)
-            return;
+        var repaint = (Attribute, AccentAttribute) != showing;
 
-        await PaintAsync();
-        await NotifyAsync();
+        if (repaint)
+            await PaintAsync();
+
+        if (repaint || transparencyMoved)
+            await NotifyAsync();
     }
 
     /// <summary>Only the appearance moved; the contrast and transparency settings stand as they were.</summary>

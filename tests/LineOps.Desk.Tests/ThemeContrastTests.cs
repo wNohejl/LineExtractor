@@ -34,11 +34,11 @@ public class ThemeContrastTests
     [Fact]
     public void Every_theme_block_is_found()
     {
-        // Five families, a dark and a light each. Fewer means the parser lost a block, and a
-        // contrast suite that quietly checks eight desks is worse than none.
+        // Nine families, a dark and a light each. Fewer means the parser lost a block, and a
+        // contrast suite that quietly checks sixteen desks is worse than none.
         var names = ThemeBlocks().Select(b => b.Name).ToArray();
 
-        Assert.Equal(10, names.Length);
+        Assert.Equal(18, names.Length);
         Assert.Contains("apple-dark", names);
         Assert.Contains("apple-light", names);
         Assert.Contains("contrast-light", names);

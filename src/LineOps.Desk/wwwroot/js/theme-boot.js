@@ -7,7 +7,11 @@
 // are theme.js's, the slugs DeskThemeFamilies.Slug's, the resolution ThemeService.Attribute's.
 (() => {
     // A stored family is the enum member's name, read case-insensitively; anything else is no choice.
-    const SLUGS = { standard: 'apple', nord: 'nord', solarized: 'solarized', rosepine: 'rose-pine', highcontrast: 'contrast' };
+    const SLUGS = {
+        standard: 'apple', nord: 'nord', solarized: 'solarized', rosepine: 'rose-pine',
+        catppuccin: 'catppuccin', gruvbox: 'gruvbox', tokyonight: 'tokyo-night', dracula: 'dracula',
+        highcontrast: 'contrast'
+    };
     // The accents with a block of their own — DeskAccents.Key of every member but Blue, which is
     // what the Standard blocks already declare and so is never stamped.
     const ACCENTS = ['teal', 'indigo', 'purple', 'graphite'];
@@ -38,6 +42,12 @@
         const accent = stored('desk.accent');
         if (slug === 'apple' && ACCENTS.indexOf(accent) >= 0) {
             root.dataset.accent = accent;
+        }
+
+        // The glass belongs to every family, so only the machine can take it off: under Reduce
+        // Transparency there is nothing to tint — ThemeService.GlassAttribute, the same two questions.
+        if (stored('desk.glass') === 'tinted' && !matches('(prefers-reduced-transparency: reduce)', false)) {
+            root.dataset.glass = 'tinted';
         }
     } catch {
         root.dataset.theme = 'apple-dark';

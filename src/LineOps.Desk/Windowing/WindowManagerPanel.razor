@@ -121,6 +121,21 @@
                                       ValueChanged="@((DeskAccent accent) => Theme.SetAccentAsync(accent))" />
                 </div>
             }
+
+            @* The glass, last, because it belongs to every family and refines none: how much the
+               chrome that floats lets through. Two positions, so it is the same gate as the mode.
+               Not offered while the machine reduces transparency — every material is opaque then,
+               there is no glass to tint, and a gate that moved nothing would be a control that
+               cannot act. *@
+            @if (!Theme.ReducesTransparency)
+            {
+                <div class="wgroup__row wgroup__row--form">
+                    <span class="wgroup__label">Glass</span>
+                    <DeskSwitch Options="_glasses" Label="Glass"
+                                Value="Theme.Glass"
+                                ValueChanged="@((DeskGlass glass) => Theme.SetGlassAsync(glass))" />
+                </div>
+            }
         </div>
         @* Naming the resolved theme is the point of the first sentence. "System" alone does not
            tell an operator which desk they are about to get, and it is the one position where the
@@ -129,6 +144,9 @@
             Kept in this browser. System follows your machine and keeps following it — right now
             that is @(Theme.IsDark ? "dark" : "light"). Every theme has a dark and a light desk, and
             the mode decides which one shows.
+            @(Theme.ReducesTransparency
+                ? "Your machine reduces transparency, so the desk's glass is opaque."
+                : "Tinted makes the glass more opaque, so the chrome over a busy desk is easier to read.")
         </p>
     </section>
 
@@ -450,6 +468,13 @@
     [
         new(ResolutionMode.Auto, "Follow browser"),
         new(ResolutionMode.Fixed, "Declare a size")
+    ];
+
+    // Clear first, because it is the desk the product is, and Tinted the step toward opaque.
+    private static readonly IReadOnlyList<DeskSwitchOption<DeskGlass>> _glasses =
+    [
+        new(DeskGlass.Clear, "Clear"),
+        new(DeskGlass.Tinted, "Tinted")
     ];
 
     private static readonly IReadOnlyList<DeskSwitchOption<(int W, int H)>> _presets =

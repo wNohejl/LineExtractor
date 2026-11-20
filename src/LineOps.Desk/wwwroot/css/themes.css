@@ -2,7 +2,7 @@
    The Desk — the other theme families
 
    desk.css holds the Standard desk: :root / [data-theme="apple-dark"] and
-   [data-theme="apple-light"]. This file holds everything else, as eight more
+   [data-theme="apple-light"]. This file holds everything else, as sixteen more
    blocks of exactly that shape — one per family per appearance, stamped on
    <html> by ThemeService as "<family>-<dark|light>".
 
@@ -409,6 +409,534 @@
 
     --sheen: rgba(87, 82, 121, .10);
     --sheen-soft: rgba(87, 82, 121, .05);
+}
+
+
+/* ---------------------------------------------------------- Catppuccin ----
+   Mocha by night, Latte by day. Mantle grounds both desks and base is the
+   panel on top; the controls step through the palette's own surface0 and
+   surface1 on Mocha, and darken away from the panel on Latte through crust and
+   surface0. Mauve is the accent in both — the flavour's signature, and the one
+   hue in the palette that is neither a state nor a link blue. Pale on Mocha, it
+   takes base as ink; on Latte it is deep enough for white. The states are the
+   palette's own green, red and yellow in both; Latte's are fills on its pale
+   base, so their inks are the same hues deepened. */
+
+[data-theme="catppuccin-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #181825; /* mantle */
+    --surface-1: #1E1E2E; /* base */
+    --surface-2: #313244; /* surface0 */
+    --surface-3: #45475A; /* surface1 */
+
+    --separator: rgba(205, 214, 244, .10);
+    --separator-strong: rgba(205, 214, 244, .16);
+
+    /* text (#CDD6F4) at tiers. Secondary measures 5.70:1 over --surface-1, level with
+       the Standard desk's 5.72:1. */
+    --text-primary: rgba(205, 214, 244, .92);
+    --text-secondary: rgba(205, 214, 244, .66);
+    --text-tertiary: rgba(205, 214, 244, .30);
+
+    --accent: #CBA6F7; /* mauve */
+    --accent-hover: #D3B3F8;
+    --accent-press: #BD9AE6;
+    --accent-wash: rgba(203, 166, 247, .16);
+    --accent-wash-strong: rgba(203, 166, 247, .26);
+    --on-accent: #1E1E2E;
+
+    --state-positive: #A6E3A1; /* green */
+    --state-negative: #F38BA8; /* red */
+    --state-negative-hover: #F59CB5;
+    --state-warning: #F9E2AF; /* yellow */
+    --state-positive-wash: rgba(166, 227, 161, .15);
+    --state-negative-wash: rgba(243, 139, 168, .16);
+    --state-warning-wash: rgba(249, 226, 175, .15);
+
+    /* Ink. Mocha's hues are pastels tuned for a dark base, so green, yellow, red and
+       mauve all read as text already and the inks are the fills. */
+    --state-positive-ink: #A6E3A1; /* 11.03:1 */
+    --state-warning-ink: #F9E2AF; /* 12.91:1 */
+    --state-negative-ink: #F38BA8; /* 7.08:1 */
+    --accent-ink: #CBA6F7; /* 8.07:1 */
+
+    --chart-neutral: #7F849C; /* overlay1 */
+    --chart-neutral-dim: #585B70; /* surface2 */
+
+    --material-ultrathin: rgba(49, 50, 68, .58);
+    --material-thin: rgba(37, 37, 54, .72);
+    --material-regular: rgba(30, 30, 46, .84);
+    --material-thick: rgba(24, 24, 37, .93);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(17, 17, 27, .32);
+    --shadow-2: 0 4px 12px -2px rgba(17, 17, 27, .48), 0 1px 3px rgba(17, 17, 27, .32);
+    --shadow-3: 0 16px 40px -8px rgba(17, 17, 27, .62), 0 4px 12px rgba(17, 17, 27, .38);
+    --shadow-sheet: 0 32px 80px -12px rgba(17, 17, 27, .78), 0 8px 24px rgba(17, 17, 27, .48);
+    --shadow-inset: inset 0 1px 2px rgba(17, 17, 27, .38);
+
+    --sheen: rgba(205, 214, 244, .16);
+    --sheen-soft: rgba(205, 214, 244, .06);
+}
+
+[data-theme="catppuccin-light"] {
+    color-scheme: light;
+
+    --surface-0: #E6E9EF; /* mantle */
+    --surface-1: #EFF1F5; /* base */
+    --surface-2: #DCE0E8; /* crust */
+    --surface-3: #CCD0DA; /* surface0 */
+
+    --separator: rgba(76, 79, 105, .12);
+    --separator-strong: rgba(76, 79, 105, .20);
+
+    /* Latte text (#4C4F69) at tiers. Base is not white and the text is not black, so
+       primary is the full colour (7.06:1) and secondary sits close under it at
+       5.79:1 — the tiers are nearer than on other desks because there is less ink
+       to spend. */
+    --text-primary: rgba(76, 79, 105, 1);
+    --text-secondary: rgba(76, 79, 105, .92);
+    --text-tertiary: rgba(76, 79, 105, .40);
+
+    --accent: #8839EF; /* Latte mauve */
+    --accent-hover: #8136E3;
+    --accent-press: #7A33D7;
+    --accent-wash: rgba(136, 57, 239, .12);
+    --accent-wash-strong: rgba(136, 57, 239, .20);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #40A02B; /* Latte green */
+    --state-negative: #D20F39; /* Latte red */
+    --state-negative-hover: #B90D32;
+    --state-warning: #DF8E1D; /* Latte yellow */
+    --state-positive-wash: rgba(64, 160, 43, .14);
+    --state-negative-wash: rgba(210, 15, 57, .12);
+    --state-warning-wash: rgba(223, 142, 29, .15);
+
+    /* Ink. Green and yellow are fills on Latte's base (3.0 and 2.3:1 as text) and red
+       and mauve fall under 4.5:1 on the crust tiles, so each ink is its hue
+       deepened; red takes --state-negative-hover, mauve --accent-press. */
+    --state-positive-ink: #2D701E; /* 4.60:1 raised, more on the panel */
+    --state-warning-ink: #885712; /* 4.64:1 raised, more on the panel */
+    --state-negative-ink: #B90D32; /* 5.01:1 raised, more on the panel */
+    --accent-ink: #7A33D7; /* 4.84:1 raised, more on the panel */
+
+    --chart-neutral: #8C8FA1; /* overlay1 */
+    --chart-neutral-dim: #BCC0CC; /* surface1 */
+
+    --material-ultrathin: rgba(239, 241, 245, .62);
+    --material-thin: rgba(236, 238, 243, .76);
+    --material-regular: rgba(233, 236, 241, .86);
+    --material-thick: rgba(230, 233, 239, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(76, 79, 105, .10);
+    --shadow-2: 0 4px 12px -2px rgba(76, 79, 105, .14), 0 1px 3px rgba(76, 79, 105, .10);
+    --shadow-3: 0 16px 40px -8px rgba(76, 79, 105, .20), 0 4px 12px rgba(76, 79, 105, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(76, 79, 105, .28), 0 8px 24px rgba(76, 79, 105, .16);
+    --shadow-inset: inset 0 1px 2px rgba(76, 79, 105, .08);
+
+    --sheen: rgba(76, 79, 105, .10);
+    --sheen-soft: rgba(76, 79, 105, .05);
+}
+
+
+/* ------------------------------------------------------------- Gruvbox ----
+   Pavel Pertsev's retro palette (morhetz/gruvbox), at medium contrast both
+   ways: dark0 is the dark panel and light0 the light one, with dark0_hard and
+   light0_soft as the grounds under them. The accent is blue in both — bright
+   blue (#83A598) by night, pale enough that a filled control takes dark0 ink,
+   and faded blue (#076678) by day, deep enough to carry light0. Blue because
+   every warmer hue already has a job: green, red and yellow are the states and
+   orange sits beside red, while aqua is too near green to tell from positive.
+   The states are the palette's own: bright green, red and yellow on dark;
+   neutral green, red and yellow as fills on light, and the faded hues — the
+   ones Gruvbox itself puts on a light ground — as the ink, deepened where they
+   still fall short. */
+
+[data-theme="gruvbox-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #1D2021; /* dark0_hard, so panels lift off the ground */
+    --surface-1: #282828; /* dark0 */
+    --surface-2: #3C3836; /* dark1 */
+    --surface-3: #504945; /* dark2 */
+
+    --separator: rgba(235, 219, 178, .10);
+    --separator-strong: rgba(235, 219, 178, .16);
+
+    /* light1 (fg1) at tiers. Secondary measures 5.67:1 over --surface-1, level
+       with the Standard desk's 5.72:1. */
+    --text-primary: rgba(235, 219, 178, .92);
+    --text-secondary: rgba(235, 219, 178, .67);
+    --text-tertiary: rgba(235, 219, 178, .30);
+
+    --accent: #83A598; /* bright_blue */
+    --accent-hover: #96B4A8;
+    --accent-press: #769889;
+    --accent-wash: rgba(131, 165, 152, .16);
+    --accent-wash-strong: rgba(131, 165, 152, .26);
+    --on-accent: #282828;
+
+    --state-positive: #B8BB26; /* bright_green */
+    --state-negative: #FB4934; /* bright_red */
+    --state-negative-hover: #FC6A58;
+    --state-warning: #FABD2F; /* bright_yellow */
+    --state-positive-wash: rgba(184, 187, 38, .16);
+    --state-negative-wash: rgba(251, 73, 52, .18);
+    --state-warning-wash: rgba(250, 189, 47, .16);
+
+    /* Ink. Bright green and yellow read on dark0 and on dark1 alike; bright red (4.29:1)
+       and bright blue (4.31:1 on dark1) do not, so each is lifted until it reads on both. */
+    --state-positive-ink: #B8BB26; /* 7.14:1 */
+    --state-warning-ink: #FABD2F; /* 8.69:1 */
+    --state-negative-ink: #FC7E6F; /* 4.61:1 raised, more on the panel */
+    --accent-ink: #8BAB9F; /* 4.65:1 raised, more on the panel */
+
+    --chart-neutral: #928374; /* gray */
+    --chart-neutral-dim: #665C54; /* dark3 */
+
+    --material-ultrathin: rgba(60, 56, 54, .55);
+    --material-thin: rgba(50, 48, 47, .70);
+    --material-regular: rgba(40, 40, 40, .82);
+    --material-thick: rgba(29, 32, 33, .92);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(13, 14, 14, .30);
+    --shadow-2: 0 4px 12px -2px rgba(13, 14, 14, .45), 0 1px 3px rgba(13, 14, 14, .30);
+    --shadow-3: 0 16px 40px -8px rgba(13, 14, 14, .60), 0 4px 12px rgba(13, 14, 14, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(13, 14, 14, .75), 0 8px 24px rgba(13, 14, 14, .45);
+    --shadow-inset: inset 0 1px 2px rgba(13, 14, 14, .35);
+
+    --sheen: rgba(235, 219, 178, .16);
+    --sheen-soft: rgba(235, 219, 178, .06);
+}
+
+[data-theme="gruvbox-light"] {
+    color-scheme: light;
+
+    --surface-0: #F2E5BC; /* light0_soft, as the ground */
+    --surface-1: #FBF1C7; /* light0 */
+    --surface-2: #EBDBB2; /* light1 */
+    --surface-3: #D5C4A1; /* light2 */
+
+    --separator: rgba(60, 56, 54, .12);
+    --separator-strong: rgba(60, 56, 54, .20);
+
+    /* dark1 (fg1) at tiers. Secondary measures 5.60:1 over --surface-1. */
+    --text-primary: rgba(60, 56, 54, .92);
+    --text-secondary: rgba(60, 56, 54, .79);
+    --text-tertiary: rgba(60, 56, 54, .36);
+
+    --accent: #076678; /* faded_blue */
+    --accent-hover: #065C6C;
+    --accent-press: #055262;
+    --accent-wash: rgba(7, 102, 120, .12);
+    --accent-wash-strong: rgba(7, 102, 120, .20);
+    --on-accent: #FBF1C7;
+
+    --state-positive: #98971A; /* neutral_green */
+    --state-negative: #CC241D; /* neutral_red */
+    --state-negative-hover: #B01E18;
+    --state-warning: #D79921; /* neutral_yellow */
+    --state-positive-wash: rgba(152, 151, 26, .15);
+    --state-negative-wash: rgba(204, 36, 29, .14);
+    --state-warning-wash: rgba(215, 153, 33, .15);
+
+    /* Ink. The neutral hues are fills on light0 (2.2 to 4.8:1 as text). Red takes
+       faded_red and blue reads as it is; faded green (4.29:1) and faded yellow (3.33:1)
+       still do not, so each is deepened a step past the palette. */
+    --state-positive-ink: #66620C; /* 4.61:1 raised, more on the panel */
+    --state-warning-ink: #84560F; /* 4.61:1 raised, more on the panel */
+    --state-negative-ink: #9D0006; /* 7.60:1, faded_red */
+    --accent-ink: #076678; /* 5.82:1 */
+
+    --chart-neutral: #928374; /* gray */
+    --chart-neutral-dim: #BDAE93; /* light3 */
+
+    --material-ultrathin: rgba(251, 241, 199, .62);
+    --material-thin: rgba(247, 235, 194, .76);
+    --material-regular: rgba(242, 229, 188, .86);
+    --material-thick: rgba(235, 219, 178, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(60, 56, 54, .10);
+    --shadow-2: 0 4px 12px -2px rgba(60, 56, 54, .14), 0 1px 3px rgba(60, 56, 54, .10);
+    --shadow-3: 0 16px 40px -8px rgba(60, 56, 54, .20), 0 4px 12px rgba(60, 56, 54, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(60, 56, 54, .28), 0 8px 24px rgba(60, 56, 54, .16);
+    --shadow-inset: inset 0 1px 2px rgba(60, 56, 54, .08);
+
+    --sheen: rgba(60, 56, 54, .10);
+    --sheen-soft: rgba(60, 56, 54, .05);
+}
+
+
+/* --------------------------------------------------------- Tokyo Night ----
+   enkia's palette, and folke's Day variant of it. Night grounds the dark desk
+   (bg_dark under bg, Storm's bg as the raised tone); Day grounds the light one,
+   with a panel lifted a step above Day's bg so content reads as paper. The
+   accent is the palette's blue in both — #7AA2F7 at night, pale enough that a
+   filled control takes the ground as ink, and Day's #2E7DE9 by day, deepened
+   until it carries white (as given it measures 4.02:1 under it).
+   Day's foreground is itself a blue (#3760BF), which on a desk where blue means
+   interactive would make every value read as a link; the light tiers are built
+   on Tokyo Night Light's foreground (#343B58) instead.
+   The states are the palette's own green, red and yellow at night; by day Day's
+   green and red stay, yellow gives way to Day's orange (its yellow is a tan that
+   reads as nothing), and the inks are Tokyo Night Light's deep green, red and
+   blue — the palette's own text tones for exactly those hues. */
+
+[data-theme="tokyo-night-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #16161E; /* bg_dark */
+    --surface-1: #1A1B26; /* bg */
+    --surface-2: #24283B; /* Storm's bg, the family's raised tone */
+    --surface-3: #292E42; /* bg_highlight */
+
+    --separator: rgba(192, 202, 245, .10);
+    --separator-strong: rgba(192, 202, 245, .16);
+
+    /* fg (#C0CAF5) at tiers. Secondary measures 5.71:1 over --surface-1, level
+       with the Standard desk's 5.72:1. */
+    --text-primary: rgba(192, 202, 245, .92);
+    --text-secondary: rgba(192, 202, 245, .69);
+    --text-tertiary: rgba(192, 202, 245, .32);
+
+    --accent: #7AA2F7; /* blue */
+    --accent-hover: #93B4F9;
+    --accent-press: #6A93E8;
+    --accent-wash: rgba(122, 162, 247, .16);
+    --accent-wash-strong: rgba(122, 162, 247, .26);
+    --on-accent: #1A1B26;
+
+    --state-positive: #9ECE6A; /* green */
+    --state-negative: #F7768E; /* red */
+    --state-negative-hover: #F98FA3;
+    --state-warning: #E0AF68; /* yellow */
+    --state-positive-wash: rgba(158, 206, 106, .15);
+    --state-negative-wash: rgba(247, 118, 142, .16);
+    --state-warning-wash: rgba(224, 175, 104, .15);
+
+    /* Ink. Green, yellow, red and blue all read on Night's bg, so the inks are the
+       fills. */
+    --state-positive-ink: #9ECE6A; /* 9.35:1 */
+    --state-warning-ink: #E0AF68; /* 8.55:1 */
+    --state-negative-ink: #F7768E; /* 6.46:1 */
+    --accent-ink: #7AA2F7; /* 6.79:1 */
+
+    --chart-neutral: #737AA2; /* dark5 */
+    --chart-neutral-dim: #414868; /* terminal_black */
+
+    --material-ultrathin: rgba(36, 40, 59, .58);
+    --material-thin: rgba(31, 33, 48, .72);
+    --material-regular: rgba(26, 27, 38, .84);
+    --material-thick: rgba(22, 22, 30, .93);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(8, 8, 12, .32);
+    --shadow-2: 0 4px 12px -2px rgba(8, 8, 12, .48), 0 1px 3px rgba(8, 8, 12, .32);
+    --shadow-3: 0 16px 40px -8px rgba(8, 8, 12, .62), 0 4px 12px rgba(8, 8, 12, .38);
+    --shadow-sheet: 0 32px 80px -12px rgba(8, 8, 12, .78), 0 8px 24px rgba(8, 8, 12, .48);
+    --shadow-inset: inset 0 1px 2px rgba(8, 8, 12, .38);
+
+    --sheen: rgba(192, 202, 245, .16);
+    --sheen-soft: rgba(192, 202, 245, .06);
+}
+
+[data-theme="tokyo-night-light"] {
+    color-scheme: light;
+
+    --surface-0: #E1E2E7; /* Day bg, as the ground */
+    --surface-1: #F2F3F6; /* a step above Day bg, so panels read as paper */
+    --surface-2: #D0D5E3; /* Day bg_dark */
+    --surface-3: #C4C8DA; /* Day bg_highlight */
+
+    --separator: rgba(52, 59, 88, .12);
+    --separator-strong: rgba(52, 59, 88, .20);
+
+    /* Tokyo Night Light's foreground (#343B58) at tiers. Secondary measures
+       5.62:1 over --surface-1. */
+    --text-primary: rgba(52, 59, 88, .92);
+    --text-secondary: rgba(52, 59, 88, .80);
+    --text-tertiary: rgba(52, 59, 88, .34);
+
+    --accent: #2A73D6; /* Day blue, deepened to carry white */
+    --accent-hover: #276BC8;
+    --accent-press: #2464BB;
+    --accent-wash: rgba(42, 115, 214, .12);
+    --accent-wash-strong: rgba(42, 115, 214, .20);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #587539; /* Day green */
+    --state-negative: #F52A65; /* Day red */
+    --state-negative-hover: #D52458;
+    --state-warning: #B15C00; /* Day orange */
+    --state-positive-wash: rgba(88, 117, 57, .15);
+    --state-negative-wash: rgba(245, 42, 101, .13);
+    --state-warning-wash: rgba(177, 92, 0, .15);
+
+    /* Ink. Day's hues are fills on its panel (2.7 to 4.7:1 as text, less on the raised
+       surface). Green, red and blue take Tokyo Night Light's own deep tones; that
+       palette's orange is 4.12:1 on the raised surface, so warning is Day's orange
+       deepened. */
+    --state-positive-ink: #385F0D; /* 6.73:1 */
+    --state-warning-ink: #8C4900; /* 4.66:1 raised, more on the panel */
+    --state-negative-ink: #8C4351; /* 4.71:1 raised, more on the panel */
+    --accent-ink: #2959AA; /* 4.61:1 raised, more on the panel */
+
+    --chart-neutral: #68709A; /* Day dark5 */
+    --chart-neutral-dim: #A8AECB; /* Day fg_gutter */
+
+    --material-ultrathin: rgba(242, 243, 246, .62);
+    --material-thin: rgba(236, 237, 242, .76);
+    --material-regular: rgba(230, 231, 236, .86);
+    --material-thick: rgba(225, 226, 231, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(52, 59, 88, .10);
+    --shadow-2: 0 4px 12px -2px rgba(52, 59, 88, .14), 0 1px 3px rgba(52, 59, 88, .10);
+    --shadow-3: 0 16px 40px -8px rgba(52, 59, 88, .20), 0 4px 12px rgba(52, 59, 88, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(52, 59, 88, .28), 0 8px 24px rgba(52, 59, 88, .16);
+    --shadow-inset: inset 0 1px 2px rgba(52, 59, 88, .08);
+
+    --sheen: rgba(52, 59, 88, .10);
+    --sheen-soft: rgba(52, 59, 88, .05);
+}
+
+
+/* ------------------------------------------------------------- Dracula ----
+   Zeno Rocha's palette, from the spec at draculatheme.com/spec: Dracula by
+   night, Alucard — the spec's own light variant — by day. Dracula's Background
+   (#282A36) is the dark panel, with Background Dark under it as the ground and
+   Background Light/Lighter as the controls; Alucard's cream Background (#FFFBEB)
+   is the light panel, and its Background Lighter, Light and Dark step down from
+   it as ground, control and hover. Purple is the accent in both — the hue the
+   spec builds the theme around, and the one Dracula's states never use. Pink
+   measured the same on dark (5.97:1 against 5.90:1) but Alucard's pink is a
+   crimson a step from its red, so it would read as the negative state on the
+   light desk. Pale on Dracula, Purple takes the near-black Background Darker as
+   its ink; Alucard's deeper purple takes white. The states are the palette's
+   own green, red and orange in both, the spec's names for success, error and
+   warning; orange rather than yellow, because Dracula's yellow sits beside its
+   green and Alucard's is an olive nobody reads as a warning. */
+
+[data-theme="dracula-dark"] {
+    color-scheme: dark;
+
+    --surface-0: #21222C; /* Background Dark */
+    --surface-1: #282A36; /* Background */
+    --surface-2: #343746; /* Background Light */
+    --surface-3: #424450; /* Background Lighter */
+
+    --separator: rgba(248, 248, 242, .10);
+    --separator-strong: rgba(248, 248, 242, .16);
+
+    /* Foreground (#F8F8F2) at tiers. Secondary measures 5.68:1 over --surface-1,
+       level with the Standard desk's 5.72:1. */
+    --text-primary: rgba(248, 248, 242, .92);
+    --text-secondary: rgba(248, 248, 242, .59);
+    --text-tertiary: rgba(248, 248, 242, .30);
+
+    --accent: #BD93F9; /* Purple */
+    --accent-hover: #CAA8FA;
+    --accent-press: #AD7FF5;
+    --accent-wash: rgba(189, 147, 249, .16);
+    --accent-wash-strong: rgba(189, 147, 249, .26);
+    --on-accent: #191A21; /* Background Darker */
+
+    --state-positive: #50FA7B; /* Green */
+    --state-negative: #FF5555; /* Red */
+    --state-negative-hover: #FF6E6E;
+    --state-warning: #FFB86C; /* Orange */
+    --state-positive-wash: rgba(80, 250, 123, .14);
+    --state-negative-wash: rgba(255, 85, 85, .16);
+    --state-warning-wash: rgba(255, 184, 108, .15);
+
+    /* Ink. Green, Orange and Purple read on Background already; Red is 3.75:1 on the
+       raised surface, so its ink is the same red lifted until it reads. */
+    --state-positive-ink: #50FA7B; /* 10.38:1 */
+    --state-warning-ink: #FFB86C; /* 8.36:1 */
+    --state-negative-ink: #FF7979; /* 5.60:1, 4.64:1 raised */
+    --accent-ink: #BD93F9; /* 5.90:1, 4.89:1 raised */
+
+    --chart-neutral: #6272A4; /* Comment */
+    --chart-neutral-dim: #44475A; /* Selection */
+
+    --material-ultrathin: rgba(52, 55, 70, .55);
+    --material-thin: rgba(46, 48, 62, .70);
+    --material-regular: rgba(40, 42, 54, .82);
+    --material-thick: rgba(33, 34, 44, .92);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(13, 13, 18, .30);
+    --shadow-2: 0 4px 12px -2px rgba(13, 13, 18, .45), 0 1px 3px rgba(13, 13, 18, .30);
+    --shadow-3: 0 16px 40px -8px rgba(13, 13, 18, .60), 0 4px 12px rgba(13, 13, 18, .35);
+    --shadow-sheet: 0 32px 80px -12px rgba(13, 13, 18, .75), 0 8px 24px rgba(13, 13, 18, .45);
+    --shadow-inset: inset 0 1px 2px rgba(13, 13, 18, .35);
+
+    --sheen: rgba(248, 248, 242, .16);
+    --sheen-soft: rgba(248, 248, 242, .06);
+}
+
+[data-theme="dracula-light"] {
+    color-scheme: light;
+
+    --surface-0: #ECE9DF; /* Alucard Background Lighter, as the ground */
+    --surface-1: #FFFBEB; /* Alucard Background */
+    --surface-2: #DEDCCF; /* Alucard Background Light */
+    --surface-3: #CECCC0; /* Alucard Background Dark */
+
+    --separator: rgba(31, 31, 31, .12);
+    --separator-strong: rgba(31, 31, 31, .20);
+
+    /* Alucard Foreground (#1F1F1F) at tiers. Secondary measures 5.59:1 over
+       --surface-1. */
+    --text-primary: rgba(31, 31, 31, .92);
+    --text-secondary: rgba(31, 31, 31, .68);
+    --text-tertiary: rgba(31, 31, 31, .32);
+
+    --accent: #644AC9; /* Alucard Purple */
+    --accent-hover: #5A41B8;
+    --accent-press: #523BA8;
+    --accent-wash: rgba(100, 74, 201, .12);
+    --accent-wash-strong: rgba(100, 74, 201, .20);
+    --on-accent: #FFFFFF;
+
+    --state-positive: #14710A; /* Alucard Green */
+    --state-negative: #CB3A2A; /* Alucard Red */
+    --state-negative-hover: #AF3224;
+    --state-warning: #A34D14; /* Alucard Orange */
+    --state-positive-wash: rgba(20, 113, 10, .12);
+    --state-negative-wash: rgba(203, 58, 42, .12);
+    --state-warning-wash: rgba(163, 77, 20, .12);
+
+    /* Ink. Alucard's hues read on its cream but not all on the controls (green 4.49,
+       orange 4.20, red 3.65:1 raised), so each ink is its hue deepened; red takes
+       --state-negative-hover and purple --accent-hover. */
+    --state-positive-ink: #146F0A; /* 4.61:1 raised, more on the panel */
+    --state-warning-ink: #994813; /* 4.63:1 raised, more on the panel */
+    --state-negative-ink: #AF3224; /* 4.61:1 raised, more on the panel */
+    --accent-ink: #5A41B8; /* 7.02:1, 5.29:1 raised */
+
+    --chart-neutral: #8A8573;
+    --chart-neutral-dim: #BCBAB3; /* Alucard Background Darker */
+
+    --material-ultrathin: rgba(255, 251, 235, .62);
+    --material-thin: rgba(249, 246, 231, .76);
+    --material-regular: rgba(243, 240, 226, .86);
+    --material-thick: rgba(236, 233, 223, .94);
+    --material-blur: saturate(180%) blur(30px);
+
+    --shadow-1: 0 1px 2px rgba(31, 31, 31, .10);
+    --shadow-2: 0 4px 12px -2px rgba(31, 31, 31, .14), 0 1px 3px rgba(31, 31, 31, .10);
+    --shadow-3: 0 16px 40px -8px rgba(31, 31, 31, .20), 0 4px 12px rgba(31, 31, 31, .12);
+    --shadow-sheet: 0 32px 80px -12px rgba(31, 31, 31, .28), 0 8px 24px rgba(31, 31, 31, .16);
+    --shadow-inset: inset 0 1px 2px rgba(31, 31, 31, .08);
+
+    --sheen: rgba(31, 31, 31, .10);
+    --sheen-soft: rgba(31, 31, 31, .05);
 }
 
 

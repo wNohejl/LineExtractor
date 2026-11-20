@@ -20,6 +20,10 @@ public class ThemeBootTests
     [InlineData(DeskThemeFamily.Nord)]
     [InlineData(DeskThemeFamily.Solarized)]
     [InlineData(DeskThemeFamily.RosePine)]
+    [InlineData(DeskThemeFamily.Catppuccin)]
+    [InlineData(DeskThemeFamily.Gruvbox)]
+    [InlineData(DeskThemeFamily.TokyoNight)]
+    [InlineData(DeskThemeFamily.Dracula)]
     [InlineData(DeskThemeFamily.HighContrast)]
     public void The_boot_script_knows_every_family_slug(DeskThemeFamily family)
         => Assert.Contains($"'{DeskThemeFamilies.Slug(family)}'", Boot);
@@ -30,6 +34,10 @@ public class ThemeBootTests
     [InlineData(DeskThemeFamily.Nord)]
     [InlineData(DeskThemeFamily.Solarized)]
     [InlineData(DeskThemeFamily.RosePine)]
+    [InlineData(DeskThemeFamily.Catppuccin)]
+    [InlineData(DeskThemeFamily.Gruvbox)]
+    [InlineData(DeskThemeFamily.TokyoNight)]
+    [InlineData(DeskThemeFamily.Dracula)]
     [InlineData(DeskThemeFamily.HighContrast)]
     public void The_boot_script_reads_every_family_by_its_stored_name(DeskThemeFamily family)
         => Assert.Contains($"{family.ToString().ToLowerInvariant()}:", Boot);
@@ -112,6 +120,60 @@ public class ThemeBootTests
     {
         Assert.Matches(@"export function apply\(theme, accent\)", Theme);
         Assert.Contains("removeAttribute('data-accent')", Theme);
+    }
+
+    // ---- The glass -----------------------------------------------------------------
+
+    [Fact]
+    public void Both_scripts_keep_the_glass_under_one_key()
+    {
+        Assert.Matches(@"const GLASS_KEY = 'desk\.glass'", Theme);
+        Assert.Contains("stored('desk.glass')", Boot);
+    }
+
+    /// <summary>
+    /// The boot script stamps the tint by the value ThemeService.GlassAttribute stamps, never
+    /// Clear, and only while the machine is not reducing transparency — the same two questions.
+    /// </summary>
+    [Fact]
+    public void The_boot_script_stamps_the_tint_only_when_there_is_glass_to_tint()
+    {
+        Assert.Matches(
+            $@"stored\('desk\.glass'\) === '{DeskGlass.Tinted.ToString().ToLowerInvariant()}' && !matches\('\(prefers-reduced-transparency: reduce\)'[^\n]*\n\s*root\.dataset\.glass = 'tinted'",
+            Boot);
+        Assert.Single(Regex.Matches(Boot, @"dataset\.glass\s*="));
+        Assert.DoesNotContain("'clear'", Boot);
+    }
+
+    [Fact]
+    public void Theme_js_removes_the_glass_attribute_when_none_is_sent()
+    {
+        Assert.Matches(@"export function applyGlass\(glass\)", Theme);
+        Assert.Contains("removeAttribute('data-glass')", Theme);
+    }
+
+    /// <summary>
+    /// The tint is derived from whatever family is showing, so it names none: no rule keyed on a
+    /// [data-theme] value, and it keeps the blur — Reduce Transparency's block is the only one that
+    /// takes it away, and it outweighs this one wherever both are stamped.
+    /// </summary>
+    [Fact]
+    public void The_tinted_glass_is_derived_for_every_family_and_keeps_its_blur()
+    {
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
+        var rules = Regex.Matches(DeskConventions.WithoutComments(css), @"([^{}]*\[data-glass=""tinted""\][^{}]*)\{([^}]*)\}")
+            .ToList();
+
+        Assert.NotEmpty(rules);
+        Assert.All(rules, rule =>
+        {
+            Assert.DoesNotContain("data-theme", rule.Groups[1].Value, StringComparison.Ordinal);
+            Assert.DoesNotContain("--material-blur", rule.Groups[2].Value, StringComparison.Ordinal);
+        });
+
+        var body = string.Concat(rules.Select(r => r.Groups[2].Value));
+        foreach (var tier in new[] { "ultrathin", "thin", "regular", "thick" })
+            Assert.Matches($@"--material-{tier}:\s*color-mix\(in srgb, var\(--glass-clear-{tier}\), var\(--surface-2\)", body);
     }
 
     [Fact]

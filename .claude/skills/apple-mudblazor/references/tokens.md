@@ -297,7 +297,8 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 A light mode is one more block. The Desk's `themes.css` ships it, keyed on
 `[data-theme="apple-light"]` beside `[data-theme="apple-dark"]` — and the same pair again for
-each other family (contrast, nord, rose-pine, solarized) — and no component, selector or C# call
+each other family (catppuccin, contrast, dracula, gruvbox, nord, rose-pine, solarized,
+tokyo-night) — and no component, selector or C# call
 site knows how many there are. If adding one requires touching anything below the token blocks,
 the token that made it necessary was named for a colour.
 
@@ -384,14 +385,15 @@ hand and forgotten.
 
 The stylesheet is the whole mechanism: `data-theme` on `<html>` re-themes the app. Around it:
 
-- **`ThemeService`** (scoped, in the Desk's `Theming` namespace) holds three choices — `Mode`
-  (System / Dark / Light), `Family` and `Accent` — and derives `Attribute`
+- **`ThemeService`** (scoped, in the Desk's `Theming` namespace) holds four choices — `Mode`
+  (System / Dark / Light), `Family`, `Accent` and `Glass` (Clear / Tinted) — and derives `Attribute`
   (`DeskThemeFamilies.Attribute(ShowingFamily, IsDark)`) and `MudTheme`
   (`DeskTheme.For(ShowingFamily, Accent)`). `MainLayout` hands both to `MudThemeProvider`,
   so MudBlazor and the stylesheet always flip from the one boolean.
 - **`theme.js`** reads and writes the choices in `localStorage` (`desk.theme`,
-  `desk.theme.family`, `desk.accent`), keeps a `matchMedia` listener so System stays live, and
-  sets `data-reduced-transparency` from the OS setting. **`theme-boot.js`** runs before first
+  `desk.theme.family`, `desk.accent`, `desk.glass`), keeps a `matchMedia` listener so System
+  stays live, and sets `data-reduced-transparency` from the OS setting and `data-glass="tinted"`
+  from the glass (never under Reduce Transparency, which wins). **`theme-boot.js`** runs before first
   paint and stamps the stored attribute, so the one frame of the wrong theme is never seen.
 - **The mirror is tested.** `DeskThemeTests` parses every family's two blocks and holds them to
   the Standard dark block's colour-token list, its C# palette and its text contrast;

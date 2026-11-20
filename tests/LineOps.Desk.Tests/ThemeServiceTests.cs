@@ -31,7 +31,8 @@ public class ThemeServiceTests : TestContext
         string? storedFamily = null,
         bool moreContrast = false,
         bool reducedTransparency = false,
-        string? storedAccent = null)
+        string? storedAccent = null,
+        string? storedGlass = null)
     {
         _module = JSInterop.SetupModule("./_content/LineOps.Desk/js/theme.js");
 
@@ -45,6 +46,9 @@ public class ThemeServiceTests : TestContext
         _module.SetupVoid("storeFamily", _ => true).SetVoidResult();
         _module.Setup<string?>("readAccent").SetResult(storedAccent);
         _module.SetupVoid("storeAccent", _ => true).SetVoidResult();
+        _module.Setup<string?>("readGlass").SetResult(storedGlass);
+        _module.SetupVoid("storeGlass", _ => true).SetVoidResult();
+        _module.SetupVoid("applyGlass", _ => true).SetVoidResult();
         _module.SetupVoid("watch", _ => true).SetVoidResult();
         _module.SetupVoid("unwatch").SetVoidResult();
         _module.SetupVoid("apply", _ => true).SetVoidResult();
@@ -259,7 +263,7 @@ public class ThemeServiceTests : TestContext
     /// </summary>
     [Theory]
     [InlineData("")]
-    [InlineData("Dracula")]
+    [InlineData("Monokai")]
     [InlineData("3")]
     [InlineData("99")]
     public async Task An_unreadable_stored_family_falls_back_to_Standard(string storedFamily)
@@ -582,6 +586,126 @@ public class ThemeServiceTests : TestContext
 
         Assert.Equal(0, announced);
         Assert.Empty(Calls("storeAccent"));
+    }
+
+    // ---- The glass -----------------------------------------------------------------
+
+    /// <summary>What the last glass stamp sent: null means the attribute was removed.</summary>
+    private string? LastGlass() => (string?)_module.Invocations["applyGlass"].Last().Arguments[0];
+
+    /// <summary>
+    /// Clear is every family's own material, so a desk that was never told otherwise removes the
+    /// attribute rather than stamping "clear": the inspector shows a choice only when one was made.
+    /// </summary>
+    [Fact]
+    public async Task With_no_glass_stored_the_desk_is_Clear_and_stamps_nothing()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskGlass.Clear, service.Glass);
+        Assert.Null(service.GlassAttribute);
+        Assert.Null(LastGlass());
+    }
+
+    [Fact]
+    public async Task A_stored_tint_is_stamped_on_start_whatever_family_shows()
+    {
+        var service = Arrange(stored: "Light", prefersDark: true, storedFamily: "Nord", storedGlass: "Tinted");
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskGlass.Tinted, service.Glass);
+        Assert.Equal("tinted", LastGlass());
+        Assert.Equal("nord-light", LastPaint());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Frosted")]
+    [InlineData("1")]
+    [InlineData("99")]
+    public async Task An_unreadable_stored_glass_falls_back_to_Clear(string storedGlass)
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, storedGlass: storedGlass);
+
+        await service.InitializeAsync();
+
+        Assert.Equal(DeskGlass.Clear, service.Glass);
+        Assert.Null(LastGlass());
+    }
+
+    [Fact]
+    public async Task Choosing_a_glass_persists_it_stamps_it_and_announces()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true);
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetGlassAsync(DeskGlass.Tinted);
+
+        Assert.Contains("Tinted", Calls("storeGlass"));
+        Assert.Equal("tinted", LastGlass());
+        Assert.Equal(1, announced);
+
+        // Nothing else was touched: the glass changes the materials, not the palette.
+        Assert.Empty(Stored());
+        Assert.Empty(Calls("storeFamily"));
+        Assert.Empty(Calls("storeAccent"));
+
+        // And back to Clear takes the attribute off again.
+        await service.SetGlassAsync(DeskGlass.Clear);
+
+        Assert.Contains("Clear", Calls("storeGlass"));
+        Assert.Null(LastGlass());
+    }
+
+    [Fact]
+    public async Task Choosing_the_glass_already_showing_does_nothing()
+    {
+        var service = Arrange(stored: null, prefersDark: true, storedGlass: "Tinted");
+        await service.InitializeAsync();
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.SetGlassAsync(DeskGlass.Tinted);
+
+        Assert.Equal(0, announced);
+        Assert.Empty(Calls("storeGlass"));
+    }
+
+    /// <summary>
+    /// Reduce Transparency is fully opaque and wins over a tint: the attribute comes off while the
+    /// machine's setting is on and goes back on with it, and the choice is kept throughout. The
+    /// move is announced even though no palette moved, because the Window manager's row follows it.
+    /// </summary>
+    [Fact]
+    public async Task Reduce_transparency_takes_the_tint_off_and_gives_it_back()
+    {
+        var service = Arrange(stored: "Dark", prefersDark: true, reducedTransparency: true, storedGlass: "Tinted");
+        await service.InitializeAsync();
+
+        Assert.True(service.ReducesTransparency);
+        Assert.Equal(DeskGlass.Tinted, service.Glass);
+        Assert.Null(LastGlass());
+
+        var announced = 0;
+        service.Changed += () => { announced++; return Task.CompletedTask; };
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: false, reducedTransparency: false);
+
+        Assert.False(service.ReducesTransparency);
+        Assert.Equal("tinted", LastGlass());
+        Assert.Equal(1, announced);
+
+        await service.OnSystemPreferenceChanged(prefersDark: true, moreContrast: false, reducedTransparency: true);
+
+        Assert.Null(LastGlass());
+        Assert.Equal(2, announced);
     }
 
     [Fact]

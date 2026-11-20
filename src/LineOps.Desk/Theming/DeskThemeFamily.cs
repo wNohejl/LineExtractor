@@ -26,6 +26,18 @@ public enum DeskThemeFamily
     /// <summary>Muted purples and soft rose; Rosé Pine by night, Dawn by day.</summary>
     RosePine,
 
+    /// <summary>Soft pastels on a cool slate, with a mauve accent; Catppuccin Mocha by night, Latte by day.</summary>
+    Catppuccin,
+
+    /// <summary>Warm retro browns and creams with a muted blue accent; Gruvbox dark by night, light by day.</summary>
+    Gruvbox,
+
+    /// <summary>Indigo night with a soft blue accent; Tokyo Night by night, Day by day.</summary>
+    TokyoNight,
+
+    /// <summary>Vampire purples on a blue-black night; Dracula by night, Alucard's cream by day.</summary>
+    Dracula,
+
     /// <summary>
     /// Near-black on white, white on near-black, and hairlines you can see. For a desk read from
     /// across a room, and for eyes that need more than AA.
@@ -43,6 +55,10 @@ public static class DeskThemeFamilies
         DeskThemeFamily.Nord,
         DeskThemeFamily.Solarized,
         DeskThemeFamily.RosePine,
+        DeskThemeFamily.Catppuccin,
+        DeskThemeFamily.Gruvbox,
+        DeskThemeFamily.TokyoNight,
+        DeskThemeFamily.Dracula,
         DeskThemeFamily.HighContrast
     ];
 
@@ -52,6 +68,10 @@ public static class DeskThemeFamilies
         DeskThemeFamily.Nord => "Nord",
         DeskThemeFamily.Solarized => "Solarized",
         DeskThemeFamily.RosePine => "Rosé Pine",
+        DeskThemeFamily.Catppuccin => "Catppuccin",
+        DeskThemeFamily.Gruvbox => "Gruvbox",
+        DeskThemeFamily.TokyoNight => "Tokyo Night",
+        DeskThemeFamily.Dracula => "Dracula",
         DeskThemeFamily.HighContrast => "High contrast",
         _ => "Standard"
     };
@@ -66,6 +86,10 @@ public static class DeskThemeFamilies
         DeskThemeFamily.Nord => "nord",
         DeskThemeFamily.Solarized => "solarized",
         DeskThemeFamily.RosePine => "rose-pine",
+        DeskThemeFamily.Catppuccin => "catppuccin",
+        DeskThemeFamily.Gruvbox => "gruvbox",
+        DeskThemeFamily.TokyoNight => "tokyo-night",
+        DeskThemeFamily.Dracula => "dracula",
         DeskThemeFamily.HighContrast => "contrast",
         _ => "apple"
     };
@@ -86,6 +110,14 @@ public static class DeskThemeFamilies
         (DeskThemeFamily.Solarized, false) => DeskPalettes.SolarizedLight,
         (DeskThemeFamily.RosePine, true) => DeskPalettes.RosePineDark,
         (DeskThemeFamily.RosePine, false) => DeskPalettes.RosePineLight,
+        (DeskThemeFamily.Catppuccin, true) => DeskPalettes.CatppuccinDark,
+        (DeskThemeFamily.Catppuccin, false) => DeskPalettes.CatppuccinLight,
+        (DeskThemeFamily.Gruvbox, true) => DeskPalettes.GruvboxDark,
+        (DeskThemeFamily.Gruvbox, false) => DeskPalettes.GruvboxLight,
+        (DeskThemeFamily.TokyoNight, true) => DeskPalettes.TokyoNightDark,
+        (DeskThemeFamily.TokyoNight, false) => DeskPalettes.TokyoNightLight,
+        (DeskThemeFamily.Dracula, true) => DeskPalettes.DraculaDark,
+        (DeskThemeFamily.Dracula, false) => DeskPalettes.DraculaLight,
         (DeskThemeFamily.HighContrast, true) => DeskPalettes.ContrastDark,
         (DeskThemeFamily.HighContrast, false) => DeskPalettes.ContrastLight,
         (_, true) => DeskPalettes.AppleDark,

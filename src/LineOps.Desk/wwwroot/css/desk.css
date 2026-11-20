@@ -4185,8 +4185,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .wm-row--top > .wgroup__label { padding-top: 0; }
 }
 
-/* The theme tiles inside the control column: five families fit one line at a form's width,
-   and wrap two to three a line in a narrow window. */
+/* The theme tiles inside the control column: five fit one line at a form's width, so the nine
+   families sit five over four, and wrap two to three a line in a narrow window. */
 .wm .swatches { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); padding: var(--space-2) 0; }
 
 /* A reading in a settings row: the value in the primary label colour, tabular, with its
@@ -4311,4 +4311,35 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --material-regular: var(--surface-2);
     --material-thick: var(--surface-2);
     --material-blur: none;
+}
+
+/* Glass: Tinted — the operator's step toward Reduce Transparency that stops short
+   of it (DeskGlass; macOS's Liquid Glass setting, Clear or Tinted). Every material
+   moves --glass-tint of the way from its family's own value to the opaque tier
+   Reduce Transparency uses, and keeps its blur: at the half step the Standard dark
+   desk's .55/.70/.82/.92 become about .78/.85/.91/.96, in the family's own hue.
+
+   Derived, never declared, so it holds for every family and names none: the mix
+   reads whatever the showing block set. A custom property cannot be mixed from
+   itself on one element (that is a cycle, and the declaration is dropped), so
+   <html> keeps each family value under a second name and <body> — where every
+   material is drawn — mixes from that inherited, already-resolved copy. Under
+   Reduce Transparency the copy is already --surface-2, so the mix is the opaque
+   tier and the blur stays none: the machine's setting wins whichever is stamped,
+   and ThemeService does not stamp this one under it. A swatch carrying its own
+   data-theme redeclares the materials inside it and shows them clear, which is
+   what a swatch is for. */
+:root[data-glass="tinted"] {
+    --glass-tint: 50%;
+    --glass-clear-ultrathin: var(--material-ultrathin);
+    --glass-clear-thin: var(--material-thin);
+    --glass-clear-regular: var(--material-regular);
+    --glass-clear-thick: var(--material-thick);
+}
+
+:root[data-glass="tinted"] > body {
+    --material-ultrathin: color-mix(in srgb, var(--glass-clear-ultrathin), var(--surface-2) var(--glass-tint));
+    --material-thin: color-mix(in srgb, var(--glass-clear-thin), var(--surface-2) var(--glass-tint));
+    --material-regular: color-mix(in srgb, var(--glass-clear-regular), var(--surface-2) var(--glass-tint));
+    --material-thick: color-mix(in srgb, var(--glass-clear-thick), var(--surface-2) var(--glass-tint));
 }
