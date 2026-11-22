@@ -107,8 +107,17 @@ prices: the move's column could shrink below its unwrapped text. `.slatewatch__m
 gives up width and the matchup wraps instead (`lineops.css`). After the change, none of the
 eight rows on screen overlapped.
 
+## The Activity stack, fanned
+
+Closing a window raises the header's "Activity · 1" capsule with its "Closed … / Reopen …"
+notice. A notice outlives a tool's round trip by too little to be opened by hand, so the fanned
+state was drawn by putting the stack's own `toasts--fanned` class on it with a second copy of
+the same notice: the list drops beneath the capsule as a 400px panel, 12px corners, 4px padding,
+two 76px rows with one hairline between them, wholly inside the viewport. A row's corner there
+is 7px where concentric would be 8px; the stack is not one of the triage's pairs and was left.
+
 ## Not looked at
 
-- The Activities stack fanned: closing two windows raised the header's "Activity · 1" capsule,
-  which had cleared before it could be opened. Nothing in this change touches it.
+- The stack opened by a press on a live notice (the paragraph above is the same sheet, not the
+  same gesture).
 - Each of the twenty other families as a whole desk; they were measured, not read.

@@ -659,6 +659,7 @@ tests/
   LineOps.Desk.Tests      The Desk package, its theme contrast and template
   LineOps.Desk.Hosting.Tests
 deploy/                   A hosted stack: Caddy, web, worker, Postgres, backups
+site/                     The static landing page, published by hand to GitHub Pages (ADR 0031)
 scripts/                  Setup, the owner's private snapshot and journal transfer, tailnet
 data/personal/            Gitignored: the owner's private clone (journal, snapshot); absent elsewhere
 .claude/skills/           Agent skills: setup, and the Desk's design rules

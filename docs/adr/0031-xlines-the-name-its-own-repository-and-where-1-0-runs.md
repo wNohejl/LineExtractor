@@ -194,7 +194,12 @@ Each ends with something that can be pointed at.
 
 *Exit:* a public repository with no provider's data in any commit, and decision 2 closed.
 
-**Phase C — The site.** A static page on GitHub Pages; a domain if wanted.
+**Phase C — The site.** A static page on GitHub Pages; a domain if wanted. The page is written:
+`site/index.html`, one self-contained file with nothing fetched from another origin and every
+team and price in its illustration invented, and `.github/workflows/pages.yml`, which publishes
+`site/` only when run by hand. It is not published. It names the repository in one place, a
+`<meta>` in its head, to be changed at Phase B; publishing it is then two steps on GitHub:
+Settings → Pages → source "GitHub Actions", and a run of the Pages workflow.
 
 *Exit:* a URL that says what XLines is to someone who has not cloned it.
 
@@ -221,10 +226,19 @@ Decided here, from the documents this ADR builds on:
 | Recorded fixtures in the public tree | Keep them: they are small samples the tests parse, not a dataset, and trimming them weakens the tests. Re-read each provider's terms at Phase B, as the plan's §10 asks |
 | Order | Phase A, then B, then C; D only when there is someone to show it to |
 
+| The "Place wager" key and the "Bet a game" workspace | They stay. Four accepted ADRs name them, the window logs and sends nothing, and three notes beside it say so; DESIGN §11 records the label as the one exception to §1's wording rule |
+
+**The name, checked 2026-11-22.** `github.com/wNohejl/XLines` does not exist, so the repository
+name is free. A GitHub search finds sixteen repositories named `xlines`, none about sports or
+odds (the largest is a Python teaching project). A web search finds no sports-data, odds or
+betting product called XLines. `xlines.com` and `xlines.io` resolve, so they are taken;
+`xlines.app`, `xlines.dev` and `xlines.net` do not resolve, which suggests but does not prove
+they are free. GitHub Pages needs none of them.
+
 Not something a document can settle:
 
-1. **Is "XLines" free to use?** No trademark, domain or GitHub-name search has been made. If the
-   name is taken, only the repository's name and the wordmark change; nothing above does.
+1. **A trademark search.** None was made; the checks above are of names in use, not of
+   registrations. If the name must change, only the repository's name and the wordmark do.
 2. **Carrying out Phase B.** Creating a repository and making another private are done on the
    developer's GitHub account, by the developer.
 3. **Employment** (plan §8, decision 1): unchanged, and still gates anything paid.

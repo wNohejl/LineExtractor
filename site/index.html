@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XLines</title>
+<meta name="description" content="XLines is a self-hosted sports-data ingestion and analytics operations platform. It does not place wagers and does not integrate with any wagering system.">
+<meta name="color-scheme" content="dark light">
+<!--
+  THE REPOSITORY ADDRESS. This is the only place it is written.
+  The clone command and every repository, README, documentation and licence link on the page are
+  filled in from this element by the script at the end of <body>. When the project moves to its
+  own repository (ADR 0031, Phase B), change `content` here and nothing else. `data-branch` is the
+  branch the Quick start clones.
+-->
+<meta name="xlines-repository" content="https://github.com/wNohejl/LineExtractor" data-branch="LineX_Development">
+<!-- An inline icon, so the browser asks no server for /favicon.ico. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231C1C1E'/%3E%3Cpath d='M9 9l14 14M23 9L9 23' stroke='%23449EFF' stroke-width='3.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+/* Tokens: the desk's Standard family (src/LineOps.Desk/wwwroot/css/desk.css), dark first. */
+:root {
+  --surface-0: #1C1C1E;
+  --surface-1: #232326;
+  --surface-2: #2C2C2E;
+  --surface-3: #38383A;
+  --separator: rgba(255, 255, 255, .10);
+  --separator-strong: rgba(255, 255, 255, .16);
+  --text-primary: rgba(255, 255, 255, .92);
+  --text-secondary: rgba(255, 255, 255, .62);
+  --accent: #086FD7;
+  --accent-hover: #0973DE;
+  --accent-ink: #449EFF;
+  --accent-wash: rgba(10, 132, 255, .18);
+  --on-accent: #FFFFFF;
+  --positive: #30D158;
+  --warning: #FF9F0A;
+  --warning-ink: #FFB340;
+  --negative-ink: #FF6961;
+  --face: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --face-code: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, Menlo, monospace;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --gutter: 16px;
+  --measure: 68ch;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface-0: #F2F2F7;
+    --surface-1: #FFFFFF;
+    --surface-2: #E5E5EA;
+    --surface-3: #D1D1D6;
+    --separator: rgba(0, 0, 0, .10);
+    --separator-strong: rgba(0, 0, 0, .16);
+    --text-primary: rgba(0, 0, 0, .88);
+    --text-secondary: rgba(0, 0, 0, .64);
+    --accent: #0071EB;
+    --accent-hover: #006ADE;
+    --accent-ink: #0060C8;
+    --accent-wash: rgba(0, 113, 235, .12);
+    --positive: #34C759;
+    --warning: #FF9500;
+    --warning-ink: #AA4800;
+    --negative-ink: #CA1227;
+    color-scheme: light;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--face);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+}
+a { color: var(--accent-ink); text-underline-offset: .18em; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; border-radius: 4px; }
+code, pre { font-family: var(--face-code); font-size: .88em; }
+:not(pre) > code {
+  padding: .08em .34em;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.num { font-variant-numeric: tabular-nums; }
+.vh {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip {
+  position: absolute; left: var(--gutter); top: -100px; z-index: 2;
+  padding: 8px 14px; border-radius: var(--radius);
+  background: var(--accent); color: var(--on-accent); text-decoration: none;
+}
+.skip:focus { top: 12px; }
+
+.wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 var(--gutter); }
+@media (min-width: 720px) { :root { --gutter: 32px; } }
+
+/* ---- Top bar: the desk's header, quietened. ---------------------------- */
+.top {
+  border-bottom: 1px solid var(--separator);
+}
+.top .wrap {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  min-height: 52px;
+}
+.mark {
+  font-weight: 700;
+  letter-spacing: -.03em;
+  font-stretch: 112%;
+  color: var(--text-primary);
+}
+.mark em { font-style: normal; color: var(--accent-ink); }
+.top .mark { font-size: 19px; text-decoration: none; }
+.top nav ul { display: flex; gap: 20px; margin: 0; padding: 0; list-style: none; }
+.top nav a { color: var(--text-secondary); text-decoration: none; font-size: 15px; }
+.top nav a:hover { color: var(--text-primary); }
+@media (max-width: 560px) { .top nav .opt { display: none; } }
+
+/* ---- Hero ---------------------------------------------------------------- */
+.hero { padding: 56px 0 40px; }
+.hero h1 { margin: 0; line-height: .9; }
+.hero h1 .mark { display: block; font-size: clamp(64px, 14vw, 148px); }
+.lead {
+  max-width: 30ch;
+  margin: 28px 0 0;
+  font-size: clamp(22px, 3.2vw, 30px);
+  line-height: 1.25;
+  letter-spacing: -.015em;
+  font-weight: 600;
+}
+.sub { max-width: var(--measure); margin: 16px 0 0; color: var(--text-secondary); }
+.scope {
+  max-width: var(--measure);
+  margin: 20px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--separator-strong);
+}
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.btn {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+  border-radius: var(--radius); font-weight: 600; font-size: 16px; text-decoration: none;
+}
+.btn--filled { background: var(--accent); color: var(--on-accent); }
+.btn--filled:hover { background: var(--accent-hover); }
+.btn--plain { color: var(--accent-ink); background: var(--accent-wash); }
+
+/* ---- The desk, drawn ------------------------------------------------------
+   A picture of the product, not a screenshot: a header with window keys, one row of
+   full-height windows each carrying its pulse strip, and Board rows whose spread rail
+   places one tick per book. Every name and number in it is invented. */
+.shot { margin: 8px 0 0; }
+.desk {
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+  border: 1px solid var(--separator-strong);
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  background-image: radial-gradient(var(--surface-3) .8px, transparent .8px);
+  background-size: 14px 14px;
+}
+.desk__hdr, .desk__ftr {
+  display: flex; align-items: center; gap: 14px; padding: 0 14px;
+  background: var(--surface-1);
+}
+.desk__hdr { height: 38px; border-bottom: 1px solid var(--separator); }
+.desk__ftr { height: 26px; border-top: 1px solid var(--separator); color: var(--text-secondary); font-size: 12px; }
+.desk__hdr .mark { font-size: 14px; }
+.keys { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; overflow: hidden; }
+.keys li {
+  position: relative; padding: 3px 9px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); white-space: nowrap;
+}
+.keys .on { color: var(--text-primary); background: var(--surface-2); }
+.keys .on::after {
+  content: ""; position: absolute; left: 8px; right: 8px; bottom: 1px; height: 2px; border-radius: 1px;
+  background: var(--accent);
+}
+.keys .warn::after { background: var(--warning); }
+.desk__row { display: flex; gap: 6px; padding: 6px; min-height: 300px; }
+.win {
+  display: flex; flex-direction: column; flex: 1 1 0; min-width: 0;
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+.win--primary { flex-grow: 1.9; }
+.win__bar {
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 30px; padding: 2px 12px 0;
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.win__bar small { font-weight: 400; color: var(--text-secondary); font-size: 12px; }
+.pulse { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
+.pulse--warn { background: var(--warning); }
+.pulse--ok { background: var(--positive); }
+/* The one moving thing on the page: the Board's strip sweeps, as a busy window's does. */
+.pulse--busy {
+  background: linear-gradient(90deg, transparent 0, var(--accent) 30%, var(--accent) 50%, transparent 80%) var(--accent-wash);
+  background-size: 200% 100%;
+  animation: sweep 2.4s linear infinite;
+}
+@keyframes sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.brd { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.brd th {
+  padding: 8px 10px 6px; text-align: left; font-weight: 500; font-size: 12px;
+  color: var(--text-secondary); border-bottom: 1px solid var(--separator);
+}
+.brd td { padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--separator); }
+.brd tr:last-child td { border-bottom: 0; }
+.brd .game { width: 34%; }
+.brd .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brd .t + .t { color: var(--text-secondary); }
+.price { display: flex; align-items: baseline; gap: 6px; }
+.price b { font-weight: 600; }
+.price i { font-style: normal; font-size: 11px; color: var(--text-secondary); }
+.rail { position: relative; height: 8px; margin-top: 5px; }
+.rail::before { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 1px; background: var(--separator-strong); }
+.rail span {
+  position: absolute; top: 0; width: 2px; height: 8px; margin-left: -1px; border-radius: 1px;
+  background: var(--text-secondary);
+}
+.rail .best { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-wash); }
+.gap { display: block; margin-top: 3px; font-size: 11px; color: var(--text-secondary); }
+
+.kv { margin: 0; padding: 4px 0; list-style: none; }
+.kv li {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  border-bottom: 1px solid var(--separator);
+}
+.kv li:last-child { border-bottom: 0; }
+.kv .k { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--positive); flex: none; }
+.dot--warn { background: var(--warning); }
+.v { color: var(--text-secondary); }
+.v--warn { color: var(--warning-ink); }
+.inc { padding: 10px 12px; border-bottom: 1px solid var(--separator); }
+.inc:last-child { border-bottom: 0; }
+.inc p { margin: 0; }
+.inc .state { color: var(--warning-ink); }
+.inc .state--done { color: var(--text-secondary); }
+.inc .need { margin-top: 4px; color: var(--text-secondary); font-size: 12px; }
+
+.shot figcaption { margin-top: 10px; color: var(--text-secondary); font-size: 14px; }
+
+@media (max-width: 900px) { .win--incidents { display: none; } }
+@media (max-width: 620px) {
+  .win--ops { display: none; }
+  .keys .opt { display: none; }
+  .brd .game { width: 38%; }
+  .brd .col-total { display: none; }
+}
+
+/* ---- Sections -------------------------------------------------------------
+   One hairline above each group; nothing outlined. */
+main > section { padding: 56px 0; border-top: 1px solid var(--separator); }
+main > section.hero { border-top: 0; }
+h2 {
+  margin: 0 0 18px;
+  font-size: clamp(26px, 3.4vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  font-weight: 700;
+}
+h3 { margin: 0 0 8px; font-size: 19px; line-height: 1.3; letter-spacing: -.01em; }
+p, ul, ol { max-width: var(--measure); }
+section > .wrap > p { margin: 0 0 16px; }
+.quiet { color: var(--text-secondary); }
+
+.groups { display: grid; gap: 0 40px; margin-top: 28px; }
+@media (min-width: 760px) { .groups { grid-template-columns: 1fr 1fr; } }
+.group { padding: 22px 0; border-top: 1px solid var(--separator); }
+.group ul { margin: 0; padding-left: 1.1em; }
+.group li { margin: 6px 0; }
+.group li::marker { color: var(--text-secondary); }
+
+/* Quick start: a real sequence, so it is numbered. */
+.need-list { margin: 0 0 32px; padding: 0; list-style: none; max-width: none; }
+.need-list li {
+  display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 4px 20px;
+  padding: 10px 0; border-bottom: 1px solid var(--separator);
+}
+.need-list li:first-child { border-top: 1px solid var(--separator); }
+.need-list span { color: var(--text-secondary); }
+@media (max-width: 560px) { .need-list li { grid-template-columns: 1fr; } }
+
+.steps { counter-reset: step; margin: 0; padding: 0; list-style: none; max-width: 78ch; }
+.steps > li {
+  counter-increment: step;
+  position: relative;
+  padding: 0 0 28px 44px;
+}
+.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 0;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface-2); color: var(--text-primary);
+  font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.steps h3 { line-height: 28px; margin: 0 0 6px; }
+.steps p { margin: 0 0 10px; }
+.code {
+  position: relative;
+  margin: 10px 0 12px;
+  border-radius: var(--radius);
+  background: var(--surface-1);
+  border: 1px solid var(--separator);
+}
+.code pre {
+  margin: 0; padding: 12px 14px; padding-right: 76px;
+  overflow-x: auto; line-height: 1.5; tab-size: 2;
+}
+.copy {
+  position: absolute; top: 7px; right: 7px;
+  min-height: 30px; padding: 0 10px;
+  border: 0; border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-primary);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.copy:hover { background: var(--surface-3); }
+
+.cost {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin: 0 0 18px;
+}
+.cost strong { font-size: clamp(44px, 7vw, 64px); line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.cost span { color: var(--text-secondary); max-width: 40ch; }
+.prices { width: 100%; max-width: 78ch; border-collapse: collapse; margin: 8px 0 18px; font-variant-numeric: tabular-nums; }
+.prices th, .prices td { padding: 10px 12px 10px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--separator); }
+.prices th { font-weight: 500; color: var(--text-secondary); font-size: 15px; }
+.prices td:last-child { white-space: nowrap; }
+
+.notice ul { padding-left: 1.1em; }
+.notice li { margin: 10px 0; }
+
+footer { border-top: 1px solid var(--separator); padding: 32px 0 48px; color: var(--text-secondary); font-size: 15px; }
+footer ul { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 14px; padding: 0; list-style: none; max-width: none; }
+footer p { margin: 0 0 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .pulse--busy { background: var(--accent); }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="mark" href="#main" aria-label="XLines, top of page">X<em>LINES</em></a>
+    <nav aria-label="Sections">
+      <ul>
+        <li class="opt"><a href="#what-it-does">What it does</a></li>
+        <li><a href="#quick-start">Quick start</a></li>
+        <li class="opt"><a href="#data">Whose data it is</a></li>
+        <li><a data-repo-href="" href="#source">Repository</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section class="hero" aria-labelledby="title">
+    <div class="wrap">
+      <h1 id="title"><span class="mark" aria-hidden="true">X<em>LINES</em></span><span class="vh">XLines</span></h1>
+      <p class="lead">A multi-source sports-data ingestion and analytics operations platform.</p>
+      <p class="sub">Version 1.0.0. A desk you run on your own machine, in Docker, on your own free key. Built with .NET 10, Blazor (Interactive Server), MudBlazor 9 and PostgreSQL 17.</p>
+      <p class="scope">XLines does not place wagers and does not integrate with any wagering system.</p>
+      <div class="actions">
+        <a class="btn btn--filled" href="#quick-start">Quick start</a>
+        <a class="btn btn--plain" data-repo-href="" href="#source">View the repository</a>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <figure class="shot">
+        <div class="desk" role="img" aria-label="Illustration of the desk: a header with window keys, and one row of three windows. The Board lists two invented games with a price and a spread rail under each market. Ops lists invented sources, one of them stale. Incidents shows one open incident waiting for a root cause.">
+          <div class="desk__hdr" aria-hidden="true">
+            <span class="mark">X<em>LINES</em></span>
+            <ul class="keys">
+              <li class="on">Board</li>
+              <li class="on warn">Ops</li>
+              <li class="on opt">Incidents</li>
+              <li class="opt">Runs</li>
+              <li>Journal</li>
+              <li class="opt">Performance</li>
+            </ul>
+          </div>
+          <div class="desk__row" aria-hidden="true">
+            <section class="win win--primary">
+              <div class="win__bar"><span class="pulse pulse--busy"></span>Board <small>2 of 2 priced</small></div>
+              <table class="brd">
+                <thead>
+                  <tr><th class="game">Game</th><th>Moneyline</th><th>Spread</th><th class="col-total">Total</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="game"><span class="t">Team Alpha</span><span class="t">Team Bravo</span></td>
+                    <td>
+                      <div class="price"><b>+118</b><i>B</i></div>
+                      <div class="rail"><span style="left:6%"></span><span style="left:38%"></span><span style="left:52%"></span><span class="best" style="left:94%"></span></div>
+                      <span class="gap">2.1 pts</span>
+                    </td>
+                    <td>
+                      <div class="price"><b>+1.5</b><i>D</i></div>
+                      <div class="rail"><span style="left:10%"></span><span style="left:44%"></span><span class="best" style="left:90%"></span></div>
+                      <span class="gap">line varies</span>
+                    </td>
+                    <td class="col-total">
+                      <div class="price"><b>o8.5</b><i>A</i></div>
+                      <div class="rail"><span style="left:50%"></span><span class="best" style="left:52%"></span></div>
+                      <span class="gap">0.4 pts</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="game"><span class="t">Team Charlie</span><span class="t">Team Delta</span></td>
+                    <td>
+                      <div class="price"><b>&minus;104</b><i>C</i></div>
+                      <div class="rail"><span style="left:30%"></span><span class="best" style="left:70%"></span></div>
+                      <span class="gap">0.9 pts</span>
+                    </td>
+                    <td>
+                      <div class="price"><b>&minus;2.5</b><i>A</i></div>
+                      <div class="rail"><span style="left:20%"></span><span style="left:24%"></span><span class="best" style="left:80%"></span></div>
+                      <span class="gap">1.6 pts</span>
+                    </td>
+                    <td class="col-total">
+                      <div class="price"><b>u44.5</b><i>B</i></div>
+                      <div class="rail"><span style="left:12%"></span><span style="left:48%"></span><span class="best" style="left:88%"></span></div>
+                      <span class="gap">line varies</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <section class="win win--ops">
+              <div class="win__bar"><span class="pulse pulse--warn"></span>Ops <small>1 alert</small></div>
+              <ul class="kv">
+                <li><span class="dot"></span><span class="k">Source One</span><span class="v">fresh, 3 min</span></li>
+                <li><span class="dot dot--warn"></span><span class="k">Source Two</span><span class="v v--warn">stale, 52 min</span></li>
+                <li><span class="dot"></span><span class="k">Source Three</span><span class="v">fresh, 8 min</span></li>
+                <li><span class="k">Success rate</span><span class="v">97.0%</span></li>
+                <li><span class="k">Budget burn</span><span class="v">41 of 500</span></li>
+              </ul>
+            </section>
+            <section class="win win--incidents">
+              <div class="win__bar"><span class="pulse pulse--ok"></span>Incidents</div>
+              <div class="inc">
+                <p>Source Two stopped returning fixtures</p>
+                <p class="state">Open</p>
+                <p class="need">Closes with a root cause and a corrective action.</p>
+              </div>
+              <div class="inc">
+                <p>Scores arrived late for one league</p>
+                <p class="state state--done">Resolved, RCA written</p>
+              </div>
+            </section>
+          </div>
+          <div class="desk__ftr" aria-hidden="true">Workspace: Morning triage</div>
+        </div>
+        <figcaption>An illustration of the desk, not a screenshot. The teams, books, sources and numbers in it are invented.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="what-it-is" aria-labelledby="h-what-it-is">
+    <div class="wrap">
+      <h2 id="h-what-it-is">What XLines is</h2>
+      <p>XLines ingests sports statistics and betting-market data from multiple external providers on a schedule, stores line movement as partitioned time-series, computes performance analytics (closing-line value, ROI, bankroll), and monitors its own ingestion health with operational KPIs, alerting, and an incident log with written root-cause analyses.</p>
+      <p>The journal records bets placed elsewhere so their performance can be analysed against stored market data. There is no bet-placement path anywhere in the codebase.</p>
+      <h3>Why it exists</h3>
+      <p>Most side projects demonstrate that you can build a feature. This one is built to demonstrate that you can operate one: the interesting part is not the odds, it is the layer that notices when a feed silently breaks at 3am and produces a written RCA afterwards.</p>
+      <p class="quiet">XLines is the product; LineOps is the platform it is built on. Every project, path, image and command in the repository still says <code>LineOps</code>. The two names mean the same desk.</p>
+    </div>
+  </section>
+
+  <section id="what-it-does" aria-labelledby="h-what-it-does">
+    <div class="wrap">
+      <h2 id="h-what-it-does">What it does</h2>
+      <div class="groups">
+        <div class="group">
+          <h3>Ingestion</h3>
+          <ul>
+            <li>Odds and stats adapters behind two interfaces, so adding a provider is a registration change, not a code change.</li>
+            <li>Three integration styles: synchronous REST pulls, a scheduled bulk slate ingest, and post-final settlement processing.</li>
+            <li>Resilience per source: retry with jittered backoff, circuit breaking, per-attempt timeouts.</li>
+            <li>A budget guard that refuses a run rather than overrun a provider's free-tier ceiling.</li>
+            <li>Store-on-change: a price that has not moved is not written, so every stored row is a real line move.</li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3>Analytics</h3>
+          <ul>
+            <li>Closing-line value: each journal entry is joined to the last price observed before the start.</li>
+            <li>Value at close: the price taken, valued against a fair close, which is the closing market's probability with the book's margin taken out.</li>
+            <li>ROI, win rate against the break-even rate implied by price, a bankroll curve, and breakdowns by market and book.</li>
+            <li>Automatic grading for moneyline, spread and total, including the push cases.</li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3>The desk</h3>
+          <ul>
+            <li>Windows on one screen rather than a set of pages, so source health, the incident and the runs behind it can be read together.</li>
+            <li>Always one horizontal row of full-height columns. Each new window appends and the others give up the space.</li>
+            <li>The limit is the number of columns, not of windows: past it, a window opens as a tab and nothing closes.</li>
+            <li>Workspaces: named layouts stored as fractions of the desk, so one saved on a monitor still fits a laptop.</li>
+            <li>Each window's title bar and taskbar chip carry a live pulse of that window's own state.</li>
+          </ul>
+        </div>
+        <div class="group">
+          <h3>Operations</h3>
+          <ul>
+            <li>KPIs: freshness, success rate, volume-vs-median anomaly detection, and budget burn.</li>
+            <li>An alert engine that opens, updates and auto-resolves alerts, one per rule and source.</li>
+            <li>An incident log that cannot be closed without a root cause and a corrective action.</li>
+            <li>Failure injection, so the detect, alert, incident and RCA loop can be drilled on demand instead of waiting for a real outage.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quick-start" aria-labelledby="h-quick-start">
+    <div class="wrap">
+      <h2 id="h-quick-start">Quick start</h2>
+      <p>Clone, run setup, start Docker, enter your free key in the desk: fixtures and prices appear. About ten minutes, most of it the first image build. The default runs on The Odds API alone; ESPN is an optional extra you can turn on for box scores and player stats.</p>
+
+      <h3>You need</h3>
+      <ul class="need-list">
+        <li><b>Git</b><span>to clone</span></li>
+        <li><b>Docker Desktop</b><span>or Docker Engine with Compose v2, running. Postgres and the desk run in containers.</span></li>
+        <li><b>.NET 10 SDK</b><span><code>setup.ps1</code> uses it to make the HTTPS development certificate.</span></li>
+        <li><b>PowerShell</b><span>Built into Windows. On macOS or Linux, install <code>pwsh</code> and run the same scripts.</span></li>
+        <li><b>A free key from The Odds API</b><span>The default source: fixtures (free), prices and final scores (credits), 500 credits a month.</span></li>
+      </ul>
+
+      <ol class="steps">
+        <li>
+          <h3>Clone, on the development branch</h3>
+          <p><code>main</code> is the stable branch and trails it; the steps are written for <code>LineX_Development</code>.</p>
+          <div class="code"><pre><code data-repo-clone="">git clone -b LineX_Development &lt;repository address&gt; LineOps</code></pre></div>
+          <noscript><p class="quiet">The repository address is filled in by a short script on this page. With scripts off, use the address of the XLines repository on GitHub.</p></noscript>
+          <div class="code"><pre><code>cd LineOps</code></pre></div>
+        </li>
+        <li>
+          <h3>Generate the local secrets, and decide about ESPN</h3>
+          <p>Writes <code>.env</code> (a random database password and certificate password; gitignored) and exports the HTTPS development certificate. Safe to run again.</p>
+          <div class="code"><pre><code>.\scripts\setup.ps1</code></pre></div>
+          <p>It asks one question first: whether to turn ESPN on. You do not need it. The answer defaults to No. If Windows says running scripts is disabled, bypass the policy for that one run rather than changing the machine's: <code>powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1</code>.</p>
+        </li>
+        <li>
+          <h3>Get your own free key</h3>
+          <p>Fixtures, prices and final scores come from The Odds API. Sign up for the free Starter plan at <a href="https://the-odds-api.com/#get-access">the-odds-api.com</a>; the key arrives by email. Not odds-api.io, which is a different provider with a near-identical name and its own keys.</p>
+          <p>Start the desk (next step), open <b>Ops → Odds feeds</b>, paste the key into <b>The Odds API key</b> and press <b>Check and save</b>. The desk asks the provider whether the key is good before keeping it, and keeps it encrypted on your machine, outside the database.</p>
+        </li>
+        <li>
+          <h3>Start it</h3>
+          <div class="code"><pre><code>docker compose -f docker-compose.yml -f compose.dev.yml up -d --build</code></pre></div>
+          <p>Open <b class="num">https://localhost:9443</b>. The browser warns about the certificate until you trust it (<code>dotnet dev-certs https --trust</code>, your call: it changes the machine's trust store).</p>
+        </li>
+      </ol>
+      <p>Filling the database, pulling prices and scores, and what to do when something does not appear are in the repository's <a data-repo-href="/blob/{branch}/README.md#quick-start" href="#source">README</a>.</p>
+    </div>
+  </section>
+
+  <section id="cost" aria-labelledby="h-cost">
+    <div class="wrap">
+      <h2 id="h-cost">Cost</h2>
+      <p class="cost"><strong>$0</strong><span>to run. Every provider is on a permanent free tier and the stack runs locally.</span></p>
+      <p>Each person signs up for The Odds API themselves and uses their own key; the project never supplies or shares one. The free month is 500 credits, reset on the 1st.</p>
+      <table class="prices">
+        <caption class="vh">What a credit buys on The Odds API</caption>
+        <thead><tr><th scope="col">Pull</th><th scope="col">Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Fixtures, the schedule eight days ahead</td><td>free</td></tr>
+          <tr><td>Pull lines, one league</td><td>a credit per market</td></tr>
+          <tr><td>Pull scores, one league, finals from the last three days</td><td>2 credits</td></tr>
+        </tbody>
+      </table>
+      <p>Nothing that costs a credit runs unless you press for it, or switch <b>Ops → Scanning</b> to Automatic. Every pull that costs credits states its price before you press it.</p>
+    </div>
+  </section>
+
+  <section id="data" class="notice" aria-labelledby="h-data">
+    <div class="wrap">
+      <h2 id="h-data">Whose data it is</h2>
+      <p>XLines is a personal tool. It runs on your machine, pulls with your own key, and stores what it pulls in your own Docker Postgres. Nothing is sent to the project or to anyone else.</p>
+      <ul>
+        <li><b>The Odds API.</b> You sign up yourself and use your own key. Its <a href="https://the-odds-api.com/terms-and-conditions.html">terms</a> allow storing its data and showing it in an application; they do not allow passing the raw data on as a data product, so do not publish a database or dump that holds it. The repository carries none: what your desk holds, it pulled itself.</li>
+        <li><b>ESPN</b> is optional and off by default. Its endpoints are unofficial and undocumented, read only so that an individual can keep games, scores and box scores in their own local database. ESPN's <a href="https://disneytermsofuse.com/english/">terms of use</a> license its services for personal, non-commercial use and prohibit automated access; whether to turn it on is your decision. Do not host a desk that shows ESPN-derived data to other people, do not use it commercially, and do not redistribute it.</li>
+        <li><b>MLB Stats API.</b> MLB Advanced Media permits individual, non-commercial, non-bulk use only. It is off whenever ESPN is.</li>
+      </ul>
+      <p>XLines is not affiliated with or endorsed by ESPN, Disney, MLB, The Odds API or any sportsbook. It takes no bets and is not betting advice. If you gamble, do it legally where you are, at the legal age, and within your means.</p>
+    </div>
+  </section>
+
+  <section id="licence" aria-labelledby="h-licence">
+    <div class="wrap">
+      <h2 id="h-licence">Licence</h2>
+      <p>The code is released under the <a data-repo-href="/blob/{branch}/LICENSE" href="#source">MIT License</a>. The licence covers the code in the repository and nothing else: it grants no rights in any provider's data, which stays under that provider's own terms.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer id="source">
+  <div class="wrap">
+    <ul>
+      <li><a data-repo-href="" href="#source">Repository</a></li>
+      <li><a data-repo-href="/blob/{branch}/README.md" href="#source">README</a></li>
+      <li><a data-repo-href="/blob/{branch}/docs/README.md" href="#source">Documentation</a></li>
+      <li><a data-repo-href="/tree/{branch}/docs/adr" href="#source">Decision records</a></li>
+      <li><a data-repo-href="/blob/{branch}/LICENSE" href="#source">Licence</a></li>
+    </ul>
+    <p>XLines 1.0.0, built on the LineOps platform. Copyright 2026 Wade Nohejl, MIT License.</p>
+    <p>XLines does not place wagers and does not integrate with any wagering system.</p>
+  </div>
+</footer>
+
+<script>
+/* Fills the repository address in from the one <meta name="xlines-repository"> in <head>,
+   and adds a Copy button to each command. No framework, nothing fetched. */
+(function () {
+  var meta = document.querySelector('meta[name="xlines-repository"]');
+  if (!meta) return;
+  var repo = meta.getAttribute('content').replace(/\/+$/, '').replace(/\.git$/, '');
+  var branch = meta.getAttribute('data-branch') || 'main';
+
+  document.querySelectorAll('[data-repo-href]').forEach(function (a) {
+    a.setAttribute('href', repo + a.getAttribute('data-repo-href').replace('{branch}', branch));
+  });
+  document.querySelectorAll('[data-repo-clone]').forEach(function (c) {
+    c.textContent = 'git clone -b ' + branch + ' ' + repo + '.git LineOps';
+  });
+
+  if (!navigator.clipboard) return;
+  document.querySelectorAll('.code').forEach(function (box) {
+    var code = box.querySelector('code');
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy command: ' + code.textContent);
+    button.addEventListener('click', function () {
+      navigator.clipboard.writeText(code.textContent).then(function () {
+        button.textContent = 'Copied';
+        setTimeout(function () { button.textContent = 'Copy'; }, 1600);
+      });
+    });
+    box.appendChild(button);
+  });
+})();
+</script>
+</body>
+</html>
