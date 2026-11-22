@@ -229,7 +229,7 @@
     protected override void OnInitialized() => Manager.Changed += OnManagerChanged;
 
     /// <summary>Per product, so two desks served from one origin in development never share a row.</summary>
-    private string LayoutKey => $"{Brand.Wordmark}{Brand.Emphasis}.desk".ToLowerInvariant();
+    private string LayoutKey => Brand.LayoutKey;
 
     private string? _savedLayout;
     private bool _saveQueued;

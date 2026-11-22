@@ -376,7 +376,7 @@ else
                   Waiting="@(_offer is null ? "The bet and its price come first." : "A stake comes first.")"
                   Hint="@(BuildParlay
                       ? "Check anything flagged, then add it. The parlay's stake, price and book are set on the Slip tab, where it is logged."
-                      : "Check anything flagged, then log it. LineOps records the bet; nothing is sent to a sportsbook.")">
+                      : "Check anything flagged, then log it. XLines records the bet; nothing is sent to a sportsbook.")">
             @if (_offer is not null)
             {
                 <CheckList Items="Strip" Title="Before you log" ShowTitle="false" />

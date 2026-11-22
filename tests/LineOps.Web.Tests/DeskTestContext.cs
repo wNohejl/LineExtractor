@@ -12,7 +12,7 @@ public abstract class DeskTestContext : LineOps.Desk.Testing.DeskTestContext
 {
     protected DeskTestContext()
     {
-        Services.AddSingleton(new LineOps.Desk.DeskBrand("LINE", "OPS", "test desk"));
+        Services.AddSingleton(new LineOps.Desk.DeskBrand("X", "LINES", "test desk"));
         Services.AddSingleton(new LineOps.Desk.DeskClock(
             LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
         Services.AddSingleton<LineOps.Desk.IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();

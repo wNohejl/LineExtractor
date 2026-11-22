@@ -13,7 +13,19 @@ namespace LineOps.Desk;
 /// falls, the line under it on an empty desk, and what the palette's empty field invites —
 /// the things this application's search can find, which the desk cannot know.
 /// </summary>
-public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline, string SearchPlaceholder = "Search");
+public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline, string SearchPlaceholder = "Search")
+{
+    /// <summary>
+    /// The browser-storage key the desk keeps its layout and workspaces under. Left unset it is
+    /// made from the wordmark, so two products on one origin never share a layout. An application
+    /// that changes its name sets this to the key it used before, or every saved desk starts empty.
+    /// </summary>
+    public string? StorageKey { get; init; }
+
+    /// <summary>The key in force: <see cref="StorageKey"/> when set, otherwise the wordmark's.</summary>
+    public string LayoutKey
+        => string.IsNullOrWhiteSpace(StorageKey) ? $"{Wordmark}{Emphasis}.desk".ToLowerInvariant() : StorageKey;
+}
 
 /// <summary>
 /// The zone the desk tells time in, and the short name it labels that time with.

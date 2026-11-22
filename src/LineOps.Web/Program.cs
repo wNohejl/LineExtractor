@@ -27,7 +27,9 @@ builder.Services.AddRazorComponents()
 // tells time in the zone the leagues keep — the same one every panel formats in (DisplayTime).
 // See src/LineOps.Desk/DeskHost.cs for what each seam is.
 builder.Services.AddDesk(
-    new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations", "Go to a team, player, game or window"),
+    // The product is XLines (ADR 0031). The layout key keeps the name it was saved under, so a
+    // desk laid out as LineOps opens as it was left.
+    new DeskBrand("X", "LINES", "sports-data ingestion & analytics operations", "Go to a team, player, game or window") { StorageKey = "lineops.desk" },
     new DeskClock(LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
 builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
