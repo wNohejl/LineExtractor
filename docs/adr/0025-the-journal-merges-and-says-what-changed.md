@@ -1,6 +1,6 @@
 # ADR 0025 — The journal merges, and says what changed
 
-**Status:** Proposed (branch `plan/journal-sync`)
+**Status:** Accepted. Built 2026-11-15 and merged into `LineX_Development`; the journal has travelled through the private repository since 2026-11-17.
 
 **Builds on:** [ADR 0018](0018-an-operator-and-visitors.md), whose operator is the one person the
 journal belongs to, and [ADR 0023](0023-one-database-two-desks.md), whose "separate development"

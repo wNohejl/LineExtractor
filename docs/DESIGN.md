@@ -1,5 +1,13 @@
 # LineOps — Sports-Data Ingestion & Analytics Operations Platform
 
+> **Read first (2026-11-22).** The product is now named **XLines**; LineOps is the platform
+> underneath and the name this document uses throughout (ADR 0031). Two things below are
+> described as they were designed rather than as a fresh clone now behaves: since 2026-11-20
+> ESPN is opt-in and **the default stats source is The Odds API on the user's own key**
+> (ADR 0026), and each source carries a licence that decides what a visitor may read
+> (ADR 0024). Where §0 or §4 says ESPN is the stats source, read "when its operator has turned
+> it on". [docs/README.md](README.md) lists which documents are current.
+
 **Status: BUILT.** All seven phases implemented and verified. More than 2,000 tests (unit + adapter-fixture + bUnit component + Testcontainers integration), `dotnet format` clean, full stack running in Docker over HTTPS. Phase 7 (*operate*) is the ongoing part.
 
 **Stack:** .NET 10 · Blazor Web App (Interactive Server) · MudBlazor 9.7 · PostgreSQL 17 · Docker
@@ -35,7 +43,7 @@
 **The three honest caveats:**
 1. **$0 holds for v1 scope, not every conceivable bet.** Free odds tiers cover moneyline/spread/totals — exactly the "no obscure bets yet" scope. **Player props at meaningful volume are the first thing that costs money** (The Odds API's 500 credits/mo technically include props but evaporate in days). Props are therefore the documented upgrade path (§13), not a v1 promise.
 2. **Free tiers are "development and testing" use** per odds-api.io's terms. A personal portfolio/analytics project fits; reselling the data or going commercial would not.
-3. **ESPN endpoints are unofficial** and can break without notice. In this project that's a controlled risk by design — breakage feeds the incident/RCA loop (§5). It is not a hedged one: ESPN is the only stats source (balldontlie has no adapter), so a break stops schedules, scores and settlement until the adapter is fixed. The MLB Stats API annotates games but never creates them.
+3. **ESPN endpoints are unofficial** and can break without notice. In this project that's a controlled risk by design — breakage feeds the incident/RCA loop (§5). On a desk with ESPN on it is not a hedged one: ESPN is then the only stats source (one at a time, ADR 0011; balldontlie has no adapter), so a break stops schedules, scores and settlement until the adapter is fixed. A desk on the default source (ADR 0026) does not call ESPN at all. The MLB Stats API annotates games but never creates them.
 
 **Depth limitation to state plainly:** at four books, "line shopping" is a comparison, not a market scan. That's fine for v1 — one of the four is Pinnacle, which is worth more as the fair-price reference (§6) than several more recreational books would be as alternatives, and CLV, ROI, and bankroll analytics need *time depth* rather than breadth. More books is a paid upgrade, listed in §13.
 
@@ -48,7 +56,7 @@ The public identity of this project is a **data-ingestion and analytics operatio
 **Naming & language rules:**
 - Repo name/tagline: "LineOps — multi-source sports data ingestion & analytics operations platform." Never "betting app," "wagering," "picks," or "gambling."
 - The journal feature is a **bet journal**: it *records* wagers the user placed elsewhere (stake, book, line, result) for performance analytics. The app has zero integration with any sportsbook's wagering flow, no deposit/withdrawal concepts, no "place bet" button anywhere in the UI or code. UI verbs: "Log entry," "Record result" — never "Place bet."
-- README carries one plain sentence: *"LineOps does not place wagers and does not integrate with any wagering system."* That sentence is the conflict-of-interest firewall — it makes the non-wagering scope explicit to any employer (including a regulated-gaming employer like Aristocrat) reading the repo. **As built:** it appears in the README *and* as a standing note at the top of the Journal window, so the scope is stated in the product, not just the docs.
+- README carries one plain sentence: *"XLines does not place wagers and does not integrate with any wagering system."* (it read "LineOps" until the product was named, ADR 0031) That sentence is the conflict-of-interest firewall — it makes the non-wagering scope explicit to any employer (including a regulated-gaming employer like Aristocrat) reading the repo. **As built:** it appears in the README *and* as a standing note at the top of the Journal window, so the scope is stated in the product, not just the docs.
 - Interview/resume framing leads with the *operations* story: multi-source ingestion, time-series modeling, KPIs/SLOs, alerting, incidents/RCAs. The analytics (CLV, ROI) are the domain payload — and they're the stronger engineering story anyway: CLV requires storing full line history and joining a journal entry to the market state at two points in time, which is a real data problem; a "place bet" button would just be a POST.
 - The `JournalEntry` entity's own XML doc says it: *"this entity is a ledger row, never an instruction."* Framing enforced in code, not just prose.
 

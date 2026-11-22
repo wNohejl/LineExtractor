@@ -1,6 +1,6 @@
 # ADR 0022 — The desk follows its operator onto the tailnet
 
-**Status:** Proposed (trial, 2026-11-14)
+**Status:** Accepted. Built as a trial on 2026-11-14 and merged into `LineX_Development`; not yet run on a real tailnet (checklist below).
 
 **Builds on:** [ADR 0018](0018-an-operator-and-visitors.md), whose gate this puts in front of
 every device but the desktop, and [ADR 0019](0019-one-vm-caddy-in-front-the-worker-schedules.md),

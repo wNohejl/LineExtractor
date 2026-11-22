@@ -1,9 +1,13 @@
 # Infrastructure — as built
 
 A definition of what actually runs, where it runs, and what it depends on, current as of
-November 2026. The *why* behind each choice lives in the ADRs
+2026-11-22. The *why* behind each choice lives in the ADRs
 ([docs/adr](adr/)); this page is the *what*, for anyone who needs to operate, review, or
-extend the stack without reading the whole design.
+extend the stack without reading the whole design. [docs/README.md](README.md) says which
+other documents are current.
+
+The product is **XLines**; `LineOps` is the platform it is built on and the name in every
+project, image, volume and command below (ADR 0031).
 
 ## Solution layout
 
@@ -38,9 +42,10 @@ Package versions are centrally pinned in `Directory.Packages.props`
   volume, healthchecked; *not* published to the host by default.
 - **web** — Kestrel, HTTPS only on `127.0.0.1:9443`, PFX mounted read-only from the host,
   Data Protection keys on the `lineops-keys` volume (survives container replacement),
-  migrates the database on boot. First boot works with no keys and no spend: ESPN and the
-  MLB Stats API need none. Prices do — with no odds key there is simply no odds source,
-  which the Ops panel reports as unconfigured rather than as an outage.
+  migrates the database on boot. First boot works with no keys and no spend, and with an
+  empty desk: ESPN is off until its operator turns it on, and the default source wants a
+  key (ADR 0026). Ops reports a source with no key as unconfigured rather than as an
+  outage, and asks for one.
 - **worker** — opt-in via `--profile worker`; when used, set `Ingestion__HostScheduler=false`
   and `Reliability__HostEvaluator=false` on web so only one process polls and evaluates.
 
@@ -60,7 +65,8 @@ Overlays, deliberately opt-in rather than default:
   desk on the laptop (ADR 0023, below).
 
 `deploy/compose.yml` is a separate, hosted stack (Caddy, web, worker, Postgres, backups); see
-`deploy/README.md`.
+`deploy/README.md`. It has been verified locally and never deployed: 1.0 is a desk each person
+runs for themselves, and a hosted demo is optional (ADR 0031).
 
 Secrets come from a gitignored `.env` (`POSTGRES_PASSWORD`, `CERT_PASSWORD`, `CERT_PATH`,
 provider API keys). There are no fallback credentials: unconfigured means throw.
@@ -85,9 +91,14 @@ One PostgreSQL database, one EF Core model, migrations checked by CI.
 | Provider | Port | Style | Budget |
 |---|---|---|---|
 | The Odds API | `IOddsSource` — the book market (Pinnacle, DraftKings, FanDuel, BetMGM) | pulled on request (`LinePolling:Mode` `Manual`), or on a derived cadence when `Scheduled` | 500 credits/mo, billed markets × regions; enforced by `CreditBudgetGuard` — a run that would breach is refused and recorded `Partial` |
+| The Odds API, schedule (`the-odds-api-schedule`) | `IStatsSource` and `IScoreSource` — **the default stats source**, registered only while ESPN is off (ADR 0026) | fixtures from `/events` on a state-driven cadence; final scores from `/scores?daysFrom=3` on request, or nightly per league when Scanning is Automatic | fixtures free; scores 2 credits a league, from the same account and month as the prices |
 | odds-api.io | `IOddsSource` — alternative, off by default | as above | 100/h · 500/day; free tier is for evaluation (ADR 0024) |
-| ESPN (undocumented JSON) | `IStatsSource` — stats port only, never the odds port (ADR 0011); it also yields one reference closing line per finished game | scoreboard walk + box-score fetch, history backfill (ADR 0009) | free; requires a real HTTP-client `User-Agent` (403 otherwise — see `SourceOptions.UserAgent`) |
-| MLB Stats API | entity spine — issues the `gamePk` and MLBAM ids every other source resolves into | schedule walk | free, unauthenticated |
+| ESPN (undocumented JSON) | `IStatsSource` — **opt-in** (`Ingestion:Espn:Enabled`, false on a fresh clone); stats port only, never the odds port (ADR 0011); it also yields one reference closing line per finished game | scoreboard walk + box-score fetch, history backfill (ADR 0009) | free; requires a real HTTP-client `User-Agent` (403 otherwise — see `SourceOptions.UserAgent`) |
+| MLB Stats API | entity spine — issues the `gamePk` and MLBAM ids every other source resolves into; follows ESPN's switch | schedule walk | free, unauthenticated |
+
+Each source carries a licence, `Displayable` or `PersonalUse` (ADR 0024): The Odds API's two
+rows are displayable, ESPN, MLB and odds-api.io are personal use. With `Sharing:Mode=Shared`
+behind a gate, a visitor reads the displayable tier only; `Local`, the default, changes nothing.
 
 Resilience per source: `AddStandardResilienceHandler` (retry with jitter, circuit breaker,
 per-attempt timeout) on every HttpClient.

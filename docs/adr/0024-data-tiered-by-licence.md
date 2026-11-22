@@ -1,6 +1,6 @@
 # ADR 0024 — The data is tiered by licence: visitors read what may be shown
 
-**Status:** Proposed (trial, branch `trial/source-tiering`)
+**Status:** Accepted. Built as a trial on 2026-11-14, amended 2026-11-15 (below), and merged into `LineX_Development`. `Sharing:Mode` is `Local` everywhere it runs today.
 
 **Builds on:** [ADR 0011](0011-espn-is-the-stats-port-odds-come-from-a-book-market.md), whose split
 between a stats port and a book market is what makes the tiers separable, and

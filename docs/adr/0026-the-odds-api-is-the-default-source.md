@@ -1,6 +1,6 @@
 # ADR 0026 — The Odds API is the default source; ESPN is the opt-in extra
 
-**Status:** Proposed (working tree on `analytics-py-port`, to move to `LineX_Development`)
+**Status:** Accepted, 2026-11-20, and merged into `LineX_Development`. Not yet verified against the live API (Consequences).
 
 **Builds on:** [ADR 0011](0011-espn-is-the-stats-port-odds-come-from-a-book-market.md) (one stats
 port at a time, prices from a book market), [ADR 0014](0014-a-real-feed-a-credit-budget-and-what-counts-as-a-game.md)

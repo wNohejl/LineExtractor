@@ -4,6 +4,22 @@ One VM, five containers, Caddy in front. What this is for and why it is shaped t
 [ADR 0019](../docs/adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) and the
 [going-public plan](../docs/superpowers/specs/2026-09-27-going-public-plan.md) §3.
 
+**Status, 2026-11-22.** Verified locally, never deployed. XLines 1.0 is a desk each person runs
+for themselves; this stack is for an optional hosted demo
+([ADR 0031](../docs/adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md), Phase D).
+Two desks can be hosted, and they are different things:
+
+| | A demo others may open | The owner's own desk, somewhere else |
+|---|---|---|
+| `ESPN_ENABLED` | `false`, and never turned on for this database | `true` |
+| `SHARING_MODE` | `Shared` | `Local` |
+| Who signs in | Reviewers with the guest code; the operator | The operator only |
+| What it shows | Fixtures, prices, closes and CLV from The Odds API (ADR 0026) | Everything |
+| First load | Nothing to restore: fixtures arrive on the key | The private snapshot, step 7 |
+
+The owner's snapshot holds ESPN-derived rows and is never restored into the first kind.
+Azure App Service instead of a VM is weighed in ADR 0031 §5; nothing here is written for it.
+
 | File | What it is |
 |---|---|
 | `compose.yml` | Caddy, web (the desk), worker (the only scheduler), Postgres, and a nightly backup |

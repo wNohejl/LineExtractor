@@ -1,14 +1,20 @@
-# LineOps
+# XLines
 
 **A multi-source sports-data ingestion and analytics operations platform.**
 .NET 10 · Blazor (Interactive Server) · MudBlazor 9 · PostgreSQL 17 · Docker
+
+> **XLines is the product; LineOps is the platform it is built on.** The desk says XLines; every project, path, image
+> and command below still says `LineOps`, and the repository is still `LineExtractor`, until the
+> 1.0 release moves it to a repository of its own
+> ([ADR 0031](docs/adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md)). The two
+> names mean the same desk.
 
 LineOps ingests sports statistics and betting-market data from multiple external providers on
 a schedule, stores line movement as partitioned time-series, computes performance analytics
 (closing-line value, ROI, bankroll), and monitors its own ingestion health with operational
 KPIs, alerting, and an incident log with written root-cause analyses.
 
-> **Scope.** LineOps does not place wagers and does not integrate with any wagering system.
+> **Scope.** XLines does not place wagers and does not integrate with any wagering system.
 > The journal records bets placed elsewhere so their performance can be analysed against
 > stored market data. There is no bet-placement path anywhere in the codebase.
 
@@ -47,8 +53,9 @@ notices when a feed silently breaks at 3am and produces a written RCA afterwards
 - **Always one horizontal row** of full-height columns. Each new window appends and the
   others give up the space. Drag the divider between two columns to move their split; the
   rest of the row stays put. Arbitrary placement is left to modals and popovers layered above.
-- **Opening past the window limit closes the least recently used** — named in the launcher
-  before it happens and in the footer after.
+- **The limit is the number of columns, not of windows.** Past it, a window opens as a tab in
+  one of the columns and nothing closes; the header says which column before the click
+  (ADR 0027).
 - A **primary window** leads the row and takes a larger share, and is what opens on an empty
   desk.
 - A **Window manager** for the window ceiling, primary window and its share, resolution
@@ -656,8 +663,12 @@ scripts/                  Setup, the owner's private snapshot and journal transf
 data/personal/            Gitignored: the owner's private clone (journal, snapshot); absent elsewhere
 .claude/skills/           Agent skills: setup, and the Desk's design rules
 docs/
-  adr/                    Architecture decision records
+  README.md               Which document answers which question, and which are only the record
+  DESIGN.md               Why it is built this way
+  INFRASTRUCTURE.md       What runs, where, and on what
+  adr/                    Architecture decision records (0031: the name, the repository, hosting)
   runbook.md              What each alert means and how to triage it
+  superpowers/            Dated research, plans and evidence; the record, not the present
 ```
 
 ## Tests

@@ -1,6 +1,6 @@
 # ADR 0023 — One database, two desks: the laptop reads the desktop's Postgres over the tailnet
 
-**Status:** Proposed (trial, 2026-11-14)
+**Status:** Accepted. Built as a trial on 2026-11-14, amended 2026-11-15, and merged into `LineX_Development`; not yet run over a real tailnet connection.
 
 **Builds on:** [ADR 0014](0014-a-real-feed-a-credit-budget-and-what-counts-as-a-game.md), whose
 credit budget is the thing a second scheduler spends, and [ADR 0019](0019-one-vm-caddy-in-front-the-worker-schedules.md),
