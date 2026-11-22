@@ -86,10 +86,29 @@ positive ink, at 5.79:1 on the white panel. Two charts were on screen; both drew
 
 The console showed no error while the host was up.
 
+## Every family, and the other two densities
+
+All 45 `[data-theme]` blocks the sheets declare were put on the page in turn and six text and
+ink tokens measured against the panel (`--text-primary`, `--text-secondary`, `--accent-ink` and
+the three state inks on `--surface-1`). None is under 4.5:1. The five lowest minima: Ayu dark
+4.84, Ayu light 5.28, Solarized dark 5.32, Kanagawa light 5.33, Midnight light 5.36.
+
+Line watch (the Board beside Line movement) was drawn at Compact and at Roomy as well as
+Standard. The header is 42, 50 and 60px; the Line watch note stays one line (18.8px) at all
+three; nothing is cut.
+
+A second family's charts: Catppuccin light, where the positive fill is 2.96:1 on the panel. The
+profit curve is drawn in the positive ink, `rgb(45, 112, 30)`, at 5.39:1.
+
+## Found and fixed during the pass
+
+In a narrow Line movement column, a long matchup in "Biggest moves today" ran under its own
+prices: the move's column could shrink below its unwrapped text. `.slatewatch__move` no longer
+gives up width and the matchup wraps instead (`lineops.css`). After the change, none of the
+eight rows on screen overlapped.
+
 ## Not looked at
 
-- The Activities stack fanned.
-- Charts in any family but Standard: the 174 test cases hold their contrast, a browser did not.
-- Compact and Roomy across whole windows; only the table header and the body's padding were
-  measured at those densities.
-- The other twenty families.
+- The Activities stack fanned: closing two windows raised the header's "Activity · 1" capsule,
+  which had cleared before it could be opened. Nothing in this change touches it.
+- Each of the twenty other families as a whole desk; they were measured, not read.

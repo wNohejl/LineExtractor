@@ -1,8 +1,10 @@
 # ADR 0031 — XLines: the name, its own repository, and where 1.0 runs
 
-**Status:** The name and the version are Accepted and built (2026-11-22): the desk says XLines
-and the hosts are 1.0.0. The repository, the site and the hosting below are Proposed,
-recommendations waiting on a yes (§ Decisions).
+**Status:** Accepted, 2026-11-22. The name and the version are built: the desk says XLines and
+the hosts are 1.0.0. The deployment is decided as written below — a new repository at 1.0.0, a
+static site, 1.0 as a desk each person runs, a hosted demo on the existing VM kit if one is
+wanted, and no Azure App Service for 1.0. Phases B to D are not yet carried out: each creates
+or changes something outside this checkout, and is the developer's to start (§ What is decided).
 
 **Supersedes:** the going-public plan's §8 to §10b
 ([2026-09-27](../superpowers/specs/2026-09-27-going-public-plan.md)) as the statement of where the
@@ -206,14 +208,26 @@ ESPN off, `SHARING_MODE=Shared`, a guest code; an uptime monitor and one restore
 (plan Phases 2, 3 and 5), and extracting the kit into its own repository (Phase 4), which the Desk
 packages have already half done.
 
-## Decisions that are the developer's
+## What is decided, and what still needs the developer's hand
 
-1. **Is "XLines" free to use?** No trademark, domain or GitHub-name search has been made.
-2. **A new repository, or a rename in place?** Recommended: new, with the old one private.
-3. **Recorded fixtures in a public tree:** keep, trim to the fields the tests read, or generate.
-4. **A domain** for the site.
-5. **A hosted demo at all**, and if so the VM or Azure.
-6. **Employment** (plan §8, decision 1): unchanged, and still gates anything paid.
+Decided here, from the documents this ADR builds on:
+
+| Question | Decision |
+|---|---|
+| Its own repository? | Yes: `wNohejl/XLines`, new, from the 1.0.0 tree; `LineExtractor` private and archived |
+| A website? | Yes: a static page on GitHub Pages from that repository; no domain is needed to start |
+| Azure App Service? | No, not for 1.0. Revisit only as a deliberate Azure exercise after it |
+| A hosted desk? | Not part of 1.0. A demo, when wanted, is `deploy/` on one VM with ESPN off and `SHARING_MODE=Shared` |
+| Recorded fixtures in the public tree | Keep them: they are small samples the tests parse, not a dataset, and trimming them weakens the tests. Re-read each provider's terms at Phase B, as the plan's §10 asks |
+| Order | Phase A, then B, then C; D only when there is someone to show it to |
+
+Not something a document can settle:
+
+1. **Is "XLines" free to use?** No trademark, domain or GitHub-name search has been made. If the
+   name is taken, only the repository's name and the wordmark change; nothing above does.
+2. **Carrying out Phase B.** Creating a repository and making another private are done on the
+   developer's GitHub account, by the developer.
+3. **Employment** (plan §8, decision 1): unchanged, and still gates anything paid.
 
 ## Consequences
 

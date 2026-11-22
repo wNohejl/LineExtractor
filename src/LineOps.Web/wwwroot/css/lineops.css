@@ -2042,7 +2042,10 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
 .slatewatch__row:hover { background: var(--surface-3); }
 .slatewatch__row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .slatewatch__game, .slatewatch__move { display: flex; flex-direction: column; min-width: 0; }
-.slatewatch__move { align-items: flex-end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The move never gives up width: it does not wrap, so a shrunk one would run back over the
+   matchup. In a narrow column the matchup wraps instead. */
+.slatewatch__game { flex: 1 1 0; }
+.slatewatch__move { flex: none; align-items: flex-end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .slatewatch__matchup { font-weight: var(--weight-semibold); }
 .slatewatch__detail, .slatewatch__size { font-size: var(--text-footnote); color: var(--text-secondary); }
 .slatewatch__following {
