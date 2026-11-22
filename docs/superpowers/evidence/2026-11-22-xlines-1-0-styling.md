@@ -116,6 +116,15 @@ the same notice: the list drops beneath the capsule as a 400px panel, 12px corne
 two 76px rows with one hairline between them, wholly inside the viewport. A row's corner there
 is 7px where concentric would be 8px; the stack is not one of the triage's pairs and was left.
 
+## The landing page
+
+`site/index.html`, opened from disk at 375px: no sideways scroll, six sections, the clone
+command filled in from the one `<meta>` that names the repository. The preview draws a local
+file in light only, so the dark palette, which is the page's default, was computed from its own
+values against its canvas (#1C1C1E): primary text 14.51:1, secondary 7.22:1, accent ink 6.14:1,
+warning ink 9.54:1, negative ink 6.03:1. Not seen drawn in dark; its Copy buttons need a secure
+origin and were not seen either.
+
 ## Not looked at
 
 - The stack opened by a press on a live notice (the paragraph above is the same sheet, not the

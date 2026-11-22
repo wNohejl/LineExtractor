@@ -237,8 +237,13 @@ they are free. GitHub Pages needs none of them.
 
 Not something a document can settle:
 
-1. **A trademark search.** None was made; the checks above are of names in use, not of
-   registrations. If the name must change, only the repository's name and the wordmark do.
+1. **Whether the name is clear as a mark.** A web search of USPTO records on 2026-11-22 found no
+   record for XLINES. It found several for the singular XLINE and X LINE, in unrelated goods:
+   one live application for oil-and-gas wireline software (serial 98481651, Class 042), one for
+   metal building materials, and dead registrations for sunglasses and waterproofing compounds.
+   That is a search through a third-party index, not the USPTO's own, and not advice; a
+   near-identical live mark in software is the one to read before the name is used commercially.
+   If the name must change, only the repository's name and the wordmark do.
 2. **Carrying out Phase B.** Creating a repository and making another private are done on the
    developer's GitHub account, by the developer.
 3. **Employment** (plan §8, decision 1): unchanged, and still gates anything paid.
