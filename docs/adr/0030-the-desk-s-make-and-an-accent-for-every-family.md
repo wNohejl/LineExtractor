@@ -62,12 +62,12 @@ name, slug, picker heading (`DeskThemeGroups`), both palettes, accents — and t
 the boot test and every per-family test iterate it. Adding a family is a row, two palettes, two
 blocks and a boot entry; the tests that fail when one is missing are named in the Desk's README.
 
-**Twenty-two families under four headings.** The thirteen that followed — Paper, Midnight,
-Synthwave, Terra, Everforest, Kanagawa, One, Monokai, Ayu, Primer, Night Owl, Palenight and
-Zenburn — landed as rows, and the seven families before them gained accents of their own (every
+**Twenty-three families under four headings.** The fourteen that followed — Paper, Midnight,
+Obsidian, Synthwave, Terra, Everforest, Kanagawa, One, Monokai, Ayu, Primer, Night Owl, Palenight
+and Zenburn — landed as rows, and the seven families before them gained accents of their own (every
 family but High contrast now offers three or four). The picker files them under plain words that
 help a person choose, not where a palette came from: **Built in** (Standard, High contrast),
-**Character** (Paper, Midnight, Synthwave, Terra — desks drawn from a material rather than an
+**Character** (Paper, Midnight, Obsidian, Synthwave, Terra — desks drawn from a material rather than an
 editor), **Soft** (Nord, Rosé Pine, Catppuccin, Everforest, Kanagawa, Zenburn, Palenight,
 Solarized, Gruvbox — muted, low-contrast grounds) and **Vivid** (Dracula, Tokyo Night, Monokai,
 One, Night Owl, Ayu, Primer — saturated hues). "Classics" is retired. The lists live in

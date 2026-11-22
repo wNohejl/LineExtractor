@@ -187,7 +187,7 @@ public static class DeskThemeFamilies
         new(DeskThemeFamily.Midnight, "Midnight", "midnight", DeskThemeGroups.Character,
             DeskPalettes.MidnightDark, DeskPalettes.MidnightLight, DeskFamilyAccents.Midnight),
         new(DeskThemeFamily.Obsidian, "Obsidian", "obsidian", DeskThemeGroups.Character,
-            DeskPalettes.ObsidianDark, DeskPalettes.ObsidianLight, [new("sky", "Sky")]),
+            DeskPalettes.ObsidianDark, DeskPalettes.ObsidianLight, DeskFamilyAccents.Obsidian),
         new(DeskThemeFamily.Synthwave, "Synthwave", "synthwave", DeskThemeGroups.Character,
             DeskPalettes.SynthwaveDark, DeskPalettes.SynthwaveLight, DeskFamilyAccents.Synthwave),
         new(DeskThemeFamily.Terra, "Terra", "terra", DeskThemeGroups.Character,

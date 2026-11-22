@@ -118,8 +118,13 @@
 @if (Watching)
 {
     @* Line watch changes what a press here does (ADR 0029), so the Board says so, in words on the
-       page rather than a title a pointer has to find. *@
-    <Note State="DeskState.Info">@LineWatch.BoardHint</Note>
+       page rather than a title a pointer has to find. One line, so the slate starts where it
+       always does: the first clause is the disclosure's label, the rest a press (or Enter) away. *@
+    <Note State="DeskState.Info">
+        <DeskDisclosure Label="@LineWatch.BoardHint">
+            @LineWatch.BoardHintMore
+        </DeskDisclosure>
+    </Note>
 }
 @if (Visible.Count > 0 && _unpriced > 0)
 {

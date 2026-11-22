@@ -3190,6 +3190,48 @@
     --accent-ink: #1C1C1C;
 }
 
+/* Obsidian's chosen accents: the terminal's other signal lamps.
+
+   Keys (data-accent) and names, the family's own first:
+     sky → Sky (built in: the obsidian-dark and obsidian-light blocks),
+     violet → Violet, slate → Slate
+
+   Drawn from the same slate-and-signal palette as the sky: Violet is the
+   proposal's #A78BFA, a second lamp on the carbon; Slate is the hairlines'
+   own blue-grey, for an operator who wants the keys to be ruled rather than
+   lit. There is no amber and no green, because those are this desk's warning
+   and positive. By night each carries the canvas as its label, as the sky
+   does: hover lifts, press dims, and the ink is the fill, or a step above it
+   where the fill would sink into its own strong wash. By day each takes the
+   step the sky takes to harbour blue, deep enough for white, with the ink one
+   step deeper again. */
+
+[data-theme="obsidian-dark"][data-accent="violet"] {
+    --accent: #A78BFA;
+    --accent-hover: #BAA4FB;
+    --accent-press: #9677F7;
+    --accent-ink: #BAA4FB; /* the fill measures 4.40:1 on its strong wash; the hover reads */
+}
+[data-theme="obsidian-light"][data-accent="violet"] {
+    --accent: #6D28D9;
+    --accent-hover: #6023BF;
+    --accent-press: #541FA7;
+    --accent-ink: #5B21B6;
+}
+
+[data-theme="obsidian-dark"][data-accent="slate"] {
+    --accent: #94A3B8;
+    --accent-hover: #ACB7C8;
+    --accent-press: #8291A8;
+    --accent-ink: #94A3B8;
+}
+[data-theme="obsidian-light"][data-accent="slate"] {
+    --accent: #475569;
+    --accent-hover: #3E4B5C;
+    --accent-press: #374151;
+    --accent-ink: #334155;
+}
+
 /* Synthwave's chosen accents: the other tubes in the sign.
 
    Keys (data-accent) and names, the family's own first:

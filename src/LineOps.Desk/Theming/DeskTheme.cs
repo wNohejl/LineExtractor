@@ -49,8 +49,13 @@ public static class DeskTheme
     public const string StateNegative = "#D73A31";
     public const string StateWarning = "#FF9F0A";
 
-    // The inks (--state-*-ink, --accent-ink) are not mirrored: nothing in C# draws text, so they
-    // live in the stylesheet alone, where ThemeContrastTests measures them.
+    // The inks (--state-*-ink, --accent-ink). Nothing in C# draws text, but a chart draws a series
+    // in the ink wherever the fill would sit under 3:1 on the panel (DeskChartPalette), so they
+    // cross the seam too; ThemeContrastTests measures them in the stylesheet.
+    public const string StatePositiveInk = "#30D158";
+    public const string StateWarningInk = "#FFB340";
+    public const string StateNegativeInk = "#FF6961";
+    public const string AccentInk = "#449EFF";
 
     public const string Separator = "rgba(255, 255, 255, .10)";
 
@@ -94,6 +99,11 @@ public static class DeskTheme
     public const string LightStatePositive = "#34C759";
     public const string LightStateNegative = "#DF342A";
     public const string LightStateWarning = "#FF9500";
+
+    public const string LightStatePositiveInk = "#00762B";
+    public const string LightStateWarningInk = "#AA4800";
+    public const string LightStateNegativeInk = "#CA1227";
+    public const string LightAccentInk = "#0060C8";
 
     public const string LightSeparator = "rgba(0, 0, 0, .10)";
 

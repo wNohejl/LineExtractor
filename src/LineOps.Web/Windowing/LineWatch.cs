@@ -19,10 +19,15 @@ public static class LineWatch
     /// <summary>The tag the Line watch workspace carries (<see cref="WindowCatalog.Workspaces"/>).</summary>
     public const string Tag = "line-watch";
 
-    /// <summary>What the Board says while the rule holds, so a press is never a surprise.</summary>
-    public const string BoardHint =
-        "Line watch: pressing a game shows it in Line movement, and pressing a price shows that market and side. "
-        + "Place wager on the open row takes the price last pressed.";
+    /// <summary>
+    /// What the Board says while the rule holds, so a press is never a surprise: one line, the
+    /// label of a disclosure that holds the rest (<see cref="BoardHintMore"/>).
+    /// </summary>
+    public const string BoardHint = "Line watch: pressing a game shows it in Line movement.";
+
+    /// <summary>The rest of the Board's note, one press away behind <see cref="BoardHint"/>.</summary>
+    public const string BoardHintMore =
+        "Pressing a price shows that market and side. Place wager on the open row takes the price last pressed.";
 
     /// <summary>
     /// Whether the rule holds: Line watch is the workspace on the desk and its own Line movement

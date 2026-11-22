@@ -148,7 +148,20 @@ public class LineWatchTests : WagerTestContext
 
         var board = Board();
 
+        // One line: the first clause is the disclosure's label, and nothing more shows until it is pressed.
+        Assert.Equal("Line watch: pressing a game shows it in Line movement.", LineWatch.BoardHint);
         Assert.Equal(LineWatch.BoardHint, Hint(board)!);
+        var summary = board.Find(".note .disclosure__summary");
+        Assert.Equal("false", summary.GetAttribute("aria-expanded"));
+        Assert.Empty(board.FindAll(".note .disclosure__content"));
+
+        // The rest is one press away, on the summary — a <summary>, so Tab reaches it and Enter opens it.
+        summary.Click();
+
+        Assert.Equal("true", board.Find(".note .disclosure__summary").GetAttribute("aria-expanded"));
+        Assert.Equal(LineWatch.BoardHintMore, board.Find(".note .disclosure__content").TextContent.Trim());
+        Assert.Equal("Pressing a price shows that market and side. Place wager on the open row takes the price last pressed.",
+            LineWatch.BoardHintMore);
     }
 
     [Fact]
@@ -196,9 +209,10 @@ public class LineWatchTests : WagerTestContext
         Assert.NotEmpty(board.FindAll(".qtake"));
     }
 
-    /// <summary>The Board's Line watch note, or null where it draws none.</summary>
+    /// <summary>The Board's Line watch note as it reads closed (its disclosure's label), or null where it draws none.</summary>
     private static string? Hint(IRenderedFragment board)
-        => board.FindAll(".note").Select(n => n.TextContent.Trim()).FirstOrDefault(t => t.StartsWith("Line watch:", StringComparison.Ordinal));
+        => board.FindAll(".note .disclosure__label").Select(n => n.TextContent.Trim())
+            .FirstOrDefault(t => t.StartsWith("Line watch:", StringComparison.Ordinal));
 
     [Fact]
     public void With_line_movement_closed_the_board_is_the_plain_board_again()

@@ -1,3 +1,5 @@
+using System.Data;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using LineOps.Desk.Tests.Support;
 
@@ -263,6 +265,154 @@ public class DeskCssConventionTests
 
         foreach (var name in DeskConventions.DeskSheetNames)
             Assert.DoesNotMatch(@"\[aria-expanded=""true""\]\s*\{[^}]*inset[^;}]*var\(--accent\)", WithoutComments(Css(name)));
+    }
+
+    // ---- Geometry: rules read as the cascade reads them, tokens evaluated per make ------------
+
+    /// <summary>
+    /// Every top-level rule of desk.css then controls.css, in load order, as its selector list and
+    /// declarations. Rules inside an at-rule are left out: they answer a condition, not the default.
+    /// </summary>
+    private static List<(string[] Selectors, Dictionary<string, string> Declarations)> TopLevelRules()
+    {
+        var rules = new List<(string[], Dictionary<string, string>)>();
+
+        foreach (var sheet in new[] { "desk.css", "controls.css" })
+        {
+            var css = WithoutComments(Css(sheet));
+            int depth = 0, start = 0, body = 0;
+
+            for (var i = 0; i < css.Length; i++)
+            {
+                if (css[i] == ';' && depth == 0)
+                    start = i + 1;
+                else if (css[i] == '{' && depth++ == 0)
+                    body = i + 1;
+                else if (css[i] == '}' && --depth == 0)
+                {
+                    var header = css[start..(body - 1)].Trim();
+                    var block = css[body..i];
+                    if (!header.StartsWith('@') && !block.Contains('{'))
+                        rules.Add((header.Split(',').Select(s => Regex.Replace(s.Trim(), @"\s+", " ")).ToArray(), Declarations(block)));
+                    start = i + 1;
+                }
+            }
+        }
+
+        return rules;
+    }
+
+    private static readonly Lazy<List<(string[] Selectors, Dictionary<string, string> Declarations)>> Rules = new(TopLevelRules);
+
+    private static Dictionary<string, string> Declarations(string block) =>
+        Regex.Matches(block, @"([\w-]+)\s*:\s*([^;]+)")
+            .GroupBy(m => m.Groups[1].Value)
+            .ToDictionary(g => g.Key, g => g.Last().Groups[2].Value.Trim());
+
+    /// <summary>What the last top-level rule naming <paramref name="selector"/> sets <paramref name="property"/> to.</summary>
+    private static string Declared(string selector, string property)
+    {
+        var value = Rules.Value
+            .Where(r => r.Selectors.Contains(selector) && r.Declarations.ContainsKey(property))
+            .Select(r => r.Declarations[property])
+            .LastOrDefault();
+
+        Assert.True(value is not null, $"no rule for {selector} sets {property}");
+        return value!;
+    }
+
+    /// <summary>The plain :root geometry block, then every Shape and Density block over it: nine desks.</summary>
+    private static IEnumerable<(string Make, Dictionary<string, string> Tokens)> EveryShapeAtEveryDensity()
+    {
+        var css = WithoutComments(Css("desk.css"));
+        var geometry = Regex.Match(css, @"\n:root \{([^{}]*--control-h:[^{}]*)\}");
+        Assert.True(geometry.Success, "desk.css has no plain :root geometry block");
+
+        Dictionary<string, Dictionary<string, string>> Blocks(string attribute) =>
+            Regex.Matches(css, @":root\[data-" + attribute + @"=""([a-z-]+)""\]\s*\{([^{}]*)\}")
+                .ToDictionary(m => m.Groups[1].Value, m => Declarations(m.Groups[2].Value));
+
+        var shapes = Blocks("shape").Append(KeyValuePair.Create("standard", new Dictionary<string, string>()));
+        var densities = Blocks("density").Append(KeyValuePair.Create("standard", new Dictionary<string, string>()));
+
+        foreach (var (shape, shapeTokens) in shapes)
+            foreach (var (density, densityTokens) in densities)
+            {
+                var tokens = new Dictionary<string, string>(Declarations(geometry.Groups[1].Value));
+                foreach (var (name, value) in shapeTokens.Concat(densityTokens))
+                    tokens[name] = value;
+                yield return ($"{shape} shape, {density} density", tokens);
+            }
+    }
+
+    /// <summary>A length as the browser computes it: var()s resolved, then the calc's arithmetic.</summary>
+    private static double Px(string value, IReadOnlyDictionary<string, string> tokens)
+    {
+        var resolved = Regex.Replace(value, @"var\((--[\w-]+)\)",
+            m => "(" + Px(tokens[m.Groups[1].Value], tokens).ToString("0.0###", CultureInfo.InvariantCulture) + ")");
+        return Convert.ToDouble(new DataTable().Compute(resolved.Replace("calc", "").Replace("px", ""), null), CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// A pinned table header cancels its window body's padding exactly, at every density: it was a
+    /// literal -14px, right at Standard only, so Compact cut the heading's top by 3.5px and Roomy
+    /// let rows show through a 3.5px slit above it (styling triage, 2026-11-22).
+    /// </summary>
+    [Fact]
+    public void A_pinned_table_header_cancels_the_window_body_s_padding_at_every_density()
+    {
+        Assert.Equal("var(--win-pad)", Declared(".win__body", "padding"));
+        Assert.Equal("calc(-1 * var(--win-pad))", Declared(".grid th", "top"));
+
+        var pads = new HashSet<double>();
+        foreach (var (make, tokens) in EveryShapeAtEveryDensity())
+        {
+            var pad = Px(Declared(".win__body", "padding"), tokens);
+            Assert.True(Px(Declared(".grid th", "top"), tokens) == -pad, $"the pinned header misses the scroll edge at {make}");
+            pads.Add(pad);
+        }
+
+        Assert.Equal(new[] { 10.5, 14, 17.5 }, pads.Order());
+    }
+
+    /// <summary>
+    /// A row inside a padded container rounds concentrically with it: child radius = container
+    /// radius − inset (HIG, Toolbars; theming audit 2026-11-20 §4.1, item 5). Each row names the
+    /// container, every padding between it and the child (each one --radius-inset deep), and the
+    /// children, the glide plate that paints under them among them. The menu's rows join when
+    /// controls.css spends the token on <c>.popover__panel .menu__item</c>.
+    /// </summary>
+    public static TheoryData<string, string[], string[]> ConcentricPairs() => new()
+    {
+        { ".bar__strip", [".bar__strip"], [".bar__group", ".glide-plate--marble"] },
+        { ".bar__menu .bar__menu-panel", [".bar__menu .bar__menu-panel"], [".bar__menu-panel .bar__key", ".bar__menu-panel > .glide-plate"] },
+        { ".popover__panel", [".popover__panel", ".launcher"], [".launcher .launcher__item", ".launcher > .glide-plate"] },
+        { ".popover__panel", [".popover__panel"], [".popover__panel .menu__item"] },
+    };
+
+    [Theory]
+    [MemberData(nameof(ConcentricPairs))]
+    public void A_row_s_corner_is_its_container_s_less_the_inset_in_every_shape(string container, string[] paddings, string[] children)
+    {
+        var outer = Regex.Match(Declared(container, "border-radius"), @"^var\((--radius[\w-]*)\)$");
+        Assert.True(outer.Success, $"{container}'s corner is not a radius token");
+
+        var times = paddings.Length == 1 ? "" : $"{paddings.Length} \\* ";
+        foreach (var child in children)
+            Assert.Matches($@"^calc\(var\({outer.Groups[1].Value}\) - {times}var\(--radius-inset\)\)$", Declared(child, "border-radius"));
+
+        foreach (var (make, tokens) in EveryShapeAtEveryDensity())
+        {
+            var inset = Px("var(--radius-inset)", tokens);
+
+            // Each padding is the inset, so the token is the real distance from edge to row.
+            foreach (var padding in paddings)
+                Assert.True(Px(Declared(padding, "padding").Split(' ')[0], tokens) == inset, $"{padding} is not padded by the inset at {make}");
+
+            var concentric = Px(Declared(container, "border-radius"), tokens) - paddings.Length * inset;
+            foreach (var child in children)
+                Assert.True(Px(Declared(child, "border-radius"), tokens) == concentric, $"{child} is not concentric with {container} at {make}");
+        }
     }
 
     /// <summary>

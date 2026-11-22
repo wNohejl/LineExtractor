@@ -50,13 +50,19 @@ public enum DeskAccent
 
 /// <summary>
 /// One accent on one desk, as far as it crosses into C#: the fill MudBlazor and the charts wear,
-/// and its hover, which <see cref="DeskPalette.WithAccent"/> carries beside it. The press, the
-/// washes and the ink live in the stylesheet alone, where the contrast tests measure them. The
+/// and its hover, which <see cref="DeskPalette.WithAccent"/> carries beside it, and the ink where a
+/// chart needs it. The press and the washes live in the stylesheet alone, where the contrast tests
+/// measure them. The
 /// literals are formatted exactly as the block writes them, so a diff reads as the same text.
 /// </summary>
 /// <param name="Accent"><c>--accent</c>: the fill.</param>
 /// <param name="Hover"><c>--accent-hover</c>: lighter on a dark ground, deeper on a light one.</param>
-public sealed record AccentPalette(string Accent, string Hover);
+/// <param name="Ink">
+/// <c>--accent-ink</c>, carried only where the fill measures under 3:1 on its family's panel: that
+/// is the one case a chart draws the accent series in the ink rather than the fill
+/// (<see cref="Primitives.DeskChartPalette"/>). Left null, the fill stands in for it.
+/// </param>
+public sealed record AccentPalette(string Accent, string Hover, string? Ink = null);
 
 /// <summary>
 /// The accent table: every <see cref="DeskAccent"/> on the Standard desk's two appearances, with
@@ -143,13 +149,13 @@ public static class DeskFamilyAccents
     [
         new("ink", "Ink blue"),
         new("sepia", "Sepia",
-            Dark: new AccentPalette("#7E5B37", "#85603A"),
+            Dark: new AccentPalette("#7E5B37", "#85603A", Ink: "#D2AA80"),
             Light: new AccentPalette("#7A5430", "#6D4A2A")),
         new("plum", "Plum",
-            Dark: new AccentPalette("#7A4470", "#834A78"),
+            Dark: new AccentPalette("#7A4470", "#834A78", Ink: "#CF9CC4"),
             Light: new AccentPalette("#6E3A64", "#623358")),
         new("verdigris", "Verdigris",
-            Dark: new AccentPalette("#2D6A64", "#32716B"),
+            Dark: new AccentPalette("#2D6A64", "#32716B", Ink: "#84C4BA"),
             Light: new AccentPalette("#2A5F5A", "#24544F"))
     ];
 
@@ -165,6 +171,17 @@ public static class DeskFamilyAccents
         new("mono", "Mono",
             Dark: new AccentPalette("#EDEDED", "#FFFFFF"),
             Light: new AccentPalette("#1C1C1C", "#0E0E0E"))
+    ];
+
+    public static IReadOnlyList<DeskFamilyAccent> Obsidian { get; } =
+    [
+        new("sky", "Sky"),
+        new("violet", "Violet",
+            Dark: new AccentPalette("#A78BFA", "#BAA4FB"),
+            Light: new AccentPalette("#6D28D9", "#6023BF")),
+        new("slate", "Slate",
+            Dark: new AccentPalette("#94A3B8", "#ACB7C8"),
+            Light: new AccentPalette("#475569", "#3E4B5C"))
     ];
 
     public static IReadOnlyList<DeskFamilyAccent> Synthwave { get; } =
@@ -185,13 +202,13 @@ public static class DeskFamilyAccents
     [
         new("clay", "Clay"),
         new("slate", "Slate",
-            Dark: new AccentPalette("#4E6878", "#536E7F"),
+            Dark: new AccentPalette("#4E6878", "#536E7F", Ink: "#9DB6C5"),
             Light: new AccentPalette("#4A6372", "#425866")),
         new("heather", "Heather",
-            Dark: new AccentPalette("#77597C", "#7D5E82"),
+            Dark: new AccentPalette("#77597C", "#7D5E82", Ink: "#C3A6C7"),
             Light: new AccentPalette("#6E5373", "#634A67")),
         new("stone", "Stone",
-            Dark: new AccentPalette("#69655B", "#6E6A60"),
+            Dark: new AccentPalette("#69655B", "#6E6A60", Ink: "#B4AE9F"),
             Light: new AccentPalette("#67635A", "#5C5850"))
     ];
 
@@ -256,13 +273,13 @@ public static class DeskFamilyAccents
         new("gold", "Gold"),
         new("blue", "Blue",
             Dark: new AccentPalette("#59C2FF", "#6AC8FF"),
-            Light: new AccentPalette("#22A4E6", "#2099D6")),
+            Light: new AccentPalette("#22A4E6", "#2099D6", Ink: "#166A94")),
         new("purple", "Purple",
             Dark: new AccentPalette("#D2A6FF", "#D6AFFF"),
             Light: new AccentPalette("#A37ACC", "#9871BE")),
         new("teal", "Teal",
             Dark: new AccentPalette("#95E6CB", "#A0E8D0"),
-            Light: new AccentPalette("#4CBF99", "#47B28E"))
+            Light: new AccentPalette("#4CBF99", "#47B28E", Ink: "#2D715A"))
     ];
 
     public static IReadOnlyList<DeskFamilyAccent> Primer { get; } =
@@ -342,7 +359,7 @@ public static class DeskFamilyAccents
             Dark: new AccentPalette("#207C75", "#29817B"),
             Light: new AccentPalette("#22827B", "#207A74")),
         new("slate", "Slate",
-            Dark: new AccentPalette("#586E75", "#5F747B"),
+            Dark: new AccentPalette("#586E75", "#5F747B", Ink: "#97A5A9"),
             Light: new AccentPalette("#586E75", "#53676E"))
     ];
 

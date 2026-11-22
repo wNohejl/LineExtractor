@@ -139,6 +139,12 @@
     cursor: pointer;
 }
 
+/* Inside a popover a row's corner is the panel's less the inset, so the two curves share a
+   centre in every shape; a menu drawn elsewhere keeps the small radius above. */
+.popover__panel .menu__item {
+    border-radius: calc(var(--radius-panel) - var(--radius-inset));
+}
+
 /* The highlight is the accent wash, as the desk's menus have always drawn it: a menu row is
    about to be pressed, which is what the accent means here, and a grey plate would read as
    a disabled row on the --surface-2 panel. */

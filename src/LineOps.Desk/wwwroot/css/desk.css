@@ -528,6 +528,10 @@
     --titlebar-h: 34px;
     --header-h: calc(var(--titlebar-h) + var(--space-4)); /* the header bar: a title bar plus a --space-4 of air */
     --footer-h: 38px; /* the status bar under the desk; the connection banner stands above it */
+    /* A window body's padding: 14px at Standard, as it was before the spacing became tokens, and
+       half a --space-1 short of --space-4 at every density (10.5px Compact, 17.5px Roomy). Written
+       once because a pinned table header cancels it (.grid th's top), and two copies drifted. */
+    --win-pad: calc(var(--space-4) - var(--space-1) / 2);
 
     /* --- Controls -----------------------------------------------------------
        The heights every key, field, gate, pop-up and row is drawn at. 28px is the
@@ -551,6 +555,12 @@
     --radius: 7px; /* controls — buttons, fields, selects */
     --radius-panel: 12px; /* windows, panels, popovers */
     --radius-sheet: 14px; /* sheets and alerts */
+    /* The air a container keeps round the rows inside it, and so what a row's corner gives up to
+       stay concentric with the container's: child radius = container radius - inset (HIG,
+       Toolbars). It is the containers' --space-1, so it follows Density as their padding does.
+       Where a container's corner is smaller than the inset (Sharp), the calc goes negative and
+       the browser clamps it to a square corner, which is the concentric answer. */
+    --radius-inset: var(--space-1);
 
     /* --- Ground -------------------------------------------------------------
        How much of the accent the Gradient backdrop mixes into the ground at its
@@ -1139,7 +1149,7 @@ input, textarea, [contenteditable] { caret-color: var(--accent-ink); }
     padding: 0 var(--space-2) 0 var(--space-3);
     background: none;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-radius: calc(var(--radius) - var(--radius-inset)); /* concentric with .bar__strip's */
     color: var(--text-secondary);
     cursor: pointer;
     font-family: var(--face-ui);
@@ -1220,13 +1230,17 @@ input, textarea, [contenteditable] { caret-color: var(--accent-ink); }
 .bar__menu:hover .bar__menu-panel,
 .bar__menu--pinned .bar__menu-panel { display: flex; }
 
-/* Inside a drawer every key is a full-width row, named. */
+/* Inside a drawer every key is a full-width row, named, its corner concentric with the
+   drawer's; the plate that glides under the rows wears the same corner. */
 .bar__menu-panel .bar__key {
     width: 100%;
     height: calc(var(--control-h) + 2px);
     justify-content: flex-start;
     padding: 0 var(--space-2);
+    border-radius: calc(var(--radius-panel) - var(--radius-inset));
 }
+
+.bar__menu-panel > .glide-plate { border-radius: calc(var(--radius-panel) - var(--radius-inset)); }
 
 .bar__menu-panel .bar__key-name { display: block; }
 
@@ -1895,10 +1909,11 @@ input, textarea, [contenteditable] { caret-color: var(--accent-ink); }
    neutral hover fill as the default plate. The border is dropped outright: hairlines in
    this system separate, they never outline, and a filled plate with no border reads as a
    fill rather than an outlined chip. The current tab it slides past keeps its own accent
-   wash (.tab--current), and sits a layer above this plate. */
+   wash (.tab--current), and sits a layer above this plate. Its one host is the window strip's
+   run, so it wears the strip's keys' corner: concentric with the strip's. */
 .glide-plate--marble {
     background: var(--surface-3);
-    border-radius: var(--radius);
+    border-radius: calc(var(--radius) - var(--radius-inset));
 }
 
 /* While the plate is live it is the hover signal, so the per-control
@@ -2785,9 +2800,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    /* 14px at Standard, as it was before the spacing became tokens, and moved with Density by
-       the same quarter: half a --space-1 short of --space-4 at every density. */
-    padding: calc(var(--space-4) - var(--space-1) / 2);
+    padding: var(--win-pad); /* 14px at Standard, moved with Density (the token's comment) */
     scrollbar-width: thin;
     scrollbar-color: var(--surface-3) transparent;
 }
@@ -3016,10 +3029,16 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* ------------------------------------------------------------ launcher ---- */
 
+/* The launcher sits in a popover's panel, so its rows are inset twice: the panel's padding and
+   its own, both --space-1 (the inset), and their corner gives up both (concentric with the
+   panel's). The palette's rows share the class but sit in a sheet, and keep --radius-xs. */
 .launcher {
     min-width: 300px;
-    padding: 6px;
+    padding: var(--space-1);
 }
+
+.launcher .launcher__item,
+.launcher > .glide-plate { border-radius: calc(var(--radius-panel) - 2 * var(--radius-inset)); }
 
 /* A group header in a menu: sentence case ("Saved here"), footnote, semibold, secondary. */
 .launcher__group {
@@ -3179,7 +3198,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     border-bottom: 1px solid var(--separator);
     white-space: nowrap;
     position: sticky;
-    top: -14px; /* cancels .win__body padding so the header pins while scrolling */
+    top: calc(-1 * var(--win-pad)); /* cancels .win__body's padding at every density, so the header pins flush with the scroll edge */
     background: var(--surface-2);
     z-index: 1;
 }

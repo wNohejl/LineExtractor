@@ -326,7 +326,7 @@ with its accents, its own first:
 | | High contrast (`contrast`) | Blue |
 | Character | Paper (`paper`) | Ink blue, Sepia, Plum, Verdigris |
 | | Midnight (`midnight`) | Electric, Violet, Magenta, Mono |
-| | Obsidian (`obsidian`) | Sky |
+| | Obsidian (`obsidian`) | Sky, Violet, Slate |
 | | Synthwave (`synthwave`) | Magenta, Cyan, Ultraviolet, Chrome |
 | | Terra (`terra`) | Clay, Slate, Heather, Stone |
 | Soft | Nord (`nord`) | Frost, Frost teal, Aurora purple |

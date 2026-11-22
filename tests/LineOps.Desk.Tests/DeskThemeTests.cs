@@ -625,6 +625,10 @@ public class DeskThemeTests
             ("--state-positive", palette.StatePositive),
             ("--state-negative", palette.StateNegative),
             ("--state-warning", palette.StateWarning),
+            ("--state-positive-ink", palette.StatePositiveInk),
+            ("--state-warning-ink", palette.StateWarningInk),
+            ("--state-negative-ink", palette.StateNegativeInk),
+            ("--accent-ink", palette.AccentInk),
             ("--separator", palette.Separator),
             ("--chart-neutral", palette.ChartNeutral),
             ("--chart-neutral-dim", palette.ChartNeutralDim)
@@ -797,8 +801,60 @@ public class DeskThemeTests
             var standard = DeskChartPalette.For(chart, isDark);
 
             Assert.Contains(desk.ChartNeutralDim, colours);
-            Assert.Equal(Array.IndexOf(standard, isDark ? DeskTheme.Accent : DeskTheme.LightAccent), Array.IndexOf(colours, desk.Accent));
+
+            // The accent's slot is the same on every desk, whether it is drawn in the fill or the ink.
+            var slot = Array.IndexOf(colours, desk.Accent);
+            if (slot < 0)
+                slot = Array.IndexOf(colours, desk.AccentInk);
+            Assert.Equal(Array.IndexOf(standard, isDark ? DeskTheme.Accent : DeskTheme.LightAccent), slot);
         }
+    }
+
+    /// <summary>
+    /// A series is a graphical object, held to 3:1 on the panel it is drawn on (contrast audit,
+    /// 20 November, §4.1 item 7): every slot but the dim neutral, which is for reference lines, in
+    /// every family block. Six light desks' state fills measured 1.95 to 2.98:1 before the inks
+    /// crossed the seam; the order is the family's still, so each slot is either its fill or its ink.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryDesk))]
+    public void Every_chart_series_but_the_dim_clears_3_to_1_on_its_panel(DeskThemeFamily family, bool isDark)
+        => AssertSeriesRead(DeskThemeFamilies.Palette(family, isDark), DeskThemeFamilies.Attribute(family, isDark));
+
+    /// <summary>The same in every chosen accent, which brings its own fill and, where that fill is under 3:1, its own ink.</summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_chart_series_but_the_dim_clears_3_to_1_in_every_accent(DeskThemeFamily family, string key, bool isDark)
+    {
+        var chosen = DeskThemeFamilies.Info(family).FindAccent(key)!.For(isDark)!;
+
+        AssertSeriesRead(DeskThemeFamilies.Palette(family, isDark).WithAccent(chosen), $"{DeskThemeFamilies.Attribute(family, isDark)} {key}");
+    }
+
+    private static void AssertSeriesRead(DeskPalette desk, string where)
+    {
+        var failures = new List<string>();
+
+        foreach (var chart in Enum.GetValues<DeskChartFamily>())
+        {
+            var colours = DeskChartPalette.For(chart, desk);
+            var standard = DeskChartPalette.For(chart, DeskPalettes.AppleDark);
+
+            for (var slot = 0; slot < colours.Length; slot++)
+            {
+                if (standard[slot] == DeskTheme.ChartNeutralDim)
+                {
+                    Assert.Equal(desk.ChartNeutralDim, colours[slot]);
+                    continue;
+                }
+
+                var ratio = Contrast(colours[slot], desk.Surface1);
+                if (ratio < 3)
+                    failures.Add($"{where} {chart} slot {slot} {colours[slot]} measures {ratio:F2}:1 over {desk.Surface1}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
     [Fact]
@@ -930,10 +986,18 @@ public class DeskThemeTests
 
         Assert.True(palette is not null, $"{where} has a block but no {(isDark ? "Dark" : "Light")} palette in its row");
 
+        // The ink crosses only where the fill is under 3:1 on the family's panel (AccentPalette.Ink):
+        // exactly there, and never anywhere else, so a carried ink is one a chart actually draws.
+        var panel = TokenValue(DeskBlock(family, isDark), "--surface-1", where);
+        Assert.True(
+            (palette.Ink is not null) == (Contrast(palette.Accent, panel) < 3),
+            $"{where} {(palette.Ink is null ? "carries no ink but its fill measures under 3:1" : "carries an ink its fill does not need")} on {panel}");
+
         (string Token, string Value)[] pairs =
         [
             ("--accent", palette.Accent),
-            ("--accent-hover", palette.Hover)
+            ("--accent-hover", palette.Hover),
+            ("--accent-ink", palette.Ink ?? tokens["--accent-ink"])
         ];
 
         foreach (var (token, value) in pairs)
@@ -1021,7 +1085,8 @@ public class DeskThemeTests
         var palette = desk.WithAccent(chosen);
         Assert.Equal(chosen.Accent, palette.Accent);
         Assert.Equal(chosen.Hover, palette.AccentHover);
-        Assert.Contains(chosen.Accent, DeskChartPalette.For(DeskChartFamily.Movement, palette));
+        Assert.Equal(chosen.Ink ?? chosen.Accent, palette.AccentInk);
+        Assert.Contains(chosen.Ink ?? chosen.Accent, DeskChartPalette.For(DeskChartFamily.Movement, palette));
 
         Assert.Same(theme, DeskTheme.For(family, key.ToUpperInvariant()));
         Assert.Same(DeskTheme.For(family), DeskTheme.For(family, info.OwnAccent.Key));
@@ -1222,7 +1287,7 @@ public class DeskThemeTests
     [Fact]
     public void A_window_body_is_14px_at_Standard_and_follows_density()
     {
-        Assert.Equal("calc(var(--space-4) - var(--space-1) / 2)", Rule(".win__body")["padding"]);
+        Assert.Equal("var(--win-pad)", Rule(".win__body")["padding"]);
 
         var pads = EveryDensity().ToDictionary(d => d.Density, d => Px(d.Tokens["--space-4"]) - Px(d.Tokens["--space-1"]) / 2);
 

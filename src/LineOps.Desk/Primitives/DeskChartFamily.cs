@@ -83,12 +83,25 @@ public static class DeskChartPalette
     /// a dark desk's dim grey on a pale plot is not a quiet series, it is the darkest thing in the
     /// window — which is why every palette carries its own.
     /// </para>
+    /// <para>
+    /// A series is a graphical object, so it has to clear 3:1 on the panel it is drawn on. A state
+    /// fill is tuned to be seen as a dot or a wash, and on several light desks it is not (Standard
+    /// light's green measures 2.22:1 on white), so any series whose fill falls under 3:1 on
+    /// <see cref="DeskPalette.Surface1"/> is drawn in that colour's ink instead — the same hue,
+    /// taken to where text reads it (contrast audit, 20 November, §4.1 item 7). The neutral's ink is
+    /// the secondary text tier laid opaque on the panel. The dim neutral is left as it is: it is
+    /// the quiet one on purpose, for a reference line rather than a series anyone must read.
+    /// </para>
     /// </remarks>
     public static string[] For(DeskChartFamily family, DeskPalette palette)
     {
-        var (accent, positive, negative, warning) =
-            (palette.Accent, palette.StatePositive, palette.StateNegative, palette.StateWarning);
-        var (neutral, dim) = (palette.ChartNeutral, palette.ChartNeutralDim);
+        var panel = palette.Surface1;
+        var accent = Legible(palette.Accent, palette.AccentInk, panel);
+        var positive = Legible(palette.StatePositive, palette.StatePositiveInk, panel);
+        var negative = Legible(palette.StateNegative, palette.StateNegativeInk, panel);
+        var warning = Legible(palette.StateWarning, palette.StateWarningInk, panel);
+        var neutral = Legible(palette.ChartNeutral, Opaque(palette.TextSecondary, panel), panel);
+        var dim = palette.ChartNeutralDim;
 
         return family switch
         {
@@ -97,6 +110,49 @@ public static class DeskChartPalette
             DeskChartFamily.Volume => [neutral, accent, dim, positive, warning, negative],
             _ => [accent, positive, warning, negative, neutral, dim]
         };
+    }
+
+    /// <summary>The 3:1 WCAG asks of a graphical object against what it is drawn on.</summary>
+    private const double SeriesContrast = 3;
+
+    /// <summary>The fill where it clears <see cref="SeriesContrast"/> on the panel, else its ink.</summary>
+    private static string Legible(string fill, string ink, string panel)
+        => Contrast(fill, panel) >= SeriesContrast ? fill : ink;
+
+    /// <summary>A translucent colour laid on an opaque ground, as the opaque hex the ground shows.</summary>
+    private static string Opaque(string colour, string ground)
+    {
+        var (r, g, b, a) = Channels(colour);
+        var (gr, gg, gb, _) = Channels(ground);
+
+        return $"#{Blend(r, gr):X2}{Blend(g, gg):X2}{Blend(b, gb):X2}";
+
+        int Blend(double top, double under) => (int)Math.Round(top * a + under * (1 - a));
+    }
+
+    /// <summary>WCAG's contrast ratio of an opaque colour against an opaque ground.</summary>
+    private static double Contrast(string colour, string ground)
+    {
+        var (one, two) = (Luminance(colour), Luminance(ground));
+        return (Math.Max(one, two) + .05) / (Math.Min(one, two) + .05);
+    }
+
+    private static double Luminance(string colour)
+    {
+        var (r, g, b, _) = Channels(colour);
+        return .2126 * Linear(r) + .7152 * Linear(g) + .0722 * Linear(b);
+
+        static double Linear(double channel)
+        {
+            var c = channel / 255d;
+            return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4);
+        }
+    }
+
+    private static (double R, double G, double B, double A) Channels(string colour)
+    {
+        var c = new MudBlazor.Utilities.MudColor(colour);
+        return (c.R, c.G, c.B, c.A / 255d);
     }
 }
 
