@@ -13,7 +13,8 @@
     jumps to the next item starting with it, a quick run of letters to the item starting with
     the run. Enter and Space are the focused button's own, so a key activates an item through
     the same click a pointer does and nothing can run twice. Escape asks the popover the menu
-    sits in to close; the popover gives focus back to its opener.
+    sits in to close; the popover gives focus back to its opener. Delete or Backspace on a
+    removable row (DeskMenuItem OnRemove) removes it and keeps the menu open on the next one.
 
     The bookkeeping is in C# wherever it can be, so it is testable: DeskMenuItems register
     here and this decides which one holds the Tab stop. Menus whose items are not
@@ -139,6 +140,12 @@
                 return _active;
 
             var rows = Rows();
+
+            // A menu of choices opens on the current one, as a pop-up button's menu does, so
+            // the first thing heard is what is chosen and an arrow moves from there.
+            if (Radio && rows.FirstOrDefault(i => i.IsChecked && !i.Disabled) is { } chosen)
+                return chosen;
+
             return rows.FirstOrDefault(i => !i.Disabled) ?? rows.FirstOrDefault();
         }
     }
@@ -173,6 +180,12 @@
         if (Current is not { } current)
             return;
 
+        if (e.Key is "Delete" or "Backspace" && current.CanRemove)
+        {
+            await RemoveAsync(current);
+            return;
+        }
+
         var items = Rows();
         var count = items.Count;
         var at = items.IndexOf(current);
@@ -194,6 +207,38 @@
         next.Refresh();
 
         await next.FocusAsync();
+    }
+
+    /// <summary>
+    /// Removes a row from the keyboard and keeps the keyboard in the menu: the Tab stop moves first
+    /// to the next removable row (the one below, else the one above), so the reader carries on down
+    /// the same list rather than landing on a command after it. A removal that takes the whole menu
+    /// with it (its owner closes) leaves focus to the owner.
+    /// </summary>
+    internal async Task RemoveAsync(DeskMenuItem row)
+    {
+        var rows = Rows();
+        var at = rows.IndexOf(row);
+        var removable = rows.Where(r => r.CanRemove && !ReferenceEquals(r, row)).ToList();
+        var neighbour = removable.FirstOrDefault(r => rows.IndexOf(r) > at)
+                        ?? removable.LastOrDefault(r => rows.IndexOf(r) < at);
+
+        _active = neighbour;
+        await row.RemoveAsync();
+
+        if (neighbour is null || !Rows().Contains(neighbour))
+            return;
+
+        neighbour.Refresh();
+
+        try
+        {
+            await neighbour.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Not attached (a test renderer), or the menu went with the row.
+        }
     }
 
     /// <summary>

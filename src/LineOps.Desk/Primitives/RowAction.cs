@@ -9,8 +9,8 @@ namespace LineOps.Desk.Primitives;
 /// An action normally answers its question <i>on the row</i>, in a snippet, and offers a way
 /// out to a full view only if the snippet is not enough. That ordering is the whole point of
 /// the pattern: glancing at a side-by-side record or an item's last five should not cost a
-/// window slot, because spending one evicts something (ADR 0007) and browsing must not
-/// rearrange the desk.
+/// window slot, because at the column limit a new slot covers a column as a tab (ADR 0027),
+/// and browsing must not rearrange the desk.
 /// </para>
 ///
 /// <para>

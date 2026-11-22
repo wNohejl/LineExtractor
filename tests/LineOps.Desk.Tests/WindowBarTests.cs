@@ -248,44 +248,48 @@ public class WindowBarTests : SampleDeskTestContext
         Assert.Equal(expected, rendered);
     }
 
-    // ---- The eviction notice, beside the count it is about ------------------------
+    // ---- The notice, as a toast ----------------------------------------------------
 
     /// <summary>
-    /// A window closed to make room is reported beside the count that made it happen, where the
-    /// operator is looking when they open something — not in the footer's bottom edge, which the
-    /// HIG keeps for status that is never critical. One line, its full sentence as the title, a
-    /// key to bring the window back and one to dismiss.
+    /// A window closed is said as a toast in the desk's stack, not as a line in the header over
+    /// its controls (ADR 0028): the header draws no notice, the stack holds the sentence with a key
+    /// to bring the window back, and dismissing the toast clears the manager's sentence.
     /// </summary>
     [Fact]
-    public void Eviction_notice_renders_in_the_header()
+    public void A_close_notice_is_a_toast_and_leaves_the_header_alone()
     {
         var desk = NewDesk();
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
-        desk.Open(SampleCatalog.Find(SampleCatalog.Notes));
+        var notes = desk.Open(SampleCatalog.Find(SampleCatalog.Notes));
         desk.Open(SampleCatalog.Find(SampleCatalog.Health));
-        desk.Open(SampleCatalog.Find(SampleCatalog.Jobs));
-        Assert.NotNull(desk.LastEviction);
 
         var header = RenderComponent<DeskHeader>();
         var footer = RenderComponent<DeskFooter>();
+        RenderComponent<DeskNoticeToasts>();
+        var stack = RenderComponent<LineOps.Desk.Primitives.DeskToastStack>();
 
-        var notice = header.Find(".hdr__notice");
-        Assert.Equal("status", notice.GetAttribute("role"));
-        Assert.Equal(desk.LastEviction, notice.QuerySelector(".hdr__notice-text")!.GetAttribute("title"));
-        Assert.Equal("Reopen Notes", notice.QuerySelector(".hdr__notice-undo")!.TextContent.Trim());
-        Assert.Equal("Dismiss", notice.QuerySelector(".hdr__notice-dismiss")!.GetAttribute("aria-label"));
+        header.InvokeAsync(() => desk.Close(notes.Id));
+        Assert.NotNull(desk.Notice);
 
-        // Beside the count, inside the desk's own controls.
-        Assert.Equal("hdr__count", notice.NextElementSibling?.ClassList.FirstOrDefault()
-                                   ?? notice.PreviousElementSibling?.ClassList.FirstOrDefault());
+        // The header holds the Activities stack now (ADR 0028), so the sentence is in the header —
+        // as the stack's toast and its hidden log, and nowhere else in the bar.
+        Assert.DoesNotContain("hdr__notice", header.Markup);
+        var outsideTheStack = header.Find(".hdr").Children
+            .Where(c => !c.ClassList.Contains("toasts") && !c.ClassList.Contains("sr-only"));
+        Assert.All(outsideTheStack, c => Assert.DoesNotContain(desk.Notice!, c.TextContent));
+        Assert.Equal(desk.Notice, header.Find(".toasts .toast__text").TextContent.Trim());
+        Assert.DoesNotContain(desk.Notice!, footer.Markup);
 
-        Assert.Empty(footer.FindAll("[role='status']"));
-        Assert.DoesNotContain(desk.LastEviction!, footer.Markup);
+        var toast = stack.Find(".toast");
+        Assert.Equal(desk.Notice, toast.QuerySelector(".toast__text")!.TextContent.Trim());
+        Assert.Equal("Reopen Notes", toast.QuerySelector(".toast__action")!.TextContent.Trim());
+        Assert.Equal("Dismiss: Closed Notes.", toast.QuerySelector(".toast__dismiss")!.GetAttribute("aria-label"));
 
-        header.Find(".hdr__notice-dismiss").Click();
-        Assert.Null(desk.LastEviction);
-        Assert.Empty(header.FindAll(".hdr__notice"));
+        stack.Find(".toast__dismiss").Click();
+        stack.WaitForAssertion(() => Assert.Null(desk.Notice));
+        Assert.Empty(stack.FindAll(".toast"));
     }
 
     // ---- Window controls --------------------------------------------------------
@@ -324,7 +328,8 @@ public class WindowBarTests : SampleDeskTestContext
         var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
         Assert.DoesNotContain(".win__ctl::before", css);
         Assert.DoesNotMatch(@"\.win__ctl[\w-]*:hover[^{]*\{[^}]*state-negative", css);
-        Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*28px[^}]*height:\s*28px[^}]*color:\s*var\(--text-secondary\)", css);
+        // Square at the toolbar control's height, which Density moves (--control-h, 28px at Standard).
+        Assert.Matches(@"\.win__ctl\s*\{[^}]*width:\s*var\(--control-h\)[^}]*height:\s*var\(--control-h\)[^}]*color:\s*var\(--text-secondary\)", css);
         Assert.Matches(@"\.win__ctl:hover\s*\{[^}]*background:\s*var\(--surface-3\)", css);
     }
 
@@ -366,26 +371,33 @@ public class WindowBarTests : SampleDeskTestContext
     }
 
     /// <summary>
-    /// A window closed by its own key says so in the header with a key that names it, as an
-    /// evicted one does: the desk-wide way back the header's Back arrow used to be.
+    /// A window closed by its own key says so in a toast with a key that names it: the desk-wide
+    /// way back the header's Back arrow used to be. Stepping back takes the toast down with the
+    /// manager's sentence.
     /// </summary>
     [Fact]
     public void Closing_a_window_offers_to_reopen_it()
     {
         var desk = NewDesk();
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
         var notes = desk.Open(SampleCatalog.Find(SampleCatalog.Notes));
+        var bridge = RenderComponent<DeskNoticeToasts>();
+        var toasts = Services.GetRequiredService<LineOps.Desk.Primitives.DeskToasts>();
 
-        desk.Close(notes.Id);
+        bridge.InvokeAsync(() => desk.Close(notes.Id));
 
-        Assert.Equal("Closed Notes.", desk.LastEviction);
-        Assert.Equal(["Notes"], desk.LastEvictedTitles);
+        Assert.Equal("Closed Notes.", desk.Notice);
+        Assert.Equal(["Notes"], desk.NoticeTitles);
 
-        var header = RenderComponent<DeskHeader>();
-        Assert.Equal("Reopen Notes", header.Find(".hdr__notice-undo").TextContent.Trim());
+        var toast = Assert.Single(toasts.Shown);
+        Assert.Equal("Reopen Notes", toast.ActionLabel);
+        Assert.Equal(LineOps.Desk.Primitives.DeskState.Info, toast.State);
+        Assert.Equal(LineOps.Desk.Primitives.DeskToasts.UndoLife, LineOps.Desk.Primitives.DeskToasts.LifeOf(toast));
 
-        Assert.True(desk.Back());
+        bridge.InvokeAsync(() => Assert.True(desk.Back()));
+        Assert.Empty(toasts.Shown);
         Assert.Contains(desk.Windows, w => w.Definition.Key == SampleCatalog.Notes);
-        Assert.Null(desk.LastEviction);
+        Assert.Null(desk.Notice);
     }
 }

@@ -66,6 +66,26 @@ public class DeskChartTests : DeskTestContext
     }
 
     /// <summary>
+    /// An svg's height attribute takes a length. "auto" (a plot sized from its width by the
+    /// host's sheet) was written there as is, and the browser logged an error on every render.
+    /// </summary>
+    [Fact]
+    public void An_auto_height_is_left_to_the_sheet_not_written_on_the_svg()
+    {
+        string[] labels = ["a", "b"];
+        List<ChartSeries<double>> series = [new() { Name = "Total", Data = new double[] { 100, 120 } }];
+
+        var cut = RenderComponent<DeskChart>(p => p
+            .Add(x => x.Series, series)
+            .Add(x => x.Labels, labels)
+            .Add(x => x.Height, "auto")
+            .Add(x => x.Description, "Total over two points"));
+
+        Assert.All(cut.FindAll("svg"), svg => Assert.NotEqual("auto", svg.GetAttribute("height")));
+        Assert.NotEmpty(cut.FindAll("svg"));
+    }
+
+    /// <summary>
     /// A value axis is a handful of round figures, not a ruler. MudBlazor's default allows
     /// twenty ticks, and the Performance window's cumulative profit drew twenty labels from
     /// -320 to 5,760 in a 200px plot, each overlapping the next (HIG audit, 17 November;

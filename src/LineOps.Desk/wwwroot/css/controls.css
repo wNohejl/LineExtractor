@@ -45,6 +45,16 @@
     animation: popover-in var(--dur-fast) var(--ease-standard);
 }
 
+/* An inline answer and a grouped form clip their content to their rounded corners, which
+   also clipped a popover opened from inside them: the list was cut at the box's bottom edge
+   and opened invisible. For as long as a panel is open in one, the box lets it out (a row
+   fill at its last corner may show square for that moment). popover.js still holds the panel
+   inside the window and inside any box further out that clips. */
+.snippet:has(.popover__panel),
+.wgroup:has(.popover__panel) {
+    overflow: visible;
+}
+
 /* An opener near the trailing edge of the desk anchors the panel's trailing edge. */
 .popover__panel--end {
     left: auto;
@@ -116,7 +126,7 @@
     align-items: flex-start;
     gap: var(--space-2);
     width: 100%;
-    min-height: 28px;
+    min-height: var(--control-h);
     padding: var(--space-1) var(--space-3);
     background: transparent;
     border: 0;
@@ -201,6 +211,42 @@
     line-height: 1.4;
 }
 
+/* What an option is, rather than what a command costs: body size, primary ink, tabular, and a
+   column of its own at the trailing edge, right-aligned, so the figures of every row compare
+   down the menu (a pop-up's list). The mark ("Best") sits just before it, a state word on the
+   value, never a tint on the row. The second figure keeps the same column one line down, in
+   the state's ink, because hue on a value is information and hue on the row is not. */
+.menu__figure,
+.menu__subfigure {
+    flex: none;
+    min-width: 7ch;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.menu__figure {
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+
+.menu__mark + .menu__figure { margin-left: 0; }
+.menu__row > .menu__mark { margin-left: auto; align-self: center; }
+
+.menu__subfigure {
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    line-height: 1.4;
+}
+
+.menu__subfigure--positive { color: var(--state-positive-ink); }
+.menu__subfigure--warning { color: var(--state-warning-ink); }
+.menu__subfigure--negative { color: var(--state-negative-ink); }
+
+.menu__item[aria-disabled="true"] .menu__figure,
+.menu__item[aria-disabled="true"] .menu__subfigure { color: var(--text-tertiary); }
+
 .menu__item[aria-disabled="true"] .menu__desc {
     color: var(--text-tertiary);
 }
@@ -226,6 +272,54 @@
 .menu__icon svg {
     width: 16px;
     height: 16px;
+}
+
+/* A row that needs noticing (DeskMenuItem Attention): a mark at the trailing edge, beside the
+   row's words that say the same, told apart by shape as well as hue — a ring for a warning, a
+   filled dot for a breach. */
+.menu__attention {
+    flex: none;
+    align-self: center;
+    box-sizing: border-box;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.menu__attention--warning { border: 1.5px solid var(--state-warning); }
+.menu__attention--negative { background: var(--state-negative); }
+
+/* A removable row's close (DeskMenuItem OnRemove): the pointer's way to what Delete does from
+   the keyboard. Drawn at rest in tertiary ink, so the row says it can be closed before the
+   pointer finds out, and lit with the row; the step of fill under the pointer says which of
+   the row's two targets it is on. */
+.menu__remove {
+    flex: none;
+    align-self: center;
+    display: grid;
+    place-items: center;
+    width: var(--control-h-sm);
+    height: var(--control-h-sm);
+    margin: -2px calc(-1 * var(--space-2)) -2px 0;
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
+}
+
+.menu__remove svg { width: 14px; height: 14px; }
+
+.menu__item:hover .menu__remove,
+.menu__item:focus-visible .menu__remove { color: var(--text-secondary); }
+
+.menu__remove:hover {
+    background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+    color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu__remove { transition: none; }
 }
 
 .menu__sep {
@@ -270,6 +364,138 @@
     min-width: min(320px, calc(100cqw - 2 * var(--space-4)));
 }
 
+/* ---- Pop-up -----------------------------------------------------------------
+   DeskPopUp: a key whose face is the current choice. Drawn as macOS draws a pop-up
+   button: a fill and no stroke at rest (so it sits inside a group or a card without
+   framing a second box), 28px tall, the choice as its label, the up-and-down chevron
+   at its trailing end. Hover deepens the fill; open, the accent rings it, because the
+   accent marks what is interactive and this is the interaction in progress; focus is
+   the desk's one ring. The figure on the face is the chosen option's, tabular and
+   semibold: the key says what is chosen, not only that something can be.
+   --------------------------------------------------------------------------- */
+
+.popup {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.popup__key {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 100%;
+    min-width: 0;
+    height: var(--control-h);
+    margin: 0;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--text-primary) 9%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--text-body);
+    line-height: 20px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+/* The gray key's finish, the Desk's keys' own (desk.css, "Finish"): a light top line and a sheen
+   faded out above the label, gone while held, when the key takes the inner shade instead. */
+.popup__key:not(:disabled) {
+    background-image: linear-gradient(to bottom, var(--key-gloss), transparent 38%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 60%, transparent);
+}
+
+.popup__key:hover:not(:disabled) { background-color: color-mix(in srgb, var(--text-primary) 15%, transparent); }
+.popup__key:active:not(:disabled) {
+    background-color: color-mix(in srgb, var(--text-primary) 20%, transparent);
+    background-image: none;
+    box-shadow: inset 0 1px 2px var(--key-press);
+}
+/* The open key's ring is a stroke, so it is the accent's ink, as the focus ring is: --accent is a
+   fill, tuned for a label on it, and on a pale family's ground it is too faint to draw a line. */
+.popup__key[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
+.popup__key:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Held from the keyboard, the key keeps its ring with its shade: the press rule outweighs
+   :focus-visible on its own. */
+.popup__key:focus-visible:active:not(:disabled) { box-shadow: inset 0 1px 2px var(--key-press), var(--focus-ring); }
+
+.popup__key:disabled {
+    color: var(--text-tertiary);
+    cursor: default;
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+}
+
+/* The name gives way before the figure does: a narrow column cuts "Northwind" to
+   "Northw…", never the figure beside it, which is what the key is read for. */
+.popup__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--weight-medium);
+}
+
+.popup__figure {
+    flex: none;
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* On the key the mark is a word in its state's ink, not a capsule: a capsule inside the key's
+   fill is a second shape inside a shape and read as a chip to dismiss. In the list it keeps its
+   capsule, where it marks one row among many. */
+.popup__mark { flex: none; }
+
+.popup__key .popup__mark,
+.popup--statement .popup__mark {
+    padding: 0;
+    background: none;
+    font-weight: var(--weight-medium);
+}
+
+.popup__key:disabled .popup__mark { color: var(--text-tertiary); }
+
+.popup__chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--text-secondary);
+}
+
+.popup__chevron svg { width: 14px; height: 14px; }
+
+.popup__key:disabled .popup__chevron { color: var(--text-tertiary); }
+
+/* One option and nothing to do instead: a statement, at the key's height and inset so a
+   row of them lines up with a row of keys, with no fill, because nothing here is pressed. */
+.popup--statement {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-h);
+    padding: 0 var(--space-1);
+    color: var(--text-primary);
+    font-size: var(--text-body);
+}
+
+/* The list is as wide as its widest row needs, never narrower than the key, and never wider
+   than the window less a gutter each side (100cqw is the nearest container). */
+.popup > .popover__panel {
+    min-width: max(100%, min(280px, calc(100cqw - 2 * var(--space-4))));
+    max-width: min(400px, calc(100cqw - 2 * var(--space-4)));
+}
+
+.popup__foot {
+    margin: var(--space-1) 0 0;
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    border-top: 1px solid var(--separator);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    line-height: 1.4;
+}
+
 /* ---- Stepper ----------------------------------------------------------------
    One control, not two keys: a single capsule in the resting-control fill with
    one edge, two 28px-wide halves parted by a hairline. It is the field's height,
@@ -281,7 +507,7 @@
 .stepper {
     display: inline-flex;
     flex: 0 0 auto;
-    height: 28px;
+    height: var(--control-h);
     box-sizing: border-box;
     background: var(--surface-2);
     border: 1px solid var(--separator);
@@ -292,7 +518,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
+    width: var(--control-h);
     height: 100%;
     margin: 0;
     padding: 0;
@@ -355,7 +581,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    min-height: 28px;
+    min-height: var(--control-h);
     list-style: none;
     color: var(--text-primary);
     font-size: var(--text-body);
@@ -408,6 +634,10 @@
     .disclosure__triangle { transition: none; }
 }
 
+/* EmptyState Compact: the sentence inside something small (an inline answer, a disclosure's
+   body). Same weight as .empty--new; this sheet loads later, so it wins on order. */
+.empty--compact { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+
 /* ---- Search -----------------------------------------------------------------
    The desk's field well (.field supplies the fill, edge, height and focus ring)
    with room made at each end: the magnifier leads in secondary ink, and a 24px
@@ -422,11 +652,17 @@
     min-width: 0;
 }
 
-/* In a toolbar it takes the room a plain field would. */
+/* In a toolbar it is compact and trailing, leading the keys (HIG, Search fields: "the trailing
+   side of the toolbar"). It takes what a query needs, 17 body ems (221px at the default Text
+   size), never the row's free space: it grew to fill everything between the pickers and the
+   keys. It gives way to its floor before toolbar.js folds it into More. Its auto margin puts
+   the free space before it, so the keys follow at the row's gap rather than share that space. */
 .ptoolbar > .search {
-    flex: 1 1 160px;
-    min-width: min(150px, 100%);
+    flex: 0 1 calc(var(--text-body) * 17);
+    min-width: min(calc(var(--text-body) * 11), 100%);
+    margin-left: auto;
 }
+.ptoolbar > .search ~ .ptoolbar__actions { margin-left: 0; }
 
 .search__field {
     -webkit-appearance: none;
@@ -459,12 +695,12 @@
 .search__clear {
     position: absolute;
     top: 50%;
-    right: calc((28px - 24px) / 2); /* centred in the 28px well, top to bottom and from the end */
+    right: calc((var(--control-h) - var(--control-h-sm)) / 2); /* centred in the field's well, top to bottom and from the end */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: var(--control-h-sm);
+    height: var(--control-h-sm);
     margin: 0;
     padding: 0;
     background: transparent;
@@ -571,7 +807,7 @@
     justify-content: space-between;
     gap: var(--space-4);
     min-width: 0;
-    min-height: 28px;
+    min-height: var(--control-h);
 }
 
 .ptoolbar__more .ptoolbar__label {
@@ -584,7 +820,7 @@
 /* The search, once folded too, leads the panel across its full width. */
 .ptoolbar__more > .search {
     flex: 0 0 auto;
-    min-height: 28px;
+    min-height: var(--control-h);
 }
 
 /* Folded keys lead the panel as a list of commands: each the full width of the
@@ -622,7 +858,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    min-height: 28px;
+    min-height: var(--control-h);
     color: var(--text-primary);
     font-size: var(--text-body);
     cursor: pointer;
@@ -656,17 +892,27 @@
     transition: background-color var(--dur-fast) var(--ease-standard);
 }
 
-/* The thumb takes the ink for a saturated fill, so it reads on the accent and on
-   the resting fill alike. */
+/* The knob: a light disc, as Apple draws it, defined by its own fill, a rim and a
+   soft shadow rather than by hue. It used to take --on-accent, which is dark on
+   every pale-accent dark desk, and there it was a dark disc on a dark track
+   (1.27:1 on Tokyo Night; contrast audit, 20 November). No single fill can read
+   on both tracks of a pale-accent desk, so the rim is drawn inside the disc (a
+   shadow, not a border, so the geometry stays 12px) in the ink of the ground it
+   meets: the secondary ink on the resting track, which a light disc on a light
+   desk needs, and --on-accent on the accent, which a light disc on a pale accent
+   needs. Where the fill already reads, the rim is a shade on it and nothing more.
+   ControlContrastTests holds the knob to 3:1 against both tracks on every desk. */
 .toggle__thumb {
     position: absolute;
     top: 2px;
     left: 2px;
     width: 12px;
     height: 12px;
-    background: var(--on-accent);
+    background: var(--knob);
     border-radius: 50%;
-    transition: transform var(--dur-fast) var(--ease-standard);
+    box-shadow: inset 0 0 0 1px var(--text-secondary), var(--shadow-1);
+    transition: transform var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
 }
 
 .toggle__input:checked + .toggle__track {
@@ -675,14 +921,18 @@
 
 .toggle__input:checked + .toggle__track .toggle__thumb {
     transform: translateX(10px);
+    box-shadow: inset 0 0 0 1px var(--on-accent), var(--shadow-1);
 }
 
 .toggle__input:focus-visible + .toggle__track {
     box-shadow: var(--focus-ring);
 }
 
-/* Dimmed, words and all: a setting that cannot be changed says so before it is pressed. */
-.toggle__input:disabled,
+/* Dimmed, words and all: a setting that cannot be changed says so before it is pressed.
+   The input takes the cursor and not the dimming: it is the invisible sheet over the
+   row, and an opacity here would show the browser's own tick box stretched across it. */
+.toggle__input:disabled { cursor: not-allowed; }
+
 .toggle__input:disabled + .toggle__track,
 .toggle__input:disabled ~ .toggle__label {
     cursor: not-allowed;
@@ -788,7 +1038,7 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
-    min-height: 28px;
+    min-height: var(--control-h);
 }
 
 .slider__input {
@@ -838,7 +1088,7 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    min-height: 28px;
+    min-height: var(--control-h);
     padding: 0;
     background: transparent;
     border: 0;
@@ -1150,6 +1400,7 @@
 }
 
 .deskpage__title {
+    font-family: var(--face-display);
     margin: 0 0 var(--space-2);
     font-size: var(--text-title2);
     font-weight: var(--weight-semibold);

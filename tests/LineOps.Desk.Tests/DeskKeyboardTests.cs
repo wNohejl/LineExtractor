@@ -163,25 +163,25 @@ public class DeskKeyboardTests : SampleDeskTestContext
     public void Reopen_key_names_the_window_it_reopens()
     {
         Services.AddSingleton<LineOps.Desk.Primitives.IDeskAlerts>(new FakeAlerts());
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
         var desk = Services.GetRequiredService<WindowManager>();
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 2);
-        desk.Open(Window(SampleCatalog.Notes));
+        var notes = desk.Open(Window(SampleCatalog.Notes));
         desk.Open(Window(SampleCatalog.Health));
-        desk.Open(Window(SampleCatalog.Jobs));
-        Assert.NotNull(desk.LastEviction);
+        desk.Close(notes.Id);
+        Assert.Equal("Closed Notes.", desk.Notice);
 
-        // The notice and its key moved from the footer to the header, beside the window count.
-        var header = RenderComponent<DeskHeader>();
+        // The notice and its key are a toast now (ADR 0028), raised for the sentence on the desk.
+        RenderComponent<DeskNoticeToasts>();
 
-        var undo = header.Find(".hdr__notice-undo");
-        Assert.Equal("Reopen Notes", undo.TextContent.Trim());
-        Assert.Equal("Ctrl+Z", undo.GetAttribute("title"));
+        var toast = Assert.Single(Services.GetRequiredService<LineOps.Desk.Primitives.DeskToasts>().Shown);
+        Assert.Equal("Reopen Notes", toast.ActionLabel);
     }
 
     [Theory]
     [InlineData(new[] { "Notes" }, "Reopen Notes")]
     [InlineData(new[] { "Notes", "List" }, "Reopen 2 windows")]
     [InlineData(new string[0], "Undo")]
-    public void The_undo_label_names_the_evicted_windows(string[] titles, string label)
+    public void The_undo_label_names_the_closed_windows(string[] titles, string label)
         => Assert.Equal(label, DeskHeader.UndoLabel(titles));
 }

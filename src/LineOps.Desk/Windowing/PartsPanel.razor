@@ -138,7 +138,10 @@
     interface with five coloured button types has no primary action, only five competing
     ones. A call site answers two questions it can actually answer —
     <span class="mono">Emphasis</span> for how much of the panel this claims, and
-    <span class="mono">Role</span> for whether pressing it destroys something.
+    <span class="mono">Role</span> for whether pressing it destroys something. Every weight
+    wears one finish — a light line along the top and a sheen that fades out above the label,
+    which goes while the key is held — so the finish says "a key" and the weight still says how
+    loud. A Plain key wears it only under the pointer; High contrast wears none.
 </p>
 
 <DeskStack Gap="DeskSpace.Space3">
@@ -432,7 +435,7 @@
 
 <PanelSection Title="Accent picker">
 <p class="empty">
-    The Standard desk's accent, chosen: one circle per hue, in a row. A radio group whose
+    A family's accent, chosen: one circle per hue the family offers, in a row. A radio group whose
     positions are colours — one Tab stop, arrows move the choice and wrap at the ends, Home and
     End jump — and each circle names itself, because there are no words on it to hear. Every
     circle is painted by the accent block choosing it would apply, in the appearance showing.
@@ -441,9 +444,23 @@
 <DeskAccentPicker @bind-Value="_accent" IsDark="Theme.IsDark" />
 
 <p class="empty">
-    This one moves nothing but itself. The Window manager's moves the desk, and it is there only
-    while the Standard theme is showing: the other themes keep the accent they were made with.
+    This one moves nothing but itself. The Window manager's moves the desk, and it offers the
+    showing theme's own list — only while that theme offers more than the accent it was made with.
 </p>
+
+</PanelSection>
+
+<PanelSection Title="Theme picker">
+<p class="empty">
+    Every theme the desk carries, as a tile painted by the theme itself — its ground, a raised
+    panel, two lines of ink and the accent — filed under plain headings. One radio group however
+    many headings: one Tab stop, the arrows travel every tile in reading order and stop at the
+    ends. The chosen tile wears a ring, a tick and a heavier name.
+</p>
+
+<DeskThemePicker @bind-Value="_family" IsDark="Theme.IsDark" />
+
+<p class="empty">This one moves nothing but itself; the Window manager's moves the desk.</p>
 
 </PanelSection>
 
@@ -586,6 +603,34 @@
         Chose <span class="mono">@_menuChose</span> — the menu closed before it ran.
     </div>
 }
+</DeskStack>
+
+</PanelSection>
+
+<PanelSection Title="Pop-up">
+<p class="empty">
+    A pop-up is a key whose face is the current choice: its name, its mark and its figure, then
+    the up-and-down chevron. Open, it lists every option with the same parts in the same places,
+    the figures right-aligned so they compare down the column, a line and a second figure beneath
+    for what qualifies each, the current one checked. A command that is not an option, such as
+    one that leads somewhere to type a value of your own, ends the list behind a hairline. With
+    one option and nothing else to do, it is a statement rather than a key.
+</p>
+
+<DeskStack Gap="DeskSpace.Space2">
+<DeskRow Gap="DeskSpace.Space3">
+    <DeskPopUp TValue="string" Label="Plan" Options="PopUpPlans" @bind-Value="_plan">
+        <Commands>
+            <DeskMenuItem Command="true" Label="Other amount…" Description="Type an amount of your own"
+                          OnClick="@(() => _plan = "custom")" />
+        </Commands>
+    </DeskPopUp>
+    <DeskPopUp TValue="string" Label="Region" Options="PopUpOne" Value="@("eu")" />
+    <DeskPopUp TValue="string" Label="Plan" Options="PopUpPlans" Disabled="true"
+               Placeholder="Plan" DescribedBy="parts-popup-wait" />
+    <span class="meta" id="parts-popup-wait">Choose a region first.</span>
+</DeskRow>
+<div class="meta">Chosen: <span class="mono">@_plan</span></div>
 </DeskStack>
 
 </PanelSection>
@@ -1162,10 +1207,14 @@
 <PanelSection Title="Toasts">
 <p class="empty">
     The transient tier. A toast reports that something finished while you were looking
-    somewhere else: non-critical, auto-dismissing, recoverable from the panel that raised it.
-    Anything needing a decision stays inline or becomes an alert, because a notice that has
-    dismissed itself cannot be acted on. Panels take
-    <span class="mono">DeskToasts</span>, never <span class="mono">ISnackbar</span>.
+    somewhere else. A success, an info or a neutral notice goes after five seconds, a warning
+    after eight; a failure, and anything with a key, stays until it is pressed or dismissed. The
+    header's <span class="mono">DeskToastStack</span> draws them in the bar's free stretch, as
+    one capsule: the count's key, the newest in front cut to one line, the rest as edges stepped
+    out to its right; pointing, focusing or pressing the count drops the whole list beneath it.
+    Where the stretch is narrow it is the key alone. The operator reads the stack as Activities —
+    press a key below and watch the header. Panels take <span class="mono">DeskToasts</span>, never
+    <span class="mono">ISnackbar</span>.
 </p>
 
 <DeskRow Gap="DeskSpace.Space2">
@@ -1188,6 +1237,14 @@
     <DeskButton Size="DeskKeySize.Small"
                 OnClick="@(() => Toasts.Show("Nothing to report."))">
         Neutral
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="@(() => Toasts.Added("Added a row to the list.", "Show", () => { }))">
+        With a key
+    </DeskButton>
+    <DeskButton Size="DeskKeySize.Small"
+                OnClick="RaiseSeveral">
+        Several at once
     </DeskButton>
 </DeskRow>
 
@@ -1344,6 +1401,15 @@
 </div>
 
 @code {
+    /// <summary>Four notices in a burst, so the stack's layering and its count can be seen.</summary>
+    private void RaiseSeveral()
+    {
+        Toasts.Info("Layout saved to this browser.");
+        Toasts.Success("Evaluated — every source inside its SLO.");
+        Toasts.Warn("Finished, with two sources slow.");
+        Toasts.Fail("A scheduled run failed — the provider timed out.");
+    }
+
     // ---------------------------------------------------------------- buttons ---
 
     private static readonly (DeskEmphasis Emphasis, string Name, string Use)[] _emphases =
@@ -1415,7 +1481,9 @@
 
     // ---------------------------------------------------------- accent picker ---
 
-    private DeskAccent _accent = DeskAccent.Blue;
+    private string? _accent;
+
+    private DeskThemeFamily _family = DeskThemeFamily.Standard;
 
     private static readonly IReadOnlyList<DeskRadioOption<string>> _cadences =
     [
@@ -1478,6 +1546,22 @@
 
     /// <summary>The last row chosen from the pull-down, so the demo says it was heard.</summary>
     private string? _menuChose;
+
+    /// <summary>The pop-up's choice: the likeliest first, the one figure each is compared by.</summary>
+    private string? _plan = "studio";
+
+    private static readonly IReadOnlyList<DeskPopUpOption<string>> PopUpPlans =
+    [
+        new("studio", "Studio") { Figure = "$24", Mark = "Best", Detail = "Per seat, billed yearly", DetailFigure = "−20%", DetailFigureState = DeskState.Positive },
+        new("solo", "Personal") { Figure = "$12", Detail = "One seat" },
+        new("month", "Monthly") { Figure = "$30", Detail = "Billed each month, 9 days stale", DetailFigure = "+0%" },
+        new("legacy", "Legacy") { Figure = "$18", Disabled = true, DisabledReason = "Closed to new accounts." }
+    ];
+
+    private static readonly IReadOnlyList<DeskPopUpOption<string>> PopUpOne =
+    [
+        new("eu", "Frankfurt") { Figure = "18 ms" }
+    ];
 
     // ---------------------------------------------------------------- job menu ---
 

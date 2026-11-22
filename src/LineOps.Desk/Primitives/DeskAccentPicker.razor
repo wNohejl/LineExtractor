@@ -6,51 +6,56 @@
 
     It is a radiogroup like the gate switch and DeskRadioGroup — one Tab stop on the chosen
     swatch, arrows move the choice and the focus with it, Home and End reach the ends — with one
-    difference: the arrows wrap. Five circles in a row are a ring of choices, not a list with a
-    top and a bottom, and macOS's own accent row wraps the same way. The positions are colours
-    rather than words, so there is no cap to slide: the chosen swatch wears a ring in its own hue
-    and the rest sit plain. A circle has no words on it, so each one carries its name as an
-    aria-label and a title.
+    difference: the arrows wrap. A row of circles is a ring of choices, not a list with a top and
+    a bottom, and macOS's own accent row wraps the same way. The positions are colours rather
+    than words, so there is no cap to slide: the chosen swatch wears a ring in its own hue and the
+    rest sit plain. A circle has no words on it, so each one carries its name as an aria-label and
+    a title.
 
-    Each swatch is painted the way the Window manager's theme tiles are: it carries the
-    data-theme of the Standard desk in the appearance showing and the data-accent it offers, so
-    its var(--accent) resolves against the very block that choosing it would apply. No colour is
-    written on an element, and a swatch cannot drift from what choosing it does. Blue has no
-    block, so its swatch falls through to the Standard block's own accent — which is Blue.
+    The hues are the family's own list (DeskThemeFamilies.Accents), its own accent first. Each
+    swatch is painted the way the Window manager's theme tiles are: it carries the data-theme of
+    the family in the appearance showing and the data-accent it offers, so its var(--accent)
+    resolves against the very block that choosing it would apply. No colour is written on an
+    element, and a swatch cannot drift from what choosing it does. The family's own accent has no
+    block, so its swatch falls through to the family block's own accent — which is that one.
 *@
 
 <div class="accents @Class"
      role="radiogroup"
      aria-label="@Label"
+     data-roving
      @onkeydown="OnKeyDownAsync"
      @attributes="Extra">
-    @for (var i = 0; i < DeskAccents.All.Count; i++)
+    @for (var i = 0; i < Accents.Count; i++)
     {
         var index = i;
-        var accent = DeskAccents.All[index];
-        var selected = accent == Value;
+        var accent = Accents[index];
+        var selected = index == SelectedIndex;
 
         <button type="button"
                 class="accent-swatch @(selected ? "accent-swatch--on" : null)"
                 role="radio"
                 aria-checked="@(selected ? "true" : "false")"
-                aria-label="@DeskAccents.Label(accent)"
-                title="@DeskAccents.Label(accent)"
+                aria-label="@accent.Name"
+                title="@accent.Name"
                 tabindex="@(selected ? "0" : "-1")"
-                data-theme="@DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, IsDark)"
-                data-accent="@DeskAccents.Key(accent)"
+                data-theme="@DeskThemeFamilies.Attribute(Family, IsDark)"
+                data-accent="@accent.Key"
                 @ref="_refs[index]"
                 @onclick="() => SelectAsync(index)"></button>
     }
 </div>
 
 @code {
-    /// <summary>The accent chosen. Blue, the Standard desk's own, until a caller says otherwise.</summary>
-    [Parameter] public DeskAccent Value { get; set; } = DeskAccent.Blue;
+    /// <summary>Whose accents are offered. Standard, the desk the product is, unless a caller says otherwise.</summary>
+    [Parameter] public DeskThemeFamily Family { get; set; } = DeskThemeFamily.Standard;
 
-    [Parameter] public EventCallback<DeskAccent> ValueChanged { get; set; }
+    /// <summary>The key chosen. The family's own accent when null or a key the family does not offer.</summary>
+    [Parameter] public string? Value { get; set; }
 
-    /// <summary>Which Standard desk the swatches are drawn on — a hue's dark and light values differ.</summary>
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Which desk the swatches are drawn on — a hue's dark and light values differ.</summary>
     [Parameter] public bool IsDark { get; set; } = true;
 
     /// <summary>The accessible name of the whole group.</summary>
@@ -62,20 +67,33 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
 
-    private readonly ElementReference[] _refs = new ElementReference[DeskAccents.All.Count];
+    private IReadOnlyList<DeskFamilyAccent> Accents => DeskThemeFamilies.Accents(Family);
 
-    /// <summary>Where the choice sits in the row; Blue's place when the value is not one the row offers.</summary>
-    private int SelectedIndex => Math.Max(0, DeskAccents.All.ToList().IndexOf(Value));
+    private ElementReference[] _refs = [];
+
+    protected override void OnParametersSet()
+    {
+        if (_refs.Length != Accents.Count)
+            _refs = new ElementReference[Accents.Count];
+    }
+
+    /// <summary>Where the choice sits in the row; the family's own place when the value is not one the row offers.</summary>
+    private int SelectedIndex
+    {
+        get
+        {
+            var chosen = DeskThemeFamilies.Info(Family).FindAccent(Value);
+            return chosen is null ? 0 : Math.Max(0, Accents.ToList().IndexOf(chosen));
+        }
+    }
 
     private async Task SelectAsync(int index)
     {
-        var accent = DeskAccents.All[index];
-
         // A radio is not unchosen by a second press, and choosing what is chosen is not news.
-        if (accent == Value)
+        if (index == SelectedIndex)
             return;
 
-        await ValueChanged.InvokeAsync(accent);
+        await ValueChanged.InvokeAsync(Accents[index].Key);
     }
 
     /// <summary>
@@ -85,19 +103,13 @@
     /// </summary>
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        var count = DeskAccents.All.Count;
+        var count = Accents.Count;
+        if (count < 2)
+            return;
+
         var current = SelectedIndex;
 
-        var next = e.Key switch
-        {
-            "ArrowRight" or "ArrowDown" => (current + 1) % count,
-            "ArrowLeft" or "ArrowUp" => (current - 1 + count) % count,
-            "Home" => 0,
-            "End" => count - 1,
-            _ => current
-        };
-
-        if (next == current)
+        if (Roving.Next(current, count, e, wrap: true) is not { } next || next == current)
             return;
 
         await SelectAsync(next);

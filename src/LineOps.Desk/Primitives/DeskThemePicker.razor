@@ -1,0 +1,131 @@
+@namespace LineOps.Desk.Primitives
+@using LineOps.Desk.Theming
+
+@*
+    The theme picker: every family as a tile, filed under the plain headings the catalogue gives
+    them (DeskThemeGroups), drawn as a grid that wraps to the width it has. It is read from
+    DeskThemeFamilies.Catalog and nothing else, so a family added there is a tile here without
+    anyone touching this file.
+
+    Each tile is a patch of its family, not a picture of it: it carries the family's data-theme in
+    the appearance showing — and the accent that family was last given — so its ground, raised
+    panel, ink and accent resolve against the very blocks choosing it would apply. The chosen tile
+    says so three ways, none of them hue alone: a ring, a tick in its corner, and its name in the
+    primary ink at a heavier weight.
+
+    One choice among many, so it is one radiogroup however many headings divide it: one Tab stop
+    on the chosen tile, arrows move the choice and the focus through every tile in reading order
+    (a heading is not a stop), Home and End reach the first and the last, and the ends do not
+    wrap — a grid of twenty tiles has a first and a last, unlike a ring of five hues. Each heading
+    names a group of radios inside it, so a screen reader hears where it is as it travels.
+*@
+
+<div class="themes @Class" role="radiogroup" aria-label="@Label" data-roving @onkeydown="OnKeyDownAsync" @attributes="Extra">
+    @foreach (var group in DeskThemeFamilies.Groups)
+    {
+        var headId = $"{_id}-{group.ToLowerInvariant().Replace(' ', '-')}";
+
+        <div class="themes__group" role="group" aria-labelledby="@headId">
+            <span class="themes__head" id="@headId">@group</span>
+            <div class="swatches">
+                @foreach (var info in DeskThemeFamilies.Catalog.Where(f => f.Group == group))
+                {
+                    var index = Index(info.Family);
+                    var selected = info.Family == Value;
+
+                    <button type="button"
+                            class="radio radio--drawn @(selected ? "radio--on" : null)"
+                            role="radio"
+                            aria-checked="@(selected ? "true" : "false")"
+                            tabindex="@(index == TabStop ? "0" : "-1")"
+                            @ref="_refs[index]"
+                            @onclick="() => SelectAsync(index)">
+                        <span class="swatch @(selected ? "swatch--on" : null)"
+                              data-theme="@DeskThemeFamilies.Attribute(info.Family, IsDark)"
+                              data-accent="@AccentFor?.Invoke(info.Family)">
+                            <span class="swatch__panel" aria-hidden="true">
+                                <span class="swatch__ink"></span>
+                                <span class="swatch__ink swatch__ink--secondary"></span>
+                                <span class="swatch__marks">
+                                    <span class="swatch__pill"></span>
+                                    <span class="swatch__dot swatch__dot--positive"></span>
+                                    <span class="swatch__dot swatch__dot--warning"></span>
+                                    <span class="swatch__dot swatch__dot--negative"></span>
+                                </span>
+                            </span>
+                            @if (selected)
+                            {
+                                <span class="swatch__tick" aria-hidden="true"></span>
+                            }
+                            <span class="swatch__name">@info.Name</span>
+                        </span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The family showing, which is the one ticked. The Window manager passes
+    /// ThemeService.ShowingFamily, so a desk the machine put in High contrast ticks that tile, and
+    /// pressing another — Standard included — is a choice that reaches ValueChanged.
+    /// </summary>
+    [Parameter] public DeskThemeFamily Value { get; set; } = DeskThemeFamily.Standard;
+
+    [Parameter] public EventCallback<DeskThemeFamily> ValueChanged { get; set; }
+
+    /// <summary>Which desk every tile is drawn on — every family has a dark and a light one.</summary>
+    [Parameter] public bool IsDark { get; set; } = true;
+
+    /// <summary>
+    /// The <c>data-accent</c> each family's tile carries — the accent that family was last given —
+    /// or null for its own. ThemeService.AccentAttributeOf, in the Window manager.
+    /// </summary>
+    [Parameter] public Func<DeskThemeFamily, string?>? AccentFor { get; set; }
+
+    /// <summary>The accessible name of the whole group.</summary>
+    [Parameter] public string Label { get; set; } = "Theme";
+
+    /// <summary>Extra classes, appended last so a one-off can still win.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Extra { get; set; }
+
+    private readonly string _id = $"themes-{Guid.NewGuid():N}"[..15];
+
+    /// <summary>Every tile in reading order — group by group, as drawn — which is the order the arrows travel.</summary>
+    private static readonly IReadOnlyList<DeskThemeFamily> Order = DeskThemeFamilies.Groups
+        .SelectMany(group => DeskThemeFamilies.Catalog.Where(f => f.Group == group).Select(f => f.Family))
+        .ToList();
+
+    private readonly ElementReference[] _refs = new ElementReference[Order.Count];
+
+    private static int Index(DeskThemeFamily family) => Order.ToList().IndexOf(family);
+
+    private int Selected => Index(Value);
+
+    private int TabStop => Math.Max(Selected, 0);
+
+    private async Task SelectAsync(int index)
+    {
+        // A radio is not unchosen by a second press, and choosing what is chosen is not news.
+        if (index == Selected)
+            return;
+
+        await ValueChanged.InvokeAsync(Order[index]);
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        var current = TabStop;
+
+        if (Roving.Next(current, Order.Count, e, wrap: false) is not { } next || next == current)
+            return;
+
+        await SelectAsync(next);
+        await _refs[next].FocusAsync();
+    }
+}

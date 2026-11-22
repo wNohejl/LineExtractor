@@ -151,7 +151,9 @@ public class PartsPanelTests : DeskTestContext
     /// </summary>
     private static readonly Dictionary<string, string> ShownThrough = new()
     {
-        ["DeskAlert"] = "Alerts.ConfirmAsync("
+        ["DeskAlert"] = "Alerts.ConfirmAsync(",
+        // The layout draws the one stack; a second in the gallery would draw every toast twice.
+        ["DeskToastStack"] = "Toasts.Success("
     };
 
     /// <summary>
@@ -187,5 +189,23 @@ public class PartsPanelTests : DeskTestContext
 
         Assert.True(missing.Count == 0, "Not in the README's primitives table: " + string.Join(", ", missing));
         Assert.Equal(rows.Order(StringComparer.Ordinal), rows);
+    }
+
+    /// <summary>The Pop-up section draws all three of its forms live: a key, a statement, and a disabled key with its reason.</summary>
+    [Fact]
+    public void The_pop_up_is_shown_as_a_key_a_statement_and_a_waiting_key()
+    {
+        var cut = RenderComponent<PartsPanel>();
+
+        var keys = cut.FindAll("button.popup__key");
+        Assert.Equal(2, keys.Count);
+        Assert.Equal("Plan, Studio $24 Best", keys[0].GetAttribute("aria-label"));
+        Assert.True(keys[1].HasAttribute("disabled"));
+        Assert.Equal("Choose a region first.", cut.Find("#" + keys[1].GetAttribute("aria-describedby")).TextContent);
+        Assert.Contains("Frankfurt", cut.Find(".popup--statement").TextContent);
+
+        keys[0].Click();
+        Assert.Single(cut.FindAll(".popup [role=menu] [role=menuitem]"));
+        Assert.Equal(4, cut.FindAll(".popup [role=menuitemradio]").Count);
     }
 }

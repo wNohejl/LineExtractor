@@ -46,16 +46,11 @@ public static class DeskTheme
     // Semantic state. Apple's dark-mode system colours, applied where a state
     // genuinely needs a colour rather than as an always-on channel.
     public const string StatePositive = "#30D158";
-    public const string StateNegative = "#FF453A";
+    public const string StateNegative = "#D73A31";
     public const string StateWarning = "#FF9F0A";
 
-    // Inks: the same states and the accent when they colour text or a glyph rather than a
-    // fill. A fill is seen as an area; text has to clear WCAG's 4.5:1 over the panel, and the
-    // accent and orange do not (4.30 and, on the light desk, far less). Mirrors --*-ink.
-    public const string StatePositiveInk = "#30D158";
-    public const string StateWarningInk = "#FFB340";
-    public const string StateNegativeInk = "#FF6961";
-    public const string AccentInk = "#409CFF";
+    // The inks (--state-*-ink, --accent-ink) are not mirrored: nothing in C# draws text, so they
+    // live in the stylesheet alone, where ThemeContrastTests measures them.
 
     public const string Separator = "rgba(255, 255, 255, .10)";
 
@@ -97,15 +92,8 @@ public static class DeskTheme
     public const string LightOnAccent = "#FFFFFF";
 
     public const string LightStatePositive = "#34C759";
-    public const string LightStateNegative = "#FF3B30";
+    public const string LightStateNegative = "#DF342A";
     public const string LightStateWarning = "#FF9500";
-
-    // Apple's increased-contrast values: the light fills measure 2.2 to 3.6:1 as text on
-    // white, these 4.54 to 4.56. The accent ink is --accent-press, 5.80:1.
-    public const string LightStatePositiveInk = "#00762B";
-    public const string LightStateWarningInk = "#AA4800";
-    public const string LightStateNegativeInk = "#CA1227";
-    public const string LightAccentInk = "#0062CC";
 
     public const string LightSeparator = "rgba(0, 0, 0, .10)";
 
@@ -195,24 +183,40 @@ public static class DeskTheme
         => Themes.TryGetValue(family, out var theme) ? theme : Instance;
 
     /// <summary>
-    /// The Standard desk's theme in every chosen accent but Blue, which is <see cref="Instance"/>
-    /// itself. Built once, like the families: an accent never varies per circuit either.
+    /// Every family's theme in every accent it offers but its own, which is <see cref="For(DeskThemeFamily)"/>
+    /// itself. Built once, like the families: an accent never varies per circuit either. An accent
+    /// row missing a palette fails here, at the first touch of the class, rather than as a Mud
+    /// component hovering to a colour nobody declared.
     /// </summary>
-    private static readonly Dictionary<DeskAccent, MudTheme> Accented = DeskAccents.All
-        .Where(accent => accent != DeskAccent.Blue)
-        .ToDictionary(accent => accent, accent => Build(
-            DeskPalettes.AppleDark.WithAccent(DeskAccents.Dark(accent)),
-            DeskPalettes.AppleLight.WithAccent(DeskAccents.Light(accent))));
+    private static readonly Dictionary<(DeskThemeFamily Family, string Key), MudTheme> Accented = DeskThemeFamilies.Catalog
+        .SelectMany(info => info.Accents.Skip(1).Select(accent => (Info: info, Accent: accent)))
+        .ToDictionary(
+            pair => (pair.Info.Family, pair.Accent.Key),
+            pair => Build(
+                pair.Info.Dark.WithAccent(pair.Accent.Dark ?? throw MissingPalette(pair.Info, pair.Accent, "Dark")),
+                pair.Info.Light.WithAccent(pair.Accent.Light ?? throw MissingPalette(pair.Info, pair.Accent, "Light"))));
+
+    private static InvalidOperationException MissingPalette(DeskThemeFamilyInfo info, DeskFamilyAccent accent, string which)
+        => new($"{info.Name}'s accent '{accent.Key}' has no {which} palette; only a family's own accent may leave it out.");
 
     /// <summary>
-    /// One family's theme wearing the operator's accent. The accent is the Standard family's
-    /// alone (see <see cref="DeskAccent"/>), so every other family gets exactly what
-    /// <see cref="For(DeskThemeFamily)"/> gives it, the same instance, whatever is chosen.
+    /// One family's theme wearing one of its accents, by key. The family's own accent, a key it
+    /// does not offer, or none at all get exactly what <see cref="For(DeskThemeFamily)"/> gives it,
+    /// the same instance.
     /// </summary>
-    public static MudTheme For(DeskThemeFamily family, DeskAccent accent)
-        => family == DeskThemeFamily.Standard && Accented.TryGetValue(accent, out var theme)
+    public static MudTheme For(DeskThemeFamily family, string? accentKey)
+        => DeskThemeFamilies.Info(family).FindAccent(accentKey) is { } accent
+           && Accented.TryGetValue((family, accent.Key), out var theme)
             ? theme
             : For(family);
+
+    /// <summary>
+    /// One family's theme wearing one of the Standard desk's named accents. Those are Standard's
+    /// (see <see cref="DeskAccent"/>), so every other family gets exactly what
+    /// <see cref="For(DeskThemeFamily)"/> gives it, the same instance, whatever is named.
+    /// </summary>
+    public static MudTheme For(DeskThemeFamily family, DeskAccent accent)
+        => family == DeskThemeFamily.Standard ? For(family, DeskAccents.Key(accent)) : For(family);
 
     private static MudTheme Build(DeskPalette dark, DeskPalette light) => new()
     {
@@ -228,7 +232,7 @@ public static class DeskTheme
             // mud-bridge.css next to the rest of the type, so there is one file to read
             // when the type scale changes rather than two that can disagree.
             //
-            // This mirrors --face-ui in desk.css, and it is not decoration: the bridge
+            // This mirrors System's --face-ui in desk.css, and it is not decoration: the bridge
             // re-points --mud-typography-*-family at --face-ui for every role it knows
             // about, but a role it misses falls through to whatever is named here. That
             // used to be Archivo, which no longer loads, so the fallback was silently

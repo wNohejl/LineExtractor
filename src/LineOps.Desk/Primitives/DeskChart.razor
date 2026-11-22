@@ -62,7 +62,7 @@
                   ChartLabels="@Labels"
                   ChartOptions="@_options"
                   Width="@Width"
-                  Height="@Height" />
+                  Height="@PlotHeight" />
     </div>
 </figure>
 
@@ -106,7 +106,14 @@
     /// </summary>
     [Parameter, EditorRequired] public string Description { get; set; } = string.Empty;
 
+    /// <summary>
+    /// A CSS length, or "auto" for a plot that takes its height from its width (the host's sheet
+    /// sizes the svg). MudChart writes this onto the svg's height attribute, which takes a length
+    /// only: "auto" there was an error in the console on every render, so it is not written.
+    /// </summary>
     [Parameter] public string Height { get; set; } = "240px";
+
+    private string? PlotHeight => string.Equals(Height, "auto", StringComparison.OrdinalIgnoreCase) ? null : Height;
 
     [Parameter] public string Width { get; set; } = "100%";
 

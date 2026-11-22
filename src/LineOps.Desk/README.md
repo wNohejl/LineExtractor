@@ -69,6 +69,12 @@ app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 - `<DeskHead />` emits the theme boot script and the Desk's stylesheets in their load-bearing
   order. The application's own sheet goes after it, so it wins a tie with any Desk rule.
+  It is required for a first paint without a flash: it writes the boot tables (`DeskBoot.Json`)
+  just ahead of `theme-boot.js`, and the script reads every family, accent and look from them
+  alone. A head that links the script and the sheets by hand, without the tables, boots the plain
+  Standard desk in the stored mode — no family, no accent, no look — and shows it until the
+  circuit opens and `ThemeService` repaints the chosen one: a flash on every load. Place
+  `<DeskHead />`; never copy its tags.
 - `<DeskScripts />` goes after `blazor.web.js`: MudBlazor's script and the Desk's one classic
   script. The Desk's other scripts are modules its components import when they need them.
 - The application's `{Assembly}.styles.css` bundle carries the Desk's scoped styles —
@@ -128,8 +134,8 @@ coupling to the window it is shown in:
   in the settle, and reload only what they touched; it is empty after a bare `RequestRefresh()`,
   meaning everything. A test bench publishes one with `Signal("orders", "4123")`.
 - `MarkUnsaved(dirty, label)` says the window holds input not yet saved — "this draft". While it
-  does, its close key asks before discarding it and eviction passes it by. Call it with false
-  once the input is saved or cleared.
+  does, its close key — or its tab's — asks before discarding it, and a tab behind another keeps
+  it untouched. Call it with false once the input is saved or cleared.
 - `Report(state, status)` sets the pulse and status by hand, for anything that is not a load.
 
 ```razor
@@ -167,6 +173,35 @@ else
         () => $"{_items.Count} items");
 }
 ```
+
+### Columns and tab groups
+
+The desk is one row of columns, up to the limit the operator sets in the Window manager. Past it
+nothing closes: the next window joins a column as a tab (ADR 0027), never the column the operator
+is in, the primary window's last, otherwise the one with the fewest tabs, leftmost first. A group's
+title is a pop-up key (`WindowTabs`): the window showing, its icon and name, with the column's
+count in words ("2 tabs") and a chevron, and an edge stepped out behind it for each window behind,
+two at most, so it reads as a stack. Each tab in its menu is a key with the Desk's finish, the one
+showing selected in the accent's wash (selection, not a Filled key). Its menu lists the column's windows most recently shown first, each with its
+status and an attention dot, closable with Delete or the row's close glyph, then Move to its own
+column and Close; choosing one brings it forward and the one showing steps to second (ADR 0027,
+amended 2026-11-20). The bar's width beyond the key goes to the window's status and keys. Every
+window stays mounted, so a tab keeps its panel, scroll, input and Back and Forward; the desk holds
+`DeskSettings.MaxOpenWindows` (24) in all and refuses the next open with a sentence. A panel needs
+nothing to be a tab. `WindowManager.Columns` reads the row (`WindowColumn.Tabs`, `Showing`,
+`IsGroup`), `Focus` brings a tab forward, `MoveToOwnColumn` takes one out while a column is free,
+and a saved layout or workspace keeps its groups.
+
+### Workspaces and the empty desk
+
+A `Workspace` names a set of windows to open, with an optional `Icon` (a Material icon string),
+a `Description` (one sentence saying what it is for) and a `Tag` the application defines and the
+Desk carries without reading. `WindowManager.ActiveWorkspace` is the one last applied, cleared
+when the desk empties or another is applied, and saved and restored with the layout by name. An
+empty desk offers the catalogue's workspaces as its main choice: the first as a card with the
+page's one Filled key, the rest as rows, then the ones saved on this desk, each saying which
+windows it opens; then the primary window and the palette's Ctrl+K as the quieter way in, and the
+desk's mechanics in a disclosure. Only what the person at the desk may open is offered.
 
 ## Hosting
 
@@ -239,55 +274,235 @@ declared in the first token block of `wwwroot/css/desk.css`:
 - `--state-*` — positive, negative and warning, each with a wash and an `-ink` that reads as text.
 - `--chart-*` — the neutral series colours.
 - `--material-*` — the translucent fills and blur for anything that floats.
-- `--face-ui` — the one type family.
+- `--face-ui`, `--face-display` — the type family, and the titles' (the same until a Typeface splits them).
+- `--control-h`, `-sm`, `-lg`, `--row-h`, `--cell-pad-y`, `--cell-inset` — target heights and table cells, which Density moves.
+- `--backdrop-tint` — how much accent the Gradient backdrop mixes into the ground.
 - `--leading-*`, `--weight-*` — line heights and weights.
 - `--space-*` — the spacing ramp.
-- `--rail-size`, `--titlebar-h` — the chrome's fixed dimensions.
-- `--radius*` — radii that grow with the surface.
+- `--rail-size`, `--titlebar-h`, `--header-h`, `--footer-h` — the chrome's fixed dimensions
+  (`--header-h` is the header bar's height).
+- `--radius-xs` … `--radius-sheet` — radii that grow with the surface, which Shape moves.
 - `--dur-*`, `--ease-*` — motion.
 - `--shadow-*` — elevation shadows.
 - `--sheen*` — the shimmer over a busy control or a loading skeleton.
-- `--focus-ring*` — the focus ring, written in `var()`s so every theme re-resolves it.
-- `--z-*` — the layers, from windows to toasts.
+- `--focus-ring*` — the focus ring, written in `var()`s and declared on `:root`, so it re-resolves
+  to whichever block `<html>` carries; inside a swatch with its own `data-theme` it is `<html>`'s ring.
+- `--z-*` — the layers, from windows to the framework's connection banner (`--z-toast`).
+- `--key-highlight`, `--key-gloss`, `--key-press` — a key's finish: its top line, the sheen that
+  fades out above its label, and its inner shade while held. Every family declares the shade (its
+  own shadow ink); the line and the sheen are derived. High contrast sets their alphas to 0, so its
+  keys are flat.
 
-A theme family is three things that must agree: a dark and a light token block in
-`wwwroot/css/themes.css` (each redeclaring every colour token of the Standard dark block and
-nothing else), a member of `DeskThemeFamily` with its name and slug in `DeskThemeFamilies`, and
-its two palettes in `DeskPalettes`, which MudBlazor and the charts read. `DeskThemeTests` holds
-every block to the token list and to its C# mirror and computes its text contrast;
-`ThemeContrastTests` holds its inks to 4.5:1; `ThemeBootTests` holds the boot script to the
-family slugs.
+**Derived tokens.** Eight colour tokens are computed, not declared per block: `--accent-wash`,
+`--accent-wash-strong` and the three `--state-*-wash` (each its opaque fill at an alpha token, by
+`color-mix(in srgb, <fill> calc(<alpha> * 100%), transparent)`, which an older browser than relative
+colour reads too — a wash it could not parse would be transparent and take `--focus-ring` with it),
+`--key-highlight` and `--key-gloss` (the family's `--sheen` by night, white by day, at theirs: by
+night relative colour replaces the translucent sheen's alpha exactly, inside
+`@supports (color: rgb(from white r g b))`, and a browser without it mixes the sheen, fainter) and
+`--material-blur` (an optical constant). desk.css declares them once, under "Derived
+tokens", on `:root, [data-theme]` and the two appearance rules `[data-theme$="-dark"]` and
+`[data-theme$="-light"]`, which default the alphas to Standard's — washes .15/.24 by night and
+.12/.20 by day, states .15, the line and sheen .16/.09 and .55/.18. They sit on the attribute, not on
+`:root` alone, because a custom property inherits already resolved: a swatch carrying its own
+`data-theme` and `data-accent` recomputes from its own fill. A block states an alpha
+(`--accent-wash-alpha`, `--accent-wash-strong-alpha`, `--state-positive-wash-alpha`,
+`--state-negative-wash-alpha`, `--state-warning-wash-alpha`, `--key-highlight-alpha`,
+`--key-gloss-alpha`) only where it departs from that default, and never a derived token itself.
+Reduce Transparency's and the forced-colours block's blur outweigh the rule. The text tiers and the
+hovers and presses are tuned per family and are never derived.
 
-The Standard family alone also takes a chosen accent (`DeskAccent`: Blue, Teal, Indigo, Purple,
-Graphite). Blue is what its blocks already declare; each other hue is a compound block at the end
-of `themes.css`, `[data-theme="apple-dark"][data-accent="teal"]` and its light twin, redeclaring
-exactly the six accent tokens (`--accent`, `-hover`, `-press`, `-wash`, `-wash-strong`, `-ink`),
-mirrored in `DeskAccents`. `ThemeService.Accent` persists the choice under `desk.accent` and
-stamps `data-accent` only while Standard is showing, and `Palette` and `MudTheme` carry it then,
-so MudBlazor and the charts wear it too. The Window manager offers it beneath the theme tiles.
+The geometry the operator can change — `--face-ui`/`--face-display`, `--space-*`,
+`--titlebar-h`, `--footer-h`, `--control-h` (`-sm`, `-lg`), `--row-h`, `--cell-pad-y`,
+`--cell-inset`, `--radius-xs` … `--radius-sheet` and `--backdrop-tint` — is declared in a plain
+`:root` block after the theme blocks, never in one, so a swatch's own `data-theme` cannot reset it.
+
+**The families**, in the picker's order and under its four headings (`DeskThemeGroups`), each
+with its accents, its own first:
+
+| Heading | Family (slug) | Accents |
+|---|---|---|
+| Built in | Standard (`apple`) | Blue, Teal, Indigo, Purple, Graphite |
+| | High contrast (`contrast`) | Blue |
+| Character | Paper (`paper`) | Ink blue, Sepia, Plum, Verdigris |
+| | Midnight (`midnight`) | Electric, Violet, Magenta, Mono |
+| | Obsidian (`obsidian`) | Sky |
+| | Synthwave (`synthwave`) | Magenta, Cyan, Ultraviolet, Chrome |
+| | Terra (`terra`) | Clay, Slate, Heather, Stone |
+| Soft | Nord (`nord`) | Frost, Frost teal, Aurora purple |
+| | Rosé Pine (`rose-pine`) | Iris, Subtle |
+| | Catppuccin (`catppuccin`) | Mauve, Pink, Blue, Sapphire |
+| | Everforest (`everforest`) | Blue, Purple, Aqua, Graphite |
+| | Kanagawa (`kanagawa`) | Blue, Violet, Aqua, Graphite |
+| | Zenburn (`zenburn`) | Blue, Sky, Magenta, Graphite |
+| | Palenight (`palenight`) | Purple, Blue, Cyan, Pale blue |
+| | Solarized (`solarized`) | Blue, Violet, Cyan, Slate |
+| | Gruvbox (`gruvbox`) | Blue, Purple, Graphite |
+| Vivid | Dracula (`dracula`) | Purple, Cyan, Comment |
+| | Tokyo Night (`tokyo-night`) | Blue, Magenta, Purple, Cyan |
+| | Monokai (`monokai`) | Cyan, Purple, Yellow, Graphite |
+| | One (`one`) | Blue, Purple, Cyan, Graphite |
+| | Night Owl (`night-owl`) | Blue, Purple, Teal, Slate |
+| | Ayu (`ayu`) | Gold, Blue, Purple, Teal |
+| | Primer (`primer`) | Blue, Purple, Pink, Graphite |
+
+A family's grey is called Graphite, as Standard's is, unless the palette names it (Dracula's
+Comment, Rosé Pine's Subtle, Midnight's Mono, Synthwave's Chrome, Terra's Stone, Slate).
+
+**Adding a family** is a row and its blocks; the picker, the boot script's tables and every
+palette and contrast test read the row. Literally:
+
+1. `Theming/DeskThemeFamily.cs` — a member of `DeskThemeFamily` (its name is what is stored), and
+   a row in `DeskThemeFamilies.Catalog`, where its group's families sit:
+   `new(DeskThemeFamily.Kanagawa, "Kanagawa", "kanagawa", DeskThemeGroups.Soft, DeskPalettes.KanagawaDark, DeskPalettes.KanagawaLight, DeskFamilyAccents.Kanagawa)`.
+   The last argument is its accent list, its own accent first, with no palettes — a list in
+   `DeskFamilyAccents` (`Theming/DeskAccent.cs`), or `[new("blue", "Blue")]` inline for a family
+   that offers only its own. A new heading is a constant in `DeskThemeGroups`.
+2. `Theming/DeskPalette.cs` — `KanagawaDark` and `KanagawaLight`, value for value from its blocks
+   (and `Overlay`, the scrim, which has no CSS token).
+3. `wwwroot/css/themes.css` — `[data-theme="kanagawa-dark"]` and `[data-theme="kanagawa-light"]`,
+   each redeclaring every colour token of the Standard dark block, in its order, and nothing else:
+   `color-scheme`, `--surface-0` … `-3`, `--separator`, `-strong`, `--text-primary`, `-secondary`,
+   `-tertiary`, `--accent`, `-hover`, `-press`, `--on-accent`, `--state-positive`, `-negative`,
+   `-negative-hover`, `-warning`, the four inks (`--state-*-ink`, `--accent-ink`), `--chart-neutral`,
+   `-dim`, the four `--material-*` tiers, `--shadow-1` … `-sheet`, `-inset`, `--sheen`, `-soft`,
+   `--knob` and `--key-press`; plus, beside the fill each thins, any wash or key alpha that departs
+   from the default. The washes, the key's line and sheen and the blur are derived (above).
+   `--on-accent` is the family's own and need not be white: Ayu, Midnight and Synthwave dark, Paper
+   and Terra carry dark or parchment labels.
+
+`theme-boot.js` needs nothing: `DeskHead` writes its tables (`DeskBoot.Json` — every family's
+slug by its stored name, the accents with a block, every look) from the catalogue into a
+`<script type="application/json" id="desk-boot">` block ahead of it, and
+`ThemeBootTests.The_boot_script_names_no_family_and_no_accent` keeps the script from growing a
+copy again. `DeskThemeTests` (`Every_desk_redeclares_every_colour_token_and_invents_none`,
+`Every_palette_mirrors_its_block`, `No_family_is_Standard_under_another_name`,
+`The_catalogue_holds_every_family_once_grouped_together`) and `ThemeContrastTests` (every ink at
+4.5:1, the gradient backdrop) check the rest, all by iterating the catalogue.
+
+**Adding a family's accents** is two halves that must agree, and nothing else changes — the
+picker row appears once a family offers more than its own, and the boot tables carry it:
+
+1. `themes.css`, after that family's accents or at the end of the accent section — two compound
+   blocks per accent, `[data-theme="<slug>-dark"][data-accent="<key>"]` and `-light`, declaring
+   exactly `--accent`, `--accent-hover`, `--accent-press` and `--accent-ink` (the family's
+   `--on-accent` is kept, so every fill must carry it at 4.5:1), and `--accent-wash-alpha` or
+   `--accent-wash-strong-alpha` only where the hue wants another strength than its family's — the
+   washes are recomputed from the new fill. The key is lower-case and hyphenated.
+2. `DeskAccent.cs` — append to the family's list in `DeskFamilyAccents`:
+   `new("teal", "Teal", Dark: new AccentPalette("#…", "#…"), Light: new AccentPalette("#…", "#…"))`,
+   the fill and the hover in the block's formatting — all that crosses into C#.
+
+`DeskThemeTests.Every_family_s_accents_are_its_blocks` fails if the blocks and the row disagree,
+`Every_accent_block_redeclares_the_four_accent_tokens_and_only_its_wash_alphas` if a block declares a
+different set or restates its family's alpha, `Every_accent_block_mirrors_its_catalogue_row` if the
+fill or hover drifts, `Every_accent_travels_the_way_its_ground_demands` if hover and press go the
+wrong way, and `Every_derived_token_resolves_to_its_source_at_its_alpha` if a wash is not its fill
+at its alpha. `ThemeContrastTests` holds every accent's ink, label-on-fill, wash and
+selection to 4.5:1 on its own family's panel, raised surface and ground.
+
+Every family takes a chosen accent from its own list (`DeskThemeFamilyInfo.Accents`; Standard's is
+`DeskAccent`'s Blue, Teal, Indigo, Purple and Graphite). The first is what its blocks declare and
+stamps nothing. `ThemeService` keeps the choice per family under `desk.accent.<slug>` — Standard's
+falling back to the old `desk.accent` while its own is empty — holds a stored key to that family's
+list, stamps `data-accent` for the showing family, and `Palette` and `MudTheme` carry it, so
+MudBlazor and the charts wear it too. The Window manager offers the showing family's row beneath
+the theme tiles, and each tile wears its family's remembered accent.
+
+The glass and four makes belong to every family. Each is a **look**: one row of `DeskLooks.All`
+(`Theming/DeskLook.cs`) naming its row label, storage key, attribute on `<html>`, positions (stored
+name, stamped value or null for the default, gate label) and the machine setting it yields to, if
+any. `ThemeService` holds every look in one table (`Chosen`, `AttributeOf`, `Offers`,
+`SetLookAsync`; `Glass`, `SetShapeAsync` and the rest are typed views of it), compares and stamps
+them in one `applyLooks` call, and forgets them in one reset; `theme.js` only reads, writes and
+stamps the keys and attributes it is handed; the boot tables carry each look; and the Window
+manager draws one gate per row. One block per position in `desk.css`, keyed on the attribute
+alone, absent at the default (ADR 0030):
+
+- **Shape** (`DeskShape`: Standard, Sharp, Round; `data-shape`, `desk.shape`) rescales the five
+  radii together. Circles and capsules — switches, radios, dots, swatches — stay round.
+- **Density** (`DeskDensity`: Standard, Compact, Roomy; `data-density`, `desk.density`) rescales
+  the spacing ramp, the chrome, the control and row heights and a table cell's padding, which
+  MudDataGrid reads through the bridge. Compact keeps the toolbar control, the small key and a
+  cell's padding at Standard's and brings only the large key, a settings row and the title bar
+  down, to 30px: nothing Standard draws at 28px or more falls under 28px.
+- **Backdrop** (`DeskBackdrop`: Dots, Plain, Gradient, Grid; `data-backdrop`, `desk.backdrop`) draws
+  the desk's ground behind the windows from tokens; Dots is the default grid. Plain under a
+  contrast theme.
+- **Typeface** (`DeskTypeface`: System, Humanist, Serif, Mono; `data-font`, `desk.font`) sets
+  `--face-ui` and `--face-display` from local stacks only. Titles spend `--face-display`.
+
+**Adding an appearance setting** — a ninth — is three edits, about twenty lines:
+
+1. `Theming/` — an enum for its positions, default first (or none: a look's options are strings).
+2. `Theming/DeskLook.cs` — one property in `DeskLooks` and its place in `All`:
+   `Of("Contrast", "desk.contrast", "data-contrast", DeskContrast.Standard, [(DeskContrast.Standard, "Standard"), (DeskContrast.More, "More")])`,
+   with `YieldsTo` one of `DeskLook.MachineSettings` if the machine can take it off — a closed set,
+   today Reduce Transparency alone, because a query is only worth naming if `theme.js` watches it
+   and `ThemeService` answers it; any other throws when `DeskLooks` is built. A typed
+   member on `ThemeService` is optional.
+3. `wwwroot/css/desk.css` — a block per position that stamps: `[data-contrast="more"] { … }`.
+
+The gate, the storage, the stamp, the cross-fade, the reset, the boot script and the "at its
+default" check follow from the row. `DeskLookTests` fails until every stamped position has a block
+and the row is well formed, `WindowManagerControlsTests.Every_look_is_a_gate_in_the_appearance_group_in_its_order`
+until it is a gate, and `ThemeBootTests.The_boot_tables_restore_every_look_ThemeService_stamps`
+until the boot tables carry it.
+
+The Window manager's Appearance group holds Mode, Theme, Accent, Glass, Corners, Density, Backdrop
+and Typeface, and a "Reset appearance" key (`ThemeService.ResetAppearanceAsync`), dimmed
+(`aria-disabled`, keeping its focus and Tab stop) and saying why on its row while nothing is off its
+default. The tiles tick the showing family (`ThemeService.ShowingFamily`), so under Increase Contrast
+an unchosen desk ticks High contrast, and pressing Standard there pins it.
+
+Every family takes a chosen glass (`DeskGlass`: Clear, Tinted — macOS's Liquid Glass setting).
+Clear is the materials as each block declares them; Tinted raises them halfway to the opaque
+tier Reduce Transparency uses and keeps their blur. It is derived, not declared: under
+`[data-glass="tinted"]` the end of `desk.css` mixes each `--material-*` from the showing family's
+own value toward its `--surface-2` by `--glass-tint`, so no family block carries a tinted tier and
+none is named. It is the look `DeskLooks.Glass`: kept under `desk.glass`, stamped as `data-glass`
+only for Tinted, and — `YieldsTo` Reduce Transparency, which is fully opaque and wins — neither
+stamped nor offered while the machine reduces transparency. The Window manager offers it under the
+accent.
+
+Three things follow the theme past the page. **The browser's chrome:** `DeskHead` declares an
+empty `<meta name="theme-color">`, and `theme-boot.js` (once the sheets have parsed) and every
+`theme.js` stamp fill it from the showing block's `--surface-0`, read back from the computed
+token, so no palette lives in a script and a host's head needs nothing of its own. Selected text
+is `::selection` in `--accent-wash-strong` behind `--text-primary` (`DeskThemeTests` holds it to
+4.5:1 on every desk), and the caret is `--accent-ink`: a one-pixel stroke, like the focus ring's
+and an open key's ring, so it spends the ink held to 4.5:1 on the panel rather than the fill.
+**The switch:** an operator's change of any
+appearance setting cross-fades the root in a view transition on `--dur-base` and
+`--ease-standard`; `ThemeService` opens it (`beginTransition`), stamps and raises `Changed` inside
+it, then settles it, and `theme.js` takes the new picture once the document has gone still, or
+shortly after the settle (`SETTLE_LIMIT`) on a desk that never goes still, so MudBlazor's
+re-render is never caught half-done and a ticking desk is not held to `HOLD_LIMIT`. A choice that
+moves none of the attributes on `<html>` (System when the machine already answers it, an
+accent for a family not showing, a glass under Reduce Transparency, a reset of a default desk) is stored and announced with no
+transition. The first paint and the machine's own changes
+(sunset, Increase Contrast, Reduce Transparency) stay instant, and so does everything under
+`prefers-reduced-motion` or without the API. **Contrast themes:** one `@media (forced-colors:
+active)` block at the end of `desk.css` restores what a Windows contrast theme drops — the focus
+ring as a 2px `Highlight` outline, selection and "on" as `Highlight`/`HighlightText`, a 1px
+system edge on controls and cards (the one place a control carries an edge at rest), `GrayText`
+(on a switch's drawn track, thumb and words too, since its input is invisible),
+`LinkText`, opaque materials — and only the theme and accent swatches keep their own colours
+(`forced-color-adjust: none`).
 
 ## Primitives
 
 | Primitive | What it is for | Wraps |
 | --- | --- | --- |
 | `CheckList` | Advisory checks as a grouped section: a mark, one sentence and a remedy per row. | — |
-| `DeskAccentPicker` | The Standard desk's accent: one circle per hue, a radiogroup whose arrows wrap. | — |
+| `DeskAccentPicker` | A family's accent: one circle per hue its catalogue row offers, a radiogroup whose arrows wrap. | — |
 | `DeskAlert` | A decision that must be made before anything else happens; confirms and destructive gates only. | `MudDialog`, through `IDeskAlerts` |
 | `DeskBadge` | A count beside the name of what it counts, heard with its noun; nothing to count, no badge. | — |
-| `DeskButton` | The key: the caller states how loud (`Emphasis`) and whether it destroys. | `MudButton` |
+| `DeskButton` | The key: the caller states how loud (`Emphasis`) and whether it destroys. Every weight wears the same finish — a top line and a sheen above the label (`--key-*`), an inner shade while held; Plain only while pointed at — so weight still carries the hierarchy. | `MudButton` |
 | `DeskChart` | A chart that names the kind of number it shows and headlines its takeaway. | `MudChart` |
 | `DeskCheckbox` | One setting that is on or off. | — |
 | `DeskDialog` | A floating, non-modal panel for comparing things beside the desk. | — |
 | `DeskDisclosure` | Details hidden behind a label until they are wanted. | — |
-Every family takes a chosen glass (`DeskGlass`: Clear, Tinted — macOS's Liquid Glass setting).
-Clear is the materials as each block declares them; Tinted raises them halfway to the opaque
-tier Reduce Transparency uses and keeps their blur. It is derived, not declared: under
-`[data-glass="tinted"]` the end of `desk.css` mixes each `--material-*` from the showing family's
-own value toward its `--surface-2` by `--glass-tint`, so no family block carries a tinted tier and
-none is named. `ThemeService.Glass` persists the choice under `desk.glass` and stamps `data-glass`
-only for Tinted, and not while the machine reduces transparency — which is fully opaque and wins.
-The Window manager offers it last in the appearance group, and not under Reduce Transparency.
-
 | `DeskErrorPage` | The page a host shows when a request failed: what happened, its reference, and the way back. | — |
 | `DeskField` | A text or number field, with a real label and its error beneath it. | — |
 | `DeskGrid` | The table: sortable columns and actionable rows in the Desk's dense rhythm. | `MudDataGrid` |
@@ -295,9 +510,10 @@ The Window manager offers it last in the appearance group, and not under Reduce 
 | `DeskLink` | A grid cell that opens a window of its own, naming where the click goes. | — |
 | `DeskMenu` | A column of commands the keyboard can drive. | — |
 | `DeskMenuGroup` | Related rows of a menu under an optional sentence-case heading, parted from the group before by one hairline; the heading is never a row, so the arrows and typeahead pass over it. | — |
-| `DeskMenuItem` | One row of a menu: a label, a trailing detail that never wraps into it, and why it is dimmed. Sits in a `DeskMenu` or a `DeskMenuGroup`. | — |
+| `DeskMenuItem` | One row of a menu: a label, a trailing detail that never wraps into it, and why it is dimmed; for an option, a `Figure` in its own right-aligned column, a `Mark`, and a `DetailFigure` under it; `Command` keeps a command in a radio menu from being heard as a choice. Sits in a `DeskMenu` or a `DeskMenuGroup`. | — |
 | `DeskNotFound` | The page a host shows for an address that opens nothing, with the way back. | — |
-| `DeskPopover` | A panel anchored to the control that opened it, one at a time. | — |
+| `DeskPopUp` | A pop-up button: a key whose face is the current choice (name, mark, figure), over a radio menu of `DeskPopUpOption`s, each with a right-aligned figure, a mark, a detail line and a second figure in its state's ink; `Commands` end the list behind a hairline, `Footer` says once what the figures are measured against, one option and no commands is a statement, and disabled it keeps its place, described by the visible reason. | — |
+| `DeskPopover` | A panel anchored to the control that opened it, one at a time; held inside its window and any box that clips, scrolling within the room it has. | — |
 | `DeskProgress` | A slim bar for named work that takes long enough to report. | — |
 | `DeskPullDown` | A key that opens a menu of related commands; a long one in `DeskMenuGroup`s, and `Wide` (at least 320px) when its rows carry details and descriptions. | — |
 | `DeskRadioGroup` | One choice among options that need room: a sentence each, or a picture of what choosing it does. | — |
@@ -316,9 +532,11 @@ The Window manager offers it last in the appearance group, and not under Reduce 
 | `DeskSwitch` | A gate switch: one visible choice among two to five. | — |
 | `DeskTabs` | A window's sections, with the selection sliding between them; a `DeskTab`'s `Count` draws a badge after its name, and `Enabled: false` keeps an empty section in the bar, disabled, until it has something behind it. | — |
 | `DeskTextArea` | A field with room for a paragraph. | — |
+| `DeskThemePicker` | Every theme family as a tile painted by its own blocks, under the catalogue's headings; one radiogroup, arrows across the headings, the choice marked by ring, tick and weight. | — |
+| `DeskToastStack` | The desk's notices, drawn — "Activities" to the operator: a capsule in the header's free stretch, newest in front with the count's key and older ones as edges stepped out to the right, fanned into a list beneath on hover, focus or the count, with Clear all; the key alone where the stretch is narrow. The header renders the one stack; panels raise through `DeskToasts`. | `MudSnackbarProvider` |
 | `DeskToggle` | A setting that takes effect the moment it flips; announced as a switch. | — |
 | `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry. | `MudTooltip` |
-| `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure. | — |
+| `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure; `Compact` when it sits inside something small, an inline answer or a disclosure's body. | — |
 | `FollowUpLayer` | The floating follow-ups a panel has open, drawn once per panel. | — |
 | `FormGroup` | The grouped form: a sentence-case name, one filled group with one edge, and the explaining sentence as its footer. | — |
 | `FormRow` | One row of a `FormGroup`: the label leading in the shared column, the control taking the rest; `LabelContent` when the label carries markup, `Lead` when the leading column is not a label. | — |
@@ -333,13 +551,41 @@ The Window manager offers it last in the appearance group, and not under Reduce 
 | `PanelSection` | A stretch of a panel under one rule, spacing itself from the next. | — |
 | `PanelTitle` | The title block a subject window opens with. | — |
 | `PanelToolbar` | The one row of controls that scope or act on a whole panel. | — |
+| `Roving` | The radiogroup keyboard contract for a group that draws its own radios: `Roving.Next(current, count, key, wrap)` says where an arrow, Home or End takes the choice (null for any other key), and a group carrying `data-roving` has those keys held from scrolling the page. | — |
 | `RowActions` | The action strip on an open row, and the snippet it reveals. | — |
 | `SnippetFailure` | What a snippet shows when its load failed, with the key to retry. | — |
 | `SnippetShell` | The frame around an inline answer, with its one way out. | — |
 | `Tag` | A small state word. | — |
 
-Toasts are a service rather than a component: `DeskToasts` raises them, over MudBlazor's
-`ISnackbar`, with the snackbar configuration `AddDesk` sets.
+Toasts are raised through a service, `DeskToasts` (`Success`, `Info`, `Warn`, `Fail`, `Added`,
+`Removed`, `Show`; `Raise` returns the notice so its owner can take it down), and drawn by the
+header's one `DeskToastStack` (ADR 0028). A success, an info or a neutral notice goes after
+`BriefLife` (5s), a warning after `WarningLife` (8s); a failure, and anything with a key, stays
+until it is pressed or dismissed; every clock stops while the pointer or focus is on the stack.
+The window manager's notice (a window closed, with Reopen; the ceiling's refusal) is said through
+the same stack, so nothing is drawn in the header. MudBlazor's snackbar is not rendered.
+
+The stack lives in the header bar (`DeskHeader` renders it), in the stretch the window strip
+leaves free before the desk's own keys. It takes only that stretch, so it never covers or pushes
+the wordmark, the strip, search or the window count. It is one capsule a title bar tall:
+- the count's key leads;
+- the newest notice is in front, its words and its key cut to one line with an ellipsis (the whole
+  of each is its tooltip);
+- up to two older ones show as edges stepped out to its right.
+
+Pointing at it, focusing into it or pressing the count fans it: the capsule reads "Activities · 4"
+with Clear all, and the list drops beneath it as a popover, newest first, every notice whole and
+wrapped. Where the stretch is too narrow, the capsule folds to its key alone ("Activities · 4",
+"Activity · 1"), which drops the same list. A notice slides in along the bar and settles (a fade
+under reduced motion).
+
+To the operator it is **Activities**:
+- the region is named "Activities, 4 activities";
+- the count's key is "Show all 4 activities" / "Fold all 4 activities" ("Show 1 activity" for one);
+- Clear all is "Clear all activities" to a screen reader.
+
+Being part of the header, it lies under an open alert's or sheet's scrim and the palette, and its
+fanned list (no z-index of its own) under the header's own menus and drawers.
 
 ## The MudBlazor seam
 
@@ -354,9 +600,10 @@ tokens on them:
   MudDataGrid's, the appearance is the Desk's.
 - `DeskChart` takes its `Series` as MudBlazor's `ChartSeries<double>`; the colours come from the
   chart's family and the theme it is drawn on, not from MudBlazor's twenty-colour ramp.
-- `MainLayout` renders the four providers — `MudThemeProvider` (fed the theme by
-  `ThemeService`), `MudPopoverProvider`, `MudDialogProvider` and `MudSnackbarProvider` — so a
-  consuming application renders none of them.
+- `MainLayout` renders MudBlazor's three providers — `MudThemeProvider` (fed the theme by
+  `ThemeService`), `MudPopoverProvider` and `MudDialogProvider` — and the desk's own
+  `DeskToastStack` in place of MudBlazor's snackbar, so a consuming application renders none of
+  them.
 
 ## The Parts bin
 
@@ -370,7 +617,7 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 | Rule | What it means | Held by |
 | --- | --- | --- |
 | Edges | A control or group has one edge. A form is not boxed around a bordered group, and a group carries its hairline where it is defined. | `DeskCssConventionTests` (`A_form_is_not_boxed`, `A_group_carries_its_hairline_where_it_is_defined`) |
-| One Filled key | A context has at most one Filled key, last in its row; everything else is Tinted or Plain. | `PanelToolbarTests.Keeps_every_key_in_one_actions_item_after_the_pickers` (the Filled key last); the count is held in review |
+| One Filled key | A context has at most one Filled key, last in its row; everything else is Tinted or Plain. A selected choice in the accent's wash (a column's showing tab, a checked toggle) is selection, not a Filled key. | `PanelToolbarTests.Keeps_every_key_in_one_actions_item_after_the_pickers` (the Filled key last); the count is held in review |
 | Sentence case | Titles, headers, keys and tags read in sentence case. | `PanelHeader` and `PanelSection` set the rule's type; no test reads copy yet |
 | Keys explain themselves | A key that waits says why in text on its row, not in a title a disabled key never shows, and the key is described by that text; secondary keys come first and the Filled key last, and a confirm asks Cancel first. | `KeyRowTests`, `KeyRowAdoptionTests` (in the host's tests), `InlineConfirmTests` |
 | Names on controls | Every field has a label, an `aria-label` or an `aria-labelledby`; an alert names its consequence. | `DeskConventions.EveryFieldHasAName` (run by the host's `DeskConventionTests`), `DeskAlertTests.Every_caller_must_name_the_confirm` |

@@ -200,20 +200,27 @@
         _ => "pulse--idle"
     };
 
-    private static string Label(Item item)
+    // A window waiting as a tab is open but not in view: its key shows it, bringing it forward.
+    private string Label(Item item)
         => item.Open is null
             ? $"Open {item.Title}"
             : item.Open.Minimised
                 ? $"Restore {item.Title}"
-                : $"Focus {item.Title}";
+                : !Manager.IsShowing(item.Open)
+                    ? $"Show {item.Title}"
+                    : $"Focus {item.Title}";
 
     /// <summary>An icon has to carry its name somewhere, and a closed one carries it here.</summary>
-    private static string Tip(Item item)
+    private string Tip(Item item)
     {
         if (item.Open is null)
             return $"{item.Title} — {item.Definition?.Description}";
 
-        var state = item.Open.Minimised ? " — collapsed, press to restore" : null;
+        var state = item.Open.Minimised
+            ? " — collapsed, press to restore"
+            : Manager.ColumnOf(item.Open.Id) is { } column && column.Showing != item.Open
+                ? $" — a tab behind {column.Showing.Title}, press to show"
+                : null;
 
         return string.IsNullOrEmpty(item.Open.StatusText)
             ? $"{item.Title}{state}"

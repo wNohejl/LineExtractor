@@ -35,7 +35,7 @@ public class DeskJobMenuTests : DeskTestContext
     }
 
     private List<string> Toasts()
-        => Services.GetRequiredService<ISnackbar>().ShownSnackbars.Select(s => s.Message ?? string.Empty).ToList();
+        => Services.GetRequiredService<DeskToasts>().Shown.Select(s => s.Message).ToList();
 
     [Fact]
     public void Lists_each_run_with_its_cost()
@@ -71,14 +71,14 @@ public class DeskJobMenuTests : DeskTestContext
 
         cut.FindAll("[role=menuitem]")[0].Click();
 
-        var toast = Assert.Single(Services.GetRequiredService<ISnackbar>().ShownSnackbars);
+        var toast = Assert.Single(Services.GetRequiredService<DeskToasts>().Shown);
         Assert.Equal(summary, toast.Message);
         Assert.Equal(result switch
         {
-            DeskJobResult.Done => Severity.Success,
-            DeskJobResult.Nothing => Severity.Info,
-            _ => Severity.Warning
-        }, toast.Severity);
+            DeskJobResult.Done => DeskState.Positive,
+            DeskJobResult.Nothing => DeskState.Info,
+            _ => DeskState.Warning
+        }, toast.State);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class DeskJobMenuTests : DeskTestContext
         cut.FindAll("[role=menuitem]")[0].Click();
 
         Assert.Equal(["Refresh the index did not finish. Try again."], Toasts());
-        Assert.Equal(Severity.Error, Services.GetRequiredService<ISnackbar>().ShownSnackbars.Single().Severity);
+        Assert.Equal(DeskState.Negative, Services.GetRequiredService<DeskToasts>().Shown.Single().State);
     }
 
     [Fact]

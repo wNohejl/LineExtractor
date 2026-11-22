@@ -73,69 +73,82 @@
 
             @* The family, beneath the mode rather than beside it, because it is the finer choice:
                every family has a dark and a light desk, so the mode above still decides which one
-               of the pair is showing. Each swatch is painted by its own family's token block in
-               the appearance showing now — flip Light above and every swatch turns with the desk.
+               of the pair is showing. Each tile is painted by its own family's token blocks in the
+               appearance showing now, in the accent that family was last given — flip Light above
+               and every tile turns with the desk.
 
-               One family among several is a single choice, so the tiles are the desk's radio
-               group, not a row of toggles: one Tab stop on the chosen tile, and arrows move the
-               choice, as on every gate. The group owns the radios and their keys; the template
-               only paints each tile, and the tile carries its family's data-theme so the group's
-               own button stays in the desk's colours. Its label sits at the top of the row,
-               beside the first line of tiles, because a label centred on two lines of tiles
-               belongs to neither. *@
+               The tiles are DeskThemePicker, read from the family catalogue and filed under its
+               headings, so twenty families are a grid that wraps rather than a row that runs off
+               the window. One radiogroup however many headings: one Tab stop, arrows travel every
+               tile. Its label sits at the top of the row, beside the first heading, because a label
+               centred on a block of tiles belongs to none of them.
+
+               The tick is on the family showing, not the one stored: under Increase Contrast a desk
+               never told which family to wear wears High contrast, and a tick on Standard would
+               claim a desk that is not there. Pressing Standard then is a move, not a repeat — it
+               pins Standard against the machine (SetFamilyAsync). *@
             <div class="wgroup__row wgroup__row--form wm-row--top">
                 <span class="wgroup__label">Theme</span>
-                <DeskRadioGroup TValue="DeskThemeFamily" Options="_families" Label="Theme" Class="swatches"
-                                Value="Theme.Family"
-                                ValueChanged="@((DeskThemeFamily family) => Theme.SetFamilyAsync(family))">
-                    <ItemTemplate Context="option">
-                        <span class="swatch @(option.Value == Theme.Family ? "swatch--on" : null)"
-                              data-theme="@DeskThemeFamilies.Attribute(option.Value, Theme.IsDark)">
-                            <span class="swatch__panel" aria-hidden="true">
-                                <span class="swatch__ink"></span>
-                                <span class="swatch__ink swatch__ink--secondary"></span>
-                                <span class="swatch__marks">
-                                    <span class="swatch__pill"></span>
-                                    <span class="swatch__dot swatch__dot--positive"></span>
-                                    <span class="swatch__dot swatch__dot--warning"></span>
-                                    <span class="swatch__dot swatch__dot--negative"></span>
-                                </span>
-                            </span>
-                            <span class="swatch__name">@option.Label</span>
-                        </span>
-                    </ItemTemplate>
-                </DeskRadioGroup>
+                <DeskThemePicker Value="Theme.ShowingFamily" IsDark="Theme.IsDark"
+                                 AccentFor="Theme.AccentAttributeOf"
+                                 ValueChanged="@((DeskThemeFamily family) => Theme.SetFamilyAsync(family))" />
             </div>
 
-            @* The accent, beneath the family because it refines one of them: only the Standard
-               desk takes a chosen accent, the others keep the one they were designed around. So
-               the row is here only while Standard is showing — the desk never shows a control
-               that cannot act, and a row of hues that changed nothing on a Nord desk would be
-               exactly that. ShowingFamily rather than Family: under Increase Contrast an
-               unchosen family shows as High contrast, and that desk has no accent to choose. *@
-            @if (Theme.ShowingFamily == DeskThemeFamily.Standard)
+            @* The accent, beneath the family because it refines it: each family offers its own
+               hues, its own accent first, and the row shows the showing family's. A family that
+               offers only its own has nothing to choose, so the row is not drawn — the desk never
+               shows a control that cannot act. ShowingFamily rather than Family: under Increase
+               Contrast an unchosen family shows as High contrast, and its list is the one that
+               answers. *@
+            @if (DeskThemeFamilies.Accents(Theme.ShowingFamily).Count > 1)
             {
                 <div class="wgroup__row wgroup__row--form">
                     <span class="wgroup__label">Accent</span>
-                    <DeskAccentPicker Value="Theme.Accent" IsDark="Theme.IsDark"
-                                      ValueChanged="@((DeskAccent accent) => Theme.SetAccentAsync(accent))" />
+                    <DeskAccentPicker Family="Theme.ShowingFamily" Value="@Theme.Accent.Key" IsDark="Theme.IsDark"
+                                      ValueChanged="@((string key) => Theme.SetAccentAsync(key))" />
                 </div>
             }
 
-            @* The glass, last, because it belongs to every family and refines none: how much the
-               chrome that floats lets through. Two positions, so it is the same gate as the mode.
-               Not offered while the machine reduces transparency — every material is opaque then,
+            @* The looks: the glass — how much the chrome that floats lets through — and the four
+               makes, the desk's corners, its air, its ground and its face. Each belongs to every
+               family and refines none, each is two to four short words, so each is a gate, default
+               first, read from DeskLooks.All: a look added there is a row here. A look the machine
+               has taken off is not offered — under Reduce Transparency every material is opaque,
                there is no glass to tint, and a gate that moved nothing would be a control that
                cannot act. *@
-            @if (!Theme.ReducesTransparency)
+            @foreach (var look in DeskLooks.All)
             {
-                <div class="wgroup__row wgroup__row--form">
-                    <span class="wgroup__label">Glass</span>
-                    <DeskSwitch Options="_glasses" Label="Glass"
-                                Value="Theme.Glass"
-                                ValueChanged="@((DeskGlass glass) => Theme.SetGlassAsync(glass))" />
+                if (!Theme.Offers(look))
+                    continue;
+
+                <div class="wgroup__row wgroup__row--form" @key="look.StorageKey">
+                    <span class="wgroup__label">@look.Label</span>
+                    <DeskSwitch Options="LookOptions(look)" Label="@look.Label"
+                                Value="Theme.Chosen(look).Stored"
+                                ValueChanged="@((string stored) => Theme.SetLookAsync(look, stored))" />
                 </div>
             }
+
+            @* One key puts the whole section back, a row of the group it resets, as Scale's does.
+               It stays drawn when there is nothing to put back, dimmed and aria-disabled rather
+               than taken away or given the disabled attribute: either would drop the focus it has
+               the moment it is pressed, onto the page, and leave the keyboard nowhere. A dimmed key
+               keeps its Tab stop, refuses the press, and says why on its row (the rule "Keys
+               explain themselves"). *@
+            <div class="wgroup__row wgroup__row--form">
+                <span class="wgroup__label" aria-hidden="true"></span>
+                <div class="row">
+                    <DeskButton Class="wm-key" OnClick="ResetAppearanceAsync"
+                                aria-disabled="@(Theme.IsDefaultAppearance ? "true" : null)"
+                                aria-describedby="@(Theme.IsDefaultAppearance ? "wm-appearance-reset-why" : null)">
+                        Reset appearance
+                    </DeskButton>
+                    @if (Theme.IsDefaultAppearance)
+                    {
+                        <span class="meta" id="wm-appearance-reset-why">Everything here is at its default.</span>
+                    }
+                </div>
+            </div>
         </div>
         @* Naming the resolved theme is the point of the first sentence. "System" alone does not
            tell an operator which desk they are about to get, and it is the one position where the
@@ -147,6 +160,8 @@
             @(Theme.ReducesTransparency
                 ? "Your machine reduces transparency, so the desk's glass is opaque."
                 : "Tinted makes the glass more opaque, so the chrome over a busy desk is easier to read.")
+            Corners, density, backdrop and typeface apply to every theme; Compact takes out air and
+            keeps every control as easy to press.
         </p>
     </section>
 
@@ -196,14 +211,14 @@
                stepper beside it for the nudge of one (HIG: a stepper always sits beside a field
                showing the value). *@
             <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Open at once</span>
+                <span class="wgroup__label">Columns</span>
                 <div class="row">
                     <DeskField TValue="int?" Mono="true" Class="field--count" type="number"
-                               min="@MinWindows" max="@MaxWindows" aria-label="Concurrent windows"
+                               min="@MinWindows" max="@MaxWindows" aria-label="Columns side by side"
                                Value="S.MaxConcurrentWindows" ValueChanged="@((int? n) => SetMax(n))" />
                     @* One capsule of two halves, not two loose keys; it disables the half that
                        would cross a bound. *@
-                    <DeskStepper Label="Concurrent windows" Min="MinWindows" Max="MaxWindows"
+                    <DeskStepper Label="Columns side by side" Min="MinWindows" Max="MaxWindows"
                                  Value="S.MaxConcurrentWindows" ValueChanged="@((int n) => SetMax(n))" />
                     <DeskButton OnClick="MatchRecommended">
                         Match this desk (@Manager.RecommendedCapacity)
@@ -211,8 +226,11 @@
                 </div>
             </div>
             <div class="wgroup__row wgroup__row--form">
-                <span class="wgroup__label">Open now</span>
-                <span class="wm-value">@Manager.OpenCount of @S.MaxConcurrentWindows</span>
+                <span class="wgroup__label">In use</span>
+                <span class="wm-value">
+                    @Manager.ColumnCount of @S.MaxConcurrentWindows columns
+                    <span class="meta">@Manager.OpenCount @(Manager.OpenCount == 1 ? "window" : "windows") open</span>
+                </span>
             </div>
             @* The one reading that can be wrong for the operator, so it carries the warning ink —
                and the note under the group says why in words, so the colour is never alone. *@
@@ -232,12 +250,42 @@
             </Note>
         }
         <p class="wgroup__foot">
-            Opening past the limit closes the least recently used window — named in the footer when
-            it happens, and in the launcher before it does. Windows tile as one row, each its own
-            tab: drag a title bar past a neighbour to reorder them, or the divider between two to
-            resize them.
+            The limit is how many columns sit side by side. Past it nothing closes: the next window
+            joins a column as a tab — never the one you are working in, the primary window's last,
+            otherwise the column with fewest tabs, leftmost first. Drag a title bar past a neighbour
+            to reorder the row, or the divider between two columns to resize them.
         </p>
     </section>
+
+    @* The row as it stands: each column, left to right, with the window it shows first and the
+       tabs behind it in the order they were last shown. A reading, not a control — the pop-up key
+       titling each column is where tabs are chosen, moved and closed. *@
+    @if (Manager.TabbedCount > 0)
+    {
+        <section class="wsection" aria-labelledby="wm-columns-h">
+            <h3 class="wgroup__head" id="wm-columns-h">Tab groups</h3>
+            <div class="wgroup">
+                @foreach (var column in Manager.Columns)
+                {
+                    <div class="wgroup__row wgroup__row--form" @key="column.Id">
+                        <span class="wgroup__label">Column @(column.Position + 1)</span>
+                        <span class="wm-value">
+                            @column.Showing.Title
+                            @if (column.IsGroup)
+                            {
+                                <span class="meta">then @string.Join(", ", column.Tabs.Skip(1).Select(t => t.Title))</span>
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
+            <p class="wgroup__foot">
+                Each column shows its first window; the rest wait as tabs, most recently shown first.
+                A tab keeps everything it holds. Move one to its own column from the menu under its
+                column's title once a column is free.
+            </p>
+        </section>
+    }
 
     <section class="wsection" aria-labelledby="wm-primary-h">
         <h3 class="wgroup__head" id="wm-primary-h">Primary window</h3>
@@ -437,11 +485,15 @@
         new(DeskThemeMode.System, "System")
     ];
 
-    // The families in the picker's order, each named as its tile names it.
-    private static readonly IReadOnlyList<DeskRadioOption<DeskThemeFamily>> _families =
-        DeskThemeFamilies.All
-            .Select(family => new DeskRadioOption<DeskThemeFamily>(family, DeskThemeFamilies.Name(family), DeskThemeFamilies.Name(family)))
-            .ToList();
+    // Each look's gate, its positions in the descriptor's order — default first, because it is the
+    // desk the product is — by stored name. Built once per look, so a render hands DeskSwitch the
+    // same list rather than a new one.
+    private static readonly IReadOnlyDictionary<DeskLook, IReadOnlyList<DeskSwitchOption<string>>> _lookOptions =
+        DeskLooks.All.ToDictionary(
+            look => look,
+            look => (IReadOnlyList<DeskSwitchOption<string>>)look.Options.Select(o => new DeskSwitchOption<string>(o.Stored, o.Label)).ToList());
+
+    private static IReadOnlyList<DeskSwitchOption<string>> LookOptions(DeskLook look) => _lookOptions[look];
 
     // Interface starts at 90%, not 80%: a laptop running a four-window desk is the case for
     // shrinking, but at 80% the desk's captions fall under 10px, below the type floor, and a
@@ -470,13 +522,6 @@
         new(ResolutionMode.Fixed, "Declare a size")
     ];
 
-    // Clear first, because it is the desk the product is, and Tinted the step toward opaque.
-    private static readonly IReadOnlyList<DeskSwitchOption<DeskGlass>> _glasses =
-    [
-        new(DeskGlass.Clear, "Clear"),
-        new(DeskGlass.Tinted, "Tinted")
-    ];
-
     private static readonly IReadOnlyList<DeskSwitchOption<(int W, int H)>> _presets =
     [
         new((1280, 720), "1280×720"),
@@ -487,7 +532,8 @@
 
     protected override void OnInitialized()
     {
-        Report(PulseState.Idle, $"{Manager.OpenCount}/{S.MaxConcurrentWindows}");
+        // In words: a bare "2/2" beside a tab group's "2 tabs" read as one figure nobody could decode.
+        Report(PulseState.Idle, $"{Manager.ColumnCount} of {S.MaxConcurrentWindows} columns");
 
         // The machine's own preference can move while this panel is open, and under
         // System that changes both the cap's position and the sentence beneath it.
@@ -543,6 +589,10 @@
 
     private void SetTextScale(double scale) => Manager.UpdateSettings(s =>
         s.TextScale = DeskSettings.ClampScale(scale, DeskSettings.MinTextScale, DeskSettings.MaxTextScale));
+
+    /// <summary>A dimmed key refuses the press: with nothing off its default there is nothing to put back.</summary>
+    private Task ResetAppearanceAsync()
+        => Theme.IsDefaultAppearance ? Task.CompletedTask : Theme.ResetAppearanceAsync();
 
     private void ResetScale() => Manager.UpdateSettings(s =>
     {

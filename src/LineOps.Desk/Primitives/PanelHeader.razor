@@ -101,11 +101,13 @@
         }
         else if (Gap is PanelHeaderGap.Nested)
         {
-            yield return "margin-top:10px;";
+            // Rungs of the ramp, not pixels: Nested sits a step from the block it belongs to,
+            // and Section takes the air one section keeps from the next (.psection + .psection).
+            yield return "margin-top:var(--space-2);";
         }
         else if (Gap is PanelHeaderGap.Section)
         {
-            yield return "margin-top:18px;";
+            yield return "margin-top:var(--space-6);";
         }
 
         if (Muted)

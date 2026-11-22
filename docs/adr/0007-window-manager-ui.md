@@ -55,6 +55,9 @@ desk behind it is the preview.
 desk out for the screen they will run it on rather than the one they are configuring from;
 the desk then keeps that size and scrolls, instead of layout pretending the screen is bigger.
 
+*Superseded by [ADR 0027](0027-the-column-limit-tabs-instead-of-closing.md): the limit is now the
+number of columns, and a window opened past it joins a column as a tab; nothing closes.*
+
 **The ceiling evicts rather than refuses.** Opening past it closes the **least recently
 used** window. The operator asked for the new window, so they get it; the cost is that
 something goes away, which is handled by making eviction impossible to miss:

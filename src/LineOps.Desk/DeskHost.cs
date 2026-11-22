@@ -83,30 +83,8 @@ public static class DeskServiceCollectionExtensions
     {
         services.AddMudServices(options =>
         {
-            // Toasts land top-right, just under the header and to the right of the windows — where
-            // the eye already goes for the header's own notices, and across the desk from the side
-            // rail. mud-bridge.css sets the offset below the header; the pulse strips are on the
-            // windows' title bars, not the header, so nothing loud is covered. Newest on top, so a
-            // burst reads from the header downwards in the order it happened.
-            options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.TopRight;
-            options.SnackbarConfiguration.NewestOnTop = true;
-            // Duplicates are allowed, against MudBlazor's default. A desk notice is derived from an
-            // outcome, so pressing the same button twice on an unchanged state produces the same
-            // string twice — and suppressing the second one recreates the "did that actually run?"
-            // doubt the toast exists to remove.
-            options.SnackbarConfiguration.PreventDuplicates = false;
-            options.SnackbarConfiguration.MaxDisplayedSnackbars = 4;
-
-            // Transient means transient: it goes on its own, and the operator never has to dismiss
-            // one. The close button stays because a notice that lands over something being read
-            // should be removable without waiting it out.
-            options.SnackbarConfiguration.VisibleStateDuration = 4000;
-            options.SnackbarConfiguration.ShowCloseIcon = true;
-
-            // Material fades a snackbar in over half a second, which reads as the notice arriving
-            // late. The desk's own transitions are ~120ms; match them.
-            options.SnackbarConfiguration.ShowTransitionDuration = 120;
-            options.SnackbarConfiguration.HideTransitionDuration = 200;
+            // Nothing of the snackbar's is configured: the desk draws its own notices
+            // (DeskToasts, DeskToastStack; ADR 0028) and never renders MudBlazor's.
 
             // Last, so whatever the application says about MudBlazor overrides the desk's defaults.
             mud?.Invoke(options);

@@ -21,7 +21,19 @@ export function initialise(dotNetRef) {
     window.addEventListener('resize', onResize, { passive: true });
     window.removeEventListener('keydown', deskHotkeys);
     window.addEventListener('keydown', deskHotkeys);
+    document.removeEventListener('keydown', holdTabStripKeys);
+    document.addEventListener('keydown', holdTabStripKeys);
     reportViewport();
+}
+
+// A tab group's key opens its menu with Down or Up (WindowTabs.razor); the same keys scroll the
+// desk under it when the row overflows. Prevented here, as the divider's are, because Blazor's
+// preventDefault cannot tell these keys from Tab.
+const STRIP_KEYS = new Set(['ArrowDown', 'ArrowUp']);
+
+function holdTabStripKeys(e) {
+    if (!STRIP_KEYS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof Element && e.target.closest('.wtabs__key')) e.preventDefault();
 }
 
 // The desk's chords, in one handler. This file only recognises them; what each one does — which
@@ -370,7 +382,12 @@ function beginTabDrag(event, win, handle) {
  * ended up relative to their midpoints.
  */
 function computeDropOrder(desk, draggedElementId, pointerCenterX) {
-    const siblings = [...desk.querySelectorAll('.win')].filter((el) => el.id !== draggedElementId);
+    // One element per column: a tab behind another shares its column's box and is not a slot of
+    // its own. The page lists windows in the order they were opened, not the row's (Desk.razor
+    // keeps them still so none loses its scroll), so the slots are read left to right by place.
+    const siblings = [...desk.querySelectorAll('.win:not(.win--behind)')]
+        .filter((el) => el.id !== draggedElementId)
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
 
     let index = siblings.length;
 

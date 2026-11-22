@@ -148,13 +148,13 @@ public static class DeskPalettes
         Surface2 = "#3B4252",
         Surface3 = "#434C5E",
         TextPrimary = "rgba(236, 239, 244, .92)",
-        TextSecondary = "rgba(236, 239, 244, .66)",
+        TextSecondary = "rgba(236, 239, 244, .69)",
         TextTertiary = "rgba(236, 239, 244, .30)",
         Accent = "#88C0D0",
         AccentHover = "#A3D0DC",
         OnAccent = "#2E3440",
         StatePositive = "#A3BE8C",
-        StateNegative = "#BF616A",
+        StateNegative = "#CF888F",
         StateWarning = "#EBCB8B",
         Separator = "rgba(236, 239, 244, .10)",
         ChartNeutral = "#7B88A1",
@@ -176,7 +176,7 @@ public static class DeskPalettes
         AccentHover = "#527096",
         OnAccent = "#FFFFFF",
         StatePositive = "#7A9A5E",
-        StateNegative = "#BF616A",
+        StateNegative = "#B45C64",
         StateWarning = "#D08770",
         Separator = "rgba(46, 52, 64, .12)",
         ChartNeutral = "#7B88A1",
@@ -196,7 +196,7 @@ public static class DeskPalettes
         Surface2 = "#073642",
         Surface3 = "#0D4250",
         TextPrimary = "rgba(238, 232, 213, .90)",
-        TextSecondary = "rgba(238, 232, 213, .62)",
+        TextSecondary = "rgba(238, 232, 213, .63)",
         TextTertiary = "rgba(238, 232, 213, .30)",
         Accent = "#2075B1",
         AccentHover = "#217AB9",
@@ -266,13 +266,13 @@ public static class DeskPalettes
         Surface2 = "#EBE2D9",
         Surface3 = "#DFDAD9",
         TextPrimary = "rgba(87, 82, 121, 1)",
-        TextSecondary = "rgba(87, 82, 121, .90)",
+        TextSecondary = "rgba(87, 82, 121, .93)",
         TextTertiary = "rgba(87, 82, 121, .40)",
         Accent = "#806D96",
         AccentHover = "#79668E",
         OnAccent = "#FFFFFF",
         StatePositive = "#56949F",
-        StateNegative = "#B4637A",
+        StateNegative = "#AC5F75",
         StateWarning = "#EA9D34",
         Separator = "rgba(87, 82, 121, .14)",
         ChartNeutral = "#9893A5",
@@ -290,9 +290,9 @@ public static class DeskPalettes
         Surface0 = "#181825",
         Surface1 = "#1E1E2E",
         Surface2 = "#313244",
-        Surface3 = "#45475A",
+        Surface3 = "#3B3C4F",
         TextPrimary = "rgba(205, 214, 244, .92)",
-        TextSecondary = "rgba(205, 214, 244, .66)",
+        TextSecondary = "rgba(205, 214, 244, .70)",
         TextTertiary = "rgba(205, 214, 244, .30)",
         Accent = "#CBA6F7",
         AccentHover = "#D3B3F8",
@@ -314,7 +314,7 @@ public static class DeskPalettes
         Surface2 = "#DCE0E8",
         Surface3 = "#CCD0DA",
         TextPrimary = "rgba(76, 79, 105, 1)",
-        TextSecondary = "rgba(76, 79, 105, .92)",
+        TextSecondary = "rgba(76, 79, 105, .93)",
         TextTertiary = "rgba(76, 79, 105, .40)",
         Accent = "#8839EF",
         AccentHover = "#8136E3",
@@ -340,15 +340,15 @@ public static class DeskPalettes
         Surface0 = "#1D2021",
         Surface1 = "#282828",
         Surface2 = "#3C3836",
-        Surface3 = "#504945",
+        Surface3 = "#46403E",
         TextPrimary = "rgba(235, 219, 178, .92)",
-        TextSecondary = "rgba(235, 219, 178, .67)",
+        TextSecondary = "rgba(235, 219, 178, .70)",
         TextTertiary = "rgba(235, 219, 178, .30)",
         Accent = "#83A598",
         AccentHover = "#96B4A8",
         OnAccent = "#282828",
         StatePositive = "#B8BB26",
-        StateNegative = "#FB4934",
+        StateNegative = "#FB533F",
         StateWarning = "#FABD2F",
         Separator = "rgba(235, 219, 178, .10)",
         ChartNeutral = "#928374",
@@ -364,7 +364,7 @@ public static class DeskPalettes
         Surface2 = "#EBDBB2",
         Surface3 = "#D5C4A1",
         TextPrimary = "rgba(60, 56, 54, .92)",
-        TextSecondary = "rgba(60, 56, 54, .79)",
+        TextSecondary = "rgba(60, 56, 54, .82)",
         TextTertiary = "rgba(60, 56, 54, .36)",
         Accent = "#076678",
         AccentHover = "#065C6C",
@@ -413,13 +413,13 @@ public static class DeskPalettes
         Surface2 = "#D0D5E3",
         Surface3 = "#C4C8DA",
         TextPrimary = "rgba(52, 59, 88, .92)",
-        TextSecondary = "rgba(52, 59, 88, .80)",
+        TextSecondary = "rgba(52, 59, 88, .83)",
         TextTertiary = "rgba(52, 59, 88, .34)",
         Accent = "#2A73D6",
         AccentHover = "#276BC8",
         OnAccent = "#FFFFFF",
         StatePositive = "#587539",
-        StateNegative = "#F52A65",
+        StateNegative = "#E1275D",
         StateWarning = "#B15C00",
         Separator = "rgba(52, 59, 88, .12)",
         ChartNeutral = "#68709A",
@@ -441,7 +441,7 @@ public static class DeskPalettes
         Surface2 = "#343746",
         Surface3 = "#424450",
         TextPrimary = "rgba(248, 248, 242, .92)",
-        TextSecondary = "rgba(248, 248, 242, .59)",
+        TextSecondary = "rgba(248, 248, 242, .61)",
         TextTertiary = "rgba(248, 248, 242, .30)",
         Accent = "#BD93F9",
         AccentHover = "#CAA8FA",
@@ -523,5 +523,673 @@ public static class DeskPalettes
         ChartNeutral = "#6E6E6E",
         ChartNeutralDim = "#A8A8A8",
         Overlay = "rgba(0, 0, 0, .45)"
+    };
+
+
+    // ---- Paper --------------------------------------------------------------------
+    // A ledger by lamplight and by day: ivory laid paper and iron-gall ink, with one blue-black pen as the accent.
+
+    public static DeskPalette PaperDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#15100B",
+        Surface1 = "#1C1610",
+        Surface2 = "#261E16",
+        Surface3 = "#30271D",
+        TextPrimary = "rgba(238, 226, 204, .92)",
+        TextSecondary = "rgba(238, 226, 204, .62)",
+        TextTertiary = "rgba(238, 226, 204, .30)",
+        Accent = "#3E5F96",
+        AccentHover = "#4466A0",
+        OnAccent = "#F7F0E1",
+        StatePositive = "#7C9A4E",
+        StateNegative = "#B4452F",
+        StateWarning = "#C99A3A",
+        Separator = "rgba(238, 226, 204, .11)",
+        ChartNeutral = "#8C7F6B",
+        ChartNeutralDim = "#5A5044",
+        Overlay = "rgba(21, 16, 11, .66)"
+    };
+
+    public static DeskPalette PaperLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E8E0CC",
+        Surface1 = "#FAF6EC",
+        Surface2 = "#EEE7D6",
+        Surface3 = "#E1D8C3",
+        TextPrimary = "rgba(40, 30, 20, .94)",
+        TextSecondary = "rgba(40, 30, 20, .70)",
+        TextTertiary = "rgba(40, 30, 20, .32)",
+        Accent = "#2A4A80",
+        AccentHover = "#244170",
+        OnAccent = "#FBF7EE",
+        StatePositive = "#4E7A33",
+        StateNegative = "#A63A2A",
+        StateWarning = "#A8701A",
+        Separator = "rgba(40, 30, 20, .13)",
+        ChartNeutral = "#8A7D68",
+        ChartNeutralDim = "#C4B89E",
+        Overlay = "rgba(40, 30, 20, .30)"
+    };
+
+    // ---- Midnight -----------------------------------------------------------------
+    // True black for an OLED panel, surfaces told apart by hairlines; an electric cyan by night, ultramarine on stark white by day.
+
+    public static DeskPalette MidnightDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#000000",
+        Surface1 = "#050505",
+        Surface2 = "#0C0C0D",
+        Surface3 = "#18181A",
+        TextPrimary = "rgba(255, 255, 255, .95)",
+        TextSecondary = "rgba(255, 255, 255, .60)",
+        TextTertiary = "rgba(255, 255, 255, .30)",
+        Accent = "#00C2FF",
+        AccentHover = "#40D2FF",
+        OnAccent = "#000000",
+        StatePositive = "#00E07A",
+        StateNegative = "#FF4D5E",
+        StateWarning = "#FFB000",
+        Separator = "rgba(255, 255, 255, .15)",
+        ChartNeutral = "#8A8A8E",
+        ChartNeutralDim = "#48484C",
+        Overlay = "rgba(0, 0, 0, .75)"
+    };
+
+    public static DeskPalette MidnightLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#F3F3F3",
+        Surface1 = "#FFFFFF",
+        Surface2 = "#F0F0F0",
+        Surface3 = "#E1E1E1",
+        TextPrimary = "rgba(0, 0, 0, .96)",
+        TextSecondary = "rgba(0, 0, 0, .64)",
+        TextTertiary = "rgba(0, 0, 0, .32)",
+        Accent = "#0040FF",
+        AccentHover = "#0036D9",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#00A04A",
+        StateNegative = "#E0001E",
+        StateWarning = "#E07800",
+        Separator = "rgba(0, 0, 0, .15)",
+        ChartNeutral = "#7A7A7A",
+        ChartNeutralDim = "#BDBDBD",
+        Overlay = "rgba(0, 0, 0, .30)"
+    };
+
+    // ---- Obsidian -----------------------------------------------------------------
+    // A terminal's carbon: blue-black panels ruled by slate hairlines, an electric sky accent and signal states; its own printout by day.
+
+    public static DeskPalette ObsidianDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#090A0D",
+        Surface1 = "#111318",
+        Surface2 = "#1B1F26",
+        Surface3 = "#272C36",
+        TextPrimary = "rgba(241, 245, 249, .95)",
+        TextSecondary = "rgba(203, 213, 225, .68)",
+        TextTertiary = "rgba(203, 213, 225, .34)",
+        Accent = "#38BDF8",
+        AccentHover = "#63CCFA",
+        OnAccent = "#06121A",
+        StatePositive = "#00E676",
+        StateNegative = "#FF5C5C",
+        StateWarning = "#F5A524",
+        Separator = "rgba(148, 163, 184, .15)",
+        ChartNeutral = "#8590A2",
+        ChartNeutralDim = "#3F4756",
+        Overlay = "rgba(0, 0, 0, .70)"
+    };
+
+    public static DeskPalette ObsidianLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#EEF1F5",
+        Surface1 = "#FFFFFF",
+        Surface2 = "#E8ECF1",
+        Surface3 = "#D8DEE6",
+        TextPrimary = "rgba(15, 23, 42, .94)",
+        TextSecondary = "rgba(15, 23, 42, .68)",
+        TextTertiary = "rgba(15, 23, 42, .34)",
+        Accent = "#0369A1",
+        AccentHover = "#035C8E",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#00A651",
+        StateNegative = "#D92D2D",
+        StateWarning = "#D97706",
+        Separator = "rgba(15, 23, 42, .13)",
+        ChartNeutral = "#64748B",
+        ChartNeutralDim = "#B6C0CE",
+        Overlay = "rgba(15, 23, 42, .30)"
+    };
+
+    // ---- Synthwave ----------------------------------------------------------------
+    // Neon on an indigo sky: hot magenta keys with the night as their label, laser-green, sunset and warning-light states; pale lavender by day.
+
+    public static DeskPalette SynthwaveDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#110A22",
+        Surface1 = "#180F31",
+        Surface2 = "#221643",
+        Surface3 = "#2D1D56",
+        TextPrimary = "rgba(247, 232, 255, .94)",
+        TextSecondary = "rgba(247, 232, 255, .64)",
+        TextTertiary = "rgba(247, 232, 255, .32)",
+        Accent = "#FF3DC1",
+        AccentHover = "#FF66CF",
+        OnAccent = "#14092A",
+        StatePositive = "#3DFF9A",
+        StateNegative = "#FF5A3C",
+        StateWarning = "#FFD23F",
+        Separator = "rgba(247, 232, 255, .12)",
+        ChartNeutral = "#8E7DBE",
+        ChartNeutralDim = "#4E3D7E",
+        Overlay = "rgba(17, 10, 34, .66)"
+    };
+
+    public static DeskPalette SynthwaveLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E8DFF7",
+        Surface1 = "#F7F2FF",
+        Surface2 = "#E9DFF9",
+        Surface3 = "#DCCEF3",
+        TextPrimary = "rgba(38, 16, 82, .94)",
+        TextSecondary = "rgba(38, 16, 82, .72)",
+        TextTertiary = "rgba(38, 16, 82, .36)",
+        Accent = "#C2148F",
+        AccentHover = "#AD1080",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#00996A",
+        StateNegative = "#D42A1E",
+        StateWarning = "#E06A00",
+        Separator = "rgba(38, 16, 82, .13)",
+        ChartNeutral = "#8A7CAE",
+        ChartNeutralDim = "#C5B8E3",
+        Overlay = "rgba(38, 16, 82, .30)"
+    };
+
+    // ---- Terra --------------------------------------------------------------------
+    // Muted earth: umber and charcoal-olive by night, limestone and sand by day, terracotta keys with a sand label.
+
+    public static DeskPalette TerraDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#141411",
+        Surface1 = "#1B1A16",
+        Surface2 = "#24231D",
+        Surface3 = "#2E2C25",
+        TextPrimary = "rgba(230, 222, 204, .90)",
+        TextSecondary = "rgba(230, 222, 204, .63)",
+        TextTertiary = "rgba(230, 222, 204, .30)",
+        Accent = "#955439",
+        AccentHover = "#9A583C",
+        OnAccent = "#F5EFE3",
+        StatePositive = "#8E9E5E",
+        StateNegative = "#A84A55",
+        StateWarning = "#C4A050",
+        Separator = "rgba(230, 222, 204, .10)",
+        ChartNeutral = "#857D6C",
+        ChartNeutralDim = "#4F4B40",
+        Overlay = "rgba(20, 20, 17, .66)"
+    };
+
+    public static DeskPalette TerraLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E4DED1",
+        Surface1 = "#F3F0E8",
+        Surface2 = "#E7E2D6",
+        Surface3 = "#DAD3C4",
+        TextPrimary = "rgba(46, 44, 36, .92)",
+        TextSecondary = "rgba(46, 44, 36, .75)",
+        TextTertiary = "rgba(46, 44, 36, .34)",
+        Accent = "#9C5236",
+        AccentHover = "#8E4A31",
+        OnAccent = "#FBF8F1",
+        StatePositive = "#66763A",
+        StateNegative = "#A13D48",
+        StateWarning = "#9A6D18",
+        Separator = "rgba(46, 44, 36, .12)",
+        ChartNeutral = "#8A8272",
+        ChartNeutralDim = "#BFB7A6",
+        Overlay = "rgba(46, 44, 36, .28)"
+    };
+
+    // ---- Everforest ---------------------------------------------------------------
+    // sainnhe's Everforest at medium contrast both ways. The accent is the palette's blue: #7FBBB3 by
+    // night, taking bg0 as ink, and the light variant's #3A94C5 deepened by day until white reads.
+
+    public static DeskPalette EverforestDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#232A2E",
+        Surface1 = "#2D353B",
+        Surface2 = "#343F44",
+        Surface3 = "#39444A",
+        TextPrimary = "rgba(211, 198, 170, 1)",
+        TextSecondary = "rgba(211, 198, 170, .82)",
+        TextTertiary = "rgba(211, 198, 170, .32)",
+        Accent = "#7FBBB3",
+        AccentHover = "#8CC2BB",
+        OnAccent = "#2D353B",
+        StatePositive = "#A7C080",
+        StateNegative = "#E67F81",
+        StateWarning = "#DBBC7F",
+        Separator = "rgba(211, 198, 170, .10)",
+        ChartNeutral = "#859289",
+        ChartNeutralDim = "#56635F",
+        Overlay = "rgba(35, 42, 46, .66)"
+    };
+
+    public static DeskPalette EverforestLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#EFEBD4",
+        Surface1 = "#FDF6E3",
+        Surface2 = "#E6E2CC",
+        Surface3 = "#E0DCC7",
+        TextPrimary = "rgba(74, 85, 92, 1)",
+        TextSecondary = "rgba(74, 85, 92, .91)",
+        TextTertiary = "rgba(74, 85, 92, .40)",
+        Accent = "#327E99",
+        AccentHover = "#2E758E",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#8DA101",
+        StateNegative = "#CD4644",
+        StateWarning = "#DFA000",
+        Separator = "rgba(74, 85, 92, .12)",
+        ChartNeutral = "#829181",
+        ChartNeutralDim = "#BDC3AF",
+        Overlay = "rgba(74, 85, 92, .30)"
+    };
+
+    // ---- Kanagawa -----------------------------------------------------------------
+    // rebelot's Kanagawa: Wave by night, Lotus by day. The accent is crystalBlue by night, taking sumiInk3 as ink,
+    // and lotusBlue4 by day, deep enough for white.
+
+    public static DeskPalette KanagawaDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#16161D",
+        Surface1 = "#1F1F28",
+        Surface2 = "#2A2A37",
+        Surface3 = "#363646",
+        TextPrimary = "rgba(220, 215, 186, .92)",
+        TextSecondary = "rgba(220, 215, 186, .67)",
+        TextTertiary = "rgba(220, 215, 186, .30)",
+        Accent = "#7E9CD8",
+        AccentHover = "#8BA6DC",
+        OnAccent = "#1F1F28",
+        StatePositive = "#98BB6C",
+        StateNegative = "#E46876",
+        StateWarning = "#FF9E3B",
+        Separator = "rgba(220, 215, 186, .10)",
+        ChartNeutral = "#727169",
+        ChartNeutralDim = "#54546D",
+        Overlay = "rgba(22, 22, 29, .66)"
+    };
+
+    public static DeskPalette KanagawaLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#E5DDB0",
+        Surface1 = "#F2ECBC",
+        Surface2 = "#E7DBA0",
+        Surface3 = "#E4D794",
+        TextPrimary = "rgba(84, 84, 100, 1)",
+        TextSecondary = "rgba(84, 84, 100, .98)",
+        TextTertiary = "rgba(84, 84, 100, .40)",
+        Accent = "#4D699B",
+        AccentHover = "#486290",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#6F894E",
+        StateNegative = "#C84053",
+        StateWarning = "#E98A00",
+        Separator = "rgba(84, 84, 100, .12)",
+        ChartNeutral = "#8A8980",
+        ChartNeutralDim = "#A09CAC",
+        Overlay = "rgba(84, 84, 100, .30)"
+    };
+
+    // ---- One ----------------------------------------------------------------------
+    // Atom's One: One Dark by night, One Light by day. The accent is the syntax blue in both: #61AFEF by night,
+    // taking the bg as ink, and One Light's #4078F2 deepened a step by day so white reads.
+
+    public static DeskPalette OneDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#21252B",
+        Surface1 = "#282C34",
+        Surface2 = "#2C313C",
+        Surface3 = "#3E4451",
+        TextPrimary = "rgba(203, 208, 216, .92)",
+        TextSecondary = "rgba(203, 208, 216, .79)",
+        TextTertiary = "rgba(203, 208, 216, .32)",
+        Accent = "#61AFEF",
+        AccentHover = "#71B7F1",
+        OnAccent = "#282C34",
+        StatePositive = "#98C379",
+        StateNegative = "#E1717A",
+        StateWarning = "#E5C07B",
+        Separator = "rgba(203, 208, 216, .10)",
+        ChartNeutral = "#828997",
+        ChartNeutralDim = "#5C6370",
+        Overlay = "rgba(33, 37, 43, .66)"
+    };
+
+    public static DeskPalette OneLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#EAEAEB",
+        Surface1 = "#FAFAFA",
+        Surface2 = "#E5E5E6",
+        Surface3 = "#DBDBDC",
+        TextPrimary = "rgba(56, 58, 66, .94)",
+        TextSecondary = "rgba(56, 58, 66, .77)",
+        TextTertiary = "rgba(56, 58, 66, .34)",
+        Accent = "#3870E2",
+        AccentHover = "#3468D2",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#50A14F",
+        StateNegative = "#CA1243",
+        StateWarning = "#C18401",
+        Separator = "rgba(56, 58, 66, .12)",
+        ChartNeutral = "#A0A1A7",
+        ChartNeutralDim = "#C8C8CA",
+        Overlay = "rgba(56, 58, 66, .30)"
+    };
+
+    // ---- Monokai ------------------------------------------------------------------
+    // Wimer Hazenberg's Monokai, as TextMate and Sublime Text ship it; it publishes no light variant, so the light desk
+    // turns it over — fg is the paper, bg the ink — with each hue deepened until it reads. The accent is the cyan in both.
+
+    public static DeskPalette MonokaiDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#1E1F1C",
+        Surface1 = "#272822",
+        Surface2 = "#3E3D32",
+        Surface3 = "#49483E",
+        TextPrimary = "rgba(248, 248, 242, .92)",
+        TextSecondary = "rgba(248, 248, 242, .63)",
+        TextTertiary = "rgba(248, 248, 242, .30)",
+        Accent = "#66D9EF",
+        AccentHover = "#75DDF1",
+        OnAccent = "#272822",
+        StatePositive = "#A6E22E",
+        StateNegative = "#FA4C8B",
+        StateWarning = "#FD971F",
+        Separator = "rgba(248, 248, 242, .10)",
+        ChartNeutral = "#75715E",
+        ChartNeutralDim = "#49483E",
+        Overlay = "rgba(30, 31, 28, .66)"
+    };
+
+    public static DeskPalette MonokaiLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#ECECE6",
+        Surface1 = "#F8F8F2",
+        Surface2 = "#E3E3DD",
+        Surface3 = "#D7D7D1",
+        TextPrimary = "rgba(39, 40, 34, .92)",
+        TextSecondary = "rgba(39, 40, 34, .70)",
+        TextTertiary = "rgba(39, 40, 34, .34)",
+        Accent = "#327B86",
+        AccentHover = "#2E727D",
+        OnAccent = "#F8F8F2",
+        StatePositive = "#729B20",
+        StateNegative = "#D72163",
+        StateWarning = "#CE7B19",
+        Separator = "rgba(39, 40, 34, .12)",
+        ChartNeutral = "#75715E",
+        ChartNeutralDim = "#B9B8AE",
+        Overlay = "rgba(39, 40, 34, .30)"
+    };
+
+    // ---- Ayu ----------------------------------------------------------------------
+    // ayu-theme's Ayu: Dark by night (chosen over Mirage, whose blue slate sits beside One Dark's), Light by day.
+    // The accent is common.accent, the gold, in both, and it takes a dark label in both, as Ayu's own buttons do.
+
+    public static DeskPalette AyuDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#0D1017",
+        Surface1 = "#10141C",
+        Surface2 = "#141821",
+        Surface3 = "#1B1F29",
+        TextPrimary = "rgba(252, 248, 236, .82)",
+        TextSecondary = "rgba(196, 214, 254, .57)",
+        TextTertiary = "rgba(196, 214, 254, .26)",
+        Accent = "#E6B450",
+        AccentHover = "#E8BC62",
+        OnAccent = "#0D1017",
+        StatePositive = "#70BF56",
+        StateNegative = "#D95757",
+        StateWarning = "#FF8F40",
+        Separator = "rgba(196, 214, 254, .10)",
+        ChartNeutral = "#5A6673",
+        ChartNeutralDim = "#343B47",
+        Overlay = "rgba(13, 16, 23, .66)"
+    };
+
+    public static DeskPalette AyuLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#EBEEF0",
+        Surface1 = "#FCFCFC",
+        Surface2 = "#E5E8EB",
+        Surface3 = "#D6DBE0",
+        TextPrimary = "rgba(2, 10, 18, .84)",
+        TextSecondary = "rgba(2, 26, 60, .64)",
+        TextTertiary = "rgba(2, 26, 60, .30)",
+        Accent = "#F29718",
+        AccentHover = "#E18C16",
+        OnAccent = "#020A12",
+        StatePositive = "#6CBF43",
+        StateNegative = "#E65050",
+        StateWarning = "#C2A30A",
+        Separator = "rgba(2, 26, 60, .12)",
+        ChartNeutral = "#8A9199",
+        ChartNeutralDim = "#C3C9D0",
+        Overlay = "rgba(2, 10, 18, .30)"
+    };
+
+    // ---- Primer ------------------------------------------------------------------
+    // GitHub's Primer: the dark default by night, the light default by day. The accent is Primer's blue,
+    // accent.emphasis as the fill and accent.fg as the ink; the light scrim is Primer's own overlay backdrop.
+
+    public static DeskPalette PrimerDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#010409",
+        Surface1 = "#0D1117",
+        Surface2 = "#151B23",
+        Surface3 = "#262C36",
+        TextPrimary = "rgba(240, 246, 252, .92)",
+        TextSecondary = "rgba(240, 246, 252, .58)",
+        TextTertiary = "rgba(240, 246, 252, .30)",
+        Accent = "#1E6BE3",
+        AccentHover = "#1F6FEB",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#3FB950",
+        StateNegative = "#DA3633",
+        StateWarning = "#D29922",
+        Separator = "rgba(240, 246, 252, .15)",
+        ChartNeutral = "#9198A1",
+        ChartNeutralDim = "#3D444D",
+        Overlay = "rgba(1, 4, 9, .66)"
+    };
+
+    public static DeskPalette PrimerLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#F6F8FA",
+        Surface1 = "#FFFFFF",
+        Surface2 = "#EFF2F5",
+        Surface3 = "#E6EAEF",
+        TextPrimary = "rgba(31, 35, 40, .92)",
+        TextSecondary = "rgba(31, 35, 40, .74)",
+        TextTertiary = "rgba(31, 35, 40, .34)",
+        Accent = "#0969DA",
+        AccentHover = "#0860CA",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#1F883D",
+        StateNegative = "#CF222E",
+        StateWarning = "#9A6700",
+        Separator = "rgba(31, 35, 40, .14)",
+        ChartNeutral = "#818B98",
+        ChartNeutralDim = "#C8D1DA",
+        Overlay = "rgba(31, 35, 40, .30)"
+    };
+
+    // ---- Night Owl ---------------------------------------------------------------
+    // Sarah Drasner's Night Owl by night, Light Owl by day. The accent is the palette's blue in both: #82AAFF,
+    // pale enough that a filled control takes the night ground as ink, and Light Owl's #4876D6, deepened to carry white.
+
+    public static DeskPalette NightOwlDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#01111D",
+        Surface1 = "#011627",
+        Surface2 = "#0B253A",
+        Surface3 = "#1D3B53",
+        TextPrimary = "rgba(214, 222, 235, .92)",
+        TextSecondary = "rgba(214, 222, 235, .68)",
+        TextTertiary = "rgba(214, 222, 235, .32)",
+        Accent = "#82AAFF",
+        AccentHover = "#8FB3FF",
+        OnAccent = "#011627",
+        StatePositive = "#22DA6E",
+        StateNegative = "#EF5350",
+        StateWarning = "#FFEB95",
+        Separator = "rgba(214, 222, 235, .10)",
+        ChartNeutral = "#637777",
+        ChartNeutralDim = "#4B6479",
+        Overlay = "rgba(1, 17, 29, .66)"
+    };
+
+    public static DeskPalette NightOwlLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#F0F0F0",
+        Surface1 = "#FBFBFB",
+        Surface2 = "#E8E8E8",
+        Surface3 = "#E0E0E0",
+        TextPrimary = "rgba(64, 63, 83, .92)",
+        TextSecondary = "rgba(64, 63, 83, .82)",
+        TextTertiary = "rgba(64, 63, 83, .36)",
+        Accent = "#4571CD",
+        AccentHover = "#4069BF",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#08916A",
+        StateNegative = "#D63B39",
+        StateWarning = "#DAAA01",
+        Separator = "rgba(64, 63, 83, .12)",
+        ChartNeutral = "#989FB1",
+        ChartNeutralDim = "#CDD1D9",
+        Overlay = "rgba(64, 63, 83, .30)"
+    };
+
+    // ---- Palenight ---------------------------------------------------------------
+    // Material Theme's Palenight by night, Material Lighter by day. Purple is the accent in both: Palenight's
+    // #C792EA takes the ground as ink; Lighter's #7C4DFF carries white.
+
+    public static DeskPalette PalenightDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#202331",
+        Surface1 = "#292D3E",
+        Surface2 = "#303348",
+        Surface3 = "#3A3F58",
+        TextPrimary = "rgba(238, 255, 255, .86)",
+        TextSecondary = "#A6ACCD",
+        TextTertiary = "#676E95",
+        Accent = "#C792EA",
+        AccentHover = "#CE9FED",
+        OnAccent = "#292D3E",
+        StatePositive = "#C3E88D",
+        StateNegative = "#F07178",
+        StateWarning = "#FFCB6B",
+        Separator = "rgba(166, 172, 205, .12)",
+        ChartNeutral = "#676E95",
+        ChartNeutralDim = "#515772",
+        Overlay = "rgba(32, 35, 49, .66)"
+    };
+
+    public static DeskPalette PalenightLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#EEEEEE",
+        Surface1 = "#FAFAFA",
+        Surface2 = "#E7E7E8",
+        Surface3 = "#D2D4D5",
+        TextPrimary = "rgba(39, 39, 39, .92)",
+        TextSecondary = "#495D66",
+        TextTertiary = "#94A7B0",
+        Accent = "#7C4DFF",
+        AccentHover = "#7348ED",
+        OnAccent = "#FFFFFF",
+        StatePositive = "#91B859",
+        StateNegative = "#D83632",
+        StateWarning = "#F6A434",
+        Separator = "rgba(39, 39, 39, .11)",
+        ChartNeutral = "#94A7B0",
+        ChartNeutralDim = "#CCD7DA",
+        Overlay = "rgba(39, 39, 39, .30)"
+    };
+
+    // ---- Zenburn -----------------------------------------------------------------
+    // Jani Nurminen's Zenburn, as zenburn-emacs publishes it, lifted only where a rule needs it, and a warm
+    // light counterpart built from the same hues. The accent is Zenburn blue: #8CD0D3 by night, blue-4 by day.
+
+    public static DeskPalette ZenburnDark { get; } = new()
+    {
+        IsDark = true,
+        Surface0 = "#383838",
+        Surface1 = "#3F3F3F",
+        Surface2 = "#494949",
+        Surface3 = "#4F4F4F",
+        TextPrimary = "rgba(220, 220, 204, 1)",
+        TextSecondary = "rgba(220, 220, 204, .84)",
+        TextTertiary = "rgba(220, 220, 204, .40)",
+        Accent = "#8CD0D3",
+        AccentHover = "#ACE0E3",
+        OnAccent = "#2B2B2B",
+        StatePositive = "#7F9F7F",
+        StateNegative = "#CC9393",
+        StateWarning = "#DFAF8F",
+        Separator = "rgba(220, 220, 204, .10)",
+        ChartNeutral = "#989890",
+        ChartNeutralDim = "#656555",
+        Overlay = "rgba(43, 43, 43, .66)"
+    };
+
+    public static DeskPalette ZenburnLight { get; } = new()
+    {
+        IsDark = false,
+        Surface0 = "#F0F0E0",
+        Surface1 = "#FFFFEF",
+        Surface2 = "#E8E8D8",
+        Surface3 = "#DCDCCC",
+        TextPrimary = "rgba(63, 63, 63, .94)",
+        TextSecondary = "rgba(63, 63, 63, .82)",
+        TextTertiary = "rgba(63, 63, 63, .38)",
+        Accent = "#4C7073",
+        AccentHover = "#46676A",
+        OnAccent = "#FFFFEF",
+        StatePositive = "#5F7F5F",
+        StateNegative = "#9C6363",
+        StateWarning = "#DFAF8F",
+        Separator = "rgba(63, 63, 63, .12)",
+        ChartNeutral = "#989890",
+        ChartNeutralDim = "#C4C4B4",
+        Overlay = "rgba(63, 63, 63, .30)"
     };
 }
