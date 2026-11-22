@@ -116,57 +116,15 @@ else
             _form = await lookup.GetAsync(GameId, TimeSpan.FromDays(_windowDays), maxPlayersPerTeam: 8);
         }, settle: () => PulseState.Healthy);
 
-    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
-        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
-
-    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
 
     private RenderFragment RenderSide(IReadOnlyList<PlayerForm> side, string teamName, string? abbrev) => @<text>
         @if (side.Count > 0)
         {
-            var columns = ColumnsFor(side);
-
             @* The side's crest leads its rule at the large size, as the Game window's rosters do. *@
             <PanelSection Class="psection--subject">
             <TitleContent><TeamMark Sport="@Row?.Game.Sport?.Key" Abbrev="@abbrev" Size="TeamMarkSize.Large" />@teamName</TitleContent>
             <ChildContent>
-            <div class="gridwrap">
-                <DeskGrid T="PlayerForm" Items="side" EmptyText="No appearances on record.">
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
-                                    Title="Player" CellClass="trunc">
-                        <CellTemplate><span title="@context.Item.Name">@context.Item.Name</span></CellTemplate>
-                    </PropertyColumn>
-
-                    <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
-                        <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
-                    </PropertyColumn>
-
-                    <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
-                                    Title="GP" Align="Align.Right" />
-
-                    @* Stat keys differ per sport and per source, so the columns are derived from
-                       the data rather than declared. A player with no reading sorts below every
-                       real one rather than beside the zeroes — sorting a stat descending is how
-                       you find the top of it, and a blank is not a nought. *@
-                    @foreach (var c in columns)
-                    {
-                        var key = c;
-
-                        <TemplateColumn T="PlayerForm" Sortable="true" Title="@(StatLabels.StatLabel(key) + (IsRate(side, key) ? "/g" : ""))"
-                                        Align="Align.Right"
-                                        SortBy="@(p => p.Summary(key) ?? double.MinValue)">
-                            <CellTemplate>
-                                @* A dash where a player has no reading, not a zero — they
-                                   are different facts. *@
-                                @(context.Item.Summary(key) is { } v
-                                    ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
-                                    : "—")
-                            </CellTemplate>
-                        </TemplateColumn>
-                    }
-                </DeskGrid>
-            </div>
+            <LineOps.Web.Components.Snippets.RosterTable Side="side" />
             </ChildContent>
             </PanelSection>
         }

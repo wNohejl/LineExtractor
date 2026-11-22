@@ -1,0 +1,29 @@
+@using System.Globalization
+
+@*
+    The field in one line, with the stretch something covered drawn on it: a drive, in the
+    Gamecast's log. Away's goal is on the left and midfield is ticked, as the field strip has
+    them, and the geometry is FieldGeometry.Span's.
+
+    Decoration to a reader: the row it sits in already says the yards in words, so it is hidden
+    from assistive technology. The run takes a state colour only when it scored, because a result
+    is a value; otherwise it is ink.
+*@
+
+<span class="fieldspan @(Scored ? "fieldspan--score" : null) @Class" aria-hidden="true"
+      style="--from:@N(From); --len:@N(Length)"><span class="fieldspan__run"></span></span>
+
+@code {
+    /// <summary>Where the stretch starts, in hundredths of the field from the away goal line.</summary>
+    [Parameter, EditorRequired] public double From { get; set; }
+
+    /// <summary>How long it is, in the same hundredths.</summary>
+    [Parameter, EditorRequired] public double Length { get; set; }
+
+    /// <summary>The stretch ended in points.</summary>
+    [Parameter] public bool Scored { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    private static string N(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+}

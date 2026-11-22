@@ -26,23 +26,12 @@ public class BoardStatsSourceTests : WagerTestContext
         Services.AddScoped<LineOps.Desk.DeskJobRunner>();
     }
 
-    private sealed class UnreachableFactory : IDbContextFactory<LineOpsDbContext>
-    {
-        public LineOpsDbContext CreateDbContext() => throw new NotSupportedException();
-
-        public Task<LineOpsDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-    }
-
     private IRenderedComponent<BoardPanel> Render(StatsPort? port)
     {
         var panel = RenderComponent<BoardPanel>();
         panel.WaitForAssertion(() => Assert.NotEmpty(panel.FindAll(".empty--error")));
 
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, true);
+        PanelProbe.MarkLoaded(panel.Instance);
         typeof(BoardPanel).GetField("_port", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(panel.Instance, port);
 
         panel.Render();

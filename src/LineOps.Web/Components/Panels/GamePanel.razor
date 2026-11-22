@@ -126,7 +126,7 @@ else
             @* Only what applies whichever tab is showing. Movement opens under each market's row
                and Head to head under the title, in place rather than in windows of their own;
                the season switch heads the two panes it chooses for (Team data, Players). *@
-            <DeskRow Gap="DeskSpace.Space1" data-glide="">
+            <DeskRow data-glide="">
                 @* The game play by play, in a window of its own beside this one. Offered for an
                    NFL game once it has kicked off (GamecastPanel.Offered): a final keeps the key,
                    because its plays stay stored. Tinted, as a key opening a window is. *@
@@ -142,15 +142,25 @@ else
                    rather than on a game search. A visitor has no wager to log (ADR 0018). *@
                 @if (Manager.Access.CanOperate)
                 {
-                    <DeskButton Icon="@Icons.Material.Filled.Bolt" Emphasis="DeskEmphasis.Tinted"
-                                Title="Log a bet on this game in the Place wager window"
-                                OnClick="() => Manager.OpenWager(game)">
-                        Place wager
-                    </DeskButton>
+                    <WagerKey Kind="WagerKind.Place"
+                              Title="Log a bet on this game in the Place wager window"
+                              OnClick="() => Manager.OpenWager(game)" />
                 }
             </DeskRow>
         </Keys>
     </PanelTitle>
+
+    @* The score by period, once one has been played: the Gamecast's own part, so the two windows
+       word a quarter, an inning and a total the same way. A fight has rounds but no points by
+       round, and a game the feed holds no line score for draws nothing. *@
+    @if (_bout is null && game.Status is GameStatus.Live or GameStatus.Final)
+    {
+        var (lineHome, lineAway) = Linescores.Parse(game.Linescore);
+        <Linescore Sport="@game.Sport?.Key"
+                   AwayAbbrev="@(game.AwayTeam?.Abbrev ?? "Away")" HomeAbbrev="@(game.HomeTeam?.Abbrev ?? "Home")"
+                   Away="lineAway" Home="lineHome"
+                   AwayTotal="game.AwayScore" HomeTotal="game.HomeScore" />
+    }
 
     @* The matchup's history, about the game rather than any one tab of it, so it sits under the
        title and stays put while the tabs switch below. Closed it is one line carrying the
@@ -449,8 +459,7 @@ else
         var key = GameId.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (key != _gameKey)
         {
-            var mine = new HashSet<string> { key };
-            _ids = new Dictionary<string, IReadOnlySet<string>> { [DataTopics.Games] = mine, [DataTopics.Odds] = mine };
+            _ids = NoticeTokens.Narrow([GameId], DataTopics.Games, DataTopics.Odds);
             _gameKey = key;
         }
 
@@ -463,38 +472,68 @@ else
         await LoadAsync();
     }
 
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over what it read,
+    /// so a slower read of the last season or game could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose() => _reads.Cancel();
+
+    /// <summary>
+    /// The row, then the detail it names, into locals and handed over at once, and only by the
+    /// latest load; a failed detail read leaves the row that was on screen with the rest. The
+    /// detail needs the row's game, so the two stay one after another. The token is taken inside
+    /// the work so Try again, which repeats it, starts a read of its own.
+    /// </summary>
     private async Task LoadAsync()
     {
         await WithActivityAsync(async () =>
         {
-            _row = await Data.RowAsync(GameId);
+            var ct = _reads.Next();
 
-            if (_row is null)
-                return;
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                var row = await Data.RowAsync(GameId, ct);
 
-            // The operator's own bets come with the rest. A visitor's desk never reads the
-            // journal, so there is nothing personal to leak into a window it may see (ADR 0018).
-            // The season switched to is kept while either side has played in it; otherwise the
-            // game's own, or for a preview of an unplayed season the one before.
-            var detail = await Data.DetailAsync(_row.Game, _seasonYear, withBets: Manager.Access.CanOperate);
+                // The operator's own bets come with the rest. A visitor's desk never reads the
+                // journal, so there is nothing personal to leak into a window it may see (ADR 0018).
+                // The season switched to is kept while either side has played in it; otherwise the
+                // game's own, or for a preview of an unplayed season the one before.
+                var detail = row is null
+                    ? null
+                    : await Data.DetailAsync(row.Game, _seasonYear, withBets: Manager.Access.CanOperate, ct);
 
-            _bout = detail.Bout;
-            _bets = detail.Bets;
-            _seasons = detail.Seasons;
-            _seasonYear = detail.SeasonYear;
-            _box = detail.Box;
-            _matchup = detail.Matchup;
-            _homeTeam = detail.HomeTeam;
-            _awayTeam = detail.AwayTeam;
-
-            var sport = _row.Game.Sport?.Key ?? string.Empty;
-            _seasonOptions = _seasons
-                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
-                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
-                .ToList();
+                return (Row: row, Detail: detail);
+            },
+            read => HandOver(read.Row, read.Detail));
         },
         settle: () => _row is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _row is null ? "not found" : StateStatus(_row.Game));
+    }
+
+    /// <summary>
+    /// What the latest load read: the row, missing or not, and then the detail it names. A game
+    /// not found hands over its missing row and leaves the rest as it was.
+    /// </summary>
+    private void HandOver(BoardRow? row, LineOps.Web.Services.GameWindowDetail? detail)
+    {
+        _row = row;
+
+        if (_row is null || detail is null)
+            return;
+
+        _bout = detail.Bout;
+        _bets = detail.Bets;
+        _seasons = detail.Seasons;
+        _seasonYear = detail.SeasonYear;
+        _box = detail.Box;
+        _matchup = detail.Matchup;
+        _homeTeam = detail.HomeTeam;
+        _awayTeam = detail.AwayTeam;
+
+        _seasonOptions = SeasonOptions(_row.Game.Sport?.Key, _seasons);
     }
 
     private static DeskState StatusState(GameStatus status) => status switch
@@ -842,8 +881,6 @@ else
         return Task.CompletedTask;
     }
 
-    private static bool IsRate(IReadOnlyList<PlayerForm> side, string key)
-        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
 
     /// <summary>
     /// A side split into units — Passing, Rushing, Receiving, Defense, Special teams — each with
@@ -864,14 +901,9 @@ else
 
     private static string Titled(string team, string? unit) => unit is null ? team : $"{team} · {unit}";
 
-    private static List<string> ColumnsFor(IReadOnlyList<PlayerForm> side)
-        => StatColumns.Pick(side.Select(p => p.Totals.Keys), 4);
-
     private RenderFragment RenderRoster(IReadOnlyList<PlayerForm> side, string teamName, string? abbrev) => @<text>
         @if (side.Count > 0)
         {
-            var columns = ColumnsFor(side);
-
             @* The side's crest leads its rule at the large size, as the box score's does. *@
             <PanelSection>
                 <TitleContent><TeamMark Sport="@_row?.Game.Sport?.Key" Abbrev="@abbrev" Size="TeamMarkSize.Large" />@teamName</TitleContent>
@@ -886,54 +918,23 @@ else
                     That is the row-drilldown spec's "one interaction to learn, and it holds all the
                     way down" being cashed in rather than restated.
                 *@
-                <div class="gridwrap gameplayers">
-                    <DeskGrid T="PlayerForm" Items="side" Class="deskgrid--clickable"
-                              RowClassFunc="@((p, _) => _openPlayer == p.PlayerId ? "board__row--open" : string.Empty)"
-                              OnRowClick="@(e => TogglePlayer(e.Item.PlayerId))"
-                              EmptyText="No appearances on record.">
+                <RosterTable Side="side" Class="gameplayers"
+                             RowClass="@(p => _openPlayer == p.PlayerId ? "board__row--open" : null)"
+                             OnRowClick="@((PlayerForm p) => TogglePlayer(p.PlayerId))">
+                    <NameContent Context="player">
+                        <span title="@player.Name">
+                            <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
+                                      OnClick="() => Manager.OpenPlayer(player.PlayerId, player.Name, WindowId)">@player.Name</DeskLink>
+                        </span>
 
-                        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Name"
-                                        Title="Player" CellClass="trunc">
-                            <CellTemplate>
-                                <span title="@context.Item.Name">
-                                    <DeskLink Destination="player" Icon="@Icons.Material.Filled.Person"
-                                              OnClick="() => Manager.OpenPlayer(context.Item.PlayerId, context.Item.Name, WindowId)">@context.Item.Name</DeskLink>
-                                </span>
-
-                                @if (_openPlayer == context.Item.PlayerId)
-                                {
-                                    @* Keyed by the player so moving to another row is a fresh strip
-                                       rather than one still showing the previous player's snippet. *@
-                                    <RowActions @key="context.Item.PlayerId" Actions="ActionsFor(context.Item)" />
-                                }
-                            </CellTemplate>
-                        </PropertyColumn>
-
-                        <PropertyColumn T="PlayerForm" TProperty="string" Property="p => p.Position!" Title="Pos" HeaderClass="col--wide" CellClass="col--wide">
-                            <CellTemplate><span class="dim">@(context.Item.Position ?? "—")</span></CellTemplate>
-                        </PropertyColumn>
-
-                        <PropertyColumn T="PlayerForm" TProperty="int" Property="p => p.Appearances"
-                                        Title="GP" Align="Align.Right" />
-
-                        @* A player with no reading for a key sorts below every real one rather than
-                           beside the zeroes — the same distinction the dash makes in the cell. *@
-                        @foreach (var c in columns)
+                        @if (_openPlayer == player.PlayerId)
                         {
-                            var key = c;
-
-                            <TemplateColumn T="PlayerForm" Sortable="true" Title="@(StatLabels.StatLabel(key) + (IsRate(side, key) ? "/g" : ""))"
-                                            Align="Align.Right"
-                                            SortBy="@(p => p.Summary(key) ?? double.MinValue)">
-                                <CellTemplate>
-                                    @(context.Item.Summary(key) is { } v
-                                        ? v.ToString(context.Item.IsCounting(key) ? "#,0.##" : "0.000")
-                                        : "—")
-                                </CellTemplate>
-                            </TemplateColumn>
+                            @* Keyed by the player so moving to another row is a fresh strip
+                               rather than one still showing the previous player's snippet. *@
+                            <RowActions @key="player.PlayerId" Actions="ActionsFor(player)" />
                         }
-                    </DeskGrid>
-                </div>
+                    </NameContent>
+                </RosterTable>
                 </ChildContent>
             </PanelSection>
         }

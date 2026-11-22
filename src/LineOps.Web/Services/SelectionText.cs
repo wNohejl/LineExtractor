@@ -18,6 +18,18 @@ public static class SelectionText
         _ => market
     };
 
+    /// <summary>
+    /// A market in full, as a heading or a sentence names it: "Moneyline", where a chip says "ML"
+    /// (<see cref="MarketName"/>). A market the desk has no word for is said as it is keyed.
+    /// </summary>
+    public static string MarketWord(string market) => market switch
+    {
+        Markets.Moneyline => "Moneyline",
+        Markets.Spread => "Spread",
+        Markets.Total => "Total",
+        _ => market
+    };
+
     /// <summary>Team names are long and these are buttons; the last word identifies a club.</summary>
     public static string Short(string outcome)
         => outcome.Contains(' ')

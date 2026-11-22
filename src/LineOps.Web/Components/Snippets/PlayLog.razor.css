@@ -1,0 +1,63 @@
+/* The play log (PlayLog.razor). No edge of its own: it sits in whatever group holds it, and its
+   rows are divided by hairlines. Every figure is tabular, so a clock or a yardage changing does
+   not shuffle the words after it. */
+.gc__log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* One play: when, then the down and the spot over what happened, then what it was worth. */
+.gc__play {
+    display: grid;
+    grid-template-columns: 7ch minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+    align-items: baseline;
+    padding: var(--space-2) 0;
+    font-size: var(--text-subheadline);
+}
+
+.gc__play + .gc__play {
+    border-top: 1px solid var(--separator);
+}
+
+.gc__when {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.gc__body {
+    min-width: 0;
+}
+
+/* The down and the spot head the play, as a league's play-by-play prints them. */
+.gc__dd {
+    display: block;
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.gc__text {
+    display: block;
+    text-wrap: pretty;
+}
+
+.gc__play--score .gc__text {
+    font-weight: var(--weight-semibold);
+}
+
+.gc__trail {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.gc__yards {
+    min-width: 4ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}

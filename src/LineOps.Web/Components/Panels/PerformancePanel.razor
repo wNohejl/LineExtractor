@@ -45,14 +45,14 @@ else
        the tables below do; their values stay the stored keys the filter matches on. *@
     <PanelToolbar>
         <ChildContent>
-            <DeskSwitch Options="Periods" Label="Settled within" Size="DeskKeySize.Small"
+            <DeskSwitch Options="Periods" Label="Settled within"
                         Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
         </ChildContent>
         <Overflow>
             @* All and the two leagues: a fixed set of three, so a segment, as in the Journal. *@
             <div class="ptoolbar__item">
                 <span class="ptoolbar__label" aria-hidden="true">Sport</span>
-                <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+                <DeskSwitch Options="SportOptions" Label="Sport"
                             Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
             </div>
             @if (_seasons.Count > 1)
@@ -329,13 +329,39 @@ else
             : PulseState.Warn,
         () => _summary.SettledCount == 0 ? null : _summary.Roi.ToString("P1") + " ROI");
 
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over its figures, so
+    /// a slower read under the last filter could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose() => _reads.Cancel();
+
+    /// <summary>
+    /// Both reads first, then everything from them at once, and only by the latest load. They go
+    /// through one scoped JournalService, one context, so they stay one after another. The token
+    /// is taken inside the work so Try again, which repeats it, starts a read of its own.
+    /// </summary>
     private async Task ReadAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
+        var ct = _reads.Next();
 
-        // The pickers come from everything settled, so a filter never hides its own way back.
-        var everything = await journal.PerformanceAsync(new PerformanceFilter());
+        await LatestRead.HandOverAsync(ct, async () =>
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
+
+            // The pickers come from everything settled, so a filter never hides its own way back.
+            var everything = await journal.PerformanceAsync(new PerformanceFilter(), ct);
+            return (Everything: everything, Stored: await journal.StartingBankrollAsync(ct));
+        },
+        read => HandOver(read.Everything, read.Stored));
+    }
+
+    /// <summary>What the latest load read, onto the pickers, the figures and the curve at once.</summary>
+    private void HandOver(PerformanceSet everything, decimal stored)
+    {
         var settled = everything.Ledger.Where(e => e.IsGraded).ToList();
 
         _anySettled = settled.Count > 0;
@@ -351,7 +377,6 @@ else
 
         // A refresh must not take a figure out from under someone typing one: the box follows
         // the stored value only while it still shows the stored value.
-        var stored = await journal.StartingBankrollAsync();
         if (_bankrollInput is null || _bankrollInput == _startingBankroll)
             _bankrollInput = stored;
         _startingBankroll = stored;

@@ -145,7 +145,7 @@ else
     <PropertyColumn T="Alert" TProperty="AlertSeverity" Property="a => a.Severity" Title="Severity"
                     InitialDirection="SortDirection.Descending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
         <CellTemplate>
-            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
+            <Tag State="@SeverityState(context.Item.Severity)">@AlertWords.Severity(context.Item.Severity)</Tag>
         </CellTemplate>
     </PropertyColumn>
 
@@ -755,7 +755,7 @@ else
                         @(index > 0 ? "; " : "")<span>@sport.Sport.ToUpperInvariant()</span>
                         @* Spelled as one expression: a leading space inside <text> before code was dropped, and
                            the sport ran into its markets ("MLBmoneyline"). *@
-                        @($" {string.Join(", ", sport.Markets.Select(m => MarketName(m).ToLowerInvariant()))}")
+                        @($" {string.Join(", ", sport.Markets.Select(m => LineOps.Web.Services.SelectionText.MarketWord(m).ToLowerInvariant()))}")
                         @if (sport.Credits > 0)
                         {
                             <text> (<span class="num">@sport.Credits.ToString("N0")</span> @(sport.Credits == 1 ? "credit" : "credits"))</text>
@@ -813,28 +813,12 @@ else
     private string FeedName(string key)
         => _feeds.FirstOrDefault(f => string.Equals(f.Key, key, StringComparison.OrdinalIgnoreCase))?.Name ?? key;
 
-    /// <summary>A market by its display name, as the board's headers spell it.</summary>
-    private static string MarketName(string market) => market switch
-    {
-        Markets.Moneyline => "Moneyline",
-        Markets.Spread => "Spread",
-        Markets.Total => "Total",
-        _ => market
-    };
-
     /// <summary>
     /// A rule by name rather than by key: "volume_anomaly" reads as "Volume anomaly". The key
     /// stays on the cell's tooltip, because it is what the runbook files the rule under.
     /// </summary>
     private static string RuleName(string key)
         => string.IsNullOrEmpty(key) ? key : char.ToUpperInvariant(key[0]) + key[1..].Replace('_', ' ');
-
-    /// <summary>Severity as a word, not an enum member: Warn reads as Warning.</summary>
-    private static string SeverityName(AlertSeverity severity) => severity switch
-    {
-        AlertSeverity.Warn => "Warning",
-        _ => severity.ToString()
-    };
 
     /// <summary>A cadence read as minutes until it is long enough to read as hours.</summary>
     private static string Cadence(TimeSpan interval)

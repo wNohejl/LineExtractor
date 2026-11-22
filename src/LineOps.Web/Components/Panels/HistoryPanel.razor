@@ -431,9 +431,36 @@ else if (!Loaded && !Failed)
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
 
-    protected override Task RefreshAsync() => LoadAsync();
+    // A runs notice and the coordinator's own Changed (heard empty) both mean a run moved: its
+    // progress, checkpoints and coverage count. The season table is whole-database work, so it is
+    // left to the cadence in SeasonsDue rather than redone on every one-second settle.
+    protected override Task RefreshAsync(IReadOnlySet<string> heard) => LoadAsync(seasons: false);
 
     protected override string LoadSubject => "The history record";
+
+    /// <summary>
+    /// How long the season coverage may stand while runs keep arriving. Thirty seconds: the table
+    /// is a summary an operator glances at during a walk, a day walked moves it by a handful of
+    /// games, and the walk's end re-reads it at once, so the figure left standing is exact.
+    /// </summary>
+    public static readonly TimeSpan SeasonsInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Whether a load re-reads the season coverage: when asked for (opening, Re-walk, Try again
+    /// after a failure), never yet read, the walk just ended, or the last read is
+    /// <see cref="SeasonsInterval"/> old. Otherwise a load reads only what a run changes.
+    /// </summary>
+    public static bool SeasonsDue(bool asked, DateTimeOffset? lastRead, DateTimeOffset now, bool walkEnded)
+        => asked || walkEnded || lastRead is not { } at || now - at >= SeasonsInterval;
+
+    // True until a load finishes, so a load that fails leaves the next one — Try again repeats it —
+    // reading everything again, as it did before the season table had a cadence.
+    private bool _seasonsAsked = true;
+    private DateTimeOffset? _seasonsReadAt;
+    private bool _wasWalking;
+
+    /// <summary>A refresh is already set for when the skipped season read falls due.</summary>
+    private volatile bool _seasonsCatchUp;
 
     private IReadOnlyList<SourceEligibility> _eligibility = [];
     private BackfillCoverage? _coverage;
@@ -452,31 +479,76 @@ else if (!Loaded && !Failed)
     // of the whole record per day walked.
     private void OnCoordinatorChanged() => RequestRefresh();
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(bool seasons = true)
     {
+        _seasonsAsked |= seasons;
+
         await WithActivityAsync(async () =>
         {
-            _eligibility = await Backfill.GetEligibilityAsync(CancellationToken.None);
-            _coverage = await Backfill.GetCoverageAsync(CancellationToken.None);
+            var walking = Coordinator.IsRunning;
+            var now = DateTimeOffset.UtcNow;
+            var readSeasons = SeasonsDue(_seasonsAsked, _seasonsReadAt, now, walkEnded: _wasWalking && !walking);
+            var heldSince = _seasonsReadAt;
 
-            await using var db = await DbFactory.CreateDbContextAsync();
-            _recent = await db.BackfillCheckpoints.AsNoTracking()
-                .Include(c => c.Sport)
-                .OrderByDescending(c => c.CompletedAt)
-                .Take(40)
-                .ToListAsync();
+            // Claimed as the read starts, not as it ends. Notices arrive every second during a
+            // walk and each starts a load beside this one: while the season read was slow — the
+            // case the cadence is for — every one of them saw it still asked for and read it too.
+            _seasonsAsked = false;
 
-            _seasons = await new DataQuality(db).SeasonsAsync();
+            if (readSeasons)
+                _seasonsReadAt = now;
 
-            // Names for the keys the backfill reports in. Read with the rest so a source renamed
-            // in the registry is renamed here on the next change, not on the next restart.
-            var names = await db.Sources.AsNoTracking()
-                .Select(s => new { s.Key, s.Name })
-                .ToListAsync();
+            try
+            {
+                // Eligibility is read again inside GetCoverageAsync for its target; this copy is the
+                // list the Sources section shows, and HistoryBackfillService returns it no other way.
+                _eligibility = await Backfill.GetEligibilityAsync(CancellationToken.None);
+                _coverage = await Backfill.GetCoverageAsync(CancellationToken.None);
 
-            _sourceNames = names
-                .GroupBy(s => s.Key, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+                await using var db = await DbFactory.CreateDbContextAsync();
+                _recent = await db.BackfillCheckpoints.AsNoTracking()
+                    .Include(c => c.Sport)
+                    .OrderByDescending(c => c.CompletedAt)
+                    .Take(40)
+                    .ToListAsync();
+
+                if (readSeasons)
+                    _seasons = await new DataQuality(db).SeasonsAsync();
+
+                // Names for the keys the backfill reports in. Read with the rest so a source renamed
+                // in the registry is renamed here on the next change, not on the next restart.
+                var names = await db.Sources.AsNoTracking()
+                    .Select(s => new { s.Key, s.Name })
+                    .ToListAsync();
+
+                _sourceNames = names
+                    .GroupBy(s => s.Key, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // A load that failed leaves the next one — Try again repeats it — reading everything.
+                _seasonsAsked = true;
+                _seasonsReadAt = heldSince;
+                throw;
+            }
+
+            _wasWalking = walking;
+
+            // Skipped this time: the last notice of a walk can land inside the interval, and with
+            // no later one the table would stand as it was for as long as the window stayed open
+            // (a walk run by the Worker never shows here as ended). One refresh is asked for at
+            // the moment the read falls due.
+            if (!readSeasons && !_seasonsCatchUp && _seasonsReadAt is { } read)
+            {
+                _seasonsCatchUp = true;
+                var wait = read + SeasonsInterval - now;
+                _ = Task.Delay(wait > TimeSpan.Zero ? wait : TimeSpan.Zero).ContinueWith(_ =>
+                {
+                    _seasonsCatchUp = false;
+                    RequestRefresh();
+                }, TaskScheduler.Default);
+            }
         },
         settle: () => Coordinator.IsRunning ? PulseState.Active
             : _coverage is { Failed: > 0 } ? PulseState.Warn

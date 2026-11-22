@@ -45,6 +45,8 @@ builder.Services.AddScoped<LineOps.Desk.IDeskJobs, LineOps.Web.Services.Ingestio
 // window on this desk shares it and it goes with the circuit (spec §3.1).
 builder.Services.AddScoped<LineOps.Web.Services.WagerSlip>();
 builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services.WagerData>();
+builder.Services.AddScoped<LineOps.Web.Services.ILineMovementData, LineOps.Web.Services.LineMovementData>();
+builder.Services.AddScoped<LineOps.Web.Services.IMatchupData, LineOps.Web.Services.MatchupData>();
 builder.Services.AddScoped<LineOps.Web.Services.IGameWindowData, LineOps.Web.Services.GameWindowData>();
 builder.Services.AddScoped<LineOps.Web.Services.IGamecastData, LineOps.Web.Services.GamecastData>();
 

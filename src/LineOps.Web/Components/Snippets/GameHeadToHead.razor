@@ -2,6 +2,7 @@
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
 @inject ILogger<GameHeadToHead> Logger
+@implements IDisposable
 
 @*
     How these two have gone against each other, opened in place under the game's title.
@@ -21,7 +22,7 @@
             @onclick="Toggle">
         <span class="gameh2h__label">
             @(IsFight ? "Previous fights" : "Head to head")
-            @if (!_loading && _error is null)
+            @if (!_read.Loading && _read.Error is null)
             {
                 @* The side the record leads with carries its crest, before its name. *@
                 <span class="gameh2h__summary"> · @if (LeaderAbbrev is { } leader)
@@ -38,13 +39,13 @@
     @if (_open)
     {
         <div class="gameh2h__region" id="@_regionId" role="region" aria-label="Previous meetings">
-            @if (_loading)
+            @if (_read.Loading)
             {
                 <DeskSkeleton Lines="3" />
             }
-            else if (_error is not null)
+            else if (_read.Error is not null)
             {
-                <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+                <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
             }
             else
             {
@@ -104,8 +105,7 @@
     private readonly string _regionId = $"h2h-{Guid.NewGuid():N}";
     private IReadOnlyList<HeadToHeadRow> _rows = [];
     private bool _open;
-    private bool _loading = true;
-    private string? _error;
+    private readonly SnippetRead _read = new();
     private int? _loadedFor;
 
     protected override async Task OnParametersSetAsync()
@@ -119,26 +119,20 @@
         await LoadAsync();
     }
 
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        // Handed over only by the latest read: a window re-aimed at another game while the old
+        // game's meetings were still reading would otherwise label the new game with them.
+        var gameId = GameId;
 
-        try
+        return _read.RunAsync(async ct =>
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
-            _rows = await scope.ServiceProvider.GetRequiredService<GameLogService>().HeadToHeadAsync(GameId, Take);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Previous meetings did not load");
-            _error = "Previous meetings did not load.";
-        }
-        finally
-        {
-            _loading = false;
-        }
+            return await scope.ServiceProvider.GetRequiredService<GameLogService>().HeadToHeadAsync(gameId, Take, ct);
+        }, rows => _rows = rows, "Previous meetings did not load.", Logger);
     }
+
+    public void Dispose() => _read.Dispose();
 
     private void Toggle() => _open = !_open;
 

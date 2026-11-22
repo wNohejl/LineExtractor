@@ -3,6 +3,7 @@
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
 @inject ILogger<OddsSnippet> Logger
+@implements IDisposable
 
 @*
     The current market on one game, at a glance.
@@ -15,17 +16,17 @@
     different questions, and the second one is what the window behind this answers.
 *@
 
-@if (_loading)
+@if (_read.Loading)
 {
     <DeskSkeleton Lines="2" />
 }
-else if (_error is not null)
+else if (_read.Error is not null)
 {
-    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
 }
 else if (_row is null || _row.Unpriced is { } reason)
 {
-    <Note State="DeskState.Warning" Style="margin:0">@(_row?.Unpriced ?? "This game is not on the board.")</Note>
+    <Note State="DeskState.Warning">@(_row?.Unpriced ?? "This game is not on the board.")</Note>
 }
 else
 {
@@ -52,34 +53,27 @@ else
     [Parameter, EditorRequired] public int GameId { get; set; }
 
     private BoardRow? _row;
-    private bool _loading = true;
-    private string? _error;
+    private readonly SnippetRead _read = new();
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
     /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        // A read the snippet has moved on from (re-aimed, or closed) is cancelled, and its row is
+        // not kept: only the newest read writes the answer.
+        var gameId = GameId;
 
-        try
+        return _read.RunAsync(async ct =>
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
             var board = scope.ServiceProvider.GetRequiredService<BoardService>();
 
-            _row = await board.GetRowAsync(GameId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "The market did not load");
-            _error = "The market did not load.";
-        }
-        finally
-        {
-            _loading = false;
-        }
+            return await board.GetRowAsync(gameId, ct);
+        }, row => _row = row, "The market did not load.", Logger);
     }
+
+    public void Dispose() => _read.Dispose();
 
     /// <summary>Same wording as the panels use, so one reading is not two vocabularies.</summary>
     private static string Age(double minutes) => minutes switch

@@ -75,6 +75,10 @@ public class GamecastPanelTests : DeskTestContext
     private static string?[] Ids(IRenderedFragment cut)
         => cut.FindAll(".gc__play").Select(r => r.GetAttribute("data-play")).ToArray();
 
+    /// <summary>Presses one of the window's sections, by its label.</summary>
+    private static void Show(IRenderedFragment cut, string section)
+        => cut.FindAll("[role='tab']").Single(t => t.TextContent.Trim() == section).Click();
+
     /// <summary>Drive 1 is done (PHI touchdown); drive 2 is on the field with plays 3 and 4.</summary>
     private void TwoDrives()
     {
@@ -129,9 +133,9 @@ public class GamecastPanelTests : DeskTestContext
     [Fact]
     public void Each_play_row_is_keyed_by_its_play_so_an_append_inserts_rather_than_rewrites()
     {
-        var source = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "GamecastPanel.razor"));
+        var source = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Snippets", "PlayLog.razor"));
 
-        Assert.Contains("<li class=\"gc__play\" @key=\"play.Id\"", source);
+        Assert.Contains("<li class=\"gc__play @(play.IsScoring ? \"gc__play--score\" : null)\" @key=\"play.Id\"", source);
     }
 
     [Fact]
@@ -434,6 +438,96 @@ public class GamecastPanelTests : DeskTestContext
         Assert.Equal("No plays yet · Punt", GamecastPanel.DriveLine(FakeGamecastData.Drive(3, 5, 5, false, "Punt")));
     }
 
+    [Fact]
+    public void The_drives_sit_under_a_heading_for_their_period()
+    {
+        TwoDrives();
+        var cut = Render();
+
+        var heading = Assert.Single(cut.FindAll(".gc__period"));
+        Assert.Equal("2nd quarter", heading.TextContent.Trim());
+        Assert.Equal("Overtime", LineOps.Core.Analytics.Periods.Name("nfl", 5));
+    }
+
+    /// <summary>A game that is over reads as a league's play-by-play does: from the kickoff down.</summary>
+    [Fact]
+    public void A_final_reads_from_the_kickoff_down()
+    {
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Final);
+        TwoDrives();
+        var cut = Render();
+
+        Assert.Equal(new string?[] { "1", "2" }, cut.FindAll(".gc__drive").Select(d => d.GetAttribute("data-drive")).ToArray());
+
+        cut.Find("[data-drive='1'] button").Click();
+        Assert.Equal(new string?[] { "1", "2" }, Seqs(cut, ".gc__plays .gc__play"));
+    }
+
+    [Fact]
+    public void Every_play_opens_each_drive_and_leaves_nothing_to_fold()
+    {
+        TwoDrives();
+        var cut = Render();
+
+        cut.Find("label[title^='Open every drive'] input").Change(true);
+
+        Assert.Equal(new string?[] { "4", "3", "2", "1" }, Seqs(cut, ".gc__plays .gc__play"));
+        Assert.Empty(cut.FindAll(".gc__drive button"));
+        Assert.Contains("7 plays, 62 yds, 3:48 · TD", cut.Find("[data-drive='1']").TextContent);
+    }
+
+    [Fact]
+    public void A_drive_row_says_the_score_it_left_away_side_first()
+    {
+        TwoDrives();
+        var cut = Render();
+
+        Assert.Equal("PHI 7–3 WSH", cut.Find("[data-drive='1'] .gc__tally").TextContent);
+    }
+
+    /// <summary>
+    /// The field line is the strip's frame: away's goal on the left, yard lines counted from the
+    /// home goal. A drive from the 75 with the ball now on the 34 ran from 25 to 66.
+    /// </summary>
+    [Fact]
+    public void A_drives_field_line_runs_from_its_start_to_its_end_or_to_the_ball()
+    {
+        var current = FakeGamecastData.Drive(2, 3, 4, current: true);
+        Assert.Equal((25d, 41d), GamecastPanel.DriveSpan(current, ballOn: 34));
+
+        var done = FakeGamecastData.Drive(1, 1, 2, current: false) with { EndYardLine = 0 };
+        Assert.Equal((25d, 75d), GamecastPanel.DriveSpan(done, ballOn: 34));
+
+        // A drive that went nowhere still draws a mark; one with no end known draws none.
+        Assert.Equal((25d, 2d), GamecastPanel.DriveSpan(done with { EndYardLine = 75 }, null));
+        Assert.Null(GamecastPanel.DriveSpan(FakeGamecastData.Drive(1, 1, 2, current: false), ballOn: 34));
+    }
+
+    // ---- The line score --------------------------------------------------------------------
+
+    [Fact]
+    public void The_line_score_is_away_over_home_with_the_total_last_and_the_side_ahead_marked()
+    {
+        _data.Header = FakeGamecastData.Live() with { AwayLinescore = [7, 0], HomeLinescore = [0, 3] };
+        var cut = Render();
+
+        var rows = cut.FindAll(".linescore__table tbody tr");
+        Assert.Equal(new string?[] { "PHI", "WSH" }, rows.Select(r => r.GetAttribute("data-line")).ToArray());
+        Assert.Equal(new[] { "7", "0", "7" }, rows[0].QuerySelectorAll("td").Select(c => c.TextContent).ToArray());
+        Assert.Equal(new[] { "0", "3", "3" }, rows[1].QuerySelectorAll("td").Select(c => c.TextContent).ToArray());
+        Assert.Contains("linescore__ahead", rows[0].ClassName);
+        Assert.DoesNotContain("linescore__ahead", rows[1].ClassName ?? string.Empty);
+    }
+
+    [Fact]
+    public void A_game_not_yet_started_has_no_line_score()
+    {
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Scheduled) with { AwayLinescore = [], HomeLinescore = [] };
+        var cut = Render();
+
+        Assert.Empty(cut.FindAll(".linescore"));
+    }
+
     // ---- The field strip -------------------------------------------------------------------
 
     /// <summary>
@@ -531,6 +625,7 @@ public class GamecastPanelTests : DeskTestContext
         var cut = Render();
 
         Assert.Contains("Plays appear once the game kicks off.", cut.Markup);
+        Show(cut, "Box score");
         Assert.Contains("The box score appears once the first stats are in.", cut.Markup);
     }
 
@@ -575,6 +670,7 @@ public class GamecastPanelTests : DeskTestContext
         Bench.Clock = t0;
         _data.Box = Box("120");
         var cut = Render();
+        Show(cut, "Box score");
         Assert.Contains("Jayden Daniels", cut.Markup);
         Assert.Equal(1, _data.BoxReads);
 
@@ -620,6 +716,7 @@ public class GamecastPanelTests : DeskTestContext
     {
         Probabilities();
         var cut = Render();
+        Show(cut, "Win probability");
         var chart = cut.FindComponent<DeskChart>().Instance;
 
         Assert.Equal([40d, 45d, 55d], Values(chart, "WSH win"));
@@ -640,6 +737,7 @@ public class GamecastPanelTests : DeskTestContext
     {
         Probabilities();
         var cut = Render();
+        Show(cut, "Win probability");
 
         cut.Find("label[title^='Add the chance the home side covers'] input").Change(true);
 

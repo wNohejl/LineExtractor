@@ -149,7 +149,7 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Stake, "40")
             .Add(x => x.Note, "fade"));
 
-        Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Contains($"You are logging {40m:C0}", cut.Find(".wreview").TextContent);
         Assert.False(cut.Find("button.desk-btn--filled").HasAttribute("disabled"));
         Assert.Equal("fade", cut.Find("input[aria-label='Note']").GetAttribute("value"));
@@ -167,7 +167,7 @@ public class WagerPrefillTests : WagerTestContext
             .Add(x => x.Stake, "40"));
 
         // Ready to log, so the price step is folded to what it carries; opened, the fields hold it.
-        Assert.Contains("-120 at caesars, your own price", Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent);
+        Assert.Contains("-120 at Caesars, your own price", Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent);
         Assert.Contains("your own price", cut.Find(".wreview").TextContent);
 
         Change(cut, "Bet");

@@ -252,6 +252,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         var regrade = id is not null && changed;
 
         await db.SaveChangesAsync(ct);
+        ForgetBooks();
 
         if (regrade)
             await settlement.SettleAsync(ct);
@@ -284,6 +285,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
 
         db.Parlays.Add(parlay);
         await db.SaveChangesAsync(ct);
+        ForgetBooks();
         return parlay;
     }
 
@@ -309,6 +311,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
 
         db.JournalEntries.AddRange(entries);
         await db.SaveChangesAsync(ct);
+        ForgetBooks();
         return entries;
     }
 
@@ -432,6 +435,7 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
         }
 
         await db.SaveChangesAsync(ct);
+        ForgetBooks();
 
         if (regrade || legsRegraded)
             await settlement.SettleAsync(ct);
@@ -459,20 +463,76 @@ public class JournalService(LineOpsDbContext db, SettlementService settlement)
     /// The books to pick from: the common ones, and any the data has seen. A picker rather than a
     /// text box, because "DraftKings", "draftkings" and "DK" are one book to a person and three to
     /// every breakdown and close lookup.
+    ///
+    /// <para>
+    /// Cached for <see cref="BooksTtl"/> per database (<see cref="BooksCache"/>): the query reads
+    /// every closing line, and the Journal, the Place wager window and the take's price fields all
+    /// ask for it on opening, while the set of books changes a few times a season. A save through
+    /// this service drops the cache, so a book just typed is offered at once; a book that arrives
+    /// any other way — a closing line ingested, a journal import — is offered within the TTL.
+    /// Nothing here differs by reader: the books are not tier-filtered.
+    /// </para>
     /// </summary>
     public async Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)
     {
+        var key = BooksKey();
+        BooksCache.Entry? cached = null;
+
+        if (key is not null)
+        {
+            cached = BooksCache.Entries.GetOrAdd(key, _ => new BooksCache.Entry(null));
+            if (cached.Books is { } fresh && Environment.TickCount64 - cached.At < (long)BooksTtl.TotalMilliseconds)
+                return fresh;
+        }
+
         var seen = await db.ClosingLines.Select(c => c.Book.ToLower())
             .Union(db.JournalEntries.Select(e => e.Book.ToLower()))
             .Union(db.Parlays.Select(p => p.Book.ToLower()))
             .Distinct()
             .ToListAsync(ct);
 
-        return seen.Concat(CommonBooks)
+        IReadOnlyList<string> books = seen.Concat(CommonBooks)
             .Where(b => b.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // Kept only if no save dropped the cache while the query ran: TryUpdate compares by
+        // reference, and a drop replaces the entry, so a list read before a save never outlives it.
+        if (key is not null && cached is not null)
+            BooksCache.Entries.TryUpdate(key, new BooksCache.Entry(books), cached);
+
+        return books;
+    }
+
+    /// <summary>How long the book list stands before it is read again.</summary>
+    public static readonly TimeSpan BooksTtl = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// The cache's key: the database this context reads. The service is scoped, so the cache is
+    /// static and must tell databases apart — the Testcontainers suites each run on their own.
+    /// Null for a provider with no connection string, which is never cached.
+    /// </summary>
+    private string? BooksKey() => db.Database.IsRelational() ? db.Database.GetConnectionString() : null;
+
+    /// <summary>Drops this database's cached book list, after a save that may have written a new book.</summary>
+    private void ForgetBooks()
+    {
+        if (BooksKey() is { } key)
+            BooksCache.Entries[key] = new BooksCache.Entry(null);
+    }
+
+    /// <summary>The book lists read, per database. Static because the service is scoped; see <see cref="KnownBooksAsync"/>.</summary>
+    private static class BooksCache
+    {
+        /// <summary>A list and when it was read; a class, so TryUpdate compares by reference.</summary>
+        internal sealed class Entry(IReadOnlyList<string>? books)
+        {
+            public IReadOnlyList<string>? Books { get; } = books;
+            public long At { get; } = Environment.TickCount64;
+        }
+
+        internal static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Entry> Entries = new();
     }
 
     /// <summary>Games to log a bet against, found by team across the season (see <see cref="SearchService.GamesAsync"/>).</summary>

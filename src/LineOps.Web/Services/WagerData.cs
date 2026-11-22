@@ -41,47 +41,30 @@ public interface IWagerData
 /// </summary>
 public sealed class WagerData(IServiceScopeFactory scopes, IngestionJobs jobs) : IWagerData
 {
-    public async Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(gameId, ct);
-    }
+    public Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default)
+        => scopes.InScopeAsync<BoardService, BoardRow?>(board => board.GetRowAsync(gameId, ct));
 
-    public async Task<JournalEntry?> LatestOnSideAsync(int gameId, string market, string outcome,
+    public Task<JournalEntry?> LatestOnSideAsync(int gameId, string market, string outcome,
         DateTimeOffset since, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<JournalService>()
-            .LatestOnSideAsync(gameId, market, outcome, since, ct);
-    }
+        => scopes.InScopeAsync<JournalService, JournalEntry?>(
+            journal => journal.LatestOnSideAsync(gameId, market, outcome, since, ct));
 
-    public async Task LogStraightsAsync(IReadOnlyList<EntryDraft> bets, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveEntriesAsync(bets, ct);
-    }
+    public Task LogStraightsAsync(IReadOnlyList<EntryDraft> bets, CancellationToken ct = default)
+        => scopes.InScopeAsync<JournalService>(journal => journal.SaveEntriesAsync(bets, ct));
 
-    public async Task LogParlayAsync(ParlayDraft parlay, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<JournalService>().SaveParlayAsync(parlay, ct);
-    }
+    public Task LogParlayAsync(ParlayDraft parlay, CancellationToken ct = default)
+        => scopes.InScopeAsync<JournalService>(journal => journal.SaveParlayAsync(parlay, ct));
 
-    public async Task<IngestionJob?> LinesJobAsync(string sportKey, CancellationToken ct = default)
-        => (await jobs.DescribeAsync(ct)).FirstOrDefault(j => j.Key == IngestionJobs.OddsLinesPrefix + sportKey);
+    // The one entry, not the whole menu: a row press read every catch-up count to show one price.
+    public Task<IngestionJob?> LinesJobAsync(string sportKey, CancellationToken ct = default)
+        => jobs.DescribeLinesAsync(sportKey, ct);
 
     public Task<JobOutcome> RunJobAsync(string key, CancellationToken ct = default) => jobs.RunAsync(key, ct);
 
-    public async Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<JournalService>()
-            .SearchGamesAsync(text, take: 30, fromToday: true, ct: ct);
-    }
+    public Task<IReadOnlyList<Game>> SearchGamesAsync(string text, CancellationToken ct = default)
+        => scopes.InScopeAsync<JournalService, IReadOnlyList<Game>>(
+            journal => journal.SearchGamesAsync(text, take: 30, fromToday: true, ct: ct));
 
-    public async Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<JournalService>().KnownBooksAsync(ct);
-    }
+    public Task<IReadOnlyList<string>> KnownBooksAsync(CancellationToken ct = default)
+        => scopes.InScopeAsync<JournalService, IReadOnlyList<string>>(journal => journal.KnownBooksAsync(ct));
 }

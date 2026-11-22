@@ -99,13 +99,12 @@ else
             }
         </Detail>
         <Keys>
-            <DeskRow Gap="DeskSpace.Space1">
-                <DeskButton Icon="@Icons.Material.Filled.SportsScore" Emphasis="DeskEmphasis.Tinted"
-                            Title="Open this game's lines, team data and players in the Game window"
-                            OnClick="() => Manager.OpenGame(game)">
-                    Game
-                </DeskButton>
-            </DeskRow>
+            @* One key, straight in the title's key slot, which spaces keys itself. *@
+            <DeskButton Icon="@Icons.Material.Filled.SportsScore" Emphasis="DeskEmphasis.Tinted"
+                        Title="Open this game's lines, team data and players in the Game window"
+                        OnClick="() => Manager.OpenGame(game)">
+                Game
+            </DeskButton>
         </Keys>
     </PanelTitle>
 
@@ -135,17 +134,43 @@ else
             </Note>
         }
 
-        @if (_plays.Count == 0)
-        {
-            <EmptyState>Plays appear once the game kicks off.</EmptyState>
-        }
-        else
-        {
-            <PanelSection Title="Drives">
-                @RenderDrives()
-            </PanelSection>
+        <Linescore Sport="@_header.SportKey" AwayAbbrev="@_header.Away.Abbrev" HomeAbbrev="@_header.Home.Abbrev"
+                   Away="_header.AwayLinescore" Home="_header.HomeLinescore"
+                   AwayTotal="_header.AwayScore" HomeTotal="_header.HomeScore" />
 
-            @if (_series.Count > 0)
+        @* One reading at a time, as the Game window's sections are and as a league's own game
+           page is: the plays, the scoring, the probability, the box score. Twenty drives no
+           longer stand between the title and the chart. *@
+        <DeskTabs TValue="View" Tabs="@Views()" Label="Gamecast sections" @bind-Value="_view">
+            @if (context == View.Plays)
+            {
+                @if (_plays.Count == 0)
+                {
+                    <EmptyState>Plays appear once the game kicks off.</EmptyState>
+                }
+                else
+                {
+                    <PanelSection Title="@(_drives.Count == 0 ? "Plays" : "Drives")">
+                        <Keys>
+                            @if (_drives.Count > 0)
+                            {
+                                <DeskToggle Label="Every play" Checked="_everyPlay" CheckedChanged="@((bool on) => _everyPlay = on)"
+                                            Title="Open every drive, so the whole game reads top to bottom" />
+                            }
+                        </Keys>
+                        <ChildContent>
+                            @RenderDrives()
+                        </ChildContent>
+                    </PanelSection>
+                }
+            }
+            else if (context == View.Scoring)
+            {
+                <PanelSection Title="Scoring">
+                    @RenderScoring()
+                </PanelSection>
+            }
+            else if (context == View.Probability)
             {
                 <PanelSection Title="Win probability">
                     <Keys>
@@ -170,25 +195,23 @@ else
                     </ChildContent>
                 </PanelSection>
             }
-
-            <PanelSection Title="Scoring">
-                @RenderScoring()
-            </PanelSection>
-        }
-
-        <PanelSection Title="Box score">
-            @if (_box is { IsEmpty: false } box)
-            {
-                <BoxScoreSide Side="box.Away" Team="@(game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenPlayer"
-                              Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />
-                <BoxScoreSide Side="box.Home" Team="@(game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenPlayer"
-                              Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />
-            }
             else
             {
-                <EmptyState>The box score appears once the first stats are in.</EmptyState>
+                <PanelSection Title="Box score">
+                    @if (_box is { IsEmpty: false } box)
+                    {
+                        <BoxScoreSide Side="box.Away" Team="@(game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenPlayer"
+                                      Sport="@game.Sport?.Key" Abbrev="@game.AwayTeam?.Abbrev" />
+                        <BoxScoreSide Side="box.Home" Team="@(game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenPlayer"
+                                      Sport="@game.Sport?.Key" Abbrev="@game.HomeTeam?.Abbrev" />
+                    }
+                    else
+                    {
+                        <EmptyState>The box score appears once the first stats are in.</EmptyState>
+                    }
+                </PanelSection>
             }
-        </PanelSection>
+        </DeskTabs>
     }
 }
 
@@ -720,78 +743,149 @@ else
     }
 
     /// <summary>
-    /// The drives, newest first, each a disclosure: closed, its result line; open, its plays
-    /// newest first. A game the feed wrote no drives for is one flat list of its plays. A play no
-    /// drive holds (<see cref="DriveOf"/>) closes the log as "Other plays", so every play held is
-    /// in the log, as it is in the scoring and the chart.
+    /// Every drive open at once, so the whole game reads top to bottom without a press per drive.
+    /// While it is on a drive's line is a heading rather than a disclosure: there is nothing to fold.
+    /// </summary>
+    private bool _everyPlay;
+
+    /// <summary>
+    /// A game that is on reads newest first, the way it is followed; one that is over reads from
+    /// the kickoff down, the way a league's own play-by-play page prints it.
+    /// </summary>
+    private bool NewestFirst => _game?.Status == GameStatus.Live;
+
+    // ---- The sections --------------------------------------------------------------------
+
+    /// <summary>Which reading is on screen: one at a time, as the Game window's sections are.</summary>
+    private enum View { Plays, Scoring, Probability, Box }
+
+    private View _view = View.Plays;
+
+    /// <summary>The sections this game has. Scoring and the probability wait for a play to draw from.</summary>
+    private IReadOnlyList<DeskTab<View>> Views() =>
+    [
+        new(View.Plays, "Plays"),
+        new(View.Scoring, "Scoring", _plays.Count > 0),
+        new(View.Probability, "Win probability", _series.Count > 0),
+        new(View.Box, "Box score")
+    ];
+
+    // ---- The drives, drawn ---------------------------------------------------------------
+
+    /// <summary>
+    /// The drives under a heading per period, each a disclosure: closed, its result line, where
+    /// on the field it ran and the score it left; open, its plays. Newest first while the game is
+    /// on, from the kickoff down once it is over (<see cref="NewestFirst"/>). A game the feed wrote
+    /// no drives for is one flat list of its plays. A play no drive holds (<see cref="DriveOf"/>)
+    /// closes the log as "Other plays", so every play held is in the log, as it is in the scoring
+    /// and the chart.
     /// </summary>
     private RenderFragment RenderDrives() => @<text>
+        @{
+            var newestFirst = NewestFirst;
+        }
         @if (_drives.Count == 0)
         {
             <div class="wgroup">
-                @RenderPlays(_plays.AsEnumerable().Reverse().ToList())
+                @RenderPlays(newestFirst ? _plays.AsEnumerable().Reverse().ToList() : _plays)
             </div>
         }
         else
         {
             var open = OpenDrive;
-            var byDrive = _plays.GroupBy(p => DriveOf(p, _drives)).ToDictionary(g => g.Key, g => g.Reverse().ToList());
+            var byDrive = _plays.GroupBy(p => DriveOf(p, _drives)).ToDictionary(g => g.Key, g => g.ToList());
             var others = byDrive.GetValueOrDefault(OtherPlays);
+            var headed = new HashSet<int>();
             <div class="wgroup gc__drives">
-                @foreach (var drive in _drives.Reverse())
+                @foreach (var drive in newestFirst ? _drives.Reverse() : _drives)
                 {
-                    var isOpen = open == drive.Sequence;
+                    var held = byDrive.GetValueOrDefault(drive.Sequence) ?? [];
+                    var isOpen = _everyPlay || open == drive.Sequence;
                     var region = $"gcdrive-{WindowId}-{drive.Sequence}";
                     var sequence = drive.Sequence;
+                    var span = DriveSpan(drive, _header?.YardLine);
+                    var tally = DriveTally(held);
+
+                    @if (drive.StartPeriod is { } period && headed.Add(period))
+                    {
+                        <div class="wgroup__row gc__period" role="heading" aria-level="3" @key="@($"period-{period}")">@Periods.Name(_game?.Sport?.Key, period)</div>
+                    }
 
                     <div class="wgroup__row gc__drive @(isOpen ? "gc__drive--open" : null)" @key="drive.Sequence" data-drive="@drive.Sequence">
-                        <button type="button" class="gc__toggle disclosure__summary"
-                                aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
-                                @onclick="() => ToggleDrive(sequence)">
-                            <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
-                            <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@drive.TeamAbbrev" />@(drive.TeamAbbrev ?? "—")</span>
-                            <span class="gc__result">@DriveLine(drive)</span>
-                        </button>
-                        @if (drive.IsScore)
+                        @if (_everyPlay)
                         {
-                            <Tag State="DeskState.Positive">@(drive.Result ?? "Score")</Tag>
+                            <span class="gc__toggle gc__toggle--still">@RenderDriveLead(drive)</span>
                         }
-                        else if (drive.IsCurrent)
+                        else
                         {
-                            <Tag State="DeskState.Warning" Live="true">On the field</Tag>
+                            <button type="button" class="gc__toggle disclosure__summary"
+                                    aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
+                                    @onclick="() => ToggleDrive(sequence)">
+                                <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
+                                @RenderDriveLead(drive)
+                            </button>
                         }
+                        <span class="gc__drive-trail">
+                            @if (span is { } ran)
+                            {
+                                @* Where on the field the drive ran, away's goal on the left as the
+                                   field strip has it. The line beside it already says the yards. *@
+                                <FieldSpan From="ran.From" Length="ran.Length" Scored="drive.IsScore" />
+                            }
+                            @if (drive.IsScore)
+                            {
+                                <Tag State="DeskState.Positive">@(drive.Result ?? "Score")</Tag>
+                            }
+                            else if (drive.IsCurrent)
+                            {
+                                <Tag State="DeskState.Warning" Live="true">On the field</Tag>
+                            }
+                            @if (tally is not null)
+                            {
+                                <span class="gc__tally @(drive.IsScore ? null : "gc__tally--quiet")">@tally</span>
+                            }
+                        </span>
                     </div>
                     @if (isOpen)
                     {
-                        var plays = byDrive.GetValueOrDefault(drive.Sequence) ?? [];
                         <div class="wgroup__row gc__plays" id="@region" @key="(drive.Sequence, true)">
-                            @if (plays.Count == 0)
+                            @if (held.Count == 0)
                             {
                                 <span class="dim">No plays held for this drive yet.</span>
                             }
                             else
                             {
-                                @RenderPlays(plays)
+                                @RenderPlays(newestFirst ? held.AsEnumerable().Reverse().ToList() : held)
                             }
                         </div>
                     }
                 }
                 @if (others is { Count: > 0 })
                 {
-                    var isOpen = open == OtherPlays;
+                    var isOpen = _everyPlay || open == OtherPlays;
                     var region = $"gcdrive-{WindowId}-other";
+                    var count = others.Count == 1 ? "1 play" : $"{others.Count} plays";
                     <div class="wgroup__row gc__drive @(isOpen ? "gc__drive--open" : null)" @key="OtherPlays" data-drive="other">
-                        <button type="button" class="gc__toggle disclosure__summary"
-                                aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
-                                @onclick="() => ToggleDrive(OtherPlays)">
-                            <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
-                            <span class="gc__result">Other plays · @(others.Count == 1 ? "1 play" : $"{others.Count} plays") filed under no drive</span>
-                        </button>
+                        @if (_everyPlay)
+                        {
+                            <span class="gc__toggle gc__toggle--still">
+                                <span class="gc__result">Other plays · @count filed under no drive</span>
+                            </span>
+                        }
+                        else
+                        {
+                            <button type="button" class="gc__toggle disclosure__summary"
+                                    aria-expanded="@(isOpen ? "true" : "false")" aria-controls="@region"
+                                    @onclick="() => ToggleDrive(OtherPlays)">
+                                <span class="disclosure__triangle" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.ArrowRight" /></span>
+                                <span class="gc__result">Other plays · @count filed under no drive</span>
+                            </button>
+                        }
                     </div>
                     @if (isOpen)
                     {
                         <div class="wgroup__row gc__plays" id="@region" @key="(OtherPlays, true)">
-                            @RenderPlays(others)
+                            @RenderPlays(newestFirst ? others.AsEnumerable().Reverse().ToList() : others)
                         </div>
                     }
                 }
@@ -799,56 +893,42 @@ else
         }
     </text>;
 
-    /// <summary>Plays, newest first, each keyed by its id; virtualised past <see cref="VirtualizeAt"/>.</summary>
-    private RenderFragment RenderPlays(List<GamecastPlay> plays) => @<text>
-        <ol class="gc__log">
-            @if (plays.Count > VirtualizeAt)
-            {
-                @* SpacerElement: inside an <ol> the spacers must be list items too. *@
-                <Virtualize Items="plays" Context="play" ItemSize="44" SpacerElement="li">
-                    @RenderPlay(play)
-                </Virtualize>
-            }
-            else
-            {
-                @foreach (var play in plays)
-                {
-                    @RenderPlay(play)
-                }
-            }
-        </ol>
+    /// <summary>A drive's side and its result line: the words of its row, in a disclosure or on their own.</summary>
+    private RenderFragment RenderDriveLead(GamecastDrive drive) => @<text>
+        <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@drive.TeamAbbrev" />@(drive.TeamAbbrev ?? "—")</span>
+        <span class="gc__result">@DriveLine(drive)</span>
     </text>;
 
-    private RenderFragment RenderPlay(GamecastPlay play) => @<text>
-        <li class="gc__play" @key="play.Id" data-seq="@play.Sequence" data-play="@play.Id">
-            <span class="gc__when">@When(play)</span>
-            <span class="gc__body">
-                @if (play.Start?.DownDistanceText is { Length: > 0 } dd)
-                {
-                    <span class="gc__dd">@dd</span>
-                }
-                <span class="gc__text">@(play.Text ?? play.Type ?? "Play")</span>
-            </span>
-            <span class="gc__trail">
-                @if (play.IsScoring)
-                {
-                    <Tag State="DeskState.Positive">Score</Tag>
-                }
-                @if (play.IsTurnover)
-                {
-                    <Tag State="DeskState.Negative">Turnover</Tag>
-                }
-                @if (play.IsPenalty)
-                {
-                    <Tag State="DeskState.Warning">Penalty</Tag>
-                }
-                @if (play.Yardage is { } yards && !play.IsPenalty)
-                {
-                    <span class="gc__yards @(yards > 0 ? "up" : yards < 0 ? "down" : null)">@Yards(yards)</span>
-                }
-            </span>
-        </li>
-    </text>;
+    /// <summary>
+    /// Where a drive ran, as a start and a length in hundredths of the field measured from the
+    /// away side's goal line — the field strip's frame, with yard lines counted from the home goal
+    /// (<see cref="Game.YardLine"/>). The drive in progress ends where the ball is. Null when
+    /// either end is unknown; a drive that went nowhere still draws a mark two yards wide.
+    /// </summary>
+    public static (double From, double Length)? DriveSpan(GamecastDrive drive, int? ballOn)
+    {
+        var end = drive.EndYardLine ?? (drive.IsCurrent ? ballOn : null);
+        return FieldGeometry.Span(drive.StartYardLine, end);
+    }
+
+    /// <summary>The score a drive left, away first as the title has it: "PHI 7–3 WSH". Null until a play of it carries one.</summary>
+    private string? DriveTally(List<GamecastPlay> held)
+    {
+        if (_header is null)
+            return null;
+
+        for (var i = held.Count - 1; i >= 0; i--)
+        {
+            if (held[i] is { AwayScore: { } away, HomeScore: { } home })
+                return $"{_header.Away.Abbrev} {away}–{home} {_header.Home.Abbrev}";
+        }
+
+        return null;
+    }
+
+    /// <summary>Plays in the order given: the shared play log, virtualised past <see cref="VirtualizeAt"/>.</summary>
+    private RenderFragment RenderPlays(List<GamecastPlay> plays)
+        => @<PlayLog Plays="plays" Sport="@_game?.Sport?.Key" VirtualizeAt="VirtualizeAt" />;
 
     /// <summary>
     /// A drive closed to one line: "7 plays, 62 yds, 3:48 · Touchdown". Plays are the provider's
@@ -871,30 +951,6 @@ else
         return string.IsNullOrWhiteSpace(result) ? line : $"{line} · {result}";
     }
 
-    private static string When(GamecastPlay play)
-        => (Mark(play.Period), play.Clock) switch
-        {
-            ({ } mark, { Length: > 0 } clock) => $"{mark} {clock}",
-            ({ } mark, _) => mark,
-            (_, { Length: > 0 } clock) => clock,
-            _ => string.Empty
-        };
-
-    private static string? Mark(int? period) => period switch
-    {
-        null => null,
-        <= 4 => $"Q{period}",
-        5 => "OT",
-        _ => $"{period - 4}OT"
-    };
-
-    private static string Yards(int yards) => yards switch
-    {
-        > 0 => $"+{yards}",
-        < 0 => $"−{-yards}",
-        _ => "0"
-    };
-
     // ---- Scoring -------------------------------------------------------------------------
 
     private RenderFragment RenderScoring() => @<text>
@@ -911,7 +967,7 @@ else
                 @foreach (var play in scoring)
                 {
                     <div class="wgroup__row gc__score" @key="play.Id">
-                        <span class="gc__when">@When(play)</span>
+                        <span class="gc__when">@PlayLog.When(_game?.Sport?.Key, play)</span>
                         <span class="gc__team"><TeamMark Sport="@_game?.Sport?.Key" Abbrev="@TeamAbbrev(play.TeamId)" />@TeamAbbrev(play.TeamId)</span>
                         <span class="gc__text">@(play.Text ?? play.Type)</span>
                         @if (play.AwayScore is { } a && play.HomeScore is { } h)
@@ -1007,7 +1063,7 @@ else
 
         _series = series;
         _labels = shown
-            .Select((p, i) => i == 0 || p.Period != shown[i - 1].Period ? Mark(p.Period) ?? string.Empty : string.Empty)
+            .Select((p, i) => i == 0 || p.Period != shown[i - 1].Period ? (p.Period is { } n ? Periods.Mark(_header?.SportKey, n) : null) ?? string.Empty : string.Empty)
             .ToArray();
 
         ChartSeries<double> Flat(string name, double value)

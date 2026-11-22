@@ -350,7 +350,7 @@ public class JournalPanelTests : WagerTestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(JournalParlayTests.ActionsKeys(cut)));
 
         var tabs = cut.FindAll("[role=tab]");
-        Assert.Equal(["Journal", "Slip"], tabs.Select(t => t.TextContent.Trim()));
+        Assert.Equal(["Entries", "Slip"], tabs.Select(t => t.TextContent.Trim()));
         Assert.True(tabs[1].HasAttribute("disabled"));
         Assert.Equal("true", tabs[1].GetAttribute("aria-disabled"));
         Assert.Equal("Slip: nothing here yet", tabs[1].GetAttribute("title"));

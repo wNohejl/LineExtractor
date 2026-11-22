@@ -6,6 +6,7 @@ using LineOps.Desk.Primitives;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
 using LineOps.Web.Components.Panels;
+using LineOps.Web.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,17 +22,9 @@ public class RunsDetailTests : DeskTestContext
     public RunsDetailTests()
     {
         Services.AddScoped<DeskToasts>();
-        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new UnreachableFactory());
+        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new HangingDbFactory());
         Services.AddSingleton<HistoryBackfillService>();
         Services.AddSingleton<BackfillCoordinator>();
-    }
-
-    private sealed class UnreachableFactory : IDbContextFactory<LineOpsDbContext>
-    {
-        public LineOpsDbContext CreateDbContext() => throw new NotSupportedException();
-
-        public Task<LineOpsDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => new TaskCompletionSource<LineOpsDbContext>().Task;
     }
 
     private static IngestionRun Run(long id, RunStatus status, string? detail, string? error) => new()
@@ -52,10 +45,7 @@ public class RunsDetailTests : DeskTestContext
         var panel = RenderComponent<RunsPanel>();
 
         Set(panel.Instance, "_runs", runs.ToList());
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, true);
+        PanelProbe.MarkLoaded(panel.Instance);
         panel.Render();
         return panel;
     }

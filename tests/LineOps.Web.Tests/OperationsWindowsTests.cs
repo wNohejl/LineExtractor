@@ -6,6 +6,7 @@ using LineOps.Desk.Primitives;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
 using LineOps.Web.Components.Panels;
+using LineOps.Web.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,18 +26,9 @@ public class OperationsWindowsTests : DeskTestContext
     public OperationsWindowsTests()
     {
         Services.AddScoped<DeskToasts>();
-        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new UnreachableFactory());
+        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new HangingDbFactory());
         Services.AddSingleton<HistoryBackfillService>();
         Services.AddSingleton<BackfillCoordinator>();
-    }
-
-    /// <summary>A database that never answers: the load stays in flight, or fails, as the panel reads it.</summary>
-    private sealed class UnreachableFactory : IDbContextFactory<LineOpsDbContext>
-    {
-        public LineOpsDbContext CreateDbContext() => throw new NotSupportedException();
-
-        public Task<LineOpsDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => new TaskCompletionSource<LineOpsDbContext>().Task;
     }
 
     private static void Set(object panel, string field, object? value)
@@ -54,13 +46,7 @@ public class OperationsWindowsTests : DeskTestContext
     }
 
     /// <summary>Marks the panel as having read what the test has placed on it.</summary>
-    private static void Loaded(object panel)
-    {
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel, true);
-    }
+    private static void Loaded(object panel) => PanelProbe.MarkLoaded(panel);
 
     private static string Section(IRenderedFragment panel, string title)
         => panel.FindAll("section.psection")

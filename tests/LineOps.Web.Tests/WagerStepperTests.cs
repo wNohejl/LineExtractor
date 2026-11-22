@@ -103,15 +103,20 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(withGame: false);
         cut.Find("input[aria-label='Find a game']").Input("afc north");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt--none")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt--none")), Settle);
         cut.Find(".game-search__opt--none").Click();
-        cut.WaitForElement("input[aria-label='The bet']");
+        cut.WaitForElement("input[aria-label='The bet']", Settle);
 
         cut.Find("input[aria-label='The bet']").Input("Steelers to win the AFC North");
 
-        Assert.Equal(["current", "todo", "todo"], States(cut));
-        Assert.NotNull(cut.Find("input[aria-label='The bet']"));
-        Assert.NotNull(cut.Find("input[placeholder='-110']"));
+        // The search settles its own work after the press (its debounce, the row read): wait on
+        // the drawn state rather than asserting on the render the input happened to produce.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(["current", "todo", "todo"], States(cut));
+            Assert.NotNull(cut.Find("input[aria-label='The bet']"));
+            Assert.NotNull(cut.Find("input[placeholder='-110']"));
+        }, Settle);
     }
 
     [Fact]
@@ -119,7 +124,7 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Spread, BoardRows.Away);
 
-        Assert.Equal("Spread · Bills +2.5 · -105 +2.5 at fanduel", Summary(cut, "Bet"));
+        Assert.Equal("Spread · Bills +2.5 · -105 +2.5 at FanDuel", Summary(cut, "Bet"));
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
     }
 
@@ -137,7 +142,7 @@ public class WagerStepperTests : WagerTestContext
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
         Assert.Equal([false, true, true], Open(cut));
-        Assert.Equal("ML · Bills · +110 at fanduel", Summary(cut, "Bet"));
+        Assert.Equal("ML · Bills · +110 at FanDuel", Summary(cut, "Bet"));
     }
 
     [Fact]
@@ -172,7 +177,7 @@ public class WagerStepperTests : WagerTestContext
         Data.Games = [BoardRows.Game()];
         var cut = Render(withGame: false);
         cut.Find("input[aria-label='Find a game']").Input("chiefs");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
         cut.FindAll(".game-search__opt")[0].Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
 
@@ -210,30 +215,44 @@ public class WagerStepperTests : WagerTestContext
         Data.Games = [BoardRows.Game()];
         var cut = Render(withGame: false);
         cut.Find("input[aria-label='Find a game']").Input("chiefs");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
         cut.FindAll(".game-search__opt")[0].Click();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
-        Assert.Equal(["current", "todo", "todo"], States(cut));
+
+        // Picking the game reads its row and then the journal, two awaits that land on renders of
+        // their own: wait for the drawn state each time, never the render the press produced.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotEmpty(cut.FindAll(".selection-chip"));
+            Assert.Equal(["current", "todo", "todo"], States(cut));
+        }, Settle);
 
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "ML · Chiefs").Click();
 
-        Assert.Equal(["done", "current", "todo"], States(cut));
-        Assert.Equal("ML · Chiefs · -128 at draftkings", Summary(cut, "Bet"));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(["done", "current", "todo"], States(cut));
+            Assert.Equal("ML · Chiefs · -128 at DraftKings", Summary(cut, "Bet"));
+        }, Settle);
     }
 
     // ---- The price, the lower half of Bet -------------------------------------------------------------------
 
     [Fact]
-    public void The_edit_key_sits_on_the_price()
+    public void Custom_price_ends_the_book_list_on_the_price()
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         Change(cut, "Bet");
 
-        var key = cut.Find(".wager-offer__top .wager-manual-key");
-        Assert.Equal("Enter a price", key.GetAttribute("title"));
-        // Price, then the book pop-up (recipe rule 3), then the pencil that replaces the number.
-        Assert.Contains("book-picker", key.PreviousElementSibling!.ClassList);
-        Assert.Contains("wager-offer__price", key.PreviousElementSibling!.PreviousElementSibling!.ClassList);
+        // Price, then the book pop-up (recipe rule 3); the pencil that replaced the number is
+        // now the pop-up's Custom price…, so nothing follows the key.
+        var picker = cut.Find(".wager-offer__top .price-picker");
+        Assert.Contains("wager-offer__price", picker.PreviousElementSibling!.ClassList);
+        Assert.Null(picker.NextElementSibling);
+
+        PricePickers.Open(cut);
+        var custom = cut.FindAll(".price-picker [role=menuitem]").Single();
+        Assert.Contains("Custom price", custom.TextContent);
+        Assert.Null(custom.GetAttribute("aria-checked"));
     }
 
     [Fact]
@@ -242,14 +261,14 @@ public class WagerStepperTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         Change(cut, "Bet");
 
-        var trigger = cut.Find(".wager-offer .book-picker__trigger");
+        var trigger = cut.Find(".wager-offer " + PricePickers.Key);
         Assert.Equal("false", trigger.GetAttribute("aria-expanded"));
-        Assert.Contains("draftkings", trigger.TextContent);
+        Assert.Contains("DraftKings", trigger.TextContent);
         Assert.Empty(cut.FindAll("[role=menuitemradio]"));
 
         trigger.Click();
 
-        Assert.Equal("true", cut.Find(".book-picker__trigger").GetAttribute("aria-expanded"));
+        Assert.Equal("true", cut.Find(PricePickers.Key).GetAttribute("aria-expanded"));
         var rows = cut.FindAll("[role=menuitemradio]");
         Assert.Equal(2, rows.Count);
         Assert.Contains("-135", rows[1].TextContent);
@@ -258,7 +277,7 @@ public class WagerStepperTests : WagerTestContext
 
         // Chosen: the step folds on the new number.
         Assert.Empty(cut.FindAll("[role=menuitemradio]"));
-        Assert.Equal("ML · Chiefs · -135 at fanduel", Summary(cut, "Bet"));
+        Assert.Equal("ML · Chiefs · -135 at FanDuel", Summary(cut, "Bet"));
     }
 
     [Fact]
@@ -266,7 +285,7 @@ public class WagerStepperTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         Change(cut, "Bet");
-        cut.Find(".book-picker__trigger").Click();
+        cut.Find(PricePickers.Key).Click();
 
         cut.Find("[role=menu]").KeyDown("Escape");
 
@@ -295,6 +314,6 @@ public class WagerStepperTests : WagerTestContext
 
         cut.WaitForAssertion(() => Assert.Equal(
             ["Upcoming", "Played"],
-            cut.FindAll(".game-search__group").Select(g => g.TextContent.Trim())));
+            cut.FindAll(".game-search__group").Select(g => g.TextContent.Trim())), Settle);
     }
 }

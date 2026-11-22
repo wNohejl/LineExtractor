@@ -5,6 +5,7 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject DeskJobRunner Runner
 @inject IDeskAccess Access
+@implements IDisposable
 
 @*
     One fighter on their own (ADR 0021) — what the Team window shows when the side is a fighter.
@@ -44,7 +45,7 @@ else
             }
             else
             {
-                <Note State="DeskState.Info" Style="margin:0">
+                <Note State="DeskState.Info">
                     No profile yet. The operator's pull reads this fighter's bio, career rates and
                     every recorded fight from ESPN.
                 </Note>
@@ -149,13 +150,54 @@ else
 
     private bool _reading;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    private readonly SnippetRead _read = new();
+
+    /// <summary>The fighter read, or being read; null before the first and after a read that failed.</summary>
+    private int? _loadedTeamId;
+
+    // One read per fighter asked for: the Team window drawing again hands the same fighter back,
+    // and that read the whole career again each time.
+    protected override Task OnParametersSetAsync()
+        => TeamId == _loadedTeamId ? Task.CompletedTask : LoadAsync();
 
     private async Task LoadAsync()
     {
-        await using var scope = ScopeFactory.CreateAsyncScope();
-        _card = await scope.ServiceProvider.GetRequiredService<FightService>().FighterAsync(TeamId);
+        var teamId = TeamId;
+        _loadedTeamId = teamId;
+
+        // Read into locals and handed over only by the latest read: the fighter the window moved
+        // on from, or one it closed on, is cancelled, and a slow answer for them draws nothing.
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failed = null;
+
+        await _read.RunAsync(async ct =>
+        {
+            try
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<FightService>().FighterAsync(teamId, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                failed = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex);
+                throw;
+            }
+        }, card => _card = card,
+        "The fighter did not load.", Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+        // Only the latest read's failure is news; a superseded one's is dropped with it.
+        if (failed is null || _read.Error is null)
+            return;
+
+        // Not held as read, so the next parameter set asks again, as every one did before.
+        if (_loadedTeamId == teamId)
+            _loadedTeamId = null;
+
+        // The view draws no failure of its own, so it still reaches the window's boundary, which
+        // logs it and offers Try again, as before; the read is not logged twice.
+        failed.Throw();
     }
+
+    public void Dispose() => _read.Dispose();
 
     /// <summary>Runs the profile read the Pull data menu offers, then reads this fighter again.</summary>
     private async Task ReadProfilesAsync()

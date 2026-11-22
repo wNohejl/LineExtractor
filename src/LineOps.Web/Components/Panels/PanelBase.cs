@@ -1,7 +1,9 @@
 using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
+using LineOps.Desk.Primitives;
 using LineOps.Desk.Windowing;
+using Microsoft.Extensions.Logging;
 
 namespace LineOps.Web.Components.Panels;
 
@@ -116,4 +118,59 @@ public abstract class PanelBase : DeskPanelBase
         < 1440 => $"{minutes / 60:F1}h",
         _ => $"{minutes / 1440:F1}d"
     };
+
+    /// <summary>
+    /// Whether a window about one subject's games — a team's, a player's — should reload for what
+    /// a refresh heard. Only when it names few enough games (<see cref="TeamPanel.AddressedGames"/>)
+    /// is the database asked whether any is the subject's; anything else reloads as before. Closed
+    /// while asking (<paramref name="gone"/>): no window is left to reload. A check that cannot
+    /// answer reloads anyway, because it must not leave the window behind its own game; the
+    /// failure is logged as "<paramref name="subject"/> own-game check failed; reloading".
+    /// </summary>
+    protected async Task<bool> HeardOwnGameAsync(
+        IReadOnlySet<string> heard,
+        Func<int[], CancellationToken, Task<bool>> playsInAny,
+        CancellationToken gone,
+        string subject)
+    {
+        if (TeamPanel.AddressedGames(heard) is not { } ids)
+            return true;
+
+        try
+        {
+            return await playsInAny(ids, gone);
+        }
+        catch (OperationCanceledException) when (gone.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "{Subject} own-game check failed; reloading", subject);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A season switch's options: each season by its league's label, "2026" or "2025–26", and
+    /// spelled out for the reader that cannot see the strip.
+    /// </summary>
+    protected static List<DeskSwitchOption<int>> SeasonOptions(string? sport, IEnumerable<int> seasons)
+    {
+        var key = sport ?? string.Empty;
+
+        return seasons
+            .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(key, y),
+                $"{key.ToUpperInvariant()} {SeasonCalendar.Label(key, y)} season"))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The season a load shows: the one asked for while the subject has played in it, else the
+    /// newest held (seasons come newest first), or none for a subject with no season on record.
+    /// </summary>
+    protected static int? PickSeason(IReadOnlyList<int> seasons, int? asked)
+        => asked is { } year && seasons.Contains(year)
+            ? year
+            : seasons.Count > 0 ? seasons[0] : null;
 }

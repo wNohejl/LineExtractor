@@ -66,7 +66,7 @@
                     <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
                                     HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                         <CellTemplate>
-                            <Tag State="@SeverityState(context.Item.Severity)">@SeverityName(context.Item.Severity)</Tag>
+                            <Tag State="@SeverityState(context.Item.Severity)">@AlertWords.Severity(context.Item.Severity)</Tag>
                         </CellTemplate>
                     </PropertyColumn>
 
@@ -118,7 +118,7 @@
 
                     <PropertyColumn T="Incident" TProperty="AlertSeverity" Property="i => i.Severity" Title="Severity"
                                     HeaderClass="ops-col--fit" CellClass="ops-col--fit">
-                        <CellTemplate><span class="quiet">@SeverityName(context.Item.Severity)</span></CellTemplate>
+                        <CellTemplate><span class="quiet">@AlertWords.Severity(context.Item.Severity)</span></CellTemplate>
                     </PropertyColumn>
 
                     <PropertyColumn T="Incident" TProperty="string" Property="i => i.Title" Title="What happened"
@@ -166,7 +166,7 @@ else
     <PanelTitle>
         <ChildContent>@_selected.Title</ChildContent>
         <Tags>
-            <Tag State="@SeverityState(_selected.Severity)">@SeverityName(_selected.Severity)</Tag>
+            <Tag State="@SeverityState(_selected.Severity)">@AlertWords.Severity(_selected.Severity)</Tag>
             <Tag State="@StatusState(_selected.Status)">@_selected.Status</Tag>
         </Tags>
         <Detail>Incident <span class="num">#@_selected.Id</span>, opened @Starts(_selected.OpenedAt)</Detail>
@@ -546,13 +546,6 @@ else
     /// <summary>Critical reads as Negative; anything below it is Warning.</summary>
     private static DeskState SeverityState(AlertSeverity severity)
         => severity == AlertSeverity.Critical ? DeskState.Negative : DeskState.Warning;
-
-    /// <summary>Severity as a word, not an enum member: Warn reads as Warning.</summary>
-    private static string SeverityName(AlertSeverity severity) => severity switch
-    {
-        AlertSeverity.Warn => "Warning",
-        _ => severity.ToString()
-    };
 
     /// <summary>
     /// Whether the RCA is written. Written is the expected state and is a check mark, its word

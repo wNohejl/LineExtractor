@@ -65,7 +65,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render(Markets.Spread, BoardRows.Away);
 
         Assert.Equal("-105", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.StartsWith("Spread · Bills +2.5 · -105 +2.5 at fanduel", System.Text.RegularExpressions.Regex.Replace(Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent, @"\s+", " ").Trim());
+        Assert.StartsWith("Spread · Bills +2.5 · -105 +2.5 at FanDuel", System.Text.RegularExpressions.Regex.Replace(Step(cut, "Bet").QuerySelector(".wstep__summary")!.TextContent, @"\s+", " ").Trim());
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class BoardWagerTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home, "fanduel");
 
         Assert.Equal("-135", cut.Find(".wager-offer__price").TextContent.Trim());
-        Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
     }
 
     [Fact]
@@ -207,12 +207,16 @@ public class BoardWagerTests : WagerTestContext
     private IRenderedComponent<BoardWager> TypedAt(string price, string stake)
     {
         var cut = Render();
-        if (cut.FindAll(".wager-manual-key").Count == 0)
+        if (!PricePickers.Shown(cut))
             Change(cut, "Bet");
-        cut.Find(".wager-manual-key").Click();
+        PricePickers.TypePrice(cut);
+        cut.WaitForElement("input[aria-label='Price']", Settle);
 
         cut.Find("input[aria-label='Price']").Input(price);
         cut.Find("input[aria-label='Stake']").Input(stake);
+
+        // Each input lands on a render of its own; the stake's line is drawn by the last of them.
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".wstake__win")), Settle);
         return cut;
     }
 
@@ -232,9 +236,11 @@ public class BoardWagerTests : WagerTestContext
 
         Log(cut).Click();
 
-        var bet = Assert.Single(Data.Straights);
-        Assert.Equal(104.35m, bet.PriceTaken);
-        Assert.StartsWith("$500 on ML · Chiefs at +104.35", Squash(cut.Find(".wreceipt__bet").TextContent));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(104.35m, Assert.Single(Data.Straights).PriceTaken);
+            Assert.StartsWith("$500 on ML · Chiefs at +104.35", Squash(cut.Find(".wreceipt__bet").TextContent));
+        }, Settle);
     }
 
     [Fact]
@@ -257,7 +263,7 @@ public class BoardWagerTests : WagerTestContext
         Assert.Equal("To win $521.75 · $1,021.75 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
 
         Log(cut).Click();
-        Assert.Equal(104.35m, Assert.Single(Data.Straights).PriceTaken);
+        cut.WaitForAssertion(() => Assert.Equal(104.35m, Assert.Single(Data.Straights).PriceTaken), Settle);
     }
 
     /// <summary>
@@ -274,7 +280,7 @@ public class BoardWagerTests : WagerTestContext
         Assert.Equal("To win $521.74 · $1,021.74 back with the stake", Squash(cut.Find(".wstake__win").TextContent));
 
         Log(cut).Click();
-        Assert.Equal(104.348m, Assert.Single(Data.Straights).PriceTaken);
+        cut.WaitForAssertion(() => Assert.Equal(104.348m, Assert.Single(Data.Straights).PriceTaken), Settle);
     }
 
     // ---- Before you log -------------------------------------------------------------------

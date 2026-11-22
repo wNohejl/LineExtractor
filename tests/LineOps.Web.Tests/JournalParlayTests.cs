@@ -179,7 +179,7 @@ public class JournalParlayTests : WagerTestContext
 
     /// <summary>Every toast raised, by its words.</summary>
     private IReadOnlyList<string> Toasts()
-        => Services.GetRequiredService<ISnackbar>().ShownSnackbars.Select(s => s.Message ?? string.Empty).ToList();
+        => Services.GetRequiredService<LineOps.Desk.Primitives.DeskToasts>().Shown.Select(t => t.Message).ToList();
 
     // ------------------------------------------------------------------ the row ----
 

@@ -251,11 +251,9 @@
                     <DeskButton OnClick="StartOverAsync">Start over</DeskButton>
                 </Secondary>
                 <Primary Context="why">
-                    <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Bolt"
-                                Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync"
-                                aria-describedby="@why">
-                        @LogLabel
-                    </DeskButton>
+                    <WagerKey Kind="WagerKind.Log" Label="@LogLabel"
+                              Busy="@_saving" Disabled="@(Waiting is not null)" OnClick="LogAsync"
+                              DescribedBy="@why" />
                 </Primary>
             </KeyRow>
         </div>
@@ -345,9 +343,7 @@
     /// is on screen first. Null for an American price, or nothing typed.
     /// </summary>
     private static string? DecimalEcho(decimal? typed)
-        => typed is { } t && Math.Abs(t) < 100 && OddsMath.ReadTypedPrice(t) is { } american
-            ? $"Decimal {t.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)} = {Price(american)}"
-            : null;
+        => LineOps.Web.Components.Desk.TypedPrice.EchoOf(typed);
 
     // The parlay's book price as typed, kept only while it is what the slip holds: decimal odds
     // typed there are said back as the American price the slip took.
@@ -384,10 +380,8 @@
 
     private RenderFragment PickBetKey => __builder =>
     {
-        <DeskButton Size="DeskKeySize.Small" Emphasis="DeskEmphasis.Tinted"
-                    Icon="@Icons.Material.Filled.Receipt" OnClick="PickBetAsync">
-            @(OnPickBet is null ? "Place wager" : "Pick a bet")
-        </DeskButton>
+        <WagerKey Kind="WagerKind.Place" Size="DeskKeySize.Small"
+                  Label="@(OnPickBet is null ? null : "Pick a bet")" OnClick="PickBetAsync" />
     };
 
     private async Task PickBetAsync()

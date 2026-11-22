@@ -22,7 +22,7 @@
     book is a menu on the price listing every book quoting it; picking one re-reads the
     headline, the value, the checks and the returns from that book's latest number. Where the
     number taken is not one the desk fetched — earlier, or at a book it does not scan — the
-    pencil on the price takes the number typed and the Journal tags it manual.
+    book menu's Custom price… takes the number typed and the Journal tags it manual.
 
     A panel (spec §6): it watches the odds and the journal, so a pull re-prices an open form
     instead of leaving it quoting a number the board has moved off. A typed price is never
@@ -45,7 +45,7 @@
     where it was banked, and the count on the tab says the slip is not empty without opening
     it. The Journal offers the same tab, so the slip reads the same from either door.
 *@
-<DeskTabs TValue="WagerTab" Tabs="Tabs" Label="Wager window sections" Class="wtabs"
+<DeskTabs TValue="WagerTab" Tabs="Tabs" Label="Wager window sections"
           Value="_tab" ValueChanged="@((WagerTab t) => _tab = t)">
 @if (context == WagerTab.Slip)
 {
@@ -81,7 +81,7 @@ else
                         <text>
                             Find each leg's game: type a team, like Steelers, or two for the matchup. A side and a
                             total on the same game make a same-game parlay. A game already played takes the price
-                            you got, typed with the pencil.
+                            you got, typed with Custom price… on the book.
                         </text>
                     }
                     else
@@ -184,7 +184,7 @@ else
                   Waiting="Pick a game first."
                   Hint="@(_noGame
                       ? "Describe the bet in your own words, then the price you were given, like -110 or +150, and the book you used."
-                      : "Pick the side you bet; its best price and the book quoting it appear beneath. Bet somewhere else? Change the book on the price. Got a different number? Press the pencil and type it.")">
+                      : "Pick the side you bet; its best price and the book quoting it appear beneath. Bet somewhere else? Change the book on the price. Got a different number? Choose Custom price… on the book and type it.")">
             <Summary>
                 @if (_noGame)
                 {
@@ -203,7 +203,7 @@ else
                     {
                         @(" ")<span class="num">@OddsMath.FormatLine(foldedLine, folded.Outcome)</span>
                     }
-                    <text> at </text><span class="wager-offer__book">@folded.Book</span>
+                    <text> at </text><span class="wager-offer__book">@BookNames.Display(folded.Book)</span>
                     @if (folded.Manual)
                     {
                         <text>, your own price</text>
@@ -241,7 +241,7 @@ else
                                 <Lead><span class="wbet__wait" id="@_waitId">Choose a side above.</span></Lead>
                                 <ChildContent>
                                     <div class="wager-offer__top">
-                                        <BookPicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
+                                        <PricePicker Books="[]" Disabled="true" DescribedBy="@_waitId" />
                                     </div>
                                 </ChildContent>
                             </FormRow>
@@ -249,49 +249,12 @@ else
                         else if (Typing)
                         {
                             @* Typed: a row per field, label leading, fields one width (HIG: fields in
-                               a group share widths and stack). *@
-                            <FormRow Class="wbet__price wager-typed">
-                                <LabelContent>Price<span class="wbet__echo">@PriceEcho</span></LabelContent>
-                                <ChildContent>
-                                <div class="wager-typed__cell">
-                                    @* To the cent (+104.35), or decimal odds (2.0435), which the
-                                       echo above says back as the American price it reads. *@
-                                    <DeskField TValue="decimal?" Mono="true" type="number" step="any" Immediate="true"
-                                               aria-label="Price" placeholder="-110" Class="wfield--short"
-                                               Value="_typedPrice" ValueChanged="SetTypedPrice" />
-                                    @if (Side?.Offer is not null)
-                                    {
-                                        <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
-                                                    Icon="@Icons.Material.Filled.Undo"
-                                                    aria-pressed="true"
-                                                    Title="Go back to the price the desk fetched"
-                                                    OnClick="ToggleManual">
-                                            Use the fetched price
-                                        </DeskButton>
-                                    }
-                                </div>
-                                </ChildContent>
-                            </FormRow>
-                            @if (HasLine)
-                            {
-                                <FormRow Label="Line" Class="wager-typed">
-                                    <DeskField TValue="decimal?" Mono="true" type="number" step="0.5" Immediate="true"
-                                               aria-label="Line" placeholder="@(_market == Markets.Total ? "47.5" : "-3")"
-                                               Class="wfield--short"
-                                               Value="_typedLine" ValueChanged="SetTypedLine" />
-                                </FormRow>
-                            }
-                            <FormRow Label="Book" Class="wager-typed">
-                                <DeskField TValue="string" Immediate="true" aria-label="Book" placeholder="draftkings"
-                                           list="@_booksListId" Class="wfield--short"
-                                           Value="_typedBook" ValueChanged="SetTypedBook" />
-                                <datalist id="@_booksListId">
-                                    @foreach (var book in _knownBooks)
-                                    {
-                                        <option value="@book"></option>
-                                    }
-                                </datalist>
-                            </FormRow>
+                               a group share widths and stack). The fields and their reading are the
+                               Board take's too (TypedPriceFields, TypedPrice): one way to type a price. *@
+                            <TypedPriceFields Model="_typed" Market="@_market" HasLine="HasLine"
+                                              SideEcho="@(_noGame ? null : TypedEcho)" KnownBooks="_knownBooks"
+                                              CanUseFetched="@(Side?.Offer is not null)" OnUseFetched="ToggleManual"
+                                              OnChanged="Reprice" />
                         }
                         else if (_offer is { } offer && Side?.Offer is { } quoted)
                         {
@@ -299,7 +262,7 @@ else
                                recipe, rule 3): leading, the side with its line at 13px semibold
                                ("Bills +2.5") over its market and matchup in secondary ("Spread · at
                                Chiefs"); trailing, the price at title 2 and then the book pop-up, with
-                               the pencil that replaces the number last. The echo is the label, so there
+                               Custom price… inside the pop-up replaces the number. The echo is the label, so there
                                is no "Price" label, and the line is said once, in the echo. Keyed on the
                                side, so a new choice cross-fades in (rule 4) rather than swapping. *@
                             <FormRow Class="wbet__price wager-offer">
@@ -312,13 +275,13 @@ else
                                 <ChildContent>
                                 <div class="wager-offer__top">
                                     <span class="wager-offer__price num">@Price(offer.PriceAmerican)</span>
-                                    <BookPicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book" OnChoose="ChooseBook" />
-                                    <DeskButton Size="DeskKeySize.Small" Class="wager-manual-key"
-                                                Icon="@Icons.Material.Filled.Edit"
-                                                aria-pressed="false"
-                                                aria-label="Enter a price"
-                                                Title="Enter a price"
-                                                OnClick="ToggleManual" />
+                                    @* The shared price picker (PricePicker), as the Board's take draws it:
+                                       the key names the book, the list every book's price best first,
+                                       and Custom price… ends it, which is the pencil this row used to
+                                       carry beside the key: the HIG's Custom item, in the pop-up
+                                       rather than a second control beside it. *@
+                                    <PricePicker Books="@WagerOffer.Books(_market!, quoted)" Chosen="@offer.Book"
+                                                 OnChoose="ChooseBook" OnCustom="ToggleManual" Align="DeskPopoverAlign.End" />
                                 </div>
                                 </ChildContent>
                             </FormRow>
@@ -479,18 +442,14 @@ else
                                for one the way Add to slip does. *@
                             @if (CanBankLeg)
                             {
-                                <DeskButton Icon="@Icons.Material.Filled.Link" OnClick="AddLegAsync" Title="@LegTitle">
-                                    Add as leg
-                                </DeskButton>
+                                <WagerKey Kind="WagerKind.AddLeg" OnClick="AddLegAsync" Title="@LegTitle" />
                             }
 
                             @if (CanBank)
                             {
-                                <DeskButton Icon="@Icons.Material.Filled.Receipt" OnClick="AddToSlip"
-                                            Title="Bank this wager on the desk's slip, to log later or build a parlay">
-                                    Add to slip
-                                    <span class="slip-badge num" aria-label="@($"{Slip.Items.Count} on the slip")">@Slip.Items.Count</span>
-                                </DeskButton>
+                                <WagerKey Kind="WagerKind.AddToSlip" OnClick="AddToSlip"
+                                          Title="Bank this wager on the desk's slip, to log later or build a parlay"
+                                          Count="Slip.Items.Count" CountLabel="@($"{Slip.Items.Count} on the slip")" />
                             }
                         }
                     </Secondary>
@@ -499,24 +458,16 @@ else
                         {
                             @* Building a parlay, the one Filled key adds the leg: nothing is logged
                                here, and the parlay is logged from the Slip tab once it is whole. *@
-                            <DeskButton Emphasis="DeskEmphasis.Filled" Icon="@Icons.Material.Filled.Add"
-                                        Disabled="@(!CanBankLeg)" OnClick="AddLegAsync"
-                                        Title="@(CanBankLeg ? LegTitle : null)" aria-describedby="@why">
-                                Add leg
-                                <span class="slip-badge num" aria-label="@($"{LegCount} legs on the slip")">@LegCount</span>
-                            </DeskButton>
+                            <WagerKey Kind="WagerKind.AddLeg" Label="Add leg" Emphasis="DeskEmphasis.Filled"
+                                      Disabled="@(!CanBankLeg)" OnClick="AddLegAsync"
+                                      Title="@(CanBankLeg ? LegTitle : null)" DescribedBy="@why"
+                                      Count="LegCount" CountLabel="@($"{LegCount} legs on the slip")" />
                         }
                         else
                         {
-                            <DeskButton Emphasis="DeskEmphasis.Filled"
-                                        Icon="@Icons.Material.Filled.Bolt"
-                                        Busy="@_saving"
-                                        Disabled="@(!CanLog)"
-                                        Title="Record this bet in the Journal"
-                                        aria-describedby="@why"
-                                        OnClick="PlaceAsync">
-                                Log @(_stake > 0 ? OddsMath.Money(_stake) : "wager")
-                            </DeskButton>
+                            <WagerKey Kind="WagerKind.Log" Stake="_stake" Busy="@_saving" Disabled="@(!CanLog)"
+                                      Title="Record this bet in the Journal" DescribedBy="@why"
+                                      OnClick="PlaceAsync" />
                         }
                     </Primary>
                 </KeyRow>
@@ -533,7 +484,7 @@ else
            to do about it. *@
         <p class="wstatus wstatus--warning" role="status">
             <span class="wstatus__mark" aria-hidden="true"><Glyph Icon="@Icons.Material.Filled.Warning" /></span>
-            <span class="wstatus__text">This is the closing line, so it cannot be @(BuildParlay ? "a leg" : "logged"): the pencil on the price records the one you got.</span>
+            <span class="wstatus__text">This is the closing line, so it cannot be @(BuildParlay ? "a leg" : "logged"): Custom price… on the book records the one you got.</span>
         </p>
     }
     else if (_receipt is null && _fromClose && Typing)
@@ -634,8 +585,6 @@ else
 
     private const int BetStep = 1, StakeStep = 2, ReviewStep = 3;
 
-    private readonly string _booksListId = "books-" + Guid.NewGuid().ToString("N")[..8];
-
     /// <summary>The price row's "choose a side" text, which the disabled book pop-up is described by.</summary>
     private readonly string _waitId = "wait-" + Guid.NewGuid().ToString("N")[..8];
 
@@ -654,9 +603,9 @@ else
     private IReadOnlyList<string> _knownBooks = [];
 
     private bool _manual;
-    private decimal? _typedPrice;
-    private decimal? _typedLine;
-    private string? _typedBook;
+
+    /// <summary>The typed price's fields and their one reading, shared with the Board take.</summary>
+    private readonly TypedPrice _typed = new();
 
     // A finished step the operator opened again with Change; null while the steps run in order.
     private int? _opened;
@@ -829,8 +778,7 @@ else
             // The no-game form, filled in: the description, the price and the book it was at.
             _noGame = true;
             _described = Described;
-            _typedPrice = WagerPrefill.Read(PriceAmerican);
-            _typedBook = Book;
+            _typed.Restore(WagerPrefill.Read(PriceAmerican), _typed.Line, Book);
             Reprice();
             return;
         }
@@ -847,11 +795,7 @@ else
         _manual = typedPrice is not null;
 
         if (_manual)
-        {
-            _typedPrice = typedPrice;
-            _typedLine = WagerPrefill.Read(TakenLine ?? Saved?.GetValueOrDefault("Line"));
-            _typedBook = Book;
-        }
+            _typed.Restore(typedPrice, WagerPrefill.Read(TakenLine ?? Saved?.GetValueOrDefault("Line")), Book);
 
         Reprice();
         _fromClose = false;
@@ -913,12 +857,8 @@ else
             var market = _noGame ? "other" : side?.Market;
             var outcome = _noGame ? string.Empty : side?.Outcome;
 
-            _offer = market is not null && outcome is not null
-                     && TypedAmerican is { } price && Math.Abs(price) >= 100
-                     && !string.IsNullOrWhiteSpace(_typedBook)
-                     && (!_noGame || !string.IsNullOrWhiteSpace(_described))
-                ? WagerOffer.Typed(market, outcome, HasLine ? _typedLine : null, _typedBook.Trim().ToLowerInvariant(),
-                    price, side?.Offer, DateTimeOffset.UtcNow, _noGame ? _described!.Trim() : null)
+            _offer = !_noGame || !string.IsNullOrWhiteSpace(_described)
+                ? _typed.Offer(market, outcome, HasLine, side?.Offer, DateTimeOffset.UtcNow, _noGame ? _described!.Trim() : null)
                 : null;
             return;
         }
@@ -1015,7 +955,7 @@ else
             _gameId = null;
             _market = null;
             _outcome = null;
-            _typedBook ??= _book;
+            _typed.Restore(_typed.Price, _typed.Line, _typed.BookKey ?? _book);
         }
 
         Reprice();
@@ -1125,31 +1065,7 @@ else
         Reprice();
     }
 
-    private void Prefill(WagerOffer? from)
-    {
-        _typedPrice = from?.PriceAmerican ?? _typedPrice ?? -110;
-        // "-3", not the "-3.00" the stored scale prints.
-        _typedLine = from?.Line is { } line ? line / 1.000000000000000000000000000000000m : _typedLine;
-        _typedBook = from?.Book ?? _typedBook ?? _book;
-    }
-
-    private void SetTypedPrice(decimal? price)
-    {
-        _typedPrice = price;
-        Reprice();
-    }
-
-    private void SetTypedLine(decimal? line)
-    {
-        _typedLine = line;
-        Reprice();
-    }
-
-    private void SetTypedBook(string? book)
-    {
-        _typedBook = book;
-        Reprice();
-    }
+    private void Prefill(WagerOffer? from) => _typed.StartFrom(from, _book);
 
     private void SetStake(decimal stake)
     {
@@ -1190,7 +1106,7 @@ else
         => _offer is null && Typing
             ? (_noGame && string.IsNullOrWhiteSpace(_described)
                 ? "Needs a description of the bet."
-                : "Needs a price (like -110 or +150) and a book.")
+                : _typed.Waiting(_market, HasLine))
            : _stake <= 0 && !BuildParlay ? "Needs a stake above zero."
            : _offer is { IsClosing: true } ? null
            : null;
@@ -1333,7 +1249,7 @@ else
     }
 
     private BetChoice Chosen()
-        => new(_market, _outcome, _book, _manual, _typedPrice, _typedLine, _typedBook, _described, _sideChosen);
+        => new(_market, _outcome, _book, _manual, _typed.Price, _typed.Line, _typed.BookKey, _described, _sideChosen);
 
     /// <summary>
     /// What a successful Log does next (it was the receipt's New bet key). Everything the logged
@@ -1349,8 +1265,7 @@ else
         _market = null;
         _outcome = null;
         _manual = false;
-        _typedPrice = null;
-        _typedLine = null;
+        _typed.Clear();
         _described = null;
         _stake = 0;
         _note = null;
@@ -1384,9 +1299,7 @@ else
         _outcome = choice.Outcome;
         _book = choice.Book;
         _manual = choice.Manual;
-        _typedPrice = choice.TypedPrice;
-        _typedLine = choice.TypedLine;
-        _typedBook = choice.TypedBook;
+        _typed.Restore(choice.TypedPrice, choice.TypedLine, choice.TypedBook);
         _described = choice.Described;
         _sideChosen = choice.SideChosen;
 
@@ -1417,34 +1330,7 @@ else
     /// and the number being logged looked as if it had not taken.
     /// </summary>
     private string? TypedEcho
-        => Side is { } side
-            ? SelectionText.Of(side.Market, side.Outcome, HasLine ? _typedLine ?? side.Offer?.Line : null)
-            : null;
-
-    /// <summary>
-    /// The typed price as the American price it is read as (<see cref="OddsMath.ReadTypedPrice"/>):
-    /// +104.35 as typed, and decimal odds 2.0435 as +104.35. Null while what is typed is not a price.
-    /// </summary>
-    private decimal? TypedAmerican => _typedPrice is { } typed ? OddsMath.ReadTypedPrice(typed) : null;
-
-    /// <summary>
-    /// What a typed decimal price was read as — "Decimal 2.0435 = +104.35" — so the number logged
-    /// is on screen before it is logged. Null for an American price, which is shown as typed.
-    /// </summary>
-    private string? DecimalEcho
-        => _typedPrice is { } typed && Math.Abs(typed) < 100 && TypedAmerican is { } american
-            ? $"Decimal {typed.ToString("0.######", CultureInfo.InvariantCulture)} = {Price(american)}"
-            : null;
-
-    /// <summary>The line under the typed price's label: the side typed, and a decimal price's reading.</summary>
-    private string? PriceEcho
-    {
-        get
-        {
-            var parts = new[] { _noGame ? null : TypedEcho, DecimalEcho }.Where(p => p is not null).ToList();
-            return parts.Count == 0 ? null : string.Join(" · ", parts);
-        }
-    }
+        => Side is { } side ? _typed.Echo(side.Market, side.Outcome, HasLine, side.Offer?.Line) : null;
 
     /// <summary>
     /// Why a price has no value read, said rather than left as a bare "no fair price": a line

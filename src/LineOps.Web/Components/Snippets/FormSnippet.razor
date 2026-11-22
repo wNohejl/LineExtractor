@@ -1,32 +1,37 @@
 @namespace LineOps.Web.Components.Snippets
 @using LineOps.Data.CrossReference
+@using LineOps.Web.Services
+@using LineOps.Web.Components.Panels
 @inject IServiceScopeFactory ScopeFactory
+@inject IServiceProvider Provider
 @inject ILogger<FormSnippet> Logger
+@implements IDisposable
 
 @*
-    Both sides' recent record, as the five results each.
+    The Board row's Form answer.
 
-    The shortest honest answer to "who is playing well". W/L tags rather than a percentage
-    because five games is too few for a rate to mean anything, and a run of results carries
-    shape that a number flattens — three straight losses after two wins reads differently from
-    the same 2-3 scattered.
+    A fight's is the two fighters' tale of the tape (ADR 0021). A team sport's is the two clubs
+    side by side (MatchupTapeView): where each market stands and where its best book opened, then
+    each club's season — the record, where it was won, what it scores and allows, against the
+    spread and the total, rest, the last game and the last five. It was a record, five W/L tags and
+    an ATS figure a side over a rolling thirty days. The season is the bound now (the game's own
+    season year and season type), because "this season" names the same games tomorrow as today.
 
-    The run itself is a FormRun, which owns the reading direction — oldest on the left, newest
-    on the right, the same way time runs on every chart here.
+    One read for the opened row, on arrival and from Try again, never per render.
 *@
 
-@if (_loading)
+@if (_read.Loading)
 {
     <DeskSkeleton Lines="3" />
 }
-else if (_error is not null)
+else if (_read.Error is not null)
 {
-    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
 }
 else if (_absent)
 {
     @* Not a failure: the game is not on the board, and loading again will not put it there. *@
-    <Note State="DeskState.Warning" Style="margin:0">This game is not on the board.</Note>
+    <Note State="DeskState.Warning">This game is not on the board.</Note>
 }
 else if (FightSports.IsFight(_sport))
 {
@@ -34,106 +39,85 @@ else if (FightSports.IsFight(_sport))
        the two fighters' records and last five, from their careers (ADR 0021). *@
     <TaleOfTheTape GameId="GameId" Compact="true" />
 }
-else
+else if (_tape is { } tape)
 {
-    <div class="snippet__form">
-        @RenderSide(_away, _awayName, _awayAbbrev)
-        @RenderSide(_home, _homeName, _homeAbbrev)
-    </div>
+    <MatchupTapeView Data="tape" />
 }
 
 @code {
     [Parameter, EditorRequired] public int GameId { get; set; }
 
-    /// <summary>How far back recent form reaches. Matches the panels' default.</summary>
-    [Parameter] public int WindowDays { get; set; } = 30;
-
-    private IReadOnlyList<TeamGameLogRow> _home = [];
-    private IReadOnlyList<TeamGameLogRow> _away = [];
-    private string _homeName = "Home";
-    private string _awayName = "Away";
+    private MatchupTapeData? _tape;
     private string? _sport;
-    private string? _homeAbbrev;
-    private string? _awayAbbrev;
-    private bool _loading = true;
-    private string? _error;
     private bool _absent;
+    private int? _readFor;
+    private readonly SnippetRead _read = new();
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    /// <summary>The answer's reads; the database's unless a test hands it others.</summary>
+    private IMatchupData Reads => _reads ??= Provider.GetService<IMatchupData>() ?? new MatchupData(ScopeFactory);
+
+    private IMatchupData? _reads;
+
+    protected override Task OnParametersSetAsync()
+    {
+        // One read per opened row: a parent redraw handing the same game back reads nothing.
+        if (_readFor == GameId)
+            return Task.CompletedTask;
+
+        _readFor = GameId;
+        return LoadAsync();
+    }
 
     /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        // A read the snippet has moved on from (re-aimed, or closed) is cancelled, and nothing it
+        // brings back is kept: only the newest read writes the answer.
+        var gameId = GameId;
         _absent = false;
 
-        try
+        return _read.RunAsync(ct => ReadAsync(gameId, ct), read =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
-            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
-
-            if (await board.GetRowAsync(GameId) is not { } row)
+            if (read.Absent)
             {
                 _absent = true;
                 return;
             }
 
-            var game = row.Game;
-            _homeName = game.HomeTeam?.Name ?? "Home";
-            _awayName = game.AwayTeam?.Name ?? "Away";
-            _sport = game.Sport?.Key;
-            _homeAbbrev = game.HomeTeam?.Abbrev;
-            _awayAbbrev = game.AwayTeam?.Abbrev;
+            _sport = read.Sport;
 
-            if (FightSports.IsFight(_sport))
-                return;
-
-            var window = TimeSpan.FromDays(WindowDays);
-
-            _home = GameLogSplits.Apply(
-                await log.TeamGameLogAsync(game.HomeTeamId, window), GameLogSplits.Split.Last5);
-
-            _away = GameLogSplits.Apply(
-                await log.TeamGameLogAsync(game.AwayTeamId, window), GameLogSplits.Split.Last5);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Recent form did not load");
-            _error = "Recent form did not load.";
-        }
-        finally
-        {
-            _loading = false;
-        }
+            if (read.Tape is { } tape)
+                _tape = tape;
+        }, "Recent form did not load.", Logger);
     }
 
-    private RenderFragment RenderSide(IReadOnlyList<TeamGameLogRow> log, string name, string? abbrev) => @<text>
-        <div class="snippet__formside">
-            <div class="snippet__formname trunc" title="@name"><TeamMark Sport="@_sport" Abbrev="@abbrev" />@name</div>
+    /// <summary>What one read found: not on the board, a fight (its sport alone), or the tape.</summary>
+    private sealed record FormRead(bool Absent, string? Sport, MatchupTapeData? Tape);
 
-            @if (log.Count == 0)
-            {
-                <span class="dim snippet__note">No games in the last @WindowDays days.</span>
-            }
-            else
-            {
-                var (covers, fails, pushes) = GameLogSplits.AtsRecord(log);
+    private async Task<FormRead> ReadAsync(int gameId, CancellationToken ct)
+    {
+        if (await Reads.RowAsync(gameId, ct) is not { } row)
+            return new FormRead(true, null, null);
 
-                <span class="dim mono snippet__note">@GameLogSplits.FormatRecord(log)</span>
+        var game = row.Game;
+        var sport = game.Sport?.Key;
 
-                <FormRun Log="@FormResult.From(log)" />
+        if (FightSports.IsFight(sport))
+            return new FormRead(false, sport, null);
 
-                @* Only stated when there is market data behind it. An ATS record of 0-0-0
-                   would read as "never covered" rather than "never priced". *@
-                @if (covers + fails + pushes > 0)
-                {
-                    <span class="dim snippet__note">
-                        @covers-@fails@(pushes > 0 ? $"-{pushes}" : "") ATS
-                    </span>
-                }
-            }
-        </div>
-    </text>;
+        // The row is the tape's own subject (its markets and its starters), so it is read
+        // first; the scans and the two seasons each read in a scope of their own
+        // (MatchupData), so they run side by side rather than one after another.
+        var snapshotsRead = Reads.SnapshotsAsync(gameId, ct);
+        var awayRead = Reads.SeasonAsync(game.AwayTeamId, game.SeasonYear, game.SeasonType, ct);
+        var homeRead = Reads.SeasonAsync(game.HomeTeamId, game.SeasonYear, game.SeasonType, ct);
+        await Task.WhenAll(snapshotsRead, awayRead, homeRead);
+
+        return new FormRead(false, sport, new MatchupTapeData(row,
+            MatchupTape.Markets(row, await snapshotsRead),
+            MatchupTape.Club(await awayRead, game.StartsAt, BoardPanel.Starter(row, home: false)),
+            MatchupTape.Club(await homeRead, game.StartsAt, BoardPanel.Starter(row, home: true))));
+    }
+
+    public void Dispose() => _read.Dispose();
 }

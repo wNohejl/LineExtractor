@@ -128,10 +128,7 @@ public class PerformancePanelTests : DeskTestContext
 
         Set(panel.Instance, "_anySettled", true);
         Set(panel.Instance, "_summary", new PerformanceSummary(2, 1, 1, 0, 200m, 10m));
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, true);
+        PanelProbe.MarkLoaded(panel.Instance);
         panel.Render();
         return panel;
     }

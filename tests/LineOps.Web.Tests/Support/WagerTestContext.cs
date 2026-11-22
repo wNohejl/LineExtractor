@@ -22,6 +22,15 @@ public abstract class WagerTestContext : DeskTestContext
 
     protected WagerSlip Slip => Services.GetRequiredService<WagerSlip>();
 
+    /// <summary>
+    /// How long a wait on a rendered state may take before it fails: an upper bound, not a pause.
+    /// bUnit re-checks on every render, so a passing wait returns as soon as the state is drawn.
+    /// Under a loaded full-solution run a press's render can land after the press returns (even a
+    /// plain handler's), and the one-second default was shorter than the game search's 200ms
+    /// debounce and the reads behind it took there.
+    /// </summary>
+    protected static readonly TimeSpan Settle = TimeSpan.FromSeconds(10);
+
     /// <summary>The newest toast the desk raised: its words, its tone and its key.</summary>
     protected DeskToast LastToast => Services.GetRequiredService<DeskToasts>().Last!;
 

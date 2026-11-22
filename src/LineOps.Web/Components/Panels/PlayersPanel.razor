@@ -24,7 +24,7 @@
         @* All and the enabled leagues: a fixed set, so a segment, as in the Journal. *@
         <div class="ptoolbar__item">
             <span class="ptoolbar__label" aria-hidden="true">Sport</span>
-            <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+            <DeskSwitch Options="SportOptions" Label="Sport"
                         Value="_sport" ValueChanged="@((string s) => OnSportChanged(s))" />
         </div>
     </Overflow>
@@ -194,16 +194,44 @@ else
 
     private string? PlayersStatus() => _rows.Count == 0 ? null : $"{_rows.Count}{(_capped ? "+" : "")} players";
 
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over its rows, so a
+    /// slower read of the last search could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    /// <summary>
+    /// Everything is read into locals and handed over at once, and only by the latest load. The
+    /// reads share one context, so they stay one after another. The token is taken here, inside
+    /// the work, so Try again, which repeats it, starts a read of its own.
+    /// </summary>
     private async Task ReadPlayersAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        var ct = _reads.Next();
 
-        // With the first load that succeeds, so a failed first read still gets its picker later.
-        if (!_sportsRead)
+        await LatestRead.HandOverAsync(ct, () => ReadAsync(ct), read =>
         {
-            _sports = await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync();
-            _sportsRead = true;
-        }
+            // With the first load that succeeds, so a failed first read still gets its picker later.
+            if (read.Sports is not null)
+            {
+                _sports = read.Sports;
+                _sportsRead = true;
+            }
+
+            _capped = read.Capped;
+            _rows = read.Rows;
+            _anyPosition = _rows.Any(r => !string.IsNullOrWhiteSpace(r.Player.Position));
+        });
+    }
+
+    private async Task<(List<Sport>? Sports, List<Row> Rows, bool Capped)> ReadAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+        var sports = _sportsRead
+            ? null
+            : await db.Sports.Where(s => s.Enabled).OrderBy(s => s.Name).ToListAsync(ct);
 
         var query = db.Players.AsNoTracking()
             .Include(p => p.Sport).Include(p => p.Team)
@@ -221,21 +249,20 @@ else
                                                             || EF.Functions.ILike(p.Team.Abbrev, pattern, @"\"))));
         }
 
-        var players = await query.OrderBy(p => p.FullName).Take(Limit + 1).ToListAsync();
-        _capped = players.Count > Limit;
+        var players = await query.OrderBy(p => p.FullName).Take(Limit + 1).ToListAsync(ct);
+        var capped = players.Count > Limit;
         players = players.Take(Limit).ToList();
 
         var ids = players.Select(p => p.Id).ToList();
 
         // The lines this reader may see (ADR 0024): a visitor counts a displayable source's alone.
-        var counts = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier))
+        var counts = await db.PlayerGameStats.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
             .Where(s => ids.Contains(s.PlayerId))
             .GroupBy(s => s.PlayerId)
             .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count);
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
 
-        _rows = players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList();
-        _anyPosition = _rows.Any(r => !string.IsNullOrWhiteSpace(r.Player.Position));
+        return (sports, players.Select(p => new Row(p, counts.GetValueOrDefault(p.Id, 0))).ToList(), capped);
     }
 
     private async Task SyncAsync()
@@ -284,5 +311,9 @@ else
         }
     }
 
-    protected override void OnDispose() => _pending?.Cancel();
+    protected override void OnDispose()
+    {
+        _pending?.Cancel();
+        _reads.Cancel();
+    }
 }
