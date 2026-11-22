@@ -1,8 +1,8 @@
-using System.Net;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -18,36 +18,17 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class TheOddsApiScheduleAdapterTests
 {
-    private sealed class Recorded(string body, int? billed, int? remaining = 431) : HttpMessageHandler
-    {
-        public List<Uri> Asked { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            Asked.Add(request.RequestUri!);
-
-            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) };
-            if (billed is { } last)
-                response.Headers.Add("x-requests-last", last.ToString());
-            if (remaining is { } left)
-                response.Headers.Add("x-requests-remaining", left.ToString());
-            return Task.FromResult(response);
-        }
-    }
-
-    private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
-
-    private static (TheOddsApiScheduleAdapter Adapter, Recorded Handler) Build(
+    private static (TheOddsApiScheduleAdapter Adapter, StubHttp Handler) Build(
         string fixture, int? billed, string? key = "test-key", Action<IngestionOptions>? configure = null, RuntimeOddsKey? runtime = null)
     {
-        var handler = new Recorded(Fixture(fixture), billed);
+        var handler = new StubHttp(Fixtures.Text(fixture)) { RequestsLast = billed, RequestsRemaining = 431 };
 
         var options = new IngestionOptions();
         options.TheOddsApi.Enabled = key is not null;
         options.TheOddsApi.ApiKey = key;
         configure?.Invoke(options);
 
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.the-odds-api.com/v4/") };
+        var http = handler.Client("https://api.the-odds-api.com/v4/");
         return (new TheOddsApiScheduleAdapter(http, Options.Create(options), NullLogger<TheOddsApiScheduleAdapter>.Instance, runtime), handler);
     }
 
@@ -66,6 +47,11 @@ public class TheOddsApiScheduleAdapterTests
         Assert.Contains("commenceTimeFrom=2026-09-26T04:00:00Z", asked.Query);   // midnight Eastern, in UTC
         Assert.Contains("commenceTimeTo=2026-10-04T04:00:00Z", asked.Query);     // eight days on
         Assert.DoesNotContain("scores", asked.AbsolutePath);
+        // The whole request, exactly: `events` has never had a trailing slash.
+        Assert.Equal(
+            "https://api.the-odds-api.com/v4/sports/baseball_mlb/events?apiKey=test-key&dateFormat=iso"
+            + "&commenceTimeFrom=2026-09-26T04:00:00Z&commenceTimeTo=2026-10-04T04:00:00Z",
+            asked.AbsoluteUri);
 
         // Four fixtures: the one with no start and the one with no id are not fixtures.
         Assert.Equal(4, result.Games.Count);
@@ -161,6 +147,27 @@ public class TheOddsApiScheduleAdapterTests
     // ---- Scores: the metered results -----------------------------------------------------------
 
     [Fact]
+    public async Task A_scores_answer_that_cannot_be_read_fails_with_what_it_was_billed()
+    {
+        // The provider bills when it answers. A body that is not JSON still cost two credits, and
+        // the failure has to carry them or the failed run reads as a free call.
+        var handler = new StubHttp("<html>not json</html>") { RequestsLast = 2, RequestsRemaining = 431 };
+
+        var options = new IngestionOptions();
+        options.TheOddsApi.Enabled = true;
+        options.TheOddsApi.ApiKey = "test-key";
+
+        var http = handler.Client("https://api.the-odds-api.com/v4/");
+        var adapter = new TheOddsApiScheduleAdapter(http, Options.Create(options), NullLogger<TheOddsApiScheduleAdapter>.Instance);
+
+        var failure = await Assert.ThrowsAsync<OddsFetchFailedException>(
+            () => adapter.FetchScoresAsync("mlb", CancellationToken.None));
+
+        Assert.Equal(new FetchCost(1, Credits: 2, CreditsRemaining: 431), failure.Cost);
+        Assert.NotNull(failure.InnerException);
+    }
+
+    [Fact]
     public async Task Scores_are_asked_three_days_back_and_completed_games_are_finals()
     {
         var (adapter, handler) = Build("the-odds-api.scores.json", billed: 2);
@@ -170,6 +177,10 @@ public class TheOddsApiScheduleAdapterTests
         var asked = Assert.Single(handler.Asked);
         Assert.Contains("/sports/baseball_mlb/scores", asked.AbsolutePath);
         Assert.Contains("daysFrom=3", asked.Query);
+        // The whole request, exactly: `scores/` has always carried its trailing slash.
+        Assert.Equal(
+            "https://api.the-odds-api.com/v4/sports/baseball_mlb/scores/?apiKey=test-key&daysFrom=3&dateFormat=iso",
+            asked.AbsoluteUri);
 
         var first = result.Games.Single(g => g.SourceGameId == "dh1a0000000000000000000000000001");
         Assert.Equal(("final", 5, 3), (first.Status, first.HomeScore, first.AwayScore));

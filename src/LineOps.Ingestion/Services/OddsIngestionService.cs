@@ -28,17 +28,20 @@ public class OddsIngestionService(
         IOddsSource source,
         string sportKey,
         string jobKey,
-        CancellationToken ct)
+        CancellationToken ct,
+        DateOnly? closingScanDay = null)
     {
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
-            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+        var sourceRow = await RunRecord.SourceRowAsync(db, source.Key, ct);
 
+        // Stamped on the row before the call, not after: a closing scan another host is still
+        // running already counts against the day's cap, so two hosts cannot both take the last one.
         var run = new IngestionRun
         {
             SourceId = sourceRow.Id,
             JobKey = jobKey,
             StartedAt = DateTimeOffset.UtcNow,
-            Status = RunStatus.Running
+            Status = RunStatus.Running,
+            ClosingScanDay = closingScanDay
         };
 
         db.IngestionRuns.Add(run);
@@ -58,8 +61,11 @@ public class OddsIngestionService(
             if (!permitted)
             {
                 run.Status = RunStatus.Partial;
-                run.Error = "Skipped: source is at its configured rate/credit budget.";
+                run.Error = RunRecord.BudgetRefused;
                 run.FinishedAt = DateTimeOffset.UtcNow;
+
+                // Refused before any call, so it bought nothing and does not use up a closing scan.
+                run.ClosingScanDay = null;
                 await db.SaveChangesAsync(ct);
 
                 logger.LogWarning("{Source}/{Sport}: skipped, budget exhausted", source.Key, sportKey);
@@ -73,21 +79,24 @@ public class OddsIngestionService(
 
             var result = await source.FetchSlateAsync(sportKey, source.MarketsFor(sportKey), ct);
 
-            run.RequestsMade = result.Cost.Requests;
-            run.CreditsSpent = result.Cost.Credits;
-            run.ProviderCreditsRemaining = result.Cost.CreditsRemaining;
+            run.Charge(result.Cost);
 
             var rows = await PersistAsync(sourceRow, result, sportKey, run.Id, ct);
 
             run.RowsIngested = rows;
             run.FinishedAt = DateTimeOffset.UtcNow;
 
-            // Two different zeroes, and conflating them would be a real operational bug:
-            //   - the provider returned no prices at all  -> Partial, the signature of a
-            //     silent upstream break (HTTP 200 with an empty or changed payload);
-            //   - prices came back but none had moved     -> Success, a quiet market.
+            // Different zeroes, and conflating them would be a real operational bug (ADR 0003):
+            //   - games were listed but no prices at all   -> Partial, the signature of a
+            //     silent upstream break (HTTP 200 with a restructured payload);
+            //   - prices came back but none had moved      -> Success, a quiet market;
+            //   - no games were listed                     -> Success, an empty slate. The
+            //     feeds ask only for games yet to start, so a league between seasons or with
+            //     every game under way answers with an empty list, free of charge. A provider
+            //     that had broken would list games it cannot price, or throw; it does not
+            //     invent an empty calendar.
             // Only the first should ever page anyone.
-            if (result.Odds.Count == 0)
+            if (result.Odds.Count == 0 && result.Games.Count > 0)
             {
                 run.Status = RunStatus.Partial;
                 run.Error = "Provider returned no prices — possible upstream schema drift.";
@@ -107,8 +116,15 @@ public class OddsIngestionService(
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             run.Status = RunStatus.Failed;
-            run.Error = $"{ex.GetType().Name}: {ex.Message}";
+            run.Error = RunRecord.Describe(ex);
             run.FinishedAt = DateTimeOffset.UtcNow;
+
+            // A call that was answered and billed but could not be used still spent the month.
+            // The failed run records it as a successful one would, so the budget guard, the
+            // monthly count and pacing see the spend now rather than after the next good call.
+            if (ex is OddsFetchFailedException { Cost: var cost })
+                run.Charge(cost);
+
             await db.SaveChangesAsync(ct);
 
             activity?.AddException(ex);

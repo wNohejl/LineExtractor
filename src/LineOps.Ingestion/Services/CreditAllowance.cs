@@ -32,7 +32,7 @@ public sealed class CreditAllowance(LineOpsDbContext db, IOptions<IngestionOptio
 
         var now = DateTimeOffset.UtcNow;
         var state = await MonthlyCredits.StateAsync(db, source, now, ct);
-        var nextMonth = new DateOnly(now.Year, now.Month, 1).AddMonths(1);
+        var nextMonth = DateOnly.FromDateTime(MonthlyCredits.NextReset(now).UtcDateTime);
 
         return new AllowanceState(budget, state.Spent, state.ProviderRemaining is not null,
             options.Value.LinePolling.MonthlyCreditReserve, nextMonth);

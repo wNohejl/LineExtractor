@@ -239,6 +239,57 @@ public class LinePollingOptions
 
     /// <summary>Back-off when the budget is spent, or when nothing is metered.</summary>
     public TimeSpan MaximumInterval { get; set; } = TimeSpan.FromHours(3);
+
+    /// <summary>The one scan taken just before a start, so the close is priced from a fresh read.</summary>
+    public ClosingScanOptions ClosingScan { get; set; } = new();
+}
+
+/// <summary>Which games earn a closing scan.</summary>
+public enum ClosingScanScope
+{
+    /// <summary>Only games carrying an unsettled journal entry, a parlay leg included: the closes CLV is measured on.</summary>
+    Wagered,
+
+    /// <summary>Every game in a priced league.</summary>
+    All
+}
+
+/// <summary>
+/// A scan of one league just before its games start, taken because CLV is measured against the
+/// close and the paced cadence does not know when the close is.
+///
+/// <para>
+/// Paced scans land wherever the budget puts them, which on a 500-credit month can be hours
+/// apart — so the last price before first pitch, the one a closing line is promoted from, was
+/// often taken mid-afternoon for an evening game. One scan inside <see cref="Lead"/> of a start
+/// fixes that for every game in the league starting in that window, since a league scan prices
+/// the whole slate.
+/// </para>
+///
+/// <para>
+/// It runs only while lines run unattended, through the same job as any scan, so the budget
+/// guard and the reserve still apply; and it is capped a league a day, because a slate of
+/// staggered starts would otherwise ask for one every few minutes all evening.
+/// </para>
+/// </summary>
+public class ClosingScanOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>How long before a start the closing scan is taken: late enough to be the close, early enough to land before it.</summary>
+    public TimeSpan Lead { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Wagered by default: a close nobody bet against is a number for the history, and the
+    /// paced scans already give it one; a close a bet is graded against is worth the credits.
+    /// </summary>
+    public ClosingScanScope Scope { get; set; } = ClosingScanScope.Wagered;
+
+    /// <summary>
+    /// The most closing scans one league is given in a league day, counted from the runs table so
+    /// a restart or a second host does not start the count again.
+    /// </summary>
+    public int MaxPerLeaguePerDay { get; set; } = 3;
 }
 
 /// <summary>

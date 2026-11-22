@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LineOps.Core.Entities;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -12,13 +13,10 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnSeasonStampTests
 {
-    private static string FixturePath
-        => Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.scoreboard.json");
-
     /// <summary>The real scoreboard fixture, with a season block stamped onto every event.</summary>
     private static JsonDocument ScoreboardWithSeason(int? year, int? type)
     {
-        var root = JsonNode.Parse(File.ReadAllText(FixturePath))!;
+        var root = JsonNode.Parse(Fixtures.Text("espn.scoreboard.json"))!;
 
         foreach (var e in root["events"]!.AsArray())
         {

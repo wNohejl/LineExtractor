@@ -83,19 +83,11 @@ public sealed class TheOddsApiScheduleAdapter(
         var apiKey = _key.Require(SourceKey);
         var from = LeagueClock.StartOf(date);
 
-        var url = $"sports/{TheOddsApiWire.MapSport(sportKey)}/events"
-                  + $"?apiKey={Uri.EscapeDataString(apiKey)}"
-                  + "&dateFormat=iso"
-                  + $"&commenceTimeFrom={TheOddsApiWire.IsoSeconds(from)}"
-                  + $"&commenceTimeTo={TheOddsApiWire.IsoSeconds(from + FixtureHorizon)}";
-
-        using var response = await http.GetAsync(url, ct);
+        using var response = await http.GetAsync(TheOddsApiWire.EventsUrl(sportKey, apiKey, from, from + FixtureHorizon), ct);
         response.EnsureSuccessStatusCode();
 
-        var games = await ReadAsync(response, sportKey, scores: false, ct);
-        var cost = new FetchCost(Requests: 1,
-            Credits: TheOddsApiWire.ReadHeaderInt(response, "x-requests-last") ?? 0,
-            CreditsRemaining: TheOddsApiWire.ReadHeaderInt(response, "x-requests-remaining"));
+        var cost = TheOddsApiWire.CostOf(response, fallbackCredits: 0);
+        var games = await ReadBilledAsync(response, sportKey, scores: false, cost, ct);
 
         logger.LogInformation("{Source}: {Sport} fixtures -> {Games} games, {Credits} credits",
             SourceKey, sportKey, games.Count, cost.Credits);
@@ -116,18 +108,11 @@ public sealed class TheOddsApiScheduleAdapter(
 
         var apiKey = _key.Require(SourceKey);
 
-        var url = $"sports/{TheOddsApiWire.MapSport(sportKey)}/scores/"
-                  + $"?apiKey={Uri.EscapeDataString(apiKey)}"
-                  + $"&daysFrom={MaxDaysFrom}"
-                  + "&dateFormat=iso";
-
-        using var response = await http.GetAsync(url, ct);
+        using var response = await http.GetAsync(TheOddsApiWire.ScoresUrl(sportKey, apiKey, MaxDaysFrom), ct);
         response.EnsureSuccessStatusCode();
 
-        var games = await ReadAsync(response, sportKey, scores: true, ct);
-        var cost = new FetchCost(Requests: 1,
-            Credits: TheOddsApiWire.ReadHeaderInt(response, "x-requests-last") ?? CreditsWithDaysFrom,
-            CreditsRemaining: TheOddsApiWire.ReadHeaderInt(response, "x-requests-remaining"));
+        var cost = TheOddsApiWire.CostOf(response, fallbackCredits: CreditsWithDaysFrom);
+        var games = await ReadBilledAsync(response, sportKey, scores: true, cost, ct);
 
         logger.LogInformation("{Source}: {Sport} scores -> {Games} games, {Final} final, {Credits} credits ({Remaining} remaining)",
             SourceKey, sportKey, games.Count, games.Count(g => g.Status == "final"), cost.Credits,
@@ -143,6 +128,28 @@ public sealed class TheOddsApiScheduleAdapter(
     public Task<StatsFetchResult> FetchBoxScoresAsync(string sportKey, DateOnly date, CancellationToken ct) => Task.FromResult(Nothing);
 
     private static StatsFetchResult Nothing => new([], [], [], new FetchCost(0));
+
+    /// <summary>
+    /// The answer read, or a failure that still says what the answer cost. The provider bills when
+    /// it answers, not when the answer can be read, so a body that will not parse is thrown as
+    /// <see cref="OddsFetchFailedException"/> with the cost the headers stated: the failed run then
+    /// records the credits (<c>StatsIngestionService</c>) rather than reading as a free call.
+    /// </summary>
+    private async Task<List<CanonicalGame>> ReadBilledAsync(
+        HttpResponseMessage response, string sportKey, bool scores, FetchCost cost, CancellationToken ct)
+    {
+        try
+        {
+            return await ReadAsync(response, sportKey, scores, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new OddsFetchFailedException(
+                $"{SourceKey}: {sportKey} answered and could not be read ({ex.GetType().Name}: {ex.Message}).",
+                cost,
+                ex);
+        }
+    }
 
     private async Task<List<CanonicalGame>> ReadAsync(HttpResponseMessage response, string sportKey, bool scores, CancellationToken ct)
     {
@@ -175,24 +182,15 @@ public sealed class TheOddsApiScheduleAdapter(
     /// <summary>
     /// One event as a game: both sides by name, with what the desk's table knows of each club; and,
     /// from <c>/scores</c>, the status and score. An event with no id, side or readable start is not
-    /// a fixture. A score that is not a whole number is no score.
+    /// a fixture (<see cref="TheOddsApiWire.ReadEvent"/>). A score that is not a whole number is no score.
     /// </summary>
     internal static CanonicalGame? Parse(JsonElement e, string sportKey, bool scores)
     {
-        if (!e.TryGetProperty("id", out var idEl) || idEl.ValueKind != JsonValueKind.String || idEl.GetString() is not { Length: > 0 } id)
+        if (TheOddsApiWire.ReadEvent(e, sportKey, withRefs: true) is not { } game)
             return null;
 
-        var home = e.TryGetProperty("home_team", out var h) && h.ValueKind == JsonValueKind.String ? h.GetString() : null;
-        var away = e.TryGetProperty("away_team", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() : null;
-        if (string.IsNullOrWhiteSpace(home) || string.IsNullOrWhiteSpace(away))
-            return null;
-
-        if (TheOddsApiWire.ReadTimestamp(e, "commence_time") is not { } startsAt)
-            return null;
-
-        var game = new CanonicalGame(id, sportKey, home, away, startsAt,
-            Home: TheOddsApiTeams.Ref(sportKey, home),
-            Away: TheOddsApiTeams.Ref(sportKey, away));
+        var home = game.HomeTeamName;
+        var away = game.AwayTeamName;
 
         if (!scores)
             return game;
@@ -222,7 +220,8 @@ public sealed class TheOddsApiScheduleAdapter(
 
         foreach (var entry in list.EnumerateArray())
         {
-            if (!entry.TryGetProperty("name", out var n) || n.ValueKind != JsonValueKind.String
+            if (entry.ValueKind != JsonValueKind.Object
+                || !entry.TryGetProperty("name", out var n) || n.ValueKind != JsonValueKind.String
                 || !string.Equals(n.GetString(), side, StringComparison.Ordinal)
                 || !entry.TryGetProperty("score", out var s))
                 continue;

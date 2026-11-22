@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
@@ -16,6 +15,10 @@ namespace LineOps.Ingestion.Adapters;
 /// the 500-credit free month is consumed by roughly 55 three-market single-region calls.
 /// The adapter therefore reports its true credit cost so the budget guard can stop it
 /// long before the allowance runs out, and requests a single region deliberately.
+///
+/// It asks only for games that have not started (<c>commenceTimeFrom</c> = now), and the
+/// provider does not bill a call that lists no events — so a league whose games are all in play
+/// costs nothing, and an empty answer is reported as zero credits, not the market count.
 /// </summary>
 public class TheOddsApiAdapter(
     HttpClient http,
@@ -30,9 +33,6 @@ public class TheOddsApiAdapter(
     private readonly TheOddsApiKey _key = new(options.Value.TheOddsApi, runtimeKey);
 
     public string Key => SourceKey;
-
-    /// <summary>The key in force: the desk's where there is one, else configuration's (<see cref="TheOddsApiKey"/>).</summary>
-    private string? ApiKey => _key.Value;
 
     /// <summary>
     /// A supplied key needs no <c>Enabled</c> switch beside it: supplying it is the switch.
@@ -54,7 +54,8 @@ public class TheOddsApiAdapter(
     /// Markets times one region unit. The selector in <see cref="FetchSlateAsync"/> names up to
     /// ten books — one unit — or falls back to <c>regions=us</c>, also one, so a scan of a sport
     /// costs exactly its market count. The header on the response remains the record of what was
-    /// actually billed; this is the forecast the planner paces on.
+    /// actually billed; this is the forecast the planner paces on, and the ceiling: a scan that
+    /// lists no upcoming games is not billed at all.
     /// </summary>
     public int CreditsPerScan(string sportKey) => MarketsFor(sportKey).Count;
 
@@ -63,8 +64,7 @@ public class TheOddsApiAdapter(
         IReadOnlyList<string> markets,
         CancellationToken ct)
     {
-        var apiKey = ApiKey
-            ?? throw new InvalidOperationException($"{SourceKey}: no API key configured.");
+        var apiKey = _key.Require(SourceKey);
 
         var providerMarkets = markets.Select(ToProviderMarket).Distinct().ToArray();
         var books = _config.EffectiveBookmakers;
@@ -80,43 +80,81 @@ public class TheOddsApiAdapter(
         // Pinnacle is the reason to care. It is the sharpest price on the board and the lowest
         // vig, which makes it the reference the others are judged against rather than one more
         // number to shop — a DraftKings price is "good" relative to Pinnacle or it is not good.
-        var selector = books.Length is > 0 and <= BooksPerRegionUnit
-            ? $"&bookmakers={string.Join(',', books)}"
-            : "&regions=us";
+        var named = books.Length is > 0 and <= BooksPerRegionUnit ? books : null;
 
-        var url = $"sports/{MapSport(sportKey)}/odds/"
-                + $"?apiKey={Uri.EscapeDataString(apiKey)}"
-                + selector
-                + $"&markets={string.Join(',', providerMarkets)}"
-                + "&oddsFormat=american";
+        // Only games that have not started. Without a lower bound the provider also lists games
+        // already in play, and this product never stores their prices: a game with a closing line
+        // is dropped on ingest, and the close is read only from scans at or before the start.
+        // They cost credits to carry and are thrown away on arrival.
+        //
+        // There is deliberately no upper bound: an operator's manual pull prices games days
+        // ahead, and a window would take that away. And when nothing is left to list — a league
+        // whose every game is under way — the provider does not bill the call ("If no events are
+        // returned, the request will not count against the usage quota"), so a quiet league is free.
+        var capturedAt = DateTimeOffset.UtcNow;
+
+        var url = TheOddsApiWire.OddsUrl(sportKey, apiKey, named, providerMarkets, capturedAt);
 
         using var response = await http.GetAsync(url, ct);
         response.EnsureSuccessStatusCode();
 
-        // The provider reports actual spend in response headers — always prefer those
-        // over our own estimate, because the billing rule is theirs, not ours.
-        var credits = ReadHeaderInt(response, "x-requests-last")
-                      ?? providerMarkets.Length;
-
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-
-        var capturedAt = DateTimeOffset.UtcNow;
-        var games = new List<CanonicalGame>();
-        var odds = new List<CanonicalOdds>();
-
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        // From here the call has been answered and billed. Whatever goes wrong reading the answer,
+        // the run must still record what it cost: an exception that is not OddsFetchFailedException
+        // reaches ingestion as a call that spent nothing, and the month reads low until the next
+        // good call. The readers below skip a field of the wrong type rather than throw, so this is
+        // the guard for what they did not foresee — a body that is not JSON, a stream cut short.
+        try
         {
-            foreach (var e in doc.RootElement.EnumerateArray())
-                ParseEvent(e, sportKey, markets, capturedAt, games, odds);
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+            var games = new List<CanonicalGame>();
+            var odds = new List<CanonicalOdds>();
+
+            var listed = doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0;
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var e in doc.RootElement.EnumerateArray())
+                    ParseEvent(e, sportKey, markets, capturedAt, games, odds);
+            }
+
+            // The provider reports actual spend in response headers — always prefer those
+            // over our own estimate, because the billing rule is theirs, not ours. Without the
+            // header the estimate is the market count, unless the answer was an empty list, which
+            // the provider does not bill: then it is nothing, not a charge we invented.
+            var cost = TheOddsApiWire.CostOf(response, fallbackCredits: listed ? providerMarkets.Length : 0);
+
+            // An empty list is a normal answer; a list whose every event we could not read is not.
+            // Ingestion reads "no games" as an empty slate and a success, so returning nothing here
+            // would file a changed payload as a quiet day. It fails the run instead. The call was
+            // billed all the same, so the failure carries its cost: the failed run records the
+            // credits and the reported remainder, and the month is right at once rather than when
+            // the next call succeeds.
+            if (listed && games.Count == 0)
+                throw new OddsFetchFailedException(
+                    $"{SourceKey}: {sportKey} listed {doc.RootElement.GetArrayLength()} events and none could be read — possible upstream schema drift.",
+                    cost);
+
+            logger.LogInformation(
+                "{Source}: {Sport} -> {Games} games, {Odds} prices, {Credits} credits ({Remaining} remaining)",
+                SourceKey, sportKey, games.Count, odds.Count, cost.Credits, cost.CreditsRemaining?.ToString() ?? "?");
+
+            return new OddsFetchResult(games, odds, cost);
         }
-
-        var remaining = ReadHeaderInt(response, "x-requests-remaining");
-        logger.LogInformation(
-            "{Source}: {Sport} -> {Games} games, {Odds} prices, {Credits} credits ({Remaining} remaining)",
-            SourceKey, sportKey, games.Count, odds.Count, credits, remaining?.ToString() ?? "?");
-
-        return new OddsFetchResult(games, odds, new FetchCost(Requests: 1, Credits: credits, CreditsRemaining: remaining));
+        catch (Exception ex) when (ex is not OddsFetchFailedException and not OperationCanceledException)
+        {
+            // What was billed is unknown only in the estimate: the header, where sent, still says.
+            // Without it the answer was not an empty list we could see, so the market count is the
+            // honest estimate rather than nothing.
+            //
+            // The cause rides along as the inner exception, and is named in the message as well,
+            // because the message is what the run row keeps.
+            throw new OddsFetchFailedException(
+                $"{SourceKey}: {sportKey} answered and could not be read ({ex.GetType().Name}: {ex.Message}).",
+                TheOddsApiWire.CostOf(response, fallbackCredits: providerMarkets.Length),
+                ex);
+        }
     }
 
     private static void ParseEvent(
@@ -127,21 +165,19 @@ public class TheOddsApiAdapter(
         List<CanonicalGame> games,
         List<CanonicalOdds> odds)
     {
-        if (!e.TryGetProperty("id", out var idEl) || idEl.GetString() is not { } id)
+        // Every read below checks the JSON type before it takes a value. GetString and the Try*
+        // number readers throw InvalidOperationException on the wrong type, and that is not
+        // OddsFetchFailedException: one odd field would fail a billed call as if it were free.
+        // A field of the wrong type skips its event, book, market or outcome instead, and a slate
+        // with nothing readable left is caught by the drift guard in FetchSlateAsync.
+        //
+        // No team refs: a book's game is matched to games the stats source already holds, by name
+        // (see TheOddsApiWire.ReadEvent).
+        if (TheOddsApiWire.ReadEvent(e, sportKey, withRefs: false) is not { } game)
             return;
 
-        var home = e.TryGetProperty("home_team", out var h) ? h.GetString() : null;
-        var away = e.TryGetProperty("away_team", out var a) ? a.GetString() : null;
-        if (home is null || away is null)
-            return;
-
-        // An event with no readable start is skipped rather than stamped "now": a made-up
-        // start time is a fixture the resolver cannot place, and once it was allowed to
-        // correct the schedule, one malformed payload could move a real game to the present.
-        if (!e.TryGetProperty("commence_time", out var c) || !c.TryGetDateTimeOffset(out var startsAt))
-            return;
-
-        games.Add(new CanonicalGame(id, sportKey, home, away, startsAt));
+        var id = game.SourceGameId;
+        games.Add(game);
 
         if (!e.TryGetProperty("bookmakers", out var bookmakers)
             || bookmakers.ValueKind != JsonValueKind.Array)
@@ -149,14 +185,16 @@ public class TheOddsApiAdapter(
 
         foreach (var book in bookmakers.EnumerateArray())
         {
-            var bookKey = book.TryGetProperty("key", out var bk) ? bk.GetString() : null;
-            if (bookKey is null
+            if (TheOddsApiWire.ReadString(book, "key") is not { } bookKey
                 || !book.TryGetProperty("markets", out var marketList)
                 || marketList.ValueKind != JsonValueKind.Array)
                 continue;
 
             foreach (var market in marketList.EnumerateArray())
             {
+                if (market.ValueKind != JsonValueKind.Object)
+                    continue;
+
                 // When the book moved, not when we noticed.
                 //
                 // Stamping our fetch time makes every price in a scan look simultaneous and
@@ -164,12 +202,11 @@ public class TheOddsApiAdapter(
                 // line that moved once at 09:04 reads as having moved at whatever o'clock we
                 // happened to poll. The movement chart is only an honest record of the market
                 // if the timestamps are the market's.
-                var movedAt = ReadTimestamp(market, "last_update")
-                              ?? ReadTimestamp(book, "last_update")
+                var movedAt = TheOddsApiWire.ReadTimestamp(market, "last_update")
+                              ?? TheOddsApiWire.ReadTimestamp(book, "last_update")
                               ?? capturedAt;
 
-                var providerMarket = market.TryGetProperty("key", out var mk) ? mk.GetString() : null;
-                var canonical = FromProviderMarket(providerMarket);
+                var canonical = FromProviderMarket(TheOddsApiWire.ReadString(market, "key"));
 
                 if (canonical is null || !markets.Contains(canonical))
                     continue;
@@ -180,9 +217,9 @@ public class TheOddsApiAdapter(
 
                 foreach (var outcome in outcomes.EnumerateArray())
                 {
-                    var name = outcome.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    if (name is null
+                    if (TheOddsApiWire.ReadString(outcome, "name") is not { } name
                         || !outcome.TryGetProperty("price", out var p)
+                        || p.ValueKind != JsonValueKind.Number
                         || !p.TryGetInt32(out var price)
                         || price == 0)
                         continue;
@@ -195,6 +232,7 @@ public class TheOddsApiAdapter(
                         name = name.ToLowerInvariant();
 
                     decimal? point = outcome.TryGetProperty("point", out var pt)
+                                     && pt.ValueKind == JsonValueKind.Number
                                      && pt.TryGetDecimal(out var d)
                         ? d
                         : null;
@@ -228,17 +266,9 @@ public class TheOddsApiAdapter(
         _ => null
     };
 
-    private static string MapSport(string sportKey) => TheOddsApiWire.MapSport(sportKey);
-
     /// <summary>
     /// Ten bookmakers bill as one region, so a list at or under this costs exactly what a single
     /// region costs — and is not confined to one.
     /// </summary>
     private const int BooksPerRegionUnit = 10;
-
-    private static DateTimeOffset? ReadTimestamp(JsonElement element, string property)
-        => TheOddsApiWire.ReadTimestamp(element, property);
-
-    private static int? ReadHeaderInt(HttpResponseMessage response, string header)
-        => TheOddsApiWire.ReadHeaderInt(response, header);
 }

@@ -165,6 +165,8 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await db.OddsSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.PlayerGameStats.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.StatSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.GameOfficials.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.GameContexts.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.BackfillCheckpoints.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.IngestionRuns.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.KpiDailies.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);

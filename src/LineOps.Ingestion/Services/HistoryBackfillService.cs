@@ -476,7 +476,7 @@ public class HistoryBackfillService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            result = new IngestionOutcome(0, RunStatus.Failed, 0, $"{ex.GetType().Name}: {ex.Message}");
+            result = new IngestionOutcome(0, RunStatus.Failed, 0, RunRecord.Describe(ex));
         }
 
         var run = result.RunId == 0
@@ -498,7 +498,7 @@ public class HistoryBackfillService(
         checkpoint.CompletedAt = DateTimeOffset.UtcNow;
         checkpoint.RowsIngested = result.RowsIngested;
         checkpoint.RequestsMade = run?.RequestsMade ?? 0;
-        checkpoint.Error = Truncate(error, 512);
+        checkpoint.Error = ColumnText.Fit(error, 512);
 
         // Rows count games, players and stat lines together; games are counted separately
         // because "did this day have a slate at all" is the question coverage really asks.
@@ -512,9 +512,6 @@ public class HistoryBackfillService(
 
         return new DayOutcome(checkpoint.GamesFound, checkpoint.RowsIngested, error);
     }
-
-    private static string? Truncate(string? value, int max)
-        => value is null || value.Length <= max ? value : value[..max];
 
     private readonly record struct DayOutcome(int Games, int Rows, string? Error);
 }

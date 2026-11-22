@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LineOps.Core.Entities;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace LineOps.Tests.Adapters;
@@ -13,15 +14,9 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnLiveStateTests
 {
-    private static string Path(string fixture)
-        => System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-
-    private static JsonElement Load(string fixture)
-        => JsonDocument.Parse(File.ReadAllText(Path(fixture))).RootElement.Clone();
-
     private static JsonElement Edited(string fixture, string eventId, Action<JsonObject> edit)
     {
-        var root = JsonNode.Parse(File.ReadAllText(Path(fixture)))!;
+        var root = JsonNode.Parse(Fixtures.Text(fixture))!;
         var ev = root["events"]!.AsArray().Single(e => (string?)e!["id"] == eventId)!;
         edit(ev["competitions"]![0]!.AsObject());
         return JsonDocument.Parse(root.ToJsonString()).RootElement.Clone();
@@ -30,7 +25,7 @@ public class EspnLiveStateTests
     [Fact]
     public void ALiveNflEventCarriesItsClockSituationAndLinescore()
     {
-        var game = EspnStatsAdapter.ParseScoreboard(Load("espn.nfl.scoreboard.live.json"), "nfl")
+        var game = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.nfl.scoreboard.live.json"), "nfl")
             .Single(g => g.SourceGameId == "401873032");
 
         var live = game.Live;
@@ -60,7 +55,7 @@ public class EspnLiveStateTests
     [Fact]
     public void AFinalCarriesItsPeriodClockAndLinescoreButNoSituation()
     {
-        var game = EspnStatsAdapter.ParseScoreboard(Load("espn.nfl.scoreboard.live.json"), "nfl")
+        var game = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.nfl.scoreboard.live.json"), "nfl")
             .Single(g => g.SourceGameId == "401873031");
 
         var live = game.Live;
@@ -87,7 +82,7 @@ public class EspnLiveStateTests
     [Fact]
     public void AScheduledEventHasNoSituation()
     {
-        var game = EspnStatsAdapter.ParseScoreboard(Load("espn.nfl.scoreboard.live.json"), "nfl")
+        var game = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.nfl.scoreboard.live.json"), "nfl")
             .Single(g => g.SourceGameId == "401873035");
 
         var live = game.Live;
@@ -108,7 +103,7 @@ public class EspnLiveStateTests
     [Fact]
     public void ALiveMlbEventKeepsItsCountRunnersAndMatchupInTheSituationBag()
     {
-        var game = EspnStatsAdapter.ParseScoreboard(Load("espn.mlb.scoreboard.live.json"), "mlb").Single();
+        var game = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.mlb.scoreboard.live.json"), "mlb").Single();
 
         var live = game.Live;
         Assert.NotNull(live);

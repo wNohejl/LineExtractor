@@ -1,0 +1,775 @@
+{
+  "totalGames": 6,
+  "dates": [
+    {
+      "date": "2026-07-17",
+      "games": [
+        {
+          "gamePk": 824766,
+          "gameType": "R",
+          "gameDate": "2026-07-17T17:35:00Z",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "away": {
+              "score": 0,
+              "team": {
+                "id": 139,
+                "name": "Tampa Bay Rays",
+                "abbreviation": "TB"
+              },
+              "probablePitcher": {
+                "id": 643377,
+                "fullName": "Griffin Jax"
+              }
+            },
+            "home": {
+              "score": 10,
+              "team": {
+                "id": 111,
+                "name": "Boston Red Sox",
+                "abbreviation": "BOS"
+              },
+              "probablePitcher": {
+                "id": 687562,
+                "fullName": "Jake Bennett"
+              }
+            }
+          },
+          "weather": {
+            "condition": "Sunny",
+            "temp": "82",
+            "wind": "10 mph, In From LF"
+          },
+          "officials": [
+            {
+              "official": {
+                "id": 665299,
+                "fullName": "Louie Krupa"
+              },
+              "officialType": "First Base"
+            },
+            {
+              "official": {
+                "id": 482631,
+                "fullName": "Mike Estabrook"
+              },
+              "officialType": "Home Plate"
+            },
+            {
+              "official": {
+                "id": 623946,
+                "fullName": "Malachi Moore"
+              },
+              "officialType": "Second Base"
+            },
+            {
+              "official": {
+                "id": 427315,
+                "fullName": "Alfonso Márquez"
+              },
+              "officialType": "Third Base"
+            }
+          ],
+          "lineups": {
+            "homePlayers": [
+              {
+                "id": 678011,
+                "fullName": "Anthony Seigler",
+                "primaryPosition": {
+                  "code": "4",
+                  "name": "Second Base",
+                  "abbreviation": "2B"
+                }
+              },
+              {
+                "id": 678882,
+                "fullName": "Ceddanne Rafaela",
+                "primaryPosition": {
+                  "code": "8",
+                  "name": "Outfielder",
+                  "abbreviation": "CF"
+                }
+              },
+              {
+                "id": 677800,
+                "fullName": "Wilyer Abreu",
+                "primaryPosition": {
+                  "code": "9",
+                  "name": "Outfielder",
+                  "abbreviation": "RF"
+                }
+              },
+              {
+                "id": 702332,
+                "fullName": "Caleb Durbin",
+                "primaryPosition": {
+                  "code": "5",
+                  "name": "Third Base",
+                  "abbreviation": "3B"
+                }
+              },
+              {
+                "id": 807799,
+                "fullName": "Masataka Yoshida",
+                "primaryPosition": {
+                  "code": "10",
+                  "name": "Designated Hitter",
+                  "abbreviation": "DH"
+                }
+              },
+              {
+                "id": 663853,
+                "fullName": "Romy Gonzalez",
+                "primaryPosition": {
+                  "code": "3",
+                  "name": "First Base",
+                  "abbreviation": "1B"
+                }
+              },
+              {
+                "id": 680776,
+                "fullName": "Jarren Duran",
+                "primaryPosition": {
+                  "code": "7",
+                  "name": "Outfielder",
+                  "abbreviation": "LF"
+                }
+              },
+              {
+                "id": 665966,
+                "fullName": "Carlos Narváez",
+                "primaryPosition": {
+                  "code": "2",
+                  "name": "Catcher",
+                  "abbreviation": "C"
+                }
+              },
+              {
+                "id": 691907,
+                "fullName": "Tsung-Che Cheng",
+                "primaryPosition": {
+                  "code": "6",
+                  "name": "Shortstop",
+                  "abbreviation": "SS"
+                }
+              }
+            ],
+            "awayPlayers": [
+              {
+                "id": 650490,
+                "fullName": "Yandy Díaz",
+                "primaryPosition": {
+                  "code": "10",
+                  "name": "Designated Hitter",
+                  "abbreviation": "DH"
+                }
+              },
+              {
+                "id": 666018,
+                "fullName": "Jonathan Aranda",
+                "primaryPosition": {
+                  "code": "3",
+                  "name": "First Base",
+                  "abbreviation": "1B"
+                }
+              },
+              {
+                "id": 691406,
+                "fullName": "Junior Caminero",
+                "primaryPosition": {
+                  "code": "5",
+                  "name": "Third Base",
+                  "abbreviation": "3B"
+                }
+              },
+              {
+                "id": 668723,
+                "fullName": "Ryan Vilade",
+                "primaryPosition": {
+                  "code": "9",
+                  "name": "Outfielder",
+                  "abbreviation": "RF"
+                }
+              },
+              {
+                "id": 676356,
+                "fullName": "Jonny DeLuca",
+                "primaryPosition": {
+                  "code": "8",
+                  "name": "Outfielder",
+                  "abbreviation": "CF"
+                }
+              },
+              {
+                "id": 802415,
+                "fullName": "Chandler Simpson",
+                "primaryPosition": {
+                  "code": "7",
+                  "name": "Outfielder",
+                  "abbreviation": "LF"
+                }
+              },
+              {
+                "id": 810938,
+                "fullName": "Ben Williamson",
+                "primaryPosition": {
+                  "code": "4",
+                  "name": "Second Base",
+                  "abbreviation": "2B"
+                }
+              },
+              {
+                "id": 670764,
+                "fullName": "Taylor Walls",
+                "primaryPosition": {
+                  "code": "6",
+                  "name": "Shortstop",
+                  "abbreviation": "SS"
+                }
+              },
+              {
+                "id": 663743,
+                "fullName": "Nick Fortes",
+                "primaryPosition": {
+                  "code": "2",
+                  "name": "Catcher",
+                  "abbreviation": "C"
+                }
+              }
+            ]
+          },
+          "venue": {
+            "id": 3,
+            "name": "Fenway Park",
+            "location": {
+              "city": "Boston",
+              "state": "Massachusetts",
+              "stateAbbrev": "MA"
+            },
+            "fieldInfo": {
+              "capacity": 37755,
+              "turfType": "Grass",
+              "roofType": "Open"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "S",
+          "dayNight": "day"
+        },
+        {
+          "gamePk": 822789,
+          "gameType": "R",
+          "gameDate": "2026-07-17T23:15:00Z",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "away": {
+              "score": 12,
+              "team": {
+                "id": 145,
+                "name": "Chicago White Sox",
+                "abbreviation": "CWS"
+              },
+              "probablePitcher": {
+                "id": 641743,
+                "fullName": "Anthony Kay"
+              }
+            },
+            "home": {
+              "score": 4,
+              "team": {
+                "id": 141,
+                "name": "Toronto Blue Jays",
+                "abbreviation": "TOR"
+              },
+              "probablePitcher": {
+                "id": 693686,
+                "fullName": "Spencer Miles"
+              }
+            }
+          },
+          "weather": {
+            "condition": "Roof Closed",
+            "temp": "68",
+            "wind": "0 mph, None"
+          },
+          "officials": [
+            {
+              "official": {
+                "id": 427292,
+                "fullName": "Ron Kulpa"
+              },
+              "officialType": "Third Base"
+            },
+            {
+              "official": {
+                "id": 482608,
+                "fullName": "Scott Barry"
+              },
+              "officialType": "Home Plate"
+            },
+            {
+              "official": {
+                "id": 484499,
+                "fullName": "Manny Gonzalez"
+              },
+              "officialType": "First Base"
+            },
+            {
+              "official": {
+                "id": 665297,
+                "fullName": "Tom Hanahan"
+              },
+              "officialType": "Second Base"
+            }
+          ],
+          "lineups": {
+            "homePlayers": [
+              {
+                "id": 676391,
+                "fullName": "Ernie Clement",
+                "primaryPosition": {
+                  "code": "6",
+                  "name": "Shortstop",
+                  "abbreviation": "SS"
+                }
+              },
+              {
+                "id": 665489,
+                "fullName": "Vladimir Guerrero",
+                "primaryPosition": {
+                  "code": "3",
+                  "name": "First Base",
+                  "abbreviation": "1B"
+                }
+              }
+            ],
+            "awayPlayers": [
+              {
+                "id": 803011,
+                "fullName": "Sam Antonacci",
+                "primaryPosition": {
+                  "code": "7",
+                  "name": "Outfielder",
+                  "abbreviation": "LF"
+                }
+              },
+              {
+                "id": 808959,
+                "fullName": "Munetaka Murakami",
+                "primaryPosition": {
+                  "code": "3",
+                  "name": "First Base",
+                  "abbreviation": "1B"
+                }
+              }
+            ]
+          },
+          "venue": {
+            "id": 14,
+            "name": "Rogers Centre",
+            "location": {
+              "city": "Toronto",
+              "state": "Ontario",
+              "stateAbbrev": "ON"
+            },
+            "fieldInfo": {
+              "capacity": 39150,
+              "turfType": "Artificial Turf",
+              "roofType": "Retractable"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "dayNight": "night"
+        },
+        {
+          "gamePk": 823115,
+          "gameType": "R",
+          "gameDate": "2026-07-18T02:10:00Z",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "away": {
+              "score": 7,
+              "team": {
+                "id": 137,
+                "name": "San Francisco Giants",
+                "abbreviation": "SF"
+              },
+              "probablePitcher": {
+                "id": 694738,
+                "fullName": "Landen Roupp"
+              }
+            },
+            "home": {
+              "score": 0,
+              "team": {
+                "id": 136,
+                "name": "Seattle Mariners",
+                "abbreviation": "SEA"
+              },
+              "probablePitcher": {
+                "id": 682243,
+                "fullName": "Bryce Miller"
+              }
+            }
+          },
+          "weather": {
+            "condition": "Clear",
+            "temp": "72",
+            "wind": "6 mph, Out To CF"
+          },
+          "officials": [
+            {
+              "official": {
+                "id": 483919,
+                "fullName": "Mark Ripperger"
+              },
+              "officialType": "Home Plate"
+            },
+            {
+              "official": {
+                "id": 665298,
+                "fullName": "Dexter Kelley"
+              },
+              "officialType": "Second Base"
+            },
+            {
+              "official": {
+                "id": 575629,
+                "fullName": "Shane Livensparger"
+              },
+              "officialType": "Third Base"
+            },
+            {
+              "official": {
+                "id": 483564,
+                "fullName": "Dan Bellino"
+              },
+              "officialType": "First Base"
+            }
+          ],
+          "lineups": {
+            "homePlayers": [
+              {
+                "id": 641487,
+                "fullName": "J.P. Crawford",
+                "primaryPosition": {
+                  "code": "5",
+                  "name": "Third Base",
+                  "abbreviation": "3B"
+                }
+              },
+              {
+                "id": 668227,
+                "fullName": "Randy Arozarena",
+                "primaryPosition": {
+                  "code": "7",
+                  "name": "Outfielder",
+                  "abbreviation": "LF"
+                }
+              }
+            ],
+            "awayPlayers": [
+              {
+                "id": 650333,
+                "fullName": "Luis Arraez",
+                "primaryPosition": {
+                  "code": "4",
+                  "name": "Second Base",
+                  "abbreviation": "2B"
+                }
+              },
+              {
+                "id": 805811,
+                "fullName": "Bryce Eldridge",
+                "primaryPosition": {
+                  "code": "10",
+                  "name": "Designated Hitter",
+                  "abbreviation": "DH"
+                }
+              }
+            ]
+          },
+          "venue": {
+            "id": 680,
+            "name": "T-Mobile Park",
+            "location": {
+              "city": "Seattle",
+              "state": "Washington",
+              "stateAbbrev": "WA"
+            },
+            "fieldInfo": {
+              "capacity": 47378,
+              "turfType": "Grass",
+              "roofType": "Retractable"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "dayNight": "night"
+        },
+        {
+          "gamePk": 824414,
+          "gameType": "R",
+          "gameDate": "2026-07-17T23:10:00Z",
+          "status": {
+            "detailedState": "Postponed"
+          },
+          "teams": {
+            "away": {
+              "team": {
+                "id": 134,
+                "name": "Pittsburgh Pirates",
+                "abbreviation": "PIT"
+              },
+              "probablePitcher": {
+                "id": 683003,
+                "fullName": "Jared Jones"
+              }
+            },
+            "home": {
+              "team": {
+                "id": 114,
+                "name": "Cleveland Guardians",
+                "abbreviation": "CLE"
+              },
+              "probablePitcher": {
+                "id": 668909,
+                "fullName": "Gavin Williams"
+              }
+            }
+          },
+          "weather": {
+            "condition": "Partly Cloudy",
+            "temp": "89",
+            "wind": "14 mph, Out To RF"
+          },
+          "officials": [
+            {
+              "official": {
+                "id": 484198,
+                "fullName": "Alan Porter"
+              },
+              "officialType": "Third Base"
+            },
+            {
+              "official": {
+                "id": 623945,
+                "fullName": "Alex MacKay"
+              },
+              "officialType": "Second Base"
+            },
+            {
+              "official": {
+                "id": 577468,
+                "fullName": "Roberto Ortiz"
+              },
+              "officialType": "Home Plate"
+            },
+            {
+              "official": {
+                "id": 545402,
+                "fullName": "John Bacon"
+              },
+              "officialType": "First Base"
+            }
+          ],
+          "venue": {
+            "id": 5,
+            "name": "Progressive Field",
+            "location": {
+              "city": "Cleveland",
+              "state": "Ohio",
+              "stateAbbrev": "OH"
+            },
+            "fieldInfo": {
+              "capacity": 34830,
+              "turfType": "Grass",
+              "roofType": "Open"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "dayNight": "night"
+        },
+        {
+          "gamePk": 822952,
+          "gameType": "R",
+          "gameDate": "2026-07-24T23:10:00Z",
+          "status": {
+            "detailedState": "Final"
+          },
+          "teams": {
+            "away": {
+              "score": 3,
+              "team": {
+                "id": 114,
+                "name": "Cleveland Guardians",
+                "abbreviation": "CLE"
+              },
+              "probablePitcher": {
+                "id": 676282,
+                "fullName": "Joey Cantillo"
+              }
+            },
+            "home": {
+              "score": 11,
+              "team": {
+                "id": 139,
+                "name": "Tampa Bay Rays",
+                "abbreviation": "TB"
+              },
+              "probablePitcher": {
+                "id": 663556,
+                "fullName": "Shane McClanahan"
+              }
+            }
+          },
+          "weather": {
+            "condition": "Dome",
+            "temp": "72",
+            "wind": "0 mph, None"
+          },
+          "officials": [
+            {
+              "official": {
+                "id": 658325,
+                "fullName": "Tyler Jones"
+              },
+              "officialType": "Second Base"
+            },
+            {
+              "official": {
+                "id": 503077,
+                "fullName": "Adam Hamari"
+              },
+              "officialType": "Home Plate"
+            },
+            {
+              "official": {
+                "id": 623949,
+                "fullName": "Clint Vondrak"
+              },
+              "officialType": "Third Base"
+            },
+            {
+              "official": {
+                "id": 429805,
+                "fullName": "Todd Tichenor"
+              },
+              "officialType": "First Base"
+            }
+          ],
+          "lineups": {
+            "homePlayers": [
+              {
+                "id": 650490,
+                "fullName": "Yandy Díaz",
+                "primaryPosition": {
+                  "code": "10",
+                  "name": "Designated Hitter",
+                  "abbreviation": "DH"
+                }
+              },
+              {
+                "id": 666018,
+                "fullName": "Jonathan Aranda",
+                "primaryPosition": {
+                  "code": "3",
+                  "name": "First Base",
+                  "abbreviation": "1B"
+                }
+              }
+            ],
+            "awayPlayers": [
+              {
+                "id": 682657,
+                "fullName": "Angel Martínez",
+                "primaryPosition": {
+                  "code": "9",
+                  "name": "Outfielder",
+                  "abbreviation": "RF"
+                }
+              },
+              {
+                "id": 800050,
+                "fullName": "Chase DeLauter",
+                "primaryPosition": {
+                  "code": "10",
+                  "name": "Designated Hitter",
+                  "abbreviation": "DH"
+                }
+              }
+            ]
+          },
+          "venue": {
+            "id": 12,
+            "name": "Tropicana Field",
+            "location": {
+              "city": "St. Petersburg",
+              "state": "Florida",
+              "stateAbbrev": "FL"
+            },
+            "fieldInfo": {
+              "capacity": 25025,
+              "turfType": "Artificial Turf",
+              "roofType": "Dome"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "dayNight": "night"
+        },
+        {
+          "gamePk": 854284,
+          "gameType": "R",
+          "gameDate": "2027-04-01T17:35:00Z",
+          "status": {
+            "detailedState": "Scheduled"
+          },
+          "teams": {
+            "away": {
+              "team": {
+                "id": 141,
+                "name": "Toronto Blue Jays",
+                "abbreviation": "TOR"
+              }
+            },
+            "home": {
+              "team": {
+                "id": 110,
+                "name": "Baltimore Orioles",
+                "abbreviation": "BAL"
+              }
+            }
+          },
+          "weather": {},
+          "officials": [],
+          "venue": {
+            "id": 2,
+            "name": "Oriole Park at Camden Yards",
+            "location": {
+              "city": "Baltimore",
+              "state": "Maryland",
+              "stateAbbrev": "MD"
+            },
+            "fieldInfo": {
+              "capacity": 42455,
+              "turfType": "Grass",
+              "roofType": "Open"
+            }
+          },
+          "gameNumber": 1,
+          "doubleHeader": "N",
+          "dayNight": "day"
+        }
+      ]
+    }
+  ]
+}

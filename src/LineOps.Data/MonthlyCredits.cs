@@ -25,6 +25,22 @@ namespace LineOps.Data;
 /// </summary>
 public static class MonthlyCredits
 {
+    /// <summary>
+    /// The first instant of <paramref name="now"/>'s calendar month in UTC, when the provider's
+    /// allowance last reset. The one definition of the month every credit reader counts from, so the
+    /// planner, the allowance and the spent count cannot disagree about which runs are this month's.
+    /// Taken in UTC whatever offset <paramref name="now"/> carries: the month is the provider's, not
+    /// the caller's clock.
+    /// </summary>
+    public static DateTimeOffset MonthStart(DateTimeOffset now)
+    {
+        var utc = now.ToUniversalTime();
+        return new DateTimeOffset(utc.Year, utc.Month, 1, 0, 0, 0, TimeSpan.Zero);
+    }
+
+    /// <summary>The first instant of the next calendar month in UTC, when the allowance is restored.</summary>
+    public static DateTimeOffset NextReset(DateTimeOffset now) => MonthStart(now).AddMonths(1);
+
     /// <summary>The larger of the two accounts of the month. Pure, so the rule is testable alone.</summary>
     public static int Reconcile(int recordedHere, int? monthlyBudget, int? providerRemaining)
     {
@@ -50,7 +66,7 @@ public static class MonthlyCredits
     public static async Task<MonthlyCreditState> StateAsync(
         LineOpsDbContext db, Source source, DateTimeOffset now, CancellationToken ct = default)
     {
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var monthStart = MonthStart(now);
 
         var keys = SourceAccounts.Sharing(source.Key);
         List<int> ids = keys.Count == 1

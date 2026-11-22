@@ -3,6 +3,7 @@ using LineOps.Ingestion;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -152,31 +153,20 @@ public class RuntimeOddsKeyTests
         Assert.Empty(provider.GetServices<IStatsSource>());
     }
 
-    private sealed class Recorded : HttpMessageHandler
-    {
-        public Uri? Asked { get; private set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            Asked = request.RequestUri;
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("[]") });
-        }
-    }
-
     [Fact]
     public async Task The_supplied_key_is_the_one_sent_ahead_of_configurations()
     {
         var options = new IngestionOptions();
         options.TheOddsApi.ApiKey = "from-configuration";
 
-        var handler = new Recorded();
+        var handler = new StubHttp("[]");
         var adapter = new TheOddsApiAdapter(
-            new HttpClient(handler) { BaseAddress = new Uri("https://api.the-odds-api.com/v4/") },
+            handler.Client("https://api.the-odds-api.com/v4/"),
             Options.Create(options), NullLogger<TheOddsApiAdapter>.Instance,
             new RuntimeOddsKey { TheOddsApi = "typed-in-the-desk" });
 
         await adapter.FetchSlateAsync("mlb", ["moneyline"], CancellationToken.None);
 
-        Assert.Contains("apiKey=typed-in-the-desk", handler.Asked!.Query);
+        Assert.Contains("apiKey=typed-in-the-desk", handler.Last!.Query);
     }
 }

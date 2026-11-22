@@ -8,6 +8,7 @@ using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
+using LineOps.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,10 +64,8 @@ public class OddsDefaultSourceTests(PostgresFixture fixture)
         }
     }
 
-    private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
-
-    private static Func<Uri, string> Recorded => uri => uri.AbsolutePath.Contains("/scores") ? Fixture("the-odds-api.scores.json")
-        : uri.AbsolutePath.Contains("/events") && uri.AbsolutePath.Contains("baseball_mlb") ? Fixture("the-odds-api.events.json")
+    private static Func<Uri, string> Recorded => uri => uri.AbsolutePath.Contains("/scores") ? Fixtures.Text("the-odds-api.scores.json")
+        : uri.AbsolutePath.Contains("/events") && uri.AbsolutePath.Contains("baseball_mlb") ? Fixtures.Text("the-odds-api.events.json")
         : "[]";
 
     /// <summary>A database of this test's own, migrated and seeded as a host's startup does it.</summary>

@@ -132,7 +132,16 @@ public record CanonicalOdds(
     string Outcome,
     decimal? Line,
     int PriceAmerican,
-    DateTimeOffset CapturedAt);
+    DateTimeOffset CapturedAt)
+{
+    /// <summary>
+    /// What this side opened at, from a provider that states the open beside the close (ESPN).
+    /// Only a stats provider's close carries one: it is stored on the same <c>ClosingLine</c> row,
+    /// so the open is always the open of the book and side the close is for. Null from everything
+    /// else, and on a side whose open the provider did not state.
+    /// </summary>
+    public CanonicalOpening? Opening { get; init; }
+}
 
 public record CanonicalPlayer(
     string SourcePlayerId,
@@ -162,6 +171,20 @@ public record CanonicalPlayerStat(
 /// provider's own count of what is left on the key, when it reports one.
 /// </summary>
 public record FetchCost(int Requests, int Credits = 0, int? CreditsRemaining = null);
+
+/// <summary>
+/// A fetch that was answered, and billed, but whose answer could not be used — a listed slate
+/// none of whose events could be read. It fails the run, as any exception does, but it carries
+/// what the call cost, so the failed run records the credits and the provider's reported
+/// remainder exactly as a successful one would. Without that the month would read low until the
+/// next successful call corrected it, and the budget guard and pacing would spend against it.
+/// </summary>
+public class OddsFetchFailedException(string message, FetchCost cost, Exception? inner = null)
+    : InvalidOperationException(message, inner)
+{
+    /// <summary>What the provider billed for the call that could not be used.</summary>
+    public FetchCost Cost { get; } = cost;
+}
 
 public record OddsFetchResult(
     IReadOnlyList<CanonicalGame> Games,
@@ -193,6 +216,17 @@ public record StatsFetchResult(
 {
     /// <summary>Never null at the call site, whatever the adapter passed.</summary>
     public IReadOnlyList<CanonicalOdds> Lines => ClosingLines ?? [];
+
+    /// <summary>
+    /// The circumstances of the games this fetch read — venue, weather, officials, the provider's
+    /// win probability — keyed by the provider's game id (<see cref="CanonicalGameContext"/>). ESPN
+    /// states them in the summary the box-score walk already fetches, so they cost no request.
+    /// Null from every adapter that says nothing, which is every adapter that does not set it.
+    /// </summary>
+    public IReadOnlyList<CanonicalGameContext>? GameContexts { get; init; }
+
+    /// <summary>Never null at the call site, whatever the adapter set.</summary>
+    public IReadOnlyList<CanonicalGameContext> Contexts => GameContexts ?? [];
 }
 
 /// <summary>

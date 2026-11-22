@@ -196,6 +196,14 @@ DELETE FROM "ClosingLineMisses" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown)
 DELETE FROM "OddsSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
 DELETE FROM "PlayerGameStats"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
 DELETE FROM "StatSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+-- ESPN's and MLB's account of a game's circumstances: venue, weather, officials, lineups. A
+-- database from before migration GameContextAndOpeningLine has neither table.
+DO $$ BEGIN
+  IF to_regclass('public."GameOfficials"') IS NOT NULL THEN
+    DELETE FROM "GameOfficials" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+    DELETE FROM "GameContexts"  WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+  END IF;
+END $$;
 
 -- ESPN's and MLB's own words about a game and a player. The schedule and the final score stay:
 -- every odds row hangs off a game.
@@ -213,6 +221,11 @@ DO $$ BEGIN
      OR EXISTS (SELECT 1 FROM "PlayerGameStats" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
      OR EXISTS (SELECT 1 FROM "StatSnapshots"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
      OR EXISTS (SELECT 1 FROM "FighterProfiles") THEN
+    RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
+  END IF;
+  IF to_regclass('public."GameOfficials"') IS NOT NULL
+     AND (EXISTS (SELECT 1 FROM "GameOfficials" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+          OR EXISTS (SELECT 1 FROM "GameContexts" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))) THEN
     RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
   END IF;
 END $$;

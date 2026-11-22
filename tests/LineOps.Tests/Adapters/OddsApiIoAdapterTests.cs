@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LineOps.Core.Entities;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -12,17 +13,10 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class OddsApiIoAdapterTests
 {
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        var json = File.ReadAllText(path);
-        return JsonDocument.Parse(json).RootElement.Clone();
-    }
-
     [Fact]
     public void ParseEvents_UnwrapsDataEnvelopeAndReadsBothTeamShapes()
     {
-        var events = OddsApiIoAdapter.ParseEvents(Load("odds-api-io.events.json"), "nfl").ToList();
+        var events = OddsApiIoAdapter.ParseEvents(Fixtures.Json("odds-api-io.events.json"), "nfl").ToList();
 
         // Three rows in the fixture, but one has no home team and must be dropped.
         Assert.Equal(2, events.Count);
@@ -41,7 +35,7 @@ public class OddsApiIoAdapterTests
     [Fact]
     public void ParseEvents_SkipsRowsMissingRequiredFields()
     {
-        var events = OddsApiIoAdapter.ParseEvents(Load("odds-api-io.events.json"), "nfl").ToList();
+        var events = OddsApiIoAdapter.ParseEvents(Fixtures.Json("odds-api-io.events.json"), "nfl").ToList();
 
         Assert.DoesNotContain(events, e => e.SourceGameId == "evt-1003");
     }
@@ -51,7 +45,7 @@ public class OddsApiIoAdapterTests
     {
         var capturedAt = DateTimeOffset.UtcNow;
         var odds = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), Markets.V1, capturedAt)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), Markets.V1, capturedAt)
             .ToList();
 
         Assert.Contains(odds, o => o.Market == Markets.Moneyline);
@@ -66,7 +60,7 @@ public class OddsApiIoAdapterTests
     public void ParseOdds_ReadsLinesFromEitherPointOrTotal()
     {
         var odds = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
             .ToList();
 
         var spread = odds.First(o => o.Market == Markets.Spread && o.Outcome == "Seattle Seahawks");
@@ -80,7 +74,7 @@ public class OddsApiIoAdapterTests
     public void ParseOdds_AcceptsNumericPricesEncodedAsStrings()
     {
         var odds = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
             .ToList();
 
         var fanduel = odds.First(o => o.Book == "fanduel" && o.Outcome == "Seattle Seahawks");
@@ -91,7 +85,7 @@ public class OddsApiIoAdapterTests
     public void ParseOdds_DropsRowsWithAnUnusablePrice()
     {
         var odds = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
             .ToList();
 
         // Zero is not a valid American price and would break every downstream conversion.
@@ -103,7 +97,7 @@ public class OddsApiIoAdapterTests
     public void ParseOdds_LowercasesBookKeysForStableGrouping()
     {
         var odds = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), Markets.V1, DateTimeOffset.UtcNow)
             .ToList();
 
         Assert.Contains(odds, o => o.Book == "draftkings");
@@ -115,7 +109,7 @@ public class OddsApiIoAdapterTests
     public void ParseOdds_HonoursTheRequestedMarketFilter()
     {
         var onlyMoneyline = OddsApiIoAdapter
-            .ParseOdds(Load("odds-api-io.odds.json"), [Markets.Moneyline], DateTimeOffset.UtcNow)
+            .ParseOdds(Fixtures.Json("odds-api-io.odds.json"), [Markets.Moneyline], DateTimeOffset.UtcNow)
             .ToList();
 
         Assert.NotEmpty(onlyMoneyline);

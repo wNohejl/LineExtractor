@@ -26,7 +26,8 @@ public static class BookNames
         ["circa"] = "Circa",
         ["draftkings"] = "DraftKings",
         ["espn"] = "ESPN",
-        ["espnbet"] = "ESPN BET",
+        // The feed kept the key when ESPN BET became theScore Bet.
+        ["espnbet"] = "theScore Bet",
         ["fanatics"] = "Fanatics",
         ["fanduel"] = "FanDuel",
         ["hardrockbet"] = "Hard Rock Bet",

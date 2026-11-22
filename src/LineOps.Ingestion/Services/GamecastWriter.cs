@@ -68,8 +68,7 @@ public class GamecastWriter(LineOpsDbContext db)
     public async Task<GamecastWriteResult> WriteAsync(
         int gameId, string sourceKey, CanonicalGamecast gamecast, CancellationToken ct)
     {
-        var source = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
-            ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
+        var source = await RunRecord.SourceRowAsync(db, sourceKey, ct);
 
         var game = await db.Games.AsNoTracking()
             .Where(g => g.Id == gameId)
@@ -86,7 +85,7 @@ public class GamecastWriter(LineOpsDbContext db)
 
         // A play names its drive by the provider's id; the store links it by the drive's sequence.
         var driveSeq = gamecast.Drives
-            .GroupBy(d => Fit(d.SourceDriveId, columns.DriveId)!)
+            .GroupBy(d => ColumnText.Fit(d.SourceDriveId, columns.DriveId)!)
             .ToDictionary(g => g.Key, g => g.Last().Sequence);
 
         var (playsInserted, playsUpdated) = await WritePlaysAsync(gameId, source.Id, gamecast.Plays, driveSeq, Side, columns, now, ct);
@@ -134,7 +133,7 @@ public class GamecastWriter(LineOpsDbContext db)
 
         // The last word on a drive the payload lists twice is its later listing. The drive that
         // was current last poll is listed again as a previous one, and its flag moves with it.
-        foreach (var listed in drives.GroupBy(d => Fit(d.SourceDriveId, columns.DriveId)!))
+        foreach (var listed in drives.GroupBy(d => ColumnText.Fit(d.SourceDriveId, columns.DriveId)!))
         {
             var (id, drive) = (listed.Key, listed.Last());
 
@@ -167,10 +166,10 @@ public class GamecastWriter(LineOpsDbContext db)
         var inserted = 0;
         var updated = 0;
 
-        foreach (var listed in plays.GroupBy(p => Fit(p.SourcePlayId, columns.PlayId)!))
+        foreach (var listed in plays.GroupBy(p => ColumnText.Fit(p.SourcePlayId, columns.PlayId)!))
         {
             var (id, play) = (listed.Key, listed.Last());
-            int? drive = Fit(play.SourceDriveId, columns.DriveId) is { } driveId && driveSeq.TryGetValue(driveId, out var seq)
+            int? drive = ColumnText.Fit(play.SourceDriveId, columns.DriveId) is { } driveId && driveSeq.TryGetValue(driveId, out var seq)
                 ? seq
                 : null;
 
@@ -200,17 +199,17 @@ public class GamecastWriter(LineOpsDbContext db)
         moved.Set(row.Sequence, drive.Sequence, v => row.Sequence = v);
         moved.Set(row.TeamId, side(drive.SourceTeamId), v => row.TeamId = v);
         moved.Set(row.Description, drive.Description, v => row.Description = v);
-        moved.Set(row.Result, Fit(drive.Result, columns.DriveResult), v => row.Result = v);
+        moved.Set(row.Result, ColumnText.Fit(drive.Result, columns.DriveResult), v => row.Result = v);
         moved.Set(row.Yards, drive.Yards, v => row.Yards = v);
         moved.Set(row.OffensivePlays, drive.OffensivePlays, v => row.OffensivePlays = v);
-        moved.Set(row.TimeElapsed, Fit(drive.TimeElapsed, columns.TimeElapsed), v => row.TimeElapsed = v);
+        moved.Set(row.TimeElapsed, ColumnText.Fit(drive.TimeElapsed, columns.TimeElapsed), v => row.TimeElapsed = v);
         moved.Set(row.IsScore, drive.IsScore, v => row.IsScore = v);
         moved.Set(row.IsCurrent, drive.IsCurrent, v => row.IsCurrent = v);
         moved.Set(row.StartPeriod, drive.StartPeriod, v => row.StartPeriod = v);
-        moved.Set(row.StartClock, Fit(drive.StartClock, columns.StartClock), v => row.StartClock = v);
+        moved.Set(row.StartClock, ColumnText.Fit(drive.StartClock, columns.StartClock), v => row.StartClock = v);
         moved.Set(row.StartYardLine, drive.StartYardLine, v => row.StartYardLine = v);
         moved.Set(row.EndPeriod, drive.EndPeriod, v => row.EndPeriod = v);
-        moved.Set(row.EndClock, Fit(drive.EndClock, columns.EndClock), v => row.EndClock = v);
+        moved.Set(row.EndClock, ColumnText.Fit(drive.EndClock, columns.EndClock), v => row.EndClock = v);
         moved.Set(row.EndYardLine, drive.EndYardLine, v => row.EndYardLine = v);
 
         return moved.Any;
@@ -224,10 +223,10 @@ public class GamecastWriter(LineOpsDbContext db)
         moved.Set(row.Sequence, play.Sequence, v => row.Sequence = v);
         moved.Set(row.DriveSeq, driveSeq, v => row.DriveSeq = v);
         moved.Set(row.Period, play.Period, v => row.Period = v);
-        moved.Set(row.Clock, Fit(play.Clock, columns.Clock), v => row.Clock = v);
+        moved.Set(row.Clock, ColumnText.Fit(play.Clock, columns.Clock), v => row.Clock = v);
         moved.Set(row.ClockSeconds, play.ClockSeconds, v => row.ClockSeconds = v);
-        moved.Set(row.TypeId, Fit(play.TypeId, columns.TypeId), v => row.TypeId = v);
-        moved.Set(row.Type, Fit(play.Type, columns.Type), v => row.Type = v);
+        moved.Set(row.TypeId, ColumnText.Fit(play.TypeId, columns.TypeId), v => row.TypeId = v);
+        moved.Set(row.Type, ColumnText.Fit(play.Type, columns.Type), v => row.Type = v);
         moved.Set(row.Text, play.Text, v => row.Text = v);
         moved.Set(row.HomeScore, play.HomeScore, v => row.HomeScore = v);
         moved.Set(row.AwayScore, play.AwayScore, v => row.AwayScore = v);
@@ -297,12 +296,6 @@ public class GamecastWriter(LineOpsDbContext db)
         private static int Length(IEntityType entity, string property)
             => entity.FindProperty(property)?.GetMaxLength() ?? int.MaxValue;
     }
-
-    /// <summary>The value cut to <paramref name="length"/>, never splitting a surrogate pair.</summary>
-    private static string? Fit(string? value, int length)
-        => value is { Length: var n } && n > length
-            ? value[..(char.IsHighSurrogate(value[length - 1]) ? length - 1 : length)]
-            : value;
 
     /// <summary>A probability as the column will hold it, so the next poll's compares equal.</summary>
     private static decimal? Probability(decimal? value)

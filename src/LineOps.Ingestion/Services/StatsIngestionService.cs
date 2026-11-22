@@ -234,8 +234,7 @@ public class StatsIngestionService(
         bool quietPoll = false,
         bool guarded = true)
     {
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == sourceKey, ct)
-            ?? throw new InvalidOperationException($"Source '{sourceKey}' is not registered.");
+        var sourceRow = await RunRecord.SourceRowAsync(db, sourceKey, ct);
 
         var run = new IngestionRun
         {
@@ -260,12 +259,15 @@ public class StatsIngestionService(
         var saved = 0;
         void Count(object? sender, SavedChangesEventArgs e) => saved += e.EntitiesSavedCount;
 
+        // What the fetch cost, once it has answered: a failure after that point still spent it.
+        FetchCost? spent = null;
+
         try
         {
             if (guarded && !await budget.TryReserveAsync(sourceRow, estimatedRequests: 2, ct))
             {
                 run.Status = RunStatus.Partial;
-                run.Error = "Skipped: source is at its configured rate/credit budget.";
+                run.Error = RunRecord.BudgetRefused;
                 run.FinishedAt = DateTimeOffset.UtcNow;
                 await RecordAsync(run, ct);
                 return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
@@ -275,16 +277,15 @@ public class StatsIngestionService(
                 injectable.FailureMode = sourceRow.FailureMode;
 
             var result = await fetch(ct);
+            spent = result.Cost;
 
             if (narrow is not null)
                 result = await narrow(result, sourceRow.Key, ct);
 
-            run.RequestsMade = result.Cost.Requests;
-            run.CreditsSpent = result.Cost.Credits;
-
-            // What the provider says is left on the key, where it says (The Odds API does; ESPN never
-            // does, so its runs keep null as before) — the count MonthlyCredits reconciles against.
-            run.ProviderCreditsRemaining = result.Cost.CreditsRemaining;
+            // Including what the provider says is left on the key, where it says (The Odds API does;
+            // ESPN never does, so its runs keep null as before) — the count MonthlyCredits reconciles
+            // against.
+            run.Charge(result.Cost);
 
             // Every save in the pass, the resolver's own included: what tells a poll that changed
             // something from one that only read.
@@ -332,7 +333,7 @@ public class StatsIngestionService(
             // the pending work first, then re-read the run to carry the outcome.
             db.ChangeTracker.Clear();
 
-            var error = $"{ex.GetType().Name}: {ex.Message}";
+            var error = RunRecord.Describe(ex);
 
             // A live poll's run not written yet is written now: a failure is always recorded.
             var failed = run.Id == 0
@@ -344,6 +345,15 @@ public class StatsIngestionService(
                 failed.Status = RunStatus.Failed;
                 failed.Error = error;
                 failed.FinishedAt = DateTimeOffset.UtcNow;
+
+                // A call that was answered and billed still spent the month though nothing came of
+                // it, as the odds pass records: the cost the provider's exception carries, or the
+                // answered fetch's when the failure came after it. The re-read row never saw the
+                // charge, which lived only on the discarded tracked copy. Where neither says, the
+                // run records no cost rather than a guess.
+                if (((ex as OddsFetchFailedException)?.Cost ?? spent) is { } cost)
+                    failed.Charge(cost);
+
                 await RecordAsync(failed, ct);
             }
 
@@ -427,8 +437,7 @@ public class StatsIngestionService(
     {
         var at = now ?? DateTimeOffset.UtcNow;
 
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
-            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+        var sourceRow = await RunRecord.SourceRowAsync(db, source.Key, ct);
 
         var run = new IngestionRun
         {
@@ -526,7 +535,7 @@ public class StatsIngestionService(
             written = 0;
             setAside = [];
             run.Status = RunStatus.Failed;
-            run.Error = $"{ex.GetType().Name}: {ex.Message}";
+            run.Error = RunRecord.Describe(ex);
         }
 
         run.RequestsMade = requests;
@@ -865,6 +874,32 @@ public class StatsIngestionService(
 
         rows += await PersistClosingLinesAsync(sourceRow, result.Lines, gameMap, ct);
 
+        // The circumstances of each game the fetch described, to the game it names — one this
+        // payload carried, or one already held under the provider's id, as a stat line finds its
+        // game. A context for a game we hold neither way has nowhere to go and is dropped.
+        if (result.Contexts.Count > 0)
+        {
+            var writer = new GameContextWriter(db);
+
+            foreach (var context in result.Contexts)
+            {
+                if (!gameMap.TryGetValue(context.SourceGameId, out var game))
+                {
+                    knownByExternalId ??= (await db.Games
+                            .Where(g => g.SportId == sport.Id)
+                            .ToListAsync(ct))
+                        .Where(g => g.ExternalIds.ContainsKey(sourceRow.Key))
+                        .GroupBy(g => g.ExternalIds[sourceRow.Key])
+                        .ToDictionary(g => g.Key, g => g.First());
+
+                    if (!knownByExternalId.TryGetValue(context.SourceGameId, out game))
+                        continue;
+                }
+
+                rows += await writer.UpsertAsync(game, sourceRow, context, ct);
+            }
+        }
+
         await db.SaveChangesAsync(ct);
         return rows;
     }
@@ -883,7 +918,9 @@ public class StatsIngestionService(
     /// <para>
     /// Written once and left alone. A closing line is a fact about a moment that has passed, so
     /// a later walk over the same day must not rewrite it — and re-walking days is the ordinary
-    /// case, not the exception.
+    /// case, not the exception. The open the provider states beside it (<see cref="CanonicalOdds.Opening"/>)
+    /// rides on the same row and is the one thing a later walk may add to it: a close stored before
+    /// opens were read gets its open from the next walk that states one, for the same book only.
     /// </para>
     /// </summary>
     private async Task<int> PersistClosingLinesAsync(
@@ -925,6 +962,20 @@ public class StatsIngestionService(
             .Select(c => (c.GameId, c.Market, c.Outcome))
             .ToHashSet();
 
+        // The rows already held that a line in hand could give an open to: a close stored before
+        // opens were read, or by a read whose provider block had none. Loaded only when some line
+        // carries an open, so a pass with none sends exactly the queries it always did.
+        Dictionary<(int, string, string), ClosingLine>? openable = null;
+
+        if (lines.Any(l => l.Opening is { IsEmpty: false }))
+        {
+            openable = (await db.ClosingLines
+                    .Where(c => c.SourceId == sourceRow.Id && gameIds.Contains(c.GameId))
+                    .ToListAsync(ct))
+                .GroupBy(c => (c.GameId, c.Market, c.Outcome))
+                .ToDictionary(g => g.Key, g => g.First());
+        }
+
         var written = 0;
         var closed = new HashSet<int>();
 
@@ -944,9 +995,19 @@ public class StatsIngestionService(
             }
 
             if (!held.Add((game.Id, line.Market, outcome)))
-                continue;
+            {
+                // The close stands as first written. Its open is filled or corrected from a later
+                // read of the same book — never erased by one that states none, and never taken
+                // from another book, whose open is not this close's open.
+                if (openable is not null
+                    && openable.TryGetValue((game.Id, line.Market, outcome), out var stored)
+                    && ApplyOpening(stored, line))
+                    written++;
 
-            db.ClosingLines.Add(new ClosingLine
+                continue;
+            }
+
+            var close = new ClosingLine
             {
                 GameId = game.Id,
                 SourceId = sourceRow.Id,
@@ -956,7 +1017,11 @@ public class StatsIngestionService(
                 Line = line.Line,
                 PriceAmerican = line.PriceAmerican,
                 CapturedAt = line.CapturedAt
-            });
+            };
+
+            ApplyOpening(close, line);
+            db.ClosingLines.Add(close);
+            openable?.TryAdd((game.Id, line.Market, outcome), close);
 
             written++;
 
@@ -977,6 +1042,34 @@ public class StatsIngestionService(
             logger.LogInformation("{Source}: {Count} closing lines recorded", sourceRow.Key, written);
 
         return (written, closed);
+    }
+
+    /// <summary>
+    /// A line's open onto a close row of the same book: each half the line states replaces the one
+    /// held, a half it leaves out stays. A row of another book is left alone.
+    /// </summary>
+    /// <returns>True when the row's open changed.</returns>
+    internal static bool ApplyOpening(ClosingLine row, CanonicalOdds line)
+    {
+        if (line.Opening is not { IsEmpty: false } opening
+            || !string.Equals(row.Book, line.Book, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var changed = false;
+
+        if (opening.Line is { } openLine && row.OpenLine != openLine)
+        {
+            row.OpenLine = openLine;
+            changed = true;
+        }
+
+        if (opening.PriceAmerican is { } openPrice && row.OpenPriceAmerican != openPrice)
+        {
+            row.OpenPriceAmerican = openPrice;
+            changed = true;
+        }
+
+        return changed;
     }
 
     /// <summary>
@@ -1001,21 +1094,21 @@ public class StatsIngestionService(
             bout.MethodDetail, bout.EndRound, bout.EndSeconds);
 
         bout.EventId = canonical.EventId;
-        bout.EventName = Truncate(canonical.EventName, 160)!;
-        bout.EventShortName = Truncate(canonical.EventShortName, 64) ?? bout.EventShortName;
-        bout.CardSegment = Truncate(canonical.CardSegment, 32) ?? bout.CardSegment;
+        bout.EventName = ColumnText.Fit(canonical.EventName, 160)!;
+        bout.EventShortName = ColumnText.Fit(canonical.EventShortName, 64) ?? bout.EventShortName;
+        bout.CardSegment = ColumnText.Fit(canonical.CardSegment, 32) ?? bout.CardSegment;
         bout.MatchNumber = canonical.MatchNumber ?? bout.MatchNumber;
-        bout.WeightClass = Truncate(canonical.WeightClass, 48) ?? bout.WeightClass;
+        bout.WeightClass = ColumnText.Fit(canonical.WeightClass, 48) ?? bout.WeightClass;
         bout.ScheduledRounds = canonical.ScheduledRounds;
         bout.TitleFight = canonical.TitleFight;
-        bout.HomeRecord = Truncate(canonical.HomeRecord, 16) ?? bout.HomeRecord;
-        bout.AwayRecord = Truncate(canonical.AwayRecord, 16) ?? bout.AwayRecord;
+        bout.HomeRecord = ColumnText.Fit(canonical.HomeRecord, 16) ?? bout.HomeRecord;
+        bout.AwayRecord = ColumnText.Fit(canonical.AwayRecord, 16) ?? bout.AwayRecord;
 
         if (canonical.Outcome is not null || bout.Outcome is null)
         {
             bout.Outcome = canonical.Outcome;
-            bout.Method = Truncate(canonical.Method, 64) ?? (canonical.Outcome is null ? null : bout.Method);
-            bout.MethodDetail = Truncate(canonical.MethodDetail, 96);
+            bout.Method = ColumnText.Fit(canonical.Method, 64) ?? (canonical.Outcome is null ? null : bout.Method);
+            bout.MethodDetail = ColumnText.Fit(canonical.MethodDetail, 96);
             bout.EndRound = canonical.EndRound;
             bout.EndSeconds = canonical.EndSeconds;
         }
@@ -1037,9 +1130,6 @@ public class StatsIngestionService(
         await db.SaveChangesAsync(ct);
         return 1;
     }
-
-    private static string? Truncate(string? value, int max)
-        => value is null || value.Length <= max ? value : value[..max];
 
     /// <summary>
     /// The team a stat line was made for, when the source said and it is one of the game's two

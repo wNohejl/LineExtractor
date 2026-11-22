@@ -262,6 +262,13 @@ else
         "betmgm" => "MG",
         "caesars" => "CZ",
         "pointsbet" => "PB",
+        // Named, because the first two letters of three of these are "BE" and "BO".
+        "betrivers" => "BR",
+        "betonlineag" => "BO",
+        "bovada" => "BV",
+        "espnbet" => "TS",
+        "hardrockbet" => "HR",
+        "lowvig" => "LV",
         _ => book.Length >= 2 ? book[..2].ToUpperInvariant() : book.ToUpperInvariant()
     };
 

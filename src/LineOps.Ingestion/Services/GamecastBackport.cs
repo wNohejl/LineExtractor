@@ -255,7 +255,7 @@ public class GamecastBackport(
             {
                 misses++;
                 failures++;
-                lastError = $"{ex.GetType().Name}: {ex.Message}";
+                lastError = RunRecord.Describe(ex);
                 logger.LogWarning(ex, "Gamecast backport {GameId} ({EventId}): summary unavailable; asked again later",
                     game.GameId, game.EventId);
 

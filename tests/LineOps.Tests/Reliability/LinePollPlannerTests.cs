@@ -48,8 +48,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
     private static double HoursLeftThisMonth()
     {
         var now = DateTimeOffset.UtcNow;
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-        return (monthStart.AddMonths(1) - now).TotalHours;
+        return (MonthlyCredits.NextReset(now) - now).TotalHours;
     }
 
     /// <summary>
@@ -64,7 +63,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
     private static DateTimeOffset EarlierThisMonth(TimeSpan ago)
     {
         var now = DateTimeOffset.UtcNow;
-        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var monthStart = MonthlyCredits.MonthStart(now);
 
         return now - ago < monthStart ? monthStart : now - ago;
     }
@@ -202,7 +201,9 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         await using var db = fixture.CreateContext();
         var source = await SeedSourceAsync(db, perDay: 500);
 
-        var planner = Create(db, new IngestionOptions { Sports = ["mlb", "nfl", "nba", "nhl"] });
+        // Leagues of this test's own, none with a game in the window: the plan then prices a scan of
+        // every priced league, and another suite's game in a real league cannot narrow it.
+        var planner = Create(db, new IngestionOptions { Sports = [NewKey(), NewKey(), NewKey(), NewKey()] });
         var plan = await planner.PlanAsync([source.Key]);
 
         // Four sports at two requests each is eight a scan, so a quarter of the scans.
@@ -224,10 +225,24 @@ public class LinePollPlannerTests(PostgresFixture fixture)
     /// </summary>
     private static async Task<Sport> SeedGameAsync(LineOpsDbContext db, double hoursOut)
     {
-        var sport = new Sport { Key = $"s{Guid.NewGuid():N}"[..8], Name = "Test" };
+        var sport = await SeedSportAsync(db);
+        await SeedGameAsync(db, sport, hoursOut);
+        return sport;
+    }
+
+    /// <summary>A league key of the test's own, so no other suite's games land in it.</summary>
+    private static string NewKey() => $"s{Guid.NewGuid():N}"[..8];
+
+    private static async Task<Sport> SeedSportAsync(LineOpsDbContext db)
+    {
+        var sport = new Sport { Key = NewKey(), Name = "Test" };
         db.Sports.Add(sport);
         await db.SaveChangesAsync();
+        return sport;
+    }
 
+    private static async Task<Game> SeedGameAsync(LineOpsDbContext db, Sport sport, double hoursOut)
+    {
         var home = new Team { SportId = sport.Id, Name = "Home", Abbrev = "H" };
         var away = new Team { SportId = sport.Id, Name = "Away", Abbrev = "A" };
         db.Teams.AddRange(home, away);
@@ -243,7 +258,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
 
         db.Games.Add(game);
         await db.SaveChangesAsync();
-        return sport;
+        return game;
     }
 
     [Theory]
@@ -383,7 +398,7 @@ public class LinePollPlannerTests(PostgresFixture fixture)
         var source = await SeedSourceAsync(db, monthlyCredits: 500);
 
         var now = DateTimeOffset.UtcNow;
-        var lastMonth = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddDays(-2);
+        var lastMonth = MonthlyCredits.MonthStart(now).AddDays(-2);
 
         db.IngestionRuns.Add(new IngestionRun
         {
@@ -499,8 +514,9 @@ public class LinePollPlannerTests(PostgresFixture fixture)
 
         // Totals added to NFL: three markets there, two for MLB — five credits a scan. The old
         // configured two-per-sport would have said four, and paced a month on the wrong price.
-        var registry = new SourceRegistry([new PricedSource(source.Key, new() { ["mlb"] = 2, ["nfl"] = 3 })], []);
-        var options = new IngestionOptions { Sports = ["mlb", "nfl"] };
+        string mlb = NewKey(), nfl = NewKey();
+        var registry = new SourceRegistry([new PricedSource(source.Key, new() { [mlb] = 2, [nfl] = 3 })], []);
+        var options = new IngestionOptions { Sports = [mlb, nfl] };
 
         var planner = new LinePollPlanner(db, Options.Create(options), NullLogger<LinePollPlanner>.Instance, registry);
         var plan = await planner.PlanAsync([source.Key]);
@@ -510,5 +526,325 @@ public class LinePollPlannerTests(PostgresFixture fixture)
 
         var markets = planner.MarketsBySport([source.Key]);
         Assert.Equal([2, 3], markets.Select(m => m.Credits));
+    }
+
+    /// <summary>
+    /// One league with a game two hours out, one with nothing in the window. The scheduler used to
+    /// scan both whenever either had a game near, and price the month as if it always would.
+    /// </summary>
+    [Fact]
+    public async Task A_league_with_nothing_in_the_window_is_neither_scanned_nor_costed()
+    {
+        await using var db = fixture.CreateContext();
+        var busy = await SeedGameAsync(db, 2);
+        var quiet = NewKey();
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+
+        var plan = await Create(db, new IngestionOptions { Sports = [busy.Key, quiet] }).PlanAsync([source.Key]);
+
+        Assert.Equal([busy.Key], plan!.Leagues.Select(l => l.Sport));
+
+        // One league at two credits, not two: 400 usable credits buy 200 scans of it, not 100 of both.
+        Assert.Equal(2, plan.CreditsPerScan);
+        Assert.Equal(2, plan.CostPerScan);
+        Assert.Equal(200, plan.ScansRemainingToday);
+
+        Assert.Equal([busy.Key], LinePacing.DueLeagues(plan.Leagues, new Dictionary<string, DateTimeOffset>(), DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
+    public async Task Two_leagues_keep_their_own_clocks_from_their_own_next_starts()
+    {
+        await using var db = fixture.CreateContext();
+        var soon = await SeedGameAsync(db, 1);
+        var later = await SeedGameAsync(db, 30);
+
+        // Paced by the day, so the arithmetic does not move with the date: 500 less the 50 reserve,
+        // at two leagues of two requests a scan, is 112 scans — one every 24/112 hours.
+        var source = await SeedSourceAsync(db, perDay: 500);
+
+        var plan = await Create(db, new IngestionOptions
+        {
+            Sports = [soon.Key, later.Key],
+            MovementWindow = TimeSpan.FromHours(48)
+        }).PlanAsync([source.Key]);
+
+        var budget = TimeSpan.FromHours(24d / 112);
+        Assert.Equal(budget.TotalHours, plan!.BudgetInterval.TotalHours, precision: 3);
+
+        var first = plan.Leagues.Single(l => l.Sport == soon.Key);
+        var second = plan.Leagues.Single(l => l.Sport == later.Key);
+
+        // An hour from first pitch: 0.35 of thirteen minutes, held to the five-minute floor. A day
+        // and more out: four times it. One shared multiplier would have scanned both at the floor.
+        Assert.Equal(0.35, first.Urgency, precision: 2);
+        Assert.Equal(TimeSpan.FromMinutes(5), first.Interval);
+        Assert.Equal(4, second.Urgency, precision: 2);
+        Assert.Equal((budget * 4).TotalMinutes, second.Interval.TotalMinutes, precision: 2);
+
+        // The headline is the soonest league's, which is the scan that comes next.
+        Assert.Equal(soon.Key, plan.Leagues[0].Sport);
+        Assert.Equal(first.Interval, plan.Interval);
+        Assert.Equal(first.Urgency, plan.Urgency);
+
+        // Each league is due on its own last scan: the one scanned ten minutes ago and an hour from
+        // first pitch is due again; the one a day out is not.
+        var now = DateTimeOffset.UtcNow;
+        var last = new Dictionary<string, DateTimeOffset> { [soon.Key] = now.AddMinutes(-10), [later.Key] = now.AddMinutes(-10) };
+
+        Assert.Equal([soon.Key], LinePacing.DueLeagues(plan.Leagues, last, now));
+    }
+
+    private static IngestionOptions Closing(ClosingScanScope scope, params string[] sports) => new()
+    {
+        Sports = sports,
+        LinePolling = new LinePollingOptions
+        {
+            ClosingScan = new ClosingScanOptions { Scope = scope, Lead = TimeSpan.FromMinutes(10), MaxPerLeaguePerDay = 3 }
+        }
+    };
+
+    private static readonly IReadOnlyDictionary<string, DateTimeOffset> NeverScanned = new Dictionary<string, DateTimeOffset>();
+
+    [Fact]
+    public async Task A_start_inside_the_lead_with_no_scan_since_the_lead_began_is_owed_its_closing_scan()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        await SeedGameAsync(db, sport, 5 / 60d);
+
+        var planner = Create(db, Closing(ClosingScanScope.All, sport.Key));
+        var now = DateTimeOffset.UtcNow;
+
+        // Never scanned, or last scanned twenty minutes ago — before the lead began: owed.
+        Assert.Equal([sport.Key], (await planner.ClosingScansDueAsync(now, NeverScanned)).Select(c => c.Sport));
+        Assert.Single(await planner.ClosingScansDueAsync(now, new Dictionary<string, DateTimeOffset> { [sport.Key] = now.AddMinutes(-20) }));
+
+        // Scanned two minutes ago, inside the lead: that scan already priced the close.
+        Assert.Empty(await planner.ClosingScansDueAsync(now, new Dictionary<string, DateTimeOffset> { [sport.Key] = now.AddMinutes(-2) }));
+    }
+
+    [Fact]
+    public async Task A_start_beyond_the_lead_is_not_owed_one_yet()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        await SeedGameAsync(db, sport, 0.5);
+
+        var planner = Create(db, Closing(ClosingScanScope.All, sport.Key));
+
+        Assert.Empty(await planner.ClosingScansDueAsync(DateTimeOffset.UtcNow, NeverScanned));
+    }
+
+    [Fact]
+    public async Task Wagered_closes_only_games_with_an_unsettled_entry_and_All_closes_every_game()
+    {
+        await using var db = fixture.CreateContext();
+        var bet = await SeedSportAsync(db);
+        var leg = await SeedSportAsync(db);
+        var settled = await SeedSportAsync(db);
+        var unbet = await SeedSportAsync(db);
+
+        var betGame = await SeedGameAsync(db, bet, 5 / 60d);
+        var legGame = await SeedGameAsync(db, leg, 5 / 60d);
+        var settledGame = await SeedGameAsync(db, settled, 5 / 60d);
+        await SeedGameAsync(db, unbet, 5 / 60d);
+
+        // A straight bet pending, a parlay leg pending, and a bet already graded (a void, say).
+        var parlay = new Parlay { Book = "draftkings", Stake = 10, PlacedAt = DateTimeOffset.UtcNow };
+        db.Parlays.Add(parlay);
+
+        db.JournalEntries.AddRange(
+            new JournalEntry { GameId = betGame.Id, Market = "h2h", Outcome = "home", Book = "draftkings", PriceTaken = -110, Stake = 10, PlacedAt = DateTimeOffset.UtcNow },
+            new JournalEntry { GameId = legGame.Id, Market = "h2h", Outcome = "away", Book = "draftkings", PriceTaken = 120, PlacedAt = DateTimeOffset.UtcNow, ParlayGroupId = parlay.Id },
+            new JournalEntry { GameId = settledGame.Id, Market = "h2h", Outcome = "home", Book = "draftkings", PriceTaken = -110, Stake = 10, PlacedAt = DateTimeOffset.UtcNow, Result = EntryResult.Void });
+        await db.SaveChangesAsync();
+
+        var sports = new[] { bet.Key, leg.Key, settled.Key, unbet.Key };
+        var now = DateTimeOffset.UtcNow;
+
+        var wagered = await Create(db, Closing(ClosingScanScope.Wagered, sports)).ClosingScansDueAsync(now, NeverScanned);
+        Assert.Equal(new[] { bet.Key, leg.Key }.Order(), wagered.Select(c => c.Sport).Order());
+
+        var all = await Create(db, Closing(ClosingScanScope.All, sports)).ClosingScansDueAsync(now, NeverScanned);
+        Assert.Equal(sports.Order(), all.Select(c => c.Sport).Order());
+    }
+
+    [Fact]
+    public async Task A_league_past_its_daily_cap_gets_no_more_closing_scans()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        var game = await SeedGameAsync(db, sport, 5 / 60d);
+
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+        var options = Closing(ClosingScanScope.All, sport.Key);
+        var day = LineOps.Core.Analytics.LeagueClock.DateOf(game.StartsAt);
+
+        db.IngestionRuns.AddRange(ClosingRun(source, sport.Key, day), ClosingRun(source, sport.Key, day));
+        await db.SaveChangesAsync();
+        Assert.Single(await Create(db, options).ClosingScansDueAsync(DateTimeOffset.UtcNow, NeverScanned));
+
+        // The third is the cap: a slate of staggered starts would otherwise ask all evening.
+        db.IngestionRuns.Add(ClosingRun(source, sport.Key, day, RunStatus.Failed));
+        await db.SaveChangesAsync();
+
+        // A restart is a fresh host with nothing remembered: the count is the rows, so it holds.
+        await using var restarted = fixture.CreateContext();
+        var planner = Create(restarted, options);
+
+        Assert.Equal(3, await planner.ClosingScansTakenAsync(sport.Key, day));
+        Assert.Empty(await planner.ClosingScansDueAsync(DateTimeOffset.UtcNow, NeverScanned));
+
+        // Another league day is counted on its own.
+        Assert.Equal(0, await planner.ClosingScansTakenAsync(sport.Key, day.AddDays(1)));
+    }
+
+    /// <summary>
+    /// Only a league's own closing scans that day use up its cap: a paced scan or a press the same
+    /// day, another league's closing scans, and the day before's are all someone else's count.
+    /// </summary>
+    [Fact]
+    public async Task Only_the_leagues_own_closing_scans_that_day_count_against_its_cap()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        var other = await SeedSportAsync(db);
+        var game = await SeedGameAsync(db, sport, 5 / 60d);
+
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+        var day = LineOps.Core.Analytics.LeagueClock.DateOf(game.StartsAt);
+
+        IngestionRun Paced()
+        {
+            var run = ClosingRun(source, sport.Key, day);
+            run.ClosingScanDay = null;
+            return run;
+        }
+
+        db.IngestionRuns.AddRange(
+            Paced(), Paced(), Paced(),
+            ClosingRun(source, other.Key, day), ClosingRun(source, other.Key, day), ClosingRun(source, other.Key, day),
+            ClosingRun(source, sport.Key, day.AddDays(-1)), ClosingRun(source, sport.Key, day.AddDays(-1)), ClosingRun(source, sport.Key, day.AddDays(-1)));
+        await db.SaveChangesAsync();
+
+        var planner = Create(db, Closing(ClosingScanScope.All, sport.Key, other.Key));
+
+        Assert.Equal(0, await planner.ClosingScansTakenAsync(sport.Key, day));
+        Assert.Equal(3, await planner.ClosingScansTakenAsync(other.Key, day));
+        Assert.Equal([sport.Key], (await planner.ClosingScansDueAsync(DateTimeOffset.UtcNow, NeverScanned)).Select(c => c.Sport));
+    }
+
+    /// <summary>
+    /// One closing scan writes a row a source. Counting rows would let a second odds source halve
+    /// the cap, so what counts is the most any one source recorded.
+    /// </summary>
+    [Fact]
+    public async Task One_closing_scan_across_two_sources_counts_once()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        var first = await SeedSourceAsync(db, monthlyCredits: 500);
+        var second = await SeedSourceAsync(db, monthlyCredits: 500);
+        var day = LineOps.Core.Analytics.LeagueClock.DateOf(DateTimeOffset.UtcNow);
+
+        db.IngestionRuns.AddRange(
+            ClosingRun(first, sport.Key, day), ClosingRun(second, sport.Key, day),
+            ClosingRun(first, sport.Key, day));
+        await db.SaveChangesAsync();
+
+        Assert.Equal(2, await Create(db, Closing(ClosingScanScope.All, sport.Key)).ClosingScansTakenAsync(sport.Key, day));
+    }
+
+    /// <summary>A closing scan's run row, as <see cref="OddsIngestionService"/> leaves one.</summary>
+    private static IngestionRun ClosingRun(Source source, string sport, DateOnly day, RunStatus status = RunStatus.Success) => new()
+    {
+        SourceId = source.Id,
+        JobKey = IngestionJobs.OddsLinesPrefix + sport,
+        StartedAt = DateTimeOffset.UtcNow.AddHours(-1),
+        FinishedAt = DateTimeOffset.UtcNow.AddHours(-1),
+        Status = status,
+        CreditsSpent = 2,
+        ClosingScanDay = day
+    };
+
+    [Fact]
+    public async Task Closing_scans_switched_off_are_never_owed()
+    {
+        await using var db = fixture.CreateContext();
+        var sport = await SeedSportAsync(db);
+        await SeedGameAsync(db, sport, 5 / 60d);
+
+        var options = Closing(ClosingScanScope.All, sport.Key);
+        options.LinePolling.ClosingScan.Enabled = false;
+
+        Assert.Empty(await Create(db, options).ClosingScansDueAsync(DateTimeOffset.UtcNow, NeverScanned));
+    }
+
+    /// <summary>
+    /// A restarted host knows each league's last scan from the runs table, so its first tick does
+    /// not buy a scan of every league. Before, the last scan started empty and the first tick paid.
+    /// </summary>
+    [Fact]
+    public async Task A_restart_takes_each_leagues_last_scan_from_the_runs_it_left()
+    {
+        await using var db = fixture.CreateContext();
+        var source = await SeedSourceAsync(db, monthlyCredits: 500);
+        string own = NewKey(), shared = NewKey();
+        var now = DateTimeOffset.UtcNow;
+
+        IngestionRun Run(string job, DateTimeOffset at) => new()
+        {
+            SourceId = source.Id,
+            JobKey = job,
+            StartedAt = at,
+            FinishedAt = at,
+            Status = RunStatus.Success,
+            CreditsSpent = 2
+        };
+
+        // A league's own job is its alone. The all-league pull counts for every league, and other
+        // suites write those rows too, so what is asserted is a floor rather than an exact time.
+        db.IngestionRuns.AddRange(
+            Run(IngestionJobs.OddsLinesPrefix + own, now.AddMinutes(-10)),
+            Run(IngestionJobs.OddsLinesPrefix + shared, now.AddHours(-5)));
+        await db.SaveChangesAsync();
+
+        var last = await Create(db, new IngestionOptions { Sports = [own, shared] }).LastScansAsync();
+
+        Assert.True(last[own] >= now.AddMinutes(-10).AddSeconds(-1), $"Expected the league's own run; got {last[own]}.");
+        Assert.True(last[shared] >= now.AddHours(-5).AddSeconds(-1), $"Expected at least the league's own run; got {last[shared]}.");
+
+        // A league scanned ten minutes ago on a thirty-minute cadence is not due after a restart.
+        var plans = new[] { new LeaguePollPlan(own, TimeSpan.FromMinutes(30), 0.35, 2, now.AddHours(1)) };
+        Assert.Empty(LinePacing.DueLeagues(plans, last, now));
+    }
+
+    [Fact]
+    public void The_all_league_pull_counts_as_a_scan_of_every_league()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var last = LinePacing.LastScans(["mlb", "nfl", "nba"], new Dictionary<string, DateTimeOffset>
+        {
+            [IngestionJobs.OddsLines] = now.AddHours(-1),
+            [IngestionJobs.OddsLinesPrefix + "mlb"] = now.AddMinutes(-5),
+            [IngestionJobs.OddsLinesPrefix + "nfl"] = now.AddHours(-3)
+        });
+
+        Assert.Equal(now.AddMinutes(-5), last["mlb"]);
+        Assert.Equal(now.AddHours(-1), last["nfl"]);
+        Assert.Equal(now.AddHours(-1), last["nba"]);
+    }
+
+    [Theory]
+    [InlineData(4, true)]      // inside the lead, never scanned
+    [InlineData(15, false)]    // not yet inside it
+    [InlineData(-1, false)]    // already started: the close is taken, not bought
+    public void A_closing_scan_is_owed_only_inside_the_lead(int minutesOut, bool owed)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.Equal(owed, LinePacing.ClosingScanDue(now.AddMinutes(minutesOut), null, TimeSpan.FromMinutes(10), now));
     }
 }

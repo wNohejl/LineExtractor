@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -14,19 +15,13 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnStatsAdapterTests
 {
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        return JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone();
-    }
-
     private static (List<CanonicalPlayer> Players, List<CanonicalPlayerStat> Stats) Parse(
         string fixture, string sportKey)
     {
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
 
-        EspnStatsAdapter.ParseBoxScore(Load(fixture), sportKey, "game-1", players, stats);
+        EspnStatsAdapter.ParseBoxScore(Fixtures.Json(fixture), sportKey, "game-1", players, stats);
 
         return (players, stats);
     }

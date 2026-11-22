@@ -105,8 +105,7 @@ public class FighterProfileService(
         if (sources.FirstOrDefault() is not { } source)
             return new IngestionOutcome(0, RunStatus.Partial, 0, "No fighter source registered.");
 
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
-            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+        var sourceRow = await RunRecord.SourceRowAsync(db, source.Key, ct);
 
         var owed = (await OwedAsync(sportKey, source.Key, ct)).Take(limit).ToList();
 
@@ -148,7 +147,7 @@ public class FighterProfileService(
             {
                 // One fighter ESPN cannot describe must not cost the rest of the card.
                 failures++;
-                lastError = $"{ex.GetType().Name}: {ex.Message}";
+                lastError = RunRecord.Describe(ex);
                 logger.LogWarning(ex, "{Source}: profile unavailable for {Fighter} ({Id})",
                     source.Key, fighter.Name, fighter.SourceFighterId);
             }
@@ -183,22 +182,19 @@ public class FighterProfileService(
             db.FighterProfiles.Add(profile);
         }
 
-        profile.Nickname = Truncate(fighter.Nickname, 64);
-        profile.Country = Truncate(fighter.Country, 64);
-        profile.Association = Truncate(fighter.Association, 128);
-        profile.Stance = Truncate(fighter.Stance, 32);
-        profile.WeightClass = Truncate(fighter.WeightClass, 48);
+        profile.Nickname = ColumnText.Fit(fighter.Nickname, 64);
+        profile.Country = ColumnText.Fit(fighter.Country, 64);
+        profile.Association = ColumnText.Fit(fighter.Association, 128);
+        profile.Stance = ColumnText.Fit(fighter.Stance, 32);
+        profile.WeightClass = ColumnText.Fit(fighter.WeightClass, 48);
         profile.HeightInches = fighter.HeightInches;
         profile.ReachInches = fighter.ReachInches;
         profile.BornOn = fighter.BornOn;
-        profile.Record = Truncate(fighter.Record, 24);
+        profile.Record = ColumnText.Fit(fighter.Record, 24);
         profile.Career = FighterPayload.Write(fighter.Career);
         profile.History = FighterPayload.Write(fighter.History);
         profile.RefreshedAt = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
     }
-
-    private static string? Truncate(string? value, int max)
-        => value is null || value.Length <= max ? value : value[..max];
 }

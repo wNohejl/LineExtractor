@@ -1,6 +1,5 @@
 using LineOps.Core.Entities;
 using LineOps.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace LineOps.Reliability;
 
@@ -108,13 +107,9 @@ public class BudgetCalculator(LineOpsDbContext db)
     {
         var now = DateTimeOffset.UtcNow;
 
-        var runs = db.IngestionRuns.Where(r => r.SourceId == source.Id);
-
         return new BudgetUsage(
-            RequestsLastHour: await runs.Where(r => r.StartedAt >= now.AddHours(-1))
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
-            RequestsLastDay: await runs.Where(r => r.StartedAt >= now.AddDays(-1))
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0,
+            RequestsLastHour: await RunSpend.RequestsSinceAsync(db, source.Id, now.AddHours(-1), ct),
+            RequestsLastDay: await RunSpend.RequestsSinceAsync(db, source.Id, now.AddDays(-1), ct),
             // Not just this database's runs: the key may be spent from another machine too.
             CreditsThisMonth: await MonthlyCredits.SpentAsync(db, source, now, ct),
             HourlyLimit: source.RateLimitPerHour,

@@ -51,19 +51,19 @@ public class LinePollPlanner(
     private string[] Priced => registry is null ? _options.EffectiveSports : _options.PricedSportsWith(registry.Espn is not null);
 
     /// <summary>
-    /// What one scan of every configured sport bills a source, in credits. The adapter's own
+    /// What one scan of the given leagues bills a source, in credits. The adapter's own
     /// forecast where it gives one — it knows its market list and its provider's rule — and the
     /// configured per-sport figure only for a source that declares nothing.
     /// </summary>
-    private int CreditsPerScan(string sourceKey)
+    private int CreditsPerScan(string sourceKey, IReadOnlyCollection<string> leagues)
     {
         var declared = registry?.FindOdds(sourceKey) is { } source
-            ? Priced.Sum(source.CreditsPerScan)
+            ? leagues.Sum(source.CreditsPerScan)
             : 0;
 
         return declared > 0
             ? declared
-            : Priced.Length * _options.LinePolling.CreditsPerSportPerScan;
+            : leagues.Count * _options.LinePolling.CreditsPerSportPerScan;
     }
 
     /// <summary>The markets each sport is scanned for, and what that costs, per source that bills credits.</summary>
@@ -78,10 +78,21 @@ public class LinePollPlanner(
             .ToList();
 
     /// <summary>
-    /// The interval to wait before the next scan, and the reasoning behind it.
+    /// The interval to wait before the next scan of each league, and the reasoning behind it.
     ///
-    /// Returns null when scanning is pointless — no odds source, or no game close enough to
-    /// start that its price is worth watching.
+    /// <para>
+    /// Returns null when scanning is pointless — no odds source. A league with nothing starting
+    /// inside the movement window is left out of <see cref="PollPlan.Leagues"/> and out of the
+    /// price: an all-league scan used to bill every priced league whenever any one of them had a
+    /// game near, so a Sunday's football paid for a baseball slate that was days away.
+    /// </para>
+    ///
+    /// <para>
+    /// The budget is paced against what the watchable leagues cost together, and each of them
+    /// then gets its own urgency from its own next start. While nothing is watchable the plan
+    /// still prices a scan of every priced league, so Ops can say what the next one will cost;
+    /// nothing is scanned on it.
+    /// </para>
     /// </summary>
     public async Task<PollPlan?> PlanAsync(IReadOnlyList<string> oddsSourceKeys, CancellationToken ct = default)
     {
@@ -89,11 +100,15 @@ public class LinePollPlanner(
             return null;
 
         var settings = _options.LinePolling;
-        var sports = Priced.Length;
+        var now = DateTimeOffset.UtcNow;
+
+        var nextStarts = await NextStartsAsync(now, ct);
+        var watchable = Priced.Where(nextStarts.ContainsKey).ToArray();
+        var costed = watchable.Length > 0 ? watchable : Priced;
 
         // Cost of one scan: two requests per sport per source, which is the whole point of the
         // batched /odds/multi call — it does not grow with the size of the slate.
-        var perScan = Math.Max(1, oddsSourceKeys.Count * sports * settings.RequestsPerSportPerScan);
+        var perScan = Math.Max(1, oddsSourceKeys.Count * costed.Length * settings.RequestsPerSportPerScan);
 
         var sources = await db.Sources
             .Where(s => oddsSourceKeys.Contains(s.Key))
@@ -113,7 +128,7 @@ public class LinePollPlanner(
 
         foreach (var source in sources)
         {
-            var plan = await PlanForAsync(source, perScan, settings, ct);
+            var plan = await PlanForAsync(source, perScan, costed, settings, now, ct);
 
             if (plan is null)
                 continue;
@@ -143,18 +158,186 @@ public class LinePollPlanner(
         // baseline, and because it recomputes from credits *actually spent* every tick, going
         // faster near first pitch slows the rest on its own. The allowance cannot be exceeded by
         // being spent impatiently — only sooner.
+        //
+        // League by league: baseball an hour from first pitch and football two days out are on
+        // one budget but not on one clock, so each league's interval is the budgeted one stretched
+        // or compressed by its own next start.
         var budgeted = Clamp(interval, settings);
-        var urgency = await UrgencyMultiplierAsync(ct);
+
+        var leagues = watchable
+            .Select(sport =>
+            {
+                var start = nextStarts[sport];
+                var urgency = LinePacing.Urgency(start - now);
+
+                return new LeaguePollPlan(
+                    Sport: sport,
+                    Interval: Clamp(interval * urgency, settings),
+                    Urgency: urgency,
+                    CreditsPerScan: oddsSourceKeys.Sum(k => CreditsPerScan(k, [sport])),
+                    NextStart: start);
+            })
+            .OrderBy(l => l.NextStart)
+            .ToList();
+
+        // The headline is the soonest league's, the one the scheduler will scan next.
+        var soonest = leagues.FirstOrDefault();
 
         return new PollPlan(
-            Interval: Clamp(interval * urgency, settings),
+            Interval: soonest?.Interval ?? budgeted,
             CostPerScan: perScan,
-            CreditsPerScan: oddsSourceKeys.Sum(CreditsPerScan),
+            CreditsPerScan: oddsSourceKeys.Sum(k => CreditsPerScan(k, costed)),
             ScansRemainingToday: scansLeft == int.MaxValue ? null : scansLeft,
             BoundBy: binding,
             Window: monthlyBound ? BudgetWindow.Month : BudgetWindow.Day,
             BudgetInterval: budgeted,
-            Urgency: urgency);
+            Urgency: soonest?.Urgency ?? 1)
+        {
+            Leagues = leagues
+        };
+    }
+
+    /// <summary>
+    /// Each priced league's next start inside the movement window, by its configured spelling. A
+    /// league with nothing in the window is absent: its price is not moving, so it is not watched.
+    /// </summary>
+    private async Task<Dictionary<string, DateTimeOffset>> NextStartsAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        var horizon = now + _options.MovementWindow;
+        var sports = Priced;
+
+        var starts = await db.Games
+            .Where(g => g.StartsAt > now && g.StartsAt <= horizon)
+            .Where(g => g.Status != GameStatus.Final && g.Status != GameStatus.Postponed)
+            .Where(g => sports.Contains(g.Sport!.Key))
+            .GroupBy(g => g.Sport!.Key)
+            .Select(g => new { Sport = g.Key, Next = g.Min(x => x.StartsAt) })
+            .ToListAsync(ct);
+
+        return starts.ToDictionary(
+            s => sports.First(k => string.Equals(k, s.Sport, StringComparison.OrdinalIgnoreCase)),
+            s => s.Next,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Each priced league's latest line scan on record: its own job's or the all-league pull's.
+    ///
+    /// <para>
+    /// Read from the runs table rather than remembered, so a restart picks up where the last host
+    /// left off. The scheduler used to start with no last scan at all, which made the first tick
+    /// after every restart a paid scan of every league — a debugging session's worth of restarts
+    /// was a debugging session's worth of credits. A manual pull counts too: it spent the same
+    /// pool, and the price it took is as fresh as one the scheduler would have.
+    /// </para>
+    /// </summary>
+    public async Task<Dictionary<string, DateTimeOffset>> LastScansAsync(CancellationToken ct = default)
+    {
+        var leagues = Priced;
+        var keys = leagues.Select(s => IngestionJobs.OddsLinesPrefix + s).Append(IngestionJobs.OddsLines).ToList();
+
+        var latest = await db.IngestionRuns
+            .Where(r => keys.Contains(r.JobKey))
+            .GroupBy(r => r.JobKey)
+            .Select(g => new { JobKey = g.Key, Latest = g.Max(r => r.StartedAt) })
+            .ToListAsync(ct);
+
+        return LinePacing.LastScans(leagues, latest.ToDictionary(r => r.JobKey, r => r.Latest, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The leagues owed a closing scan now (<see cref="ClosingScanOptions"/>): a start inside the
+    /// lead with no scan of its league since the lead began, a league at most once each, and none
+    /// past its day's cap. One scan prices every game in the league, so a cluster of starts inside
+    /// the lead is covered by one; a later start that enters the lead after it is owed its own,
+    /// which is what the cap is for.
+    ///
+    /// <para>
+    /// The cap is counted from the runs table (<see cref="ClosingScansTakenAsync"/>), not held in
+    /// memory, so a restart does not start the day's count again and the Web and Worker hosts
+    /// sharing the database share one count.
+    /// </para>
+    /// </summary>
+    public async Task<IReadOnlyList<ClosingScan>> ClosingScansDueAsync(
+        DateTimeOffset now,
+        IReadOnlyDictionary<string, DateTimeOffset> lastScans,
+        CancellationToken ct = default)
+    {
+        var closing = _options.LinePolling.ClosingScan;
+
+        if (!closing.Enabled || closing.Lead <= TimeSpan.Zero || closing.MaxPerLeaguePerDay <= 0)
+            return [];
+
+        var horizon = now + closing.Lead;
+        var sports = Priced;
+
+        var games = db.Games
+            .Where(g => g.StartsAt > now && g.StartsAt <= horizon)
+            .Where(g => g.Status != GameStatus.Final && g.Status != GameStatus.Postponed)
+            .Where(g => sports.Contains(g.Sport!.Key));
+
+        // A parlay's legs are journal entries on their own games, so they are found the same way.
+        if (closing.Scope == ClosingScanScope.Wagered)
+            games = games.Where(g => db.JournalEntries.Any(e => e.GameId == g.Id && e.Result == EntryResult.Pending));
+
+        var starts = await games
+            .Select(g => new { Sport = g.Sport!.Key, g.StartsAt })
+            .ToListAsync(ct);
+
+        var due = new List<ClosingScan>();
+
+        foreach (var league in starts.GroupBy(s => sports.First(k => string.Equals(k, s.Sport, StringComparison.OrdinalIgnoreCase))))
+        {
+            DateTimeOffset? last = lastScans.TryGetValue(league.Key, out var at) ? at : null;
+
+            var owed = league
+                .Select(s => s.StartsAt)
+                .Order()
+                .Where(start => LinePacing.ClosingScanDue(start, last, closing.Lead, now))
+                .Cast<DateTimeOffset?>()
+                .FirstOrDefault();
+
+            if (owed is not { } start)
+                continue;
+
+            var day = Core.Analytics.LeagueClock.DateOf(start);
+
+            if (await ClosingScansTakenAsync(league.Key, day, ct) >= closing.MaxPerLeaguePerDay)
+            {
+                logger.LogDebug("{Sport}: closing scan for {Start:t} skipped; {Max} already taken on {Day}",
+                    league.Key, start, closing.MaxPerLeaguePerDay, day);
+                continue;
+            }
+
+            due.Add(new ClosingScan(league.Key, day, start));
+        }
+
+        return due;
+    }
+
+    /// <summary>
+    /// The closing scans a league has taken on a league day, read from the run rows they left
+    /// (<see cref="IngestionRun.ClosingScanDay"/>).
+    ///
+    /// <para>
+    /// Every row stamped counts, whatever its status: a scan that reached the provider and failed
+    /// was still billed, and one another host is still running will be. A scan the budget guard
+    /// refused before any call carries no stamp, so it does not use up the cap. One scan writes a
+    /// row a source, so the count is the most any one source recorded, not the rows in total — a
+    /// second odds source would otherwise halve the cap.
+    /// </para>
+    /// </summary>
+    public async Task<int> ClosingScansTakenAsync(string sport, DateOnly leagueDay, CancellationToken ct = default)
+    {
+        var jobKey = IngestionJobs.OddsLinesPrefix + sport;
+
+        var bySource = await db.IngestionRuns
+            .Where(r => r.JobKey == jobKey && r.ClosingScanDay == leagueDay)
+            .GroupBy(r => r.SourceId)
+            .Select(g => g.Count())
+            .ToListAsync(ct);
+
+        return bySource.Count == 0 ? 0 : bySource.Max();
     }
 
     private static TimeSpan Clamp(TimeSpan interval, LinePollingOptions settings)
@@ -170,103 +353,48 @@ public class LinePollPlanner(
     /// day for a request-metered provider, the month for a credit-metered one. Null when it
     /// declares no ceiling at all.
     /// </summary>
-    private async Task<(TimeSpan Interval, int ScansRemaining, bool Monthly)?> PlanForAsync(
-        Source source, int perScan, LinePollingOptions settings, CancellationToken ct)
+    /// <remarks>
+    /// Gathers the facts — requests in the last day, credits gone this month, the scores set aside —
+    /// and leaves the arithmetic to <see cref="LinePacing.Budget"/>. Each fact is read only where
+    /// the source has the ceiling it feeds, as before. <paramref name="now"/> is the plan's own
+    /// instant, so every source in one plan is measured against the same moment.
+    /// </remarks>
+    private async Task<SourceBudget?> PlanForAsync(
+        Source source, int perScan, IReadOnlyCollection<string> leagues, LinePollingOptions settings,
+        DateTimeOffset now, CancellationToken ct)
     {
-        var now = DateTimeOffset.UtcNow;
+        var requestsLastDay = source.RateLimitPerDay is null
+            ? 0
+            : await RunSpend.RequestsSinceAsync(db, source.Id, now.AddDays(-1), ct);
 
-        int? fromDaily = null;
+        int creditsSpent = 0, scoresForecast = 0, creditsPerScan = 1;
 
-        if (source.RateLimitPerDay is { } daily)
+        if (source.MonthlyCreditBudget is not null)
         {
-            var since = now.AddDays(-1);
-
-            var used = await db.IngestionRuns
-                .Where(r => r.SourceId == source.Id && r.StartedAt >= since)
-                .SumAsync(r => (int?)r.RequestsMade, ct) ?? 0;
-
-            var usable = Math.Max(0, daily - settings.DailyReserve - used);
-            fromDaily = usable / perScan;
-        }
-
-        int? fromHourly = null;
-
-        if (source.RateLimitPerHour is { } hourly)
-        {
-            // Expressed as scans per day so the two ceilings compare directly.
-            fromHourly = Math.Max(0, hourly - settings.HourlyReserve) / perScan * 24;
-        }
-
-        // A monthly credit budget is paced over the month, not the day.
-        //
-        // This is the only ceiling The Odds API publishes — it declares no per-day or per-hour
-        // limit at all — so without this branch both numbers above stay null, the source reads as
-        // unmetered, and the cadence falls to the politeness floor. At five minutes a scan that
-        // spends a 500-credit month inside a single day. A budget with no pacing attached to it
-        // is not a budget.
-        int? fromMonthly = null;
-        TimeSpan? monthlyInterval = null;
-
-        if (source.MonthlyCreditBudget is { } monthly)
-        {
-            var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-
             // What the key has spent, not only what this database recorded: the laptop and the
             // desktop share the allowance, and only the provider sees both (MonthlyCredits).
-            var spent = await MonthlyCredits.SpentAsync(db, source, now, ct);
-
-            var creditsPerScan = Math.Max(1, CreditsPerScan(source.Key));
-
-            // Scores share the month (ADR 0026): what the scheduler will spend on them to the month's
-            // end is set aside before lines are paced, so the cadence shown is the one both can afford.
-            var usable = Math.Max(0, monthly - settings.MonthlyCreditReserve - spent
-                                     - await ScoresForecastAsync(source, now, monthStart.AddMonths(1), ct));
-            fromMonthly = usable / creditsPerScan;
-
-            // Spread across the hours the month has left. A manual pull therefore lengthens the
-            // automatic cadence on its own — both spend the same pool, so the scheduler slows
-            // down to make room rather than racing the operator for the last credits.
-            var monthEnd = monthStart.AddMonths(1);
-            var hoursLeft = Math.Max(1d, (monthEnd - now).TotalHours);
-
-            monthlyInterval = fromMonthly > 0
-                ? TimeSpan.FromHours(hoursLeft / fromMonthly.Value)
-                : settings.MaximumInterval;
+            creditsSpent = await MonthlyCredits.SpentAsync(db, source, now, ct);
+            creditsPerScan = Math.Max(1, CreditsPerScan(source.Key, leagues));
+            scoresForecast = await ScoresForecastAsync(source, now, ct);
         }
 
-        if (fromDaily is null && fromHourly is null && fromMonthly is null)
-            return null;
+        var budget = LinePacing.Budget(
+            new BudgetFacts(
+                DailyLimit: source.RateLimitPerDay,
+                RequestsLastDay: requestsLastDay,
+                HourlyLimit: source.RateLimitPerHour,
+                RequestsPerScan: perScan,
+                MonthlyCreditBudget: source.MonthlyCreditBudget,
+                CreditsSpent: creditsSpent,
+                ScoresForecast: scoresForecast,
+                CreditsPerScan: creditsPerScan),
+            settings, now);
 
-        var scans = Math.Min(fromDaily ?? int.MaxValue, fromHourly ?? int.MaxValue);
-
-        if (fromMonthly is { } monthlyScans)
-            scans = Math.Min(scans, monthlyScans);
-
-        if (scans <= 0)
-        {
-            // Nothing left in the budget. Back off to the maximum rather than hammering the
-            // guard, which would otherwise record a run refused every tick.
+        // Nothing left in the budget. Said here rather than in the arithmetic, which stays pure.
+        if (budget is { ScansRemaining: 0 })
             logger.LogWarning("{Source}: line budget spent; backing off", source.Key);
-            return (settings.MaximumInterval, 0, fromMonthly is not null);
-        }
 
-        // Spread what is left over the day rather than spending it in the first hour. Where a
-        // monthly budget also applies, the slower of the two governs — a daily allowance says
-        // nothing about whether the month can afford to keep spending it.
-        var interval = TimeSpan.FromHours(24d / scans);
-
-        var governedByMonth = false;
-
-        if (monthlyInterval is { } fromCredits && fromCredits > interval)
-        {
-            interval = fromCredits;
-            governedByMonth = true;
-        }
-
-        // Also the month's when it is the only ceiling there is.
-        governedByMonth |= fromDaily is null && fromHourly is null && fromMonthly is not null;
-
-        return (interval, scans, governedByMonth);
+        return budget;
     }
 
     /// <summary>
@@ -274,13 +402,16 @@ public class LinePollPlanner(
     /// three days or the coming week, at one call a league a day. Null where scores are not metered
     /// here — ESPN on, or no key — so a desk on ESPN plans exactly as it did.
     /// </summary>
-    public async Task<ScoresPlan?> ScoresPlanAsync(CancellationToken ct = default)
+    public Task<ScoresPlan?> ScoresPlanAsync(CancellationToken ct = default)
+        => ScoresPlanAsync(DateTimeOffset.UtcNow, ct);
+
+    /// <summary>The scores plan as of <paramref name="now"/>, so a lines plan that sets it aside reads one instant.</summary>
+    public async Task<ScoresPlan?> ScoresPlanAsync(DateTimeOffset now, CancellationToken ct = default)
     {
         if (registry?.Scores is not { } scores)
             return null;
 
-        var now = DateTimeOffset.UtcNow;
-        var monthEnd = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero).AddMonths(1);
+        var monthEnd = MonthlyCredits.NextReset(now);
         var sports = _options.EffectiveSports.Where(scores.CoversScores).ToList();
         var from = now.AddDays(-scores.ScoresReachDays);
         var to = now.AddDays(7);
@@ -299,69 +430,21 @@ public class LinePollPlanner(
     }
 
     /// <summary>The scores spend to the month's end, set aside from a source on the same account; zero otherwise.</summary>
-    private async Task<int> ScoresForecastAsync(Source source, DateTimeOffset now, DateTimeOffset monthEnd, CancellationToken ct)
+    private async Task<int> ScoresForecastAsync(Source source, DateTimeOffset now, CancellationToken ct)
     {
         if (!Core.Entities.SourceAccounts.Sharing(source.Key).Contains(Core.Entities.SourceAccounts.TheOddsApiSchedule))
             return 0;
 
-        return await ScoresPlanAsync(ct) is { Automatic: true } plan ? plan.ToMonthEnd : 0;
+        return await ScoresPlanAsync(now, ct) is { Automatic: true } plan ? plan.ToMonthEnd : 0;
     }
 
     /// <summary>
-    /// How much to stretch or compress the budgeted interval, by how close the next first pitch is.
-    ///
-    /// <para>
-    /// The tiers follow where the money is. A line more than a day out is a placeholder that
-    /// barely moves. Inside six hours it starts responding to news. The window after lineups are
-    /// posted — roughly three hours out for baseball — is where the market does most of its
-    /// price discovery, and it is the last chance to take a number before the close that CLV is
-    /// measured against.
-    /// </para>
-    ///
-    /// <para>
-    /// Multiplies the budgeted interval rather than replacing it, so the allowance still governs
-    /// how much there is to spend and this only decides when.
-    /// </para>
-    /// </summary>
-    private async Task<double> UrgencyMultiplierAsync(CancellationToken ct)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var horizon = now + _options.MovementWindow;
-
-        // Only the leagues this plan is for. A scan covers the configured sports and nothing
-        // else, so a hockey game an hour away is no reason to spend baseball's allowance faster.
-        var sports = _options.EffectiveSports;
-
-        var nextStart = await db.Games
-            .Where(g => g.StartsAt > now && g.StartsAt <= horizon)
-            .Where(g => sports.Contains(g.Sport!.Key))
-            .OrderBy(g => g.StartsAt)
-            .Select(g => (DateTimeOffset?)g.StartsAt)
-            .FirstOrDefaultAsync(ct);
-
-        if (nextStart is null)
-            return 1;
-
-        return (nextStart.Value - now).TotalHours switch
-        {
-            <= 3 => 0.35,   // lineups are out; this is the window worth paying for
-            <= 6 => 0.7,
-            <= 24 => 1.5,
-            _ => 4          // a day out and barely moving
-        };
-    }
-
-    /// <summary>
-    /// Whether a scan is worth making at all: something has to be starting soon enough for its
-    /// price to still be moving. A quiet slate should spend nothing.
+    /// Whether a scan is worth making at all: something in a priced league has to be starting
+    /// soon enough for its price to still be moving. A quiet slate should spend nothing. It used
+    /// to ask of every game in the database, so a league nobody prices kept the scans going.
     /// </summary>
     public async Task<bool> HasWatchableGamesAsync(CancellationToken ct = default)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var horizon = now + _options.MovementWindow;
-
-        return await db.Games.AnyAsync(g => g.StartsAt > now && g.StartsAt <= horizon, ct);
-    }
+        => (await NextStartsAsync(DateTimeOffset.UtcNow, ct)).Count > 0;
 }
 
 /// <summary>The chosen cadence, and enough context to explain it on screen.</summary>
@@ -412,7 +495,17 @@ public record PollPlan(
 {
     /// <summary>How to name the allowance in a sentence: "today's" or "this month's".</summary>
     public string WindowLabel => Window == BudgetWindow.Month ? "this month's" : "today's";
+
+    /// <summary>
+    /// The leagues with a game inside the movement window, soonest start first, each on its own
+    /// cadence. Empty when nothing is close enough to watch, and the scheduler then scans nothing.
+    /// </summary>
+    public IReadOnlyList<LeaguePollPlan> Leagues { get; init; } = [];
 }
+
+/// <summary>One league's cadence: the budgeted interval stretched or compressed by its own next start.</summary>
+/// <param name="CreditsPerScan">What one scan of this league bills, summed over the odds sources.</param>
+public record LeaguePollPlan(string Sport, TimeSpan Interval, double Urgency, int CreditsPerScan, DateTimeOffset NextStart);
 
 /// <summary>The period an allowance is measured over, which differs by provider.</summary>
 public enum BudgetWindow

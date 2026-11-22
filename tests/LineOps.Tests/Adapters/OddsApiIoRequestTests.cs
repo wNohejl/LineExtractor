@@ -1,7 +1,7 @@
-using System.Net;
 using LineOps.Core.Entities;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Configuration;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -19,23 +19,6 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class OddsApiIoRequestTests
 {
-    private sealed class RecordingHandler(Func<string, string> respond) : HttpMessageHandler
-    {
-        public List<string> Urls { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var url = request.RequestUri!.ToString();
-            Urls.Add(url);
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(respond(url))
-            });
-        }
-    }
-
     private const string EventsJson = """
         [
           { "id": "evt-1", "home": "Detroit Tigers", "away": "Kansas City Royals", "date": "2026-07-26T17:10:00Z" },
@@ -56,11 +39,11 @@ public class OddsApiIoRequestTests
         ]
         """;
 
-    private static (OddsApiIoAdapter Adapter, RecordingHandler Handler) Create(params string[] books)
+    private static (OddsApiIoAdapter Adapter, StubHttp Handler) Create(params string[] books)
     {
-        var handler = new RecordingHandler(url => url.Contains("events") ? EventsJson : OddsJson);
+        var handler = new StubHttp(url => url.Contains("events") ? EventsJson : OddsJson);
 
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.odds-api.io/v3/") };
+        var http = handler.Client("https://api.odds-api.io/v3/");
 
         var options = Options.Create(new IngestionOptions
         {
@@ -137,7 +120,7 @@ public class OddsApiIoRequestTests
     {
         var (_, handler) = Create("draftkings");
 
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://api.odds-api.io/v3/") };
+        var http = handler.Client("https://api.odds-api.io/v3/");
         var adapter = new OddsApiIoAdapter(
             http,
             Options.Create(new IngestionOptions { OddsApiIo = new SourceOptions { Enabled = true } }),

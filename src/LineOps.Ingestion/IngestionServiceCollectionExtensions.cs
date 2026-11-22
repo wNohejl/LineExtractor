@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
@@ -89,55 +90,38 @@ public static class IngestionServiceCollectionExtensions
 
         if (options.Espn.Enabled)
         {
-            services.AddHttpClient<EspnStatsAdapter>((sp, client) =>
-                {
-                    client.BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
+            // ESPN refuses a request whose client it does not recognise. HttpClient sends no
+            // User-Agent at all by default, and on 2 August 2026 that began returning 403 on every
+            // call — the port had always been one policy change away from breaking, and the policy
+            // changed. See SourceOptions.UserAgent for why the value has to name a real HTTP client
+            // rather than this app.
+            //
+            // A malformed override is corrected rather than obeyed: an unparseable value would
+            // leave the header absent, which is the precise condition that caused the outage.
+            // Failing back to a working default and saying so is better than a typo silently
+            // reproducing the bug it was added to fix.
+            AddProviderClient<EspnStatsAdapter>(services, EspnBaseUrl,
+                (sp, client) => ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp));
 
-                    // ESPN refuses a request whose client it does not recognise. HttpClient
-                    // sends no User-Agent at all by default, and on 2 August 2026 that began
-                    // returning 403 on every call — the port had always been one policy change
-                    // away from breaking, and the policy changed. See SourceOptions.UserAgent
-                    // for why the value has to name a real HTTP client rather than this app.
-                    //
-                    // A malformed override is corrected rather than obeyed: an unparseable
-                    // value would leave the header absent, which is the precise condition that
-                    // caused the outage. Failing back to a working default and saying so is
-                    // better than a typo silently reproducing the bug it was added to fix.
-                    ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp);
-                })
-                .AddStandardResilienceHandler();
-
-            services.AddScoped<IStatsSource>(sp =>
+            // One adapter behind every ESPN port, each resolved at the configured pace: the delay is
+            // ESPN's patience, not the port's, so no port may reach it faster than the others.
+            EspnStatsAdapter Paced(IServiceProvider sp)
             {
                 var adapter = sp.GetRequiredService<EspnStatsAdapter>();
                 adapter.RequestDelay = options.Espn.RequestDelay;
                 return adapter;
-            });
+            }
+
+            services.AddScoped<IStatsSource>(Paced);
 
             // The same port describes fighters (ADR 0021), at the same pace.
-            services.AddScoped<IFighterSource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IFighterSource>(Paced);
 
             // And relays the league's injury report, for the starter the Board names.
-            services.AddScoped<IInjurySource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IInjurySource>(Paced);
 
             // And narrates a game in play, for the gamecast feed (spec 2026-10-24 §6.3).
-            services.AddScoped<IGamecastSource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IGamecastSource>(Paced);
         }
 
         // The entity spine. Registered as itself rather than as an IStatsSource: it issues
@@ -148,27 +132,14 @@ public static class IngestionServiceCollectionExtensions
         // has nothing to match, and its data is personal-use as ESPN's is — one opt-in covers both.
         if (options.MlbStatsApi.Enabled && options.Espn.Enabled)
         {
-            services.AddHttpClient<MlbStatsApiAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://statsapi.mlb.com/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                .AddStandardResilienceHandler();
+            AddProviderClient<MlbStatsApiAdapter>(services, "https://statsapi.mlb.com/");
 
             services.AddScoped<MlbSpineService>();
         }
 
         if (options.OddsApiIo.Enabled && !string.IsNullOrWhiteSpace(options.OddsApiIo.ApiKey))
         {
-            services.AddHttpClient<OddsApiIoAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://api.odds-api.io/v3/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                // Standard resilience handler: retry with jittered backoff, a circuit breaker
-                // that trips on sustained failure, and per-attempt timeouts. A tripped breaker
-                // is what the reliability layer surfaces as a degraded source.
-                .AddStandardResilienceHandler();
+            AddProviderClient<OddsApiIoAdapter>(services, "https://api.odds-api.io/v3/");
 
             services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<OddsApiIoAdapter>());
         }
@@ -185,14 +156,65 @@ public static class IngestionServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// The primary handler every provider client shares, so the five registrations cannot drift.
+    ///
+    /// <para>
+    /// It asks for, and unpacks, compressed bodies. .NET sends no <c>Accept-Encoding</c> unless
+    /// asked, so every provider has been answering in full: ESPN's NFL scoreboard is 236,335
+    /// bytes plain and 20,345 gzipped, a game summary 451,157 and 43,092 — and the gamecast feed
+    /// reads a summary per followed game every 15 seconds. The Odds API's documentation says to
+    /// send <c>Accept-Encoding: gzip</c>. Roughly a tenth of the bytes, for one line of setup.
+    /// </para>
+    ///
+    /// <para>
+    /// A custom primary handler replaces the factory's default, so what that default did is
+    /// restated here. Cookies stay off, as the factory has them: these are keyed, stateless
+    /// APIs and a cookie jar would only carry a session from one scan into the next. Pooled
+    /// connections are retired every two minutes, the factory's own handler lifetime, so a
+    /// provider that moves behind a new address is followed rather than dialled at the old one
+    /// until the process restarts.
+    /// </para>
+    /// </summary>
+    internal static SocketsHttpHandler ProviderHandler() => new()
+    {
+        AutomaticDecompression = DecompressionMethods.All,
+        UseCookies = false,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+    };
+
+    private const string EspnBaseUrl = "https://site.api.espn.com/apis/site/v2/sports/";
+
+    /// <summary>Both of The Odds API's adapters, odds and schedule, are one account on one host.</summary>
+    private const string TheOddsApiBaseUrl = "https://api.the-odds-api.com/v4/";
+
+    /// <summary>
+    /// Registers a provider's typed client the one way every provider is registered: its base
+    /// address, a 30-second timeout, the shared <see cref="ProviderHandler"/>, and the standard
+    /// resilience handler — retry with jittered backoff, a circuit breaker that trips on sustained
+    /// failure, and per-attempt timeouts. A tripped breaker is what the reliability layer surfaces
+    /// as a degraded source. One method, so five registrations cannot drift apart.
+    /// </summary>
+    /// <param name="extra">Anything one provider needs beyond that, such as ESPN's User-Agent.</param>
+    private static IHttpClientBuilder AddProviderClient<T>(
+        IServiceCollection services, string baseUrl, Action<IServiceProvider, HttpClient>? extra = null)
+        where T : class
+    {
+        var builder = services.AddHttpClient<T>((sp, client) =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
+                extra?.Invoke(sp, client);
+            })
+            .ConfigurePrimaryHttpMessageHandler(ProviderHandler);
+
+        builder.AddStandardResilienceHandler();
+        return builder;
+    }
+
     private static void AddTheOddsApi(IServiceCollection services)
     {
-        services.AddHttpClient<TheOddsApiAdapter>(client =>
-            {
-                client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
-                client.Timeout = TimeSpan.FromSeconds(30);
-            })
-            .AddStandardResilienceHandler();
+        AddProviderClient<TheOddsApiAdapter>(services, TheOddsApiBaseUrl);
 
         services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<TheOddsApiAdapter>());
     }
@@ -200,12 +222,7 @@ public static class IngestionServiceCollectionExtensions
     /// <summary>The fixtures-and-scores adapter, as the stats port and the score port, on the odds key's client settings.</summary>
     private static void AddTheOddsApiSchedule(IServiceCollection services)
     {
-        services.AddHttpClient<TheOddsApiScheduleAdapter>(client =>
-            {
-                client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
-                client.Timeout = TimeSpan.FromSeconds(30);
-            })
-            .AddStandardResilienceHandler();
+        AddProviderClient<TheOddsApiScheduleAdapter>(services, TheOddsApiBaseUrl);
 
         services.AddScoped<IStatsSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());
         services.AddScoped<IScoreSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());

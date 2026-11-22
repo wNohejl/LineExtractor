@@ -132,7 +132,7 @@ public partial class EspnStatsAdapter
 
         foreach (var e in events.EnumerateArray())
         {
-            if (Text(e, "id") is not { } id || !IsUfcCard(Text(e, "name")))
+            if (JsonRead.String(e, "id") is not { } id || !IsUfcCard(JsonRead.String(e, "name")))
                 continue;
 
             var rounds = new Dictionary<string, int>();
@@ -141,7 +141,7 @@ public partial class EspnStatsAdapter
             {
                 foreach (var comp in comps.EnumerateArray())
                 {
-                    if (Text(comp, "id") is { } compId && ScheduledRoundsOf(comp) is { } n)
+                    if (JsonRead.String(comp, "id") is { } compId && ScheduledRoundsOf(comp) is { } n)
                         rounds[compId] = n;
                 }
             }
@@ -164,13 +164,13 @@ public partial class EspnStatsAdapter
         List<CanonicalPlayer>? players = null,
         List<CanonicalPlayerStat>? stats = null)
     {
-        if (!root.TryGetProperty("event", out var ev) || Text(ev, "id") is not { } eventId)
+        if (!root.TryGetProperty("event", out var ev) || JsonRead.String(ev, "id") is not { } eventId)
             yield break;
 
         var card = new Card(
             eventId,
-            Text(ev, "name") ?? Text(ev, "shortName") ?? $"Event {eventId}",
-            Text(ev, "shortName"),
+            JsonRead.String(ev, "name") ?? JsonRead.String(ev, "shortName") ?? $"Event {eventId}",
+            JsonRead.String(ev, "shortName"),
             root.TryGetProperty("season", out var season) ? ReadSeason(season) : default);
 
         if (!root.TryGetProperty("cards", out var segments) || segments.ValueKind != JsonValueKind.Object)
@@ -181,7 +181,7 @@ public partial class EspnStatsAdapter
             if (!segment.Value.TryGetProperty("competitions", out var comps) || comps.ValueKind != JsonValueKind.Array)
                 continue;
 
-            var segmentName = Text(segment.Value, "displayName");
+            var segmentName = JsonRead.String(segment.Value, "displayName");
 
             foreach (var comp in comps.EnumerateArray())
             {
@@ -202,12 +202,12 @@ public partial class EspnStatsAdapter
 
         foreach (var e in events.EnumerateArray())
         {
-            if (Text(e, "id") != eventId
+            if (JsonRead.String(e, "id") != eventId
                 || !e.TryGetProperty("competitions", out var comps)
                 || comps.ValueKind != JsonValueKind.Array)
                 continue;
 
-            var card = new Card(eventId, Text(e, "name") ?? $"Event {eventId}", Text(e, "shortName"), ReadSeason(e));
+            var card = new Card(eventId, JsonRead.String(e, "name") ?? $"Event {eventId}", JsonRead.String(e, "shortName"), ReadSeason(e));
 
             foreach (var comp in comps.EnumerateArray())
             {
@@ -254,7 +254,7 @@ public partial class EspnStatsAdapter
         List<CanonicalPlayer>? players,
         List<CanonicalPlayerStat>? stats)
     {
-        if (Text(comp, "id") is not { } id
+        if (JsonRead.String(comp, "id") is not { } id
             || !comp.TryGetProperty("competitors", out var competitors)
             || competitors.ValueKind != JsonValueKind.Array)
             return null;
@@ -273,13 +273,13 @@ public partial class EspnStatsAdapter
         var (red, blue) = (corners[0], corners[1]);
 
         var weightClass = comp.TryGetProperty("type", out var type)
-            ? Text(type, "text") ?? Text(type, "abbreviation")
+            ? JsonRead.String(type, "text") ?? JsonRead.String(type, "abbreviation")
             : null;
 
-        var note = Text(comp, "note");
+        var note = JsonRead.String(comp, "note");
 
         var title = (comp.TryGetProperty("types", out var types) && types.ValueKind == JsonValueKind.Array
-                     && types.EnumerateArray().Any(t => Text(t, "text")?.Contains("Title", StringComparison.OrdinalIgnoreCase) == true))
+                     && types.EnumerateArray().Any(t => JsonRead.String(t, "text")?.Contains("Title", StringComparison.OrdinalIgnoreCase) == true))
                     || note?.Contains("Title Fight", StringComparison.OrdinalIgnoreCase) == true;
 
         int? matchNumber = comp.TryGetProperty("matchNumber", out var mn) && mn.ValueKind == JsonValueKind.Number
@@ -292,7 +292,7 @@ public partial class EspnStatsAdapter
         var status = ReadStatus(comp);
         var result = ReadResult(comp, status, red, blue);
 
-        var startsAt = Text(comp, "date") is { } raw
+        var startsAt = JsonRead.String(comp, "date") is { } raw
                        && DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
                            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
             ? parsed
@@ -305,7 +305,7 @@ public partial class EspnStatsAdapter
             EventId: card.EventId,
             EventName: card.Name,
             EventShortName: card.ShortName,
-            CardSegment: comp.TryGetProperty("cardSegment", out var seg) ? Text(seg, "description") ?? segmentName : segmentName,
+            CardSegment: comp.TryGetProperty("cardSegment", out var seg) ? JsonRead.String(seg, "description") ?? segmentName : segmentName,
             MatchNumber: matchNumber,
             WeightClass: weightClass,
             ScheduledRounds: scheduled,
@@ -362,15 +362,15 @@ public partial class EspnStatsAdapter
     {
         var athlete = competitor.TryGetProperty("athlete", out var a) ? a : default;
 
-        var id = (athlete.ValueKind == JsonValueKind.Object ? Text(athlete, "id") : null) ?? Text(competitor, "id");
+        var id = (athlete.ValueKind == JsonValueKind.Object ? JsonRead.String(athlete, "id") : null) ?? JsonRead.String(competitor, "id");
         var name = athlete.ValueKind == JsonValueKind.Object
-            ? Text(athlete, "displayName") ?? Text(athlete, "fullName")
+            ? JsonRead.String(athlete, "displayName") ?? JsonRead.String(athlete, "fullName")
             : null;
 
         if (id is null || string.IsNullOrWhiteSpace(name))
             return null;
 
-        var surname = athlete.ValueKind == JsonValueKind.Object ? Text(athlete, "lastName") : null;
+        var surname = athlete.ValueKind == JsonValueKind.Object ? JsonRead.String(athlete, "lastName") : null;
         surname ??= TeamNames.Short(new Team { Name = name }, name);
 
         int order = competitor.TryGetProperty("order", out var o) && o.ValueKind == JsonValueKind.Number ? o.GetInt32() : position;
@@ -378,9 +378,9 @@ public partial class EspnStatsAdapter
         var winner = competitor.TryGetProperty("winner", out var w) && w.ValueKind == JsonValueKind.True;
 
         // The fight center states the record going in; the scoreboard lists it among records.
-        var record = Text(competitor, "displayRecord");
+        var record = JsonRead.String(competitor, "displayRecord");
         if (record is null && competitor.TryGetProperty("records", out var records) && records.ValueKind == JsonValueKind.Array)
-            record = records.EnumerateArray().Select(r => Text(r, "summary")).FirstOrDefault(s => s is not null);
+            record = records.EnumerateArray().Select(r => JsonRead.String(r, "summary")).FirstOrDefault(s => s is not null);
 
         JsonElement? stats = competitor.TryGetProperty("stats", out var s) && s.ValueKind == JsonValueKind.Array && s.GetArrayLength() > 0
             ? s
@@ -410,15 +410,15 @@ public partial class EspnStatsAdapter
         var seconds = ReadClock(st);
 
         var result = st.TryGetProperty("result", out var r) && r.ValueKind == JsonValueKind.Object ? r : default;
-        var method = result.ValueKind == JsonValueKind.Object ? NonEmpty(Text(result, "displayName")) : null;
+        var method = result.ValueKind == JsonValueKind.Object ? NonEmpty(JsonRead.String(result, "displayName")) : null;
         var detail = result.ValueKind == JsonValueKind.Object
-            ? NonEmpty(Text(result, "displayDescription") ?? Text(result, "description"))
+            ? NonEmpty(JsonRead.String(result, "displayDescription") ?? JsonRead.String(result, "description"))
             : null;
 
         if (status != "final")
             return new BoutResult(null, method, detail, round, seconds, null, null);
 
-        var said = $"{(result.ValueKind == JsonValueKind.Object ? Text(result, "name") : null)} {method}".ToLowerInvariant();
+        var said = $"{(result.ValueKind == JsonValueKind.Object ? JsonRead.String(result, "name") : null)} {method}".ToLowerInvariant();
 
         if (red.Winner != blue.Winner)
             return new BoutResult(BoutOutcome.Win, method, detail, round, seconds, red.Winner ? 1 : 0, blue.Winner ? 1 : 0);
@@ -448,7 +448,7 @@ public partial class EspnStatsAdapter
                 return (int)Math.Round(value);
         }
 
-        return Text(status, "displayClock") is { } shown && ParseClock(shown) is { } fromText ? fromText : null;
+        return JsonRead.String(status, "displayClock") is { } shown && ParseClock(shown) is { } fromText ? fromText : null;
     }
 
     /// <summary>"3:14" as 194 seconds. Null for anything that is not a clock.</summary>
@@ -480,13 +480,13 @@ public partial class EspnStatsAdapter
 
         foreach (var stat in stats.EnumerateArray())
         {
-            var name = Text(stat, "name");
-            var value = Text(stat, "displayValue");
+            var name = JsonRead.String(stat, "name");
+            var value = JsonRead.String(stat, "displayValue");
 
             if (name is null || value is null)
                 continue;
 
-            line[FightStatKeys.GetValueOrDefault(name) ?? Text(stat, "abbreviation") ?? name] = value;
+            line[FightStatKeys.GetValueOrDefault(name) ?? JsonRead.String(stat, "abbreviation") ?? name] = value;
         }
 
         return line.Count == 0 ? null : JsonSerializer.Serialize(line);
@@ -572,10 +572,10 @@ public partial class EspnStatsAdapter
         IReadOnlyList<FighterStat> rates,
         JsonElement? records)
     {
-        if (!root.TryGetProperty("athlete", out var a) || Text(a, "id") is not { } id)
+        if (!root.TryGetProperty("athlete", out var a) || JsonRead.String(a, "id") is not { } id)
             return null;
 
-        var name = Text(a, "displayName") ?? Text(a, "fullName");
+        var name = JsonRead.String(a, "displayName") ?? JsonRead.String(a, "fullName");
         if (string.IsNullOrWhiteSpace(name))
             return null;
 
@@ -588,10 +588,10 @@ public partial class EspnStatsAdapter
         {
             foreach (var stat in summaryStats.EnumerateArray())
             {
-                if (Text(stat, "name") is not { } key || Text(stat, "displayValue") is not { } value)
+                if (JsonRead.String(stat, "name") is not { } key || JsonRead.String(stat, "displayValue") is not { } value)
                     continue;
 
-                record.Add(new FighterStat(key, Text(stat, "displayName") ?? key, value));
+                record.Add(new FighterStat(key, JsonRead.String(stat, "displayName") ?? key, value));
 
                 if (key == "wins-losses-draws")
                     wld = value;
@@ -607,26 +607,26 @@ public partial class EspnStatsAdapter
 
                 foreach (var stat in splits.EnumerateArray())
                 {
-                    if (Text(stat, "name") is { } key && Text(stat, "displayValue") is { } value
+                    if (JsonRead.String(stat, "name") is { } key && JsonRead.String(stat, "displayValue") is { } value
                         && record.All(x => x.Key != key))
-                        record.Add(new FighterStat(key, Text(stat, "displayName") ?? key, value));
+                        record.Add(new FighterStat(key, JsonRead.String(stat, "displayName") ?? key, value));
                 }
 
-                wld ??= Text(item, "summary");
+                wld ??= JsonRead.String(item, "summary");
             }
         }
 
         return new CanonicalFighter(
             SourceFighterId: id,
             FullName: name.Trim(),
-            Nickname: NonEmpty(Text(a, "nickname")),
-            Country: NonEmpty(Text(a, "citizenship")),
-            Association: a.TryGetProperty("association", out var gym) ? NonEmpty(Text(gym, "name")) : null,
-            Stance: a.TryGetProperty("stance", out var stance) ? NonEmpty(Text(stance, "text")) : null,
-            WeightClass: a.TryGetProperty("weightClass", out var wc) ? NonEmpty(Text(wc, "text")) : null,
-            HeightInches: ParseInches(Text(a, "displayHeight")),
-            ReachInches: ParseInches(Text(a, "displayReach")),
-            BornOn: DateOnly.TryParseExact(Text(a, "displayDOB"), "M/d/yyyy", CultureInfo.InvariantCulture,
+            Nickname: NonEmpty(JsonRead.String(a, "nickname")),
+            Country: NonEmpty(JsonRead.String(a, "citizenship")),
+            Association: a.TryGetProperty("association", out var gym) ? NonEmpty(JsonRead.String(gym, "name")) : null,
+            Stance: a.TryGetProperty("stance", out var stance) ? NonEmpty(JsonRead.String(stance, "text")) : null,
+            WeightClass: a.TryGetProperty("weightClass", out var wc) ? NonEmpty(JsonRead.String(wc, "text")) : null,
+            HeightInches: ParseInches(JsonRead.String(a, "displayHeight")),
+            ReachInches: ParseInches(JsonRead.String(a, "displayReach")),
+            BornOn: DateOnly.TryParseExact(JsonRead.String(a, "displayDOB"), "M/d/yyyy", CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out var born) ? born : null,
             Record: wld,
             Career: new FighterCareer(rates, record),
@@ -660,23 +660,23 @@ public partial class EspnStatsAdapter
 
             fights.Add(new FighterFight(
                 Id: CompetitionOf(uid) ?? uid,
-                EventId: Text(e, "id"),
-                Event: Text(e, "name"),
+                EventId: JsonRead.String(e, "id"),
+                Event: JsonRead.String(e, "name"),
                 Ufc: uid.Contains("~l:3321~", StringComparison.Ordinal),
-                Date: Text(e, "gameDate") is { } date
+                Date: JsonRead.String(e, "gameDate") is { } date
                       && DateTimeOffset.TryParse(date, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at)
                     ? at.ToUniversalTime()
                     : null,
-                OpponentId: e.TryGetProperty("opponent", out var opp) ? Text(opp, "id") : null,
-                Opponent: e.TryGetProperty("opponent", out var opp2) ? Text(opp2, "displayName") : null,
-                Result: NonEmpty(Text(e, "gameResult")),
-                Method: result.ValueKind == JsonValueKind.Object ? NonEmpty(Text(result, "displayName")) : null,
-                MethodDetail: result.ValueKind == JsonValueKind.Object ? NonEmpty(Text(result, "description")) : null,
+                OpponentId: e.TryGetProperty("opponent", out var opp) ? JsonRead.String(opp, "id") : null,
+                Opponent: e.TryGetProperty("opponent", out var opp2) ? JsonRead.String(opp2, "displayName") : null,
+                Result: NonEmpty(JsonRead.String(e, "gameResult")),
+                Method: result.ValueKind == JsonValueKind.Object ? NonEmpty(JsonRead.String(result, "displayName")) : null,
+                MethodDetail: result.ValueKind == JsonValueKind.Object ? NonEmpty(JsonRead.String(result, "description")) : null,
                 Round: status.ValueKind == JsonValueKind.Object && status.TryGetProperty("period", out var p)
                        && p.ValueKind == JsonValueKind.Number && p.GetInt32() > 0
                     ? p.GetInt32()
                     : null,
-                Clock: status.ValueKind == JsonValueKind.Object ? NonEmpty(Text(status, "displayClock")) : null,
+                Clock: status.ValueKind == JsonValueKind.Object ? NonEmpty(JsonRead.String(status, "displayClock")) : null,
                 Title: e.TryGetProperty("titleFight", out var t) && t.ValueKind == JsonValueKind.True,
                 Stats: sheets.GetValueOrDefault(uid) ?? []));
         }
@@ -706,7 +706,7 @@ public partial class EspnStatsAdapter
 
             foreach (var row in rows.EnumerateArray())
             {
-                if (Text(row, "uid") is not { } uid)
+                if (JsonRead.String(row, "uid") is not { } uid)
                     continue;
 
                 var values = Strings(row, "stats");
@@ -752,8 +752,8 @@ public partial class EspnStatsAdapter
 
             foreach (var stat in stats.EnumerateArray())
             {
-                if (Text(stat, "name") is { } key && Text(stat, "displayValue") is { } value && rates.All(r => r.Key != key))
-                    rates.Add(new FighterStat(key, Text(stat, "displayName") ?? key, value));
+                if (JsonRead.String(stat, "name") is { } key && JsonRead.String(stat, "displayValue") is { } value && rates.All(r => r.Key != key))
+                    rates.Add(new FighterStat(key, JsonRead.String(stat, "displayName") ?? key, value));
             }
         }
 
@@ -797,5 +797,5 @@ public partial class EspnStatsAdapter
     private static string? NonEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static string? Truncate(string? value, int max)
-        => value is null || value.Length <= max ? value : value[..max];
+        => ColumnText.Fit(value, max);
 }

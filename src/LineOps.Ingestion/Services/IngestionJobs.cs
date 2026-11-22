@@ -218,32 +218,13 @@ public class IngestionJobs(
         // ESPN's jobs are served by ESPN alone: the default source (ADR 0026) is a stats source too,
         // but it has no scoreboard, box score or fighter to serve them with.
         var stats = registry.Espn is null ? 0 : 1;
-        var odds = registry.OddsSources.Count;
         var closers = registry.StatsSources.OfType<Core.Contracts.IClosingLineSource>().Count();
 
         // The Odds API's month, for every pull that spends it: its price and what is left are stated
         // before the press, a pull the guard would refuse is not offered, and a large one asks first.
-        var allowance = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null);
+        var allowance = await ReadAllowanceAsync(scope.ServiceProvider, ct);
         int? left = allowance is { Reported: true } ? allowance.Remaining : null;
         var resets = allowance?.ResetsOnText ?? "the 1st";
-
-        // What one sport's lines actually cost, in the unit the provider bills. Stated per sport
-        // because that is how it is charged and how it is now spent.
-        // The adapters say, per sport, from the markets they will actually ask for; the
-        // configured figure stands in only for a source that declares nothing.
-        int CreditsFor(string sport)
-        {
-            var declared = registry.OddsSources.Sum(s => s.CreditsPerScan(sport));
-            return declared > 0 ? declared : odds * _options.LinePolling.CreditsPerSportPerScan;
-        }
-
-        string MarketsFor(string sport)
-        {
-            var names = registry.OddsSources.SelectMany(s => s.MarketsFor(sport)).Distinct()
-                .Select(m => m switch { Markets.Moneyline => "moneyline", Markets.Spread => "spread", Markets.Total => "total", _ => m })
-                .ToList();
-            return names.Count == 0 ? "Lines" : char.ToUpperInvariant(names[0][0]) + string.Join(", ", names)[1..];
-        }
 
         var jobs = new List<IngestionJob>();
 
@@ -262,38 +243,8 @@ public class IngestionJobs(
         // provider is the whole month's allowance being spent on leagues that are out of season
         // and quoting nothing. Naming the sport makes the price legible before the press and lets
         // an operator buy only the league they are working.
-        var billsCredits = registry.FindOdds(Adapters.TheOddsApiAdapter.SourceKey) is not null;
-
         foreach (var sport in sports)
-        {
-            var credits = CreditsFor(sport);
-            var check = billsCredits && allowance is not null ? allowance.Check(credits) : CreditCheck.Go;
-            var priced = _options.PricedSportsWith(registry.Espn is not null).Contains(sport, StringComparer.OrdinalIgnoreCase);
-            var league = sport.ToUpperInvariant();
-
-            jobs.Add(new IngestionJob(
-                Key: OddsLinesPrefix + sport,
-                Label: $"Pull lines — {league}",
-                Description: $"{MarketsFor(sport)} across every book for {league} "
-                             + "games that have not started.",
-                EstimatedRequests: odds,
-                EstimatedCredits: CreditsFor(sport),
-                Available: odds > 0 && priced && check.Allowed,
-                Unavailable: odds == 0 ? NoOddsKey
-                    : !priced ? $"{league} is priced only against bouts ESPN holds, and ESPN is off: a pull would spend {credits} credits and attach nothing."
-                    : check.Refusal,
-                Group: JobGroups.Lines,
-                Confirm: check.Question,
-                Hint: billsCredits
-                    ? $"Calls The Odds API's odds for {league}: {credits} credits, one per market at one region. "
-                      + $"The free month is 500 credits; it resets on {resets}."
-                    : odds == 0
-                        ? $"Pulls {league} prices from The Odds API, a credit per market. " + NoOddsKey
-                        : null,
-                CreditsLeft: billsCredits ? left : null,
-                Metered: true,
-                NeedsKey: odds == 0));
-        }
+            jobs.Add(LinesJob(sport, registry, allowance));
 
         // Last, after the lines: the menu draws its groups in the order they first appear, and
         // housekeeping, which spends nothing, is the foot of it (JobGroups).
@@ -307,6 +258,94 @@ public class IngestionJobs(
             Group: JobGroups.Housekeeping));
 
         return jobs;
+    }
+
+    /// <summary>
+    /// One league's lines pull, <c>odds:lines:{sport}</c>, exactly as <see cref="DescribeAsync"/>
+    /// lists it, or null where the menu lists none (a league not configured, or not spelled as
+    /// configured, since the menu's keys are matched ordinally).
+    ///
+    /// <para>
+    /// A Board row press asks for this one entry, and building the whole menu for it ran some
+    /// thirty queries — games in play, closes owed, plays owed, fighters owed — that the entry
+    /// never reads. This reads only what it does: the registry and the month's allowance. Both
+    /// paths build the entry through <see cref="LinesJob"/>, so they cannot disagree.
+    /// </para>
+    /// </summary>
+    public async Task<IngestionJob?> DescribeLinesAsync(string sportKey, CancellationToken ct = default)
+    {
+        var sport = _options.EffectiveSports.FirstOrDefault(s => string.Equals(s, sportKey, StringComparison.Ordinal));
+        if (sport is null)
+            return null;
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
+        var allowance = await ReadAllowanceAsync(scope.ServiceProvider, ct);
+
+        return LinesJob(sport, registry, allowance);
+    }
+
+    /// <summary>
+    /// The Odds API account's month as a scope reads it, or null where no reader is registered (a
+    /// host or test that leaves the allowance out) or no credit-metered row is held yet.
+    /// </summary>
+    private static async Task<AllowanceState?> ReadAllowanceAsync(IServiceProvider provider, CancellationToken ct)
+        => provider.GetService<CreditAllowance>() is { } reader ? await reader.ReadAsync(ct) : null;
+
+    /// <summary>
+    /// "The free month is 500 credits; it resets on Dec 1." — the configured budget, not the free
+    /// plan's figure, since a key on a paid plan carries more. Where no row has been read the free
+    /// plan's 500 stands in, which is what the seed writes.
+    /// </summary>
+    private static string MonthText(AllowanceState? allowance, string resets)
+        => $"The free month is {(allowance?.Budget ?? 500):N0} credits; it resets on {resets}.";
+
+    /// <summary>The one definition of a league's lines entry, shared by the menu and the single read.</summary>
+    private IngestionJob LinesJob(string sport, SourceRegistry registry, AllowanceState? allowance)
+    {
+        var odds = registry.OddsSources.Count;
+        int? left = allowance is { Reported: true } ? allowance.Remaining : null;
+        var resets = allowance?.ResetsOnText ?? "the 1st";
+        var billsCredits = registry.FindOdds(Adapters.TheOddsApiAdapter.SourceKey) is not null;
+
+        // What one sport's lines actually cost, in the unit the provider bills. Stated per sport
+        // because that is how it is charged and how it is now spent.
+        // The adapters say, per sport, from the markets they will actually ask for; the
+        // configured figure stands in only for a source that declares nothing.
+        var declared = registry.OddsSources.Sum(s => s.CreditsPerScan(sport));
+        var credits = declared > 0 ? declared : odds * _options.LinePolling.CreditsPerSportPerScan;
+
+        var names = registry.OddsSources.SelectMany(s => s.MarketsFor(sport)).Distinct()
+            .Select(m => m switch { Markets.Moneyline => "moneyline", Markets.Spread => "spread", Markets.Total => "total", _ => m })
+            .ToList();
+        var markets = names.Count == 0 ? "Lines" : char.ToUpperInvariant(names[0][0]) + string.Join(", ", names)[1..];
+
+        var check = billsCredits && allowance is not null ? allowance.Check(credits) : CreditCheck.Go;
+        var priced = _options.PricedSportsWith(registry.Espn is not null).Contains(sport, StringComparer.OrdinalIgnoreCase);
+        var league = sport.ToUpperInvariant();
+
+        return new IngestionJob(
+            Key: OddsLinesPrefix + sport,
+            Label: $"Pull lines — {league}",
+            Description: $"{markets} across every book for {league} "
+                         + "games that have not started.",
+            EstimatedRequests: odds,
+            EstimatedCredits: credits,
+            Available: odds > 0 && priced && check.Allowed,
+            Unavailable: odds == 0 ? NoOddsKey
+                : !priced ? $"{league} is priced only against bouts ESPN holds, and ESPN is off: a pull would spend {credits} credits and attach nothing."
+                : check.Refusal,
+            Group: JobGroups.Lines,
+            Confirm: check.Question,
+            Hint: billsCredits
+                ? $"Calls The Odds API's odds for {league}: {credits} credits, one per market at one region. "
+                  + MonthText(allowance, resets)
+                : odds == 0
+                    ? $"Pulls {league} prices from The Odds API, a credit per market. " + NoOddsKey
+                    : null,
+            CreditsLeft: billsCredits ? left : null,
+            Metered: true,
+            NeedsKey: odds == 0);
     }
 
     /// <summary>
@@ -361,7 +400,7 @@ public class IngestionJobs(
                 Group: JobGroups.Lines,
                 Confirm: check.Question,
                 Hint: $"Calls The Odds API's scores for {league} reaching back three days: {credits} credits. "
-                      + $"The free month is 500 credits; it resets on {resets}."
+                      + MonthText(allowance, resets)
                       + (scores is null ? " " + NoOddsKey : ""),
                 CreditsLeft: left,
                 Metered: true,
@@ -461,7 +500,18 @@ public class IngestionJobs(
     }
 
     /// <summary>Runs one job by key. Unknown keys are refused rather than silently ignored.</summary>
-    public async Task<JobOutcome> RunAsync(string key, CancellationToken ct = default)
+    public Task<JobOutcome> RunAsync(string key, CancellationToken ct = default)
+        => RunAsync(key, closingScanDay: null, ct);
+
+    /// <summary>
+    /// One league's line scan, <c>odds:lines:{sport}</c>, taken as its closing scan: the same job
+    /// a press runs, with its run rows stamped with the league day the scan counts against, which
+    /// is where the daily cap is counted from (<see cref="LinePollPlanner.ClosingScansDueAsync"/>).
+    /// </summary>
+    public Task<JobOutcome> RunClosingScanAsync(string sport, DateOnly leagueDay, CancellationToken ct = default)
+        => RunAsync(OddsLinesPrefix + sport, leagueDay, ct);
+
+    private async Task<JobOutcome> RunAsync(string key, DateOnly? closingScanDay, CancellationToken ct)
     {
         var started = DateTimeOffset.UtcNow;
 
@@ -497,7 +547,7 @@ public class IngestionJobs(
                 JournalTransfer.ExportJob or JournalTransfer.ImportJob => new JobOutcome(key, false, 0, 0, JournalTransfer.Usage),
 
                 _ when key.StartsWith(OddsLinesPrefix, StringComparison.Ordinal)
-                    => await RunOddsAsync(key[OddsLinesPrefix.Length..], ct),
+                    => await RunOddsAsync(key[OddsLinesPrefix.Length..], ct, closingScanDay),
 
                 _ => new JobOutcome(key, false, 0, 0, $"Unknown job '{key}'.")
             };
@@ -510,7 +560,7 @@ public class IngestionJobs(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Job {Job} failed", key);
-            return new JobOutcome(key, false, 0, 1, $"{ex.GetType().Name}: {ex.Message}");
+            return new JobOutcome(key, false, 0, 1, RunRecord.Describe(ex));
         }
     }
 
@@ -806,7 +856,7 @@ public class IngestionJobs(
             if (unattended && !await db.LinesRunUnattendedAsync(_options.LinePolling.RunsUnattended, ct))
                 return new JobOutcome(jobKey, true, 0, 0, "Scores are pulled on request only; nothing was spent.");
 
-            allowance = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null);
+            allowance = await ReadAllowanceAsync(scope.ServiceProvider, ct);
             owed = await ScoresOwedAsync(db, _options.EffectiveSports.Where(source.CoversScores).ToList(),
                 DateTimeOffset.UtcNow, _options.GamePasses.ResultsAfterStart, source.ScoresReachDays, ct);
 
@@ -843,7 +893,7 @@ public class IngestionJobs(
 
             // Asked again before each league: the last one's spend is already counted.
             await using var scope = scopeFactory.CreateAsyncScope();
-            var state = (scope.ServiceProvider.GetService<CreditAllowance>() is { } allowanceReader ? await allowanceReader.ReadAsync(ct) : null) ?? allowance;
+            var state = await ReadAllowanceAsync(scope.ServiceProvider, ct) ?? allowance;
 
             if (state is not null && (unattended ? !state.AffordsUnattended(cost) : !state.Check(cost).Allowed))
             {
@@ -955,7 +1005,8 @@ public class IngestionJobs(
     /// silently widened when it is not configured — quietly scanning four leagues because one was
     /// misspelled is exactly the accident a credit budget cannot absorb.
     /// </param>
-    private async Task<JobOutcome> RunOddsAsync(string? onlySport, CancellationToken ct)
+    /// <param name="closingScanDay">The league day a closing scan counts against; null for any other scan.</param>
+    private async Task<JobOutcome> RunOddsAsync(string? onlySport, CancellationToken ct, DateOnly? closingScanDay = null)
     {
         var jobKey = onlySport is null ? OddsLines : OddsLinesPrefix + onlySport;
 
@@ -980,6 +1031,7 @@ public class IngestionJobs(
         var rows = 0;
         var failures = 0;
         var credits = 0;
+        var runIds = new List<long>();
 
         var ingestion = scope.ServiceProvider.GetRequiredService<OddsIngestionService>();
         var initialiser = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
@@ -994,8 +1046,9 @@ public class IngestionJobs(
                 if (ct.IsCancellationRequested)
                     break;
 
-                var outcome = await ingestion.IngestAsync(source, sportKey, jobKey, ct);
+                var outcome = await ingestion.IngestAsync(source, sportKey, jobKey, ct, closingScanDay);
                 rows += outcome.RowsIngested;
+                runIds.Add(outcome.RunId);
 
                 if (outcome.Status == RunStatus.Failed)
                     failures++;
@@ -1004,8 +1057,12 @@ public class IngestionJobs(
 
         // What it actually cost, read back from the runs just written rather than estimated.
         // The provider reports its own billing in response headers, so this is their number.
+        //
+        // By the ids of this pull's own runs, as the scores pull counts. It used to sum every run of
+        // the job key from the last five minutes, so a second press inside five minutes reported the
+        // first press's credits again, and so did a pull on the other host sharing the database.
         credits = await db.IngestionRuns
-            .Where(r => r.JobKey == jobKey && r.StartedAt >= DateTimeOffset.UtcNow.AddMinutes(-5))
+            .Where(r => runIds.Contains(r.Id))
             .SumAsync(r => (int?)r.CreditsSpent, ct) ?? 0;
 
         var detail = credits > 0
