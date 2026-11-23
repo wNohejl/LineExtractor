@@ -209,15 +209,20 @@ public class GamecastFeedTests(PostgresFixture fixture)
 
     private GamecastFeed Feed(
         Scaffold s, FakeGamecasts source, int maxFollowed = 4,
-        Action<GamecastOptions>? configure = null, List<(int Instance, string Request)>? perScope = null)
+        Action<GamecastOptions>? configure = null, List<(int Instance, string Request)>? perScope = null,
+        GamecastLanes? lanes = null)
     {
         var gamecast = new GamecastOptions { Sports = [s.Sport.Key], MaxFollowedGames = maxFollowed };
         configure?.Invoke(gamecast);
 
         return new(Services(source, perScope).GetRequiredService<IServiceScopeFactory>(),
             Options.Create(new IngestionOptions { Gamecast = gamecast }),
+            lanes ?? new GamecastLanes(),
             NullLogger<GamecastFeed>.Instance);
     }
+
+    /// <summary>The fast lane alone, as the feed read before it had a slow one.</summary>
+    private static void NoSlowLane(GamecastOptions o) => o.SlowLanePerPoll = 0;
 
     private async Task MarkAsync(Game game, GameStatus status)
     {
@@ -279,7 +284,8 @@ public class GamecastFeedTests(PostgresFixture fixture)
         foreach (var id in new[] { "e-1", "e-2", "e-3" })
             source.Games[id] = () => Live(id);
 
-        var feed = Feed(s, source, maxFollowed: 2);
+        // The fast lane alone: the slow lane would read e-3 in its turn (tested below).
+        var feed = Feed(s, source, maxFollowed: 2, configure: NoSlowLane);
         await feed.PollAsync(Now, CancellationToken.None);
 
         Assert.Equal(["e-1", "e-2"], source.GamecastCalls.Keys.Order());
@@ -506,7 +512,8 @@ public class GamecastFeedTests(PostgresFixture fixture)
         source.Failing.Add("e-404");
         source.Games["e-ok"] = () => Live("e-ok");
 
-        var feed = Feed(s, source, maxFollowed: 1);
+        // The one fast-lane slot is the point here; the slow lane would read e-ok every poll regardless.
+        var feed = Feed(s, source, maxFollowed: 1, configure: NoSlowLane);
         var t = 0;
 
         for (; t < GamecastFeed.FailuresBeforeBackOff; t++)
@@ -562,7 +569,7 @@ public class GamecastFeedTests(PostgresFixture fixture)
         source.Games["e-delay"] = () => new CanonicalGamecast("e-delay", "scheduled", [], []);
         source.Games["e-on"] = () => Live("e-on");
 
-        var feed = Feed(s, source, maxFollowed: 1);
+        var feed = Feed(s, source, maxFollowed: 1, configure: NoSlowLane);
 
         for (var t = 0; t < GamecastFeed.FailuresBeforeBackOff + 2; t++)
             await feed.PollAsync(Now.AddSeconds(15 * t), CancellationToken.None);
@@ -870,5 +877,213 @@ public class GamecastFeedTests(PostgresFixture fixture)
             .ToListAsync();
         Assert.Equal(2, jobs.Count);
         Assert.All(jobs, job => Assert.Equal(GamecastFeed.JobKey, job));
+    }
+
+    /// <summary>
+    /// <paramref name="count"/> games in play, live on ESPN, named e-1 … e-n and started an hour
+    /// apart, e-1 earliest — so start order and id order agree.
+    /// </summary>
+    private async Task<List<Game>> SlateAsync(Scaffold s, FakeGamecasts source, int count)
+    {
+        var games = new List<Game>();
+
+        for (var n = 1; n <= count; n++)
+        {
+            var id = $"e-{n}";
+            games.Add(await GameAsync(s, id, Now.AddHours(n - count - 1), GameStatus.Live));
+            source.Games[id] = () => Live(id);
+        }
+
+        return games;
+    }
+
+    [Fact]
+    public async Task A_watched_game_past_the_ceiling_takes_a_fast_lane_slot_from_one_nobody_is_watching()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var games = await SlateAsync(s, source, 3);
+
+        var lanes = new GamecastLanes();
+        lanes.Watch(games[2].Id, Now);
+
+        var feed = Feed(s, source, maxFollowed: 2, configure: NoSlowLane, lanes: lanes);
+        await feed.PollAsync(Now, CancellationToken.None);
+        await feed.PollAsync(Now.AddSeconds(15), CancellationToken.None);
+
+        Assert.Equal(["e-1", "e-3"], source.GamecastCalls.Keys.Order());
+        Assert.Equal(2, source.GamecastCalls["e-3"]);
+        Assert.Equal(GamecastLane.Fast, lanes.LaneOf(games[2].Id));
+        Assert.Null(lanes.LaneOf(games[1].Id));
+    }
+
+    [Fact]
+    public async Task A_watch_whose_lease_ran_out_no_longer_puts_its_game_first()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var games = await SlateAsync(s, source, 3);
+
+        var lanes = new GamecastLanes();
+        lanes.Watch(games[2].Id, Now);
+
+        var feed = Feed(s, source, maxFollowed: 2, configure: NoSlowLane, lanes: lanes);
+        await feed.PollAsync(Now, CancellationToken.None);
+
+        // The window went away without saying so; the lease is the backstop.
+        await feed.PollAsync(Now + GamecastLanes.Lease, CancellationToken.None);
+
+        Assert.Equal(1, source.GamecastCalls["e-3"]);
+        Assert.Equal(1, source.GamecastCalls["e-2"]);
+        Assert.Equal(2, source.GamecastCalls["e-1"]);
+        Assert.Equal(GamecastLane.Fast, lanes.LaneOf(games[1].Id));
+    }
+
+    [Fact]
+    public async Task On_a_seven_game_window_every_slow_game_is_read_once_every_three_polls()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        await SlateAsync(s, source, 7);
+
+        var feed = Feed(s, source, maxFollowed: 4);
+        var slow = new[] { "e-5", "e-6", "e-7" };
+
+        for (var round = 1; round <= 3; round++)
+        {
+            for (var p = 0; p < 3; p++)
+            {
+                var before = slow.ToDictionary(id => id, id => source.GamecastCalls.GetValueOrDefault(id));
+                await feed.PollAsync(Now.AddSeconds(15 * ((round - 1) * 3 + p)), CancellationToken.None);
+
+                // One slow game a poll, never two.
+                Assert.Single(slow, id => source.GamecastCalls.GetValueOrDefault(id) != before[id]);
+            }
+
+            // Every slow game read exactly once in each three polls; the fast lane every poll.
+            Assert.All(slow, id => Assert.Equal(round, source.GamecastCalls.GetValueOrDefault(id)));
+            Assert.All(new[] { "e-1", "e-2", "e-3", "e-4" }, id => Assert.Equal(round * 3, source.GamecastCalls[id]));
+        }
+
+        // Held between turns: all seven, not just the four read every poll.
+        Assert.Equal(7, feed.Following.Count);
+    }
+
+    [Fact]
+    public async Task A_slow_lane_turn_asks_probabilities_only_when_their_cadence_is_due()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        await SlateAsync(s, source, 7);
+
+        var feed = Feed(s, source, maxFollowed: 4);
+
+        // Nine polls, two minutes: e-5's turns fall at 0, 45 and 90 seconds.
+        for (var p = 0; p < 9; p++)
+            await feed.PollAsync(Now.AddSeconds(15 * p), CancellationToken.None);
+
+        Assert.Equal(3, source.GamecastCalls["e-5"]);
+        Assert.Equal(2, source.ProbabilityCalls["e-5"]);
+    }
+
+    [Fact]
+    public async Task With_the_slow_lane_off_only_the_fast_lane_is_read()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        await SlateAsync(s, source, 7);
+
+        var feed = Feed(s, source, maxFollowed: 4, configure: NoSlowLane);
+
+        for (var p = 0; p < 4; p++)
+            await feed.PollAsync(Now.AddSeconds(15 * p), CancellationToken.None);
+
+        Assert.Equal(["e-1", "e-2", "e-3", "e-4"], source.GamecastCalls.Keys.Order());
+        Assert.All(source.GamecastCalls.Values, calls => Assert.Equal(4, calls));
+        Assert.Equal(4, feed.Following.Count);
+    }
+
+    [Fact]
+    public async Task A_slow_lane_game_that_goes_final_gets_its_final_box_once()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+        var games = await SlateAsync(s, source, 3);
+
+        // e-2 is marked final by the scoreboard pass between its turns; e-3's own summary says
+        // final on its turn. Both are in the slow lane behind e-1.
+        var final = false;
+
+        foreach (var id in new[] { "e-2", "e-3" })
+        {
+            source.Games[id] = () => final
+                ? new CanonicalGamecast(id, "final", [Drive(id, 1, current: true)],
+                    [Play(id, 1, 1), Play(id, 2, 1), Play(id, 3, 1)])
+                : Live(id);
+            source.BoxScores[id] = () => NoBoxScore;
+        }
+
+        var feed = Feed(s, source, maxFollowed: 1);
+        await feed.PollAsync(Now, CancellationToken.None);
+
+        Assert.Equal(1, source.GamecastCalls["e-2"]);
+        Assert.False(source.GamecastCalls.ContainsKey("e-3"));
+
+        await MarkAsync(games[1], GameStatus.Final);
+        final = true;
+
+        for (var p = 1; p <= 4; p++)
+            await feed.PollAsync(Now.AddSeconds(15 * p), CancellationToken.None);
+
+        // e-2 read once more, as leaving, though its slow turn had passed; e-3 on its turn.
+        Assert.Equal(2, source.GamecastCalls["e-2"]);
+        Assert.Equal(1, source.GamecastCalls["e-3"]);
+        Assert.Equal(1, source.BoxScoreCalls["e-2"]);
+        Assert.Equal(1, source.BoxScoreCalls["e-3"]);
+        Assert.Equal(3, await PlaysAsync(games[1].Id));
+        Assert.Equal(3, await PlaysAsync(games[2].Id));
+        Assert.False(await AnyCurrentDriveAsync(games[1].Id));
+        Assert.False(await AnyCurrentDriveAsync(games[2].Id));
+        Assert.Equal([games[0].Id], feed.Following);
+    }
+
+    [Fact]
+    public async Task The_snapshot_reports_each_games_lane_the_counts_and_when_each_was_last_read()
+    {
+        var s = await SeedAsync();
+        var source = new FakeGamecasts(s.SourceKey);
+
+        var bad = await GameAsync(s, "e-404", Now.AddHours(-5), GameStatus.Live);
+        source.Failing.Add("e-404");
+        var games = await SlateAsync(s, source, 3);
+
+        var lanes = new GamecastLanes();
+        var feed = Feed(s, source, maxFollowed: 2, lanes: lanes);
+        Assert.Null(lanes.Snapshot);
+
+        // Four failed reads back e-404 off; the fifth poll is inside its back-off.
+        var t = 0;
+        for (; t <= GamecastFeed.FailuresBeforeBackOff; t++)
+            await feed.PollAsync(Now.AddSeconds(15 * t), CancellationToken.None);
+
+        var at = Now.AddSeconds(15 * (t - 1));
+        var snapshot = Assert.IsType<GamecastFeedSnapshot>(lanes.Snapshot);
+
+        Assert.Equal(at, snapshot.At);
+        Assert.Equal(4, snapshot.InPlay);
+        Assert.Equal(2, snapshot.FastLaneSize);
+        Assert.Equal(new Dictionary<int, GamecastLane>
+        {
+            [bad.Id] = GamecastLane.BackedOff,
+            [games[0].Id] = GamecastLane.Fast,
+            [games[1].Id] = GamecastLane.Fast,
+            [games[2].Id] = GamecastLane.Slow
+        }, snapshot.Games);
+
+        Assert.False(snapshot.LastReadAt.ContainsKey(bad.Id));
+        Assert.Equal(at, snapshot.LastReadAt[games[0].Id]);
+        Assert.Equal(at, snapshot.LastReadAt[games[1].Id]);
+        Assert.True(snapshot.LastReadAt[games[2].Id] <= at);
+        Assert.Equal(GamecastLane.Slow, lanes.LaneOf(games[2].Id));
     }
 }

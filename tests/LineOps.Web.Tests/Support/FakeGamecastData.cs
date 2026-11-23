@@ -92,6 +92,39 @@ public sealed class FakeGamecastData : IGamecastData
         return Task.FromResult(Box);
     }
 
+    /// <summary>What <see cref="Feed"/> answers: by default the feed does not run in this process.</summary>
+    public GamecastFeedReading Reading { get; set; } = GamecastFeedReading.NotHere(TimeSpan.FromSeconds(15), 1);
+
+    public GamecastFeedReading Feed(int gameId) => Reading;
+
+    private readonly Lock _interestGate = new();
+    private readonly List<string> _interest = [];
+
+    /// <summary>Every interest call, in order: "watch:{id}", "renew:{id}", "unwatch:{id}".</summary>
+    public IReadOnlyList<string> Interest
+    {
+        get
+        {
+            lock (_interestGate)
+                return _interest.ToList();
+        }
+    }
+
+    public int Count(string call) => Interest.Count(c => c.StartsWith(call + ":", StringComparison.Ordinal));
+
+    public void Watch(int gameId) => Record($"watch:{gameId}");
+
+    public void Renew(int gameId) => Record($"renew:{gameId}");
+
+    public void Unwatch(int gameId) => Record($"unwatch:{gameId}");
+
+    // The window renews from a timer as well as on its notices, off the renderer's thread.
+    private void Record(string call)
+    {
+        lock (_interestGate)
+            _interest.Add(call);
+    }
+
     /// <summary>PHI at WSH, live in the second quarter: PHI's ball, 2nd and 6 at WSH 34 — 34 yards from the home goal.</summary>
     public static GamecastHeader Live(string sport = "nfl", GameStatus status = GameStatus.Live) => new(
         GameId: BoardRows.GameId,

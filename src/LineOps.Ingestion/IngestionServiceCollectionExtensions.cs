@@ -67,6 +67,7 @@ public static class IngestionServiceCollectionExtensions
         // Singleton for the same reason: a scope per run and per game. Here rather than with the
         // scheduler because the Pull menu and the Worker's --job run it on demand on any host.
         services.AddSingleton<GamecastBackport>();
+        services.AddSingleton<GamecastLanes>(); // windows' interest and the feed's lanes; resolvable where the feed does not run
 
         // Singleton: a scope per day, and the one gate that keeps a host to one range at a time,
         // whichever of the desk's sheet and the Worker's --job espn:range asked.

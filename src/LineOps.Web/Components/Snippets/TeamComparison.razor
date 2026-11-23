@@ -1,0 +1,61 @@
+@*
+    The two teams side by side: the away side on the left and the home side on the right, as the
+    field and the title have them, one figure a row — time of possession, total yards and the rest
+    (GamecastTelemetry.Compare) — with a bar under each split at the away side's share.
+
+    The bar is ink, not state: a longer bar is more of the thing, which for turnovers is worse, so
+    nothing here colours a side as ahead. The away half is the chart's neutral and the home half
+    its dimmer neutral, the same in every row, so the bar says whose share it is and not who leads.
+    A row neither side has a figure for never arrives (Compare leaves it out), and with no rows the
+    part draws nothing: the window says why. To assistive tech each row is one sentence,
+    "Total yards: PHI 142, WSH 208"; the crests and the bars are hidden from it. No edge and no
+    card: the window's card holds it, and its rows are divided by spacing.
+*@
+
+@if (Rows is { Count: > 0 })
+{
+    <div class="teamcmp">
+        <div class="teamcmp__head" aria-hidden="true">
+            <span class="teamcmp__team"><TeamMark Sport="@Sport" Abbrev="@AwayAbbrev" />@AwayAbbrev</span>
+            <span class="teamcmp__team teamcmp__team--home">@HomeAbbrev<TeamMark Sport="@Sport" Abbrev="@HomeAbbrev" /></span>
+        </div>
+
+        <ul class="teamcmp__rows" aria-label="Team comparison">
+            @foreach (var row in Rows)
+            {
+                <li class="teamcmp__row" data-row="@row.Label">
+                    <span class="sr-only">@Sentence(row)</span>
+                    <span class="teamcmp__away" aria-hidden="true">@row.AwayText</span>
+                    <span class="teamcmp__label" aria-hidden="true">@row.Label</span>
+                    <span class="teamcmp__home" aria-hidden="true">@row.HomeText</span>
+                    <span class="teamcmp__bar @(row.AwayShare + row.HomeShare > 0 ? null : "teamcmp__bar--none")" aria-hidden="true">
+                        @if (row.AwayShare > 0)
+                        {
+                            <span class="teamcmp__seg teamcmp__seg--away" style="flex-grow: @Grow(row.AwayShare)"></span>
+                        }
+                        @if (row.HomeShare > 0)
+                        {
+                            <span class="teamcmp__seg teamcmp__seg--home" style="flex-grow: @Grow(row.HomeShare)"></span>
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    /// <summary>The rows, in order, as <see cref="GamecastTelemetry.Compare"/> returns them; none draws nothing.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ComparisonRow> Rows { get; set; } = [];
+
+    [Parameter, EditorRequired] public string AwayAbbrev { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string HomeAbbrev { get; set; } = string.Empty;
+
+    /// <summary>The league's key, for the teams' marks.</summary>
+    [Parameter] public string? Sport { get; set; }
+
+    private string Sentence(ComparisonRow row) => $"{row.Label}: {AwayAbbrev} {row.AwayText}, {HomeAbbrev} {row.HomeText}";
+
+    private static string Grow(double share) => share.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+}

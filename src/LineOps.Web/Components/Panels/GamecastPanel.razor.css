@@ -1,6 +1,6 @@
-/* The Gamecast window (GamecastPanel.razor). Groups are the desk's .wgroup — a fill with one
-   hairline — and rows inside them are divided by its inset hairlines, so nothing here draws an
-   edge. Every figure is tabular, so a clock or a yardage changing does not shuffle the words
+/* The Gamecast window (GamecastPanel.razor). Its cards flow in the Desk's .wflow (ADR 0032) and
+   are the desk's .wgroup — a fill with one hairline — and rows inside them are divided by its
+   inset hairlines, so nothing here draws an edge. Every figure is tabular, so a clock or a yardage changing does not shuffle the words
    after it. */
 
 .gc__clock {
@@ -38,9 +38,18 @@
     color: var(--text-secondary);
 }
 
-/* The strip owns the air beneath it, as a slot does (ADR 0020). */
-.gc__field {
-    margin-bottom: var(--space-4);
+/* What the field and the comparison cards hold is not rows, so it is the card's to inset (ADR
+   0032): its text starts where the bar's title does, and gives the inset back under 480px of card
+   as the bar does. Neither part draws an edge; the card's is the one edge. */
+.gc__cardbody {
+    padding: var(--space-3) var(--space-4);
+}
+
+@container (max-width: 480px) {
+    .gc__cardbody {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+    }
 }
 
 /* A period's heading in the drive log: a quiet line the drives of that period sit under. */

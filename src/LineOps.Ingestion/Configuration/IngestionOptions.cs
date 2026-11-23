@@ -88,8 +88,17 @@ public class IngestionOptions
 /// excuse to go without one. The summary is up to half a megabyte, one per followed game every
 /// <see cref="Poll"/>; a full NFL Sunday afternoon is a dozen games at once, and one address
 /// asking for all of them every fifteen seconds for hours is the profile that gets blocked
-/// (spec §7). So the feed follows the earliest <see cref="MaxFollowedGames"/> and says when the
-/// ceiling bites.
+/// (spec §7). So the feed reads in two lanes: the fast lane, <see cref="MaxFollowedGames"/> games
+/// read every poll, watched games first and then the earliest; and the slow lane, every other game
+/// in play read in rotation, <see cref="SlowLanePerPoll"/> a poll, so no game on is left without
+/// plays. A poll asks at most <c>MaxFollowedGames + SlowLanePerPoll</c> summaries, about 47 KB each
+/// gzipped (measured 2026-11-22).
+/// </para>
+///
+/// <para>
+/// Conditional requests would not lower that. ESPN serves the summary with
+/// <c>Cache-Control: max-age=4</c> and no <c>ETag</c> or <c>Last-Modified</c>, so there is nothing
+/// to revalidate against: every read is the whole document. The ceiling is the only lever.
 /// </para>
 /// </summary>
 public class GamecastOptions
@@ -118,8 +127,19 @@ public class GamecastOptions
     /// </summary>
     public TimeSpan BoxPoll { get; set; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>The most games followed at once, earliest start first.</summary>
+    /// <summary>
+    /// The fast lane: the most games read every poll. Games a window is watching come first
+    /// (<c>GamecastLanes</c>), then the healthy before the ones in trouble, earliest start first.
+    /// </summary>
     public int MaxFollowedGames { get; set; } = 4;
+
+    /// <summary>
+    /// The slow lane: games past <see cref="MaxFollowedGames"/> read each poll, in turn by game id,
+    /// so with N of them each is read once every N ÷ this polls, rounded up. One by default — on a
+    /// seven-game window each of the three past the ceiling is read every forty-five seconds — and
+    /// zero switches the slow lane off, leaving the games past the ceiling unread.
+    /// </summary>
+    public int SlowLanePerPoll { get; set; } = 1;
 
     /// <summary>
     /// Leagues followed, by <see cref="Core.Entities.Sport.Key"/>. Empty by default and read

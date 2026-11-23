@@ -3,6 +3,7 @@ using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
 using LineOps.Desk.Primitives;
 using LineOps.Desk.Windowing;
+using LineOps.Ingestion.Services;
 using LineOps.Web.Components.Panels;
 using LineOps.Web.Components.Snippets;
 using LineOps.Web.Services;
@@ -565,55 +566,73 @@ public class GamecastPanelTests : DeskTestContext
         Assert.Equal(FieldGeometry.EndZone, close.Gain);
     }
 
+    // The field's own marks — the ball, the line to gain, the red zone, no outline, the field
+    // alone with nobody on the ball — are FieldGraphicTests'. Here: what the window hands it.
+
     [Fact]
-    public void The_strip_draws_the_marks_where_the_geometry_puts_them_and_says_the_situation()
+    public void A_live_games_field_card_draws_the_field_with_the_situation_as_its_name()
     {
-        var cut = RenderComponent<FieldStrip>(p => p
-            .Add(s => s.HomeAbbrev, "WSH").Add(s => s.AwayAbbrev, "PHI")
-            .Add(s => s.YardLine, 34).Add(s => s.Distance, 6).Add(s => s.HomeBall, false)
-            .Add(s => s.Label, "Field: PHI ball, 2nd and 6 at WSH 34"));
+        var cut = Render();
 
-        var svg = cut.Find("svg");
-        Assert.Equal("img", svg.GetAttribute("role"));
-        Assert.Equal("Field: PHI ball, 2nd and 6 at WSH 34", svg.GetAttribute("aria-label"));
-        Assert.Equal("76", cut.Find(".fieldstrip__spot").GetAttribute("cx"));
-        Assert.Equal("82", cut.Find(".fieldstrip__gain").GetAttribute("x1"));
-        Assert.Contains("PHI", cut.Markup);
-        Assert.Contains("WSH", cut.Markup);
+        var card = cut.Find("section.wsection.gc__fieldcard");
+        Assert.Equal("Field", card.QuerySelector(".wgroup__bar .wgroup__title")!.TextContent.Trim());
 
-        // At the WSH 34 the ball is outside the red zone, so none is drawn.
-        Assert.Empty(cut.FindAll(".fieldstrip__red"));
+        var graphic = cut.FindComponent<FieldGraphic>().Instance;
+        Assert.Equal("Field: PHI ball, 2nd and 6 at WSH 34", graphic.Label);
+        Assert.Equal((34, 6, (bool?)false), (graphic.YardLine, graphic.Distance, graphic.HomeBall));
+        Assert.Equal(("WSH", "PHI"), (graphic.HomeAbbrev, graphic.AwayAbbrev));
+        Assert.Equal("img", card.QuerySelector("svg")!.GetAttribute("role"));
     }
 
     [Fact]
-    public void The_red_zone_is_tinted_only_once_the_ball_is_inside_the_defences_twenty()
+    public void The_field_is_handed_the_drive_on_the_field_and_only_its_plays()
     {
-        var cut = RenderComponent<FieldStrip>(p => p
-            .Add(s => s.HomeAbbrev, "WSH").Add(s => s.AwayAbbrev, "PHI")
-            .Add(s => s.YardLine, 15).Add(s => s.Distance, 5).Add(s => s.HomeBall, false)
-            .Add(s => s.Label, "Field: PHI ball, 1st and 5 at WSH 15"));
+        TwoDrives();
+        var cut = Render();
 
-        Assert.Equal("90", cut.Find(".fieldstrip__red").GetAttribute("x"));
-        Assert.Equal("20", cut.Find(".fieldstrip__red").GetAttribute("width"));
+        var graphic = cut.FindComponent<FieldGraphic>().Instance;
+        Assert.Equal(new long[] { 3, 4 }, graphic.DrivePlays.Select(p => p.Sequence).ToArray());
+        Assert.Equal(75, graphic.DriveStartYardLine);
+    }
+
+    /// <summary>
+    /// After a pick-six ESPN keeps the beaten drive current until the kickoff, with the ball the
+    /// other side's: its plays are not drawn under that side's ball.
+    /// </summary>
+    [Fact]
+    public void A_current_drive_that_is_not_the_side_with_the_balls_gives_the_field_no_plays()
+    {
+        TwoDrives();
+        _data.Drives[1] = _data.Drives[1] with { TeamId = FakeGamecastData.AwayId };
+        _data.Header = FakeGamecastData.Live() with { PossessionTeamId = FakeGamecastData.HomeId };
+        var cut = Render();
+
+        var graphic = cut.FindComponent<FieldGraphic>().Instance;
+        Assert.Empty(graphic.DrivePlays);
+        Assert.Null(graphic.DriveStartYardLine);
     }
 
     [Fact]
-    public void The_strip_has_no_outline_of_its_own()
+    public void With_no_drive_on_the_field_the_field_gets_no_plays()
     {
-        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Snippets", "FieldStrip.razor.css"));
+        FourPlays();
+        var cut = Render();
 
-        Assert.DoesNotContain("border:", css);
+        var graphic = cut.FindComponent<FieldGraphic>().Instance;
+        Assert.Empty(graphic.DrivePlays);
+        Assert.Null(graphic.DriveStartYardLine);
     }
 
-    [Fact]
-    public void A_strip_with_nobody_on_the_ball_draws_the_field_alone()
+    [Theory]
+    [InlineData(GameStatus.Final)]
+    [InlineData(GameStatus.Scheduled)]
+    public void A_game_not_on_has_no_field_card(GameStatus status)
     {
-        var cut = RenderComponent<FieldStrip>(p => p.Add(s => s.YardLine, 34).Add(s => s.Label, "Field"));
+        _data.Header = FakeGamecastData.Live(status: status);
+        var cut = Render();
 
-        Assert.Empty(cut.FindAll(".fieldstrip__spot"));
-        Assert.Empty(cut.FindAll(".fieldstrip__gain"));
-        Assert.Empty(cut.FindAll(".fieldstrip__red"));
-        Assert.Equal(2, cut.FindAll(".fieldstrip__zone").Count);
+        Assert.Empty(cut.FindAll(".gc__fieldcard"));
+        Assert.Empty(cut.FindComponents<FieldGraphic>());
     }
 
     // ---- Empty states and the box score ----------------------------------------------------
@@ -654,6 +673,349 @@ public class GamecastPanelTests : DeskTestContext
         Assert.Contains("Ingestion:HostScheduler", keys.TextContent);
         Assert.DoesNotContain("Ingestion:", note.TextContent.Replace(keys.TextContent, ""));
         Assert.Null(note.GetAttribute("title"));
+
+        // It is the field card's notice: under the card, never inside it.
+        Assert.Empty(cut.FindAll(".gc__fieldcard .wgroup .gc__quiet"));
+        Assert.Single(cut.FindAll(".gc__fieldcard > .gc__quiet"));
+    }
+
+    // ---- How the plays are arriving --------------------------------------------------------
+
+    private static readonly TimeSpan Poll = TimeSpan.FromSeconds(15);
+
+    private static GamecastFeedReading Here(GamecastLane? lane, int inPlay = 7, int fast = 4, int slow = 3,
+        int perPoll = 1, bool promoted = false)
+        => new(true, lane, inPlay, fast, slow, Poll, perPoll, promoted);
+
+    private static readonly Dictionary<string, GamecastFeedReading> Readings = new()
+    {
+        ["elsewhere"] = GamecastFeedReading.NotHere(Poll, 1),
+        ["fast"] = Here(GamecastLane.Fast),
+        ["slow"] = Here(GamecastLane.Slow),                    // 3 in turn, 1 a poll: every 45 s
+        ["slow8"] = Here(GamecastLane.Slow, inPlay: 12, slow: 8), // every 2 minutes
+        ["backedoff"] = Here(GamecastLane.BackedOff),
+        ["nolane"] = Here(null)
+    };
+
+    public static TheoryData<GameStatus, string, int, bool, GamecastPanel.FeedState> States => new()
+    {
+        // By status, whatever the feed says.
+        { GameStatus.Final, "fast", 5, false, GamecastPanel.FeedState.Final },
+        { GameStatus.Final, "elsewhere", 6000, false, GamecastPanel.FeedState.Final },
+        { GameStatus.Scheduled, "nolane", 6000, false, GamecastPanel.FeedState.NotStarted },
+        { GameStatus.Postponed, "elsewhere", 6000, false, GamecastPanel.FeedState.NotStarted },
+
+        // The feed elsewhere: the newest play's age is all there is to go by.
+        { GameStatus.Live, "elsewhere", 30, false, GamecastPanel.FeedState.Live },
+        { GameStatus.Live, "elsewhere", 119, false, GamecastPanel.FeedState.Live },
+        { GameStatus.Live, "elsewhere", 120, false, GamecastPanel.FeedState.Quiet },
+        { GameStatus.Live, "elsewhere", 900, true, GamecastPanel.FeedState.Live },
+
+        // The fast lane here: live, unless nothing has come in outside a break.
+        { GameStatus.Live, "fast", 30, false, GamecastPanel.FeedState.Live },
+        { GameStatus.Live, "fast", 600, false, GamecastPanel.FeedState.Quiet },
+        { GameStatus.Live, "fast", 600, true, GamecastPanel.FeedState.Live },
+
+        // In turn every 45 s: quiet only past two minutes and two turns (210 s).
+        { GameStatus.Live, "slow", 30, false, GamecastPanel.FeedState.Slow },
+        { GameStatus.Live, "slow", 150, false, GamecastPanel.FeedState.Slow },
+        { GameStatus.Live, "slow", 209, false, GamecastPanel.FeedState.Slow },
+        { GameStatus.Live, "slow", 210, false, GamecastPanel.FeedState.Quiet },
+        { GameStatus.Live, "slow", 900, true, GamecastPanel.FeedState.Slow },
+
+        // In turn every two minutes: the threshold scales with the turn (360 s).
+        { GameStatus.Live, "slow8", 300, false, GamecastPanel.FeedState.Slow },
+        { GameStatus.Live, "slow8", 360, false, GamecastPanel.FeedState.Quiet },
+
+        // Backing off, or here and reading the game in no lane: quiet however fresh the last play.
+        { GameStatus.Live, "backedoff", 5, false, GamecastPanel.FeedState.Quiet },
+        { GameStatus.Live, "backedoff", 5, true, GamecastPanel.FeedState.Quiet },
+        { GameStatus.Live, "nolane", 5, false, GamecastPanel.FeedState.Quiet },
+    };
+
+    [Theory]
+    [MemberData(nameof(States))]
+    public void The_feed_state_follows_the_status_the_lane_and_the_newest_plays_age(
+        GameStatus status, string reading, int seconds, bool isBreak, GamecastPanel.FeedState expected)
+        => Assert.Equal(expected, GamecastPanel.StateOf(status, Readings[reading], TimeSpan.FromSeconds(seconds), isBreak));
+
+    [Fact]
+    public void A_game_in_turn_is_read_every_ceiling_of_the_games_in_turn_over_the_games_a_poll()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(45), Here(GamecastLane.Slow, slow: 3).SlowEvery);
+        Assert.Equal(TimeSpan.FromSeconds(60), Here(GamecastLane.Slow, slow: 7, perPoll: 2).SlowEvery);
+        Assert.Null(Here(null, perPoll: 0).SlowEvery);
+        Assert.Equal(TimeSpan.FromSeconds(210), GamecastPanel.SlowQuietAfter(Here(GamecastLane.Slow, slow: 3)));
+    }
+
+    /// <summary>A live game with a play landed just now, read by the feed as given.</summary>
+    private IRenderedComponent<Bench> RenderFresh(GamecastFeedReading reading)
+    {
+        _data.Reading = reading;
+        _data.Plays.Add(FakeGamecastData.Play(1, null, "Kickoff"));
+        return Render();
+    }
+
+    [Fact]
+    public void A_game_read_in_turn_says_how_often_under_the_field_and_that_it_moves_up()
+    {
+        var cut = RenderFresh(Here(GamecastLane.Slow, promoted: true));
+
+        var foot = cut.Find(".gc__fieldcard > .wgroup__foot");
+        Assert.Equal("7 games are on. This one is read about every 45 seconds; with this window open it moves to every 15 seconds.",
+            foot.TextContent.Trim());
+        Assert.Empty(cut.FindAll(".gc__quiet"));
+    }
+
+    [Fact]
+    public void A_game_read_in_turn_that_will_not_move_up_does_not_say_it_will()
+    {
+        var cut = RenderFresh(Here(GamecastLane.Slow, inPlay: 12, slow: 8, promoted: false));
+
+        Assert.Equal("12 games are on. This one is read about every 2 minutes.",
+            cut.Find(".gc__fieldcard > .wgroup__foot").TextContent.Trim());
+    }
+
+    [Theory]
+    [InlineData("fast")]
+    [InlineData("elsewhere")]
+    public void A_game_whose_plays_arrive_at_full_pace_says_nothing_extra(string reading)
+    {
+        var cut = RenderFresh(Readings[reading]);
+
+        Assert.Empty(cut.FindAll(".gc__fieldcard .wgroup__foot"));
+        Assert.Empty(cut.FindAll(".gc__quiet"));
+    }
+
+    [Fact]
+    public void A_quiet_game_the_feed_here_is_reading_names_no_settings()
+    {
+        _data.Reading = Here(GamecastLane.Fast);
+        _data.Plays.Add(FakeGamecastData.Play(1, 1, "Kickoff") with { Wallclock = DateTimeOffset.UtcNow.AddMinutes(-9) });
+        var cut = Render();
+
+        var note = cut.Find(".gc__quiet");
+        Assert.Equal("Plays are not arriving. The newest is 9m old. The game is being read, and no new play has come in.",
+            note.TextContent.Trim());
+        Assert.Empty(cut.FindAll(".gc__quiet-keys"));
+        Assert.DoesNotContain("Ingestion:", cut.Markup);
+        Assert.DoesNotContain("machine that runs the schedule", cut.Markup);
+    }
+
+    [Fact]
+    public void A_game_the_feed_here_is_backing_off_is_quiet_and_names_no_settings()
+    {
+        var cut = RenderFresh(Here(GamecastLane.BackedOff));
+
+        var note = cut.Find(".gc__quiet");
+        Assert.Equal("Plays are not arriving. The newest is under a minute old. The last reads of this game did not succeed; it is tried again shortly.",
+            note.TextContent.Trim());
+        Assert.Empty(cut.FindAll(".gc__quiet-keys"));
+    }
+
+    [Fact]
+    public void A_game_the_feed_here_reads_in_no_lane_is_quiet()
+    {
+        var cut = RenderFresh(Here(null));
+
+        Assert.Contains("This game is not being read.", cut.Find(".gc__quiet").TextContent);
+        Assert.Empty(cut.FindAll(".gc__quiet-keys"));
+
+        // With the turn switched off and the fast lane full, the note says so with its numbers.
+        Assert.Equal(
+            "Plays are not arriving. The newest is under a minute old. 7 games are on and 4 are read at a time; this one is not among them.",
+            RenderFresh(Here(null, perPoll: 0)).Find(".gc__quiet").TextContent.Trim());
+    }
+
+    // ---- The empty plays tab ---------------------------------------------------------------
+
+    [Fact]
+    public void A_live_game_with_no_plays_says_none_has_landed_not_that_it_has_yet_to_kick_off()
+    {
+        var cut = Render();
+
+        Assert.Contains("No plays have landed yet.", cut.Markup);
+        Assert.DoesNotContain("Plays appear once the game kicks off.", cut.Markup);
+        Assert.Contains("The game kicked off 40m ago and none has landed.", cut.Find(".gc__quiet").TextContent);
+    }
+
+    [Fact]
+    public void A_final_with_no_plays_says_none_is_held()
+    {
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Final);
+        var cut = Render();
+
+        Assert.Contains("No play-by-play is held for this game.", cut.Markup);
+        Assert.Empty(cut.FindAll(".gc__quiet"));
+    }
+
+    [Fact]
+    public void Each_empty_plays_tab_is_said_for_its_state()
+    {
+        Assert.Equal("Plays appear once the game kicks off.", GamecastPanel.NoPlays(GamecastPanel.FeedState.NotStarted));
+        Assert.Equal("No play-by-play is held for this game.", GamecastPanel.NoPlays(GamecastPanel.FeedState.Final));
+        Assert.All(new[] { GamecastPanel.FeedState.Live, GamecastPanel.FeedState.Slow, GamecastPanel.FeedState.Quiet },
+            s => Assert.Equal("No plays have landed yet.", GamecastPanel.NoPlays(s)));
+    }
+
+    // ---- The cards -------------------------------------------------------------------------
+
+    [Fact]
+    public void A_live_game_flows_the_field_the_score_and_the_comparison_then_the_sections_across_the_row()
+    {
+        TwoDrives();
+        var cut = Render();
+
+        var flow = cut.Find(".wflow.gc__flow");
+        var children = flow.Children.Select(c => c.ClassList).ToList();
+        Assert.Equal(4, children.Count);
+        Assert.Contains("gc__fieldcard", children[0]);
+        Assert.Contains("gc__scorecard", children[1]);
+        Assert.Contains("gc__comparecard", children[2]);
+        Assert.Contains("wsection--span", children[3]);
+        Assert.NotEmpty(flow.Children[3].QuerySelectorAll("[role='tab']"));
+
+        Assert.Equal(new[] { "Field", "Score by quarter", "Team comparison" },
+            cut.FindAll(".gc__flow .wgroup__title").Select(t => t.TextContent.Trim()).ToArray());
+    }
+
+    [Fact]
+    public void The_line_score_sits_in_its_card_inset_as_the_game_window_places_it()
+    {
+        var cut = Render();
+
+        var linescore = cut.Find(".gc__scorecard > .wgroup > .linescore");
+        Assert.Contains("linescore--inset", linescore.ClassList);
+    }
+
+    [Fact]
+    public void The_comparison_card_is_left_out_when_there_is_nothing_to_compare()
+    {
+        var cut = Render();
+
+        Assert.Empty(cut.FindAll(".gc__comparecard"));
+        Assert.Empty(cut.FindAll(".teamcmp"));
+    }
+
+    [Fact]
+    public void The_comparison_card_compares_the_sides_from_the_drives_for_a_final_too()
+    {
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Final);
+        TwoDrives();
+        var cut = Render();
+
+        var card = cut.Find(".gc__comparecard");
+        Assert.Contains(cut.FindComponent<TeamComparison>().Instance.Rows, r => r.Label == "Total yards");
+        Assert.NotNull(card.QuerySelector(".teamcmp"));
+    }
+
+    [Fact]
+    public void A_game_not_started_has_no_comparison_card_however_much_is_held()
+    {
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Scheduled);
+        TwoDrives();
+        var cut = Render();
+
+        Assert.Empty(cut.FindAll(".gc__comparecard"));
+    }
+
+    [Fact]
+    public void The_comparison_is_rebuilt_when_the_drives_move_not_on_every_render()
+    {
+        TwoDrives();
+        var cut = Render();
+        var rows = cut.FindComponent<TeamComparison>().Instance.Rows;
+
+        cut.Render();
+        Assert.Same(rows, cut.FindComponent<TeamComparison>().Instance.Rows);
+
+        _data.Drives[1] = FakeGamecastData.Drive(2, 3, 4, current: true, plays: 2, yards: 20);
+        Signal("plays", Id);
+        cut.WaitForAssertion(() => Assert.NotSame(rows, cut.FindComponent<TeamComparison>().Instance.Rows), TimeSpan.FromSeconds(5));
+    }
+
+    // ---- Telling the feed the window is open ------------------------------------------------
+
+    [Fact]
+    public void A_live_nfl_game_is_watched_once_when_the_window_opens()
+    {
+        Render();
+
+        Assert.Equal(new[] { $"watch:{Id}" }, _data.Interest.ToArray());
+    }
+
+    [Fact]
+    public void A_notice_renews_the_interest_without_watching_again()
+    {
+        var cut = Render();
+
+        Signal("plays", Id);
+        cut.WaitForAssertion(() => Assert.True(_data.Count("renew") >= 1), TimeSpan.FromSeconds(5));
+        Signal("games", Id);
+        cut.WaitForAssertion(() => Assert.True(_data.Count("renew") >= 2), TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, _data.Count("watch"));
+        Assert.Equal(0, _data.Count("unwatch"));
+    }
+
+    [Fact]
+    public void Closing_the_window_lets_the_game_go_once()
+    {
+        Render();
+
+        DisposeComponents();
+
+        Assert.Equal(1, _data.Count("watch"));
+        Assert.Equal(1, _data.Count("unwatch"));
+        Assert.Equal($"unwatch:{Id}", _data.Interest[^1]);
+    }
+
+    [Fact]
+    public void The_final_whistle_lets_the_game_go_and_nothing_renews_it_after()
+    {
+        var cut = Render();
+
+        _data.Header = FakeGamecastData.Live(status: GameStatus.Final);
+        Signal("games", Id);
+        cut.WaitForAssertion(() => Assert.Equal(1, _data.Count("unwatch")), TimeSpan.FromSeconds(5));
+        var calls = _data.Interest.Count;
+
+        Signal("games", Id);
+        cut.WaitForState(() => _data.HeaderReads >= 3, TimeSpan.FromSeconds(5));
+        DisposeComponents();
+
+        Assert.Equal(calls, _data.Interest.Count);
+        Assert.Equal(1, _data.Count("watch"));
+    }
+
+    [Theory]
+    [InlineData("nfl", GameStatus.Final)]
+    [InlineData("mlb", GameStatus.Live)]
+    [InlineData("nfl", GameStatus.Postponed)]
+    public void A_game_not_on_is_not_watched(string sport, GameStatus status)
+    {
+        _data.Header = FakeGamecastData.Live(sport: sport, status: status);
+        Render();
+        DisposeComponents();
+
+        Assert.Empty(_data.Interest);
+    }
+
+    [Fact]
+    public void A_game_starting_within_the_hour_is_watched_and_one_further_off_is_not()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var soon = FakeGamecastData.Live(status: GameStatus.Scheduled) with { StartsAt = now.AddMinutes(40) };
+        var later = soon with { StartsAt = now.AddHours(3) };
+
+        Assert.True(GamecastPanel.Interested(soon, now));
+        Assert.False(GamecastPanel.Interested(later, now));
+        Assert.True(GamecastPanel.Interested(FakeGamecastData.Live(), now));
+        Assert.False(GamecastPanel.Interested(null, now));
+
+        _data.Header = soon;
+        Render();
+        Assert.Equal(1, _data.Count("watch"));
     }
 
     private static GameBoxScore Box(string yards) => new(new Game { Id = BoardRows.GameId },
@@ -966,10 +1328,9 @@ public class GamecastPanelTests : DeskTestContext
         };
 
         var cut = RenderComponent<GamePanel>(p => p.Add(g => g.GameId, BoardRows.GameId));
-        cut.WaitForAssertion(() => Assert.Contains(cut.FindAll("[role=tab]"), t => t.TextContent.Contains("Box score")));
-        cut.FindAll("[role=tab]").First(t => t.TextContent.Contains("Box score")).Click();
-
+        // The box score is the Game window's one wide block, beneath the overview: no tab to press.
         cut.WaitForAssertion(() => Assert.Contains("Drake Maye", cut.Markup));
+        Assert.Equal("Box score", cut.Find(".gameroster__block > .psection__head .panel-h").TextContent.Trim());
         Assert.Equal(2, cut.FindComponents<BoxScoreSide>().Count);
         var source = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "GamePanel.razor"));
         Assert.DoesNotContain("RenderBoxSide", source);
