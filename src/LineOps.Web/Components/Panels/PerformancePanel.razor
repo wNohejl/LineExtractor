@@ -100,9 +100,13 @@ else
     }
     else
     {
-        @* One column at a reading width, so the chart, its tables and the figures above them
-           share a left and a right edge. At 1600px the chart sat small in the middle of the
-           window and each table put its figures somewhere else along a 1584px row. *@
+        @* The tiles across the window, then the sections as cards in a .wflow (the Desk's grouping
+           contract): each a card named in the bar at its top, as many side by side as the width
+           allows. It was one 720px reading column — at 1600px the chart sat small in the middle
+           of the window — and before that each table put its figures somewhere along a 1584px
+           row; a 360px track keeps a table at a reading width and a wide window gets more of them
+           rather than wider ones. The breakdowns share their column classes, so in equal tracks
+           Bets, Net and ROI sit at the same x in each. *@
         <div class="perf">
         @* Four to six tiles, as the bets allow; the class says how many so the row can wrap
            them evenly (lineops.css, "The Performance window") rather than leave an orphan. *@
@@ -141,117 +145,123 @@ else
             }
         </MetricRow>
 
-        <PanelSection Title="Bankroll">
+        <div class="wflow perf-flow">
             @* The curve used to be cumulative profit from zero and called a bankroll. With a
                starting figure it is one; it is stored with the data, not the browser. The figure
-               is a setting, so it is a row of a group above the curve it starts — its name in the
-               label column, the field and its key trailing, what it is for in the footer — and
-               not a field on the section's rule, where keys narrow what a section shows and a
-               hidden label beside it named it to nobody. A Set that cannot be pressed says why;
-               one that did not store says so under the row, with the figure still in the field. *@
-            <DeskStack Gap="DeskSpace.Space4">
-                <section class="wsection" aria-label="Bankroll">
-                    <div class="wgroup opsgroup opsgroup--wide">
-                        <FormRow Label="Starting bankroll">
-                            <div class="opsrow">
-                                <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50"
-                                           Class="wfield--short" aria-label="Starting bankroll"
-                                           Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
-                                <KeyRow Justify="DeskJustify.Start"
-                                        Reason="@(_bankrollInput == _startingBankroll ? "Type a different figure to set it." : null)">
-                                    <Primary Context="why">
-                                        <DeskButton Size="DeskKeySize.Small" Disabled="@(_bankrollInput == _startingBankroll)"
-                                                    aria-describedby="@why"
-                                                    OnClick="SaveBankrollAsync">
-                                            Set
-                                        </DeskButton>
-                                    </Primary>
-                                </KeyRow>
-                            </div>
-                        </FormRow>
-                    </div>
-                    <p class="wgroup__foot">The curve starts here; stored with the journal, not the browser.</p>
-
+               is a setting, so it is a row of a card that leads the curve it starts — its name in
+               the label column, the field and its key trailing, what it is for in the footer — and
+               not a field on a section's rule, where keys narrow what a section shows and a hidden
+               label beside it named it to nobody. A Set that cannot be pressed says why; one that
+               did not store says so under the card, with the figure still in the field. *@
+            <FormGroup Title="Bankroll" LabelWidth="128px">
+                <ChildContent>
+                    <FormRow Label="Starting bankroll">
+                        <div class="opsrow">
+                            <DeskField TValue="decimal?" Mono="true" type="number" min="0" step="50"
+                                       Class="wfield--short" aria-label="Starting bankroll"
+                                       Value="_bankrollInput" ValueChanged="@((decimal? v) => _bankrollInput = v)" />
+                            <KeyRow Justify="DeskJustify.Start"
+                                    Reason="@(_bankrollInput == _startingBankroll ? "Type a different figure to set it." : null)">
+                                <Primary Context="why">
+                                    <DeskButton Size="DeskKeySize.Small" Disabled="@(_bankrollInput == _startingBankroll)"
+                                                aria-describedby="@why"
+                                                OnClick="SaveBankrollAsync">
+                                        Set
+                                    </DeskButton>
+                                </Primary>
+                            </KeyRow>
+                        </div>
+                    </FormRow>
+                </ChildContent>
+                <Notice>
                     @if (_bankrollError is not null)
                     {
                         <Note State="DeskState.Warning">@_bankrollError</Note>
                     }
-                </section>
+                </Notice>
+                <Footer>The curve starts here; stored with the journal, not the browser.</Footer>
+            </FormGroup>
 
-                @if (_bankroll.Length > 1)
-                {
-                    @* Height="auto" with .perf-chart: the plot spans the column and keeps its own
-                       proportions, so its axis labels are drawn near the size they are written at
-                       rather than shrunk to fit a 200px box (lineops.css, "The Performance window"). *@
-                    <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="auto"
-                               Class="perf-chart"
-                               Family="DeskChartFamily.Ledger"
-                               ShowLegend="false"
-                               Takeaway="@_takeaway"
-                               Description="@DeskChart.Describe(_startingBankroll > 0 ? "Bankroll over settled bets" : "Cumulative profit over settled bets", _labels, _bankrollSeries)" />
-                }
-                else
-                {
-                    <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
-                }
-            </DeskStack>
-        </PanelSection>
-
-        @* The three breakdowns are one table read three ways, so they share column widths: Bets,
-           Net and ROI sit at the same x in each, and a figure can be read down the page. *@
-        <PanelSection Title="By market">@Breakdown(_byMarket, "Market")</PanelSection>
-
-        <PanelSection Title="By sport">@Breakdown(_bySport, "Sport")</PanelSection>
-
-        <PanelSection Title="By book">@Breakdown(_byBook, "Book")</PanelSection>
-
-        <PanelSection Title="What CLV was measured against">
-        <DeskGrid T="BasisRow" Items="_byBasis" Class="perf-table" EmptyText="No selections with a close.">
-            <PropertyColumn T="BasisRow" TProperty="string" Property="r => r.Basis" Title="Compared with"
-                            HeaderClass="perf-col--key" CellClass="perf-col--key" />
-            <PropertyColumn T="BasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right"
-                            HeaderClass="perf-col--num" CellClass="perf-col--num">
-                <CellTemplate><span class="dim">@context.Item.Count.ToString("N0")</span></CellTemplate>
-            </PropertyColumn>
-            <TemplateColumn T="BasisRow" Title="Beat the close" Align="Align.Right" Sortable="false"
-                            HeaderClass="perf-col--num" CellClass="perf-col--num">
-                <CellTemplate>@(context.Item.BeatRate is { } r ? r.ToString("P0") : "—")</CellTemplate>
-            </TemplateColumn>
-            <TemplateColumn T="BasisRow" Title="Average" Align="Align.Right" Sortable="false"
-                            HeaderClass="perf-col--num" CellClass="perf-col--num">
-                <CellTemplate><span class="dim">@context.Item.Average</span></CellTemplate>
-            </TemplateColumn>
-        </DeskGrid>
-        </PanelSection>
-
-        @* The value at close, by the reference that priced it. Pinnacle's close is the one to
-           trust; a consensus of recreational books is softer; and the rest had no fair close —
-           one book, or a market that closed hours early. *@
-        <PanelSection Title="What value was measured against">
-        <DeskGrid T="FairBasisRow" Items="_byFairBasis" Class="perf-table" EmptyText="No settled selections.">
-            <PropertyColumn T="FairBasisRow" TProperty="string" Property="r => r.Basis" Title="Fair close from"
-                            HeaderClass="perf-col--key" CellClass="perf-col--key" />
-            <PropertyColumn T="FairBasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right"
-                            HeaderClass="perf-col--num" CellClass="perf-col--num">
-                <CellTemplate><span class="dim">@context.Item.Count.ToString("N0")</span></CellTemplate>
-            </PropertyColumn>
-            <TemplateColumn T="FairBasisRow" Title="Value at close" Align="Align.Right" Sortable="true"
-                            SortBy="@(r => r.Value?.Rate ?? double.MinValue)"
-                            HeaderClass="perf-col--wide" CellClass="perf-col--wide">
-                <CellTemplate>
-                    @if (context.Item.Value is { } v)
+            @* The curve is the one large card, beside the card that leads the flow: the rest of the
+               first row once two tracks fit, the whole row below that. Height="auto" with
+               .perf-chart: the plot spans its card and keeps its own proportions, so its axis
+               labels are drawn near the size they are written at rather than shrunk to fit a
+               200px box (lineops.css, "The Performance window"). *@
+            <FormGroup Title="@(_startingBankroll > 0 ? "Bankroll over settled bets" : "Profit over settled bets")"
+                       Span="DeskCardSpan.Rest" GroupClass="perf-card">
+                <div class="perf-card__body">
+                    @if (_bankroll.Length > 1)
                     {
-                        <span class="@(v.Rate > 0 ? "up" : v.Rate < 0 ? "down" : "dim")">@v.Rate.ToString("+0.0%;−0.0%")</span>
-                        <span class="dim">@($" ({Signed(v.Expected)})")</span>
+                        <DeskChart Series="@_bankrollSeries" Labels="@_labels" Height="auto"
+                                   Class="perf-chart"
+                                   Family="DeskChartFamily.Ledger"
+                                   ShowLegend="false"
+                                   Takeaway="@_takeaway"
+                                   Description="@DeskChart.Describe(_startingBankroll > 0 ? "Bankroll over settled bets" : "Cumulative profit over settled bets", _labels, _bankrollSeries)" />
                     }
                     else
                     {
-                        <span class="dim">—</span>
+                        <EmptyState Kind="EmptyStateKind.New">Two settled bets are needed to plot a curve.</EmptyState>
                     }
-                </CellTemplate>
-            </TemplateColumn>
-        </DeskGrid>
-        </PanelSection>
+                </div>
+            </FormGroup>
+
+            @* The three breakdowns are one table read three ways, so they share column widths: Bets,
+               Net and ROI sit at the same x in each, and a figure can be read across the cards. *@
+            <FormGroup Title="By market" GroupClass="perf-card">@Breakdown(_byMarket, "Market")</FormGroup>
+
+            <FormGroup Title="By sport" GroupClass="perf-card">@Breakdown(_bySport, "Sport")</FormGroup>
+
+            <FormGroup Title="By book" GroupClass="perf-card">@Breakdown(_byBook, "Book")</FormGroup>
+
+            <FormGroup Title="What CLV was measured against" GroupClass="perf-card">
+            <DeskGrid T="BasisRow" Items="_byBasis" Class="perf-table" EmptyText="No selections with a close.">
+                <PropertyColumn T="BasisRow" TProperty="string" Property="r => r.Basis" Title="Compared with"
+                                HeaderClass="perf-col--key" CellClass="perf-col--key" />
+                <PropertyColumn T="BasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right"
+                                HeaderClass="perf-col--num" CellClass="perf-col--num">
+                    <CellTemplate><span class="dim">@context.Item.Count.ToString("N0")</span></CellTemplate>
+                </PropertyColumn>
+                <TemplateColumn T="BasisRow" Title="Beat the close" Align="Align.Right" Sortable="false"
+                                HeaderClass="perf-col--num" CellClass="perf-col--num">
+                    <CellTemplate>@(context.Item.BeatRate is { } r ? r.ToString("P0") : "—")</CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn T="BasisRow" Title="Average" Align="Align.Right" Sortable="false"
+                                HeaderClass="perf-col--num" CellClass="perf-col--num">
+                    <CellTemplate><span class="dim">@context.Item.Average</span></CellTemplate>
+                </TemplateColumn>
+            </DeskGrid>
+            </FormGroup>
+
+            @* The value at close, by the reference that priced it. Pinnacle's close is the one to
+               trust; a consensus of recreational books is softer; and the rest had no fair close —
+               one book, or a market that closed hours early. *@
+            <FormGroup Title="What value was measured against" GroupClass="perf-card">
+            <DeskGrid T="FairBasisRow" Items="_byFairBasis" Class="perf-table" EmptyText="No settled selections.">
+                <PropertyColumn T="FairBasisRow" TProperty="string" Property="r => r.Basis" Title="Fair close from"
+                                HeaderClass="perf-col--key" CellClass="perf-col--key" />
+                <PropertyColumn T="FairBasisRow" TProperty="int" Property="r => r.Count" Title="Selections" Align="Align.Right"
+                                HeaderClass="perf-col--num" CellClass="perf-col--num">
+                    <CellTemplate><span class="dim">@context.Item.Count.ToString("N0")</span></CellTemplate>
+                </PropertyColumn>
+                <TemplateColumn T="FairBasisRow" Title="Value at close" Align="Align.Right" Sortable="true"
+                                SortBy="@(r => r.Value?.Rate ?? double.MinValue)"
+                                HeaderClass="perf-col--wide" CellClass="perf-col--wide">
+                    <CellTemplate>
+                        @if (context.Item.Value is { } v)
+                        {
+                            <span class="@(v.Rate > 0 ? "up" : v.Rate < 0 ? "down" : "dim")">@v.Rate.ToString("+0.0%;−0.0%")</span>
+                            <span class="dim">@($" ({Signed(v.Expected)})")</span>
+                        }
+                        else
+                        {
+                            <span class="dim">—</span>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </DeskGrid>
+            </FormGroup>
+        </div>
         </div>
     }
 }

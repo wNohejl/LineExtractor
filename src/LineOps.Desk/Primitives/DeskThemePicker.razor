@@ -2,10 +2,9 @@
 @using LineOps.Desk.Theming
 
 @*
-    The theme picker: every family as a tile, filed under the plain headings the catalogue gives
-    them (DeskThemeGroups), drawn as a grid that wraps to the width it has. It is read from
-    DeskThemeFamilies.Catalog and nothing else, so a family added there is a tile here without
-    anyone touching this file.
+    The theme picker: every family as a tile, in one grid that wraps to the width it has. It is
+    read from DeskThemeFamilies.Catalog and nothing else, so a family added there is a tile here
+    without anyone touching this file.
 
     Each tile is a patch of its family, not a picture of it: it carries the family's data-theme in
     the appearance showing — and the accent that family was last given — so its ground, raised
@@ -13,56 +12,54 @@
     says so three ways, none of them hue alone: a ring, a tick in its corner, and its name in the
     primary ink at a heavier weight.
 
-    One choice among many, so it is one radiogroup however many headings divide it: one Tab stop
-    on the chosen tile, arrows move the choice and the focus through every tile in reading order
-    (a heading is not a stop), Home and End reach the first and the last, and the ends do not
-    wrap — a grid of twenty tiles has a first and a last, unlike a ring of five hues. Each heading
-    names a group of radios inside it, so a screen reader hears where it is as it travels.
+    The catalogue's plain headings (DeskThemeGroups) used to divide the grid into shelves, and the
+    shelves were ragged — two tiles, then five, then nine, then one — under floating grey headings.
+    They are a filter now, not a layout: Group narrows the one grid to one heading's families, and
+    the caller draws the choice of heading (the Window manager's is a segmented control in the
+    Theme card's header bar, ThemeFilters below). Null shows every family.
+
+    One choice among many, so it is one radiogroup: one Tab stop, arrows move the choice and the
+    focus through the tiles showing, in reading order; Home and End reach the first and the last
+    showing, and the ends do not wrap — a grid of twenty tiles has a first and a last, unlike a
+    ring of five hues. The Tab stop is the chosen tile; when the filter hides it, the first tile
+    showing holds the stop, so the group is never one the keyboard cannot enter.
 *@
 
-<div class="themes @Class" role="radiogroup" aria-label="@Label" data-roving @onkeydown="OnKeyDownAsync" @attributes="Extra">
-    @foreach (var group in DeskThemeFamilies.Groups)
+<div class="themes swatches @Class" role="radiogroup" aria-label="@Label" data-roving @onkeydown="OnKeyDownAsync" @attributes="Extra">
+    @for (var i = 0; i < Showing.Count; i++)
     {
-        var headId = $"{_id}-{group.ToLowerInvariant().Replace(' ', '-')}";
+        var index = i;
+        var info = Showing[index];
+        var selected = info.Family == Value;
 
-        <div class="themes__group" role="group" aria-labelledby="@headId">
-            <span class="themes__head" id="@headId">@group</span>
-            <div class="swatches">
-                @foreach (var info in DeskThemeFamilies.Catalog.Where(f => f.Group == group))
+        <button type="button"
+                class="radio radio--drawn @(selected ? "radio--on" : null)"
+                role="radio"
+                aria-checked="@(selected ? "true" : "false")"
+                tabindex="@(index == TabStop ? "0" : "-1")"
+                @key="info.Family"
+                @ref="_refs[info.Family]"
+                @onclick="() => SelectAsync(index)">
+            <span class="swatch @(selected ? "swatch--on" : null)"
+                  data-theme="@DeskThemeFamilies.Attribute(info.Family, IsDark)"
+                  data-accent="@AccentFor?.Invoke(info.Family)">
+                <span class="swatch__panel" aria-hidden="true">
+                    <span class="swatch__ink"></span>
+                    <span class="swatch__ink swatch__ink--secondary"></span>
+                    <span class="swatch__marks">
+                        <span class="swatch__pill"></span>
+                        <span class="swatch__dot swatch__dot--positive"></span>
+                        <span class="swatch__dot swatch__dot--warning"></span>
+                        <span class="swatch__dot swatch__dot--negative"></span>
+                    </span>
+                </span>
+                @if (selected)
                 {
-                    var index = Index(info.Family);
-                    var selected = info.Family == Value;
-
-                    <button type="button"
-                            class="radio radio--drawn @(selected ? "radio--on" : null)"
-                            role="radio"
-                            aria-checked="@(selected ? "true" : "false")"
-                            tabindex="@(index == TabStop ? "0" : "-1")"
-                            @ref="_refs[index]"
-                            @onclick="() => SelectAsync(index)">
-                        <span class="swatch @(selected ? "swatch--on" : null)"
-                              data-theme="@DeskThemeFamilies.Attribute(info.Family, IsDark)"
-                              data-accent="@AccentFor?.Invoke(info.Family)">
-                            <span class="swatch__panel" aria-hidden="true">
-                                <span class="swatch__ink"></span>
-                                <span class="swatch__ink swatch__ink--secondary"></span>
-                                <span class="swatch__marks">
-                                    <span class="swatch__pill"></span>
-                                    <span class="swatch__dot swatch__dot--positive"></span>
-                                    <span class="swatch__dot swatch__dot--warning"></span>
-                                    <span class="swatch__dot swatch__dot--negative"></span>
-                                </span>
-                            </span>
-                            @if (selected)
-                            {
-                                <span class="swatch__tick" aria-hidden="true"></span>
-                            }
-                            <span class="swatch__name">@info.Name</span>
-                        </span>
-                    </button>
+                    <span class="swatch__tick" aria-hidden="true"></span>
                 }
-            </div>
-        </div>
+                <span class="swatch__name">@info.Name</span>
+            </span>
+        </button>
     }
 </div>
 
@@ -75,6 +72,12 @@
     [Parameter] public DeskThemeFamily Value { get; set; } = DeskThemeFamily.Standard;
 
     [Parameter] public EventCallback<DeskThemeFamily> ValueChanged { get; set; }
+
+    /// <summary>
+    /// The heading (one of <see cref="DeskThemeFamilies.Groups"/>) whose families are shown, or null
+    /// — or a heading the catalogue does not hold — for every family.
+    /// </summary>
+    [Parameter] public string? Group { get; set; }
 
     /// <summary>Which desk every tile is drawn on — every family has a dark and a light one.</summary>
     [Parameter] public bool IsDark { get; set; } = true;
@@ -94,18 +97,45 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? Extra { get; set; }
 
-    private readonly string _id = $"themes-{Guid.NewGuid():N}"[..15];
+    /// <summary>
+    /// The segments a filter over the picker offers, for a <see cref="DeskSwitch{TValue}"/> bound
+    /// to <see cref="Group"/>: All (the empty string, which shows every family), then each of the
+    /// catalogue's headings in its order.
+    /// </summary>
+    public static IReadOnlyList<DeskSwitchOption<string>> ThemeFilters { get; } =
+        [new(string.Empty, "All", "Every theme"), .. DeskThemeFamilies.Groups.Select(g => new DeskSwitchOption<string>(g, g))];
 
-    /// <summary>Every tile in reading order — group by group, as drawn — which is the order the arrows travel.</summary>
-    private static readonly IReadOnlyList<DeskThemeFamily> Order = DeskThemeFamilies.Groups
-        .SelectMany(group => DeskThemeFamilies.Catalog.Where(f => f.Group == group).Select(f => f.Family))
-        .ToList();
+    /// <summary>The heading a family is filed under — where a filter opens so the chosen tile is in view.</summary>
+    public static string GroupOf(DeskThemeFamily family) => DeskThemeFamilies.Info(family).Group;
 
-    private readonly ElementReference[] _refs = new ElementReference[Order.Count];
+    /// <summary>The tiles drawn, in the catalogue's reading order — the order the arrows travel.</summary>
+    private IReadOnlyList<DeskThemeFamilyInfo> Showing { get; set; } = DeskThemeFamilies.Catalog;
 
-    private static int Index(DeskThemeFamily family) => Order.ToList().IndexOf(family);
+    // By family, not by place: a filter moves a tile's place, and a tile Blazor keeps across the
+    // change (@key) is not captured again, so a reference held by place would go stale.
+    private readonly Dictionary<DeskThemeFamily, ElementReference> _refs = [];
 
-    private int Selected => Index(Value);
+    protected override void OnParametersSet()
+    {
+        Showing = string.IsNullOrEmpty(Group) || !DeskThemeFamilies.Groups.Contains(Group)
+            ? DeskThemeFamilies.Catalog
+            : DeskThemeFamilies.Catalog.Where(f => f.Group == Group).ToList();
+    }
+
+    /// <summary>Where the chosen tile sits among those showing; -1 when the filter hides it.</summary>
+    private int Selected
+    {
+        get
+        {
+            for (var i = 0; i < Showing.Count; i++)
+            {
+                if (Showing[i].Family == Value)
+                    return i;
+            }
+
+            return -1;
+        }
+    }
 
     private int TabStop => Math.Max(Selected, 0);
 
@@ -115,17 +145,19 @@
         if (index == Selected)
             return;
 
-        await ValueChanged.InvokeAsync(Order[index]);
+        await ValueChanged.InvokeAsync(Showing[index].Family);
     }
 
     private async Task OnKeyDownAsync(KeyboardEventArgs e)
     {
-        var current = TabStop;
+        // From a hidden choice the arrows start before the first tile showing, so the first press
+        // lands on it — the tile that already holds the Tab stop — rather than skipping past it.
+        var current = Selected;
 
-        if (Roving.Next(current, Order.Count, e, wrap: false) is not { } next || next == current)
+        if (Roving.Next(current, Showing.Count, e, wrap: false) is not { } next || next == current)
             return;
 
         await SelectAsync(next);
-        await _refs[next].FocusAsync();
+        await _refs[Showing[next].Family].FocusAsync();
     }
 }

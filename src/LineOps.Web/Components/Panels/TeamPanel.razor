@@ -88,24 +88,57 @@ else
 
     @if (IsFight)
     {
+        @* The fighter's profile draws its own groups (FighterView), so it is not wrapped in a
+           card: a card around them would be a box around boxes. *@
         <PanelSection Title="Fighter">
             <FighterView TeamId="TeamId" />
         </PanelSection>
     }
 
-    <PanelSection Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
-                  Keys="@(_log.Count > 0 && !IsFight ? SplitKeys : null)"
-                  Detail="@(_log.Count > 0 ? RecordDetail : null)">
-        @* The splits strip, on the rule's own line. Every option filters the same loaded log,
-           so nothing here queries.
+    @* Section cards in a .wflow (the Desk's grouping contract): the log and the roster are two
+       cards, each named in the bar at its top, side by side in a window wide enough for two and
+       stacked in a narrow one. The lists inside draw no second frame (TeamPanel.razor.css). *@
+    <div class="wflow team-flow">
+    @* The record for what is on screen trails the title, so a split states its own result
+       rather than leaving the operator to count tags; what it was read against (ATS, totals,
+       how many games had a closing line) is the footer under the card. The keys and the footer
+       are handed over only when there is a log: a fragment that is present but empty would
+       still draw its slot over the "nothing recorded" line. *@
+    <FormGroup Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
+               Keys="@(_log.Count > 0 ? RecordKeys : null)"
+               Footer="@(_log.Count > 0 ? RecordFooter : null)"
+               GroupClass="team-card">
+        @* The splits, as the card's first row: two compact filters side by side, each with its
+           label (a split row). Every option filters the same loaded log, so nothing here
+           queries. Picking an opponent is a filter the strip cannot express, so it answers by
+           standing every position up and showing no cap at all — which is true, and reads
+           better than leaving one lit under a filter it is not doing. *@
+        @if (_log.Count > 0 && !IsFight)
+        {
+            <div class="wgroup__row wgroup__split team-splits">
+                <div class="wgroup__cell">
+                    <span class="wgroup__label" aria-hidden="true">Games</span>
+                    <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                                Value="@(_opponent is null ? _split : null)"
+                                ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
+                </div>
+                @if (_opponents.Count > 1)
+                {
+                    <div class="wgroup__cell">
+                        <span class="wgroup__label" aria-hidden="true">Opponent</span>
+                        <DeskSelect TValue="string" Class="team-splits__pick" aria-label="Opponent"
+                                    Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                            <option value="">vs anyone</option>
+                            @foreach (var name in _opponents)
+                            {
+                                <option value="@name">vs @name</option>
+                            }
+                        </DeskSelect>
+                    </div>
+                }
+            </div>
+        }
 
-           Picking an opponent is a filter the strip cannot express, so it answers by
-           standing every position up and showing no cap at all — which is true, and
-           reads better than leaving one lit under a filter it is not doing. *@
-        @* The keys and the detail line are handed over only when there is a log to split:
-           a fragment that is present but empty would still draw its row and its margins
-           over the "nothing recorded" line. *@
-        <ChildContent>
         @if (_log.Count == 0)
         {
             <EmptyState Kind="EmptyStateKind.Filtered">No games on record for this season.</EmptyState>
@@ -116,8 +149,8 @@ else
         }
         else
         {
-            @* One group: the list carries the fill and the hairline edge, the rows only an
-               inset hairline between them. *@
+            @* The card is the group: the list inside it carries no fill or edge of its own,
+               the rows only an inset hairline between them. *@
             <div class="loglist">
                 @foreach (var row in _visible)
                 {
@@ -183,13 +216,12 @@ else
                 }
             </div>
         }
-        </ChildContent>
-    </PanelSection>
+    </FormGroup>
 
     @* A fighter is a side of one (ADR 0021): no roster — the profile leads, above. *@
     @if (!IsFight)
     {
-    <PanelSection Title="Roster form">
+    <FormGroup Title="Roster form" GroupClass="team-card">
     @if (_roster.Count == 0)
     {
         <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster this season.</EmptyState>
@@ -229,8 +261,9 @@ else
             }
         </div>
     }
-    </PanelSection>
+    </FormGroup>
     }
+    </div>
 }
 
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
@@ -241,54 +274,27 @@ else
     private bool IsFight => FightSports.IsFight(_team?.Sport?.Key);
 
     /// <summary>
-    /// The splits strip, on the Recent games rule. Every option filters the same loaded log,
-    /// so nothing here queries. Picking an opponent is a filter the strip cannot express, so
-    /// it answers by standing every position up and showing no cap at all — which is true,
-    /// and reads better than leaving one lit under a filter it is not doing.
+    /// The record for whatever is on screen, on the log card's bar, so a split states its own
+    /// result rather than leaving the operator to count tags.
     /// </summary>
-    private RenderFragment SplitKeys => @<div class="splits">
-        <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
-                    Value="@(_opponent is null ? _split : null)"
-                    ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
-
-        @if (_opponents.Count > 1)
-        {
-            <DeskSelect TValue="string" Class="splits__pick" aria-label="Opponent"
-                        Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
-                <option value="">vs anyone</option>
-                @foreach (var name in _opponents)
-                {
-                    <option value="@name">vs @name</option>
-                }
-            </DeskSelect>
-        }
-    </div>;
+    private RenderFragment RecordKeys => @<span class="mono">@GameLogSplits.FormatRecord(_visible)</span>;
 
     /// <summary>
-    /// The record for whatever is on screen, so a split states its own result rather than
-    /// leaving the operator to count tags. ATS is only shown when there is market data
-    /// behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// What the record was read against, under the log card: against the spread and the total,
+    /// and how many of the games on screen had a closing line. ATS is only shown when there is
+    /// market data behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021).
     /// </summary>
-    private RenderFragment RecordDetail => @<text>
-        <span class="mono">@GameLogSplits.FormatRecord(_visible)</span>
+    private RenderFragment RecordFooter => @<text>@string.Join(" · ", RecordReadings())</text>;
 
-        @* Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021). *@
-        @if (!IsFight)
-        {
-
-        @if (_atsWins + _atsLosses + _atsPushes > 0)
-        {
-            <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
-        }
-
-        @if (_overs + _unders > 0)
-        {
-            <span>@_overs O / @_unders U</span>
-        }
-
-        }
-        <span class="psection__aside">@_covered of @_visible.Count with a closing line</span>
-    </text>;
+    private IEnumerable<string> RecordReadings()
+    {
+        if (!IsFight && _atsWins + _atsLosses + _atsPushes > 0)
+            yield return $"{_atsWins}-{_atsLosses}{(_atsPushes > 0 ? $"-{_atsPushes}" : "")} ATS";
+        if (!IsFight && _overs + _unders > 0)
+            yield return $"{_overs} O / {_unders} U";
+        yield return $"{_covered} of {_visible.Count} with a closing line";
+    }
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 

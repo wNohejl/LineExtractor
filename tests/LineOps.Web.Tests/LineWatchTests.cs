@@ -631,7 +631,7 @@ public class LineWatchTests : WagerTestContext
         var figures = Squash(cut.Find(".metrics").TextContent);
 
         Assert.Contains("-136", figures);
-        Assert.Contains("Chiefs · Pinnacle, no-vig", figures);
+        Assert.Contains("Chiefs (Pinnacle, no-vig)", figures);
         Assert.Contains("Best Chiefs", figures);
         Assert.Contains("DraftKings · +2.7% against fair", figures);
         Assert.Contains("Best Bills", figures);

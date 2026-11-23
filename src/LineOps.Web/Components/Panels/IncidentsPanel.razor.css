@@ -1,0 +1,15 @@
+/* The Incidents window's card flows (the Desk's grouping contract, Nov 22): the Open and
+   Resolved lists, and an incident's timeline beside its RCA. The cards, a table inside one and a
+   lone sentence inside one are the Desk's (desk.css, "What a card holds that is not a row"). Desk
+   components render the cards' insides, which a scoped selector reaches only through ::deep. */
+
+/* A flow stands under the tiles, or under the runbooks, by the air a section takes (it collapses
+   with the tiles' own margin). */
+.incflow { margin-top: var(--space-4); }
+
+/* The RCA form is one card of the flow: the track is its width, and the flow's gap the air
+   beneath it, so the form keeps neither its own cap nor its own bottom margin. */
+.incflow ::deep .pform--grouped {
+    max-width: none;
+    margin-bottom: 0;
+}

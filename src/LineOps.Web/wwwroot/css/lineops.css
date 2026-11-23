@@ -179,13 +179,6 @@
     opacity: 1;
 }
 
-/* The value label after a book's price in Every book: a footnote to the number, on the caption
-   rung, set off by the 6px the panel used to write inline. Colour comes from .up or .dim beside it. */
-.rung__ev { margin-left: calc(var(--space-1) * 1.5); font-size: var(--text-caption); font-variant-numeric: tabular-nums; }
-
-/* Every book's markets at a reading width: a book's name, its two prices and its hold read as
-   one line, not as a name at the left edge of a maximised window and three numbers at the right. */
-.allbets__market { max-width: 720px; }
 /* A price taken under its market (Door 3): the take's own card, a step below the table. */
 .allbets__take { margin-top: var(--space-3); }
 
@@ -597,7 +590,9 @@
    needs no inset either, so its rows, head and foot sit on one edge a step in from the panel's —
    room the three quick ranges need side by side in a window beside two others. */
 .range-pop__group { background: none; border: 0; border-radius: 0; }
-.range-pop .wgroup__head,
+/* Its title sits in the group's bar (FormGroup draws every title there); the popover's material is
+   the edge, so the bar keeps no fill and no threshold hairline of its own. */
+.range-pop .wgroup__bar { padding: 0 var(--space-2); background: none; border-bottom: 0; }
 .range-pop .wgroup__foot,
 .range-pop .wgroup__row { padding-left: var(--space-2); padding-right: var(--space-2); }
 .range-pop .wgroup__row + .wgroup__row::before { left: var(--space-2); }
@@ -732,22 +727,6 @@
 .formrun { display: inline-flex; gap: 3px; align-items: center; }
 
 .formrun__latest { box-shadow: inset 0 0 0 1px var(--separator-strong); }
-
-/* ---- Splits strip ----------------------------------------------------------
-   Filters over rows already loaded, so these are instant. Deliberately keys
-   rather than a select: the whole set is worth seeing at once, and which one is
-   active is the question being asked of the log below.
-   -------------------------------------------------------------------------- */
-
-.splits {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    flex-wrap: wrap;
-    margin-bottom: 0;
-}
-
-.splits__pick { max-width: 190px; margin-left: auto; font-size: var(--text-footnote); }
 
 /* ---- Log rows: this app's cells --------------------------------------------------
    The list, the row and its disclosure are the Desk's (desk.css, "Log rows"); a game's
@@ -957,7 +936,7 @@
    The tiles get a smaller floor here so six of them still make one line inside the column
    rather than five and an orphan. The tiles sit in the column rather than straight in
    .win__body, so the air beneath them is restated. */
-.perf { max-width: 720px; container: perf / inline-size; }
+.perf { container: perf / inline-size; }
 .perf > .metrics { margin: 0 0 var(--space-4); grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
 /* The panel says how many tiles there are, four to six, so the row wraps them evenly: two
    columns beside the Board, three where three fit, and all of them on one line when the column
@@ -1017,12 +996,9 @@
    that takes a state is a slip card that cannot be logged, as a wash, because that card IS a
    status. Everything else stays neutral. */
 
-/* The whole slip is one reading column, not just its groups: the empty state centred itself
-   across a 1,600px window and the footnote ran to the far edge, so the window's three pieces
-   of text sat on three different left edges. The footnote takes the groups' text inset, and
-   so does an empty slip's sentence: centred in a 560px column above a left-aligned footnote,
-   it was two alignments in two lines. */
-.slip { max-width: 560px; }
+/* The slip's cards flow in a .wflow, whose tracks set their width. The footnote takes the
+   groups' text inset, and so does an empty slip's sentence: centred above a left-aligned
+   footnote, it was two alignments in two lines. */
 .slip > .wfoot { padding: 0 var(--space-4); }
 .slip > .empty--new { text-align: left; padding: var(--space-2) var(--space-4) 0; }
 
@@ -1558,20 +1534,14 @@ button.gamelines__cell { align-items: stretch; }
    paragraph 180 characters long. A success is said in words in the secondary colour; only a
    state worth looking for wears a tag, so a column of them is not a wall of green. */
 
-/* A group here is a settings group: as wide as its rows need, never the window's width. */
-.opsgroup { max-width: 640px; --form-label: 112px; }
-/* Source names lead the drill's rows and History's sources ("ESPN (unofficial)"). */
+/* The groups are section cards in a flow now, whose track is their width: these set only the
+   label column. Source names lead History's sources ("ESPN (unofficial)"). */
 .opsgroup--wide { --form-label: 168px; }
 /* The incident timeline and RCA read-back: the stamp or the field's name is the label, and a
    note may run to several lines, so a row aligns on its first line rather than its middle. */
-.opsgroup--log { max-width: 760px; --form-label: 152px; }
+.opsgroup--log { --form-label: 152px; }
 .opsgroup--log .wgroup__row--form { align-items: baseline; }
 .opsstamp > .wgroup__label { color: var(--text-secondary); font-size: var(--text-subheadline); font-variant-numeric: tabular-nums; }
-/* A group after a grid or a footnote stands apart by space, never a rule. */
-.opsgroup:not(:first-child) { margin-top: var(--space-4); }
-/* A section that follows a grid or a metric row in the same body takes the same air a second
-   group did: the group inside it is the section's first child now, not the body's. */
-.psection__body > * + .wsection { margin-top: var(--space-4); }
 
 /* A row's control column: a key, a select, a tag and a sentence side by side, wrapping as one
    rather than squeezing. A select is sized to its words, as it is in a toolbar. */
@@ -1601,15 +1571,6 @@ button.gamelines__cell { align-items: stretch; }
 .opsact { margin-top: var(--space-3); }
 .metrics + .opsact { margin-top: calc(-1 * var(--space-1)); }
 
-/* The question a setting asks before it spends (the Desk's InlineConfirm), as a row of its
-   group: it starts at the labels' edge, as the rows above it do. */
-.opsgroup > .confirm { padding: var(--space-2) var(--space-4); }
-
-/* A warning note after a group or its footer keeps the air a group would. */
-.opsgroup ~ .opsnote, .opsfoot + .opsnote { margin-top: var(--space-3); }
-
-/* The RCA is a form's width, so its keys sit under the fields they commit. */
-.opsrca { max-width: 720px; }
 
 /* Rows of tiles that wrap evenly. The Desk's row fits as many 132px tiles as the width allows,
    so four tiles in a window beside the Board broke three and one, and three broke two and one,
@@ -1673,7 +1634,9 @@ button.gamelines__cell { align-items: stretch; }
    trailing in two even columns: each the price a person can take and, beneath it, the book
    that has it, by name. It was three inline clusters of tiny prices with unexplained book
    codes (PN, DK, MG) crammed into the left third of the window. */
-.gamelines { max-width: 560px; --form-label: 120px; }
+/* No max-width of its own: the card is two tracks of the window's flow once two fit
+   (.gamewin__pair), one below that, which keeps it to a card's width in a wide window. */
+.gamelines { --form-label: 120px; }
 .gamelines__sides {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1693,6 +1656,8 @@ button.gamelines__cell { align-items: stretch; }
     font-variant-numeric: tabular-nums;
 }
 .gamelines__side { font-weight: var(--weight-semibold); }
+/* The line and its price wrap as one, never mid-reading; only the book's name beneath truncates. */
+.gamelines__num { display: inline-flex; gap: 0 var(--space-1); white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* A club's side leads with its crest; the book beneath starts under the name, past the crest,
    its margin and the price line's gap. */
 .gamelines__book--crested { padding-left: calc(18px + var(--space-2) + var(--space-1)); }
@@ -1768,12 +1733,12 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
     line-height: var(--leading-body);
     color: var(--text-primary);
 }
-.gamemove__table { width: 100%; max-width: 480px; }
+/* The moves table (book, trend, open, now, move) keeps a table's reading width in the two-track
+   Lines card: at the card's full ~880px the three numbers stood a long way from the book they
+   belong to. 560px gives the trend room and keeps each row one glance. */
+.gamemove__table { width: 100%; max-width: 560px; }
 .gamemove__table td, .gamemove__table th { padding-top: 3px; padding-bottom: 3px; }
 .gamemove__quote { white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* The best number on a side: heavier, and a dot beside it, so it is not marked by colour alone. */
-.gamemove__best { font-weight: var(--weight-semibold); color: var(--text-primary); }
-.gamemove__dot { margin-left: var(--space-1); font-size: 0.6em; vertical-align: 0.2em; color: var(--accent-ink); }
 .gamemove__foot {
     display: flex;
     flex-wrap: wrap;
@@ -1787,11 +1752,11 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
     font-variant-numeric: tabular-nums;
 }
 
-/* ---- Head to head, under the title (GameHeadToHead) --------------------------------------
-   A disclosure button (HIG): the label leads with the answer, the chevron trails and points
-   down while the meetings are hidden, up once they show. One line closed; the meetings and the
-   way to the full record open beneath it, at the lines' reading width. */
-.gameh2h { margin: 0 0 var(--space-3); max-width: 560px; }
+/* ---- Head to head (GameHeadToHead), a card of the Game window's flow ---------------------
+   A disclosure button (HIG) as the card's first row: the label leads with the answer, the
+   chevron trails at the row's end and points down while the meetings are hidden, up once they
+   show. Open, the meetings and the way to the full record are the card's second row, beneath
+   an inset hairline. The press spans the row, its hover plate inset from the card's edge. */
 .gameh2h__toggle {
     appearance: none;
     border: 0;
@@ -1799,11 +1764,14 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
     font: inherit;
     letter-spacing: inherit;
     text-align: inherit;
-    display: inline-flex;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
     align-items: center;
-    gap: var(--space-1);
+    justify-content: space-between;
+    gap: var(--space-2);
     min-height: 28px;
-    margin: 0 0 0 calc(-1.5 * var(--space-1));
+    margin: 0 calc(-1.5 * var(--space-1));
     padding: 2px calc(var(--space-1) * 1.5);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
@@ -1812,18 +1780,150 @@ button.gamelines__toggle { font-size: var(--text-body); white-space: nowrap; }
 }
 .gameh2h__toggle:hover { background: var(--surface-3); }
 .gameh2h__toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.gameh2h__label { font-weight: var(--weight-semibold); }
+.gameh2h__label { min-width: 0; font-weight: var(--weight-semibold); }
 .gameh2h__summary { font-weight: var(--weight-regular); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.gameh2h__chevron { display: inline-flex; color: var(--text-secondary); }
+.gameh2h__chevron { display: inline-flex; flex: none; color: var(--text-secondary); }
 .gameh2h__chevron svg { width: 18px; height: 18px; }
-.gameh2h__region { padding: var(--space-2) 0 0; }
+.wgroup__row.gameh2h__head { padding: var(--space-1) var(--space-4); }
+.wgroup__row.gameh2h__region { display: block; padding: var(--space-2) var(--space-4) var(--space-3); }
 /* A score and a date are each one reading: in a narrow window the meeting's names give way (they
    truncate), never "10-" over "31". */
 .gameh2h__region .grid td:not(.trunc), .gameh2h__region .grid th { white-space: nowrap; }
 .gameh2h__more { margin: var(--space-2) 0 0; }
 
-/* The season switch heading Team data and Players, the two panes it chooses for. */
-.gamepane__switches { margin: 0 0 var(--space-3); }
+/* ---- The Game window's cards ---------------------------------------------------------------
+   The window is a card flow (.wflow.gamewin): the matchup, the score by period, head to head, the
+   lines, team data and your bets each one card a track wide, but the lines two once two fit; the
+   players, a box score or a fight's tabs take the row beneath (.gameroster, spanning), centred at
+   a table's reading width. Every card is the Desk's group, the one
+   fill and the one hairline edge, and nothing inside one is framed again: rows are divided by
+   inset hairlines that start where the text does and run to the card's trailing edge.
+
+   The matchup card is the window's title (PanelTitle) laid into a group: the tags on its first
+   line, then the scoreboard's two rows across the card's width with their scores at its trailing
+   inset and an inset hairline between them, then the foot row (the start and the season, or the
+   state of play, in footnote type) with Gamecast and Place wager trailing inside the card, where
+   they used to float at the window's far edge. --gamecard-inset is the card's side inset, which a
+   narrow card gives back (below). */
+/* Dense, so a card that fits a hole earlier in the flow fills it: in a flow of two or three
+   tracks the lines (two tracks) cannot sit beside the matchup and head to head, and the next
+   one-track card (team data, your bets) takes the gap rather than leaving the first row ragged.
+   The lines take two tracks once two fit (2 × 420px + the gap, as .wsection--rest asks): a side's
+   crest, name, number and price on one line, and room for a market opened under its row. */
+.wflow.gamewin { grid-auto-flow: row dense; }
+@container wflow (min-width: 856px) {
+    .gamewin > .gamewin__pair { grid-column: span 2; }
+}
+.gamecard .ptitle { --gamecard-inset: var(--space-4); margin: 0; }
+.gamecard .ptitle__row { row-gap: var(--space-1); padding: var(--space-2) var(--gamecard-inset) 0; }
+/* The tags lead the card; the heading (the scoreboard) takes the next line, the card's width. */
+.gamecard .ptitle__row > .ptitle__name { order: 1; flex: 1 1 100%; min-width: 0; }
+.gamecard .scoreboard {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 0;
+}
+.gamecard .scoreboard__row { position: relative; padding: var(--space-2) 0; }
+/* The division between the two clubs: from the crest's leading edge to the card's trailing edge. */
+.gamecard .scoreboard__row ~ .scoreboard__row::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: calc(-1 * var(--gamecard-inset));
+    border-top: 1px solid var(--separator);
+}
+.gamecard .ptitle__meta {
+    position: relative;
+    min-height: var(--row-h);
+    margin: 0;
+    padding: var(--space-2) var(--gamecard-inset);
+    font-size: var(--text-footnote);
+    line-height: var(--leading-body);
+}
+.gamecard .ptitle__meta::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--gamecard-inset);
+    right: 0;
+    border-top: 1px solid var(--separator);
+}
+
+/* Your bets: the name in the bar with the Journal link trailing, a row per bet. Each row wraps
+   in a narrow card rather than squeezing the market to a word. Folded, the disclosure is the one
+   row and the bets are rows inside it, at its indent rather than the card's. */
+.wgroup__row.gamebets__row { flex-wrap: wrap; gap: var(--space-1) var(--space-2); padding-left: var(--space-4); padding-right: var(--space-4); }
+.wgroup__row.gamebets__fold { display: block; padding: var(--space-1) var(--space-4); }
+.gamebets__fold .wgroup__row.gamebets__row { padding-left: 0; padding-right: 0; }
+.gamebets__fold .wgroup__row + .wgroup__row::before { left: 0; }
+
+/* Team data: a row per side, the club leading, its record and its form run trailing. */
+.wgroup__row.gameteams__row { flex-wrap: wrap; gap: var(--space-1) var(--space-3); padding-left: var(--space-4); padding-right: var(--space-4); }
+.gameteams__row > .gameteam__name { margin-right: auto; }
+
+/* The players, a box score or a fight's tabs: the whole row beneath the overview, but read at a
+   table's width, not the window's. The block (its heading and season switch, or the fight's tab
+   strip, then its cards) is capped at a reading measure and centred, so its heading, its tabs and
+   its cards share one leading edge. From a flow wide enough for two columns of about 640px, the
+   away side reads left and the home side right, each a stack of its cards, and the cap widens to
+   hold both; below that the sides stack, away above home. It was a card per side per unit
+   stretched 1880px, the name at the far left and the numbers 1200px away (user, Nov 22). */
+.gameroster { display: block; }
+.gameroster__block { width: 100%; max-width: 1100px; margin-inline: auto; }
+.gameroster__block > .psection__head { padding: 0 var(--space-1); }
+.gameroster__cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-4);
+}
+.gameroster__side { display: grid; gap: var(--space-4); min-width: 0; align-content: start; }
+.gameroster__side:empty { display: none; }
+@container wflow (min-width: 1320px) {
+    .gameroster__block { max-width: 1640px; }
+    .gameroster__cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A side's box score or roster (a PanelSection about one club, with a wide table) is a card of
+   its column: its rule becomes the card's bar (the headline style, the half-step fill and the
+   one full-width hairline under it, as .wgroup__bar draws them) and the table is its body. The
+   Gamecast draws the same sides as plain sections; only here are they cards. */
+.gameroster__cols > .psection,
+.gameroster__side > .psection {
+    min-width: 0;
+    margin: 0;
+    background: var(--surface-2);
+    border: 1px solid var(--separator-strong);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+}
+.gameroster__cols > .psection > .psection__head,
+.gameroster__side > .psection > .psection__head {
+    align-items: center;
+    min-height: var(--row-h);
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--surface-2) 50%, var(--surface-1));
+    border-bottom: 1px solid var(--separator);
+}
+.gameroster__cols > .psection > .psection__head .panel-h,
+.gameroster__side > .psection > .psection__head .panel-h {
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+.gameroster__cols > .psection > .psection__body,
+.gameroster__side > .psection > .psection__body { padding: 0 var(--space-2) var(--space-1); }
+
+/* A narrow card (a window beside two others) gives its inset back, as the Desk's rows do. */
+@container (max-width: 480px) {
+    .gamecard .ptitle { --gamecard-inset: var(--space-3); }
+    .wgroup__row.gameh2h__head, .wgroup__row.gamebets__fold,
+    .wgroup__row.gamebets__row, .wgroup__row.gameteams__row { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup__row.gameh2h__region { padding-left: var(--space-3); padding-right: var(--space-3); }
+}
 
 /* A player's name is the row's subject; the stat columns scroll before it is cut to "Alo…". */
 .gameplayers .deskgrid .mud-table-body .mud-table-cell.trunc { min-width: 9.5rem; }

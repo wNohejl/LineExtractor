@@ -16,7 +16,11 @@
     so the label and the rows are one query and cannot disagree.
 *@
 
-<div class="gameh2h">
+@* A card of its own in the Game window's flow: the disclosure is its first row, the meetings a
+   second beneath an inset hairline once open. The card is the one edge; nothing in it is framed. *@
+<section class="wsection gameh2h">
+<div class="wgroup">
+<div class="wgroup__row gameh2h__head">
     <button type="button" class="gameh2h__toggle"
             aria-expanded="@(_open ? "true" : "false")" aria-controls="@_regionId"
             @onclick="Toggle">
@@ -35,10 +39,11 @@
             <Glyph Icon="@(_open ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" />
         </span>
     </button>
+</div>
 
     @if (_open)
     {
-        <div class="gameh2h__region" id="@_regionId" role="region" aria-label="Previous meetings">
+        <div class="wgroup__row gameh2h__region" id="@_regionId" role="region" aria-label="Previous meetings">
             @if (_read.Loading)
             {
                 <DeskSkeleton Lines="3" />
@@ -63,6 +68,7 @@
         </div>
     }
 </div>
+</section>
 
 @code {
     [Parameter, EditorRequired] public int GameId { get; set; }

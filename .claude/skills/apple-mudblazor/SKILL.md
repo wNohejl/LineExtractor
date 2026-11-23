@@ -28,7 +28,7 @@ repository** it is source, under `src/LineOps.Desk/`. Read the column for where 
 | Theme families (dark + light blocks per family) and the five accents | `staticwebassets/css/themes.css` | `src/LineOps.Desk/wwwroot/css/themes.css` |
 | Control recipes — buttons, fields, the gate, tags, sheet, alert, steps | `staticwebassets/css/controls.css` and `desk.css` | `src/LineOps.Desk/wwwroot/css/controls.css` and `desk.css` |
 | The MudBlazor seam (re-points Mud's variables at the tokens; never `!important`) | `staticwebassets/css/mud-bridge.css` — loads **last** | `src/LineOps.Desk/wwwroot/css/mud-bridge.css` |
-| Why the system is shaped this way | `docs/adr/` in the package folder | `docs/adr/` (0007, 0008, 0013, 0016, 0020) |
+| Why the system is shaped this way | `docs/adr/` in the package folder | `docs/adr/` (0007, 0008, 0013, 0016, 0020; in this repository also 0030 and 0032) |
 | Primitives, their parameters, and the enums (`DeskEmphasis`, `DeskRole`, `DeskKeySize`, `DeskState`) | `lib/net10.0/LineOps.Desk.xml`, the README's Primitives table, and the Parts bin | `src/LineOps.Desk/Primitives/` |
 | Window chrome — Desk, AppWindow, WindowBar, header, footer, rail, palette, Parts bin | the README's Wiring section | `src/LineOps.Desk/Windowing/` |
 | The C# palette MudBlazor and the charts read | `DeskPalettes`, `DeskTheme`, `ThemeService` in the XML docs | `src/LineOps.Desk/Theming/` |
@@ -47,7 +47,8 @@ sheet only spends tokens and lays out its own windows.
    not exist, add it to **every** theme block in `themes.css` and to its C# mirror, and run
    `DeskThemeTests`; never write a literal. `DeskCssConventionTests` fails a literal colour.
 2. **Build on the primitives.** A new panel is a `DeskPanelBase` window with `PanelTitle`,
-   `PanelHeader`, `PanelSection` and `PanelToolbar`; its controls are `DeskButton`,
+   `PanelHeader`, `PanelSection` and `PanelToolbar`; its sections are `FormGroup` cards (in a
+   `.wflow` when there are two or more); its controls are `DeskButton`,
    `DeskField`, `DeskSelect`, `DeskSwitch`, `DeskToggle`, `DeskTabs`, `DeskSteps`; its data is
    `DeskGrid`, `Metric`/`MetricRow` or `DeskChart`; its empty and failed states are
    `EmptyState` and `PanelLoadFailure`; its actions end in a `KeyRow`. Open the Parts bin
@@ -85,6 +86,13 @@ variation; it produces an interface that looks like MudBlazor wearing a costume.
   2026 house rule, after a borderless pass was rejected); rows inside are divided by inset
   hairlines and padding, never framed again; a bordered thing inside a bordered thing is
   wrong; buttons and fields carry no outline at rest. `DeskCssConventionTests` holds it.
+  A section card's header bar is not a second edge: its one full-width hairline divides the
+  card's name from its rows *inside* the one card, as the inset hairlines divide the rows.
+- **A section is a card with its name inside it, and a window of sections is a flow.**
+  `FormGroup` puts the title in the card's header bar and the footer under the card; two or
+  more sections sit in `.wflow`, so more width is more columns, never wider cards, and no
+  window is capped with a max-width column. `references/components.md`, "Section cards and the
+  flow" (ADR 0032).
 - **Materials are for things that float.** Menus, popovers, dialogs, sheets and chrome.
   Anything holding data stays opaque, because legibility beats depth.
 - **Motion says where a thing came from.** Sheets rise, popovers scale from their anchor,

@@ -1,0 +1,3 @@
+/* Each book's standing stands on the window's ground, not in a card: the "View more" row under
+   it starts where a cell's text does. */
+.standing__books { --bookmore-inset: var(--cell-inset); }

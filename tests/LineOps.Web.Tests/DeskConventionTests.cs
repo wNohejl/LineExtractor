@@ -182,7 +182,6 @@ public class DeskConventionTests
     [InlineData(".formrun")]
     [InlineData(".game-search")]
     [InlineData(".logrow__opp")]
-    [InlineData(".splits")]
     [InlineData(".snippet__market")]
     [InlineData(".wcard")]
     [InlineData(".stake-row")]

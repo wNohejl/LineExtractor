@@ -269,33 +269,59 @@
 
 <PanelSection Title="Form group">
 <p class="empty">
-    The grouped form as one spelling. A quiet sentence-case name above, one filled group with
-    one hairline edge, rows divided inside it by inset hairlines from the label's edge, and the
-    sentence that explains the group under it as its footer — never a box of its own. Each
+    The grouped form as one spelling, drawn as a section card: one filled group with one hairline
+    edge, its sentence-case name inside it in a header bar (the headline style, with an optional
+    key, count or filter trailing — <span class="mono">Keys</span>), a full-width hairline under
+    the bar, rows divided by inset hairlines from the label's edge, and the sentence that explains
+    the group under the card as its footer — never a box of its own. Each
     <span class="mono">FormRow</span> leads with its label in the column the whole group shares,
-    so the controls line up down the page; a narrow group stacks each label above its control.
-    A window that still spells the four class names by hand is the old spelling.
+    so the controls line up down the page; a narrow card stacks each label above its control. A
+    split row (<span class="mono">.wgroup__split</span>) sets two compact controls side by side.
+    Several cards sit in a <span class="mono">.wflow</span> flow: as many columns as the window
+    is wide, never wider cards.
 </p>
 
-<FormGroup Title="Delivery" LabelWidth="104px">
-    <ChildContent>
-        <FormRow Label="Carrier">
-            <DeskSelect TValue="string" Class="wfield--short" aria-label="Carrier" @bind-Value="_formCarrier">
-                <option value="post">Post</option>
-                <option value="courier">Courier</option>
-                <option value="collect">Collect</option>
-            </DeskSelect>
-        </FormRow>
-        <FormRow Label="Quantity">
-            <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
-                       aria-label="Quantity" placeholder="1" @bind-Value="_formQuantity" />
-        </FormRow>
-        <FormRow Label="Signature">
-            <DeskSwitch Options="_formSignature" Label="Signature" Size="DeskKeySize.Small" @bind-Value="_formSigned" />
-        </FormRow>
-    </ChildContent>
-    <Footer>Arrives in two working days; a courier needs someone in to sign.</Footer>
-</FormGroup>
+<div class="wflow">
+    <FormGroup Title="Delivery" LabelWidth="104px">
+        <Keys>@(_formQuantity ?? 0) @(_formQuantity == 1 ? "parcel" : "parcels")</Keys>
+        <ChildContent>
+            <FormRow Label="Carrier">
+                <DeskSelect TValue="string" Class="wfield--short" aria-label="Carrier" @bind-Value="_formCarrier">
+                    <option value="post">Post</option>
+                    <option value="courier">Courier</option>
+                    <option value="collect">Collect</option>
+                </DeskSelect>
+            </FormRow>
+            <FormRow Label="Quantity">
+                <DeskField TValue="int?" Mono="true" Class="wfield--short" type="number"
+                           aria-label="Quantity" placeholder="1" @bind-Value="_formQuantity" />
+            </FormRow>
+            <FormRow Label="Signature">
+                <DeskSwitch Options="_formSignature" Label="Signature" Size="DeskKeySize.Small" @bind-Value="_formSigned" />
+            </FormRow>
+        </ChildContent>
+        <Footer>Arrives in two working days; a courier needs someone in to sign.</Footer>
+    </FormGroup>
+
+    <FormGroup Title="Packing">
+        <ChildContent>
+            <div class="wgroup__row wgroup__split">
+                <div class="wgroup__cell">
+                    <span class="wgroup__label">Box</span>
+                    <DeskSwitch Options="_formBoxes" Label="Box" Size="DeskKeySize.Small" @bind-Value="_formBox" />
+                </div>
+                <div class="wgroup__cell">
+                    <span class="wgroup__label">Wrap</span>
+                    <DeskSwitch Options="_formWraps" Label="Wrap" Size="DeskKeySize.Small" @bind-Value="_formWrap" />
+                </div>
+            </div>
+            <FormRow Label="Note">
+                <DeskField TValue="string" Class="wfield--fill" aria-label="Packing note" placeholder="Fragile" @bind-Value="_formNote" />
+            </FormRow>
+        </ChildContent>
+        <Footer>A split row stacks its two cells in a card narrower than both.</Footer>
+    </FormGroup>
+</div>
 </PanelSection>
 
 <PanelSection Title="Checkbox">
@@ -453,14 +479,24 @@
 <PanelSection Title="Theme picker">
 <p class="empty">
     Every theme the desk carries, as a tile painted by the theme itself — its ground, a raised
-    panel, two lines of ink and the accent — filed under plain headings. One radio group however
-    many headings: one Tab stop, the arrows travel every tile in reading order and stop at the
-    ends. The chosen tile wears a ring, a tick and a heavier name.
+    panel, two lines of ink and the accent — in one grid that wraps to its width. The catalogue's
+    plain headings are a filter, not shelves: <span class="mono">Group</span> narrows the grid, and
+    <span class="mono">ThemeFilters</span> are the segments for a gate in the card's header bar.
+    One radio group: one Tab stop, the arrows travel the tiles showing in reading order and stop
+    at the ends. The chosen tile wears a ring, a tick and a heavier name.
 </p>
 
-<DeskThemePicker @bind-Value="_family" IsDark="Theme.IsDark" />
-
-<p class="empty">This one moves nothing but itself; the Window manager's moves the desk.</p>
+<FormGroup Title="Themes">
+    <Keys>
+        <DeskSwitch Options="DeskThemePicker.ThemeFilters" Label="Show themes" Size="DeskKeySize.Small" @bind-Value="_familyGroup" />
+    </Keys>
+    <ChildContent>
+        <div class="wgroup__row wgroup__row--pad">
+            <DeskThemePicker @bind-Value="_family" Group="@_familyGroup" IsDark="Theme.IsDark" />
+        </div>
+    </ChildContent>
+    <Footer>This one moves nothing but itself; the Window manager's moves the desk.</Footer>
+</FormGroup>
 
 </PanelSection>
 
@@ -946,8 +982,11 @@
 </DeskStack>
 
 <p class="empty">
-    Every snippet sits in a <span class="mono">SnippetShell</span>: the same header, a note on
-    what it is missing, and the one way out, so no snippet builds its own.
+    Every snippet sits in a <span class="mono">SnippetShell</span>: a section card with its name
+    in the bar, a note on what it is missing, and the one way out as the bar's trailing key, so no
+    snippet builds its own. A snippet that draws cards of its own sets
+    <span class="mono">Cards</span>, and the shell becomes an unframed pane header over them in
+    the same voice — never a card around cards.
 </p>
 
 <SnippetShell Title="Last five" Icon="@Icons.Material.Filled.History" Note="5 of 12"
@@ -1190,6 +1229,21 @@
     On plain text it is the pointer's alone — text takes no focus — so it may add to what the
     text says, never be the only place a thing is said.
 </p>
+
+<p class="empty">
+    When the explanation is a small table rather than a sentence, it takes the structured shape:
+    a semibold <code>Title</code>, a <code>Caption</code> held to a measure, <code>Rows</code> of
+    label and value in tabular numerals with a quiet qualifier, the row it is about by weight, and
+    a <code>Footnote</code> saying where the rest are — it cannot be clicked into. A screen reader
+    hears <code>Text</code>, or the parts as plain lines.
+</p>
+
+<DeskRow Gap="DeskSpace.Space6" Align="DeskAlign.Center">
+    <DeskTooltip Title="Highest reading" Caption="@_tableTipCaption" Rows="@_tableTipRows"
+                 Footnote="+4 more in Regions">
+        <span class="meta" tabindex="0">North 412</span>
+    </DeskTooltip>
+</DeskRow>
 
 </PanelSection>
 
@@ -1444,6 +1498,13 @@
     private bool _formSigned;
     private static readonly IReadOnlyList<DeskSwitchOption<bool>> _formSignature =
         [new(false, "Not needed"), new(true, "Required")];
+    private string _formBox = "small";
+    private string _formWrap = "paper";
+    private string? _formNote;
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _formBoxes =
+        [new("small", "Small"), new("large", "Large")];
+    private static readonly IReadOnlyList<DeskSwitchOption<string>> _formWraps =
+        [new("paper", "Paper"), new("bubble", "Bubble")];
 
     // Deliberately fake. A catalog's job is to let you look at a state, and busy is a state
     // you otherwise have to catch mid-request to see.
@@ -1484,6 +1545,7 @@
     private string? _accent;
 
     private DeskThemeFamily _family = DeskThemeFamily.Standard;
+    private string _familyGroup = string.Empty;
 
     private static readonly IReadOnlyList<DeskRadioOption<string>> _cadences =
     [
@@ -1618,6 +1680,15 @@
 
     private const string _linkTip = "Opens the region's details.\nIts history is one tab over.";
     private const string _textTip = "Reviewed means someone other than the owner has read it.";
+    private const string _tableTipCaption = "The latest count, taken 40 minutes ago.\nTarget 380 · set for the quarter";
+
+    private static readonly DeskTooltipRow[] _tableTipRows =
+    [
+        new("North", "412", "+8.4%", Emphasis: true),
+        new("East", "398", "+4.7%"),
+        new("West", "371", "−2.4%"),
+        new("South", "366", "−3.7%"),
+    ];
 
     // ----------------------------------------------------------------- checks ---
 

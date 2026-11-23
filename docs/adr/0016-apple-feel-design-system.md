@@ -71,6 +71,13 @@ Elevation is a surface ramp — `--surface-0` through `--surface-3` — plus a h
 separate; they never outline. A border drawn around a panel is the Material habit this system
 is replacing, and it was doing the job the elevation ramp now does.
 
+*Amended.* In October 2026, after a borderless pass was rejected, a group or card took one 1px
+hairline edge (the grouped form macOS draws); what stays forbidden is the box inside the box. On
+2026-11-22 [ADR 0032](0032-a-window-s-sections-are-cards-in-a-flow.md) moved a group's name from
+a quiet line above it into a header bar inside it, divided from the rows by one full-width
+hairline — a divider inside the one card, not a second edge — and put a window's sections in a
+flow of cards that gains columns as it widens.
+
 ### The seam from ADR 0008 survives intact
 
 Three files, the same three jobs, with Apple contents:

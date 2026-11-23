@@ -42,6 +42,13 @@ public sealed record RowAction
     public RenderFragment? Snippet { get; init; }
 
     /// <summary>
+    /// The snippet draws section cards of its own (several FormGroups in a <c>.wflow</c>), so its
+    /// <c>SnippetShell</c> is an unframed pane header over them rather than the card around them:
+    /// a card inside a card is forbidden. Off, the shell is the card and the snippet its rows.
+    /// </summary>
+    public bool SnippetCards { get; init; }
+
+    /// <summary>
     /// The escape to a full view. Rendered by <c>SnippetShell</c> when there is a snippet, and
     /// invoked immediately on press when there is not. Default (no delegate) for an action with
     /// nowhere further to go.

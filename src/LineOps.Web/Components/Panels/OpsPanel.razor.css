@@ -1,0 +1,37 @@
+/* The Ops window's card flow (the Desk's grouping contract, Nov 22). The cards, the flow, and a
+   table, a lone sentence or a confirm inside a card are the Desk's (desk.css, "What a card holds
+   that is not a row"); what is here is the Ops window's own. */
+
+/* The flow stands under the tiles and the key that recomputes them by the air a section takes
+   (it collapses with the tiles' own margin). The drill's rows lead with a source's name
+   ("ESPN (unofficial)"), wider than a setting's. Packed dense: Stats source leads, and the
+   alerts, health and feeds tables after it each take the whole row, so without it the first row
+   held one card and two tracks of nothing; dense lifts the key and Scanning up beside it, which
+   is where they belong anyway — the source, its key and how it is scanned, in one row. */
+.opsflow {
+    grid-auto-flow: row dense;
+    margin-top: var(--space-4);
+    --ops-source-label: 168px;
+}
+
+/* The stats source's statement is the card's content, so it is set as content: body size, the
+   primary ink, at the rows' inset. */
+.opsprose {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    color: var(--text-primary);
+}
+.opsprose strong { font-weight: var(--weight-semibold); }
+
+/* The books keep a reading width: an unsized column beside Notes (which takes the slack) was
+   given its narrowest, one book a line. The floor is the column's; each book holds its name on
+   one line, so the list wraps between books. */
+.opsbooks {
+    display: inline-flex;
+    flex-wrap: wrap;
+    column-gap: 0.5ch;
+    min-width: 24ch;
+    white-space: normal;
+}
+.opsbooks__name { white-space: nowrap; }

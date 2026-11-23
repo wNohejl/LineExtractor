@@ -64,3 +64,20 @@
 .linescore__table .linescore__ahead > th {
     font-weight: var(--weight-semibold);
 }
+
+/* Inset: the line score as the body of a card that is already the group (the Game window's
+   score card), so it gives up its own fill, edge and margin — a box in a box otherwise — and
+   its table takes the card's width, the totals at the card's trailing inset. The Gamecast keeps
+   the framed one. */
+.linescore.linescore--inset {
+    width: auto;
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    border-radius: 0;
+    background: none;
+}
+
+.linescore--inset .linescore__table {
+    width: 100%;
+}

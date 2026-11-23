@@ -1,0 +1,7 @@
+/* The chart's card: the plot and its takeaway inset from the card's edge as a row's text is. */
+.perf-card__body {
+    padding: var(--space-3) var(--space-4);
+}
+
+/* A table inside a card — no second frame, the last row's hairline standing down for the card's
+   edge — is the Desk's (desk.css, "What a card holds that is not a row"). */

@@ -28,7 +28,7 @@ in its header. By subject:
 | Data model and odds storage | 0001, 0002, 0003, 0010 |
 | Sources, budget and jobs | 0005, 0009, 0011, 0012, 0014, 0017, 0021, 0026 |
 | Reliability and telemetry | 0015 |
-| The desk and its design system | 0004, 0007, 0008, 0013, 0016, 0020, 0027, 0028, 0029, 0030 |
+| The desk and its design system | 0004, 0007, 0008, 0013, 0016, 0020, 0027, 0028, 0029, 0030, 0032 |
 | Security, access and who may see what | 0006, 0018, 0024 |
 | Hosting and other devices | 0019, 0022, 0023, 0025 |
 | The product: name, repository, release | 0031 |

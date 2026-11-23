@@ -165,11 +165,13 @@ else
             </Note>
         }
 
-        @* Two sections, as the entry form is one: the parlay's money, then its legs. A group
-           sitting loose in the column beside a section is a group with no name. *@
-        <div class="wsections">
-            <section class="wsection" aria-label="Parlay">
-                <div class="wgroup jform">
+        @* Two section cards: the parlay's money, then its legs, each named in the bar at its top
+           (the Desk's grouping contract). A group sitting loose in the column beside a section is
+           a group with no name; a name floating above a group is a name attached to nothing.
+           They flow, so a form wider than two tracks would set them side by side. *@
+        <div class="wflow">
+            <FormGroup Title="Parlay" GroupClass="jform">
+                <ChildContent>
                     <FormRow Label="Book">
                         @BookPicker(edited.Book, SetParlayBookAsync)
                     </FormRow>
@@ -196,12 +198,12 @@ else
                                    placeholder="Optional" Value="edited.Note"
                                    ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
                     </FormRow>
-                </div>
-            </section>
+                </ChildContent>
+            </FormGroup>
 
-            <section class="wsection" aria-labelledby="parlay-legs-h">
-                <h4 class="wgroup__head" id="parlay-legs-h">Legs</h4>
-                <div class="wgroup jform">
+            @* No count on the bar: the form's detail line already says how many legs. *@
+            <FormGroup Title="Legs" GroupClass="jform">
+                <ChildContent>
                     @foreach (var (leg, n) in edited.Parlay.Legs.OrderBy(l => l.Id).Select((l, i) => (l, i + 1)))
                     {
                         var field = $"leg-{leg.Id}";
@@ -223,12 +225,12 @@ else
                             </DeskRow>
                         </FormRow>
                     }
-                </div>
-                <p class="wgroup__foot">
+                </ChildContent>
+                <Footer>
                     The price each leg was taken at. Without the book's price, settlement multiplies
                     them, and after a push it reprices the parlay on the legs that are left.
-                </p>
-            </section>
+                </Footer>
+            </FormGroup>
         </div>
 
     </ChildContent>
@@ -269,11 +271,18 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     </EmptyState>
 }
 
+@* The two ledgers are section cards (the Desk's grouping contract): each table inside a card
+   named in the bar at its top, so Straight bets and Parlays read as two things with an edge
+   between them rather than two rules over one run of rows. A table is wide, so each card takes
+   the flow's whole row; the table draws no second frame inside it (JournalPanel.razor.css). *@
+@if (_entries.Count > 0 || _parlays.Count > 0)
+{
+<div class="wflow journal-lists">
 @if (_entries.Count > 0)
 {
     @* "Straight bets", the counterpart of Parlays below: under a tab called Entries, a first
        section called Entries named the tab a second time and told the reader nothing new. *@
-    <PanelSection Title="Straight bets">
+    <FormGroup Title="Straight bets" Span="DeskCardSpan.Row" GroupClass="journal-list">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
         @* Ordered by when the bet closes — the game's start, when the line closes and CLV is read —
            newest first, as the service reads it: a bet placed days ahead on
@@ -396,12 +405,12 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
-    </PanelSection>
+    </FormGroup>
 }
 
 @if (_parlays.Count > 0)
 {
-    <PanelSection Title="Parlays">
+    <FormGroup Title="Parlays" Span="DeskCardSpan.Row" GroupClass="journal-list">
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         @* A parlay is ordered by its last leg's game: it is open until that one is. *@
@@ -506,7 +515,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
-    </PanelSection>
+    </FormGroup>
+}
+</div>
 }
 
 @if (_entries.Count >= _take || _parlays.Count >= _take)

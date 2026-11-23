@@ -1,0 +1,10 @@
+/* The History window's card flow (the Desk's grouping contract, Nov 22): the sources beside the
+   walk's form, then the seasons and the recent days each across the row. The cards, and a table
+   inside one, are the Desk's (desk.css, "What a card holds that is not a row"). */
+
+/* The flow stands under the tiles and their footnote by the air a section takes. The Run card's
+   label column holds "Past days" and "Held days" with their keys in line. */
+.histflow {
+    margin-top: var(--space-4);
+    --hist-run-label: 112px;
+}

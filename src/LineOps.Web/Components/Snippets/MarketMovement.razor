@@ -63,7 +63,9 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var row in _rows.Take(MaxBooks))
+                @* Ranked on the whole market and capped, as every book table is (BookRanking): the
+                   same five books lead here as in More bets and Line movement. *@
+                @foreach (var row in BookRanking.Visible(BookRanking.Order(_rows, r => r.Book, First, Second), IsExpanded, MaxBooks))
                 {
                     <tr>
                         <td class="trunc">@BookNames.Display(row.Book)</td>
@@ -87,13 +89,17 @@
             </tbody>
         </table>
 
+        <MoreBooks Total="_rows.Count" Top="MaxBooks" Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" Controls="@Id" />
+
         <p class="gamemove__foot">
             <span>@OddsPanel.SpanText(_rows)</span>
             @if (OnOpenWindow.HasDelegate)
             {
+                @* The window is for the moves over time and the side's standing; every book is the
+                   key above, so this no longer says "All 10 books…". *@
                 <DeskButton Size="DeskKeySize.Small" Icon="@Icons.Material.Filled.ShowChart"
                             OnClick="() => OnOpenWindow.InvokeAsync()">
-                    @(_rows.Count > MaxBooks ? $"All {_rows.Count} books…" : "Line movement…")
+                    Line movement…
                 </DeskButton>
             }
         </p>
@@ -142,8 +148,29 @@
     /// <summary>Opens the Line movement window on this game, for every book or the market's detail.</summary>
     [Parameter] public EventCallback OnOpenWindow { get; set; }
 
-    /// <summary>How many books the row shows before the window is the better place.</summary>
-    public const int MaxBooks = 6;
+    /// <summary>How many books the row shows before "View more" (BookRanking.Top, as every book table).</summary>
+    public const int MaxBooks = BookRanking.Top;
+
+    /// <summary>
+    /// Whether every book shows. Optional: a host that binds it (with ExpandedChanged) keeps the
+    /// choice across the market being closed and opened again; unbound, the row keeps it while it
+    /// is open, through every re-render and new price.
+    /// </summary>
+    [Parameter] public bool? Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    private bool _expanded;
+
+    private bool IsExpanded => ExpandedChanged.HasDelegate ? Expanded ?? false : _expanded;
+
+    private async Task SetExpandedAsync(bool expanded)
+    {
+        _expanded = expanded;
+
+        if (ExpandedChanged.HasDelegate)
+            await ExpandedChanged.InvokeAsync(expanded);
+    }
 
     private List<OddsSnapshot> _snapshots = [];
     private IReadOnlyList<OddsPanel.MovementRow> _rows = [];
@@ -225,82 +252,35 @@
             : outcome;
 
     /// <summary>
-    /// Every book's number on both sides, a row per book: the best on each side marked by
-    /// weight and a dot, never by colour alone. Books in name order, so a book is found where
-    /// it was last time, rather than moving as its price does.
+    /// Every book's number on both sides, a row per book: the desk's one book table
+    /// (BookComparison), ranked and capped at the top five as More bets and Line movement are.
+    /// It was a table of its own here, headed "Close", that wrote a total's number without its
+    /// o/u, named no edge and ordered by name.
     /// </summary>
     private RenderFragment RenderEveryBook() => @<text>
-        @{
-            var books = EveryBook(First, Second);
-        }
-        @if (books.Count == 0)
+        @if (First is null && Second is null)
         {
             <p class="gamemove__foot"><span>No book priced this market.</span></p>
         }
         else
         {
-            <table class="grid grid--tight gamemove__table">
-                <thead>
-                    <tr>
-                        <th>@(Closing ? "Close" : "Book")</th>
-                        @* Each club's column is headed by its crest and nickname; Over and Under are words. *@
-                        <th class="r"><TeamMark Sport="@Sport" Abbrev="@FirstAbbrev" />@FirstSide</th>
-                        <th class="r"><TeamMark Sport="@Sport" Abbrev="@SecondAbbrev" />@SecondSide</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var (book, first, second) in books)
-                    {
-                        <tr>
-                            <td class="trunc">@BookNames.Display(book)</td>
-                            @Quote(first, First)
-                            @Quote(second, Second)
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            <BookComparison Market="@Market" First="First" Second="Second"
+                            FirstSide="@FirstSide" SecondSide="@SecondSide"
+                            Sport="@Sport" FirstAbbrev="@FirstAbbrev" SecondAbbrev="@SecondAbbrev"
+                            Top="MaxBooks" Controls="@Id"
+                            Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" />
             <p class="gamemove__foot">
                 <span>
                     @(Closing ? "The last number each book showed before the start." : "No moves on record yet: each book's number now.")
-                    The best on each side is marked.
+                    @if (BookRanking.FairText(First, Second) is { Length: > 0 } fair)
+                    {
+                        <text> @fair.</text>
+                    }
+                    The best price on each side is marked.
                 </span>
             </p>
         }
     </text>;
-
-    private RenderFragment Quote(BookPrice? rung, BestOffer? side) => @<text>
-        @if (rung is null || side is null)
-        {
-            <td class="r dim">—</td>
-        }
-        else
-        {
-            var best = side.Rungs.Count > 0 && ReferenceEquals(side.Rungs[0], rung);
-            <td class="r gamemove__quote @(best ? "gamemove__best" : null)">
-                @Number(rung, side.Outcome)
-                @if (best)
-                {
-                    <span class="gamemove__dot" aria-hidden="true">●</span>
-                    <span class="sr-only">, best</span>
-                }
-            </td>
-        }
-    </text>;
-
-    /// <summary>A rung as the row reads it: the number if the market has one, then the price.</summary>
-    private string Number(BookPrice rung, string outcome)
-    {
-        var price = OddsMath.FormatPrice(rung.PriceAmerican);
-
-        if (rung.Line is not { } line)
-            return price;
-
-        var number = Market == Markets.Total
-            ? Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)
-            : OddsMath.FormatLine(line, outcome);
-
-        return $"{number} {price}";
-    }
 
     /// <summary>The two sides' rungs joined by book, in book-name order.</summary>
     public static IReadOnlyList<(string Book, BookPrice? First, BookPrice? Second)> EveryBook(BestOffer? first, BestOffer? second)

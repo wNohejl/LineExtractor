@@ -30,10 +30,10 @@
 @* Figures first, then what can walk, then the keys that walk it, then the record: the window
    opened on the sources, a list of facts that rarely changes, with the coverage it exists to
    report a screen below. *@
+@* The tiles stand on the window's body, as a row of figures does on every window: a tile is a
+   box of its own, so a card around them would be a box inside a box. *@
 @if (Loaded || !Failed)
 {
-<PanelSection Title="Coverage">
-
 @if (_coverage is { } c)
 {
     <MetricRow Class="ops-metrics--4">
@@ -68,8 +68,12 @@ else if (!Loaded && !Failed)
 {
     <DeskSkeleton Lines="2" />
 }
-</PanelSection>
 }
+
+@* Then the sections, as section cards in one card flow (the Desk's grouping contract, Nov 22):
+   the sources beside the walk's form in a wide window, and the two record tables each across the
+   row under them. They were four bare rules down one column, and ran together. *@
+<div class="wflow histflow">
 
 @if (_eligibility.Count > 0)
 {
@@ -77,8 +81,8 @@ else if (!Loaded && !Failed)
        list of facts, the name leading and the reason trailing. Only a refusal wears a tag — Free
        was a green capsule on a row that already said "unmetered and available" — and the raw
        provider key it showed ("espn") is a configuration value, not a name. *@
-    <PanelSection Title="Sources">
-        <div class="wgroup opsgroup opsgroup--wide">
+    <FormGroup Title="Sources" GroupClass="opsgroup--wide">
+        <ChildContent>
             @foreach (var source in _eligibility)
             {
                 <FormRow Label="@SourceName(source.Key)" @key="source.Key">
@@ -91,16 +95,17 @@ else if (!Loaded && !Failed)
                     </div>
                 </FormRow>
             }
-        </div>
-
-        @if (!_eligibility.Any(s => s.Eligible))
-        {
-            <Note State="DeskState.Warning" Class="opsnote">
-                Nothing can walk history. Backfill uses unmetered providers only: a metered one's
-                quota is kept for the live schedule, even when it is configured and working.
-            </Note>
-        }
-    </PanelSection>
+        </ChildContent>
+        <Notice>
+            @if (!_eligibility.Any(s => s.Eligible))
+            {
+                <Note State="DeskState.Warning">
+                    Nothing can walk history. Backfill uses unmetered providers only: a metered one's
+                    quota is kept for the live schedule, even when it is configured and working.
+                </Note>
+            }
+        </Notice>
+    </FormGroup>
 }
 
 @* The walk, as one grouped form: a row for what starts it and a row for what corrects it, each
@@ -108,10 +113,15 @@ else if (!Loaded && !Failed)
    It was a row with the re-walk key at the far left and the one Filled key at the far right —
    a screen's width apart in a maximised window, under a gap that made the section read as
    holding one stray key. The group, its footer and what the last walk did are one section, as
-   every grouped form on the desk is. *@
-<PanelSection Title="Run">
-    <section class="wsection" aria-label="Run">
-        <div class="wgroup opsgroup">
+   every grouped form on the desk is.
+
+   A section card spelled by hand: under it come a warning, the footer and what the last walk did,
+   in that order, which is more than FormGroup's one Notice and one footer. *@
+    <section class="wsection" aria-labelledby="@($"{_uid}-run")">
+        <div class="wgroup" style="--form-label: var(--hist-run-label)">
+            <div class="wgroup__bar">
+                <h3 class="wgroup__title" id="@($"{_uid}-run")">Run</h3>
+            </div>
             @if (Coordinator.IsRunning)
             {
                 @* A state, drawn as a state. This was a DeskButton carrying Busy and no OnClick — a key
@@ -241,10 +251,10 @@ else if (!Loaded && !Failed)
            the operator looked back from the coverage tiles, and the keys look the same either way. *@
         @if (_runError is { } runError)
         {
-            <Note State="DeskState.Warning" Class="opsnote">@runError</Note>
+            <Note State="DeskState.Warning">@runError</Note>
         }
 
-        <p class="wgroup__foot opsfoot">
+        <p class="wgroup__foot">
             The daily schedule adds one day at a time. Gathering reaches back over past days, one
             request per sport per day, from an unmetered provider only.
             @if (Manager.Access.CanOperate)
@@ -258,7 +268,7 @@ else if (!Loaded && !Failed)
 
         @if (Coordinator.IsRunning && Coordinator.Progress is { } p)
         {
-            <p class="wgroup__foot opsfoot">
+            <p class="wgroup__foot">
                 So far <span class="num">@p.Walked.ToString("N0")</span> walked,
                 <span class="num">@p.Skipped.ToString("N0")</span> already held,
                 <span class="num">@p.Failed.ToString("N0")</span> failed —
@@ -272,7 +282,7 @@ else if (!Loaded && !Failed)
                knowing, so it keeps the warning note, with the reason it gives. *@
             @if (r.StoppedBecause is null)
             {
-                <p class="wgroup__foot opsfoot">
+                <p class="wgroup__foot">
                     Last walk: <span class="num">@r.Walked.ToString("N0")</span> days walked,
                     <span class="num">@r.Skipped.ToString("N0")</span> already held,
                     <span class="num">@r.Failed.ToString("N0")</span> failed —
@@ -282,7 +292,7 @@ else if (!Loaded && !Failed)
             }
             else
             {
-                <Note State="DeskState.Warning" Class="opsnote">
+                <Note State="DeskState.Warning">
                     The last walk stopped after <span class="num">@r.Walked.ToString("N0")</span> days walked,
                     <span class="num">@r.Skipped.ToString("N0")</span> already held and
                     <span class="num">@r.Failed.ToString("N0")</span> failed —
@@ -292,16 +302,15 @@ else if (!Loaded && !Failed)
             }
         }
     </section>
-</PanelSection>
 
 @* The whole record, one row per season part: whether "we have the 2025 season" is true is a
    number here rather than a belief. Held against the league's schedule where it fixes one. *@
-<PanelSection Title="Seasons">
-
 @* Placeholders until the record is read; nothing at all if that read failed, since "no games
-   on record" would be a finding the failure line above has just said was not made. *@
+   on record" would be a finding the failure line above has just said was not made — not even
+   the card, whose name over nothing would read as a table that failed to fill. *@
 @if (Loaded || !Failed)
 {
+<FormGroup Title="Seasons" Span="DeskCardSpan.Row">
 <DeskGrid T="SeasonCoverage" Items="_seasons" Loading="@(!Loaded)" LoadingLabel="Reading the seasons"
           SkeletonRows="4" EmptyText="No games on record for the leagues in play.">
     @* Every column here is a figure or a short name, so each holds one line; the season takes
@@ -381,13 +390,12 @@ else if (!Loaded && !Failed)
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</FormGroup>
 }
-</PanelSection>
-
-<PanelSection Title="Recent days">
 
 @if (Loaded || !Failed)
 {
+<FormGroup Title="Recent days" Span="DeskCardSpan.Row">
 <DeskGrid T="BackfillCheckpoint" Items="_recent" Loading="@(!Loaded)" LoadingLabel="Reading recent days"
           EmptyText="Nothing walked yet. Gather history above, and days land here as they complete.">
     <PropertyColumn T="BackfillCheckpoint" TProperty="DateOnly" Property="c => c.Date" Title="Day"
@@ -425,8 +433,9 @@ else if (!Loaded && !Failed)
         </CellTemplate>
     </PropertyColumn>
 </DeskGrid>
+</FormGroup>
 }
-</PanelSection>
+</div>
 
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Runs };
@@ -437,6 +446,9 @@ else if (!Loaded && !Failed)
     protected override Task RefreshAsync(IReadOnlySet<string> heard) => LoadAsync(seasons: false);
 
     protected override string LoadSubject => "The history record";
+
+    /// <summary>The id the Run card's bar labels it by; one window's, never another's.</summary>
+    private readonly string _uid = "hist-" + Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>
     /// How long the season coverage may stand while runs keep arriving. Thirty seconds: the table

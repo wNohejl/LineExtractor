@@ -1,0 +1,30 @@
+/* The Team window's log and roster are section cards (the Desk's grouping contract). The card
+   is the group, so the log list inside it gives up the fill, edge and corner it draws standing
+   alone (desk.css, "Log rows"): a framed list in a framed card is a box inside a box. Its rows
+   keep their inset hairlines. */
+.team-flow ::deep .team-card > .loglist {
+    background: none;
+    border: 0;
+    border-radius: 0;
+}
+
+/* The splits row and the first game under it are parted as any two rows are: by a hairline
+   inset to the text's leading edge, not one the card's whole width. */
+.team-flow ::deep .team-card > .team-splits + .loglist {
+    position: relative;
+}
+.team-flow ::deep .team-card > .team-splits + .loglist::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--space-4);
+    border-top: 1px solid var(--separator);
+}
+
+/* The opponent picker is as wide as its longest name allows, not the rest of its cell. */
+.team-splits ::deep .team-splits__pick {
+    width: auto;
+    max-width: 100%;
+    font-size: var(--text-footnote);
+}

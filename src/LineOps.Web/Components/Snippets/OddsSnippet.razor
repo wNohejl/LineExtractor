@@ -94,8 +94,19 @@ else
             else
             {
                 <div class="snippet__sides">
-                    @RenderSide(pair.First, crested ? _row!.Game.HomeTeam?.Abbrev : null)
-                    @RenderSide(pair.Second, crested ? _row!.Game.AwayTeam?.Abbrev : null)
+                    @* Away then home, as the game reads and as the Game window and Line movement order a
+                       market's sides; a fight's red corner (home) first, as its card bills it (ADR 0021).
+                       Every pair lists home first (BoardRow), and a total Over first. *@
+                    @if (crested && !FightSports.IsFight(_row!.Game.Sport?.Key))
+                    {
+                        @RenderSide(pair.Second, _row!.Game.AwayTeam?.Abbrev)
+                        @RenderSide(pair.First, _row!.Game.HomeTeam?.Abbrev)
+                    }
+                    else
+                    {
+                        @RenderSide(pair.First, crested ? _row!.Game.HomeTeam?.Abbrev : null)
+                        @RenderSide(pair.Second, crested ? _row!.Game.AwayTeam?.Abbrev : null)
+                    }
                 </div>
             }
         </div>
@@ -109,8 +120,8 @@ else
         else
         {
             <div class="snippet__side">
-                @* A club's side leads with its crest, outside the name that truncates. Every market
-                   lists home first (BoardRow), so the first side is the home club. *@
+                @* A club's side leads with its crest, outside the name that truncates; the caller hands
+                   each side its own club's abbreviation (none on a total). *@
                 <TeamMark Sport="@_row?.Game.Sport?.Key" Abbrev="@abbrev" />
                 <span class="snippet__sel trunc">@offer.Outcome</span>
                 @if (offer.Line is { } l)
@@ -118,7 +129,8 @@ else
                     <span class="snippet__line mono">@OddsMath.FormatLine(l, offer.Outcome)</span>
                 }
                 <span class="snippet__price mono">@Price(offer.PriceAmerican)</span>
-                <span class="snippet__book dim">@offer.Book</span>
+                @* The book by its name, as every book table names it, not the feed's key. *@
+                <span class="snippet__book dim">@LineOps.Web.Components.Panels.BookNames.Display(offer.Book)</span>
             </div>
         }
     </text>;

@@ -263,8 +263,8 @@ public class PriceCellTests : DeskTestContext
 
         var tooltip = cut.FindComponent<DeskTooltip>().Instance.Text;
 
-        Assert.Contains("DK o7 -110", tooltip);
-        Assert.Contains("FD o7.5 +105", tooltip);
+        Assert.Contains("DraftKings (best) o7 -110", tooltip);
+        Assert.Contains("FanDuel o7.5 +105", tooltip);
     }
 
     // ---- The closing line ---------------------------------------------------------------
@@ -353,11 +353,11 @@ public class PriceCellTests : DeskTestContext
         var why = cut.FindComponent<DeskTooltip>().Instance.Text;
 
         Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("3.0h before start", why);
+        Assert.Contains("captured 3.0h before it", why);
 
         // The book breakdown the live cell puts in a title attribute rides along, because a
         // native tooltip cannot hold a sentence and a table.
-        Assert.Contains("DK -110", why);
+        Assert.Contains("DraftKings -110", why);
     }
 
     [Fact]
@@ -369,7 +369,7 @@ public class PriceCellTests : DeskTestContext
         var why = cut.FindComponent<DeskTooltip>().Instance.Text;
 
         Assert.Contains("closing price", why, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("before start", why);
+        Assert.DoesNotContain("captured", why);
     }
 
     /// <summary>
@@ -388,6 +388,96 @@ public class PriceCellTests : DeskTestContext
         Assert.Empty(cut.FindComponents<DeskTooltip>());
     }
 
+    // ---- The structured tooltip -----------------------------------------------------------
+    //
+    // Ten books written as one string ran as a single line ~1100px wide across the window. The
+    // tooltip is a title, a caption and a table now: one book a row, by name, five at most, best
+    // first (the cell's own book, then by value against fair, so nothing left out beats a row
+    // that shows), and a last line saying where the rest are.
+
+    private static BookPrice Scored(string book, int american, double implied, double ev, double? hold = null)
+        => Rung(book, american, implied) with { Ev = ev, Hold = hold };
+
+    private static readonly BookPrice[] TenBooks =
+    [
+        Scored("lowvig", 170, 0.370, -0.064, 0.025),
+        Scored("betrivers", 185, 0.351, -0.012, 0.050),
+        Scored("pinnacle", 181, 0.356, -0.026, 0.020),
+        Scored("fanduel", 176, 0.362, -0.044, 0.045),
+        Scored("bovada", 175, 0.364, -0.048, 0.055),
+        Scored("draftkings", 174, 0.365, -0.050, 0.048),
+        Scored("betmgm", 170, 0.370, -0.064, 0.060),
+        Scored("espnbet", 172, 0.368, -0.057),
+        Scored("hardrockbet", 173, 0.366, -0.053, 0.058),
+        Scored("betonlineag", 171, 0.369, -0.060, 0.030),
+    ];
+
+    private IRenderedComponent<PriceCell> Closing(string book = "betrivers", int american = 185)
+        => RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(book: book, american: american, isClosing: true, rungs: TenBooks)
+                with { Fair = new FairPrice(0.346, 189, FairValue.SharpBook, 1) })
+            .Add(x => x.StartsAt, Captured.AddHours(3.6)));
+
+    /// <summary>The fair line is spelt as every book table spells it: "Fair +189 (Pinnacle, no-vig)".</summary>
+    [Fact]
+    public void A_closing_tooltip_has_a_title_a_caption_and_the_fair_on_its_own_line()
+    {
+        var tip = Closing().FindComponent<DeskTooltip>().Instance;
+
+        Assert.True(tip.IsStructured);
+        Assert.Equal("Closing price", tip.Title);
+        Assert.Equal("The last number before the start, captured 3.6h before it.\nFair +189 (Pinnacle, no-vig)", tip.Caption);
+    }
+
+    [Fact]
+    public void The_books_are_rows_by_name_best_first_and_five_at_most()
+    {
+        var tip = Closing().FindComponent<DeskTooltip>().Instance;
+
+        // The cell's own book, then by value: +176, +175, +174 show; +173 and below are counted.
+        Assert.Equal(["BetRivers", "Pinnacle", "FanDuel", "Bovada", "DraftKings"], tip.Rows!.Select(r => r.Label));
+        Assert.Equal("+185", tip.Rows![0].Value);
+        Assert.Equal("−1.2% EV", tip.Rows![0].Qualifier);
+        Assert.Equal("+5 more in More bets", tip.Footnote);
+    }
+
+    [Fact]
+    public void The_cell_s_own_book_leads_and_is_the_one_emphasised_row()
+    {
+        var tip = Closing(book: "lowvig", american: 170).FindComponent<DeskTooltip>().Instance;
+
+        Assert.Equal(5, tip.Rows!.Count);
+        Assert.Equal("LowVig.ag", tip.Rows![0].Label);
+        Assert.True(tip.Rows![0].Emphasis);
+        Assert.Single(tip.Rows!, r => r.Emphasis);
+    }
+
+    [Fact]
+    public void What_a_screen_reader_hears_is_one_book_a_line_never_a_ribbon()
+    {
+        var text = Closing().FindComponent<DeskTooltip>().Instance.Text;
+        var lines = text.Split('\n');
+
+        Assert.Equal("Closing price", lines[0]);
+        Assert.Contains("BetRivers (best) +185, −1.2% EV", lines);
+        Assert.Equal("+5 more in More bets", lines[^1]);
+        Assert.DoesNotContain("BR ", text);
+    }
+
+    [Fact]
+    public void A_takeable_price_s_title_keeps_one_book_a_line()
+    {
+        var cut = RenderComponent<PriceCell>(p => p
+            .Add(x => x.Offer, Offer(book: "betrivers", american: 185, rungs: TenBooks))
+            .Add(x => x.OnTake, () => { }));
+
+        var title = cut.Find("button.price").GetAttribute("title")!;
+
+        Assert.StartsWith("Best price\n", title);
+        Assert.Contains("\nBetRivers (best) +185, −1.2% EV\n", title);
+        Assert.EndsWith("+5 more in More bets\nClick to log this price.", title);
+    }
+
     /// <summary>
     /// A live price nobody can take is a div, and a title on it reached a pointer only
     /// (HIG 12). It takes focus and says the same thing in a tooltip, with no title left to compete.
@@ -401,7 +491,7 @@ public class PriceCellTests : DeskTestContext
         var cell = cut.Find(".price");
         Assert.Equal("0", cell.GetAttribute("tabindex"));
         Assert.Null(cell.GetAttribute("title"));
-        Assert.Contains("DK -110", cut.FindComponent<DeskTooltip>().Instance.Text);
+        Assert.Contains("DraftKings -110", cut.FindComponent<DeskTooltip>().Instance.Text);
     }
 
     /// <summary>The muted cell must not also carry the native tooltip, or the two compete.</summary>
@@ -482,7 +572,7 @@ public class PriceCellTests : DeskTestContext
         var cut = RenderComponent<PriceCell>(p => p.Add(x => x.Offer,
             Offer(american: 110, rungs: Rung("draftkings", 110, 0.476)) with { Fair = FairCoin, Ev = 0.05 }));
 
-        Assert.StartsWith("Fair +100 (Pinnacle, no-vig)", cut.FindComponent<DeskTooltip>().Instance.Text);
+        Assert.Equal("Fair +100 (Pinnacle, no-vig)", cut.FindComponent<DeskTooltip>().Instance.Caption);
     }
 
     [Fact]

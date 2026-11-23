@@ -4133,20 +4133,54 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .pform--grouped .pform__keys { margin-left: 0; flex-direction: row-reverse; justify-content: flex-end; }
 
 /* ---- The grouped form: sections, groups and their rows ---------------------------------
-   Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
-   (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
-   body — one step up the ramp — edged by one 1px hairline, the way macOS draws a grouped form.
-   Rows inside a group are divided by an inset hairline that starts where the text does, not at
-   the group's edge. Sections are spaced a full --space-6 apart and a
-   header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
-   then the next section — the distinction is in the rhythm, not in boxes around boxes.
+   Built as Apple's grouped list: a window is a run of SECTIONS, each a filled group — a
+   section card. The group is --surface-2 on the --surface-1 body — one step up the ramp —
+   edged by one 1px hairline, the way macOS draws a grouped form. Its name sits inside it, in a
+   header bar at its top (.wgroup__bar: the title in the headline style, a key or filter
+   trailing), divided from the rows by one full-width hairline; rows inside are divided by an
+   inset hairline that starts where the text does, not at the group's edge. The footer that
+   explains a group sits under the card.
 
-   A settings column, a form of fields and a wizard's steps are all built from it; a check (a
-   mark leading a sentence) is one kind of row in it. */
+   The name used to be a quiet grey line standing outside the group (.wgroup__head, kept for
+   the windows that still spell it), and on a window of several sections they ran together
+   (user report, Nov 22): the card's own edge and its bar are what separate one section from
+   the next now, not a header floating in a gap.
+
+   Sections stack in a column (.wsections) or flow in cards (.wflow); a settings screen, a form
+   of fields and a wizard's steps are all built from them; a check (a mark leading a sentence)
+   is one kind of row in it. */
 
 .wsections { display: flex; flex-direction: column; gap: var(--space-6); }
 .wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
+
+/* The card flow: a window with several sections gives them as many columns as its width allows.
+   Each track is at least 420px — wide enough that a card's form rows keep their labels beside
+   their controls (they stack under 400px of card), a label column and a four-segment gate side
+   by side; at 360px every row of a settings card stacked and the card stood twice as tall — and
+   they share what is left, so a wide window gets more cards, never wider ones: at 1600px a
+   section is three cards across, not one box the width of the desk with its controls a screen apart (forms.md,
+   rule 8). auto-fill keeps the empty tracks, so two cards in a wide window stay two card-widths.
+   Cards align to the start of their row: a short card keeps its own height beside a tall
+   neighbour rather than stretching into an empty box. Under 420px the track is the window, and a ~680px window is one column. The
+   flow is a container, so a card that spans asks the flow's width, not the window's. */
+.wflow {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    align-items: start;
+    gap: var(--space-5) var(--space-4);
+    container-type: inline-size;
+    container-name: wflow;
+}
+/* A card whose body is a grid of its own (a library of tiles) takes the whole row. */
+.wflow > .wsection--span { grid-column: 1 / -1; }
+/* The one large card beside the card that leads the flow: the whole row while one track is all
+   there is, the rest of the first row once two fit (2 × 420px + the gap). It must be the flow's
+   second card; anything after it flows on beneath. */
+.wflow > .wsection--rest { grid-column: 1 / -1; }
+@container wflow (min-width: 856px) {
+    .wflow > .wsection--rest { grid-column: 2 / -1; }
+}
 
 /* The house rule on groups. A group is a fill one level above the body with one hairline edge:
    the HIG's grouped list (a secondary grouped background on the primary), drawn the way macOS
@@ -4187,6 +4221,107 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 .wgroup__row--pad { padding: var(--space-3); }
+
+/* The card's header bar: its name inside it, at its top, in the headline style — semibold, the
+   primary ink — with what qualifies the card trailing (a small key, a count, a segmented filter
+   over its rows). A full-width hairline divides it from the rows: it is the card's own threshold,
+   not a row, so it is not inset. Its fill sits between the card's and the body's — half a step
+   back down the ramp, in every family and both appearances, from the two tokens it lies between
+   — so the bar reads as the card's head and not as its first row. It wraps: in a narrow card the
+   filter drops beneath the title rather than squeezing it. */
+.wgroup__bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    min-height: var(--row-h);
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--surface-2) 50%, var(--surface-1));
+    border-bottom: 1px solid var(--separator);
+}
+.wgroup__title {
+    margin: 0;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--text-primary);
+}
+.wgroup__keys {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.wgroup__keys > .gate { max-width: 100%; }
+/* A bar with nothing but its keys keeps them at the leading edge, where the rows start. */
+.wgroup__bar > .wgroup__keys:first-child { margin-left: 0; }
+
+/* The split row: two compact, related controls side by side in one row (a mode beside an
+   accent), each cell its own label leading its control, divided by a vertical hairline inset
+   top and bottom as the row hairlines are inset at the leading edge. Under 720px of card — two
+   cells that each fit a label column and a three-segment gate — the cells stack and the divider turns into the ordinary inset row hairline: see the @container
+   block after the form-row rules. A split row with one cell is that cell, the whole row. */
+.wgroup__row.wgroup__split {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+}
+.wgroup__cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    /* One line while the cells are side by side or stacked: the split stacks before a cell would
+       wrap, so the two cells always lay out alike. Only under 400px does a label go above its
+       control, in both cells at once. */
+    flex-wrap: nowrap;
+    gap: var(--space-2) var(--space-3);
+    min-width: 0;
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+}
+.wgroup__cell > .gate { max-width: 100%; }
+/* The first cell's label takes the group's label column, so its control lines up with the
+   controls of the rows beneath it; the second cell's label is as wide as its word. */
+.wgroup__cell > .wgroup__label { flex: none; }
+.wgroup__cell:first-child > .wgroup__label { min-width: var(--form-label, 88px); }
+.wgroup__cell + .wgroup__cell::before {
+    content: "";
+    position: absolute;
+    top: var(--space-2);
+    bottom: var(--space-2);
+    left: 0;
+    border-left: 1px solid var(--separator);
+}
+
+/* What a card holds that is not a row. Each window that put one of these in a card wrote the same
+   three rules in its own scoped sheet (Nov 22); they are the card's, so they are here, once.
+
+   A table in a card: the card is its frame. A DeskGrid that is the card's own content starts its
+   text where the bar's title does — the card's inset less the cell's own (--deskgrid-inset, on
+   .deskgrid in mud-bridge.css) — and its last row's hairline stands down, because the card's edge
+   is under it: two lines a pixel apart read as a box inside the box. The rows above keep theirs;
+   they are the table's dividers, not a frame. The hairline rule outranks mud-bridge.css's
+   `.deskgrid .mud-table-body .mud-table-cell` by weight, not by order, because mud-bridge.css
+   loads after this sheet (the seam, mudblazor-seam.md). */
+.wgroup > .deskgrid { padding-inline: calc(var(--space-4) - var(--deskgrid-inset)); }
+.wgroup .deskgrid .mud-table-body .mud-table-row:last-child > .mud-table-cell { border-bottom: 0; }
+
+/* A sentence that is the card's whole content — an all-clear, an empty timeline — sits at the
+   rows' inset, not against the card's edge. One inside a row is that row's, and keeps the row's
+   inset instead. */
+.wgroup .empty:not(.wgroup__row .empty) { margin: 0; padding: var(--space-3) var(--space-4); }
+
+/* An inline confirm that is a row of the card starts at the labels' edge, as the rows around it do. */
+.wgroup > .confirm { padding: var(--space-2) var(--space-4); }
 
 /* A form row: the label leads in one column the whole group shares, so the controls line
    up down the page; the control takes the rest. --form-label is the group's to set. */
@@ -4251,6 +4386,32 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
 }
 
+/* A split row in a card narrower than its two cells stacks them, the second under the first,
+   divided as any two rows are: by the inset hairline from the leading edge, not the vertical one. */
+@container (max-width: 720px) {
+    .wgroup__row.wgroup__split { grid-auto-flow: row; grid-auto-columns: auto; }
+    .wgroup__cell + .wgroup__cell::before {
+        top: 0;
+        bottom: auto;
+        left: var(--space-4);
+        right: 0;
+        border-left: 0;
+        border-top: 1px solid var(--separator);
+    }
+    .wgroup__cell > .wgroup__label { min-width: var(--form-label, 88px); }
+}
+/* Narrower still, a cell's label stacks above its control, as a form row's does at this width. */
+@container (max-width: 400px) {
+    .wgroup__cell { flex-wrap: wrap; }
+    .wgroup__cell > .wgroup__label,
+    .wgroup__cell:first-child > .wgroup__label {
+        flex-basis: 100%;
+        min-width: 0;
+        font-size: var(--text-subheadline);
+        color: var(--text-secondary);
+    }
+}
+
 /* ---- The checks: a grouped list of facts, a mark leading each row. */
 /* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
    right-aligned, instead of pinching the sentence into a column one word wide. */
@@ -4278,10 +4439,15 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
 /* A narrow group (a window beside two others, ~300-480px) gives its inset back to its
-   controls: the rows and the footer under the group take --space-3 rather than --space-4,
-   and the footer steps down to footnote size. */
+   controls: the rows, the bar, the split cells, a table, a lone sentence, a confirm and the
+   footer under the group take --space-3
+   rather than --space-4, and the footer steps down to footnote size. */
 @container (max-width: 480px) {
     .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup__cell, .wgroup__bar { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup > .confirm { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup .empty:not(.wgroup__row .empty) { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup > .deskgrid { padding-inline: calc(var(--space-3) - var(--deskgrid-inset)); }
     .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
 }
 
@@ -4740,18 +4906,18 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --btn-ink: var(--accent-ink);
 }
 
-/* The inline answer. Inset from the row so it reads as belonging to it rather
-   than as the next row along.
+/* The inline answer, on the section-card contract (ADR 0032). Inset from the row so it reads as
+   belonging to it rather than as the next row along.
 
-   A fill one step above the panel body (--surface-2, a grouped list's secondary
-   background) and no border: it opens inside a ruled table, and a framed block there is a
-   box inside the grid's rules. Its bar shares the fill and is parted from the body by
-   one hairline, as a grouped list's rows are. */
+   The shell itself draws nothing: it is a .wsection, and what it holds is either one card — the
+   default, .snippet__card, a .wgroup with the name in its header bar and the answer as its rows —
+   or, for content that draws cards of its own (.snippet--panes), an unframed pane header over
+   them, because a card inside a card is the one nesting the house rule forbids. Either way the
+   title is the card bar's title, in the headline voice, so a drawer under a row and a window's
+   sections read alike. It used to be a fill with no edge under a footnote-sized grey bar with a
+   symbol: the last frame on the desk that was not a card. */
 .snippet {
-    margin: 8px 0 4px;
-    background: var(--surface-2);
-    border-radius: var(--radius);
-    overflow: hidden;
+    margin: var(--space-2) 0 var(--space-1);
 }
 
 /* The snippet arrives rather than appears: it fades in from 4px above, the side its key is
@@ -4776,29 +4942,23 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .snippet--arrive { animation-name: snippet-fade; }
 }
 
-.snippet__bar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--separator);
-    font-size: var(--text-footnote);
-}
-
-.snippet__icon { display: inline-flex; color: var(--text-secondary); }
+/* The bar is a card's bar (.wgroup__bar, .wgroup__title, .wgroup__keys); it only keeps the
+   escape's symbol sized and the note beside the title. */
+.snippet__bar { flex-wrap: nowrap; }
 
 /* Glyph draws a bare <svg> with no size of its own; in the bar's flex row it collapsed to
-   nothing beside a short title and swelled beside a long one. Sized as the bar's type. */
-.snippet__icon svg, .snippet__open svg { width: 14px; height: 14px; flex: 0 0 auto; }
-
-.snippet__title {
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-}
+   nothing beside a short title and swelled beside a long one. Sized as the key's type. */
+.snippet__open svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
 .snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); min-width: 0; }
-.snippet__spacer { flex: 1 1 auto; }
+
+/* Over cards of its own the bar is a pane header: the same title and key, no fill and no edge,
+   aligned with the cards' own bars below it. */
+.snippet--panes > .snippet__bar {
+    padding-inline: var(--space-1);
+    background: none;
+    border-bottom: 0;
+}
 
 /* The snippet asks how wide it is, not the window: the same answer opens in a list's full-width
    row and in a window beside two others. A container of its own also means its content cannot
@@ -4820,15 +4980,14 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     }
     .snippet__open { flex: none; justify-content: center; width: var(--control-h-sm); padding: 0; }
 
-    /* The note takes a line of its own under the title, starting where the title does (past
-       the 14px symbol and the bar's gap), rather than squeezing into a third of a line beside
-       it and breaking a short sentence over three. */
+    /* The note takes a line of its own under the title rather than squeezing into a third of a
+       line beside it and breaking a short sentence over three. */
     .snippet__bar { flex-wrap: wrap; row-gap: 0; }
-    .snippet__note { order: 1; flex: 1 1 100%; padding-left: calc(14px + var(--space-2)); }
+    .snippet__note { order: 1; flex: 1 1 100%; }
 }
 
-/* The escape hatch. Quiet by default — the snippet is usually the answer, and a
-   loud "open window" would suggest otherwise. */
+/* The escape hatch: the bar's one trailing key. Quiet by default — the snippet is usually the
+   answer, and a loud "open window" would suggest otherwise. */
 .snippet__open {
     display: inline-flex;
     align-items: center;
@@ -4850,7 +5009,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    been chosen yet. */
 .snippet__open:hover { color: var(--text-primary); background: var(--surface-3); }
 
-.snippet__body { padding: var(--space-2); }
+/* In the card the answer is its rows, inset as a card's rows are; over cards of its own the
+   body adds nothing, and the cards bring their own padding. */
+.snippet__card > .snippet__body { padding: var(--space-2) var(--space-3); }
+.snippet--panes > .snippet__body { padding: 0; }
 
 /* A row of labelled readings, for a single record expanded. */
 .snippet__facts {
@@ -5333,48 +5495,32 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     transform: rotate(45deg);
 }
 
-/* The picker's groups: a quiet heading over each wrap of tiles, one column of them, so twenty
-   families read as two or three short shelves rather than one long run. */
-.themes { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
-.themes__group { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.themes__head {
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-medium);
-    color: var(--text-secondary);
-}
+/* The picker is one grid of tiles, as wide as it is given: ninety-six pixels a tile at least,
+   sharing what is left. It was four shelves under quiet headings, and the shelves were ragged —
+   rows of two, five, five and one; the headings are a filter over the one grid now
+   (DeskThemePicker's Group), so every row is full but the last. */
+.themes.swatches { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); min-width: 0; }
+.wgroup__row--pad > .themes { flex: 1 1 auto; }
 
 /* ---- The Window manager: grouped settings -------------------------------------
-   The Window manager is a settings screen, so it is the task windows' grouped form
-   (.wsections, .wgroup, .wgroup__row--form, .wgroup__foot) and nothing new: a column of
-   groups, each a fill with its labels leading in one column and its controls trailing, the
-   explanation as the group's footer. What is here is only what a settings column needs that
-   a task form does not.
+   The Window manager is a settings screen, so it is the task windows' grouped form in the card
+   flow (.wflow of FormGroup section cards, .wgroup__row--form, .wgroup__split, .wgroup__foot)
+   and nothing new: groups, each a card with its name in its bar, its labels leading in one
+   column and its controls trailing, the explanation as the card's footer. What is here is only
+   what a settings screen needs that a task form does not.
 
-   The column stops at a form's width (forms.md, rule 8). At 1600px the picker ran 1584px and
-   each sentence of explanation ran the whole window; a label and its control were a screen
-   apart. The label column is in ems so it grows with Text size rather than letting "Fits
-   readably" run into its value at 140%. */
-.wm { --form-label: 8em; max-width: 680px; }
+   It was one column stopped at a form's width (680px); at 1600px that left the right half of the
+   window empty and the sections stacked a long way down. The flow now caps each card, not the
+   window: more columns as it widens, so a label and its control stay within one glance and no
+   sentence of explanation runs the width of the desk. The label column is in ems so it grows
+   with Text size rather than letting "Fits readably" run into its value at 140%. */
+.wm { --form-label: 8em; }
 
 /* A pop-up is as wide as its longest choice, and a key as wide as its words: a grid item
    stretches by default, so both ran the whole control column. .field is width:100% for the
    forms it fills, which is why the select has to say so here. */
 .wm .wgroup__row--form > select.field { width: auto; max-width: 100%; justify-self: start; }
 .wm .wgroup__row--form > .desk-btn { justify-self: start; }
-
-/* A row whose control is taller than one line (the theme tiles) keeps its label beside the
-   first line, as macOS settings do, rather than centred on the whole block. Doubled with the
-   form row's class because .wgroup__row--form is declared later in this file and would
-   otherwise win at the same weight. Stacked in a narrow group, the label sits on the tiles. */
-.wgroup__row--form.wm-row--top { align-items: start; }
-.wm-row--top > .wgroup__label { padding-top: var(--space-3); }
-@container (max-width: 400px) {
-    .wm-row--top > .wgroup__label { padding-top: 0; }
-}
-
-/* The theme tiles inside the control column: five fit one line at a form's width, under each of
-   the picker's headings, and they wrap two to three a line in a narrow window. */
-.wm .swatches { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); padding: var(--space-2) 0; }
 
 /* A reading in a settings row: the value in the primary label colour, tabular, with its
    qualifier in secondary beside it. The warning ink lands on the number only, and the note
@@ -5589,7 +5735,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     }
 
     /* Surfaces that were cards by their fill or their shadow alone: windows, floating panels,
-       sheets, notes, notices and the answer under a row. A group or a metric already carries
+       sheets, notes and notices. A group, a metric or the answer under a row (a card) already carries
        its one hairline, and the browser keeps it in CanvasText. */
     :root .win,
     :root .popover__panel,
@@ -5600,8 +5746,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     :root .mud-dialog.desk-sheet,
     :root .desk-alert,
     :root .toast,
-    :root .note,
-    :root .snippet {
+    :root .note {
         outline: 1px solid CanvasText;
         outline-offset: -1px;
     }

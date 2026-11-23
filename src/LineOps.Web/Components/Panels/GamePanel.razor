@@ -45,7 +45,22 @@ else
     var isLive = game.Status == GameStatus.Live;
     var situation = PlayState.Situation(game);
     var lastPlay = PlayState.LastPlay(game);
+    var (lineHome, lineAway) = Linescores.Parse(_bout is null && game.Status is GameStatus.Live or GameStatus.Final ? game.Linescore : null);
 
+    @*
+        The window is a flow of cards (.wflow): the matchup, the score by period, head to head, the
+        lines (two tracks once two fit), team data and your bets each one card, as many across as
+        the window's width allows, so a wide window gets more cards rather than wider ones; the
+        players, a box score or a fight's tale of the tape take the row beneath, centred.
+        It was one column of loose parts — the teams undivided, the date floating under them, Place
+        wager a screen away at the far edge, and the sections running together (user mock-up, Nov 22).
+    *@
+    <div class="wflow gamewin">
+    @* The matchup card: any tags on the first line, the two teams divided by an inset hairline,
+       and at its foot one quiet line — when it starts and which season it counts toward, or the
+       state of play — with the keys that open its companion windows trailing inside the card. *@
+    <div class="wsection gamecard">
+    <div class="wgroup">
     <PanelTitle>
         <ChildContent>
             @* Two rows, away over home, the winner heavier than the loser. *@
@@ -123,9 +138,9 @@ else
             }
         </Detail>
         <Keys>
-            @* Only what applies whichever tab is showing. Movement opens under each market's row
-               and Head to head under the title, in place rather than in windows of their own;
-               the season switch heads the two panes it chooses for (Team data, Players). *@
+            @* Only what applies to the whole game. Movement opens under each market's row and
+               Head to head in its own card, in place rather than in windows of their own; the
+               season switch sits in the two blocks it chooses for (Team data, Players). *@
             <DeskRow data-glide="">
                 @* The game play by play, in a window of its own beside this one. Offered for an
                    NFL game once it has kicked off (GamecastPanel.Offered): a final keeps the key,
@@ -149,84 +164,126 @@ else
             </DeskRow>
         </Keys>
     </PanelTitle>
+    </div>
+    </div>
 
     @* The score by period, once one has been played: the Gamecast's own part, so the two windows
-       word a quarter, an inning and a total the same way. A fight has rounds but no points by
-       round, and a game the feed holds no line score for draws nothing. *@
-    @if (_bout is null && game.Status is GameStatus.Live or GameStatus.Final)
+       word a quarter, an inning and a total the same way, here as a card of its own beside the
+       matchup. A fight has rounds but no points by round, and a game the feed holds no line score
+       for draws nothing — not even an empty card. *@
+    @if (lineHome.Count > 0 || lineAway.Count > 0)
     {
-        var (lineHome, lineAway) = Linescores.Parse(game.Linescore);
-        <Linescore Sport="@game.Sport?.Key"
-                   AwayAbbrev="@(game.AwayTeam?.Abbrev ?? "Away")" HomeAbbrev="@(game.HomeTeam?.Abbrev ?? "Home")"
-                   Away="lineAway" Home="lineHome"
-                   AwayTotal="game.AwayScore" HomeTotal="game.HomeScore" />
+        <div class="wsection gamescore">
+            <div class="wgroup">
+                <Linescore Sport="@game.Sport?.Key" Class="linescore--inset"
+                           AwayAbbrev="@(game.AwayTeam?.Abbrev ?? "Away")" HomeAbbrev="@(game.HomeTeam?.Abbrev ?? "Home")"
+                           Away="lineAway" Home="lineHome"
+                           AwayTotal="game.AwayScore" HomeTotal="game.HomeScore" />
+            </div>
+        </div>
     }
 
-    @* The matchup's history, about the game rather than any one tab of it, so it sits under the
-       title and stays put while the tabs switch below. Closed it is one line carrying the
-       record; open, the last meetings, with the full record one key further. *@
+    @* The matchup's history, about the game rather than any one part of it. Closed it is one row
+       carrying the record; open, the last meetings, with the full record one key further. A card
+       of its own (GameHeadToHead). *@
     <GameHeadToHead GameId="GameId" HomeName="@SideName(true)" AwayName="@SideName(false)"
                     IsFight="@(_bout is not null)"
                     Sport="@game.Sport?.Key" HomeAbbrev="@game.HomeTeam?.Abbrev" AwayAbbrev="@game.AwayTeam?.Abbrev"
                     OnOpenWindow="() => Manager.OpenHeadToHead(GameId, WindowShortcuts.Describe(game), WindowId)" />
 
-    @* The journal wired into the desk: what you have riding on this game, where you are
-       looking at it, rather than in a list in another window. Up to two bets show as rows;
-       from three they fold behind one line that says what is riding, so a busy game's bets
-       do not push its lines below the fold. *@
-    @if (_bets.Count > 0)
+    @* The lines and the team data are cards of the overview, beside the matchup, rather than two
+       small cards behind two tabs while three quarters of a wide window stood empty (user, Nov 22).
+       The lines take two tracks once two fit (.gamewin__pair), so a side's number and price stay
+       on one line and an opened market has the room it needs. *@
+    @RenderMarkets(isLive)
+
+    @if (_bout is null && (HasTeamData || _seasonOptions.Count > 1))
     {
-        <PanelSection>
-        <TitleContent>
-            Your bets on this game
-            <DeskLink Destination="journal" OnClick="() => Manager.OpenJournal()">Journal</DeskLink>
-        </TitleContent>
-        <ChildContent>
-        @if (_bets.Count >= FoldBetsAt)
-        {
-            <DeskDisclosure Label="@BetsSummary(_bets)" @bind-Open="_betsOpen">
-                @RenderBets()
-            </DeskDisclosure>
-        }
-        else
-        {
-            @RenderBets()
-        }
-        </ChildContent>
-        </PanelSection>
+        @RenderTeamData()
     }
 
-    <DeskTabs TValue="Section" Tabs="@SectionsFor(isLive)" Label="Game sections"
-              @bind-Value="_section">
-        @if (context == Section.Markets)
-        {
-            @RenderMarkets()
-        }
-        else if (context == Section.Tape)
-        {
-            <TaleOfTheTape GameId="GameId" OnFighter="@(((int TeamId, string Name) f) => Manager.OpenTeam(f.TeamId, f.Name, WindowId))" />
-        }
-        else if (context == Section.TeamData)
-        {
-            @RenderSeason()
-            @RenderTeamData()
-        }
-        else
-        {
-            @RenderSeason()
-            @RenderPlayers()
-        }
-    </DeskTabs>
+    @* The journal wired into the desk: what you have riding on this game, where you are
+       looking at it, rather than in a list in another window. A card: its name in the bar, the
+       Journal link trailing it, a row per bet. Up to two bets show as rows; from three they fold
+       behind one row that says what is riding, so a busy game's bets do not push its lines below
+       the fold. *@
+    @if (_bets.Count > 0)
+    {
+        <section class="wsection gamebets" aria-labelledby="@BetsHeadingId">
+            <div class="wgroup">
+                <div class="wgroup__bar">
+                    <h3 class="wgroup__title" id="@BetsHeadingId">Your bets on this game</h3>
+                    <div class="wgroup__keys">
+                        <DeskLink Destination="journal" OnClick="() => Manager.OpenJournal()">Journal</DeskLink>
+                    </div>
+                </div>
+                @if (_bets.Count >= FoldBetsAt)
+                {
+                    <div class="wgroup__row gamebets__fold">
+                        <DeskDisclosure Label="@BetsSummary(_bets)" @bind-Open="_betsOpen">
+                            @RenderBets()
+                        </DeskDisclosure>
+                    </div>
+                }
+                else
+                {
+                    @RenderBets()
+                }
+            </div>
+        </section>
+    }
+
+    @* What genuinely needs the whole row takes it, beneath the overview: the players (or the box
+       score), and for a fight the tale of the tape and the fight stats. The block is centred at a
+       table's reading width, not the window's (.gameroster__block), and from a wide flow the away
+       side reads left and the home side right, each a stack of its cards. Only a fight has two
+       wide readings to switch between, so only a fight has tabs, and they sit on the block's own
+       leading edge. *@
+    @if (_bout is not null)
+    {
+        <div class="wsection wsection--span gameroster">
+            <div class="gameroster__block">
+                <DeskTabs TValue="Section" Tabs="@FightSections" Label="Fight sections" @bind-Value="_section">
+                    @if (context == Section.Tape)
+                    {
+                        <TaleOfTheTape GameId="GameId" OnFighter="@(((int TeamId, string Name) f) => Manager.OpenTeam(f.TeamId, f.Name, WindowId))" />
+                    }
+                    else
+                    {
+                        <div class="gameroster__cols">
+                            @RenderBoxScore()
+                        </div>
+                    }
+                </DeskTabs>
+            </div>
+        </div>
+    }
+    else if (HasBox || HasRoster)
+    {
+        <div class="wsection wsection--span gameroster">
+            <PanelSection Class="gameroster__block" Title="@(HasBox ? "Box score" : "Players")"
+                          Keys="@(!HasBox && _seasonOptions.Count > 1 ? RenderSeason("Season for player data") : null)">
+                <div class="gameroster__cols">
+                    @RenderPlayers()
+                </div>
+            </PanelSection>
+        </div>
+    }
+    </div>
 }
 
 @code {
-    /// <summary>The bet rows, folded or not.</summary>
+    /// <summary>The bets card's heading, which names its section; one per window.</summary>
+    private string BetsHeadingId => $"gamebets-{_uid}";
+
+    private readonly string _uid = Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>The bet rows, folded or not: a card row each, divided by inset hairlines.</summary>
     private RenderFragment RenderBets() => @<text>
-        <DeskStack Gap="DeskSpace.Space1">
             @foreach (var bet in _bets)
             {
                 var clv = PerformanceAnalytics.ComputeClv(bet);
-                <DeskRow Gap="DeskSpace.Space2">
+                <div class="wgroup__row gamebets__row">
                     @if (ResultTag.Of(bet.Result) is { } settled)
                     {
                         <ResultTag Result="@settled">@bet.Result</ResultTag>
@@ -254,9 +311,8 @@ else
                             @(c.SameNumber ? c.CentsPercent.ToString("+0.0;-0.0") + "% CLV" : c.PointsGained!.Value.ToString("+0.#;-0.#") + " pts CLV")
                         </span>
                     }
-                </DeskRow>
+                </div>
             }
-        </DeskStack>
     </text>;
 
     protected override string LoadSubject => "The game";
@@ -351,10 +407,10 @@ else
     private TeamForm? _homeTeam;
     private TeamForm? _awayTeam;
 
-    /// <summary>Which of the three readings is on screen. See <see cref="SectionsFor"/>.</summary>
-    private enum Section { Markets, TeamData, Players, Tape }
+    /// <summary>Which of a fight's two wide readings is on screen. See <see cref="FightSections"/>.</summary>
+    private enum Section { Tape, Stats }
 
-    private Section _section = Section.Markets;
+    private Section _section = Section.Tape;
 
     private bool HasBox => _box is not null && !_box.IsEmpty;
 
@@ -364,34 +420,15 @@ else
         => (_homeTeam?.Recent.Count ?? 0) > 0 || (_awayTeam?.Recent.Count ?? 0) > 0;
 
     /// <summary>
-    /// The sections this game actually has.
-    ///
-    /// <para>
-    /// Markets is always offered: an unpriced game still answers "what is the number" —
-    /// with the reason there isn't one. The other two are dropped when the window holds
-    /// nothing for them, so a tab never opens onto an empty panel.
-    /// </para>
-    ///
-    /// <para>
-    /// Only the first label turns on whether the game is under way. Before a game the
-    /// prices are the lines being offered; during one, what is still open to bet — same
-    /// section, different question, and the tab is where that gets said.
-    /// </para>
+    /// A fight's wide readings (ADR 0021): no team data or rosters — the two fighters side by
+    /// side, and once it is over, each one's fight stats. The lines are a card of the overview
+    /// above, for a fight as for a game, so they are no tab. A game has one wide reading (the
+    /// players, or the box score), which needs no tabs at all.
     /// </summary>
-    private IReadOnlyList<DeskTab<Section>> SectionsFor(bool isLive) => _bout is not null
-        ?
-        [
-            // A fight (ADR 0021): no team data or rosters — the two fighters side by side, and
-            // once it is over, each one's fight stats.
-            new(Section.Markets, isLive ? "Top bets" : "Lines"),
-            new(Section.Tape, "Tale of the tape"),
-            new(Section.Players, "Fight stats", HasBox)
-        ]
-        :
+    private IReadOnlyList<DeskTab<Section>> FightSections =>
     [
-        new(Section.Markets, isLive ? "Top bets" : "Lines"),
-        new(Section.TeamData, "Team data", HasTeamData),
-        new(Section.Players, HasBox ? "Box score" : "Players", HasBox || HasRoster)
+        new(Section.Tape, "Tale of the tape"),
+        new(Section.Stats, "Fight stats", HasBox)
     ];
 
     /// <summary>The card and result when this game is a fight; null for a team sport.</summary>
@@ -461,6 +498,7 @@ else
         {
             _ids = NoticeTokens.Narrow([GameId], DataTopics.Games, DataTopics.Odds);
             _gameKey = key;
+            _expandedMarkets.Clear();
         }
 
         await LoadAsync();
@@ -543,11 +581,27 @@ else
         _ => DeskState.Info
     };
 
-    @* The tab bar names each of these now, so none of them repeats it as a heading. *@
-    private RenderFragment RenderMarkets() => @<text>
+    /// <summary>The lines card's heading, which names its section; one per window.</summary>
+    private string LinesHeadingId => $"gamelines-{_uid}";
+
+    /// <summary>The team data card's heading.</summary>
+    private string TeamsHeadingId => $"gameteams-{_uid}";
+
+    @* The lines, a card of the overview named in its bar. Only the name turns on whether the game
+       is under way: before it the prices are the lines being offered, during it what is still open
+       to bet — the same card, a different question, and the bar is where that gets said. An
+       unpriced game still answers "what is the number", with the reason there isn't one. *@
+    private RenderFragment RenderMarkets(bool isLive) => @<text>
         @if (_row!.Unpriced is { } reason)
         {
-            <Note State="DeskState.Warning">@reason</Note>
+            <section class="wsection gamelines" aria-labelledby="@LinesHeadingId">
+                <div class="wgroup">
+                    <div class="wgroup__bar">
+                        <h3 class="wgroup__title" id="@LinesHeadingId">@(isLive ? "Top bets" : "Lines")</h3>
+                    </div>
+                    <EmptyState>@reason</EmptyState>
+                </div>
+            </section>
         }
         else
         {
@@ -564,8 +618,11 @@ else
                 disclosure under its row, and the Line movement window. A live price is a door: pressed, it opens the wager
                 window on that side at that book, as the Board's prices do.
             *@
-            <section class="wsection gamelines">
+            <section class="wsection gamelines gamewin__pair" aria-labelledby="@LinesHeadingId">
                 <div class="wgroup">
+                    <div class="wgroup__bar">
+                        <h3 class="wgroup__title" id="@LinesHeadingId">@(isLive ? "Top bets" : "Lines")</h3>
+                    </div>
                     @* A game reads away then home, as its title does; a fight reads red corner
                        (home) first, as its card bills it and the Board's row now leads (ADR 0021). *@
                     @if (_bout is null)
@@ -626,6 +683,8 @@ else
                                 First="first" Second="second" FirstSide="@firstSide" SecondSide="@secondSide"
                                 Sport="@_row!.Game.Sport?.Key" FirstAbbrev="@(total ? null : firstAbbrev)" SecondAbbrev="@(total ? null : secondAbbrev)"
                                 Closing="@_row!.PricesAreClosing" PricedAt="@_row.PricedAt"
+                                Expanded="@_expandedMarkets.Contains(key)"
+                                ExpandedChanged="@((bool all) => SetMarketExpanded(key, all))"
                                 OnOpenWindow="() => Manager.OpenMovement(GameId, WindowShortcuts.Describe(_row.Game))" />
             </div>
         }
@@ -635,6 +694,21 @@ else
     private string? _openMarket;
 
     private void ToggleMarket(string market) => _openMarket = _openMarket == market ? null : market;
+
+    /// <summary>
+    /// The markets showing every book rather than the first five (MarketMovement's View more),
+    /// kept by the window so a market closed and opened again comes back as it was left. Cleared
+    /// when the window is aimed at another game: its books are another market's.
+    /// </summary>
+    private readonly HashSet<string> _expandedMarkets = [];
+
+    private void SetMarketExpanded(string market, bool all)
+    {
+        if (all)
+            _expandedMarkets.Add(market);
+        else
+            _expandedMarkets.Remove(market);
+    }
 
     /// <summary>From this many bets the rows fold behind one line; two rows fold to nothing smaller.</summary>
     private const int FoldBetsAt = 3;
@@ -664,19 +738,18 @@ else
     }
 
     /// <summary>
-    /// Which season the team data and rosters are drawn from, heading the two panes it chooses
-    /// for. It sat on the title's row, four controls wide on every tab, while the lines never
-    /// read it. Hides itself for a fight, which has no season (ADR 0021), and when there is one
-    /// season to draw on.
+    /// Which season the team data and rosters are drawn from, in the bar of each block it
+    /// chooses for — the Team data card and the Players block — rather than stranded at the
+    /// window's far left above them. Both switches are the one choice: moving either moves both.
+    /// It sat on the title's row, four controls wide, while the lines never read it. Hides itself
+    /// for a fight, which has no season (ADR 0021), and when there is one season to draw on.
     /// </summary>
-    private RenderFragment RenderSeason() => @<text>
+    private RenderFragment RenderSeason(string label) => @<text>
         @if (_bout is null && _seasonOptions.Count > 1)
         {
-            <div class="gamepane__switches">
-                <DeskSwitch Options="_seasonOptions" Label="Season for team and player data" Mono="true"
-                            Size="DeskKeySize.Small"
-                            Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
-            </div>
+            <DeskSwitch Options="_seasonOptions" Label="@label" Mono="true"
+                        Size="DeskKeySize.Small"
+                        Value="_seasonYear ?? 0" ValueChanged="@((int year) => SetSeasonAsync(year))" />
         }
     </text>;
 
@@ -734,11 +807,15 @@ else
             }
             else
             {
-                @if (offer.Line is { } line)
-                {
-                    <span>@(total ? Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : OddsMath.FormatLine(line, offer.Outcome))</span>
-                }
-                <span>@OddsMath.FormatPrice(offer.PriceAmerican)</span>
+                @* The number and its price are one reading and never part on a wrap: in a narrow
+                   card the pair drops beneath the side's name whole, never "+3.5" over "−105". *@
+                <span class="gamelines__num">
+                    @if (offer.Line is { } line)
+                    {
+                        <span>@(total ? Math.Abs(line).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : OddsMath.FormatLine(line, offer.Outcome))</span>
+                    }
+                    <span>@OddsMath.FormatPrice(offer.PriceAmerican)</span>
+                </span>
             }
         </span>
         <span class="gamelines__book@(crested ? " gamelines__book--crested" : "")">
@@ -806,15 +883,26 @@ else
         => $"{SeasonCalendar.Label(game.Sport?.Key ?? string.Empty, game.SeasonYear)} "
            + (game.SeasonType == SeasonType.Postseason ? "postseason" : "season");
 
+    @* One card, a row per side, away then home as the title reads, divided by an inset hairline.
+       They were two loose stacks side by side with nothing to say they were one reading. *@
     private RenderFragment RenderTeamData() => @<text>
-        <DeskRow Gap="DeskSpace.Space6">
-            @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away", SideAbbrev(false))
-            @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home", SideAbbrev(true))
-        </DeskRow>
+        <section class="wsection gameteams" aria-labelledby="@TeamsHeadingId">
+            <div class="wgroup">
+                <div class="wgroup__bar">
+                    <h3 class="wgroup__title" id="@TeamsHeadingId">Team data</h3>
+                    @if (_seasonOptions.Count > 1)
+                    {
+                        <div class="wgroup__keys">@RenderSeason("Season for team data")</div>
+                    }
+                </div>
+                @RenderTeamRecord(_awayTeam, _row!.Game.AwayTeamId, _row.Game.AwayTeam?.Name ?? "Away", SideAbbrev(false))
+                @RenderTeamRecord(_homeTeam, _row.Game.HomeTeamId, _row.Game.HomeTeam?.Name ?? "Home", SideAbbrev(true))
+            </div>
+        </section>
     </text>;
 
     private RenderFragment RenderTeamRecord(TeamForm? form, int teamId, string name, string? abbrev) => @<text>
-        <DeskStack Gap="DeskSpace.Space1" Align="DeskAlign.Start">
+        <div class="wgroup__row gameteams__row">
             @* The crest before the link, not inside it: the link's hover rule runs under its label,
                and a crest is not part of what is pressed. *@
             <span class="gameteam__name">
@@ -838,7 +926,7 @@ else
                     <FormRun Log="@FormResult.From(form.Recent)" />
                 </DeskRow>
             }
-        </DeskStack>
+        </div>
     </text>;
 
     /// <summary>
@@ -854,23 +942,37 @@ else
     private RenderFragment RenderPlayers() => @<text>
         @if (HasBox)
         {
+            @RenderBoxScore()
+        }
+        else
+        {
+            @* Two columns, away then home as the title reads, each a stack of the side's cards; one
+               column, away above home, in a narrower flow (.gameroster__cols). A roster in units
+               where the sport names them (NFL): a back read under columns chosen by the side's
+               defenders showed a row of dashes. *@
+            <div class="gameroster__side" data-side="away">
+                @foreach (var (unit, players) in Units(_matchup!.Away))
+                {
+                    @RenderRoster(players, Titled(_row!.Game.AwayTeam?.Name ?? "Away", unit), SideAbbrev(false))
+                }
+            </div>
+            <div class="gameroster__side" data-side="home">
+                @foreach (var (unit, players) in Units(_matchup.Home))
+                {
+                    @RenderRoster(players, Titled(_row!.Game.HomeTeam?.Name ?? "Home", unit), SideAbbrev(true))
+                }
+            </div>
+        }
+    </text>;
+
+    /// <summary>The box score, a card a side: the two columns of .gameroster__cols, away first.</summary>
+    private RenderFragment RenderBoxScore() => @<text>
+        @if (HasBox)
+        {
             <BoxScoreSide Side="_box!.Away" Team="@(_row!.Game.AwayTeam?.Name ?? "Away")" OnPlayer="OpenBoxPlayer"
                           Sport="@_row.Game.Sport?.Key" Abbrev="@SideAbbrev(false)" />
             <BoxScoreSide Side="_box.Home" Team="@(_row.Game.HomeTeam?.Name ?? "Home")" OnPlayer="OpenBoxPlayer"
                           Sport="@_row.Game.Sport?.Key" Abbrev="@SideAbbrev(true)" />
-        }
-        else
-        {
-            @* A roster in units where the sport names them (NFL): a back read under columns
-               chosen by the side's defenders showed a row of dashes. *@
-            @foreach (var (unit, players) in Units(_matchup!.Away))
-            {
-                @RenderRoster(players, Titled(_row!.Game.AwayTeam?.Name ?? "Away", unit), SideAbbrev(false))
-            }
-            @foreach (var (unit, players) in Units(_matchup.Home))
-            {
-                @RenderRoster(players, Titled(_row!.Game.HomeTeam?.Name ?? "Home", unit), SideAbbrev(true))
-            }
         }
     </text>;
 

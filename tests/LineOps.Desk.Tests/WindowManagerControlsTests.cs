@@ -16,28 +16,42 @@ public class WindowManagerControlsTests : DeskTestContext
 {
     private WindowManager Manager => Services.GetRequiredService<WindowManager>();
 
+    /// <summary>
+    /// The themes are their own card: one grid, one radiogroup, its tiles filtered by a segmented
+    /// control in the card's header bar — All, then the catalogue's headings — which opens on
+    /// All, so a card spanning a wide row is never a large box holding two tiles. No shelves, no headings.
+    /// </summary>
     [Fact]
-    public void Swatches_are_one_radiogroup_filed_under_the_catalogue_s_headings()
+    public void Swatches_are_one_radiogroup_filtered_from_the_themes_card_s_bar()
     {
         var cut = RenderComponent<WindowManagerPanel>();
+
+        var card = cut.FindAll(".wm > .wsection").Single(s => s.QuerySelector(".themes") is not null);
+        Assert.Equal("Themes", card.QuerySelector(".wgroup__bar > .wgroup__title")!.TextContent.Trim());
+        Assert.Contains("wsection--rest", card.ClassList);
+
+        var filter = card.QuerySelector(".wgroup__bar > .wgroup__keys [role=radiogroup]")!;
+        Assert.Equal("Show themes", filter.GetAttribute("aria-label"));
+        Assert.Equal(["All", .. DeskThemeFamilies.Groups], filter.QuerySelectorAll(".gate__opt").Select(o => o.TextContent.Trim()));
+        // It opens on All: one heading's tiles in a card that spans the row were an empty box.
+        Assert.Equal("All", filter.QuerySelector("[aria-checked=true]")!.TextContent.Trim());
 
         var group = cut.Find(".themes");
         Assert.Equal("radiogroup", group.GetAttribute("role"));
         Assert.Equal("Theme", group.GetAttribute("aria-label"));
+        Assert.Empty(cut.FindAll(".themes__group, .themes__head"));
 
-        // One heading per group, in the catalogue's order, each naming the radios inside it.
-        var groups = group.QuerySelectorAll(".themes__group");
-        Assert.Equal(DeskThemeFamilies.Groups, groups.Select(g => g.QuerySelector(".themes__head")!.TextContent.Trim()));
-        Assert.All(groups, g =>
-        {
-            Assert.Equal("group", g.GetAttribute("role"));
-            Assert.Equal(g.QuerySelector(".themes__head")!.Id, g.GetAttribute("aria-labelledby"));
-        });
+        // A heading narrows the grid to its families, and All brings every one back.
+        cut.FindAll("[aria-label='Show themes'] .gate__opt").Single(o => o.TextContent.Trim() == DeskThemeGroups.Vivid).Click();
+        Assert.Equal(DeskThemeFamilies.Catalog.Where(f => f.Group == DeskThemeGroups.Vivid).Select(f => f.Name),
+            cut.FindAll(".themes [role=radio]").Select(r => r.TextContent.Trim()));
+        Assert.Contains($"Showing {DeskThemeFamilies.Name(DeskThemeFamily.Standard)}", cut.Find(".wm > .wsection--rest > p.wgroup__foot").TextContent);
 
-        // Every family a tile, in the catalogue's reading order, named by the family it offers and
-        // painted by its own block.
-        var radios = group.QuerySelectorAll("[role=radio]");
-        Assert.Equal(DeskThemeFamilies.All.Count, radios.Length);
+        // All: every family a tile, in the catalogue's reading order, named by the family it offers
+        // and painted by its own block.
+        cut.FindAll("[aria-label='Show themes'] .gate__opt").Single(o => o.TextContent.Trim() == "All").Click();
+        var radios = cut.FindAll(".themes [role=radio]");
+        Assert.Equal(DeskThemeFamilies.All.Count, radios.Count);
         Assert.Equal(DeskThemeFamilies.All.Select(DeskThemeFamilies.Name), radios.Select(r => r.TextContent.Trim()));
         Assert.Equal(DeskThemeFamilies.All.Select(f => DeskThemeFamilies.Attribute(f, true)),
             radios.Select(r => r.QuerySelector(".swatch")!.GetAttribute("data-theme")));
@@ -54,11 +68,14 @@ public class WindowManagerControlsTests : DeskTestContext
             Assert.Equal("-1", r.GetAttribute("tabindex"));
             Assert.Null(r.QuerySelector(".swatch__tick"));
         });
+
+        // The footer names the theme showing, which a filter may hide.
+        Assert.Contains($"Showing {DeskThemeFamilies.Name(DeskThemeFamily.Standard)}", card.QuerySelector(":scope > p.wgroup__foot")!.TextContent);
     }
 
     /// <summary>
-    /// The arrows travel every tile in reading order, across the headings, and stop at the ends;
-    /// Home and End reach the first and the last.
+    /// Under All the arrows travel every tile in reading order, across what were the headings, and
+    /// stop at the ends; Home and End reach the first and the last.
     /// </summary>
     [Fact]
     public void Arrows_travel_the_tiles_across_the_headings()
@@ -66,6 +83,8 @@ public class WindowManagerControlsTests : DeskTestContext
         var theme = Services.GetRequiredService<ThemeService>();
         var cut = RenderComponent<WindowManagerPanel>();
         var all = DeskThemeFamilies.All;
+
+        cut.FindAll("[aria-label='Show themes'] .gate__opt").Single(o => o.TextContent.Trim() == "All").Click();
 
         cut.Find(".themes").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
         Assert.Equal(all[1], theme.Family);
@@ -105,8 +124,9 @@ public class WindowManagerControlsTests : DeskTestContext
     }
 
     /// <summary>
-    /// The accent row sits under the theme tiles and offers the showing family's own list; a family
-    /// that offers only its own has nothing to choose, so the row is not drawn. Choosing a swatch
+    /// The accent sits beside the mode, the two cells of the split row that opens the Appearance
+    /// card, and offers the showing family's own list; a family that offers only its own has
+    /// nothing to choose, so the cell is not drawn and the mode takes the row. Choosing a swatch
     /// moves the desk's accent, not just the picker.
     /// </summary>
     [Fact]
@@ -121,10 +141,13 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.Equal(DeskThemeFamilies.Accents(DeskThemeFamily.Standard).Select(a => a.Key),
             picker.QuerySelectorAll("[role=radio]").Select(r => r.GetAttribute("data-accent")));
 
-        // Directly beneath the theme tiles, in the same group.
-        var rows = cut.FindAll(".wgroup__row").ToList();
-        var themeRow = rows.FindIndex(r => r.QuerySelector(".themes") is not null);
-        Assert.NotNull(rows[themeRow + 1].QuerySelector(".accents"));
+        // Beside the mode, in the split row that opens the Appearance card, under its bar.
+        var appearance = cut.FindAll(".wm > .wsection")[0];
+        var split = appearance.QuerySelector(".wgroup > .wgroup__bar + .wgroup__split")!;
+        var cells = split.QuerySelectorAll(":scope > .wgroup__cell");
+        Assert.Equal(["Mode", "Accent"], cells.Select(c => c.QuerySelector(".wgroup__label")!.TextContent.Trim()));
+        Assert.NotNull(cells[0].QuerySelector("[role=radiogroup][aria-label=Appearance]"));
+        Assert.NotNull(cells[1].QuerySelector(".accents"));
 
         cut.Find(".accents [data-accent=teal]").Click();
         Assert.Equal("teal", theme.Accent.Key);
@@ -137,7 +160,10 @@ public class WindowManagerControlsTests : DeskTestContext
             if (DeskThemeFamilies.Accents(family).Count > 1)
                 Assert.Equal(DeskThemeFamilies.Attribute(family, theme.IsDark), cut.Find(".accents [role=radio]").GetAttribute("data-theme"));
             else
+            {
                 Assert.Empty(cut.FindAll(".accents"));
+                Assert.Single(cut.FindAll(".wgroup__split > .wgroup__cell"));
+            }
         }
     }
 
@@ -228,7 +254,8 @@ public class WindowManagerControlsTests : DeskTestContext
         var looks = DeskLooks.All.Select(l => l.Label).ToList();
         var first = labels.IndexOf(looks[0]);
 
-        Assert.True(first > labels.IndexOf("Theme"), "The looks sit under the theme.");
+        Assert.Equal(0, first); // The looks are the first form rows, under the mode and accent.
+        Assert.NotNull(appearance.QuerySelector(".wgroup__split ~ .wgroup__row--form [aria-label='Glass'], .wgroup__split ~ .wgroup__row--form [aria-label='Corners']"));
         Assert.Equal(looks, labels.Skip(first).Take(looks.Count));
 
         foreach (var look in DeskLooks.All)
@@ -269,7 +296,8 @@ public class WindowManagerControlsTests : DeskTestContext
             .ToList();
         var first = labels.IndexOf("Glass");
 
-        Assert.True(first > labels.IndexOf("Theme"), "The looks sit under the theme.");
+        Assert.Equal(0, first); // The looks are the first form rows, under the mode and accent.
+        Assert.NotNull(appearance.QuerySelector(".wgroup__split ~ .wgroup__row--form [aria-label='Glass'], .wgroup__split ~ .wgroup__row--form [aria-label='Corners']"));
         Assert.Equal(expected.Select(e => e.Label), labels.Skip(first).Take(expected.Length));
 
         foreach (var (label, options) in expected)
@@ -472,7 +500,8 @@ public class WindowManagerControlsTests : DeskTestContext
     }
     /// <summary>
     /// A settings screen, drawn as one (HIG Settings, forms.md): every setting sits in a grouped
-    /// list under a quiet header with its explanation as the footer, labels leading and controls
+    /// list drawn as a section card, named in the bar inside it, with its explanation as the footer
+    /// under it, in the card flow (.wflow) rather than one narrow column; labels leading and controls
     /// trailing. No metric tiles and no note above everything; the readings are value rows.
     /// </summary>
     [Fact]
@@ -482,14 +511,17 @@ public class WindowManagerControlsTests : DeskTestContext
 
         var sections = cut.FindAll(".wm > .wsection");
         Assert.Equal(
-            ["Appearance", "Scale", "Windows", "Primary window", "Resolution", "Workspaces"],
-            sections.Select(s => s.QuerySelector("h3.wgroup__head")!.TextContent.Trim()));
+            ["Appearance", "Themes", "Scale", "Windows", "Primary window", "Resolution", "Workspaces"],
+            sections.Select(s => s.QuerySelector(".wgroup > .wgroup__bar > h3.wgroup__title")!.TextContent.Trim()));
 
         Assert.All(sections, s =>
         {
             Assert.Single(s.QuerySelectorAll(":scope > .wgroup"));
             Assert.NotNull(s.QuerySelector(":scope > p.wgroup__foot"));
         });
+
+        Assert.Contains("wflow", cut.Find(".wm").ClassList);
+        Assert.Empty(cut.FindAll(".wm .wgroup__head"));
 
         // Every form row leads with its label.
         Assert.All(cut.FindAll(".wgroup__row--form"), row =>
@@ -499,7 +531,7 @@ public class WindowManagerControlsTests : DeskTestContext
         Assert.Empty(cut.FindAll(".psection"));
 
         // The tiles' readings are rows of the Windows group.
-        var windows = sections[2];
+        var windows = sections[3];
         Assert.Contains("In use", windows.TextContent);
         Assert.Contains($"{Manager.ColumnCount} of {Manager.Settings.MaxConcurrentWindows} columns", windows.TextContent);
         Assert.Contains("Fits readably", windows.TextContent);
@@ -516,7 +548,7 @@ public class WindowManagerControlsTests : DeskTestContext
         if (Manager.RecommendedCapacity >= 12)
             return;
 
-        var windows = cut.FindAll(".wm > .wsection")[2];
+        var windows = cut.FindAll(".wm > .wsection")[3];
         Assert.NotNull(windows.QuerySelector(".note--warn"));
         Assert.NotNull(windows.QuerySelector(".wm-value--warn"));
     }

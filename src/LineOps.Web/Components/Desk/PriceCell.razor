@@ -33,12 +33,13 @@ else
 {
     @* Any price that is not a door is a reading on a trigger that takes focus (tabindex in
        Body), with its explanation in a DeskTooltip: a title on a div no key can reach gave the
-       book breakdown to a pointer only (HIG 12). The bridge themes the .mud-tooltip it draws,
-       gives the explanation a measure and honours the line break — which a native tooltip does
-       not, so a closing price's provenance sentence and its book breakdown would arrive as one
-       unreadable ribbon. Its Text is a string rather than a fragment: the styling and the tests
-       can both reach it. *@
-    <DeskTooltip Text="@(Offer.IsClosing ? Why : Tooltip)">@Body(Offer.IsClosing)</DeskTooltip>
+       book breakdown to a pointer only (HIG 12). It is the structured shape — what the number
+       is, when it was taken and what it is measured against, then the books one per row, best
+       first, by name, with the price and its value lined up — because ten books written as one
+       string ran as a single line across the window, over the tiles above it. Its Text is the
+       same thing in plain lines, which is what a screen reader is told and what a test reads. *@
+    <DeskTooltip Title="@TipTitle" Caption="@TipCaption" Rows="@TipRows" Footnote="@TipFootnote"
+                 Text="@Tooltip">@Body(Offer.IsClosing)</DeskTooltip>
 }
 
 @code {
@@ -193,30 +194,83 @@ else
     }
 
     /// <summary>
-    /// The fair price and where it came from, in a phrase. "Fair −118 (Pinnacle, no-vig)".
+    /// The fair price and where it came from, in a phrase. "Fair −118 (Pinnacle, no-vig)" — spelt
+    /// as every book table spells it (<see cref="Checks.Basis"/>, <c>BookRanking.FairText</c>).
+    /// It is the tooltip's own line, because the first thing a reader asks of "+2.1% EV" is
+    /// "against what".
     /// </summary>
     public static string FairLabel(FairPrice fair)
-        => $"Fair {FormatPrice(fair.PriceAmerican)} ({(fair.Basis == FairValue.SharpBook ? "Pinnacle" : $"{fair.Books}-book consensus")}, no-vig)";
+        => $"Fair {FormatPrice(fair.PriceAmerican)} ({Checks.Basis(fair)}, no-vig)";
 
     /// <summary>
-    /// What a closing price is, how long before the start it was captured, and where every book
-    /// finished — the sentence the live cell does not need and the breakdown it puts in a title.
+    /// How many books the tooltip names: the tables' own <c>BookRanking.Top</c>. A tooltip is
+    /// read at a glance and cannot be scrolled or clicked into, so past five the rest are counted
+    /// and pointed at More bets, which lists them all.
     /// </summary>
-    private string Why
-        => Offer is null
-            ? string.Empty
-            : $"{PriceProvenance.Explain(Offer.CapturedAt, StartsAt)}\n{Tooltip}";
+    public const int TipBooks = LineOps.Web.Components.Snippets.BookRanking.Top;
+
+    /// <summary>"Closing price" for a close; "Best price" when books compete for it; "Price" for one book.</summary>
+    private string TipTitle
+        => Offer is null ? string.Empty
+            : Offer.IsClosing ? PriceProvenance.ClosingTitle
+            : Offer.Rungs.Count > 1 ? "Best price" : "Price";
 
     /// <summary>
-    /// The fair price the cell's value is measured against, when it has one — the first thing a
-    /// reader asks of "+2.1% EV" is "against what".
+    /// When a close was taken, then the fair price it is measured against, each on its own line.
+    /// Null when there is neither — a live price with no fair has nothing to add to its rows.
     /// </summary>
-    private string FairLine
-        => Offer?.Fair is { } fair
-            ? FairLabel(fair) + (Offer.BestValue is { } value && value.Book != Offer.Book && value.Ev > Offer.Ev
-                ? $" · most value at {Monogram(value.Book)} {FormatPrice(value.PriceAmerican)}"
-                : "")
-            : string.Empty;
+    private string? TipCaption
+    {
+        get
+        {
+            if (Offer is null)
+                return null;
+
+            var lines = new List<string>();
+            if (Offer.IsClosing)
+                lines.Add(PriceProvenance.Caption(Offer.CapturedAt, StartsAt));
+            if (Offer.Fair is { } fair)
+                lines.Add(FairLabel(fair));
+
+            return lines.Count == 0 ? null : string.Join("\n", lines);
+        }
+    }
+
+    /// <summary>
+    /// Every book on this side, best first: the cell's own book — the one holding the price —
+    /// then the rest by value against fair, highest first (a book without one after those with),
+    /// the name last. Not the two-sided tables' order (<c>BookRanking</c>: best on either side,
+    /// then lowest hold): that put +170 above +172 here, and with five rows and a count for the
+    /// rest, the reader has to be able to trust that nothing left out beats what is shown. Value
+    /// rather than the bare price, because on a spread or a total books quote different numbers.
+    /// </summary>
+    private IReadOnlyList<BookPrice> Ranked
+        => Offer is null ? []
+            : Offer.Rungs
+                .OrderBy(r => string.Equals(r.Book, Offer.Book, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(r => r.Ev is null ? 1 : 0)
+                .ThenByDescending(r => r.Ev ?? 0)
+                .ThenByDescending(r => r.PriceAmerican)
+                .ThenBy(r => BookNames.Display(r.Book), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+    /// <summary>The books the tooltip names: the first <see cref="TipBooks"/> of <see cref="Ranked"/>.</summary>
+    private IReadOnlyList<BookPrice> Shown => Ranked.Take(TipBooks).ToList();
+
+    private int Unshown => Offer is null ? 0 : Math.Max(0, Offer.Rungs.Count - Shown.Count);
+
+    /// <summary>One row a book: its name, its number (the line too where it has one), its value.</summary>
+    private IReadOnlyList<DeskTooltipRow> TipRows
+        => Offer is null ? []
+            : Shown.Select(r => new DeskTooltipRow(
+                    BookNames.Display(r.Book),
+                    LineOps.Web.Components.Snippets.BookRanking.Quote(r, Offer.Outcome),
+                    r.Ev is { } ev ? EvLabel(ev) : null,
+                    Emphasis: Offer.Rungs.Count > 1 && r.Book == Offer.Book))
+                .ToList();
+
+    /// <summary>Where the books left out are — a tooltip cannot be clicked into, More bets lists them.</summary>
+    private string? TipFootnote => Unshown > 0 ? $"+{Unshown} more in More bets" : null;
 
     /// <summary>
     /// What shopping is worth here, said plainly. A differing line is reported as such rather
@@ -253,24 +307,8 @@ else
     /// A book's two-character mark. Colour means state on this desk, so a book is identified
     /// typographically instead — see ADR 0008.
     /// </summary>
-    public static string Monogram(string book) => book.ToLowerInvariant() switch
-    {
-        "pinnacle" => "PN",
-        "draftkings" => "DK",
-        "fanduel" => "FD",
-        "bet365" => "B3",
-        "betmgm" => "MG",
-        "caesars" => "CZ",
-        "pointsbet" => "PB",
-        // Named, because the first two letters of three of these are "BE" and "BO".
-        "betrivers" => "BR",
-        "betonlineag" => "BO",
-        "bovada" => "BV",
-        "espnbet" => "TS",
-        "hardrockbet" => "HR",
-        "lowvig" => "LV",
-        _ => book.Length >= 2 ? book[..2].ToUpperInvariant() : book.ToUpperInvariant()
-    };
+    /// <remarks>The marks live with the names in <see cref="BookNames.Code"/>, so a book named there always has a mark of its own.</remarks>
+    public static string Monogram(string book) => BookNames.Code(book);
 
     /// <summary>
     /// Where a book's tick sits, 0% at the best price and 100% at the worst. When every book
@@ -289,6 +327,12 @@ else
         return span <= 0 ? 0 : (rung.Implied - best) / span * 100;
     }
 
+    /// <summary>
+    /// The tooltip in plain lines, one book a line: what a screen reader is told when the
+    /// structured tooltip is up, and the takeable button's native title, which cannot draw a
+    /// table but does keep a line break — so neither runs ten books into one ribbon. The cell's
+    /// own book is said to be the best, since its weight in the table cannot be heard.
+    /// </summary>
     private string Tooltip
     {
         get
@@ -296,26 +340,28 @@ else
             if (Offer is null)
                 return string.Empty;
 
-            var books = string.Join("   ", Offer.Rungs.Select(r =>
-                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"
-                + (r.Ev is { } ev ? $" ({EvLabel(ev)})" : "")));
+            var rows = TipRows.Select(r => r.Emphasis ? r with { Label = $"{r.Label} (best)" } : r).ToList();
+            var footnote = string.Join("\n", new[]
+            {
+                TipFootnote,
+                Bankable ? "Click to log this price. Shift-click adds it to the slip as a parlay leg."
+                    : Takeable ? "Click to log this price."
+                    : null
+            }.Where(s => s is not null));
 
-            var text = FairLine.Length == 0 ? books : $"{FairLine}\n{books}";
-            return Bankable ? $"{text}\nClick to log this price. Shift-click adds it to the slip as a parlay leg."
-                : Takeable ? $"{text}\nClick to log this price."
-                : text;
+            return DeskTooltip.Compose(TipTitle, TipCaption, rows, footnote);
         }
     }
 
     /// <summary>
-    /// The rail's accessible name: where every book stands, best first as the ticks run.
-    /// "Books: DK o7 -110, FD o7.5 +105".
+    /// The rail's accessible name: where every book stands, best first as the ticks run, by the
+    /// name a listener knows it by. "Books: DraftKings o7 -110, FanDuel o7.5 +105".
     /// </summary>
     private string RailLabel
         => Offer is null
             ? string.Empty
             : "Books: " + string.Join(", ", Offer.Rungs.OrderBy(Position).Select(r =>
-                $"{Monogram(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
+                $"{BookNames.Display(r.Book)} {(r.Line is { } l ? FormatLine(l, Offer.Outcome) + " " : "")}{FormatPrice(r.PriceAmerican)}"));
 
     private static string FormatPrice(int american) => OddsMath.FormatPrice(american);
 

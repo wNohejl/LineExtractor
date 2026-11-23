@@ -317,8 +317,9 @@ The geometry the operator can change — `--face-ui`/`--face-display`, `--space-
 `--cell-inset`, `--radius-xs` … `--radius-sheet` and `--backdrop-tint` — is declared in a plain
 `:root` block after the theme blocks, never in one, so a swatch's own `data-theme` cannot reset it.
 
-**The families**, in the picker's order and under its four headings (`DeskThemeGroups`), each
-with its accents, its own first:
+**The families**, in the picker's order and under the catalogue's four headings
+(`DeskThemeGroups`, which the picker offers as a filter, not as shelves), each with its accents,
+its own first:
 
 | Heading | Family (slug) | Accents |
 |---|---|---|
@@ -406,8 +407,9 @@ Every family takes a chosen accent from its own list (`DeskThemeFamilyInfo.Accen
 stamps nothing. `ThemeService` keeps the choice per family under `desk.accent.<slug>` — Standard's
 falling back to the old `desk.accent` while its own is empty — holds a stored key to that family's
 list, stamps `data-accent` for the showing family, and `Palette` and `MudTheme` carry it, so
-MudBlazor and the charts wear it too. The Window manager offers the showing family's row beneath
-the theme tiles, and each tile wears its family's remembered accent.
+MudBlazor and the charts wear it too. The Window manager offers the showing family's row beside
+Mode, in the split row that opens its Appearance card (a family with only its own accent has no
+cell, and Mode takes the row), and each theme tile wears its family's remembered accent.
 
 The glass and four makes belong to every family. Each is a **look**: one row of `DeskLooks.All`
 (`Theming/DeskLook.cs`) naming its row label, storage key, attribute on `<html>`, positions (stored
@@ -449,11 +451,15 @@ and the row is well formed, `WindowManagerControlsTests.Every_look_is_a_gate_in_
 until it is a gate, and `ThemeBootTests.The_boot_tables_restore_every_look_ThemeService_stamps`
 until the boot tables carry it.
 
-The Window manager's Appearance group holds Mode, Theme, Accent, Glass, Corners, Density, Backdrop
-and Typeface, and a "Reset appearance" key (`ThemeService.ResetAppearanceAsync`), dimmed
+The Window manager is a `.wflow` of section cards (see Primitives, "Section cards"). Its Appearance
+card holds Mode beside Accent in one split row, then Glass, Corners, Density, Backdrop and Typeface
+as form rows, and a "Reset appearance" key (`ThemeService.ResetAppearanceAsync`), dimmed
 (`aria-disabled`, keeping its focus and Tab stop) and saying why on its row while nothing is off its
-default. The tiles tick the showing family (`ThemeService.ShowingFamily`), so under Increase Contrast
-an unchosen desk ticks High contrast, and pressing Standard there pins it.
+default; the reset puts the theme back too. The theme tiles are a card of their own, Themes, beside
+it (`Span="DeskCardSpan.Rest"`), with a filter over the catalogue's headings in its bar that opens on
+All, and a footer naming the family showing and its heading. The tiles
+tick the showing family (`ThemeService.ShowingFamily`), so under Increase Contrast an unchosen desk
+ticks High contrast, and pressing Standard there pins it.
 
 Every family takes a chosen glass (`DeskGlass`: Clear, Tinted — macOS's Liquid Glass setting).
 Clear is the materials as each block declares them; Tinted raises them halfway to the opaque
@@ -462,8 +468,8 @@ tier Reduce Transparency uses and keeps their blur. It is derived, not declared:
 own value toward its `--surface-2` by `--glass-tint`, so no family block carries a tinted tier and
 none is named. It is the look `DeskLooks.Glass`: kept under `desk.glass`, stamped as `data-glass`
 only for Tinted, and — `YieldsTo` Reduce Transparency, which is fully opaque and wins — neither
-stamped nor offered while the machine reduces transparency. The Window manager offers it under the
-accent.
+stamped nor offered while the machine reduces transparency. The Window manager offers it as the
+first row under Mode and Accent.
 
 Three things follow the theme past the page. **The browser's chrome:** `DeskHead` declares an
 empty `<meta name="theme-color">`, and `theme-boot.js` (once the sheets have parsed) and every
@@ -532,13 +538,13 @@ system edge on controls and cards (the one place a control carries an edge at re
 | `DeskSwitch` | A gate switch: one visible choice among two to five. | — |
 | `DeskTabs` | A window's sections, with the selection sliding between them; a `DeskTab`'s `Count` draws a badge after its name, and `Enabled: false` keeps an empty section in the bar, disabled, until it has something behind it. | — |
 | `DeskTextArea` | A field with room for a paragraph. | — |
-| `DeskThemePicker` | Every theme family as a tile painted by its own blocks, under the catalogue's headings; one radiogroup, arrows across the headings, the choice marked by ring, tick and weight. | — |
+| `DeskThemePicker` | Every theme family as a tile painted by its own blocks, in one grid; `Group` filters it to one of the catalogue's headings (null or `""` for all), `ThemeFilters` is the segments a `DeskSwitch` over it offers (All, then each heading) and `GroupOf(family)` the heading a family is filed under. One radiogroup, arrows across the tiles showing, the choice marked by ring, tick and weight; when the filter hides the choice, the first tile showing holds the Tab stop. | — |
 | `DeskToastStack` | The desk's notices, drawn — "Activities" to the operator: a capsule in the header's free stretch, newest in front with the count's key and older ones as edges stepped out to the right, fanned into a list beneath on hover, focus or the count, with Clear all; the key alone where the stretch is narrow. The header renders the one stack; panels raise through `DeskToasts`. | `MudSnackbarProvider` |
 | `DeskToggle` | A setting that takes effect the moment it flips; announced as a switch. | — |
-| `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry. | `MudTooltip` |
+| `DeskTooltip` | A sentence beside the control it explains, for what a `title` cannot carry — `Text` alone. Or the structured shape, for an explanation that is a small table: a semibold `Title`, a `Caption` held to a 20rem measure (on `.desk-tip`, inside the popover, since Mud writes `max-width: none` inline on the popover itself), `Rows` of `DeskTooltipRow` (label leading, value trailing in tabular numerals, a quiet `Qualifier`, the one `Emphasis` row by weight), a `Footnote`, or free `Content`. The drawn shape is hidden from the accessibility tree and `Text` (or `Compose` of the parts) is what a screen reader hears. It holds no controls: say where the rest are in the footnote. | `MudTooltip` |
 | `EmptyState` | What a panel says when there is nothing to show — first run, no match, or failure; `Compact` when it sits inside something small, an inline answer or a disclosure's body. | — |
 | `FollowUpLayer` | The floating follow-ups a panel has open, drawn once per panel. | — |
-| `FormGroup` | The grouped form: a sentence-case name, one filled group with one edge, and the explaining sentence as its footer. | — |
+| `FormGroup` | The grouped form, drawn as a section card: one filled group with one edge, its `Title` in a header bar inside it with one quiet thing trailing (`Keys`), its rows, a `Notice` and the explaining `Footer` under the card; `Span` (a `DeskCardSpan`) says how much of a `.wflow` row it takes. | — |
 | `FormRow` | One row of a `FormGroup`: the label leading in the shared column, the control taking the rest; `LabelContent` when the label carries markup, `Lead` when the leading column is not a label. | — |
 | `InlineConfirm` | A question asked in place, with Cancel first and the confirm last; Escape answers Cancel. | — |
 | `KeyRow` | Secondary keys, the reason the primary waits, then the one Filled key, which the reason describes. | — |
@@ -554,8 +560,53 @@ system edge on controls and cards (the one place a control carries an edge at re
 | `Roving` | The radiogroup keyboard contract for a group that draws its own radios: `Roving.Next(current, count, key, wrap)` says where an arrow, Home or End takes the choice (null for any other key), and a group carrying `data-roving` has those keys held from scrolling the page. | — |
 | `RowActions` | The action strip on an open row, and the snippet it reveals. | — |
 | `SnippetFailure` | What a snippet shows when its load failed, with the key to retry. | — |
-| `SnippetShell` | The frame around an inline answer, with its one way out. | — |
+| `SnippetShell` | The frame around an inline answer, on the section-card contract (ADR 0032): by default one card (`section.wsection > .wgroup`) with the `Title` in its header bar (`h3.wgroup__title`, the headline voice), the `Note` beside it and the escape (`OpenLabel`, "Open window" by default) as the bar's one trailing key, the answer as its rows. `Cards` (a `RowAction`'s `SnippetCards`) when the content draws section cards of its own: the shell is then an unframed pane header — same title, same key, no fill, no edge — because a card inside a card is forbidden. It draws no symbol; `Icon` is kept for callers. | — |
 | `Tag` | A small state word. | — |
+
+**Section cards.** A window's sections are `FormGroup` cards (ADR 0032). `FormGroup` renders
+`section.wsection > div.wgroup`: the `--surface-2` fill with one 1px `--separator-strong` edge. Its
+parameters:
+
+- `Title` — the card's name, `h3.wgroup__title` in the header bar (`.wgroup__bar`) at the card's
+  top: headline style, sentence case, and the section's accessible name. With neither `Title` nor
+  `Keys`, there is no bar.
+- `Keys` — what trails the title in the bar (`.wgroup__keys`): one small Plain or Tinted key, a
+  count, or a `DeskSwitch` filter at `DeskKeySize.Small`; never the window's Filled key.
+- `ChildContent` — the rows: `FormRow`s, split rows, or any `.wgroup__row`.
+- `Notice` — a `Note` about the card's state, under the card and before its footer; never inside.
+- `Footer` — the sentence that explains the card, `p.wgroup__foot`, under it.
+- `Span` — a `DeskCardSpan`: `Track` (the default, one track: every card of form rows), `Row` (the
+  whole row: a card whose body is a grid of its own) or `Rest` (the rest of the first row once two
+  tracks fit, the whole row below that; it must be the flow's second card).
+- `LabelWidth` — the group's label column (`--form-label`) as a CSS length; `Class`, `GroupClass`
+  and `Style` for the section, the group and the section; other attributes land on the section.
+
+The bar's one full-width hairline is a divider inside the one card, not a second edge; nothing in
+the bar, a cell or a row draws a border or a shadow. Its fill is a `color-mix` of `--surface-2` and
+`--surface-1`, so it is right in every family and appearance.
+
+- **The flow.** A window of two or more sections puts its cards in `.wflow`: tracks of at least
+  420px sharing the width (`auto-fill`), `align-items: start`, so a wide window gets more cards
+  across, never wider ones, and a short card keeps its own height. 420px because form rows stack
+  their labels under 400px of card: at 1600px that is three tracks of about 520px with labels beside
+  their controls, and about 680px is one column. `Rest` moves beside the first card from 856px of
+  flow (two tracks and the gap). Never cap such a window with a max-width column.
+- **The split row.** Two compact, related controls in one row: `div.wgroup__row.wgroup__split`
+  holding two `div.wgroup__cell`s, each a `span.wgroup__label` and its control, divided by an inset
+  vertical hairline. The first cell's label takes `--form-label`. Under 720px of card the cells
+  stack; a cell never wraps, its label staying beside its control until 400px, when both cells put
+  their labels above their controls at once. Two full form rows are two `FormRow`s, not a split row.
+- **What is not a row.** A `DeskGrid`, a lone `EmptyState` or an `InlineConfirm` goes straight in
+  the card, and the card styles it: the table insets so its text starts where the bar's title
+  does, and its last row's hairline stands down for the card's edge (no second frame, no doubled
+  bottom edge); the sentence and the confirm take the rows' inset. A window writes none of this
+  in its own sheet.
+- **Narrow is the card's.** The group is a container: form rows stack their labels under 400px of
+  card, split cells under 720px, and the bar, rows and cells tighten their inset under 480px.
+- **Spelled by hand**, only where `FormGroup` cannot be used: `section.wsection` (with
+  `aria-labelledby`) `> div.wgroup > div.wgroup__bar > h3.wgroup__title` (and `div.wgroup__keys`),
+  the rows, then `p.wgroup__foot` after the `.wgroup`. `.wgroup__head`, a quiet line above the
+  group, is the old spelling, kept for sections not yet moved; nothing new uses it.
 
 Toasts are raised through a service, `DeskToasts` (`Success`, `Info`, `Warn`, `Fail`, `Added`,
 `Removed`, `Show`; `Raise` returns the notice so its owner can take it down), and drawn by the
@@ -616,7 +667,8 @@ a fresh project that wires the Desk can open it from the strip or the palette.
 
 | Rule | What it means | Held by |
 | --- | --- | --- |
-| Edges | A control or group has one edge. A form is not boxed around a bordered group, and a group carries its hairline where it is defined. | `DeskCssConventionTests` (`A_form_is_not_boxed`, `A_group_carries_its_hairline_where_it_is_defined`) |
+| Edges | A control or group has one edge. A form is not boxed around a bordered group, and a group carries its hairline where it is defined. A section card's name is in its header bar, whose full-width hairline divides it from the rows inside the one card; the footer is under the card. | `DeskCssConventionTests` (`A_form_is_not_boxed`, `A_group_carries_its_hairline_where_it_is_defined`) |
+| Sections are cards in a flow | A window's section is one card named in its bar, nothing inside it draws a box, and a window of several puts them in `.wflow`: more width is more columns, never wider cards. | `FormGroupTests` (`The_bar_is_divided_from_the_rows_by_one_full_width_hairline_and_draws_no_edge_of_its_own`, `Nothing_inside_a_card_draws_a_box`, `The_flow_adds_columns_rather_than_widening_cards_and_aligns_them_to_the_start`) |
 | One Filled key | A context has at most one Filled key, last in its row; everything else is Tinted or Plain. A selected choice in the accent's wash (a column's showing tab, a checked toggle) is selection, not a Filled key. | `PanelToolbarTests.Keeps_every_key_in_one_actions_item_after_the_pickers` (the Filled key last); the count is held in review |
 | Sentence case | Titles, headers, keys and tags read in sentence case. | `PanelHeader` and `PanelSection` set the rule's type; no test reads copy yet |
 | Keys explain themselves | A key that waits says why in text on its row, not in a title a disabled key never shows, and the key is described by that text; secondary keys come first and the Filled key last, and a confirm asks Cancel first. | `KeyRowTests`, `KeyRowAdoptionTests` (in the host's tests), `InlineConfirmTests` |

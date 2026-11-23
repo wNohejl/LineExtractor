@@ -237,7 +237,8 @@ public class JournalParlayTests : WagerTestContext
 
     /// <summary>
     /// The entry form is one named section; the parlay form's money sat in a bare group beside
-    /// its named Legs section. Both are sections now, the first called Parlay.
+    /// its named Legs section. Both are section cards now, in a card flow, each named in the bar
+    /// inside it (the first Parlay, the second Legs) rather than by a grey line floating above.
     /// </summary>
     [Fact]
     public void The_parlay_form_is_sections()
@@ -246,11 +247,38 @@ public class JournalParlayTests : WagerTestContext
 
         RowAction(cut, "Edit");
 
-        var sections = cut.FindAll(".pform--grouped section.wsection");
-        Assert.True(sections.Count >= 2, $"Expected at least two sections, found {sections.Count}.");
-        Assert.Equal("Parlay", sections[0].GetAttribute("aria-label"));
-        Assert.NotNull(sections[0].QuerySelector(".wgroup.jform"));
+        var sections = cut.FindAll(".pform--grouped .wflow > section.wsection");
+        Assert.Equal(2, sections.Count);
+        Assert.Equal(new[] { "Parlay", "Legs" },
+            sections.Select(s => s.QuerySelector(".wgroup > .wgroup__bar > .wgroup__title")!.TextContent.Trim()));
+        Assert.All(sections, s =>
+        {
+            Assert.NotNull(s.QuerySelector(".wgroup.jform"));
+            Assert.Equal(s.QuerySelector(".wgroup__title")!.Id, s.GetAttribute("aria-labelledby"));
+        });
+        Assert.Empty(cut.FindAll(".pform--grouped .wgroup__head"));
         Assert.Empty(cut.FindAll(".pform--grouped .wsections > .wgroup"));
+        Assert.Contains("settlement multiplies", sections[1].QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
+    }
+
+    /// <summary>
+    /// The ledgers are section cards (the Desk's grouping contract): the Parlays table sits inside
+    /// a card named in the bar at its top, spanning the flow's row, rather than under a rule
+    /// standing above it.
+    /// </summary>
+    [Fact]
+    public void The_ledgers_are_cards_that_span_the_flow()
+    {
+        var (cut, _) = Render();
+
+        Assert.Empty(cut.FindAll(".journal-lists .psection"));
+        var card = Assert.Single(cut.FindAll(".wflow.journal-lists > section.wsection"));
+        Assert.Contains("wsection--span", card.ClassName);
+        Assert.Equal("Parlays", card.QuerySelector(".wgroup > .wgroup__bar > .wgroup__title")!.TextContent.Trim());
+        Assert.NotNull(card.QuerySelector(".wgroup.journal-list > .deskgrid table"));
+
+        // The disclaimer stays the window's footnote, under the cards.
+        Assert.NotEmpty(cut.FindAll(".wflow.journal-lists ~ .journal-foot"));
     }
 
     /// <summary>The book the picker shows: its value, or the option marked selected, however the renderer wrote it.</summary>

@@ -178,6 +178,117 @@ that looks like a state is a control nobody presses.
 
 ---
 
+## Section cards and the flow
+
+What to draw is `apple-hig-components` (`forms.md`, rule 5 and "Sections in a window"); this is
+how the Desk draws it (ADR 0032). **Build it from `FormGroup`; the class names are its output.**
+
+`FormGroup` renders `section.wsection > div.wgroup`, the card: `--surface-2` fill, one 1px
+`--separator-strong` edge, `--radius-panel`. Its parameters:
+
+| Parameter | What it draws |
+|---|---|
+| `Title` | the card's name, `h3.wgroup__title` in the header bar (`.wgroup__bar`), headline style, sentence case; it names the section (`aria-labelledby`) |
+| `Keys` | what trails the title in the bar (`.wgroup__keys`): ONE small Plain/Tinted key, a count, or a `DeskSwitch` filter at `DeskKeySize.Small`; never the Filled key |
+| `ChildContent` | the rows: `FormRow`s, a split row, or any `.wgroup__row` |
+| `Notice` | a `Note` under the card, before the footer — never inside |
+| `Footer` | `p.wgroup__foot`, the sentence under the card |
+| `Span` | a `DeskCardSpan`: `Track` (default), `Row` (`.wsection--span`, the whole row), `Rest` (`.wsection--rest`, the rest of the first row from 856px of flow; must be the flow's second card) |
+| `LabelWidth` | a CSS length for the group's `--form-label` column |
+| `Class`, `GroupClass`, `Style` | on the section, on the `.wgroup`, on the section |
+
+With neither `Title` nor `Keys` there is no bar. Every `FormGroup` with a `Title` draws it in
+the bar: there is no option for the old spelling.
+
+**The bar is a divider inside the one card, not a second box.** `.wgroup__bar` is the card's
+first child, filled `color-mix(in srgb, var(--surface-2) 50%, var(--surface-1))` — half a step
+back down the ramp, so it is right in every family and both appearances with no token of its own
+— with `border-bottom: 1px solid var(--separator)` across the full width. That is the only
+`border` on anything inside `.wgroup`; the bar, a cell, a key and a row never take a border or a
+`box-shadow`. It wraps: in a narrow card the keys drop beneath the title.
+
+**The flow is `.wflow`** (not `.wcards`: the application owns `.wcard`, and the host's
+convention tests match class names by substring). `display: grid; grid-template-columns:
+repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; gap: var(--space-5)
+var(--space-4)`, and it is a container named `wflow`, so `Rest` asks the flow's width, not the
+window's. Any window with two or more sections uses it; never give the window a `max-width`
+column instead. `align-items: start` is load-bearing: without it a short card stretches to its
+row's tallest. Why 420px: a card's form rows stack their labels above their controls under 400px
+of card, so a 360px track stacked every row of a settings card and stood it twice as tall; at 420px
+a 1600px window is three tracks of about 520px with labels beside their controls, and a window of
+about 680px is one column.
+
+**The split row** is spelled by hand, inside a `FormGroup`:
+
+```razor
+<div class="wgroup__row wgroup__split">
+    <div class="wgroup__cell"><span class="wgroup__label">Mode</span> <DeskSwitch … /></div>
+    <div class="wgroup__cell"><span class="wgroup__label">Accent</span> <DeskAccentPicker … /></div>
+</div>
+```
+
+The cells share the row equally, divided by a vertical `--separator` hairline inset by
+`--space-2` top and bottom; the first cell's label takes `--form-label`. Under 720px of card (two
+cells that each fit a label column and a three-segment gate) the
+cells stack and the divider becomes the inset row hairline. A cell never wraps: its label stays
+beside its control, side by side or stacked, so both cells always lay out alike; only under 400px
+do both cells put their labels
+above their controls at once, as a `FormRow` does. A split row with one cell is that cell, the whole row —
+so a cell whose control cannot act is not drawn and its neighbour takes the row.
+
+**A filter in the bar over a tile grid** — the Window manager's Themes card:
+
+```razor
+<FormGroup Title="Themes" Span="DeskCardSpan.Rest">
+    <Keys>
+        <DeskSwitch Options="DeskThemePicker.ThemeFilters" Label="Show themes" Size="DeskKeySize.Small"
+                    Value="_group" ValueChanged="@((string g) => _group = g)" />
+    </Keys>
+    <ChildContent>
+        <div class="wgroup__row wgroup__row--pad"><DeskThemePicker Group="@_group" … /></div>
+    </ChildContent>
+    <Footer>Showing …</Footer>
+</FormGroup>
+```
+
+`DeskThemePicker.Group` is a heading of the catalogue (`""` or null for all);
+`ThemeFilters` is All then each heading; `GroupOf(family)` is the heading a family is filed under.
+The Window manager opens the filter on All: one heading's two tiles in a card spanning the rest of
+a wide row were a large empty box. The footer names the family showing and its heading, because a
+narrower filter can hide the tick.
+
+**What a card holds that is not a row** is styled by the card, once, in `desk.css`; a window puts
+it straight in the card and writes none of these rules in its own sheet:
+
+- **A `DeskGrid`** (`.wgroup > .deskgrid`): the card is its frame. It insets by
+  `calc(var(--space-4) - var(--deskgrid-inset))`, so its text starts where the bar's title does,
+  and its last row's hairline stands down (`border-bottom: 0`), because the card's edge is under
+  it and two lines a pixel apart read as a box inside the box. The rows above keep their dividers.
+  That rule beats `mud-bridge.css`'s `.deskgrid .mud-table-body .mud-table-cell` by weight, since the
+  bridge loads later (`mudblazor-seam.md`).
+- **A lone `EmptyState`** (`.wgroup .empty`, not inside a row): `margin: 0` and the rows' inset,
+  `--space-3` by `--space-4`. One inside a row keeps that row's inset.
+- **An `InlineConfirm` row** (`.wgroup > .confirm`): `--space-2` by `--space-4`, starting at the
+  labels' edge.
+
+Under 480px of card all three take `--space-3` in place of `--space-4`, as the rows do.
+
+**Hand-spelled**, only where `FormGroup` cannot be used: `section.wsection` (with
+`aria-labelledby`) `> div.wgroup > div.wgroup__bar > h3.wgroup__title` (and `div.wgroup__keys`),
+then the rows, then `p.wgroup__foot` after the `.wgroup`. `h3.wgroup__head` — a quiet grey line
+*above* the group — is the old spelling, kept in `desk.css` only for the sections an application
+has not yet moved; nothing new uses it.
+
+### The drawer under a row
+
+`SnippetShell` is on the same contract: by default it *is* the card (name in the bar, the
+escape as the bar's one trailing key, the answer as rows). When the answer is itself several
+cards (More bets' per-market `FormGroup`s in a `.wflow`), the caller sets `Cards`
+(`RowAction.SnippetCards`) and the shell becomes an unframed pane header — the same headline
+title and key, no fill, no edge — over them. Never a card around cards.
+
+---
+
 ## Lists and grids
 
 - **No zebra striping.** Rows separate with a hairline and nothing else.
@@ -191,6 +302,23 @@ that looks like a state is a control nobody presses.
   moment the pointer leaves it.
 - **Headers are quiet**: `--text-secondary`, `--text-footnote`, semibold, and
   explicitly *untracked* — MudBlazor's `subtitle2` default is tracked.
+
+---
+
+## Tooltips — a sentence, or a small table
+
+`DeskTooltip Text` is a sentence; where one short phrase will do, a `title` stays. When the
+explanation is a set of figures (one reading per source, per region, per side), use the
+structured shape instead of writing them into `Text`: `Title` (semibold, what the trigger is),
+`Caption` (secondary, wraps at the measure, a `\n` kept), `Rows` of `DeskTooltipRow(Label,
+Value, Qualifier, Emphasis)` — a name, never a code; the value right-aligned in tabular
+numerals; the row the trigger shows marked by `Emphasis`, which is weight, not hue — and a
+`Footnote`. Cap the rows at about five, best first, and say in the footnote where the rest are:
+a tooltip cannot be scrolled or clicked into. The drawn shape is `aria-hidden`; `Text` (or the
+parts composed as plain lines) is what a screen reader hears, and what a test asserts. The
+measure lives on `.desk-tip` inside the popover, because Mud writes `max-width: none` inline on
+`.mud-tooltip` (mudblazor-seam.md) — never fight that with `!important`. Ten figures in one
+`Text` string ran as one ~1100px line across a window; that is the failure this shape exists for.
 
 ---
 

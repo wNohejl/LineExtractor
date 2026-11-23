@@ -84,6 +84,14 @@ Appearance group holds Mode, Theme, Accent, Glass and the four makes as gates, a
 appearance" puts every one back — family unchosen, so Increase Contrast may choose again — in one
 cross-fade, offered only while something is off its default.
 
+*Amended 2026-11-22 ([ADR 0032](0032-a-window-s-sections-are-cards-in-a-flow.md)).* The headings
+are a filter now, not shelves: under floating headings the shelves were ragged (two tiles, then
+five, nine, seven). The picker is one grid; `Group` narrows it to one heading's families (null or
+`""` for all) and `DeskThemePicker.ThemeFilters` is the segmented choice a caller draws over it.
+It stays one radiogroup, and when the filter hides the chosen tile the first tile showing holds
+the Tab stop. The themes left the Appearance group for a card of their own, `Rest` of the
+Window manager's first row, with the filter in its header bar opening on All; Appearance leads with Mode beside Accent in one split row, then Glass and the makes.
+
 Every setter cross-fades as the others do, and skips the fade when no stamped attribute moved.
 
 **One row per look, and no tables in the boot script** (amended 2026-11-21). The glass and the four

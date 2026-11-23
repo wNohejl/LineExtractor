@@ -15,25 +15,15 @@
 *@
 
 <div class="wsections slip">
-    @* Grouped lists, after the HIG (apple-hig-components, forms.md): each group a fill with an
-       inset hairline between rows, named by a quiet sentence-case header and explained by a
-       footer. The wagers are rows of one list, not a box apiece.
-       How the slip logs is a choice about wagers, so it waits for one: on an empty slip it was
-       a control that changed nothing, above a sentence saying there was nothing to change
-       (audit.md: nothing on screen that cannot be used yet). Add as leg sets it anyway. *@
-    @if (Slip.Items.Count > 0)
-    {
-        <FormGroup Title="Logged as">
-            <ChildContent>
-                <FormRow Label="Log">
-                    <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
-                                Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
-                </FormRow>
-            </ChildContent>
-            <Footer>Belongs to this desk session, not to a game.</Footer>
-        </FormGroup>
-    }
-
+    @* Section cards (the Desk's grouping contract): each section one card — the group fill with
+       one hairline edge, its name in a bar inside it, an inset hairline between rows, the footer
+       under it — and the cards in a .wflow, so a wide slip (the Journal's tab) sets the parlay
+       beside the wagers it is built from and a narrow one stacks them. The wagers are rows of one
+       list, not a box apiece.
+       How the slip logs is a choice about wagers, so it waits for one and rides on their card's
+       bar. It was a card of its own, "Logged as", whose one row said "Log" again beside the gate;
+       on an empty slip it would be a control that changed nothing (audit.md: nothing on screen
+       that cannot be used yet). Add as leg sets it anyway. *@
     @if (_report is { } report)
     {
         <Note State="DeskState.Positive" Class="slip-report">
@@ -69,12 +59,22 @@
     }
     else
     {
-        <section class="wsection" aria-labelledby="slip-wagers-h">
-            <h3 class="wgroup__head" id="slip-wagers-h">
-                @(Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers")
-            </h3>
-
-            <div class="wgroup slip-cards" role="list" aria-labelledby="slip-wagers-h">
+        <div class="wflow slip__flow">
+        @* Spelled by hand rather than as a FormGroup, so the mode gate can trail the count in the
+           bar and the rows under it can be one list. The list is the rows alone: the bar, with
+           its heading and its gate, is the card's head and not an item of it. *@
+        <section class="wsection slip-wagers" aria-labelledby="slip-wagers-h">
+            <div class="wgroup slip-cards">
+                <div class="wgroup__bar">
+                    <h3 class="wgroup__title" id="slip-wagers-h">
+                        @(Slip.Items.Count == 1 ? "1 wager" : $"{Slip.Items.Count} wagers")
+                    </h3>
+                    <div class="wgroup__keys">
+                        <DeskSwitch Options="Modes" Label="Logged as" Size="DeskKeySize.Small"
+                                    Value="Slip.Mode" ValueChanged="@((SlipMode m) => Slip.SetMode(m))" />
+                    </div>
+                </div>
+                <div role="list" aria-labelledby="slip-wagers-h">
                 @foreach (var item in Slip.Items)
                 {
                     var state = StateOf(item);
@@ -146,16 +146,19 @@
                         }
                     </div>
                 }
+                </div>
             </div>
+            <p class="wgroup__foot">Belongs to this desk session, not to a game.</p>
         </section>
 
         @if (Slip.Mode == SlipMode.Parlay)
         {
-            <section class="wsection" aria-labelledby="slip-parlay-h">
-                <h3 class="wgroup__head" id="slip-parlay-h">Parlay</h3>
-                @* The parlay as form rows: the combined price, the stake, the book's own price
-                   and the book, each label leading; how the price was reached is the footer. *@
-                <div class="wgroup slip-parlay">
+            @* The parlay as form rows: the combined price, the stake, the book's own price and the
+               book, each label leading; the legs' count trails the title, and how the price was
+               reached is the footer, under the card. *@
+            <FormGroup Title="Parlay" GroupClass="slip-parlay">
+                <Keys>@(Slip.Legs.Count == 1 ? "1 leg" : $"{Slip.Legs.Count} legs")</Keys>
+                <ChildContent>
                     @* Each leg's odds, then their product: the parlay's price is the legs' decimal
                        prices multiplied, so every leg is shown with the multiplier it brings and
                        the Combined row is the result of the column above it — the computation in
@@ -208,8 +211,9 @@
                             }
                         </DeskSelect>
                     </FormRow>
-                </div>
-                        <p class="wgroup__foot slip-parlay__note">
+                </ChildContent>
+                <Footer>
+                        <span class="slip-parlay__note">
                             @if (Slip.IsSameGame)
                             {
                                 @* Multiplied, the legs of one game overstate the payout: they win
@@ -238,9 +242,11 @@
                             {
                                 @(Slip.Legs.Count == 1 ? "1 leg" : "No legs yet")<text>. A parlay multiplies two or more; a card on a game that has started becomes a leg once you enter the price you got.</text>
                             }
-                        </p>
-            </section>
+                        </span>
+                </Footer>
+            </FormGroup>
         }
+        </div>
 
         @* The keys read as every window's do (KeyRow, HIG 3): Start over, then what Log waits
            for, then Log — the one Filled key last. Log used to lead with its reason trailing it.

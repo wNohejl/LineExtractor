@@ -170,10 +170,11 @@ public static class PriceProvenance
     /// <param name="capturedAt">When the observation that became the close was taken.</param>
     /// <param name="startsAt">First pitch, where the caller knows it.</param>
     /// <remarks>
-    /// The line break is part of the answer, not formatting that leaked in. A tooltip carrying
-    /// this has no width ceiling to wrap against — Mud writes <c>max-width: none</c> inline at
-    /// runtime, which no stylesheet can beat without an <c>!important</c> the design system
-    /// forbids — so the sentence arrives already broken where a reader would break it.
+    /// The line break is part of the answer, not formatting that leaked in: a plain-text tooltip
+    /// has no width ceiling to wrap against (Mud writes <c>max-width: none</c> inline on its
+    /// popover), so the sentence arrives already broken where a reader would break it. The
+    /// Board's price cell now draws the structured tooltip, which has a measure, from
+    /// <see cref="ClosingTitle"/> and <see cref="Caption"/>; this stays for a plain caller.
     /// </remarks>
     public static string Explain(DateTimeOffset capturedAt, DateTimeOffset? startsAt)
     {
@@ -187,6 +188,26 @@ public static class PriceProvenance
         return lead <= TimeSpan.FromMinutes(1)
             ? $"{what}\nCaptured at the start."
             : $"{what}\nCaptured {Lead(lead)} before start.";
+    }
+
+    /// <summary>The name a structured tooltip gives a closing price: its title line.</summary>
+    public const string ClosingTitle = "Closing price";
+
+    /// <summary>
+    /// What a closing price is, as the one-sentence caption under <see cref="ClosingTitle"/>:
+    /// "The last number before the start, captured 3.6h before it." The title says it is a
+    /// close, so the caption does not say it again; the lead time is the part a reader acts on.
+    /// </summary>
+    public static string Caption(DateTimeOffset capturedAt, DateTimeOffset? startsAt)
+    {
+        if (startsAt is not { } start)
+            return "The last number on the board before the start.";
+
+        var lead = start - capturedAt;
+
+        return lead <= TimeSpan.FromMinutes(1)
+            ? "The last number before the start, captured at the start."
+            : $"The last number before the start, captured {Lead(lead)} before it.";
     }
 
     /// <summary>A lead time at the precision a reader can act on, never more.</summary>

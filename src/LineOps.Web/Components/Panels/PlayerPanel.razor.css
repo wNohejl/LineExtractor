@@ -1,0 +1,7 @@
+/* The Player window's averages and game log are section cards (the Desk's grouping contract);
+   the game log's table inside its card is the Desk's (desk.css, "What a card holds that is not a
+   row"). The averages strip is inset from the card's edge as the bar's title is, so the readings
+   start where the title does. */
+.player-averages {
+    padding: var(--space-3) var(--space-4);
+}

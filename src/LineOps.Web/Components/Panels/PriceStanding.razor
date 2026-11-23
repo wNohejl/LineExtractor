@@ -1,6 +1,7 @@
 @using LineOps.Core.Analytics
 @using LineOps.Core.Entities
 @using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Snippets
 
 @*
     Where the market stands on one side of one game, read from what is stored.
@@ -21,7 +22,7 @@
         @if (Side is { Fair: { } fair } side0)
         {
             <Metric Label="Fair" Value="@Figure(fair.PriceAmerican, side0.Line, side0.Outcome)" Numeric
-                    Note="@($"{SideName} · {Checks.Basis(fair)}, no-vig")" />
+                    Note="@($"{SideName} ({Checks.Basis(fair)}, no-vig)")" />
         }
         else
         {
@@ -55,7 +56,11 @@
         @* Every book on the side, by what it pays, against the fair price at its own number, and
            how long it has held it. Replaces the movement columns, which for a side nobody has
            moved were "unmoved" and "seen once" in every row. *@
-        <DeskGrid T="BookStanding" Items="Books(Rows, Side)" Resizable="false" EmptyText="No prices on this side.">
+        @* Ranked on the whole market and capped at the top five, as every book table is (BookRanking),
+           the rest behind the key under it. *@
+        var books = BookRanking.Order(Books(Rows, Side), b => b.Book, Side, Other);
+        <div class="standing__books" id="@_booksId">
+        <DeskGrid T="BookStanding" Items="BookRanking.Visible(books, IsExpanded)" Resizable="false" EmptyText="No prices on this side.">
             <PropertyColumn T="BookStanding" TProperty="string" Property="b => b.Book" Title="Book"
                             Sortable="false" HeaderClass="ops-col--grow" CellClass="ops-col--grow">
                 <CellTemplate>
@@ -95,6 +100,8 @@
                 </CellTemplate>
             </TemplateColumn>
         </DeskGrid>
+        <MoreBooks Total="books.Count" Expanded="IsExpanded" ExpandedChanged="SetExpandedAsync" Controls="@_booksId" />
+        </div>
     }
 
     @* What could move these numbers next, in a sentence, and the pull that would, with its cost. *@
@@ -163,6 +170,28 @@
     [Parameter] public DateTimeOffset? Now { get; set; }
 
     private DateTimeOffset At => Now ?? DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Whether every book shows. Bound by Line movement, which keeps it per market for as long as
+    /// the window is open; unbound, the standing keeps it while it is drawn.
+    /// </summary>
+    [Parameter] public bool? Expanded { get; set; }
+
+    [Parameter] public EventCallback<bool> ExpandedChanged { get; set; }
+
+    private bool _expanded;
+
+    private bool IsExpanded => ExpandedChanged.HasDelegate ? Expanded ?? false : _expanded;
+
+    private async Task SetExpandedAsync(bool expanded)
+    {
+        _expanded = expanded;
+
+        if (ExpandedChanged.HasDelegate)
+            await ExpandedChanged.InvokeAsync(expanded);
+    }
+
+    private readonly string _booksId = "standing-" + Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>One book's standing on the side: its number now, its edge against fair there, and since when.</summary>
     public sealed record BookStanding(string Book, OddsSnapshot Now, double? Ev, bool IsBest, DateTimeOffset Since);

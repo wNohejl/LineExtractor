@@ -104,9 +104,15 @@ else
     }
     else
     {
-        @* The aggregate every other view shows, kept here beside the games behind it so the
+        @* Section cards in a .wflow (the Desk's grouping contract), each named in the bar at its
+           top. Both bodies are grids of their own — a strip of readings, a wide table — so each
+           takes the whole row; the table draws no second frame inside its card
+           (PlayerPanel.razor.css).
+           The aggregate every other view shows, kept here beside the games behind it so the
            two can be read against each other rather than one standing in for the other. *@
-        <PanelSection Title="Averages">
+        <div class="wflow player-flow">
+        <FormGroup Title="Averages" Span="DeskCardSpan.Row">
+            <div class="wgroup__row wgroup__row--pad player-averages">
             <div class="snippet__facts">
                 @foreach (var column in _columns.Take(6))
                 {
@@ -116,12 +122,13 @@ else
                     </div>
                 }
             </div>
-        </PanelSection>
+            </div>
+        </FormGroup>
 
         @* The log is the one view on the desk where sorting is the point rather than a
            convenience: "which were the big games" and "how did the away nights go" are both
            questions about this table, and neither can be asked of a fixed date order. *@
-        <PanelSection Title="Game log">
+        <FormGroup Title="Game log" Span="DeskCardSpan.Row" GroupClass="player-log">
         <div class="gridwrap">
             <DeskGrid T="PlayerGameRow" Items="_rows"
                       EmptyText="No appearances on record for this player.">
@@ -183,7 +190,8 @@ else
                 }
             </DeskGrid>
         </div>
-        </PanelSection>
+        </FormGroup>
+        </div>
     }
 }
 

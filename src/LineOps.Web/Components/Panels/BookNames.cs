@@ -42,6 +42,59 @@ public static class BookNames
         ["wynnbet"] = "WynnBET",
     };
 
+    /// <summary>
+    /// A book's two-letter mark, for the Board's dense cells. Colour means state on this desk, so a
+    /// book is told apart typographically (ADR 0008), which only works if no two books share a
+    /// mark: three keys start "BE" and two "BO", and the feed's two keys for one book
+    /// (<c>pointsbet</c>/<c>pointsbetus</c>, <c>caesars</c>/<c>williamhill_us</c>) must read alike. So
+    /// every book this class names has its mark written here, and an unknown key falls back to
+    /// its first two letters.
+    /// </summary>
+    public static string Code(string book)
+    {
+        if (string.IsNullOrWhiteSpace(book))
+            return "—";
+
+        var key = book.Trim();
+        return Codes.TryGetValue(key, out var code)
+            ? code
+            : key.Length >= 2 ? key[..2].ToUpperInvariant() : key.ToUpperInvariant();
+    }
+
+    /// <summary>The keys this class names, for the tests that hold every one to a name and a distinct mark.</summary>
+    public static IReadOnlyCollection<string> Known => Names.Keys;
+
+    private static readonly Dictionary<string, string> Codes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ballybet"] = "BB",
+        ["bet365"] = "B3",
+        ["betfair_ex_us"] = "BF",
+        ["betmgm"] = "MG",
+        ["betonlineag"] = "BO",
+        ["betrivers"] = "BR",
+        ["betus"] = "BU",
+        ["bovada"] = "BV",
+        ["caesars"] = "CZ",
+        ["circa"] = "CI",
+        ["draftkings"] = "DK",
+        ["espn"] = "ES",
+        ["espnbet"] = "TS",
+        // ESPN's own closing lines name the book as it was then, cased; "ES" would read as ESPN.
+        ["ESPN BET"] = "EB",
+        ["fanatics"] = "FN",
+        ["fanduel"] = "FD",
+        ["hardrockbet"] = "HR",
+        ["lowvig"] = "LV",
+        ["mybookieag"] = "MB",
+        ["pinnacle"] = "PN",
+        ["pointsbet"] = "PB",
+        ["pointsbetus"] = "PB",
+        ["superbook"] = "SB",
+        ["unibet_us"] = "UB",
+        ["williamhill_us"] = "CZ",
+        ["wynnbet"] = "WB",
+    };
+
     /// <summary>"DraftKings" for <c>draftkings</c>; a key it does not know, in capitalised words.</summary>
     public static string Display(string? book)
     {

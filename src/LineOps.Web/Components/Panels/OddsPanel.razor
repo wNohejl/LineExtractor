@@ -1,5 +1,6 @@
 @using LineOps.Data
 @using LineOps.Data.CrossReference
+@using LineOps.Web.Components.Snippets
 @using LineOps.Desk.Windowing
 @using LineOps.Web.Services
 @using Microsoft.EntityFrameworkCore
@@ -221,19 +222,24 @@ else
            "unmoved" and "seen once" in every row. *@
         <PriceStanding Rows="_rows" Side="@SideOffer" Other="@OtherOffer"
                        SideName="@SideName(_side)" OtherName="@SideName(OtherSide)"
-                       ShowBooks="@(!AnyMoves)" Closing="@(_board?.PricesAreClosing == true)"
+                       ShowBooks="@(!AnyMoves)" Expanded="@_expanded.Contains(_market)" ExpandedChanged="@((bool open) => SetExpanded(open))" Closing="@(_board?.PricesAreClosing == true)"
                        Scheduled="@(_scheduled == true)"
                        PullLabel="@PullLabel" PullUnavailable="@PullUnavailable" OnPull="PullAsync" />
 
         @if (AnyMoves)
         {
-        <DeskGrid T="MovementRow" Items="_rows" Resizable="false" EmptyText="No prices on this side.">
+        @* Ranked on the whole market and capped at the top five, as every book table on the desk is
+           (BookRanking): the books holding the best price on either side lead, then the lowest hold,
+           and the rest are behind the key under the grid. It opened sorted by book name; a heading
+           still sorts the rows showing. *@
+        <div class="oddsbooks" id="@_booksId">
+        <DeskGrid T="MovementRow" Items="BookRanking.Visible(BookRanking.Order(_rows, r => r.Book, SideOffer, OtherOffer), _expanded.Contains(_market))" Resizable="false" EmptyText="No prices on this side.">
             @* The book by its name, as Every book names it: the feed's key ("draftkings") is
                for joining rows, not for reading. *@
             @* Every value here holds one line; the trend takes what is left, so the book's name
                and its figures never break while the sparkline has room to draw its path. *@
             <PropertyColumn T="MovementRow" TProperty="string" Property="r => r.Book" Title="Book"
-                            InitialDirection="SortDirection.Ascending" HeaderClass="ops-col--fit" CellClass="ops-col--fit">
+                            HeaderClass="ops-col--fit" CellClass="ops-col--fit">
                 <CellTemplate>@BookNames.Display(context.Item.Book)</CellTemplate>
             </PropertyColumn>
 
@@ -296,6 +302,8 @@ else
                 </CellTemplate>
             </TemplateColumn>
         </DeskGrid>
+        <MoreBooks Total="_rows.Count" Expanded="@_expanded.Contains(_market)" ExpandedChanged="@((bool open) => SetExpanded(open))" Controls="@_booksId" />
+        </div>
         }
     </div>
 }
@@ -414,6 +422,24 @@ else
         new(Markets.Spread, "Spread"),
         new(Markets.Total, "Total")
     ];
+
+    /// <summary>
+    /// The markets showing every book rather than the top five, by key: the operator's choice per
+    /// market, kept for as long as the window is open — across a side switch, a refresh, another
+    /// game followed — and shared by the movement grid and the standing's books, which are the
+    /// same books.
+    /// </summary>
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+
+    private void SetExpanded(bool open)
+    {
+        if (open)
+            _expanded.Add(_market);
+        else
+            _expanded.Remove(_market);
+    }
+
+    private readonly string _booksId = "oddsbooks-" + Guid.NewGuid().ToString("N")[..8];
 
     private MatchupForm? _form;
     private int _windowDays = 30;

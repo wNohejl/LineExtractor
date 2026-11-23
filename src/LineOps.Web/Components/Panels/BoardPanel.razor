@@ -467,7 +467,7 @@ else
                        edge is measured against, and a title never reaches the keyboard (HIG 12). It wraps
                        the whole cell, because MudTooltip's root is inline and would set the two
                        lines of the cell side by side if it sat inside the column. *@
-                    <DeskTooltip Text="@ValueTitle(context.Item, pick)">
+                    <DeskTooltip Title="Most value on this game" Caption="@ValueCaption(pick)" Text="@ValueTitle(context.Item, pick)">
                         <div class="value">
                             <span class="value__ev @(pick.Book.Ev > 0 ? "up" : "dim")">
                                 @PriceCell.EvLabel(pick.Book.Ev!.Value).Replace(" EV", "")
@@ -667,6 +667,7 @@ else
     }
     private int _windowHours = 24;
     private int _bookCount;
+    private int _fewestBooks;
     private int _priced;
     private int _unpriced;
 
@@ -700,14 +701,22 @@ else
 
     /// <summary>
     /// Coverage in words, because "12 of 19" alone does not say whether the missing seven are a
-    /// broken feed or seven games that have already been played.
+    /// broken feed or seven games that have already been played. The books are a range when the
+    /// rows differ: a slate where today's games carry ten books and next week's three read as
+    /// "best of 10 books" before, which claimed ten for every row.
     /// </summary>
     private string CoverageNote
         => _rows.Count == 0 ? "nothing on the board"
             : _bookCount == 0 ? "no book quoted this window"
             : _closing > 0
-                ? $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")} · {_closing} closed"
-                : $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")}";
+                ? $"best of {BooksPhrase} · {_closing} closed"
+                : $"best of {BooksPhrase}";
+
+    /// <summary>"10 books", or "3–10 books" when the thinnest priced row has fewer than the fullest.</summary>
+    private string BooksPhrase
+        => _fewestBooks > 0 && _fewestBooks < _bookCount
+            ? $"{_fewestBooks}–{_bookCount} books"
+            : $"{_bookCount} {(_bookCount == 1 ? "book" : "books")}";
 
     private DeskState CoverageState
         => _rows.Count == 0 ? DeskState.Neutral
@@ -778,9 +787,18 @@ else
         return $"{bet} · {PriceCell.Monogram(pick.Book.Book)} {OddsMath.FormatPrice(pick.Book.PriceAmerican)}";
     }
 
+    /// <summary>
+    /// The Value cell's tooltip, spoken: the side, the book by name (the feed's key, "draftkings",
+    /// was printed here before), the price and the edge against the fair price.
+    /// </summary>
     private static string ValueTitle(BoardRow row, ValuePick pick)
-        => $"{pick.Outcome} at {pick.Book.Book}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
+        => $"{pick.Outcome} at {BookNames.Display(pick.Book.Book)}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
            + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price — the most value on this game.";
+
+    /// <summary>The same under its title: where to take it on one line, what it is worth on the next.</summary>
+    private static string ValueCaption(ValuePick pick)
+        => $"{pick.Outcome} at {BookNames.Display(pick.Book.Book)}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}\n"
+           + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price";
 
     private static string Side(BoardRow row, bool home)
     {
@@ -876,6 +894,7 @@ else
     {
         _rows = rows;
         _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
+        _fewestBooks = _rows.Where(r => r.BookCount > 0).Select(r => r.BookCount).DefaultIfEmpty().Min();
         _priced = _rows.Count(r => r.HasPrices);
         _unpriced = _rows.Count - _priced;
         _port = port;
@@ -1406,6 +1425,8 @@ else
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
                 Snippet = @<BoardAllBets GameId="id" />,
+                // Its markets are section cards of their own, so the drawer is their pane header.
+                SnippetCards = true,
                 OpenLabel = Manager.AtCapacity ? "Open as tab" : "Open window",
                 OpenWindow = Command(() => OpenBets(id, name))
             });

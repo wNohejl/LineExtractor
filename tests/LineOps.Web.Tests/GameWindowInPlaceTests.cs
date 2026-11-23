@@ -99,7 +99,7 @@ public class GameWindowInPlaceTests : DeskTestContext
 
     /// <summary>
     /// Once the game has started the scans are gone (ADR 0010), so the opened market shows every
-    /// book's close on both sides, the best on each marked by weight and a dot, and reads nothing.
+    /// book's close on both sides, the best on each marked by weight and a dot (the desk's one book table), and reads nothing.
     /// </summary>
     [Fact]
     public void A_started_game_opens_onto_every_book_s_close()
@@ -121,8 +121,8 @@ public class GameWindowInPlaceTests : DeskTestContext
         Assert.Equal(2, rows.Count);
         Assert.Contains("BetMGM", rows[0].TextContent);
         Assert.Contains("-1.5 -108", rows[0].TextContent.Replace('−', '-'));
-        Assert.Equal(2, cut.FindAll(".gamemove__best").Count);
-        Assert.Equal(2, cut.FindAll(".gamemove__dot").Count);
+        Assert.Equal(2, cut.FindAll(".bookcmp__best").Count);
+        Assert.Equal(2, cut.FindAll(".bookcmp__dot").Count);
         Assert.Empty(cut.FindAll(".gate"));
         Assert.Contains("before the start", cut.Find(".gamemove__foot").TextContent);
     }
@@ -145,7 +145,7 @@ public class GameWindowInPlaceTests : DeskTestContext
 
     // ---- The Game window's source --------------------------------------------------------
 
-    /// <summary>Movement and Head to head no longer open windows from the header; the season heads its panes.</summary>
+    /// <summary>Movement and Head to head no longer open windows from the header; the season sits in its blocks.</summary>
     [Fact]
     public void The_header_holds_only_what_applies_to_every_tab()
     {
@@ -157,7 +157,8 @@ public class GameWindowInPlaceTests : DeskTestContext
         Assert.DoesNotContain("_seasonOptions", keys);
 
         Assert.Contains("<GameHeadToHead ", source);
-        Assert.Equal(2, Regex.Matches(source, @"@RenderSeason\(\)").Count);
+        // The season sits in the two blocks it chooses for: the Team data card and the Players block.
+        Assert.Equal(2, Regex.Matches(source, @"RenderSeason\(""Season for").Count);
     }
 
     /// <summary>Each market's name is its disclosure, and the opened row is the market in place.</summary>

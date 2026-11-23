@@ -50,7 +50,6 @@
    and opened invisible. For as long as a panel is open in one, the box lets it out (a row
    fill at its last corner may show square for that moment). popover.js still holds the panel
    inside the window and inside any box further out that clips. */
-.snippet:has(.popover__panel),
 .wgroup:has(.popover__panel) {
     overflow: visible;
 }
@@ -1417,4 +1416,91 @@
     margin: var(--space-3) 0 0;
     font-size: var(--text-footnote);
     color: var(--text-secondary);
+}
+
+/* ---- Tooltip, structured ----------------------------------------------------
+   DeskTooltip's structured shape: a title, a caption, a compact table, a quiet last line.
+   The popover around it is .mud-tooltip, themed in mud-bridge.css; everything here is on
+   .desk-tip, the element DeskTooltip draws inside it, because Mud's positioner writes
+   `max-width: none` inline on the popover and an inline style beats any rule without
+   !important. The measure set on our own element holds, and the popover shrinks to fit it.
+
+   One device per level, none of them a box: the title by weight and full-strength text, the
+   caption, labels and qualifiers by the secondary level (tertiary would not read on the
+   tooltip's raised fill), the values by full-strength text in tabular numerals, trailing so a
+   column reads by place, the emphasised row by weight — never by hue alone — and the footnote
+   under one hairline that divides it from the table inside the one surface. */
+.desk-tip {
+    width: max-content;
+    max-width: min(20rem, calc(100vw - var(--space-8)));
+    padding: var(--space-1) 0;
+    white-space: normal;
+    text-align: start;
+    letter-spacing: 0;
+}
+
+.desk-tip__face {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.desk-tip__title {
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--text-primary);
+}
+
+.desk-tip__caption {
+    color: var(--text-secondary);
+    line-height: var(--leading-body);
+    /* a break the caller wrote is kept, so a second fact can sit on its own line */
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+
+.desk-tip__rows {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: var(--space-3);
+    row-gap: 2px;
+    margin-top: var(--space-1);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Each row lends its three cells to the table's columns, so every value lines up by place. */
+.desk-tip__row { display: contents; }
+
+.desk-tip__label {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.desk-tip__value {
+    color: var(--text-primary);
+    text-align: end;
+    white-space: nowrap;
+}
+
+.desk-tip__qualifier {
+    color: var(--text-secondary);
+    text-align: end;
+    white-space: nowrap;
+}
+
+.desk-tip__row--emphasis > .desk-tip__label,
+.desk-tip__row--emphasis > .desk-tip__value {
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+
+.desk-tip__footnote {
+    margin-top: var(--space-1);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--separator);
+    color: var(--text-secondary);
+    line-height: var(--leading-body);
 }

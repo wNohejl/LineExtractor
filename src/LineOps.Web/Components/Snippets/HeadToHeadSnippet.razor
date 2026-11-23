@@ -70,7 +70,7 @@ else
                         @* Graded from the over's point of view, so a win is an over and a loss an under. *@
                         @if (row.TotalResult is { } total && row.ClosingTotal is { } line && ResultTag.Of(total) is { } over)
                         {
-                            <ResultTag Result="@over">@(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line</ResultTag>
+                            <ResultTag Result="@over">@(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @Total(line)</ResultTag>
                         }
                         else
                         {
@@ -149,5 +149,9 @@ else
 
     private static string Day(DateTimeOffset at) => DisplayTime.Format(at, "MMM d, yyyy");
 
-    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+    /// <summary>A spread as every price table writes one: "+3.5", "-7", never "+3.50".</summary>
+    private static string Line(decimal value) => OddsMath.FormatLine(value, string.Empty);
+
+    /// <summary>A total as the Board writes the number: "47.5", never "47.50".</summary>
+    private static string Total(decimal value) => value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 }

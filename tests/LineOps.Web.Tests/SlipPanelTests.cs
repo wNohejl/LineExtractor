@@ -51,6 +51,44 @@ public class SlipPanelTests : WagerTestContext
         Assert.Empty(cut.FindAll(".slip-card"));
     }
 
+    /// <summary>
+    /// The slip's sections are section cards in one flow (the Desk's grouping contract). The
+    /// wagers' card names its count in the bar inside it, with the mode gate trailing — it was a
+    /// card of its own whose bar said "Logged as" over a row that said "Log" — and its rows alone
+    /// are the list. The parlay is a card beside it, its legs' count trailing its title and the
+    /// multiplication its footer, under the card. No name floats above a group.
+    /// </summary>
+    [Fact]
+    public void The_wagers_and_the_parlay_are_cards_in_a_flow()
+    {
+        Slip.Add(Item(-128));
+        Slip.Add(Item(-105, outcome: BoardRows.Away, gameId: 8));
+
+        var cut = RenderComponent<SlipPanel>();
+
+        Assert.Empty(cut.FindAll(".wgroup__head"));
+        var wagers = Assert.Single(cut.FindAll(".slip > .wflow > section.wsection"));
+        var bar = wagers.QuerySelector(".wgroup > .wgroup__bar")!;
+        Assert.Equal("2 wagers", bar.QuerySelector(".wgroup__title")!.TextContent.Trim());
+        Assert.Equal(bar.QuerySelector(".wgroup__title")!.Id, wagers.GetAttribute("aria-labelledby"));
+        Assert.Equal("Logged as", bar.QuerySelector(".wgroup__keys [role=radiogroup]")!.GetAttribute("aria-label"));
+        Assert.Null(bar.QuerySelector("[role=listitem]"));
+        Assert.Equal(2, wagers.QuerySelectorAll(".wgroup [role=list] > [role=listitem].slip-card").Length);
+        Assert.Equal("Belongs to this desk session, not to a game.", wagers.QuerySelector(".wgroup + .wgroup__foot")!.TextContent.Trim());
+
+        cut.FindAll("button.gate__opt").First(b => b.TextContent.Trim() == "One parlay").Click();
+
+        var cards = cut.FindAll(".slip > .wflow > section.wsection");
+        Assert.Equal(2, cards.Count);
+        var parlay = cards[1];
+        Assert.Equal("Parlay", parlay.QuerySelector(".wgroup__bar .wgroup__title")!.TextContent.Trim());
+        Assert.Equal("2 legs", parlay.QuerySelector(".wgroup__bar .wgroup__keys")!.TextContent.Trim());
+        Assert.NotNull(parlay.QuerySelector(".wgroup.slip-parlay .slip-leg"));
+        Assert.NotNull(parlay.QuerySelector(".wgroup + .wgroup__foot .slip-parlay__note"));
+        // The keys stay under the flow, the one Filled key last.
+        Assert.NotNull(cut.Find(".slip > .wflow + .waction button.desk-btn--filled"));
+    }
+
     [Fact]
     public void Each_card_says_whether_it_can_be_logged()
     {
