@@ -171,7 +171,9 @@ public class WindowRenderCountTests : DeskTestContext
         var (desk, manager, first, second) = Render();
 
         desk.InvokeAsync(() => manager.ToggleMaximise(second.Id));
-        Assert.Single(desk.FindComponents<AppWindow>());
+
+        // Kept on the page, hidden behind the column holding the row.
+        Assert.Contains("win--behind", WindowOf(desk, first).Find(".win").ClassList);
 
         desk.InvokeAsync(() => manager.SetPulse(first.Id, PulseState.Warn, "stale"));
         desk.InvokeAsync(() => manager.ToggleMaximise(second.Id));

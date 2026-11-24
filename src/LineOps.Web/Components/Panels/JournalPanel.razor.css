@@ -1,0 +1,8 @@
+/* The Journal's two ledgers are section cards, each holding one table (the Desk's grouping
+   contract). The card is the frame, and its table's last hairline stands down for the card's
+   edge: that rule is the Desk's (desk.css, "What a card holds that is not a row"). */
+
+/* Show more sits under the cards as it sat under the last section's table. */
+.journal-lists {
+    margin-bottom: var(--space-3);
+}

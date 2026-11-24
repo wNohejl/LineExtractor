@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject WindowManager Manager
 @inject DeskBrand Brand
-@inject IJSRuntime JS
 @inject IDeskAlerts Alerts
 
 @*
@@ -94,12 +93,17 @@
         <WindowBar />
     </div>
 
+    @* The desk's notices, "Activities" to the operator (ADR 0028): a capsule in the stretch the
+       strip leaves free, layered horizontally, folding to its key alone where the stretch is
+       narrow. It takes only that stretch, never the strip's, the wordmark's or the keys'. *@
+    <LineOps.Desk.Primitives.DeskToastStack />
+
     <span class="hdr__divider" aria-hidden="true"></span>
 
     @* What is left of the desk's own controls: both are about the row as a whole. Back and
        Forward are not here any more: they moved onto each window's bar, where the direction
        they go is the window they sit on (AppWindow). The desk's own undo — bring back what was
-       just closed — is the notice's Reopen key below, Ctrl+Z, and the browser's Back. *@
+       just closed — is the notice toast's Reopen key, Ctrl+Z, and the browser's Back. *@
     <div class="hdr__tools" role="group" aria-label="Desk controls" data-glide>
         <button class="rail__btn" type="button" title="Go to anything (Ctrl+K)"
                 aria-label="Go to anything" aria-keyshortcuts="Control+K Meta+K"
@@ -114,39 +118,18 @@
             <Glyph Icon="@Icons.Material.Filled.ViewColumn" />
         </button>
 
-        @* A window that vanished must say so: silent eviction reads as a bug, not a policy, and
-           a window closed by its own key says so too, so the way back is a named key rather
-           than a header arrow whose direction had to be guessed. Said beside the count, where
-           the operator is looking when they open something. One line; the whole sentence is
-           its title when it is cut, and it gives way before the window groups do. *@
-        @if (Manager.LastEviction is { } eviction)
-        {
-            <div class="hdr__notice" role="status">
-                <Glyph Icon="@Icons.Material.Filled.LayersClear" />
-                <span class="hdr__notice-text" title="@eviction">@eviction</span>
-                @if (Manager.CanGoBack)
-                {
-                    @* Back undoes the open that caused this, so the closed window returns where
-                       it was. The key says which window that is: "Undo" alone left the
-                       operator to guess. *@
-                    <button class="hdr__notice-undo" type="button" title="Ctrl+Z"
-                            aria-keyshortcuts="Control+Z Meta+Z" @onclick="GoBack">
-                        @UndoLabel(Manager.LastEvictedTitles)
-                    </button>
-                }
-                <button class="hdr__notice-dismiss" type="button" title="Dismiss" aria-label="Dismiss"
-                        @onclick="Manager.ClearEviction">
-                    <Glyph Icon="@Icons.Material.Filled.Close" />
-                </button>
-            </div>
-        }
+        @* A window closed by its own key, or an open refused at the ceiling, is said as a toast
+           (DeskNoticeToasts), not here: a sentence beside the count covered the controls the
+           operator reaches for next (ADR 0028). *@
 
-        @* The ceiling, and what the next open would cost. Was a note inside the
-           launcher menu; the menu is gone, and this is where it was always
-           really being asked. *@
-        <span class="hdr__count num @(Manager.AtCapacity ? "hdr__count--full" : null)"
+        @* One figure: how many windows are open, tabbed ones included — "3 windows". It used
+           to read "2/2 +1 tabbed", columns against the limit and then the tabs, two numbers
+           nobody could put together. The columns are said in words to a screen reader and in
+           the sentence under the pointer, which also says where the next window would go. *@
+        <span class="hdr__count @(Manager.AtCeiling ? "hdr__count--full" : null)"
               title="@CapacityTip">
-            @Manager.OpenCount/@Manager.Settings.MaxConcurrentWindows
+            <span class="num" aria-hidden="true">@WindowsLabel(Manager.OpenCount)</span>
+            <span class="sr-only">@CountSentence(Manager)</span>
         </span>
     </div>
 </header>
@@ -165,18 +148,30 @@
     public void Dispose() => Manager.Changed -= OnChanged;
 
     /// <summary>
-    /// Which window the next open would close. Said before the click rather than after, so
-    /// eviction is never a surprise.
+    /// The count in words, and where the next window goes. Said before the click rather than
+    /// after, so a window landing in a tab is never a surprise.
     /// </summary>
-    private string? NextEviction => Manager.Windows
-        .OrderByDescending(w => w.Minimised)
-        .ThenBy(w => w.LastFocusedAt)
-        .FirstOrDefault()?.Title;
+    private string CapacityTip => CapacitySentence(Manager);
 
-    private string CapacityTip
-        => Manager.AtCapacity && NextEviction is { } victim
-            ? $"Desk is full at {Manager.Settings.MaxConcurrentWindows}. Opening another closes {victim} — least recently used."
-            : $"{Manager.OpenCount} of {Manager.Settings.MaxConcurrentWindows} windows open.";
+    /// <summary>The header's figure: "1 window", "3 windows" — every open window, tabbed ones included.</summary>
+    public static string WindowsLabel(int open) => open == 1 ? "1 window" : $"{open} windows";
+
+    /// <summary>The figure in words: "3 windows open, in 2 of 2 columns".</summary>
+    public static string CountSentence(WindowManager manager)
+        => $"{WindowsLabel(manager.OpenCount)} open, in {manager.ColumnCount} of {manager.Settings.MaxConcurrentWindows} columns";
+
+    public static string CapacitySentence(WindowManager manager)
+    {
+        var columns = $"{manager.ColumnCount} of {manager.Settings.MaxConcurrentWindows} columns in use";
+        var windows = $"{manager.OpenCount} {(manager.OpenCount == 1 ? "window" : "windows")} open";
+
+        if (manager.AtCeiling)
+            return $"{columns}, {windows} — the most the desk holds. Close one to open another.";
+
+        return manager.NextTabTarget is { } target
+            ? $"{columns}, {windows}. The next window opens as a tab in {target.Showing.Title}."
+            : $"{columns}, {windows}.";
+    }
 
 
     private void Apply(Workspace workspace)
@@ -186,15 +181,8 @@
     }
 
     /// <summary>
-    /// The notice's Reopen key. Through the browser's history, like Ctrl+Z, so all of them walk
-    /// one list (see Desk.OnUndoRequested). The step back puts a closed window in place and
-    /// clears the notice itself.
-    /// </summary>
-    private async Task GoBack() => await JS.InvokeVoidAsync("history.back");
-
-    /// <summary>
-    /// The notice's key: "Reopen Log" for one window, "Reopen 2 windows" for several. The
-    /// manager keeps the titles beside its sentence (<see cref="WindowManager.LastEvictedTitles"/>),
+    /// The notice toast's key (DeskNoticeToasts): "Reopen Log" for one window, "Reopen 2 windows" for several. The
+    /// manager keeps the titles beside its sentence (<see cref="WindowManager.NoticeTitles"/>),
     /// so the key names what it brings back rather than offering a bare "Undo" to decode.
     /// </summary>
     public static string UndoLabel(IReadOnlyList<string> titles) => titles.Count switch

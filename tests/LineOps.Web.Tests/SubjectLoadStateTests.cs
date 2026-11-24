@@ -141,4 +141,49 @@ public class SubjectLoadStateTests
         Assert.DoesNotContain("@_wins-@_losses", source);
         Assert.Contains("GameLogSplits.FormatRecord(_visible)", source);
     }
+
+    // ---- Section cards ----------------------------------------------------------------
+
+    /// <summary>
+    /// The Team window's log and roster are section cards in one flow (the Desk's grouping
+    /// contract), named in the bar inside each card rather than by a rule above it. The record
+    /// trails the log's title; the splits are a split row of two labelled filters; what the record
+    /// was read against is the footer under the card. The log list inside a card gives up its
+    /// own frame, so it is not a box inside a box.
+    /// </summary>
+    [Fact]
+    public void Team_sections_are_cards_in_a_flow()
+    {
+        var source = Panel("TeamPanel");
+
+        Assert.Contains("<div class=\"wflow team-flow\">", source);
+        Assert.Contains("<FormGroup Title=\"@(IsFight ? \"Bouts on the desk\" : \"Recent games\")\"", source);
+        Assert.Contains("Keys=\"@(_log.Count > 0 ? RecordKeys : null)\"", source);
+        Assert.Contains("Footer=\"@(_log.Count > 0 ? RecordFooter : null)\"", source);
+        Assert.Contains("<FormGroup Title=\"Roster form\" GroupClass=\"team-card\">", source);
+        Assert.Contains("<div class=\"wgroup__row wgroup__split team-splits\">", source);
+        Assert.DoesNotContain("PanelSection Title=\"Recent games\"", source);
+        Assert.DoesNotContain("PanelSection Title=\"Roster form\"", source);
+        Assert.DoesNotContain("wgroup__head", source);
+
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "TeamPanel.razor.css"));
+        Assert.Contains(".team-flow ::deep .team-card > .loglist {\n    background: none;\n    border: 0;", css.ReplaceLineEndings("\n"));
+    }
+
+    /// <summary>
+    /// The Player window's averages and game log are section cards that span the flow's row — a
+    /// strip of readings and a wide table are grids of their own — and the table draws no second
+    /// frame inside its card.
+    /// </summary>
+    [Fact]
+    public void Player_sections_are_cards_that_span_the_flow()
+    {
+        var source = Panel("PlayerPanel");
+
+        Assert.Contains("<div class=\"wflow player-flow\">", source);
+        Assert.Contains("<FormGroup Title=\"Averages\" Span=\"DeskCardSpan.Row\">", source);
+        Assert.Contains("<FormGroup Title=\"Game log\" Span=\"DeskCardSpan.Row\" GroupClass=\"player-log\">", source);
+        Assert.DoesNotContain("<PanelSection", source);
+        Assert.DoesNotContain("wgroup__head", source);
+    }
 }

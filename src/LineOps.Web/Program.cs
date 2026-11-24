@@ -27,7 +27,9 @@ builder.Services.AddRazorComponents()
 // tells time in the zone the leagues keep — the same one every panel formats in (DisplayTime).
 // See src/LineOps.Desk/DeskHost.cs for what each seam is.
 builder.Services.AddDesk(
-    new DeskBrand("LINE", "OPS", "sports-data ingestion & analytics operations", "Go to a team, player, game or window"),
+    // The product is XLines (ADR 0031). The layout key keeps the name it was saved under, so a
+    // desk laid out as LineOps opens as it was left.
+    new DeskBrand("X", "LINES", "sports-data ingestion & analytics operations", "Go to a team, player, game or window") { StorageKey = "lineops.desk" },
     new DeskClock(LineOps.Core.Analytics.LeagueClock.Zone, LineOps.Web.Components.DisplayTime.Label));
 builder.Services.AddSingleton<IWindowCatalog, LineOps.Web.Windowing.AppWindowCatalog>();
 
@@ -45,6 +47,8 @@ builder.Services.AddScoped<LineOps.Desk.IDeskJobs, LineOps.Web.Services.Ingestio
 // window on this desk shares it and it goes with the circuit (spec §3.1).
 builder.Services.AddScoped<LineOps.Web.Services.WagerSlip>();
 builder.Services.AddScoped<LineOps.Web.Services.IWagerData, LineOps.Web.Services.WagerData>();
+builder.Services.AddScoped<LineOps.Web.Services.ILineMovementData, LineOps.Web.Services.LineMovementData>();
+builder.Services.AddScoped<LineOps.Web.Services.IMatchupData, LineOps.Web.Services.MatchupData>();
 builder.Services.AddScoped<LineOps.Web.Services.IGameWindowData, LineOps.Web.Services.GameWindowData>();
 builder.Services.AddScoped<LineOps.Web.Services.IGamecastData, LineOps.Web.Services.GamecastData>();
 
@@ -82,6 +86,23 @@ builder.Services.AddDataSharing(builder.Configuration);
 
 builder.Services.AddLineOpsData(builder.Configuration);
 builder.Services.AddLineOpsIngestion(builder.Configuration);
+
+// The Odds API key can be typed into Ops as well as set in configuration: checked for free
+// against the provider, kept encrypted beside the Data Protection keys, used from the next pull.
+builder.Services.AddRuntimeOddsKey();
+builder.Services.AddHttpClient(DeskOddsKey.CheckClient, client =>
+{
+    client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddSingleton(sp => new DeskOddsKey(
+    sp.GetRequiredService<IDataProtectionProvider>(),
+    sp.GetRequiredService<LineOps.Ingestion.Services.RuntimeOddsKey>(),
+    sp.GetRequiredService<LineOps.Ingestion.Services.ReferenceReconciler>().ReconcileAsync,
+    sp.GetRequiredService<IHttpClientFactory>(),
+    sp.GetRequiredService<IConfiguration>(),
+    sp.GetRequiredService<ILogger<DeskOddsKey>>()));
+
 builder.Services.AddLineOpsReliability(builder.Configuration);
 builder.Services.AddLineOpsObservability(builder.Configuration);
 builder.Services.AddLineOpsHealthChecks();
@@ -104,6 +125,9 @@ if (hostsEvaluator)
     builder.Services.AddLineOpsReliabilityEvaluator();
 
 var app = builder.Build();
+
+// Before anything asks which sources are configured: the reference reconciler does at start.
+app.Services.GetRequiredService<DeskOddsKey>().Load();
 
 // Migrate, ensure partitions exist ahead of the clock, and seed reference rows.
 // Doing this at startup keeps a cold clone one `docker compose up` away from working. Against

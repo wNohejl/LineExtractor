@@ -165,6 +165,8 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
         await db.OddsSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.PlayerGameStats.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.StatSnapshots.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.GameOfficials.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
+        await db.GameContexts.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.BackfillCheckpoints.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.IngestionRuns.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
         await db.KpiDailies.Where(x => ids.Contains(x.SourceId)).ExecuteDeleteAsync(ct);
@@ -245,6 +247,20 @@ public class DatabaseInitializer(LineOpsDbContext db, ILogger<DatabaseInitialize
                 BaseUrl = "https://api.the-odds-api.com/v4/",
                 MonthlyCreditBudget = 500,
                 Enabled = true
+            },
+            // The same account's events and scores, as the default stats source when ESPN is off
+            // (ADR 0026). Its own row so its runs are its own in source health; the same 500
+            // credits, which MonthlyCredits counts across both rows (SourceAccounts). Seeded off:
+            // ReferenceReconciler turns it on only on a host that registers it (ESPN off, a key
+            // held), so a desk running on ESPN never lists it in source health or alerts.
+            new Source
+            {
+                Key = SourceAccounts.TheOddsApiSchedule,
+                Name = "The Odds API (fixtures and scores)",
+                Kind = SourceKind.Stats,
+                BaseUrl = "https://api.the-odds-api.com/v4/",
+                MonthlyCreditBudget = 500,
+                Enabled = false
             },
             new Source
             {

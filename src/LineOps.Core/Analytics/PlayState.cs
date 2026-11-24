@@ -53,15 +53,12 @@ public static class PlayState
     }
 
     /// <summary>"Q3", "OT", "2OT"; a fight's "R2". Null for a sport with no mark of its own.</summary>
+    /// <remarks>
+    /// The marks are <see cref="Periods.Mark"/>'s. Basketball is left to ESPN's detail here, as it
+    /// always was: its clock line already reads the quarter the way a scoreboard does.
+    /// </remarks>
     private static string? PeriodMark(string? sport, int period)
-        => FightSports.IsFight(sport) ? $"R{period}"
-            : sport is "nfl" or "ncaaf" ? period switch
-            {
-                <= 4 => $"Q{period}",
-                5 => "OT",
-                _ => $"{period - 4}OT"
-            }
-            : null;
+        => sport == "nba" ? null : Periods.Mark(sport, period);
 
     /// <summary>
     /// The situation as one line. Football: the side with the ball by its mark, then the down and

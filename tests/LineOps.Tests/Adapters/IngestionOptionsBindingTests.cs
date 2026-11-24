@@ -161,13 +161,64 @@ public class IngestionOptionsBindingTests
     }
 
     [Fact]
-    public void EspnIsTheStatsSourceAndTheOnlyOne()
+    public void WithNoOptInThereIsNoStatsSourceAndNoMlbSpine()
     {
         using var scope = Container([]).CreateScope();
 
-        // ESPN is keyless and on by default (ADR 0011), which is why a clone with no keys still
-        // fills the board with real fixtures and real box scores.
+        // ESPN is opt-in (EspnOptIn): its terms prohibit automated access, so a clone calls
+        // nothing until its operator turns it on. The MLB spine rides the same switch.
+        Assert.Empty(StatsSourceKeys(scope.ServiceProvider));
+        Assert.Null(scope.ServiceProvider.GetService<LineOps.Ingestion.Services.MlbSpineService>());
+        Assert.Null(scope.ServiceProvider.GetService<LineOps.Ingestion.Adapters.IGamecastSource>());
+    }
+
+    [Fact]
+    public void OptedInEspnIsTheStatsSourceAndTheOnlyOne()
+    {
+        using var scope = Container(new Dictionary<string, string?>
+        {
+            [EspnOptIn.Switch] = "true"
+        }).CreateScope();
+
+        // Keyless once chosen (ADR 0011): the board fills with real fixtures and box scores.
         Assert.Equal(["espn"], StatsSourceKeys(scope.ServiceProvider));
+    }
+
+    [Fact]
+    public void TheMlbSpineNeedsEspnOnAsWellAsItsOwnSwitch()
+    {
+        static bool Spine(Dictionary<string, string?> settings)
+        {
+            var provider = Container(settings);
+            return provider.GetService<IServiceProviderIsService>()!
+                .IsService(typeof(LineOps.Ingestion.Services.MlbSpineService));
+        }
+
+        Assert.False(Spine(new() { ["Ingestion:MlbStatsApi:Enabled"] = "true" }));
+        Assert.True(Spine(new() { [EspnOptIn.Switch] = "true" }));
+        Assert.False(Spine(new() { [EspnOptIn.Switch] = "true", ["Ingestion:MlbStatsApi:Enabled"] = "false" }));
+    }
+
+    [Theory]
+    [InlineData("espn:range", true)]
+    [InlineData("espn:slate", true)]
+    [InlineData("espn:gamecast:backport", true)]
+    [InlineData("odds:lines:nfl", false)]
+    [InlineData("settle", false)]
+    [InlineData(null, false)]
+    public void EspnJobsAreKnownByTheirPrefix(string? key, bool espn)
+        => Assert.Equal(espn, EspnOptIn.IsEspnJob(key));
+
+    [Fact]
+    public void TheRefusalNamesTheJobAndBothWaysToOptIn()
+    {
+        var refusal = EspnOptIn.Refusal("espn:range");
+
+        Assert.StartsWith("espn:range: ESPN is off", refusal);
+        Assert.Contains(EspnOptIn.Switch, refusal);
+        Assert.Contains("ESPN_ENABLED=true", refusal);
+        Assert.Contains("Ingestion__Espn__Enabled=true", refusal);
+        Assert.DoesNotContain('\n', refusal);
     }
 
     [Fact]

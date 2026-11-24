@@ -23,16 +23,20 @@ public sealed class FollowUp
 }
 
 /// <summary>
-/// Opens a follow-up view as a desk window, falling back to the floating layer when the desk
-/// is full.
+/// Opens a follow-up view as a desk window, falling back to the floating layer when every
+/// column is in use.
 ///
 /// <para>
 /// A window is the better home: it tiles, it keeps its place in the row, and it survives being
-/// scrolled past. But the desk enforces its ceiling by <i>evicting</i> the least-recently-used
-/// window (ADR 0007), and silently closing the list an operator is working from to make room
-/// for a price table is exactly the wrong trade. So the ceiling becomes the switch: while there
-/// is room, follow-ups are windows; once there is not, they float above the desk instead of
-/// pushing something off it.
+/// scrolled past. Once every column is in use, a window opened from the strip or the palette
+/// joins a column as a tab (ADR 0027) — and a tab is the wrong home for a follow-up, which is a
+/// look taken from a row the operator is still working in: it would cover another column's
+/// window to show one detail of a row. So the column limit stays the switch: while a column is free,
+/// follow-ups are windows; once none is, they float above the desk and every column keeps what
+/// it shows. So does a desk at its ceiling, where a column may be free but the open would be
+/// refused (<see cref="WindowManager.AtCeiling"/>). A follow-up whose window is already on the
+/// desk, showing or as a tab, is brought
+/// forward and re-aimed there instead (<see cref="WindowManager.Open"/>).
 /// </para>
 ///
 /// <para>
@@ -72,7 +76,7 @@ public sealed class FollowUpLauncher
     /// <param name="windowKey">Catalog key of the view to open.</param>
     /// <param name="parameterName">The hosted component's id parameter — "GameId", "PlayerId".</param>
     /// <param name="subjectId">The id itself.</param>
-    /// <param name="subtitle">Names the subject, e.g. the matchup. Used as the window title too.</param>
+    /// <param name="subtitle">Names the subject, e.g. the record's own name. Used as the window title too.</param>
     /// <param name="width">Floating width. Ignored when it opens as a window.</param>
     public void Launch(
         WindowManager manager,
@@ -104,8 +108,8 @@ public sealed class FollowUpLauncher
 
         // A singleton already on the desk is re-aimed rather than duplicated (WindowManager.Open),
         // so an order form opened on another record lands on that record rather than on the one
-        // the window was already showing. Opening it adds no window, so the desk's capacity does not come
-        // into it.
+        // the window was already showing — and a tab behind another comes forward to show it.
+        // Opening it adds no window, so the desk's capacity does not come into it.
         if (definition.Singleton
             && manager.Windows.Any(w => w.Definition.Key == windowKey))
         {
@@ -113,7 +117,8 @@ public sealed class FollowUpLauncher
             return;
         }
 
-        if (!manager.AtCapacity)
+        // At the ceiling Open refuses, so a free column is no home: the follow-up floats instead.
+        if (!manager.AtCapacity && !manager.AtCeiling)
         {
             manager.Open(definition, copy, title);
             return;

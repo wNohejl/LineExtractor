@@ -49,6 +49,26 @@ public static class FieldGeometry
         return new FieldMarks(X(spot), gain, redFrom, redTo, Leftward: homeBall, InRedZone: toGo <= 20);
     }
 
+    /// <summary>
+    /// A stretch of the field between two yard lines, as a start and a length in hundredths of
+    /// the field measured from the away side's goal line — the strip's own left-to-right frame,
+    /// without its end zones, for a part that draws the hundred yards alone (FieldSpan). Null
+    /// when either end is unknown; a stretch that went nowhere is still two yards wide, so it
+    /// leaves a mark, and never runs off the field.
+    /// </summary>
+    public static (double From, double Length)? Span(int? startYardLine, int? endYardLine)
+    {
+        if (startYardLine is not { } start || endYardLine is not { } end)
+            return null;
+
+        double a = 100 - Math.Clamp(start, 0, 100);
+        double b = 100 - Math.Clamp(end, 0, 100);
+        var length = Math.Max(Math.Abs(a - b), 2);
+        var from = Math.Min(Math.Min(a, b), 100 - length);
+
+        return (from, length);
+    }
+
     /// <summary>A spot on the home-goal frame, as an x on the strip.</summary>
     public static double X(int yardsFromHomeGoal) => EndZone + 100 - yardsFromHomeGoal;
 }

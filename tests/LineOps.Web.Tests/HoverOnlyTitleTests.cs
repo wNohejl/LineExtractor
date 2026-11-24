@@ -120,7 +120,7 @@ public class HoverOnlyTitleTests : WagerTestContext
         var cell = cut.Find(".price");
         Assert.Equal("0", cell.GetAttribute("tabindex"));
         Assert.Null(cell.GetAttribute("title"));
-        Assert.Contains("DK -128", cut.FindComponent<DeskTooltip>().Instance.Text);
+        Assert.Contains("DraftKings (best) -128", cut.FindComponent<DeskTooltip>().Instance.Text);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class HoverOnlyTitleTests : WagerTestContext
 
         var rail = cut.Find(".rail");
         Assert.Equal("img", rail.GetAttribute("role"));
-        Assert.Equal("Books: DK -128, FD -135", rail.GetAttribute("aria-label"));
+        Assert.Equal("Books: DraftKings -128, FanDuel -135", rail.GetAttribute("aria-label"));
 
         var ticks = cut.FindAll(".rail__tick");
         Assert.Equal(2, ticks.Count);

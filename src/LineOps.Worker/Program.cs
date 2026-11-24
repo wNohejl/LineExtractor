@@ -26,6 +26,14 @@ builder.Services.AddLineOpsObservability(builder.Configuration);
 var job = builder.Configuration["job"];
 var untilDone = builder.Configuration.GetValue<bool>("until-done");
 
+// ESPN is opt-in (EspnOptIn): with it off, an `espn:` job has nothing registered to run it, and is
+// refused here in one line naming the switch — before the host is built or the database touched.
+if (EspnOptIn.IsEspnJob(job) && !builder.Configuration.GetValue(EspnOptIn.Switch, false))
+{
+    Console.Error.WriteLine(EspnOptIn.Refusal(job!));
+    return 5;
+}
+
 // `--job espn:range --sport nfl --from 2024-09-01 --to 2024-09-30 [--refresh true]` pulls a league's
 // games over those days, with each final's box score and close (RangePull), and prints what it did.
 // The arguments are checked before the host is built, so a typo costs nothing and says what to fix.

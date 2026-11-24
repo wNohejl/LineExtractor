@@ -11,8 +11,10 @@
     put Refresh after them. The operator's hand went to a different place in every window.
 
     Order inside is fixed, left to right: pickers (the ChildContent), the secondary pickers
-    (Overflow), a search field that takes the remaining width (Search), a message the toolbar
-    reports, then the actions slot pinned to the right edge. The actions slot holds at most
+    (Overflow), the search field (Search), a message the toolbar reports, then the actions slot.
+    The search is compact and trailing: it takes the room a query needs, not the rest of the row,
+    and leads the trailing group with the keys after it (controls.css, "Search"; HIG, Search
+    fields). Without a search, the actions slot is pinned to the right edge on its own. The actions slot holds at most
     one Filled key, always last; Plain and Tinted keys may sit before it. A toolbar may hold
     no Filled key at all — a key that only opens a form in place is Tinted, and the key that
     commits the form is the Filled one.
@@ -43,7 +45,7 @@
 @* No role="toolbar": the ARIA pattern promises one tab stop with arrow keys between the
    controls, and these are ordinary controls with ordinary tab stops. A role that
    announces behaviour the row does not have is worse than none. *@
-<div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" @attributes="Rest">
+<div @ref="_root" class="@Classes" style="@Styles" data-narrow="@(Narrow ? "true" : null)" data-spent="@(Spent ? "true" : null)" @attributes="Rest">
     @ChildContent
 
     @if (!Folded(Stage.Overflow))
@@ -106,7 +108,7 @@
 
     @if (Message is { Length: > 0 })
     {
-        <span class="ptoolbar__msg">@Message</span>
+        <span class="ptoolbar__msg" title="@(Spent ? Message : null)">@Message</span>
     }
 
 
@@ -133,7 +135,10 @@
     /// </summary>
     [Parameter] public RenderFragment? Overflow { get; set; }
 
-    /// <summary>The search field, last in the content group; it folds only after the Overflow has.</summary>
+    /// <summary>
+    /// The search field, a <c>DeskSearch</c>: compact, on the trailing side just before the keys.
+    /// It folds only after the Overflow has.
+    /// </summary>
     [Parameter] public RenderFragment? Search { get; set; }
 
     /// <summary>What the toolbar last did — "Archived 3 orders". Quiet, between search and actions.</summary>
@@ -206,6 +211,13 @@
 
     /// <summary>Every stage this row has is in More; the key itself is the next thing to shrink.</summary>
     private bool FullyFolded => Steps > 0 && _fold >= Steps && !ForceNarrow;
+
+    /// <summary>
+    /// Nothing is left to fold: every stage is in More, or the row has none. The message is then
+    /// what gives, ending in an ellipsis (controls.css), so the primary key is never pushed past
+    /// the window's edge.
+    /// </summary>
+    private bool Spent => Steps == 0 || FullyFolded;
 
     private string Classes => string.Join(' ', new[] { "ptoolbar", Class, DeskLayout.ExtraClass(Extra) }
         .Where(p => p is { Length: > 0 }));

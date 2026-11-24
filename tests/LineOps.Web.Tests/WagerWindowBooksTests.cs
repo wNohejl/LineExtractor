@@ -36,19 +36,19 @@ public class WagerWindowBooksTests : WagerTestContext
     /// </summary>
     private static void OpenBooks(IRenderedFragment cut)
     {
-        if (cut.FindAll(".book-picker__trigger").Count == 0)
+        if (!PricePickers.Shown(cut))
             Change(cut, "Bet");
-        cut.Find(".book-picker__trigger").Click();
+        PricePickers.Open(cut);
     }
 
     private static void OpenPrice(IRenderedFragment cut)
     {
-        if (cut.FindAll(".wager-manual-key").Count == 0)
+        if (!PricePickers.Shown(cut))
             Change(cut, "Bet");
     }
 
     /// <summary>The book menu's rows: one radio item per book quoting the side.</summary>
-    private static IReadOnlyList<IElement> Books(IRenderedFragment cut) => cut.FindAll("[role=menuitemradio]");
+    private static IReadOnlyList<IElement> Books(IRenderedFragment cut) => PricePickers.Rows(cut);
 
     /// <summary>Text with its runs of whitespace folded, as it reads: a crest between two names adds layout, not words.</summary>
     private static string Squash(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
@@ -63,10 +63,10 @@ public class WagerWindowBooksTests : WagerTestContext
 
         var rows = Books(cut);
         Assert.Equal(2, rows.Count);
-        Assert.Contains("draftkings", rows[0].TextContent);
+        Assert.Contains("DraftKings", rows[0].TextContent);
         Assert.Contains("Best", rows[0].TextContent);
         Assert.Contains("-128", rows[0].TextContent);
-        Assert.Contains("fanduel", rows[1].TextContent);
+        Assert.Contains("FanDuel", rows[1].TextContent);
         Assert.Contains("-135", rows[1].TextContent);
         Assert.DoesNotContain("Best", rows[1].TextContent);
     }
@@ -82,7 +82,7 @@ public class WagerWindowBooksTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         OpenBooks(cut);
 
-        var trigger = cut.Find(".book-picker__trigger");
+        var trigger = cut.Find(PricePickers.Key);
         Assert.Equal("menu", trigger.GetAttribute("aria-haspopup"));
         Assert.Equal("true", trigger.GetAttribute("aria-expanded"));
         Assert.Equal("true", trigger.GetAttribute("data-popover-return"));
@@ -91,13 +91,13 @@ public class WagerWindowBooksTests : WagerTestContext
 
         var rows = Books(cut);
         var checkedRow = Assert.Single(rows, r => r.GetAttribute("aria-checked") == "true");
-        Assert.Contains("draftkings", checkedRow.TextContent);
+        Assert.Contains("DraftKings", checkedRow.TextContent);
         Assert.Single(rows, r => r.GetAttribute("tabindex") == "0");
 
         cut.Find("[role=menu]").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         Assert.Empty(Books(cut));
-        Assert.Equal("false", cut.Find(".book-picker__trigger").GetAttribute("aria-expanded"));
+        Assert.Equal("false", cut.Find(PricePickers.Key).GetAttribute("aria-expanded"));
     }
 
     // ---- Unsaved input --------------------------------------------------------------------
@@ -166,10 +166,10 @@ public class WagerWindowBooksTests : WagerTestContext
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         OpenBooks(cut);
 
-        Books(cut).First(r => r.TextContent.Contains("fanduel")).Click();
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
 
         Assert.Equal("-135", Headline(cut));
-        Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Contains("Price captured 40 min ago", cut.Markup);
 
         Key(cut, 50m.ToString("C0")).Click();
@@ -190,7 +190,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Assert.False(Log(cut).HasAttribute("disabled"));
 
         OpenBooks(cut);
-        Books(cut).First(r => r.TextContent.Contains("fanduel")).Click();
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
 
         // A bet at another book is another bet: the amount and the note were the old one's.
         Assert.True(Log(cut).HasAttribute("disabled"));
@@ -205,7 +205,7 @@ public class WagerWindowBooksTests : WagerTestContext
         Key(cut, 50m.ToString("C0")).Click();
 
         OpenBooks(cut);
-        Books(cut).First(r => r.TextContent.Contains("draftkings")).Click();
+        Books(cut).First(r => r.TextContent.Contains("DraftKings")).Click();
 
         Assert.False(Log(cut).HasAttribute("disabled"));
     }
@@ -215,12 +215,12 @@ public class WagerWindowBooksTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         OpenBooks(cut);
-        Books(cut).First(r => r.TextContent.Contains("fanduel")).Click();
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
 
         Change(cut, "Bet");
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "ML · Bills").Click();
 
-        Assert.Equal("fanduel", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("FanDuel", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Equal("+110", Headline(cut));
     }
 
@@ -229,12 +229,12 @@ public class WagerWindowBooksTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         OpenBooks(cut);
-        Books(cut).First(r => r.TextContent.Contains("fanduel")).Click();
+        Books(cut).First(r => r.TextContent.Contains("FanDuel")).Click();
 
         Change(cut, "Bet");
         cut.FindAll(".selection-chip").First(b => b.GetAttribute("aria-label") == "Spread · Chiefs -2.5").Click();
 
-        Assert.Equal("draftkings", cut.Find(".wager-offer__book").TextContent.Trim());
+        Assert.Equal("DraftKings", cut.Find(".wager-offer__book").TextContent.Trim());
         Assert.Equal("-110", Headline(cut));
     }
 
@@ -246,7 +246,7 @@ public class WagerWindowBooksTests : WagerTestContext
         var cut = Render(Markets.Spread, BoardRows.Home);
         OpenPrice(cut);
 
-        cut.Find(".wager-manual-key").Click();
+        PricePickers.TypePrice(cut);
 
         var price = cut.Find("input[placeholder='-110']");
         Assert.Equal("-110", price.GetAttribute("value"));
@@ -270,7 +270,7 @@ public class WagerWindowBooksTests : WagerTestContext
     {
         var cut = Render(Markets.Moneyline, BoardRows.Home);
         OpenPrice(cut);
-        cut.Find(".wager-manual-key").Click();
+        PricePickers.TypePrice(cut);
         cut.Find("input[placeholder='-110']").Input("-120");
 
         Assert.Contains("Your own price", cut.Markup);
@@ -316,7 +316,7 @@ public class WagerWindowBooksTests : WagerTestContext
         chip.Click();
 
         Assert.Contains("No book the desk scans prices this side", cut.Markup);
-        Assert.Empty(cut.FindAll(".wager-manual-key"));
+        Assert.False(PricePickers.Shown(cut));
         Assert.NotNull(cut.Find("input[placeholder='-110']"));
     }
 
@@ -343,7 +343,7 @@ public class WagerWindowBooksTests : WagerTestContext
 
         cut.Find("input[aria-label='Find a game']").Input("steelers");
 
-        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".game-search__opt").Count));
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".game-search__opt").Count), Settle);
         var options = cut.FindAll(".game-search__opt");
         Assert.Contains("Pittsburgh Steelers at New Orleans Saints", Squash(options[0].TextContent));
         Assert.Contains("No game", options[2].TextContent);
@@ -357,10 +357,10 @@ public class WagerWindowBooksTests : WagerTestContext
         var cut = Render(withGame: false);
 
         cut.Find("input[aria-label='Find a game']").Input("chiefs");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
         cut.FindAll(".game-search__opt")[0].Click();
 
-        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".whead .game-search__chosen").TextContent)));
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".whead .game-search__chosen").TextContent)), Settle);
         Assert.Equal(6, cut.FindAll(".selection-chip").Count);
         Assert.Empty(cut.FindAll(".selection-chip--on"));
         Assert.Contains("Pick the side you bet", cut.Markup);
@@ -377,12 +377,12 @@ public class WagerWindowBooksTests : WagerTestContext
 
         var field = cut.Find("input[aria-label='Find a game']");
         field.Input("a");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
 
         cut.Find("input[aria-label='Find a game']").KeyDown("ArrowDown");
         cut.Find("input[aria-label='Find a game']").KeyDown("Enter");
 
-        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".game-search__chosen").TextContent)));
+        cut.WaitForAssertion(() => Assert.Contains("Buffalo Bills at Kansas City Chiefs", Squash(cut.Find(".game-search__chosen").TextContent)), Settle);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public class WagerWindowBooksTests : WagerTestContext
         var cut = Render(withGame: false);
 
         cut.Find("input[aria-label='Find a game']").Input("afc north");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt--none")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt--none")), Settle);
         cut.Find(".game-search__opt--none").Click();
         cut.WaitForElement("input[aria-label='The bet']");
 

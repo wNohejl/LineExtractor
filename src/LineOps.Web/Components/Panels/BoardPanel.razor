@@ -115,6 +115,17 @@
 </PanelToolbar>
 
 @* Anatomy order (spec 2026-10-24): toolbar, note, metrics. *@
+@if (Watching)
+{
+    @* Line watch changes what a press here does (ADR 0029), so the Board says so, in words on the
+       page rather than a title a pointer has to find. One line, so the slate starts where it
+       always does: the first clause is the disclosure's label, the rest a press (or Enter) away. *@
+    <Note State="DeskState.Info">
+        <DeskDisclosure Label="@LineWatch.BoardHint">
+            @LineWatch.BoardHintMore
+        </DeskDisclosure>
+    </Note>
+}
 @if (Visible.Count > 0 && _unpriced > 0)
 {
     <Note State="DeskState.Warning">
@@ -187,19 +198,59 @@ else if (_rows.Count == 0)
 {
     @* An honest empty state offers the fix rather than naming a control on another window.
        The pull is the first step, so it is the one action this state carries. *@
+    @* With ESPN off (EspnOptIn) there is nothing for the pull to fetch from, so the state says
+       why and where the switch is explained, and offers no key that would only be refused. *@
+    @* Three states (ADR 0026). ESPN on: Today's games, as always. The Odds API on a key: Fixtures,
+       which is free, and the key says so; prices and scores are metered pulls in Pull data, where
+       their prices are stated. Neither: the key is the fix, and it is entered in Ops. *@
     <EmptyState Kind="EmptyStateKind.New">
         <ChildContent>
-            Nothing on the board in this window. <strong>Today's games</strong> fetches the
-            schedule and the live scores from ESPN, which needs no key; a lines pull prices
-            what it finds, and prices need an odds provider key — see Ops.
+            @switch (Port)
+            {
+                case StatsPort.Espn:
+                    <text>Nothing on the board in this window. <strong>Today's games</strong> fetches the
+                    schedule and the live scores from ESPN, which needs no key; a lines pull prices
+                    what it finds, and prices need an odds provider key — see Ops.</text>
+                    break;
+
+                case StatsPort.TheOddsApi:
+                    <text>Nothing on the board in this window. <strong>Fixtures</strong> fetches the next
+                    eight days from The Odds API and is free; <strong>Pull lines</strong> prices them and
+                    <strong>Pull scores</strong> finishes them, each for the credits Pull data states.
+                    Box scores and UFC need ESPN — see Ops.</text>
+                    break;
+
+                default:
+                    <text>Nothing on the board in this window. No fixtures are pulled until a stats source
+                    is set up: enter your free Odds API key in Ops → Odds feeds, or turn on ESPN, which is
+                    opt-in — Ops says how.</text>
+                    break;
+            }
         </ChildContent>
         <Action>
-            @if (Manager.Access.CanOperate)
+            @if (Manager.Access.CanOperate && Port == StatsPort.Espn)
             {
                 <DeskButton Size="DeskKeySize.Small"
                             Icon="@Icons.Material.Filled.CalendarMonth"
                             OnClick="() => PullAsync(IngestionJobs.EspnSlate)">
                     Today's games
+                </DeskButton>
+            }
+            else if (Manager.Access.CanOperate && Port == StatsPort.TheOddsApi)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.CalendarMonth"
+                            Title="Calls The Odds API's events list, which does not count against your credits"
+                            OnClick="() => PullAsync(IngestionJobs.OddsFixtures)">
+                    Fixtures · free
+                </DeskButton>
+            }
+            else if (Manager.Access.CanOperate)
+            {
+                <DeskButton Size="DeskKeySize.Small"
+                            Icon="@Icons.Material.Filled.Key"
+                            OnClick="Manager.OpenOps">
+                    Open Ops
                 </DeskButton>
             }
         </Action>
@@ -416,7 +467,7 @@ else
                        edge is measured against, and a title never reaches the keyboard (HIG 12). It wraps
                        the whole cell, because MudTooltip's root is inline and would set the two
                        lines of the cell side by side if it sat inside the column. *@
-                    <DeskTooltip Text="@ValueTitle(context.Item, pick)">
+                    <DeskTooltip Title="Most value on this game" Caption="@ValueCaption(pick)" Text="@ValueTitle(context.Item, pick)">
                         <div class="value">
                             <span class="value__ev @(pick.Book.Ev > 0 ? "up" : "dim")">
                                 @PriceCell.EvLabel(pick.Book.Ev!.Value).Replace(" EV", "")
@@ -540,7 +591,16 @@ else
 @code {
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games, DataTopics.Odds, DataTopics.Alerts };
 
-    protected override Task RefreshAsync() => LoadAsync();
+    /// <summary>
+    /// A notice of alerts alone recounts the alerts and nothing else: an alert cannot change a
+    /// row, and the whole board — seven to twelve reads — used to be read again every time Ops
+    /// raised or resolved one. Anything else heard, or a refresh that does not say what changed
+    /// (an empty set), reloads the board as before.
+    /// </summary>
+    protected override Task RefreshAsync(IReadOnlySet<string> heard)
+        => NoticeTokens.OnlyOf(heard, DataTopics.Alerts)
+            ? RecountAlertsAsync()
+            : LoadAsync();
 
     protected override string LoadSubject => "The board";
 
@@ -607,6 +667,7 @@ else
     }
     private int _windowHours = 24;
     private int _bookCount;
+    private int _fewestBooks;
     private int _priced;
     private int _unpriced;
 
@@ -640,14 +701,22 @@ else
 
     /// <summary>
     /// Coverage in words, because "12 of 19" alone does not say whether the missing seven are a
-    /// broken feed or seven games that have already been played.
+    /// broken feed or seven games that have already been played. The books are a range when the
+    /// rows differ: a slate where today's games carry ten books and next week's three read as
+    /// "best of 10 books" before, which claimed ten for every row.
     /// </summary>
     private string CoverageNote
         => _rows.Count == 0 ? "nothing on the board"
             : _bookCount == 0 ? "no book quoted this window"
             : _closing > 0
-                ? $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")} · {_closing} closed"
-                : $"best of {_bookCount} {(_bookCount == 1 ? "book" : "books")}";
+                ? $"best of {BooksPhrase} · {_closing} closed"
+                : $"best of {BooksPhrase}";
+
+    /// <summary>"10 books", or "3–10 books" when the thinnest priced row has fewer than the fullest.</summary>
+    private string BooksPhrase
+        => _fewestBooks > 0 && _fewestBooks < _bookCount
+            ? $"{_fewestBooks}–{_bookCount} books"
+            : $"{_bookCount} {(_bookCount == 1 ? "book" : "books")}";
 
     private DeskState CoverageState
         => _rows.Count == 0 ? DeskState.Neutral
@@ -718,9 +787,18 @@ else
         return $"{bet} · {PriceCell.Monogram(pick.Book.Book)} {OddsMath.FormatPrice(pick.Book.PriceAmerican)}";
     }
 
+    /// <summary>
+    /// The Value cell's tooltip, spoken: the side, the book by name (the feed's key, "draftkings",
+    /// was printed here before), the price and the edge against the fair price.
+    /// </summary>
     private static string ValueTitle(BoardRow row, ValuePick pick)
-        => $"{pick.Outcome} at {pick.Book.Book}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
+        => $"{pick.Outcome} at {BookNames.Display(pick.Book.Book)}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}: "
            + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price — the most value on this game.";
+
+    /// <summary>The same under its title: where to take it on one line, what it is worth on the next.</summary>
+    private static string ValueCaption(ValuePick pick)
+        => $"{pick.Outcome} at {BookNames.Display(pick.Book.Book)}, {OddsMath.FormatPrice(pick.Book.PriceAmerican)}\n"
+           + $"{PriceCell.EvLabel(pick.Book.Ev!.Value)} against the fair price";
 
     private static string Side(BoardRow row, bool home)
     {
@@ -757,44 +835,131 @@ else
         ApplyFilter();
     }
 
+    /// <summary>
+    /// The load in flight, cancelled by the next, so a slower read of the last league or horizon
+    /// cannot land last and paint it under the new filter — and no superseded read runs to its
+    /// end for nothing. Its <see cref="LatestRead.Gone"/> is for the alert recount, which is not a load.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    /// <summary>
+    /// The board's reads, together: the rows, today's moves, the alert counts and the league
+    /// names each have a context of their own and none needs another's answer, so the wait is
+    /// the slowest read's rather than the sum. Everything is read into locals and handed over at
+    /// once, and only by the latest load: a newer filter cancels this one (<see cref="LatestRead.Next"/>),
+    /// and one that comes back anyway hands over nothing. The token is taken inside the work so
+    /// Try again, which repeats it, starts a read of its own.
+    /// </summary>
     private async Task LoadAsync()
     {
         await WithActivityAsync(async () =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+            var ct = _reads.Next();
+            var sport = _sport;
 
-            _rows = (await board.GetAsync(
-                string.IsNullOrEmpty(_sport) ? null : _sport,
-                TimeSpan.FromHours(_windowHours),
-                Lookback)).ToList();
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var board = scope.ServiceProvider.GetRequiredService<BoardService>();
 
-            _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
-            _priced = _rows.Count(r => r.HasPrices);
-            _unpriced = _rows.Count - _priced;
+                var rowsRead = board.GetAsync(
+                    string.IsNullOrEmpty(sport) ? null : sport,
+                    TimeSpan.FromHours(_windowHours),
+                    Lookback,
+                    ct);
+                var movesRead = MovesTodayAsync(ct);
+                var alertsRead = AlertCountsAsync(ct);
+                var namesRead = SportNamesAsync(ct);
 
-            // Age is only reported for the live market. BoardRow already withholds it from a
-            // closing row, so this reads "how long since anything moved" rather than "how old
-            // is the oldest number on screen".
-            _oldest = _rows.Select(r => r.Age).Where(a => a is not null).DefaultIfEmpty().Max();
+                // A failure in any of them still reaches WithActivityAsync, so the window says
+                // the board did not load exactly as it did when they ran one after another.
+                await Task.WhenAll(rowsRead, movesRead, alertsRead, namesRead);
 
-            await using var db = await DbFactory.CreateDbContextAsync();
+                var rows = (await rowsRead).ToList();
 
-            var dayStart = LeagueClock.StartOf(LeagueClock.Today());
-            // Counted over the scans this reader may see (ADR 0024), as the rows above are priced.
-            _movesToday = await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier))
-                .LongCountAsync(s => s.CapturedAt >= dayStart);
+                // Which stats source fills the board (ADR 0026), for the empty state's sentence and key.
+                var port = scope.ServiceProvider.GetService<SourceRegistry>()?.Port;
 
-            _alerts = await db.Alerts.CountAsync(a => a.ResolvedAt == null);
-            _criticalAlerts = await db.Alerts
-                .CountAsync(a => a.ResolvedAt == null && a.Severity == AlertSeverity.Critical);
-
-            await BuildSportOptionsAsync(db);
-            BuildPhaseOptions();
-            ApplyFilter();
+                return (Rows: rows, Port: port, Moves: await movesRead, Alerts: await alertsRead, Names: await namesRead);
+            },
+            read => HandOver(read.Rows, read.Port, read.Moves, read.Alerts, read.Names));
         },
         settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
         status: () => _rows.Count == 0 ? "no games" : $"{_priced}/{_rows.Count} priced");
+    }
+
+    /// <summary>What the latest load read, onto the board at once.</summary>
+    private void HandOver(
+        List<BoardRow> rows, StatsPort? port, long moves, (int Open, int Critical) alerts, Dictionary<string, string> names)
+    {
+        _rows = rows;
+        _bookCount = _rows.Count == 0 ? 0 : _rows.Max(r => r.BookCount);
+        _fewestBooks = _rows.Where(r => r.BookCount > 0).Select(r => r.BookCount).DefaultIfEmpty().Min();
+        _priced = _rows.Count(r => r.HasPrices);
+        _unpriced = _rows.Count - _priced;
+        _port = port;
+
+        // Age is only reported for the live market. BoardRow already withholds it from a
+        // closing row, so this reads "how long since anything moved" rather than "how old
+        // is the oldest number on screen".
+        _oldest = _rows.Select(r => r.Age).Where(a => a is not null).DefaultIfEmpty().Max();
+
+        _movesToday = moves;
+        (_alerts, _criticalAlerts) = alerts;
+
+        BuildSportOptions(names);
+        BuildPhaseOptions();
+        ApplyFilter();
+    }
+
+    /// <summary>Price moves written today, counted over the scans this reader may see (ADR 0024), as the rows are priced.</summary>
+    private async Task<long> MovesTodayAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+        var dayStart = LeagueClock.StartOf(LeagueClock.Today());
+        return await db.OddsSnapshots.FromVisible(await db.VisibleSourceIdsAsync(Tier, ct))
+            .LongCountAsync(s => s.CapturedAt >= dayStart, ct);
+    }
+
+    /// <summary>Open alerts and the critical ones among them, each counted on a context of its own so they go out together.</summary>
+    private async Task<(int Open, int Critical)> AlertCountsAsync(CancellationToken ct)
+    {
+        var open = CountAlertsAsync(critical: false, ct);
+        var critical = CountAlertsAsync(critical: true, ct);
+        await Task.WhenAll(open, critical);
+
+        return (await open, await critical);
+    }
+
+    private async Task<int> CountAlertsAsync(bool critical, CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+        return critical
+            ? await db.Alerts.CountAsync(a => a.ResolvedAt == null && a.Severity == AlertSeverity.Critical, ct)
+            : await db.Alerts.CountAsync(a => a.ResolvedAt == null, ct);
+    }
+
+    /// <summary>
+    /// The alert tile after a notice of alerts alone (<see cref="RefreshAsync(IReadOnlySet{string})"/>).
+    /// Outside <c>WithActivityAsync</c> on purpose: it neither cancels a load in flight nor
+    /// becomes the load Try again repeats, and a failure is the base class's "refresh failed".
+    /// </summary>
+    private async Task RecountAlertsAsync()
+    {
+        (_alerts, _criticalAlerts) = await AlertCountsAsync(_reads.Gone);
+    }
+
+    /// <summary>The enabled leagues' names by key, for the league filter.</summary>
+    private async Task<Dictionary<string, string>> SportNamesAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+
+        return await db.Sports
+            .Where(s => s.Enabled)
+            .AsNoTracking()
+            .ToDictionaryAsync(s => s.Key, s => s.Name, StringComparer.OrdinalIgnoreCase, ct);
     }
 
     private void ApplyFilter()
@@ -851,12 +1016,8 @@ else
     /// before it is chosen.
     /// </para>
     /// </summary>
-    private async Task BuildSportOptionsAsync(LineOpsDbContext db)
+    private void BuildSportOptions(Dictionary<string, string> names)
     {
-        var names = await db.Sports
-            .Where(s => s.Enabled)
-            .AsNoTracking()
-            .ToDictionaryAsync(s => s.Key, s => s.Name, StringComparer.OrdinalIgnoreCase);
 
         // Counts only mean anything on an unfiltered load; once a league is selected the board
         // holds that league alone, so the other options keep whatever they last showed.
@@ -930,7 +1091,32 @@ else
         _open = _open?.Game.Id == row.Game.Id ? null : row;
         _snippet = null;
         _take = null;
+        _watched = null;
+
+        // Line watch (ADR 0029): a game opened here is the game Line movement shows. The row
+        // still opens, so its strip — and the take behind Place wager — is a press away.
+        if (_open is not null && Watching)
+            Watch(row, market: null, outcome: null);
     }
+
+    /// <summary>Whether Line watch is the workspace on the desk, and a press here drives Line movement.</summary>
+    private bool Watching => LineWatch.IsActive(Manager);
+
+    /// <summary>Shows the game, and from a price its market and side, in the Line movement window.</summary>
+    private void Watch(BoardRow row, string? market, string? outcome)
+        => LineWatch.Show(Manager, row.Game.Id, market, outcome, Matchup(row.Game), WindowId);
+
+    // The hint and the press rule follow the workspace: applied or left while the Board is open,
+    // the Board redraws when it changes.
+    private bool _watchingDrawn;
+
+    private void OnDeskChanged()
+    {
+        if (Watching != _watchingDrawn)
+            _ = InvokeAsync(StateHasChanged);
+    }
+
+    protected override void OnAfterRender(bool firstRender) => _watchingDrawn = Watching;
 
     /// <summary>
     /// The open row, if the rows now showing still include its game; otherwise none. By game,
@@ -1161,9 +1347,9 @@ else
     ///
     /// <para>
     /// The first three answer their question on the row — a price, a fixture's history, both
-    /// sides' form — because none of them is worth evicting a window for. The last two are
-    /// destinations: a full book-by-book table and a wager form are things you work in, and a
-    /// snippet of either would be a worse version of the window.
+    /// sides' form — because none of them is worth evicting a window for. So does More bets:
+    /// the book-by-book table opens under the row, and its escape makes it a window or a tab.
+    /// Place wager is a command: it opens the take in the row.
     /// </para>
     ///
     /// <para>
@@ -1229,12 +1415,20 @@ else
 
         if (row.HasPrices)
         {
+            // Every book's number drops down under the row, as the glances do. It was a
+            // destination, and on a full desk a destination floats: the dialog sat over the
+            // slate it was opened from, the open row and its take behind it. The table is three
+            // short grids, which the row has the width for; the escape is for keeping it.
             actions.Add(new RowAction
             {
                 Key = "bets",
                 Label = "More bets",
                 Icon = Icons.Material.Filled.ViewList,
-                OpenWindow = Command(() => Launch(WindowCatalog.Bets, "GameId", id, name, "680px"))
+                Snippet = @<BoardAllBets GameId="id" />,
+                // Its markets are section cards of their own, so the drawer is their pane header.
+                SnippetCards = true,
+                OpenLabel = Manager.AtCapacity ? "Open as tab" : "Open window",
+                OpenWindow = Command(() => OpenBets(id, name))
             });
 
             if (operate)
@@ -1242,17 +1436,20 @@ else
                 actions.Add(new RowAction
                 {
                     Key = "wager",
-                    Label = "Place wager",
-                    Icon = Icons.Material.Filled.Bolt,
+                    // The row strip is the Desk's to draw, so the key is not a WagerKey; it
+                    // takes the wager key's own label and glyph, so it reads as one.
+                    Label = WagerKey.PlaceLabel,
+                    Icon = WagerKey.Glyph,
                     // Tinted, not Filled: the strip repeats on every row the operator opens, and a
                     // solid accent per row would put a dozen primaries on one slate. The Board is a
                     // place to look, and the take this opens holds the commit.
                     Emphasis = DeskEmphasis.Tinted,
                     // Door 1 opens on the most value, in the row, as a pressed price does; a game
-                    // with no value read anywhere has no side to start from, so it is the form.
-                    OpenWindow = row.BestPick is { } pick
-                        ? Command(() => OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book))
-                        : Command(() => Launch(WindowCatalog.Wager, "GameId", id, name, "480px"))
+                    // with no value read anywhere has no side to start from, so it is the form. In
+                    // Line watch a price pressed on this row is the side being watched, so the take
+                    // opens on it (ADR 0029), and the most value only when none was pressed. Read
+                    // at the press, not now: the strip is built before the price is pressed.
+                    OpenWindow = Command(() => PlaceWager(row))
                 });
             }
         }
@@ -1297,6 +1494,19 @@ else
            && row.Game.Status == GameStatus.Scheduled
            && row.Game.StartsAt > DateTimeOffset.UtcNow;
 
+    /// <summary>
+    /// Every book as a window of its own, never a dialog over the Board: a column while one is
+    /// free, and once none is the front tab of the column beside the Board (WindowManager.Open
+    /// keeps out of the column being worked in) — or of the Board's own on a one-column desk.
+    /// </summary>
+    private void OpenBets(int id, string name)
+    {
+        if (Manager.Catalog.Find(WindowCatalog.Bets) is not { } definition)
+            return;
+
+        Manager.Open(definition, new Dictionary<string, object> { ["GameId"] = id }, $"{definition.Title} · {name}");
+    }
+
     private Task Launch(string key, string parameter, int id, string name, string width = "640px")
     {
         _followUps.Launch(Manager, key, parameter, id, name, width);
@@ -1308,6 +1518,27 @@ else
 
     /// <summary>The take open under the open row, or null. It owns the row's snippet while it is.</summary>
     private TakeRequest? _take;
+
+    /// <summary>
+    /// In Line watch, the price last pressed on the open row: shown in Line movement, and the one its
+    /// Place wager takes. Cleared when the row closes or another row opens.
+    /// </summary>
+    private TakeRequest? _watched;
+
+    /// <summary>
+    /// The row's Place wager: the take on the price watched on this row, else on the most value,
+    /// else — nothing to start from — the full form.
+    /// </summary>
+    private Task PlaceWager(BoardRow row)
+    {
+        if (_watched is { } watched && watched.GameId == row.Game.Id)
+            return OpenTake(row, watched.Market, watched.Outcome, watched.Book);
+
+        if (row.BestPick is { } pick)
+            return OpenTake(row, pick.Market, pick.Outcome, pick.Book.Book);
+
+        return Launch(WindowCatalog.Wager, "GameId", row.Game.Id, Matchup(row.Game), "480px");
+    }
 
     /// <summary>
     /// Bumped each time a take opens, and part of the row strip's key, so the strip is redrawn with
@@ -1341,6 +1572,27 @@ else
         if (offer is null)
             return Task.CompletedTask;
 
+        // Line watch (ADR 0029): a price pressed shows its market and side in Line movement, and
+        // the row opens on it with nothing taken — the take is the open row's Place wager key.
+        // A take already open, on this row or another, is put away: left open it would go on
+        // offering, and logging, the price pressed before.
+        if (Watching)
+        {
+            if (_open?.Game.Id != row.Game.Id)
+            {
+                _open = row;
+                _snippet = null;
+                _take = null;
+            }
+            else if (_take is not null)
+                CloseTake();
+
+            // The price the row's Place wager takes, until the row closes or another opens.
+            _watched = new TakeRequest(row.Game.Id, pair.Market, offer.Outcome, offer.Book);
+            Watch(row, pair.Market, offer.Outcome);
+            return Task.CompletedTask;
+        }
+
         if (IsTaking(row, pair, offer))
         {
             CloseTake();
@@ -1371,6 +1623,25 @@ else
     }
 
     /// <summary>
+    /// Another side chosen in the open take (its bet pop-up): the request follows, so the cell
+    /// lit on the row and the form the take's escape opens are that side's, on its best book.
+    /// In Line watch it is also the side being watched, as a pressed price is (ADR 0029).
+    /// </summary>
+    private void ChooseSide(BoardRow row, string market, string outcome)
+    {
+        if (_take is not { } take || take.GameId != row.Game.Id)
+            return;
+
+        _take = take with { Market = market, Outcome = outcome, Book = null };
+
+        if (Watching)
+        {
+            _watched = _take;
+            Watch(row, market, outcome);
+        }
+    }
+
+    /// <summary>
     /// The take, read from the open row at render time rather than captured, so a reload that
     /// re-prices the board re-prices the take with it.
     /// </summary>
@@ -1379,29 +1650,29 @@ else
         if (_take is { } take && _open is { } row && row.Game.Id == take.GameId)
         {
             <div class="rowacts__snippet">
-                <QuickTake @key="(take, _takeSerial)" Row="row" Market="@take.Market" Outcome="@take.Outcome"
+                @* Keyed by the serial alone: every take opened bumps it (OpenTake), and a side
+                   chosen inside the take changes the request without opening another, so the
+                   take keeps its stake while the row follows it. *@
+                <QuickTake @key="_takeSerial" Row="row" Market="@take.Market" Outcome="@take.Outcome"
                            Book="@take.Book" Matchup="@Matchup(row.Game)"
                            OnClose="CloseTake"
+                           OnChooseSide="@(((string Market, string Outcome) side) => ChooseSide(row, side.Market, side.Outcome))"
                            OnOpenForm="@(((string Book, decimal Stake) form) => OpenForm(row, take, form.Book, form.Stake))"
+                           OnOpenTyped="@((TypedTake typed) => OpenForm(row, take, typed.Book, typed.Stake, typed))"
                            OnViewSlip="ViewSlip" />
             </div>
         }
     };
 
-    /// <summary>The take's escape: the full wager form on the same side and book, with the stake typed so far.</summary>
-    private Task OpenForm(BoardRow row, TakeRequest take, string book, decimal stake)
+    /// <summary>
+    /// The take's escape: the full wager form on the same side and book, with the stake typed so
+    /// far. With <paramref name="typed"/>, the form opens with its price typed from that number,
+    /// through the same parameters a copied bet's typed price takes (WagerPrefill.ToParameters).
+    /// </summary>
+    private Task OpenForm(BoardRow row, TakeRequest take, string book, decimal stake, TypedTake? typed = null)
     {
-        var parameters = new Dictionary<string, object>
-        {
-            ["GameId"] = row.Game.Id,
-            ["Market"] = take.Market,
-            ["Outcome"] = take.Outcome,
-            ["Book"] = book.Length > 0 ? book : take.Book ?? string.Empty
-        };
-
-        // Invariant text, as WagerPrefill writes it: a window's parameters round-trip as JSON.
-        if (stake > 0)
-            parameters["Stake"] = stake.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var parameters = TypedTake.Door(row.Game.Id, take.Market, take.Outcome,
+            book.Length > 0 ? book : take.Book ?? string.Empty, stake, typed);
 
         _followUps.Launch(Manager, WindowCatalog.Wager, parameters, row.Game.Id, Matchup(row.Game), "480px");
         CloseTake();
@@ -1410,9 +1681,26 @@ else
 
     private void ViewSlip() => _ = InvokeAsync(() => Manager.Open(WindowCatalog.Find(WindowCatalog.Slip)!));
 
-    protected override void OnInitialized() => Slip.Changed += OnSlipChanged;
+    protected override void OnInitialized()
+    {
+        Slip.Changed += OnSlipChanged;
+        Manager.Changed += OnDeskChanged;
+    }
 
-    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+    /// <summary>The stats source the registry reported at the last load; configuration's answer before one.</summary>
+    private StatsPort? _port;
+
+    /// <summary>What fills the board: ESPN, The Odds API on a key, or nothing yet (ADR 0026).</summary>
+    internal StatsPort Port => _port ?? (IngestionOptions.Value.Espn.Enabled ? StatsPort.Espn : StatsPort.None);
+
+    protected override void OnDispose()
+    {
+        Slip.Changed -= OnSlipChanged;
+        Manager.Changed -= OnDeskChanged;
+
+        // A closed window's reads have nobody to hand over to.
+        _reads.Cancel();
+    }
 
     /// <summary>A leg banked or removed anywhere redraws the cells' "on slip" marks.</summary>
     private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);

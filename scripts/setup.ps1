@@ -19,7 +19,12 @@ param(
     # Also install the certificate into the trust store. Left off by default because it
     # modifies a machine-wide security setting and prompts for elevation — your call, not
     # a side effect of running setup.
-    [switch]$TrustCertificate
+    [switch]$TrustCertificate,
+
+    # Turn ESPN, the stats source, on in the .env this run writes (ESPN_ENABLED=true). Without
+    # it an interactive run shows the notice below and asks, defaulting to No; a non-interactive
+    # run writes ESPN_ENABLED=false. Has no effect on an existing .env (see -Force).
+    [switch]$EnableEspn
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,14 +40,57 @@ function New-Secret {
     ([Convert]::ToBase64String($bytes) -replace '[+/=]', '')
 }
 
+# The notice ESPN's opt-in rests on, shown before the question and written above the setting.
+$espnNotice = @(
+    "ESPN is the desk's stats source: schedules, scores and box scores. It is off until you turn it on.",
+    "ESPN's endpoints are unofficial and undocumented. ESPN's terms of use license its services",
+    "for personal, non-commercial use and prohibit automated access. Turning this on is your",
+    "decision; use it only to keep data in your own local database, never to host, redistribute",
+    "or sell it. The MLB Stats API follows the same switch."
+)
+
+# Asked only of a person at a console: a scheduled or piped run, or one started -NonInteractive,
+# cannot answer, and an unanswered question must not be read as yes.
+function Test-Interactive {
+    if (-not [Environment]::UserInteractive) { return $false }
+    try { if ([Console]::IsInputRedirected) { return $false } } catch { return $false }
+    if ([Environment]::GetCommandLineArgs() | Where-Object { $_ -match '^-noni' }) { return $false }
+    return $true
+}
+
+function Read-EspnChoice {
+    if ($EnableEspn) { return $true }
+    if (-not (Test-Interactive)) {
+        Write-Host "ESPN left off (non-interactive run; pass -EnableEspn to turn it on)." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-Host ""
+    foreach ($line in $espnNotice) { Write-Host $line -ForegroundColor Cyan }
+    Write-Host ""
+    while ($true) {
+        $answer = (Read-Host "Turn ESPN on for this machine? [y/N]").Trim()
+        if ($answer -eq '' -or $answer -match '^(n|no)$') { return $false }
+        if ($answer -match '^(y|yes)$') { return $true }
+        Write-Host "Answer y or n." -ForegroundColor Yellow
+    }
+}
+
 if ((Test-Path $envFile) -and -not $Force) {
     Write-Host ".env already exists — leaving it alone (pass -Force to regenerate)." -ForegroundColor Yellow
     Write-Host "Note: regenerating POSTGRES_PASSWORD will not match an existing database volume." -ForegroundColor Yellow
     $certPassword = (Select-String -Path $envFile -Pattern '^CERT_PASSWORD=(.*)$').Matches.Groups[1].Value
+
+    if (-not (Select-String -Path $envFile -Pattern '^ESPN_ENABLED=' -Quiet)) {
+        Write-Host "This .env has no ESPN_ENABLED line, so ESPN (the stats source) is off in Docker." -ForegroundColor Yellow
+        Write-Host "To turn it on, add ESPN_ENABLED=true to .env and start the stack again." -ForegroundColor Yellow
+    }
 }
 else {
     $certPassword = New-Secret
     $dbPassword = New-Secret
+    $espnEnabled = if (Read-EspnChoice) { 'true' } else { 'false' }
+    $espnComment = ($espnNotice | ForEach-Object { "# $_" }) -join [Environment]::NewLine
 
     @"
 # Local secrets. Gitignored — never commit this file.
@@ -53,7 +101,11 @@ CERT_PASSWORD=$certPassword
 CERT_PATH=$($certDir -replace '\\', '/')
 HTTPS_PORT=9443
 
-# Provider keys. Blank is fine: ESPN needs no key. Prices need one, and a key does nothing
+$espnComment
+# Change it to true or false, then start the stack again for it to take effect.
+ESPN_ENABLED=$espnEnabled
+
+# Provider keys. Blank is fine: with no odds key there are no prices. A key does nothing
 # without its *_ENABLED=true beside it.
 # The Odds API (the-odds-api.com), free Starter plan, 500 credits a month:
 #   sign up   https://the-odds-api.com/#get-access   (the key arrives by email)
@@ -69,7 +121,7 @@ BALLDONTLIE_KEY=
 BALLDONTLIE_ENABLED=false
 "@ | Set-Content -Path $envFile -Encoding utf8
 
-    Write-Host "Wrote .env with fresh secrets." -ForegroundColor Green
+    Write-Host "Wrote .env with fresh secrets (ESPN_ENABLED=$espnEnabled)." -ForegroundColor Green
 }
 
 # Host-side runs (`dotnet run`) read the connection string from user-secrets, not from .env,

@@ -1,0 +1,16 @@
+/* A book's price, its best mark and its edge hold one line: the number never breaks from its price. */
+.bookcmp__quote { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* The best price on a side: heavier, in the primary ink, and a dot beside it — weight and a shape,
+   not colour. The dot takes the text's own ink: the accent is for what can be pressed. */
+.bookcmp__best { font-weight: var(--weight-semibold); color: var(--text-primary); }
+.bookcmp__dot { margin-left: var(--space-1); font-size: 0.6em; vertical-align: 0.2em; color: currentColor; }
+
+/* The edge against fair after the price, a footnote to the number on the caption rung. Its ink is
+   .up (positive) or .dim beside it. */
+.bookcmp__ev {
+    margin-left: calc(var(--space-1) * 1.5);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

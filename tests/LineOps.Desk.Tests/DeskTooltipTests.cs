@@ -108,4 +108,109 @@ public class DeskTooltipTests : DeskTestContext
 
         Assert.Equal(Placement.Top, cut.FindComponent<MudTooltip>().Instance.Placement);
     }
+
+    // ---- The structured shape -----------------------------------------------------------------
+
+    private static readonly DeskTooltipRow[] Regions =
+    [
+        new("North", "+185", "−1.2% margin", Emphasis: true),
+        new("South", "+181", "−2.6% margin"),
+    ];
+
+    private IRenderedFragment Structured(string text = "")
+        => Render(b =>
+        {
+            b.OpenComponent<MudPopoverProvider>(0);
+            b.CloseComponent();
+            b.OpenComponent<DeskTooltip>(1);
+            b.AddAttribute(2, nameof(DeskTooltip.Title), "Best reading");
+            b.AddAttribute(3, nameof(DeskTooltip.Caption), "Taken an hour ago.\nAgainst the reference.");
+            b.AddAttribute(4, nameof(DeskTooltip.Rows), (IReadOnlyList<DeskTooltipRow>)Regions);
+            b.AddAttribute(5, nameof(DeskTooltip.Footnote), "+3 more in Details");
+            b.AddAttribute(6, nameof(DeskTooltip.Text), text);
+            b.AddAttribute(7, nameof(DeskTooltip.ChildContent), (RenderFragment)(c => c.AddContent(0, "12")));
+            b.CloseComponent();
+        });
+
+    private static void Raise(IRenderedFragment cut)
+    {
+        cut.Find(".mud-tooltip-root").PointerEnter();
+        cut.WaitForAssertion(() => cut.Find(".desk-tip"));
+    }
+
+    [Fact]
+    public void Text_alone_is_the_plain_sentence_it_always_was()
+    {
+        var cut = Tip("Counts every open item.");
+
+        Assert.False(cut.Instance.IsStructured);
+        Assert.Null(cut.FindComponent<MudTooltip>().Instance.TooltipContent);
+    }
+
+    [Fact]
+    public void The_structured_shape_draws_a_title_a_caption_rows_and_a_footnote()
+    {
+        var cut = Structured();
+        Raise(cut);
+
+        Assert.Equal("Best reading", cut.Find(".desk-tip__title").TextContent);
+        Assert.Equal("Taken an hour ago.\nAgainst the reference.", cut.Find(".desk-tip__caption").TextContent);
+        Assert.Equal("+3 more in Details", cut.Find(".desk-tip__footnote").TextContent);
+
+        var rows = cut.FindAll(".desk-tip__row");
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("North", rows[0].QuerySelector(".desk-tip__label")!.TextContent);
+        Assert.Equal("+185", rows[0].QuerySelector(".desk-tip__value")!.TextContent);
+        Assert.Equal("−1.2% margin", rows[0].QuerySelector(".desk-tip__qualifier")!.TextContent);
+    }
+
+    /// <summary>The row the tooltip is about is marked by a class the sheet draws as weight, not by a hue of its own.</summary>
+    [Fact]
+    public void The_emphasised_row_is_marked_and_the_others_are_not()
+    {
+        var cut = Structured();
+        Raise(cut);
+
+        var rows = cut.FindAll(".desk-tip__row");
+        Assert.Contains("desk-tip__row--emphasis", rows[0].ClassName);
+        Assert.DoesNotContain("desk-tip__row--emphasis", rows[1].ClassName);
+    }
+
+    /// <summary>
+    /// The drawn table is hidden from the accessibility tree and the plain text stands beside
+    /// it, so a screen reader hears one clean reading rather than a grid's cells out of order.
+    /// </summary>
+    [Fact]
+    public void A_screen_reader_hears_the_parts_as_plain_lines()
+    {
+        var cut = Structured();
+        Raise(cut);
+
+        Assert.Equal("true", cut.Find(".desk-tip__face").GetAttribute("aria-hidden"));
+        Assert.Equal(
+            "Best reading\nTaken an hour ago.\nAgainst the reference.\nNorth +185, −1.2% margin\nSouth +181, −2.6% margin\n+3 more in Details",
+            cut.Find(".desk-tip > .sr-only").TextContent);
+    }
+
+    [Fact]
+    public void Text_given_is_what_a_screen_reader_hears_instead()
+    {
+        var cut = Structured("North leads at +185.");
+        Raise(cut);
+
+        Assert.Equal("North leads at +185.", cut.Find(".desk-tip > .sr-only").TextContent);
+    }
+
+    [Fact]
+    public void The_structured_shape_keeps_the_trigger_s_behaviour()
+    {
+        var cut = RenderComponent<DeskTooltip>(p => p.Add(x => x.Title, "A title"));
+        var mud = cut.FindComponent<MudTooltip>().Instance;
+
+        Assert.True(cut.Instance.IsStructured);
+        Assert.True(mud.ShowOnHover);
+        Assert.True(mud.ShowOnFocus);
+        Assert.Equal(300, mud.Delay);
+        Assert.True(mud.Arrow);
+    }
 }

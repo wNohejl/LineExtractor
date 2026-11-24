@@ -18,6 +18,21 @@ public record CanonicalTeamRef(string Name, string? SourceTeamId = null, string?
     /// a name, so a club sends none.
     /// </summary>
     public string? Qualifier { get; init; }
+
+    /// <summary>
+    /// Other names the same club is held under by another provider ("LA Clippers" for "Los Angeles
+    /// Clippers"), from the desk's own table, for a source that gives a full name and nothing else.
+    /// Read only when the name itself matched no team, and only by a source that sends it — ESPN and
+    /// the books send none, so their resolution is exactly what it was.
+    /// </summary>
+    public IReadOnlyList<string>? KnownAs { get; init; }
+
+    /// <summary>
+    /// The abbreviation the desk's own table gives this club: used to recognise a team another
+    /// provider created under that abbreviation when no name matched, and as the new team's
+    /// abbreviation when none did. Never written over an existing team's (that is <see cref="Abbrev"/>).
+    /// </summary>
+    public string? DeskAbbrev { get; init; }
 }
 
 /// <summary>
@@ -117,7 +132,16 @@ public record CanonicalOdds(
     string Outcome,
     decimal? Line,
     int PriceAmerican,
-    DateTimeOffset CapturedAt);
+    DateTimeOffset CapturedAt)
+{
+    /// <summary>
+    /// What this side opened at, from a provider that states the open beside the close (ESPN).
+    /// Only a stats provider's close carries one: it is stored on the same <c>ClosingLine</c> row,
+    /// so the open is always the open of the book and side the close is for. Null from everything
+    /// else, and on a side whose open the provider did not state.
+    /// </summary>
+    public CanonicalOpening? Opening { get; init; }
+}
 
 public record CanonicalPlayer(
     string SourcePlayerId,
@@ -147,6 +171,20 @@ public record CanonicalPlayerStat(
 /// provider's own count of what is left on the key, when it reports one.
 /// </summary>
 public record FetchCost(int Requests, int Credits = 0, int? CreditsRemaining = null);
+
+/// <summary>
+/// A fetch that was answered, and billed, but whose answer could not be used — a listed slate
+/// none of whose events could be read. It fails the run, as any exception does, but it carries
+/// what the call cost, so the failed run records the credits and the provider's reported
+/// remainder exactly as a successful one would. Without that the month would read low until the
+/// next successful call corrected it, and the budget guard and pacing would spend against it.
+/// </summary>
+public class OddsFetchFailedException(string message, FetchCost cost, Exception? inner = null)
+    : InvalidOperationException(message, inner)
+{
+    /// <summary>What the provider billed for the call that could not be used.</summary>
+    public FetchCost Cost { get; } = cost;
+}
 
 public record OddsFetchResult(
     IReadOnlyList<CanonicalGame> Games,
@@ -178,6 +216,17 @@ public record StatsFetchResult(
 {
     /// <summary>Never null at the call site, whatever the adapter passed.</summary>
     public IReadOnlyList<CanonicalOdds> Lines => ClosingLines ?? [];
+
+    /// <summary>
+    /// The circumstances of the games this fetch read — venue, weather, officials, the provider's
+    /// win probability — keyed by the provider's game id (<see cref="CanonicalGameContext"/>). ESPN
+    /// states them in the summary the box-score walk already fetches, so they cost no request.
+    /// Null from every adapter that says nothing, which is every adapter that does not set it.
+    /// </summary>
+    public IReadOnlyList<CanonicalGameContext>? GameContexts { get; init; }
+
+    /// <summary>Never null at the call site, whatever the adapter set.</summary>
+    public IReadOnlyList<CanonicalGameContext> Contexts => GameContexts ?? [];
 }
 
 /// <summary>
@@ -211,6 +260,14 @@ public interface IOddsSource
     /// added a market.
     /// </summary>
     int CreditsPerScan(string sportKey) => 0;
+
+    /// <summary>
+    /// Whether this source can be called at all right now. True for a source registered only
+    /// when configured, which is every one but a source whose key may arrive, or leave, while the
+    /// host runs: that one is registered regardless and says here whether it holds a key. The
+    /// registry lists only the sources that answer yes.
+    /// </summary>
+    bool IsConfigured => true;
 }
 
 /// <summary>
@@ -236,6 +293,39 @@ public interface IStatsSource
     Task<StatsFetchResult> FetchRosterAsync(string sportKey, CancellationToken ct);
 
     Task<StatsFetchResult> FetchBoxScoresAsync(string sportKey, DateOnly date, CancellationToken ct);
+
+    /// <summary>
+    /// Whether this source can be called at all right now, as <see cref="IOddsSource.IsConfigured"/>
+    /// says for an odds source: true for one registered only when configured, and the source's own
+    /// answer for one whose key may arrive or leave while the host runs. The registry lists only the
+    /// sources that answer yes.
+    /// </summary>
+    bool IsConfigured => true;
+}
+
+/// <summary>
+/// A stats provider whose final scores are a separate, metered call from its free schedule (The Odds
+/// API's <c>/scores</c>, ADR 0026). Kept apart from <see cref="IStatsSource.FetchScheduleAsync"/> so
+/// that asking for fixtures can never spend a credit: the schedule is one job, the scores another.
+/// </summary>
+public interface IScoreSource
+{
+    string Key { get; }
+
+    /// <summary>Whether the provider keeps scores for this league at all (none for a fight).</summary>
+    bool CoversScores(string sportKey);
+
+    /// <summary>What one scores call for one league bills, in the provider's credits, before it is made.</summary>
+    int CreditsPerScoresCall { get; }
+
+    /// <summary>
+    /// How many days back a scores call reaches. A game that started earlier than this and was never
+    /// seen final cannot be finished from this source.
+    /// </summary>
+    int ScoresReachDays { get; }
+
+    /// <summary>The league's live and recently completed games, with their scores.</summary>
+    Task<StatsFetchResult> FetchScoresAsync(string sportKey, CancellationToken ct);
 }
 
 /// <summary>One figure as ESPN states it: its key, the label it gives it, and the value as written.</summary>

@@ -108,15 +108,19 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
         var lines = new List<CanonicalOdds>();
+        var contexts = new List<CanonicalGameContext>();
         var requests = scoreboard.Cost.Requests;
 
         foreach (var game in finals)
         {
             ct.ThrowIfCancellationRequested();
-            requests += await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, ct);
+            requests += await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, contexts, ct);
         }
 
-        return new StatsFetchResult(scoreboard.Games, players, stats, new FetchCost(requests), lines);
+        return new StatsFetchResult(scoreboard.Games, players, stats, new FetchCost(requests), lines)
+        {
+            GameContexts = contexts
+        };
     }
 
     /// <summary>
@@ -140,21 +144,26 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
         var lines = new List<CanonicalOdds>();
+        var contexts = new List<CanonicalGameContext>();
         var requests = scoreboard.Cost.Requests
-                       + await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, ct);
+                       + await FetchSummaryBoxAsync(path, sportKey, game, players, stats, lines, contexts, ct);
 
-        return new StatsFetchResult([game], players, stats, new FetchCost(requests), lines);
+        return new StatsFetchResult([game], players, stats, new FetchCost(requests), lines)
+        {
+            GameContexts = contexts
+        };
     }
 
     /// <summary>
-    /// One final's summary into the players, stat lines and closing lines being gathered. A box
-    /// score that will not come is logged and skipped, so one game cannot cost a slate.
+    /// One final's summary into the players, stat lines, closing lines and game context being
+    /// gathered. A box score that will not come is logged and skipped, so one game cannot cost a
+    /// slate.
     /// </summary>
     /// <returns>The requests it made.</returns>
     private async Task<int> FetchSummaryBoxAsync(
         string path, string sportKey, CanonicalGame game,
         List<CanonicalPlayer> players, List<CanonicalPlayerStat> stats, List<CanonicalOdds> lines,
-        CancellationToken ct)
+        List<CanonicalGameContext> contexts, CancellationToken ct)
     {
         var requests = 0;
 
@@ -164,6 +173,11 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
             requests++;
 
             ParseBoxScore(doc.RootElement, sportKey, game.SourceGameId, players, stats);
+
+            // The venue, the crowd and the officials are in the same document, so they are read
+            // from it rather than thrown away with the rest of what the box score does not need.
+            if (ParseGameContext(doc.RootElement, sportKey, game.SourceGameId) is { } context)
+                contexts.Add(context);
 
             // The same response carries what the line closed at, so the historical
             // reference is free — no second request, no second walk.
@@ -199,6 +213,140 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
 
         return requests;
     }
+
+    /// <summary>
+    /// The circumstances of one game as its summary states them: the venue and its surface, the
+    /// weather, the crowd and the officials from <c>gameInfo</c>, and ESPN's own pre-game chances
+    /// from <c>predictor</c>.
+    ///
+    /// <para>
+    /// What is in the document depends on when in the game's life it is read, and nothing here
+    /// fills the gaps (ADR 0003). Measured: a final carries the venue, the attendance and the
+    /// officials, and has dropped both the weather and the predictor; a scheduled game carries the
+    /// venue, the predictor and — outdoors in the NFL — the weather, but no crowd and no officials.
+    /// The weather states a temperature, a <c>conditionId</c> code and a precipitation figure; the
+    /// condition in words is read only where ESPN writes it, as the scoreboard does, because a code
+    /// table of ours would be words ESPN never said. No wind was seen on any summary, so none is read.
+    /// </para>
+    ///
+    /// <para>
+    /// The surface is read for football and baseball alone. ESPN sends <c>grass: false</c> for a
+    /// basketball arena as well, and a hardwood court recorded as turf would be a fabrication with
+    /// the provider's name on it. Whether the venue is indoor is not in the summary at all — it is
+    /// on the scoreboard's venue — so it is read here only should ESPN ever add it.
+    /// </para>
+    ///
+    /// <para>
+    /// The predictor's <c>gameProjection</c> is a string ("94.8") and is kept as the percent it is,
+    /// not divided down to a fraction (see <see cref="CanonicalGameContext.HomeWinPercent"/>).
+    /// </para>
+    /// </summary>
+    /// <returns>The context, or null where the summary states none of it.</returns>
+    internal static CanonicalGameContext? ParseGameContext(JsonElement root, string sportKey, string sourceGameId)
+    {
+        var info = JsonRead.Child(root, "gameInfo");
+        var venue = JsonRead.Child(info, "venue");
+        var address = JsonRead.Child(venue, "address");
+        var weather = JsonRead.Child(info, "weather");
+
+        var predictor = JsonRead.Child(root, "predictor");
+
+        // Grass or not is a field's question; see the remarks for the arena that answers it anyway.
+        var path = EspnLeagues.PathFor(sportKey);
+        var playedOnAField = path is not null
+                             && (path.StartsWith("football/", StringComparison.Ordinal)
+                                 || path.StartsWith("baseball/", StringComparison.Ordinal));
+        var grass = playedOnAField ? JsonRead.Bool(venue, "grass") : null;
+
+        var context = new CanonicalGameContext(sourceGameId)
+        {
+            VenueName = JsonRead.Words(venue, "fullName"),
+            VenueCity = JsonRead.Words(address, "city"),
+            VenueState = JsonRead.Words(address, "state"),
+            Indoor = JsonRead.Bool(venue, "indoor"),
+            Surface = grass switch
+            {
+                true => GameSurfaces.Grass,
+                false => GameSurfaces.Turf,
+                null => null
+            },
+            WeatherCondition = JsonRead.Words(weather, "displayValue") ?? JsonRead.Words(weather, "condition"),
+            TemperatureF = WholeNumber(weather, "temperature"),
+            PrecipitationPercent = WholeNumber(weather, "precipitation"),
+
+            // ESPN writes nought where it has no count, before a game and for some it never had;
+            // a crowd of nobody is not a figure it measured.
+            Attendance = WholeNumber(info, "attendance") is > 0 and var crowd ? crowd : null,
+            Officials = ReadOfficials(info),
+            HomeWinPercent = Number(JsonRead.Child(predictor, "homeTeam"), "gameProjection"),
+            AwayWinPercent = Number(JsonRead.Child(predictor, "awayTeam"), "gameProjection"),
+            MatchupQuality = Number(predictor, "matchupQuality")
+        };
+
+        // A context that states nothing is not news to anyone. The officials count: a summary that
+        // names the crew and nothing else is still worth the write.
+        return context.StatesAnything ? context : null;
+    }
+
+    /// <summary>
+    /// The officials as <c>gameInfo</c> lists them. The NFL and NBA give a <c>fullName</c>, MLB only a
+    /// <c>displayName</c> — some with a double space in it ("Nate  Tomlinson"), which is collapsed so
+    /// one umpire is not two people by spacing. The role is the position's display name ("Referee",
+    /// "Home Plate Umpire"); the order is ESPN's own. Null where nobody is named.
+    /// </summary>
+    private static IReadOnlyList<CanonicalOfficial>? ReadOfficials(JsonElement info)
+    {
+        if (info.ValueKind != JsonValueKind.Object
+            || !info.TryGetProperty("officials", out var officials)
+            || officials.ValueKind != JsonValueKind.Array)
+            return null;
+
+        var list = new List<CanonicalOfficial>();
+
+        foreach (var official in officials.EnumerateArray())
+        {
+            if (official.ValueKind != JsonValueKind.Object
+                || (JsonRead.Words(official, "fullName") ?? JsonRead.Words(official, "displayName")) is not { } name)
+                continue;
+
+            var position = JsonRead.Child(official, "position");
+
+            list.Add(new CanonicalOfficial(
+                string.Join(' ', name.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+                JsonRead.Words(position, "displayName") ?? JsonRead.Words(position, "name"),
+                JsonRead.Int(official, "order")));
+        }
+
+        return list.Count == 0 ? null : list;
+    }
+
+    /// <summary>
+    /// A figure ESPN may write as a number (<c>65</c>) or as a string (<c>"94.8"</c>) — the predictor
+    /// does the second. Null where it is neither.
+    /// </summary>
+    private static decimal? Number(JsonElement parent, string name)
+    {
+        if (parent.ValueKind != JsonValueKind.Object || !parent.TryGetProperty(name, out var v))
+            return null;
+
+        return v.ValueKind switch
+        {
+            JsonValueKind.Number when v.TryGetDecimal(out var d) => d,
+            JsonValueKind.String when decimal.TryParse(v.GetString(), NumberStyles.Number,
+                CultureInfo.InvariantCulture, out var d) => d,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// <see cref="Number"/> rounded to a whole one, for degrees, percents and heads. Kept here rather
+    /// than in <see cref="JsonRead"/> because it is not MLB's whole number: ESPN writes figures meant
+    /// whole with a decimal in them and this rounds "82.5" up, where MLB's reader refuses it.
+    /// </summary>
+    private static int? WholeNumber(JsonElement parent, string name)
+        => Number(parent, name) is { } n && n is >= int.MinValue and <= int.MaxValue
+            ? (int)Math.Round(n, MidpointRounding.AwayFromZero)
+            : null;
 
     /// <summary>
     /// The line as it closed, from the odds block ESPN attaches to a finished game's summary.
@@ -240,25 +388,37 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
             ? providerName.GetString() ?? "ESPN"
             : "ESPN";
 
-        // Moneyline: a price per side, no line.
+        // Each side's open sits beside its close in the same node and is decoded the same way. It
+        // rides on the close it belongs to, so a side ESPN did not close is not opened either.
+
+        // Moneyline: a price per side, no line — not even an opening one.
         foreach (var (node, outcome) in Sides(entry, "moneyline", homeTeam, awayTeam))
         {
-            if (ReadClose(node, out _, out var price))
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, price, capturedAt);
+            if (ReadClose(node, Markets.Moneyline, out _, out var price))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, price, capturedAt)
+                {
+                    Opening = ReadOpen(node, Markets.Moneyline)
+                };
         }
 
         // Spread: a handicap and a price per side.
         foreach (var (node, outcome) in Sides(entry, "pointSpread", homeTeam, awayTeam))
         {
-            if (ReadClose(node, out var line, out var price) && line is not null)
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, line, price, capturedAt);
+            if (ReadClose(node, Markets.Spread, out var line, out var price) && line is not null)
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, line, price, capturedAt)
+                {
+                    Opening = ReadOpen(node, Markets.Spread)
+                };
         }
 
         // Total: one number for the game, quoted from both sides.
         foreach (var (node, outcome) in Sides(entry, "total", "over", "under"))
         {
-            if (ReadClose(node, out var line, out var price) && line is not null)
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, outcome, line, price, capturedAt);
+            if (ReadClose(node, Markets.Total, out var line, out var price) && line is not null)
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, outcome, line, price, capturedAt)
+                {
+                    Opening = ReadOpen(node, Markets.Total)
+                };
         }
     }
 
@@ -341,53 +501,74 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                 || !side.TryGetProperty("close", out var close))
                 continue;
 
-            if (TryAmerican(close, "moneyLine", out var ml))
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, ml, capturedAt);
+            // The side's open is a sibling of its close, in the same blocks; a side may state one
+            // and not the other, which leaves the opening null rather than guessed.
+            var open = side.TryGetProperty("open", out var o) && o.ValueKind == JsonValueKind.Object ? o : default;
 
-            if (TryLine(close, "pointSpread", out var spread) && TryAmerican(close, "spread", out var spreadPrice))
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, spread, spreadPrice, capturedAt);
+            if (TryAmerican(close, "moneyLine", out var ml))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Moneyline, outcome, null, ml, capturedAt)
+                {
+                    Opening = OpeningOf(null, OpenPrice(open, "moneyLine"))
+                };
+
+            if (TryLine(close, "pointSpread", spread: true, out var spread) && TryAmerican(close, "spread", out var spreadPrice))
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Spread, outcome, spread, spreadPrice, capturedAt)
+                {
+                    Opening = OpeningOf(OpenLine(open, "pointSpread", spread: true), OpenPrice(open, "spread"))
+                };
         }
 
-        if (entry.TryGetProperty("close", out var game) && TryLine(game, "total", out var total))
+        if (entry.TryGetProperty("close", out var game) && TryLine(game, "total", spread: false, out var total))
         {
+            // The total's open is one number for the game, as its close is, with a price per side.
+            var open = entry.TryGetProperty("open", out var o) && o.ValueKind == JsonValueKind.Object ? o : default;
+            var openTotal = OpenLine(open, "total", spread: false);
+
             if (TryAmerican(game, "over", out var over))
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "over", total, over, capturedAt);
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "over", total, over, capturedAt)
+                {
+                    Opening = OpeningOf(openTotal, OpenPrice(open, "over"))
+                };
 
             if (TryAmerican(game, "under", out var under))
-                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "under", total, under, capturedAt);
+                yield return new CanonicalOdds(sourceGameId, book, Markets.Total, "under", total, under, capturedAt)
+                {
+                    Opening = OpeningOf(openTotal, OpenPrice(open, "under"))
+                };
         }
     }
+
+    /// <summary>An opening price block on the odds endpoint, or null where the open states none.</summary>
+    private static int? OpenPrice(JsonElement open, string name)
+        => open.ValueKind == JsonValueKind.Object && TryAmerican(open, name, out var price) ? price : null;
+
+    /// <summary>An opening line block on the odds endpoint, or null where the open states none.</summary>
+    private static decimal? OpenLine(JsonElement open, string name, bool spread)
+        => open.ValueKind == JsonValueKind.Object && TryLine(open, name, spread, out var line) ? line : null;
+
+    /// <summary>The two halves as an opening, or null where neither was stated.</summary>
+    private static CanonicalOpening? OpeningOf(decimal? line, int? price)
+        => line is null && price is null ? null : new CanonicalOpening(line, price);
 
     /// <summary>A price block on the odds endpoint: <c>{ "american": "-110", … }</c>.</summary>
     private static bool TryAmerican(JsonElement parent, string name, out int price)
     {
         price = 0;
         return parent.TryGetProperty(name, out var block)
-               && TryParseAmerican(Text(block, "american") ?? Text(block, "alternateDisplayValue"), out price);
+               && TryParseAmerican(JsonRead.String(block, "american") ?? JsonRead.String(block, "alternateDisplayValue"), out price);
     }
 
-    /// <summary>A line block on the odds endpoint: <c>{ "american": "-7.5" }</c>, or a total's "47.5".</summary>
-    private static bool TryLine(JsonElement parent, string name, out decimal line)
+    /// <summary>
+    /// A line block on the odds endpoint: <c>{ "american": "-7.5" }</c>, or a total's "47.5". A
+    /// pick'em reads as a spread of zero, as it does in the summary (<see cref="JsonRead.TryParseLine"/>).
+    /// </summary>
+    private static bool TryLine(JsonElement parent, string name, bool spread, out decimal line)
     {
         line = 0;
 
-        if (!parent.TryGetProperty(name, out var block)
-            || (Text(block, "american") ?? Text(block, "alternateDisplayValue")) is not { } raw)
-            return false;
-
-        // A pick'em is a spread of zero, written in words.
-        if (raw.Trim().Equals("PK", StringComparison.OrdinalIgnoreCase)
-            || raw.Trim().Equals("EVEN", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return decimal.TryParse(raw.TrimStart('o', 'O', 'u', 'U'), NumberStyles.Number | NumberStyles.AllowLeadingSign,
-                   CultureInfo.InvariantCulture, out line);
+        return parent.TryGetProperty(name, out var block)
+               && JsonRead.TryParseLine(JsonRead.String(block, "american") ?? JsonRead.String(block, "alternateDisplayValue"), spread, out line);
     }
-
-    private static string? Text(JsonElement block, string name)
-        => block.ValueKind == JsonValueKind.Object && block.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
-            ? el.GetString()
-            : null;
 
     /// <summary>
     /// The two sides of one market, named as the platform names them. ESPN keys them
@@ -416,7 +597,7 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
     /// before parsing. A side missing its close is skipped rather than defaulted: a market
     /// ESPN did not price is not a market priced at zero.
     /// </summary>
-    private static bool ReadClose(JsonElement side, out decimal? line, out int price)
+    private static bool ReadClose(JsonElement side, string market, out decimal? line, out int price)
     {
         line = null;
         price = 0;
@@ -428,17 +609,39 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
             || !TryParseAmerican(oddsEl.GetString(), out price))
             return false;
 
-        if (close.TryGetProperty("line", out var lineEl) && lineEl.GetString() is { } raw)
-        {
-            var trimmed = raw.TrimStart('o', 'O', 'u', 'U');
-
-            if (decimal.TryParse(trimmed, NumberStyles.Number | NumberStyles.AllowLeadingSign,
-                    CultureInfo.InvariantCulture, out var parsed))
-                line = parsed;
-        }
+        line = ReadPickLine(close, market);
 
         return true;
     }
+
+    /// <summary>
+    /// What one side of one market opened at, from the <c>open</c> block beside its close, decoded
+    /// as <see cref="ReadClose"/> decodes the close. Unlike the close, either half may stand alone:
+    /// ESPN writes "OFF" for a price it took down, and the line opened at is still a fact. Null
+    /// where the side states neither. A moneyline's open has no line, whatever the block says.
+    /// </summary>
+    private static CanonicalOpening? ReadOpen(JsonElement side, string market)
+    {
+        if (!side.TryGetProperty("open", out var open) || open.ValueKind != JsonValueKind.Object)
+            return null;
+
+        int? price = JsonRead.String(open, "odds") is { } raw && TryParseAmerican(raw, out var parsed) ? parsed : null;
+
+        return OpeningOf(ReadPickLine(open, market), price);
+    }
+
+    /// <summary>
+    /// The line in a pickcenter <c>open</c> or <c>close</c> block, parsed as the odds endpoint's is
+    /// (<see cref="JsonRead.TryParseLine"/>): decorated lines stripped, and a pick'em a spread of
+    /// zero. It used to refuse "PK", which dropped a pick'em's spread from the summary — and, with
+    /// the moneyline read, the odds endpoint was never asked, so the spread stayed missing. A
+    /// moneyline has no line, whatever the block says.
+    /// </summary>
+    private static decimal? ReadPickLine(JsonElement block, string market)
+        => market != Markets.Moneyline
+           && JsonRead.TryParseLine(JsonRead.String(block, "line"), market == Markets.Spread, out var line)
+            ? line
+            : null;
 
     /// <summary>
     /// An American price as ESPN writes it: "+130", "-157", and occasionally "EVEN".
@@ -477,7 +680,10 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
 
         _lastRequestAt = DateTimeOffset.UtcNow;
 
-        using var response = await http.GetAsync(relativeUrl, ct);
+        // Headers first, then the body straight into the parser. A game summary is close to half a
+        // megabyte of JSON and the gamecast feed reads one per followed game every poll; buffering
+        // each whole before parsing it held the document in memory twice.
+        using var response = await http.GetAsync(relativeUrl, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
@@ -592,9 +798,9 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         if (!competition.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.Object)
             return null;
 
-        var type = status.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.Object ? t : default;
-        var state = type.ValueKind == JsonValueKind.Object ? JsonString(type, "state") : null;
-        var detail = Fit(type.ValueKind == JsonValueKind.Object ? JsonString(type, "shortDetail") : null, Game.StatusDetailLength);
+        var type = JsonRead.Child(status, "type");
+        var state = JsonRead.String(type, "state");
+        var detail = Fit(JsonRead.String(type, "shortDetail"), Game.StatusDetailLength);
 
         if (state == "pre")
             return new CanonicalLive(null, null, null, detail, null, null);
@@ -605,8 +811,8 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
             : null;
 
         var live = new CanonicalLive(
-            Period: JsonInt(status, "period"),
-            DisplayClock: Fit(JsonString(status, "displayClock"), Game.DisplayClockLength),
+            Period: JsonRead.Int(status, "period"),
+            DisplayClock: Fit(JsonRead.String(status, "displayClock"), Game.DisplayClockLength),
             ClockSeconds: clock,
             StatusDetail: detail,
             HomeLinescore: homeLines,
@@ -626,16 +832,16 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                     _ => null
                 }
                 : null,
-            Down = JsonInt(s, "down"),
-            Distance = JsonInt(s, "distance"),
-            YardLine = JsonInt(s, "yardLine"),
-            DownDistanceText = Fit(JsonString(s, "downDistanceText"), Game.DownDistanceTextLength),
-            PossessionText = Fit(JsonString(s, "possessionText"), Game.PossessionTextLength),
-            IsRedZone = JsonBool(s, "isRedZone"),
-            HomeTimeouts = JsonInt(s, "homeTimeouts"),
-            AwayTimeouts = JsonInt(s, "awayTimeouts"),
+            Down = JsonRead.Int(s, "down"),
+            Distance = JsonRead.Int(s, "distance"),
+            YardLine = JsonRead.Int(s, "yardLine"),
+            DownDistanceText = Fit(JsonRead.String(s, "downDistanceText"), Game.DownDistanceTextLength),
+            PossessionText = Fit(JsonRead.String(s, "possessionText"), Game.PossessionTextLength),
+            IsRedZone = JsonRead.Bool(s, "isRedZone"),
+            HomeTimeouts = JsonRead.Int(s, "homeTimeouts"),
+            AwayTimeouts = JsonRead.Int(s, "awayTimeouts"),
             LastPlay = s.TryGetProperty("lastPlay", out var lp) && lp.ValueKind == JsonValueKind.Object
-                ? JsonString(lp, "text")
+                ? JsonRead.String(lp, "text")
                 : null,
             SituationJson = ReadDiamond(s)
         };
@@ -651,17 +857,17 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         var bag = new System.Text.Json.Nodes.JsonObject();
 
         foreach (var key in (string[])["balls", "strikes", "outs"])
-            if (JsonInt(situation, key) is { } n)
+            if (JsonRead.Int(situation, key) is { } n)
                 bag[key] = n;
 
         foreach (var key in (string[])["onFirst", "onSecond", "onThird"])
-            if (JsonBool(situation, key) is { } b)
+            if (JsonRead.Bool(situation, key) is { } b)
                 bag[key] = b;
 
         foreach (var key in (string[])["batter", "pitcher"])
             if (situation.TryGetProperty(key, out var who) && who.ValueKind == JsonValueKind.Object
                 && who.TryGetProperty("athlete", out var athlete) && athlete.ValueKind == JsonValueKind.Object
-                && JsonString(athlete, "displayName") is { } name)
+                && JsonRead.String(athlete, "displayName") is { } name)
                 bag[key] = name;
 
         return bag.Count == 0 ? null : bag.ToJsonString();
@@ -695,28 +901,13 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
         return points;
     }
 
-    private static int? JsonInt(JsonElement parent, string name)
-        => parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n)
-            ? n
-            : null;
-
-    private static bool? JsonBool(JsonElement parent, string name)
-        => parent.TryGetProperty(name, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False
-            ? v.GetBoolean()
-            : null;
-
     /// <summary>
     /// A string cut to its column's length. ESPN documents none of the state-of-play strings, and
     /// one longer than its column would fail the save that carries the whole slate. A cut never
     /// splits a surrogate pair.
     /// </summary>
     private static string? Fit(string? value, int length)
-        => value is { Length: var n } && n > length
-            ? value[..(char.IsHighSurrogate(value[length - 1]) ? length - 1 : length)]
-            : value;
-
-    private static string? JsonString(JsonElement parent, string name)
-        => parent.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+        => ColumnText.Fit(value, length);
 
     /// <summary>
     /// The season ESPN stamps on the event itself — year and type — read from the event rather
@@ -935,6 +1126,12 @@ public partial class EspnStatsAdapter(HttpClient http, ILogger<EspnStatsAdapter>
                     var fullName = a.TryGetProperty("displayName", out var pn) ? pn.GetString() : null;
 
                     if (playerId is null || fullName is null)
+                        continue;
+
+                    // ESPN lists the club itself among some groups' athletes (team fumbles and
+                    // the like) under a negative id and the name " Team". That is not a person,
+                    // and taking it as one put a "Team" on a roster with a stat line.
+                    if (playerId.StartsWith('-'))
                         continue;
 
                     var position = a.TryGetProperty("position", out var pos)

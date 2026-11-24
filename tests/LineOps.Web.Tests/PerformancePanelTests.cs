@@ -117,6 +117,56 @@ public class PerformancePanelTests : DeskTestContext
         throw new InvalidOperationException($"No field {field} on {panel.GetType().Name}.");
     }
 
+    /// <summary>The section card whose bar names it <paramref name="title"/>.</summary>
+    private static AngleSharp.Dom.IElement Card(IRenderedFragment panel, string title)
+        => panel.FindAll("section.wsection")
+            .Single(s => s.QuerySelector(".wgroup > .wgroup__bar > .wgroup__title")?.TextContent.Trim() == title);
+
+    /// <summary>
+    /// The sections are section cards in one card flow (the Desk's grouping contract): each named
+    /// in the bar inside it, none under a rule standing above it, and the tiles above the flow
+    /// rather than boxed in a card of their own. The curve is the large card beside the bankroll
+    /// setting that leads the flow, so it is the flow's second card and takes the rest of the row.
+    /// </summary>
+    [Fact]
+    public void The_sections_are_cards_in_a_flow()
+    {
+        var panel = RenderSettled();
+
+        Assert.Empty(panel.FindAll(".perf .psection"));
+        Assert.Empty(panel.FindAll(".perf .wgroup__head"));
+
+        var cards = panel.FindAll(".perf > .wflow > section.wsection");
+        Assert.Equal(
+            new[]
+            {
+                "Bankroll", "Profit over settled bets", "By market", "By sport", "By book",
+                "What CLV was measured against", "What value was measured against"
+            },
+            cards.Select(c => c.QuerySelector(".wgroup__title")!.TextContent.Trim()));
+        Assert.All(cards, c => Assert.Equal(c.QuerySelector(".wgroup__title")!.Id, c.GetAttribute("aria-labelledby")));
+        Assert.Contains("wsection--rest", cards[1].ClassName);
+        Assert.All(cards.Skip(2), c => Assert.DoesNotContain("wsection--", c.ClassName));
+
+        // The tiles stay one MetricRow above the flow, not a card around the tiles' own edges.
+        Assert.Contains(panel.Find(".perf").Children, c => c.ClassList.Contains("metrics"));
+        Assert.Empty(panel.FindAll(".wgroup .metrics"));
+    }
+
+    /// <summary>The window is no longer held to a 720px column; a table in a card draws no second frame.</summary>
+    [Fact]
+    public void The_cards_set_the_width_and_frame_their_tables()
+    {
+        var css = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels", "PerformancePanel.razor.css"));
+
+        var app = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Web", "wwwroot", "css", "lineops.css"));
+        Assert.Contains(".perf { container: perf / inline-size; }", app);
+        // A table in a card is the Desk's rule, once (desk.css), not a copy in this window's sheet.
+        var desk = File.ReadAllText(Path.Combine(Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
+        Assert.Contains(".wgroup .deskgrid .mud-table-body .mud-table-row:last-child > .mud-table-cell { border-bottom: 0; }", desk);
+        Assert.DoesNotContain("mud-table-row:last-child", css);
+    }
+
     /// <summary>
     /// The window with two settled bets read: the load itself fails (nothing serves the journal
     /// here), and the test places what it would have read and marks the panel loaded.
@@ -128,10 +178,7 @@ public class PerformancePanelTests : DeskTestContext
 
         Set(panel.Instance, "_anySettled", true);
         Set(panel.Instance, "_summary", new PerformanceSummary(2, 1, 1, 0, 200m, 10m));
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel.Instance, true);
+        PanelProbe.MarkLoaded(panel.Instance);
         panel.Render();
         return panel;
     }
@@ -147,7 +194,7 @@ public class PerformancePanelTests : DeskTestContext
     {
         var panel = RenderSettled();
 
-        var section = panel.Find("section.wsection[aria-label='Bankroll']");
+        var section = Card(panel, "Bankroll");
         var row = section.QuerySelector(".wgroup__row--form")!;
 
         Assert.Equal("Starting bankroll", row.QuerySelector(".wgroup__label")!.TextContent.Trim());
@@ -171,7 +218,7 @@ public class PerformancePanelTests : DeskTestContext
         Set(panel.Instance, "_bankrollInput", (decimal?)0m);
         panel.Render();
 
-        var row = panel.Find("section.wsection[aria-label='Bankroll'] .keyrow");
+        var row = Card(panel, "Bankroll").QuerySelector(".keyrow")!;
         var reason = row.QuerySelector(".keyrow__reason")!;
         Assert.Equal("Type a different figure to set it.", reason.TextContent.Trim());
 
@@ -196,7 +243,7 @@ public class PerformancePanelTests : DeskTestContext
 
         panel.WaitForAssertion(() =>
             Assert.Contains("The bankroll was not saved. Try again.",
-                panel.Find("section.wsection[aria-label='Bankroll'] .note").TextContent));
+                Card(panel, "Bankroll").QuerySelector(".note")!.TextContent));
         Assert.Equal("500", panel.Find("input[aria-label='Starting bankroll']").GetAttribute("value"));
     }
 

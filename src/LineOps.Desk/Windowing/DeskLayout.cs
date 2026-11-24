@@ -44,6 +44,19 @@ public sealed record DeskLayout
 
     public IReadOnlyList<DeskLayoutWorkspace> Workspaces { get; init; } = [];
 
+    /// <summary>
+    /// The name of the workspace the desk was arranged from (<see cref="WindowManager.ActiveWorkspace"/>).
+    /// Added without a version bump, as the scales were: a layout written before it reads null.
+    /// </summary>
+    public string? ActiveWorkspace { get; init; }
+
+    /// <summary>
+    /// Whether <see cref="ActiveWorkspace"/> names one the operator saved rather than one of the
+    /// application's, so a saved workspace with an application workspace's name restores as itself.
+    /// Optional: a layout without it reads false and looks in the application's first.
+    /// </summary>
+    public bool ActiveWorkspaceSaved { get; init; }
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public string Serialise() => JsonSerializer.Serialize(this, Json);
@@ -66,13 +79,25 @@ public sealed record DeskLayout
     }
 }
 
-/// <summary>One open window. Parameters are the ids a window was opened on — an order, a customer.</summary>
+/// <summary>
+/// One open window. Parameters are the ids a window was opened on — an order, a customer.
+///
+/// <para>
+/// <paramref name="Column"/> and <paramref name="Rank"/> place it in a tab group: the column's
+/// index in the row, and its place in that column's strip, 0 for the tab showing. Added without a
+/// version bump, as the scales were: a layout saved before tabs has neither, reads them as null,
+/// and every window gets a column of its own — folded into tabs left to right if the row is
+/// longer than the limit.
+/// </para>
+/// </summary>
 public sealed record DeskLayoutWindow(
     string Key,
     string? TitleOverride,
     double Weight,
     bool Minimised,
-    IReadOnlyDictionary<string, JsonElement>? Parameters);
+    IReadOnlyDictionary<string, JsonElement>? Parameters,
+    int? Column = null,
+    int? Rank = null);
 
-/// <summary>A workspace the operator saved: a name and the windows it opens.</summary>
-public sealed record DeskLayoutWorkspace(string Name, IReadOnlyList<string> WindowKeys);
+/// <summary>A workspace the operator saved: a name, the windows it opens, and the column each goes in (null before tabs).</summary>
+public sealed record DeskLayoutWorkspace(string Name, IReadOnlyList<string> WindowKeys, IReadOnlyList<int>? Columns = null);

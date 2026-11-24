@@ -13,7 +13,19 @@ namespace LineOps.Desk;
 /// falls, the line under it on an empty desk, and what the palette's empty field invites —
 /// the things this application's search can find, which the desk cannot know.
 /// </summary>
-public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline, string SearchPlaceholder = "Search");
+public sealed record DeskBrand(string Wordmark, string Emphasis, string Tagline, string SearchPlaceholder = "Search")
+{
+    /// <summary>
+    /// The browser-storage key the desk keeps its layout and workspaces under. Left unset it is
+    /// made from the wordmark, so two products on one origin never share a layout. An application
+    /// that changes its name sets this to the key it used before, or every saved desk starts empty.
+    /// </summary>
+    public string? StorageKey { get; init; }
+
+    /// <summary>The key in force: <see cref="StorageKey"/> when set, otherwise the wordmark's.</summary>
+    public string LayoutKey
+        => string.IsNullOrWhiteSpace(StorageKey) ? $"{Wordmark}{Emphasis}.desk".ToLowerInvariant() : StorageKey;
+}
 
 /// <summary>
 /// The zone the desk tells time in, and the short name it labels that time with.
@@ -83,30 +95,8 @@ public static class DeskServiceCollectionExtensions
     {
         services.AddMudServices(options =>
         {
-            // Toasts land top-right, just under the header and to the right of the windows — where
-            // the eye already goes for the header's own notices, and across the desk from the side
-            // rail. mud-bridge.css sets the offset below the header; the pulse strips are on the
-            // windows' title bars, not the header, so nothing loud is covered. Newest on top, so a
-            // burst reads from the header downwards in the order it happened.
-            options.SnackbarConfiguration.PositionClass = Defaults.Classes.Position.TopRight;
-            options.SnackbarConfiguration.NewestOnTop = true;
-            // Duplicates are allowed, against MudBlazor's default. A desk notice is derived from an
-            // outcome, so pressing the same button twice on an unchanged state produces the same
-            // string twice — and suppressing the second one recreates the "did that actually run?"
-            // doubt the toast exists to remove.
-            options.SnackbarConfiguration.PreventDuplicates = false;
-            options.SnackbarConfiguration.MaxDisplayedSnackbars = 4;
-
-            // Transient means transient: it goes on its own, and the operator never has to dismiss
-            // one. The close button stays because a notice that lands over something being read
-            // should be removable without waiting it out.
-            options.SnackbarConfiguration.VisibleStateDuration = 4000;
-            options.SnackbarConfiguration.ShowCloseIcon = true;
-
-            // Material fades a snackbar in over half a second, which reads as the notice arriving
-            // late. The desk's own transitions are ~120ms; match them.
-            options.SnackbarConfiguration.ShowTransitionDuration = 120;
-            options.SnackbarConfiguration.HideTransitionDuration = 200;
+            // Nothing of the snackbar's is configured: the desk draws its own notices
+            // (DeskToasts, DeskToastStack; ADR 0028) and never renders MudBlazor's.
 
             // Last, so whatever the application says about MudBlazor overrides the desk's defaults.
             mud?.Invoke(options);

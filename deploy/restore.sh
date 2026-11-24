@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Restore a custom-format dump into the server's database: a nightly backup from ./backups,
-# or the development snapshot (data/snapshots/lineops.dump) for a first load.
+# or the development snapshot (data/personal/snapshots/lineops.dump, the owner's private clone)
+# for a first load.
 #
 #   ./restore.sh backups/lineops-2026-10-01T0400Z.dump
 #   ./restore.sh lineops.dump --force      # replace a database that already holds games

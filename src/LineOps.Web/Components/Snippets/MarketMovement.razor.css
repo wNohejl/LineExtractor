@@ -1,0 +1,3 @@
+/* The market opened in place is itself a row of the Game window's Lines card, already inset to
+   the card's text edge: the "View more" row under its table starts where the table does. */
+.gamemove { --bookmore-inset: 0; }

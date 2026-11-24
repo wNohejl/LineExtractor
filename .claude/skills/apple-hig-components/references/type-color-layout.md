@@ -69,10 +69,23 @@ states of custom components.
   windows off the bottom); keep the camera housing clear.
 - Adapt to size classes, not device type; text can grow, so rows can grow and side-by-side
   can stack.
+- **A section's name belongs to its container.** Proximity is grouping: a header floating in
+  the gap between two boxes is as near the box above as the one below, so on this Desk the name
+  sits in a header bar inside the card (headline style, one full-width hairline under it), and
+  the card's edge is what ends the section (`forms.md`, rule 5).
+- **Width buys columns, not line length.** A window of several sections flows them as cards on
+  tracks of at least ~420px that share what is left: wider is more cards across, narrower is a
+  stack. Cap each card at a reading width, never the window; leave a short card its own height
+  beside a tall one (`forms.md`, "Sections in a window").
+- **Compact related controls sit side by side.** Two short controls that refine one thing share
+  a split row, each labelled; they stack when the card cannot hold both.
 
 ## Tells that a screen skipped the guidelines
 
-Nested boxes · a grid of outlined cells for a choice · a border and a fill on the same group
-· vertical rules · all-caps tracked labels on every heading · the accent on a value · two
-filled buttons · a hero number inside a form · a control pinned to the far edge away from
-its label · colour as the only state · body text under 10pt · a placeholder with no label.
+Nested boxes · a grid of outlined cells for a choice · a border on anything inside a bordered
+group · vertical rules (a split row's one short divider excepted) · all-caps tracked labels on
+every heading · a section name floating above its box · one capped column with half a wide
+window empty beside it · cards stretched to their tallest neighbour · ragged shelves of tiles
+under sub-headings · the accent on a value · two filled buttons · a hero number inside a form ·
+a control pinned to the far edge away from its label · colour as the only state · body text
+under 10pt · a placeholder with no label.

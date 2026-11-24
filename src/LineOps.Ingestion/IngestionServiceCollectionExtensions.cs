@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
@@ -15,9 +16,10 @@ public static class IngestionServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the ingestion pipeline. Adapters are registered only when configured, so a
-    /// cold clone with no API keys still starts — it runs on ESPN, which needs none, and has
-    /// no odds feed until a key is supplied. No odds source is <i>unconfigured</i>, not broken;
-    /// the reliability layer is careful to say so (see <c>AlertEngine</c>).
+    /// cold clone with no API keys still starts — with no stats source until its operator opts in
+    /// to ESPN (<see cref="EspnOptIn"/>), and no odds feed until a key is supplied. A missing
+    /// source is <i>unconfigured</i>, not broken; the reliability layer is careful to say so
+    /// (see <c>AlertEngine</c>).
     /// </summary>
     public static IServiceCollection AddLineOpsIngestion(
         this IServiceCollection services,
@@ -52,6 +54,7 @@ public static class IngestionServiceCollectionExtensions
         services.AddScoped<OddsRetentionService>();
         services.AddScoped<OddsFeedStatus>();
         services.AddScoped<LinePollPlanner>();
+        services.AddScoped<CreditAllowance>();
 
         // Singleton: it creates a scope per job, so it has no scoped state and both the
         // scheduler and the desk's pull menu can hold it directly.
@@ -64,6 +67,7 @@ public static class IngestionServiceCollectionExtensions
         // Singleton for the same reason: a scope per run and per game. Here rather than with the
         // scheduler because the Pull menu and the Worker's --job run it on demand on any host.
         services.AddSingleton<GamecastBackport>();
+        services.AddSingleton<GamecastLanes>(); // windows' interest and the feed's lanes; resolvable where the feed does not run
 
         // Singleton: a scope per day, and the one gate that keeps a host to one range at a time,
         // whichever of the desk's sheet and the Worker's --job espn:range asked.
@@ -77,105 +81,176 @@ public static class IngestionServiceCollectionExtensions
 
         // Runs once at start, after the initialiser has seeded the reference rows: the
         // enabled flags on sports and sources follow the configuration rather than a hand edit.
-        services.AddHostedService<ReferenceReconciler>();
+        // A singleton as well as hosted, so a host whose odds key can change while it runs can
+        // ask for the same reconciliation again (AddRuntimeOddsKey).
+        services.AddSingleton<ReferenceReconciler>();
+        services.AddHostedService(sp => sp.GetRequiredService<ReferenceReconciler>());
 
         var options = configuration.GetSection(IngestionOptions.SectionName).Get<IngestionOptions>()
                       ?? new IngestionOptions();
 
         if (options.Espn.Enabled)
         {
-            services.AddHttpClient<EspnStatsAdapter>((sp, client) =>
-                {
-                    client.BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
+            // ESPN refuses a request whose client it does not recognise. HttpClient sends no
+            // User-Agent at all by default, and on 2 August 2026 that began returning 403 on every
+            // call — the port had always been one policy change away from breaking, and the policy
+            // changed. See SourceOptions.UserAgent for why the value has to name a real HTTP client
+            // rather than this app.
+            //
+            // A malformed override is corrected rather than obeyed: an unparseable value would
+            // leave the header absent, which is the precise condition that caused the outage.
+            // Failing back to a working default and saying so is better than a typo silently
+            // reproducing the bug it was added to fix.
+            AddProviderClient<EspnStatsAdapter>(services, EspnBaseUrl,
+                (sp, client) => ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp));
 
-                    // ESPN refuses a request whose client it does not recognise. HttpClient
-                    // sends no User-Agent at all by default, and on 2 August 2026 that began
-                    // returning 403 on every call — the port had always been one policy change
-                    // away from breaking, and the policy changed. See SourceOptions.UserAgent
-                    // for why the value has to name a real HTTP client rather than this app.
-                    //
-                    // A malformed override is corrected rather than obeyed: an unparseable
-                    // value would leave the header absent, which is the precise condition that
-                    // caused the outage. Failing back to a working default and saying so is
-                    // better than a typo silently reproducing the bug it was added to fix.
-                    ApplyUserAgent(client, options.Espn, EspnStatsAdapter.SourceKey, sp);
-                })
-                .AddStandardResilienceHandler();
-
-            services.AddScoped<IStatsSource>(sp =>
+            // One adapter behind every ESPN port, each resolved at the configured pace: the delay is
+            // ESPN's patience, not the port's, so no port may reach it faster than the others.
+            EspnStatsAdapter Paced(IServiceProvider sp)
             {
                 var adapter = sp.GetRequiredService<EspnStatsAdapter>();
                 adapter.RequestDelay = options.Espn.RequestDelay;
                 return adapter;
-            });
+            }
+
+            services.AddScoped<IStatsSource>(Paced);
 
             // The same port describes fighters (ADR 0021), at the same pace.
-            services.AddScoped<IFighterSource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IFighterSource>(Paced);
 
             // And relays the league's injury report, for the starter the Board names.
-            services.AddScoped<IInjurySource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IInjurySource>(Paced);
 
             // And narrates a game in play, for the gamecast feed (spec 2026-10-24 §6.3).
-            services.AddScoped<IGamecastSource>(sp =>
-            {
-                var adapter = sp.GetRequiredService<EspnStatsAdapter>();
-                adapter.RequestDelay = options.Espn.RequestDelay;
-                return adapter;
-            });
+            services.AddScoped<IGamecastSource>(Paced);
         }
 
         // The entity spine. Registered as itself rather than as an IStatsSource: it issues
         // identity, and the box-score job stays ESPN's (ADR 0011). Nothing here competes for the
         // stats-source slot, so it cannot displace what already works.
-        if (options.MlbStatsApi.Enabled)
+        //
+        // Only when ESPN is on (EspnOptIn): it annotates the games ESPN writes, so without ESPN it
+        // has nothing to match, and its data is personal-use as ESPN's is — one opt-in covers both.
+        if (options.MlbStatsApi.Enabled && options.Espn.Enabled)
         {
-            services.AddHttpClient<MlbStatsApiAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://statsapi.mlb.com/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                .AddStandardResilienceHandler();
+            AddProviderClient<MlbStatsApiAdapter>(services, "https://statsapi.mlb.com/");
 
             services.AddScoped<MlbSpineService>();
         }
 
         if (options.OddsApiIo.Enabled && !string.IsNullOrWhiteSpace(options.OddsApiIo.ApiKey))
         {
-            services.AddHttpClient<OddsApiIoAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://api.odds-api.io/v3/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                // Standard resilience handler: retry with jittered backoff, a circuit breaker
-                // that trips on sustained failure, and per-attempt timeouts. A tripped breaker
-                // is what the reliability layer surfaces as a degraded source.
-                .AddStandardResilienceHandler();
+            AddProviderClient<OddsApiIoAdapter>(services, "https://api.odds-api.io/v3/");
 
             services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<OddsApiIoAdapter>());
         }
 
         if (options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey))
-        {
-            services.AddHttpClient<TheOddsApiAdapter>(client =>
-                {
-                    client.BaseAddress = new Uri("https://api.the-odds-api.com/v4/");
-                    client.Timeout = TimeSpan.FromSeconds(30);
-                })
-                .AddStandardResilienceHandler();
+            AddTheOddsApi(services);
 
-            services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<TheOddsApiAdapter>());
-        }
+        // The default stats source (ADR 0026): The Odds API's fixtures and scores, on the same key —
+        // only while ESPN is off. One stats port at a time (ADR 0011): ESPN on, this is not registered,
+        // so nothing it would write or spend can reach a desk that runs on ESPN.
+        if (!options.Espn.Enabled && options.TheOddsApi.Enabled && !string.IsNullOrWhiteSpace(options.TheOddsApi.ApiKey))
+            AddTheOddsApiSchedule(services);
+
+        return services;
+    }
+
+    /// <summary>
+    /// The primary handler every provider client shares, so the five registrations cannot drift.
+    ///
+    /// <para>
+    /// It asks for, and unpacks, compressed bodies. .NET sends no <c>Accept-Encoding</c> unless
+    /// asked, so every provider has been answering in full: ESPN's NFL scoreboard is 236,335
+    /// bytes plain and 20,345 gzipped, a game summary 451,157 and 43,092 — and the gamecast feed
+    /// reads a summary per followed game every 15 seconds. The Odds API's documentation says to
+    /// send <c>Accept-Encoding: gzip</c>. Roughly a tenth of the bytes, for one line of setup.
+    /// </para>
+    ///
+    /// <para>
+    /// A custom primary handler replaces the factory's default, so what that default did is
+    /// restated here. Cookies stay off, as the factory has them: these are keyed, stateless
+    /// APIs and a cookie jar would only carry a session from one scan into the next. Pooled
+    /// connections are retired every two minutes, the factory's own handler lifetime, so a
+    /// provider that moves behind a new address is followed rather than dialled at the old one
+    /// until the process restarts.
+    /// </para>
+    /// </summary>
+    internal static SocketsHttpHandler ProviderHandler() => new()
+    {
+        AutomaticDecompression = DecompressionMethods.All,
+        UseCookies = false,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+    };
+
+    private const string EspnBaseUrl = "https://site.api.espn.com/apis/site/v2/sports/";
+
+    /// <summary>Both of The Odds API's adapters, odds and schedule, are one account on one host.</summary>
+    private const string TheOddsApiBaseUrl = "https://api.the-odds-api.com/v4/";
+
+    /// <summary>
+    /// Registers a provider's typed client the one way every provider is registered: its base
+    /// address, a 30-second timeout, the shared <see cref="ProviderHandler"/>, and the standard
+    /// resilience handler — retry with jittered backoff, a circuit breaker that trips on sustained
+    /// failure, and per-attempt timeouts. A tripped breaker is what the reliability layer surfaces
+    /// as a degraded source. One method, so five registrations cannot drift apart.
+    /// </summary>
+    /// <param name="extra">Anything one provider needs beyond that, such as ESPN's User-Agent.</param>
+    private static IHttpClientBuilder AddProviderClient<T>(
+        IServiceCollection services, string baseUrl, Action<IServiceProvider, HttpClient>? extra = null)
+        where T : class
+    {
+        var builder = services.AddHttpClient<T>((sp, client) =>
+            {
+                client.BaseAddress = new Uri(baseUrl);
+                client.Timeout = TimeSpan.FromSeconds(30);
+                extra?.Invoke(sp, client);
+            })
+            .ConfigurePrimaryHttpMessageHandler(ProviderHandler);
+
+        builder.AddStandardResilienceHandler();
+        return builder;
+    }
+
+    private static void AddTheOddsApi(IServiceCollection services)
+    {
+        AddProviderClient<TheOddsApiAdapter>(services, TheOddsApiBaseUrl);
+
+        services.AddScoped<IOddsSource>(sp => sp.GetRequiredService<TheOddsApiAdapter>());
+    }
+
+    /// <summary>The fixtures-and-scores adapter, as the stats port and the score port, on the odds key's client settings.</summary>
+    private static void AddTheOddsApiSchedule(IServiceCollection services)
+    {
+        AddProviderClient<TheOddsApiScheduleAdapter>(services, TheOddsApiBaseUrl);
+
+        services.AddScoped<IStatsSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());
+        services.AddScoped<IScoreSource>(sp => sp.GetRequiredService<TheOddsApiScheduleAdapter>());
+    }
+
+    /// <summary>
+    /// Lets this host's operator supply The Odds API key while it runs (the desk's Ops window),
+    /// instead of only through configuration at start. Call after <see cref="AddLineOpsIngestion"/>.
+    ///
+    /// <para>
+    /// The adapter is registered here if configuration did not already register it, and says for
+    /// itself whether it holds a key (<see cref="IOddsSource.IsConfigured"/>), which is what the
+    /// registry lists by. A host that does not call this is unchanged: no key at start, no adapter.
+    /// </para>
+    /// </summary>
+    public static IServiceCollection AddRuntimeOddsKey(this IServiceCollection services)
+    {
+        services.AddSingleton<RuntimeOddsKey>();
+
+        if (!services.Any(d => d.ServiceType == typeof(TheOddsApiAdapter)))
+            AddTheOddsApi(services);
+
+        // And, while ESPN is off, the default stats source on the same key, which likewise says for
+        // itself whether it holds one. ESPN registered means ESPN is on, and then it is the stats port.
+        if (!services.Any(d => d.ServiceType == typeof(EspnStatsAdapter))
+            && !services.Any(d => d.ServiceType == typeof(TheOddsApiScheduleAdapter)))
+            AddTheOddsApiSchedule(services);
 
         return services;
     }

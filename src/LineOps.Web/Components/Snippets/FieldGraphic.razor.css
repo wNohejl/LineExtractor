@@ -1,0 +1,168 @@
+/* The field graphic (FieldGraphic.razor). Every fill and stroke is a token, so it re-themes with
+   the desk; nothing names a hue, and there is no turf: team has no colours on this desk, and a
+   green field would blur the one green that means something here, a scoring play. The field is
+   the content fill, the end zones a tier deeper, the yard lines hairlines. Hue is spent only
+   where it says something: the line to gain in the warning state, as a broadcast's first-down
+   line is the one coloured line on the field; the red zone the negative wash, once the ball is in
+   it; a scoring play positive and a turnover negative. A gain is ink, the latest play the primary
+   ink; a loss is hollow and a penalty dashed, so they read without their colour. The accent is
+   kept for what can be pressed. No edge: the window's card is the group, and an outline here
+   would be the box inside the box. */
+
+.fieldgraphic {
+    width: 100%;
+    /* At a reading width: drawn to scale, a field as wide as a maximised window would stand
+       taller than the window's title and push everything under it out of sight. */
+    max-width: 760px;
+}
+
+.fieldgraphic__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+}
+
+.fieldgraphic__field {
+    fill: var(--surface-1);
+}
+
+.fieldgraphic__zone {
+    fill: var(--surface-3);
+}
+
+.fieldgraphic__red {
+    fill: var(--state-negative-wash);
+}
+
+.fieldgraphic__yard {
+    stroke: var(--separator);
+    stroke-width: 0.25;
+}
+
+.fieldgraphic__yard--mid {
+    stroke: var(--separator-strong);
+}
+
+.fieldgraphic__tick {
+    stroke: var(--separator);
+    stroke-width: 0.2;
+}
+
+.fieldgraphic__num {
+    fill: var(--text-tertiary);
+    font-family: var(--face-ui);
+    font-size: 2.6px;
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+.fieldgraphic__mark {
+    fill: var(--text-secondary);
+    font-family: var(--face-ui);
+    font-size: 3.4px;
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.3px;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+/* The ground the drive has covered: a quiet wash under its plays. */
+.fieldgraphic__band {
+    fill: var(--separator);
+}
+
+.fieldgraphic__play {
+    fill: var(--text-secondary);
+    stroke: none;
+}
+
+.fieldgraphic__play--latest {
+    fill: var(--text-primary);
+}
+
+/* A play that went nowhere: a thin mark, filled, at its spot. */
+.fieldgraphic__play--nogain {
+    fill: var(--text-tertiary);
+}
+
+/* A loss is hollow and a penalty dashed: the shape says it before the colour would. */
+.fieldgraphic__play--loss,
+.fieldgraphic__play--penalty {
+    fill: none;
+    stroke: var(--text-secondary);
+    stroke-width: 0.3;
+}
+
+.fieldgraphic__play--penalty {
+    stroke-dasharray: 0.8 0.5;
+}
+
+.fieldgraphic__play--score {
+    fill: var(--state-positive);
+}
+
+.fieldgraphic__play--turnover {
+    fill: var(--state-negative);
+}
+
+/* The ball and the two lines move by a transform, so a new spot slides in from the old one. */
+.fieldgraphic__mover {
+    transition: transform var(--dur-slow) var(--ease-standard);
+}
+
+.fieldgraphic__gain line {
+    stroke: var(--state-warning);
+    stroke-width: 0.6;
+}
+
+.fieldgraphic__scrim line {
+    stroke: var(--text-tertiary);
+    stroke-width: 0.35;
+}
+
+.fieldgraphic__arrow,
+.fieldgraphic__spot {
+    fill: var(--text-primary);
+}
+
+/* The play in words, under the field: the situation, then what happened, at most two lines. */
+.fieldgraphic__caption {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-subheadline);
+    line-height: var(--leading-body);
+    font-variant-numeric: tabular-nums;
+}
+
+.fieldgraphic__situation {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+}
+
+.fieldgraphic__side {
+    color: var(--text-primary);
+}
+
+.fieldgraphic__lastplay {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fieldgraphic__mover {
+        transition: none;
+    }
+}

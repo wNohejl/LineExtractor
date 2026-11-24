@@ -54,9 +54,24 @@ namespace LineOps.Ingestion.Services;
 /// </para>
 ///
 /// <para>
-/// Bounded three times over. At most <see cref="GamecastOptions.MaxFollowedGames"/> games at
-/// once, earliest start first, and said once when the ceiling bites rather than every fifteen
-/// seconds. A failure on one game is logged and the rest of the poll carries on, as the loop
+/// Two lanes, so no game in play is left without plays. The fast lane is the first
+/// <see cref="GamecastOptions.MaxFollowedGames"/> games, read every poll: the games a window is
+/// watching (<see cref="GamecastLanes.Watched"/>) first, then the healthy before the ones in
+/// trouble, earliest start first — so the game someone has open takes a slot from one nobody is
+/// looking at. Every other game on is in the slow lane, read in turn by game id,
+/// <see cref="GamecastOptions.SlowLanePerPoll"/> a poll: on a seven-game window each of the three
+/// past the ceiling is read every third poll instead of not at all. A slow game keeps what the feed
+/// holds for it between its turns — its probabilities, its box cadence — and the probability and
+/// box cadences are clocks, not counts, so a turn asks for probabilities only when one is due. A
+/// slow game that leaves play is read every poll until it is finished, as any leaving game is.
+/// After every poll the lanes are reported to <see cref="GamecastLanes"/>, where a window reads
+/// which lane its game is in and when it was last read.
+/// </para>
+///
+/// <para>
+/// Bounded three times over. At most <see cref="GamecastOptions.MaxFollowedGames"/> plus
+/// <see cref="GamecastOptions.SlowLanePerPoll"/> summaries a poll, and said once when the ceiling
+/// bites rather than every fifteen seconds. A failure on one game is logged and the rest of the poll carries on, as the loop
 /// carries on past a failed poll. And a game that fails, or whose summary stays "scheduled", for
 /// <see cref="FailuresBeforeBackOff"/> reads in a row is backed off for a growing while and gives
 /// its slot to the healthy games — a stale event id would otherwise hold slot one for the day
@@ -67,13 +82,14 @@ namespace LineOps.Ingestion.Services;
 /// <para>
 /// Each game is written in a fresh scope, so one game's change tracker never carries into the
 /// next game's save. What the feed holds between polls — the games followed, when each last asked
-/// for probabilities, the games it has finished with, the games in trouble — is in memory: a
+/// for probabilities, the games it has finished with, the games in trouble, the slow lane's turn — is in memory: a
 /// restart re-reads what is on and loses nothing the store does not already hold.
 /// </para>
 /// </summary>
 public class GamecastFeed(
     IServiceScopeFactory scopeFactory,
     IOptions<IngestionOptions> options,
+    GamecastLanes lanes,
     ILogger<GamecastFeed> logger) : BackgroundService
 {
     /// <summary>The run row the final box score is recorded under, beside the results sweep's.</summary>
@@ -129,11 +145,19 @@ public class GamecastFeed(
     /// <summary>Games in trouble, forgotten when they recover or leave play.</summary>
     private readonly Dictionary<int, Trouble> _trouble = [];
 
+    /// <summary>When each game's summary was last read, kept while the game is on or followed.</summary>
+    private readonly Dictionary<int, DateTimeOffset> _lastReadAt = [];
+
+    /// <summary>The slow lane's turn: the id of the slow game read last, so the next turn starts after it.</summary>
+    private int _slowCursor;
+
     private bool _ceilingReported;
     private bool _noSourceReported;
 
-    /// <summary>The games followed after the last poll, by id.</summary>
+    /// <summary>The games the feed holds state for after the last poll, by id: both lanes, and games leaving play.</summary>
     public IReadOnlyCollection<int> Following => _followed.Keys;
+
+    private int SlowLanePerPoll => Math.Max(0, _options.SlowLanePerPoll);
 
     /// <summary>
     /// The configured cadences, or their defaults when configuration gives zero or less — as
@@ -158,8 +182,8 @@ public class GamecastFeed(
         }
 
         logger.LogInformation(
-            "Gamecast feed started: {Sports}, every {Poll}, up to {Max} games",
-            string.Join(", ", _options.EffectiveSports), Poll, _options.MaxFollowedGames);
+            "Gamecast feed started: {Sports}, every {Poll}, up to {Max} games every poll and {Slow} more a poll in turn",
+            string.Join(", ", _options.EffectiveSports), Poll, _options.MaxFollowedGames, SlowLanePerPoll);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -224,22 +248,43 @@ public class GamecastFeed(
         foreach (var gone in _trouble.Keys.Where(id => !onNow.Contains(id)).ToList())
             _trouble.Remove(gone);
 
-        // A backed-off game is out of the running until its wait is over, and a game still in
-        // trouble queues behind the healthy ones (a stable sort, so earliest start first within each).
+        // A backed-off game is out of the running until its wait is over. The fast lane takes the
+        // watched games first, then the healthy before the ones still in trouble (stable sorts, so
+        // earliest start first within each).
+        var watched = lanes.Watched(now);
+
         var candidates = inPlay
             .Where(g => !_finished.Contains(g.Id) && !BackedOff(g.Id, now))
-            .OrderBy(g => InTrouble(g.Id))
+            .OrderBy(g => !watched.Contains(g.Id))
+            .ThenBy(g => InTrouble(g.Id))
             .ToList();
 
         var max = Math.Max(0, _options.MaxFollowedGames);
+        var perPoll = SlowLanePerPoll;
+
+        var fast = candidates.Take(max).ToList();
+
+        // Everything else on, in turn by id. Off, the slow lane holds nothing, as before it existed.
+        var slow = perPoll > 0
+            ? candidates.Skip(max).OrderBy(g => g.Id).ToList()
+            : [];
 
         if (candidates.Count > max)
         {
             if (!_ceilingReported)
             {
-                logger.LogInformation(
-                    "Gamecast feed: {Count} games in play, following the first {Max} (Ingestion:Gamecast:MaxFollowedGames)",
-                    candidates.Count, max);
+                if (perPoll > 0)
+                {
+                    logger.LogInformation(
+                        "Gamecast feed: {Count} games in play, {Max} read every poll and the rest in the slow lane, {PerPoll} a poll (Ingestion:Gamecast:MaxFollowedGames, SlowLanePerPoll)",
+                        candidates.Count, max, perPoll);
+                }
+                else
+                {
+                    logger.LogInformation(
+                        "Gamecast feed: {Count} games in play, following the first {Max} and not the rest: the slow lane is off (Ingestion:Gamecast:MaxFollowedGames, SlowLanePerPoll)",
+                        candidates.Count, max);
+                }
             }
 
             _ceilingReported = true;
@@ -249,18 +294,23 @@ public class GamecastFeed(
             _ceilingReported = false;
         }
 
-        var current = candidates.Take(max)
+        var turn = SlowTurn(slow.Select(g => g.Id).ToList(), perPoll);
+
+        var current = fast.Concat(slow.Where(g => turn.Contains(g.Id)))
             .ToDictionary(g => g.Id, g => _followed.TryGetValue(g.Id, out var known)
                 ? known
                 : new Followed(g.Sport, g.ExternalIds[source.Key], g.StartsAt));
 
         // Followed and out of play now: most often the scoreboard pass has just marked it final,
         // and the feed owes it the final summary and the box score. It is read on until the
-        // summary agrees, or for LeavingReads polls at most.
-        var leaving = _followed.Where(f => !current.ContainsKey(f.Key) && !onNow.Contains(f.Key)).ToList();
+        // summary agrees, or for LeavingReads polls at most, whichever lane it was in.
+        var leaving = _followed.Where(f => !onNow.Contains(f.Key)).ToList();
 
-        // Followed and still in play, but backed off or past the ceiling: let go until it is picked again.
-        foreach (var displaced in _followed.Keys.Where(id => !current.ContainsKey(id) && onNow.Contains(id)).ToList())
+        // Followed and still in play, but backed off, or past the ceiling with the slow lane off:
+        // let go until it is picked again. A slow game waiting its turn keeps what is held for it.
+        var held = fast.Concat(slow).Select(g => g.Id).ToHashSet();
+
+        foreach (var displaced in _followed.Keys.Where(id => onNow.Contains(id) && !held.Contains(id)).ToList())
             _followed.Remove(displaced);
 
         foreach (var (gameId, game) in current)
@@ -274,6 +324,47 @@ public class GamecastFeed(
             ct.ThrowIfCancellationRequested();
             await FollowAsync(source, gameId, game, leaving: true, now, ct);
         }
+
+        foreach (var stale in _lastReadAt.Keys.Where(id => !onNow.Contains(id) && !_followed.ContainsKey(id)).ToList())
+            _lastReadAt.Remove(stale);
+
+        // The lanes as this poll leaves them: a game it finished is gone, one it just backed off says so.
+        var fastIds = fast.Select(g => g.Id).ToHashSet();
+        var games = new Dictionary<int, GamecastLane>();
+
+        foreach (var g in inPlay.Where(g => !_finished.Contains(g.Id)))
+        {
+            if (BackedOff(g.Id, now))
+                games[g.Id] = GamecastLane.BackedOff;
+            else if (fastIds.Contains(g.Id))
+                games[g.Id] = GamecastLane.Fast;
+            else if (held.Contains(g.Id))
+                games[g.Id] = GamecastLane.Slow;
+        }
+
+        lanes.Report(new GamecastFeedSnapshot(
+            now, inPlay.Count, fast.Count, games, new Dictionary<int, DateTimeOffset>(_lastReadAt)));
+    }
+
+    /// <summary>
+    /// The slow games read this poll: the next <paramref name="perPoll"/> by id after the last one
+    /// read, never wrapping within a poll, so with N slow games each is read once every
+    /// N ÷ <paramref name="perPoll"/> polls, rounded up. A game that joins the lane waits its turn.
+    /// </summary>
+    private HashSet<int> SlowTurn(List<int> slowIds, int perPoll)
+    {
+        if (perPoll <= 0 || slowIds.Count == 0)
+            return [];
+
+        var next = slowIds.Where(id => id > _slowCursor).ToList();
+
+        // The round is over: start it again from the lowest id.
+        if (next.Count == 0)
+            next = slowIds;
+
+        var turn = next.Take(perPoll).ToList();
+        _slowCursor = turn[^1];
+        return turn.ToHashSet();
     }
 
     private bool InTrouble(int gameId)
@@ -314,6 +405,8 @@ public class GamecastFeed(
                 _trouble.Remove(gameId);
                 return;
             }
+
+            _lastReadAt[gameId] = now;
 
             // Probabilities only once the game is on: a game not started, or stuck before its start, has none.
             if (gamecast.State == "live" && (game.ProbabilitiesAt is not { } asked || now - asked >= ProbabilityPoll))

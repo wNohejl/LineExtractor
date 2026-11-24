@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using LineOps.Desk.Primitives;
 using LineOps.Web.Tests.Support;
@@ -124,6 +125,96 @@ public class DeskSearchTests : DeskTestContext
         var landmark = cut.Find("[role=search]");
         Assert.Contains("extra", landmark.ClassList);
         Assert.Equal("q1", landmark.GetAttribute("data-test"));
+    }
+
+    // ---- The search in a window's toolbar ----------------------------------------------------
+
+    private static string Sheet(params string[] path) => File.ReadAllText(Path.Combine([Repo.Root(), "src", .. path]));
+
+    private static readonly string Panels = Path.Combine(Repo.Root(), "src", "LineOps.Web", "Components", "Panels");
+
+    /// <summary>
+    /// A toolbar's search shares the row with the keys: the field and the actions are siblings in
+    /// the one row, the search straight before them, not a full-width field on a row of its own
+    /// that pushes the window's content down.
+    /// </summary>
+    [Fact]
+    public void In_a_toolbar_the_search_shares_the_row_with_the_keys()
+    {
+        var cut = RenderComponent<PanelToolbar>(p => p
+            .AddChildContent("<select aria-label=\"Sport\"></select>")
+            .Add(x => x.Search, b =>
+            {
+                b.OpenComponent<DeskSearch>(0);
+                b.AddAttribute(1, nameof(DeskSearch.Placeholder), "Search teams");
+                b.AddAttribute(2, nameof(DeskSearch.Label), "Search teams or matchups");
+                b.AddAttribute(3, nameof(DeskSearch.Value), "mets");
+                b.CloseComponent();
+            })
+            .Add(x => x.Actions, "<button>Refresh</button>"));
+
+        var row = cut.Find(".ptoolbar").Children;
+        var search = row.Single(c => c.ClassList.Contains("search"));
+        var actions = row.Single(c => c.ClassList.Contains("ptoolbar__actions"));
+
+        Assert.Same(actions, search.NextElementSibling);
+        // Named for what it searches, and the field can be emptied in one press.
+        Assert.Equal("Search teams or matchups", search.QuerySelector("input")!.GetAttribute("aria-label"));
+        Assert.Equal("Search teams", search.QuerySelector("input")!.GetAttribute("placeholder"));
+        Assert.NotNull(search.QuerySelector("button.search__clear[aria-label='Clear search']"));
+    }
+
+    /// <summary>
+    /// The toolbar's search is a compact trailing control: it never grows into the row's free
+    /// space (it once stretched across a maximised Board between the pickers and the keys), it
+    /// leads the trailing group with an auto margin, and the keys then follow it at the row's gap.
+    /// Its width is read from the type ramp, so it is the Desk's to set and no window restyles it.
+    /// </summary>
+    [Fact]
+    public void A_toolbar_search_takes_the_room_a_query_needs_and_no_more()
+    {
+        var controls = DeskConventions.WithoutComments(Sheet("LineOps.Desk", "wwwroot", "css", "controls.css"));
+
+        var rule = Regex.Match(controls, @"(?m)^\.ptoolbar > \.search \{(?<body>[^}]*)\}");
+        Assert.True(rule.Success, "controls.css draws the toolbar's search");
+
+        var flex = Regex.Match(rule.Groups["body"].Value, @"flex:\s*(?<grow>\d+)\s+\d+\s+(?<basis>[^;]+);");
+        Assert.True(flex.Success, "The toolbar's search states its flex");
+        Assert.Equal("0", flex.Groups["grow"].Value);
+        Assert.Contains("var(--text-body)", flex.Groups["basis"].Value);
+        Assert.Matches(@"margin-left:\s*auto", rule.Groups["body"].Value);
+        Assert.Matches(@"\.ptoolbar > \.search ~ \.ptoolbar__actions \{\s*margin-left:\s*0", controls);
+
+        // No window widens it again.
+        var app = DeskConventions.WithoutComments(Sheet("LineOps.Web", "wwwroot", "css", "lineops.css"));
+        Assert.DoesNotMatch(@"\.ptoolbar[^{},]*\.search\b", app);
+    }
+
+    /// <summary>
+    /// Every search in a window is a DeskSearch in a toolbar's Search slot — the same side and
+    /// order in every window — except the game finder, which heads the wager form it fills.
+    /// Each placeholder says what is searched, as a verb and an object.
+    /// </summary>
+    [Fact]
+    public void Every_window_search_sits_in_its_toolbar_and_says_what_it_searches()
+    {
+        foreach (var file in Directory.EnumerateFiles(Panels, "*.razor"))
+        {
+            var source = File.ReadAllText(file);
+
+            foreach (Match search in Regex.Matches(source, @"<DeskSearch\b[^>]*>"))
+            {
+                var name = Path.GetFileName(file);
+                Assert.Matches(@"Placeholder=""Search \w+", search.Value);
+
+                if (name == "GamePicker.razor")
+                    continue;
+
+                var slot = source.LastIndexOf("<Search>", search.Index, StringComparison.Ordinal);
+                var closed = source.LastIndexOf("</Search>", search.Index, StringComparison.Ordinal);
+                Assert.True(slot >= 0 && slot > closed, $"{name}: a DeskSearch outside a PanelToolbar's <Search> slot");
+            }
+        }
     }
 
     /// <summary>The roster finder searches with the search field, not a plain one.</summary>

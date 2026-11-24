@@ -9,8 +9,8 @@ namespace LineOps.Desk.Primitives;
 /// An action normally answers its question <i>on the row</i>, in a snippet, and offers a way
 /// out to a full view only if the snippet is not enough. That ordering is the whole point of
 /// the pattern: glancing at a side-by-side record or an item's last five should not cost a
-/// window slot, because spending one evicts something (ADR 0007) and browsing must not
-/// rearrange the desk.
+/// window slot, because at the column limit a new slot covers a column as a tab (ADR 0027),
+/// and browsing must not rearrange the desk.
 /// </para>
 ///
 /// <para>
@@ -40,6 +40,13 @@ public sealed record RowAction
     /// What opens inline underneath. Null for an action that only opens a window.
     /// </summary>
     public RenderFragment? Snippet { get; init; }
+
+    /// <summary>
+    /// The snippet draws section cards of its own (several FormGroups in a <c>.wflow</c>), so its
+    /// <c>SnippetShell</c> is an unframed pane header over them rather than the card around them:
+    /// a card inside a card is forbidden. Off, the shell is the card and the snippet its rows.
+    /// </summary>
+    public bool SnippetCards { get; init; }
 
     /// <summary>
     /// The escape to a full view. Rendered by <c>SnippetShell</c> when there is a snippet, and

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -9,12 +10,6 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnPortTests
 {
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        return JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone();
-    }
-
     [Theory]
     [InlineData("mlb", "baseball/mlb")]
     [InlineData("nfl", "football/nfl")]
@@ -35,7 +30,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_CarriesTheProvidersTeamIdAndOfficialAbbreviation()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
         var game = games.Single(g => g.SourceGameId == "401816200");
 
         Assert.Equal("Detroit Tigers", game.HomeTeamName);
@@ -55,7 +50,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_StillResolvesATeamWithNoIdOrAbbreviation()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
         var game = games.Single(g => g.SourceGameId == "401816201");
 
         // A leaner provider gives a name and nothing else; the name is the one field that
@@ -75,8 +70,7 @@ public class EspnPortTests
     [InlineData("STATUS_SOMETHING_NEW", "in", "live")]      // a name nobody has listed yet
     public void ParseScoreboard_ReadsAnUnlistedStatusByItsState(string name, string state, string expected)
     {
-        var root = System.Text.Json.Nodes.JsonNode.Parse(
-            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.scoreboard.json")))!;
+        var root = System.Text.Json.Nodes.JsonNode.Parse(Fixtures.Text("espn.scoreboard.json"))!;
 
         var ev = root["events"]!.AsArray().Single(e => (string?)e!["id"] == "401816201")!;
         var type = ev["competitions"]![0]!["status"]!["type"]!;
@@ -91,7 +85,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_DropsAnEventWhoseTeamCannotBeNamed()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
 
         // Half a matchup is worse than none: it would resolve to a game with one real team and
         // one invented one, and then quietly collect odds and stats against it.
@@ -101,7 +95,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_DropsSpringTrainingButKeepsOpeningDay()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
 
         // 24 March 2026 is spring training and 25 March is opening day. Both come back from the
         // same query, and ingesting the first puts a loss on Tampa Bay's record from a game that
@@ -113,7 +107,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_KeepsAnEventThatDeclaresNoSeasonTypeAtAll()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
 
         // Absence of the field is not evidence of an exhibition. Excluding on a missing value
         // would silently drop every ordinary game, which is the more expensive mistake — the
@@ -125,7 +119,7 @@ public class EspnPortTests
     [Fact]
     public void ParseScoreboard_DropsTheAllStarGameDespiteItsRegularSeasonLabel()
     {
-        var games = EspnStatsAdapter.ParseScoreboard(Load("espn.scoreboard.json"), "mlb").ToList();
+        var games = EspnStatsAdapter.ParseScoreboard(Fixtures.Json("espn.scoreboard.json"), "mlb").ToList();
 
         // Reported as season type 2 on an ordinary July date, so the preseason check waves it
         // through. Left in, it resolves normally and invents two franchises to hold itself —

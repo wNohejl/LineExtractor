@@ -121,9 +121,17 @@ public partial class EspnStatsAdapter : IGamecastSource
         var stats = new List<CanonicalPlayerStat>();
         ParseBoxScore(doc.RootElement, sportKey, sourceGameId, players, stats);
 
+        // The game's context rides with the box, from the same document, as the final's does. A
+        // summary read mid-game may still state what a final has dropped — the weather, the
+        // predictor — and the writer keeps whatever an earlier read stored that a later one omits.
+        var context = ParseGameContext(doc.RootElement, sportKey, sourceGameId);
+
         return new GamecastRead(
             ParseGamecast(doc.RootElement, sourceGameId),
-            new StatsFetchResult([], players, stats, new FetchCost(0)));
+            new StatsFetchResult([], players, stats, new FetchCost(0))
+            {
+                GameContexts = context is null ? null : [context]
+            });
     }
 
     public async Task<IReadOnlyDictionary<string, CanonicalPlayProbability>> FetchProbabilitiesAsync(
@@ -403,6 +411,13 @@ public partial class EspnStatsAdapter : IGamecastSource
     /// the box-score parse cannot collide with one here. Every one of them tolerates a missing
     /// or wrongly typed field (spec §7): ESPN states numbers as numbers in one place and as
     /// strings in the next.
+    ///
+    /// <para>
+    /// They are not <see cref="JsonRead"/>'s, on purpose: <c>Str</c> reads a number where a string
+    /// was asked for, <c>Bool</c> reads a missing flag as false rather than unstated, and <c>Dec</c>
+    /// takes an exponent. A play is either a scoring play or it is not; a context's flag that was
+    /// never stated is neither.
+    /// </para>
     /// </summary>
     private static class GamecastJson
     {

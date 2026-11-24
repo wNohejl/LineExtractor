@@ -1,0 +1,96 @@
+/* The team comparison (TeamComparison.razor). No edge and no card: it sits in the window's card,
+   and its rows are divided by spacing alone. Each row is the away figure at the leading edge, the
+   label between in the secondary ink at footnote size, the home figure at the trailing edge, and
+   under them the bar, full width, split at the away side's share. The bar's two halves are the
+   chart's opaque neutrals (a translucent ink would composite against the card) — away the
+   neutral, home the dimmer neutral, in every row — so it says whose share each is and never who
+   is ahead; no state colour, no accent. Every figure is tabular. No fixed width: the grid's two
+   outer columns share what is left after the label, so it reads in a narrow column and a wide one. */
+
+.teamcmp {
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+}
+
+.teamcmp__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+
+.teamcmp__team {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    white-space: nowrap;
+}
+
+.teamcmp__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.teamcmp__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    column-gap: var(--space-2);
+    row-gap: var(--space-1);
+    align-items: baseline;
+}
+
+.teamcmp__away,
+.teamcmp__home {
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.teamcmp__away {
+    justify-self: start;
+}
+
+.teamcmp__home {
+    justify-self: end;
+}
+
+.teamcmp__label {
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.teamcmp__bar {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 2px;
+    height: 4px;
+}
+
+.teamcmp__bar--none {
+    border-radius: var(--radius-xs);
+    background: var(--surface-3);
+}
+
+.teamcmp__seg {
+    flex-basis: 0;
+    min-width: 2px;
+    border-radius: var(--radius-xs);
+}
+
+.teamcmp__seg--away {
+    background: var(--chart-neutral);
+}
+
+.teamcmp__seg--home {
+    background: var(--chart-neutral-dim);
+}

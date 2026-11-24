@@ -51,6 +51,13 @@
     /// </summary>
     [Parameter] public RenderFragment? Action { get; set; }
 
+    /// <summary>
+    /// The sentence sits inside something small — an inline answer under a row, a disclosure's
+    /// body — so it takes the ramp's second rung above and below instead of its kind's full air.
+    /// The spacing is the component's, so a call site never writes a padding of its own.
+    /// </summary>
+    [Parameter] public bool Compact { get; set; }
+
     /// <summary>Extra classes, appended last so a one-off can still win.</summary>
     [Parameter] public string? Class { get; set; }
 
@@ -103,6 +110,9 @@
             EmptyStateKind.Error => "empty--error",
             _ => null
         };
+
+        if (Compact)
+            yield return "empty--compact";
 
         yield return Splatted("class");
         yield return Class;

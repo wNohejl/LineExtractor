@@ -138,6 +138,12 @@ public class AlertEngine(
     /// </summary>
     private async Task<AlertCandidate?> BudgetPressureAsync(Source source, CancellationToken ct)
     {
+        // One account under two rows (SourceAccounts) is one budget: it is reported on the row that
+        // holds it, so a spent month is one alert rather than two. A source alone on its account
+        // is its own holder, as every source was before.
+        if (SourceAccounts.Holder(source.Key) != source.Key)
+            return null;
+
         var usage = await budget.GetUsageAsync(source, ct);
 
         // An unmetered provider has no ceiling to press against. Reporting it as 0% used would

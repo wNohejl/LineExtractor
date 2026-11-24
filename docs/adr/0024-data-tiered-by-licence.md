@@ -1,12 +1,14 @@
 # ADR 0024 — The data is tiered by licence: visitors read what may be shown
 
-**Status:** Proposed (trial, branch `trial/source-tiering`)
+**Status:** Accepted. Built as a trial on 2026-11-14, amended 2026-11-15 (below), and merged into `LineX_Development`. `Sharing:Mode` is `Local` everywhere it runs today.
 
 **Builds on:** [ADR 0011](0011-espn-is-the-stats-port-odds-come-from-a-book-market.md), whose split
 between a stats port and a book market is what makes the tiers separable, and
 [ADR 0018](0018-an-operator-and-visitors.md), whose operator and visitor are the two readers.
 
 **Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §4.
+
+**Extended by:** [ADR 0026](0026-the-odds-api-is-the-default-source.md), which builds the Odds API spine adapter the amendment's spine analysis describes.
 
 ## Context
 

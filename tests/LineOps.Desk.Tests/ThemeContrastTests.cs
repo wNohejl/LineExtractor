@@ -1,5 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using LineOps.Desk.Tests.Support;
+using static LineOps.Desk.Tests.Support.DeskCss;
+using static LineOps.Desk.Tests.Support.Wcag;
 
 namespace LineOps.Desk.Tests;
 
@@ -17,15 +20,20 @@ namespace LineOps.Desk.Tests;
 /// </para>
 ///
 /// <para>
-/// The calculator is written out here rather than borrowed from MudColor on purpose: this file
-/// is the one a reviewer opens to check a number, and it should read as the WCAG 2.x formula
-/// and nothing else.
+/// The calculator is <see cref="Wcag"/>, written out rather than borrowed from MudColor, and the
+/// blocks are found by <see cref="DeskCss"/>; every theming test reads both, so a number checked
+/// here is the number checked everywhere.
 /// </para>
 /// </summary>
 public class ThemeContrastTests
 {
-    private static readonly string Css = Strip(Read("src/LineOps.Desk/wwwroot/css/desk.css"));
-    private static readonly string ThemesCss = Strip(Read("src/LineOps.Desk/wwwroot/css/themes.css"));
+    private static string Css => DeskCss.Desk;
+
+    /// <summary>Every family block as an element wearing it draws, the derived washes and finish included.</summary>
+    private static IEnumerable<(string Name, Dictionary<string, string> Tokens)> ThemeBlocks() => ResolvedThemeBlocks();
+
+    /// <summary>Every accent block laid over its family block and resolved, so its washes are the ones recomputed from its fill.</summary>
+    private static IEnumerable<(string Theme, string Accent, Dictionary<string, string> Tokens)> AccentBlocks() => ResolvedAccentBlocks();
 
     private static readonly string[] StateInks = ["--state-positive-ink", "--state-warning-ink", "--state-negative-ink"];
 
@@ -34,11 +42,11 @@ public class ThemeContrastTests
     [Fact]
     public void Every_theme_block_is_found()
     {
-        // Five families, a dark and a light each. Fewer means the parser lost a block, and a
-        // contrast suite that quietly checks eight desks is worse than none.
+        // Every family in the catalogue, a dark and a light each. Fewer means the parser lost a
+        // block, and a contrast suite that quietly checks fewer desks than there are is worse than none.
         var names = ThemeBlocks().Select(b => b.Name).ToArray();
 
-        Assert.Equal(10, names.Length);
+        Assert.Equal(LineOps.Desk.Theming.DeskThemeFamilies.All.Count * 2, names.Length);
         Assert.Contains("apple-dark", names);
         Assert.Contains("apple-light", names);
         Assert.Contains("contrast-light", names);
@@ -187,27 +195,33 @@ public class ThemeContrastTests
     }
 
     /// <summary>
-    /// The Standard desk's chosen accents carry inks of their own, and each is held to the same
-    /// 4.5:1 over the Standard panel it sits on — apple-dark's or apple-light's --surface-1, since
-    /// an accent block redeclares the accent and nothing under it. The pale hues are why this
-    /// exists: teal's light press measures 4.09:1 on white, indigo's dark hover 4.36:1 over the
-    /// dark panel, and each ink is deepened or lifted a step past that.
+    /// Every family's chosen accents carry inks of their own, and each is held to the same 4.5:1
+    /// over the panel of the family it sits on — that block's --surface-1, since an accent block
+    /// redeclares the accent and nothing under it. The pale hues are why this exists: Standard's
+    /// teal press measures 4.09:1 on white, indigo's dark hover 4.36:1 over the dark panel, and
+    /// each ink is deepened or lifted a step past that. Every other check in this file that reads
+    /// AccentBlocks holds them by the family block they name, so a family's accents get the
+    /// whole suite the day they are written.
     /// </summary>
     [Fact]
-    public void Every_chosen_accent_ink_passes_on_the_Standard_desk()
+    public void Every_chosen_accent_ink_passes_on_its_family_s_desk()
     {
-        var panels = ThemeBlocks()
-            .Where(b => b.Name is "apple-dark" or "apple-light")
-            .ToDictionary(b => b.Name, b => b.Tokens["--surface-1"]);
+        var panels = ThemeBlocks().ToDictionary(b => b.Name, b => b.Tokens["--surface-1"]);
         var blocks = AccentBlocks().ToList();
         var failures = new List<string>();
 
-        // Four hues, a dark and a light each. Fewer means the parser lost one.
-        Assert.Equal(8, blocks.Count);
+        // One block per accent after each family's own, a dark and a light each. Fewer means the
+        // parser lost one.
+        Assert.Equal(LineOps.Desk.Theming.DeskThemeFamilies.Catalog.Sum(f => f.Accents.Count - 1) * 2, blocks.Count);
 
         foreach (var (theme, accent, tokens) in blocks)
         {
-            var panel = panels[theme];
+            if (!panels.TryGetValue(theme, out var panel))
+            {
+                failures.Add($"{theme} {accent} names a desk with no block of its own");
+                continue;
+            }
+
             var ink = Require(tokens, "--accent-ink", $"{theme} {accent}", failures);
             if (ink is null)
                 continue;
@@ -218,6 +232,234 @@ public class ThemeContrastTests
         }
 
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// The Gradient backdrop mixes the accent into the ground at --backdrop-tint, and the empty
+    /// desk's start screen sets primary and secondary text straight on it. Both are held to 4.5:1
+    /// over the brightest point of the glow on every desk, in the family's own accent and in every
+    /// accent it offers. The Grid's lines are --surface-2 and the Dots --surface-3, which
+    /// <see cref="Secondary_text_reads_on_every_surface_it_is_set_on"/> already holds secondary to.
+    /// </summary>
+    [Fact]
+    public void Text_on_the_empty_desk_reads_over_the_gradient_backdrop()
+    {
+        var tint = Regex.Match(Css, @"--backdrop-tint:\s*([0-9.]+)%;");
+        Assert.True(tint.Success, "desk.css declares no --backdrop-tint");
+        var t = double.Parse(tint.Groups[1].Value, CultureInfo.InvariantCulture) / 100d;
+        Assert.InRange(t, 0.01, 0.25);
+
+        var failures = new List<string>();
+        var desks = ThemeBlocks().ToDictionary(b => b.Name, b => b.Tokens);
+
+        var cases = desks.Select(d => (Where: d.Key, Desk: d.Value, Accent: d.Value["--accent"]))
+            .Concat(AccentBlocks()
+                .Where(b => desks.ContainsKey(b.Theme))
+                .Select(b => (Where: $"{b.Theme} {b.Accent}", Desk: desks[b.Theme], Accent: b.Tokens["--accent"])));
+
+        foreach (var (where, desk, accent) in cases)
+        {
+            var (ar, ag, ab, _) = Parse(accent);
+            var (gr, gg, gb, _) = Parse(desk["--surface-0"]);
+            var glow = string.Format(CultureInfo.InvariantCulture, "rgb({0:F0}, {1:F0}, {2:F0})",
+                ar * t + gr * (1 - t), ag * t + gg * (1 - t), ab * t + gb * (1 - t));
+
+            foreach (var ink in new[] { "--text-primary", "--text-secondary" })
+            {
+                var ratio = Contrast(desk[ink], glow);
+                if (ratio < 4.5)
+                    failures.Add($"{where} {ink} measures {ratio:F2}:1 over the gradient's glow {glow}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // ---- The theming audit, 20 November: recommendations 3, 4 and 5 ---------------------
+
+    /// <summary>
+    /// Secondary text is not only set on the panel. It sits on --surface-0 (the gate's track, the
+    /// window strip's channel), --surface-2 (title bars, tiles, the sticky table header, hovered
+    /// rows) and --surface-3 (the neutral tag, the badge at caption size, MudChip's neutral
+    /// capsule). Over --surface-3 nine blocks measured 3.75 to 4.47:1 (contrast audit, T1), so the
+    /// tier is held to 4.5:1 on all four. The two steep dark ramps, Catppuccin and Gruvbox, were
+    /// mended by easing --surface-3 halfway back toward --surface-2 rather than by lifting
+    /// secondary to .77, which would have pushed it to 7:1 on the panel and toward primary.
+    /// </summary>
+    [Fact]
+    public void Secondary_text_reads_on_every_surface_it_is_set_on()
+    {
+        var failures = new List<string>();
+        string[] surfaces = ["--surface-0", "--surface-1", "--surface-2", "--surface-3"];
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var secondary = Require(tokens, "--text-secondary", name, failures);
+            if (secondary is null)
+                continue;
+
+            foreach (var surface in surfaces)
+            {
+                var ground = Require(tokens, surface, name, failures);
+                if (ground is null)
+                    continue;
+
+                var ratio = Contrast(secondary, ground);
+                if (ratio < 4.5)
+                    failures.Add($"{name} --text-secondary {secondary} measures {ratio:F2}:1 over {surface} {ground}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// The destructive Filled key is --on-accent on --state-negative, and --state-negative-hover
+    /// under the pointer. A press keeps the hover fill (the destructive hover rule outranks the
+    /// Filled key's :active one), and there is no separate press token, so the two fills are the
+    /// whole of it. Standard dark measured 3.41:1 at rest and 2.82:1 on hover (contrast audit, T2).
+    /// The hover travels away from its label — a red under white deepens, a red under dark ink
+    /// lifts — because that is the only way the label keeps 4.5:1 on both fills, and it moves at
+    /// least <see cref="HoverStep"/> in luminance, so the pointer is seen: Standard dark and
+    /// Solarized dark once lightened by a hair, 1.02:1, a hover nobody could see (review,
+    /// 2026-11-21). The fill, which is also the negative state's dot, stays a 3:1 graphic on the
+    /// panel.
+    /// </summary>
+    private const double HoverStep = 1.1;
+
+    [Fact]
+    public void A_destructive_filled_key_label_passes_over_the_negative_fill()
+    {
+        var failures = new List<string>();
+        var measured = 0;
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var label = Require(tokens, "--on-accent", name, failures);
+            var rest = Require(tokens, "--state-negative", name, failures);
+            var hover = Require(tokens, "--state-negative-hover", name, failures);
+            var panel = Require(tokens, "--surface-1", name, failures);
+            if (label is null || rest is null || hover is null || panel is null)
+                continue;
+
+            foreach (var (token, fill) in new (string Token, string Fill)[] { ("--state-negative", rest), ("--state-negative-hover", hover) })
+            {
+                var ratio = Contrast(label, fill);
+                if (ratio < 4.5)
+                    failures.Add($"{name} --on-accent {label} measures {ratio:F2}:1 over {token} {fill}");
+            }
+
+            var lighter = Luminance(hover) > Luminance(rest);
+            var labelLighter = Luminance(label) > Luminance(rest);
+            if (lighter == labelLighter)
+                failures.Add($"{name} --state-negative-hover {hover} travels toward its label {label} from {rest}");
+
+            var step = Contrast(hover, rest);
+            if (step < HoverStep)
+                failures.Add($"{name} --state-negative-hover {hover} is {step:F3}:1 from {rest}, under the {HoverStep}:1 a hover needs to be seen");
+
+            var graphic = Contrast(rest, panel);
+            if (graphic < 3)
+                failures.Add($"{name} --state-negative {rest} measures {graphic:F2}:1 over {panel}, under 3:1 as a graphic");
+            measured++;
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+        Assert.Equal(LineOps.Desk.Theming.DeskThemeFamilies.All.Count * 2, measured);
+    }
+
+    /// <summary>
+    /// A state's wash is its fill, thinned: the same RGB at the block's own alpha. When a fill
+    /// moves — deepened or lifted until its label reads — the wash moves with it, or a tag and a
+    /// selected destructive row are tinted with a red the desk no longer shows. Nord dark, Nord
+    /// light and Gruvbox dark kept the old red in their wash after the fill moved (review,
+    /// 2026-11-21); Every_ink_passes_over_its_own_wash measures the result.
+    /// </summary>
+    [Fact]
+    public void Every_state_wash_is_its_own_fill_thinned()
+    {
+        var failures = new List<string>();
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            foreach (var state in new[] { "positive", "warning", "negative" })
+            {
+                var fill = Require(tokens, $"--state-{state}", name, failures);
+                var wash = Require(tokens, $"--state-{state}-wash", name, failures);
+                if (fill is null || wash is null)
+                    continue;
+
+                var (fr, fg, fb, _) = Parse(fill);
+                var (wr, wg, wb, wa) = Parse(wash);
+                if ((fr, fg, fb) != (wr, wg, wb) || wa >= 1)
+                    failures.Add($"{name} --state-{state}-wash {wash} is not --state-{state} {fill} thinned");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    /// <summary>
+    /// An ink is read on its own wash as often as on a bare surface: a tag is a state ink on its
+    /// wash over the panel, the current window key is --accent-ink on --accent-wash inside the
+    /// --surface-0 channel, a selected row or a Tinted key is the same over the panel, and a
+    /// Tinted key under the pointer is --accent-ink on --accent-wash-strong. Twenty-two cells fell
+    /// short (contrast audit, T10), the worst a Tinted key's hover at 3.64:1 on Dracula dark. The
+    /// wash is composited onto its surface in gamma-encoded sRGB first, the ink onto that, and
+    /// only then is anything linearised. The chosen accents are held on the Standard surfaces.
+    /// </summary>
+    [Fact]
+    public void Every_ink_passes_over_its_own_wash()
+    {
+        var failures = new List<string>();
+        var grounds = new Dictionary<string, (string Panel, string Void)>();
+
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var panel = Require(tokens, "--surface-1", name, failures);
+            var ground = Require(tokens, "--surface-0", name, failures);
+            if (panel is null || ground is null)
+                continue;
+            grounds[name] = (panel, ground);
+
+            foreach (var state in new[] { "positive", "warning", "negative" })
+            {
+                var ink = Require(tokens, $"--state-{state}-ink", name, failures);
+                var wash = Require(tokens, $"--state-{state}-wash", name, failures);
+                if (ink is not null && wash is not null)
+                    CheckOnWash(name, $"--state-{state}-ink", ink, $"--state-{state}-wash", wash, "--surface-1", panel, failures);
+            }
+
+            CheckAccentInk(name, tokens, panel, ground, failures);
+        }
+
+        foreach (var (theme, accent, tokens) in AccentBlocks())
+        {
+            if (grounds.TryGetValue(theme, out var g))
+                CheckAccentInk($"{theme} {accent}", tokens, g.Panel, g.Void, failures);
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    private static void CheckAccentInk(string where, Dictionary<string, string> tokens, string panel, string ground, List<string> failures)
+    {
+        var ink = Require(tokens, "--accent-ink", where, failures);
+        var wash = Require(tokens, "--accent-wash", where, failures);
+        var strong = Require(tokens, "--accent-wash-strong", where, failures);
+        if (ink is null || wash is null || strong is null)
+            return;
+
+        CheckOnWash(where, "--accent-ink", ink, "--accent-wash", wash, "--surface-1", panel, failures);
+        CheckOnWash(where, "--accent-ink", ink, "--accent-wash", wash, "--surface-0", ground, failures);
+        CheckOnWash(where, "--accent-ink", ink, "--accent-wash-strong", strong, "--surface-1", panel, failures);
+    }
+
+    private static void CheckOnWash(string where, string inkToken, string ink, string washToken, string wash, string surfaceToken, string surface, List<string> failures)
+    {
+        var ratio = Contrast(ink, wash, surface);
+        if (ratio < 4.5)
+            failures.Add($"{where} {inkToken} {ink} measures {ratio:F2}:1 over {washToken} {wash} on {surfaceToken} {surface}");
     }
 
     /// <summary>
@@ -338,140 +580,60 @@ public class ThemeContrastTests
             declared.Groups[1].Value.Trim());
     }
 
-    // ---- Parsing ---------------------------------------------------------------------------
-
     /// <summary>
-    /// Every top-level <c>[data-theme="…"]</c> block in both files, name to declarations. Blocks
-    /// inside an @media or @supports are overrides of a desk, not desks, and are skipped.
+    /// A scrim subtracts attention, and on a light desk that means going darker (DeskPalette.Overlay).
+    /// Every light desk's scrim darkens white by at least 1.5:1; the lightest of the dark-ink scrims
+    /// measures about 1.55. Primer light's was its own pale grey at .40, 1.18:1 — barely a scrim.
     /// </summary>
-    private static IEnumerable<(string Name, Dictionary<string, string> Tokens)> ThemeBlocks()
+    [Fact]
+    public void Every_light_desk_s_scrim_darkens_white()
     {
-        foreach (var css in new[] { Css, ThemesCss })
+        var failures = new List<string>();
+
+        foreach (var family in LineOps.Desk.Theming.DeskThemeFamilies.All)
         {
-            var topLevel = Regex.Replace(css, @"@(media|supports)[^{]*" + Balanced, string.Empty);
+            var overlay = LineOps.Desk.Theming.DeskThemeFamilies.Palette(family, false).Overlay;
+            var ratio = Contrast(overlay, "#FFFFFF");
 
-            foreach (Match m in Regex.Matches(topLevel, @"\[data-theme=""([a-z-]+)""\]\s*\{([^{}]*)\}"))
-                yield return (m.Groups[1].Value, Declarations(m.Groups[2].Value));
-        }
-    }
-
-    /// <summary>
-    /// Every <c>[data-theme="…"][data-accent="…"]</c> block in both files: the Standard desk it
-    /// refines, the accent it names, and its declarations. ThemeBlocks never sees these, because
-    /// a compound selector is not followed by a brace straight after its first attribute.
-    /// </summary>
-    private static IEnumerable<(string Theme, string Accent, Dictionary<string, string> Tokens)> AccentBlocks()
-    {
-        foreach (var css in new[] { Css, ThemesCss })
-        {
-            foreach (Match m in Regex.Matches(css, @"\[data-theme=""([a-z-]+)""\]\[data-accent=""([a-z-]+)""\]\s*\{([^{}]*)\}"))
-                yield return (m.Groups[1].Value, m.Groups[2].Value, Declarations(m.Groups[3].Value));
-        }
-    }
-
-    /// <summary>A brace-balanced group: <c>{ … { … } … }</c>.</summary>
-    private const string Balanced = @"\{(?>[^{}]+|\{(?<d>)|\}(?<-d>))*(?(d)(?!))\}";
-
-    private static string MediaBody(string css, string opener)
-    {
-        var m = Regex.Match(css, opener + @"[^{]*(" + Balanced + ")");
-
-        Assert.True(m.Success, $"no block opening {opener}");
-
-        return m.Groups[1].Value[1..^1];
-    }
-
-    private static Dictionary<string, string> BlockIn(string css, string theme)
-    {
-        var m = Regex.Match(css, @"\[data-theme=""" + theme + @"""\]\s*\{([^{}]*)\}");
-
-        Assert.True(m.Success, $"no {theme} block");
-
-        return Declarations(m.Groups[1].Value);
-    }
-
-    private static Dictionary<string, string> Declarations(string body)
-    {
-        var tokens = new Dictionary<string, string>();
-
-        foreach (Match d in Regex.Matches(body, @"(--[a-z0-9-]+)\s*:\s*([^;]+);"))
-            tokens[d.Groups[1].Value] = d.Groups[2].Value.Trim();
-
-        return tokens;
-    }
-
-    private static string? Require(Dictionary<string, string> tokens, string token, string theme, List<string> failures)
-    {
-        if (tokens.TryGetValue(token, out var value))
-            return value;
-
-        failures.Add($"{theme} does not declare {token}");
-        return null;
-    }
-
-    // ---- WCAG 2.x ----------------------------------------------------------------------
-
-    /// <summary>
-    /// Contrast of a possibly translucent ink over an opaque panel. Compositing happens in
-    /// gamma-encoded sRGB, as a browser does, and linearisation comes after.
-    /// </summary>
-    private static double Contrast(string ink, string panel)
-    {
-        var (br, bg, bb, _) = Parse(panel);
-        var (r, g, b, a) = Parse(ink);
-
-        var cr = r * a + br * (1 - a);
-        var cg = g * a + bg * (1 - a);
-        var cb = b * a + bb * (1 - a);
-
-        var fore = Luminance(cr, cg, cb);
-        var back = Luminance(br, bg, bb);
-
-        return (Math.Max(fore, back) + 0.05) / (Math.Min(fore, back) + 0.05);
-    }
-
-    private static double Luminance(double r, double g, double b)
-        => 0.2126 * Linear(r) + 0.7152 * Linear(g) + 0.0722 * Linear(b);
-
-    private static double Linear(double channel)
-    {
-        var c = channel / 255d;
-        return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
-    }
-
-    private static (double R, double G, double B, double A) Parse(string colour)
-    {
-        colour = colour.Trim();
-
-        if (colour.StartsWith('#'))
-        {
-            var hex = colour[1..];
-            Assert.True(hex.Length == 6, $"expected #RRGGBB, got {colour}");
-            return (Convert.ToInt32(hex[..2], 16), Convert.ToInt32(hex[2..4], 16), Convert.ToInt32(hex[4..6], 16), 1);
+            if (ratio < 1.5)
+                failures.Add($"{LineOps.Desk.Theming.DeskThemeFamilies.Attribute(family, false)} scrim {overlay} darkens white only {ratio:F2}:1");
         }
 
-        var rgba = Regex.Match(colour, @"^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$");
-        Assert.True(rgba.Success, $"not a colour this calculator reads: {colour}");
-
-        double Channel(int i) => double.Parse(rgba.Groups[i].Value, CultureInfo.InvariantCulture);
-
-        return (Channel(1), Channel(2), Channel(3), rgba.Groups[4].Success ? Channel(4) : 1);
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
-    // ---- Files -----------------------------------------------------------------------------
-
-    private static string Strip(string css) => Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-
-    private static string Read(string relative) => File.ReadAllText(Path.Combine(RepoRoot(), relative));
-
-    private static string RepoRoot()
+    /// <summary>
+    /// A warning is not the accent: on every desk the warning fill stands at least .06 from the
+    /// family's own accent, and its ink .05 from the accent's ink, as distances in OKLab — so a
+    /// warning tag never reads as an accent-tinted key. Ayu light's orange stood .048 from its gold
+    /// and its ink .032 from the gold's ink. (The same floor against the primary text is not held:
+    /// Everforest's published yellow ink sits .05 from its fg, as Zenburn's did before it took
+    /// orange, and a floor that passed it would not have caught Zenburn.)
+    /// </summary>
+    [Fact]
+    public void A_warning_stands_apart_from_its_desk_s_accent()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        var failures = new List<string>();
 
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "LineOps.slnx")))
-            dir = dir.Parent;
+        foreach (var (name, tokens) in ThemeBlocks())
+        {
+            var panel = Require(tokens, "--surface-1", name, failures);
+            if (panel is null)
+                continue;
 
-        Assert.NotNull(dir);
-        return dir!.FullName;
+            foreach (var (warning, accent, floor) in new[] { ("--state-warning", "--accent", .06), ("--state-warning-ink", "--accent-ink", .05) })
+            {
+                var w = Require(tokens, warning, name, failures);
+                var a = Require(tokens, accent, name, failures);
+                if (w is null || a is null)
+                    continue;
+
+                var distance = OkDistance(w, a, panel);
+                if (distance < floor)
+                    failures.Add($"{name} {warning} {w} stands {distance:F3} from {accent} {a}, under {floor}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 }

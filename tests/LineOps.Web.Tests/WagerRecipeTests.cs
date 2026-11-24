@@ -78,7 +78,7 @@ public class WagerRecipeTests : WagerTestContext
         Assert.Empty(row.QuerySelectorAll(".wager-offer__top .wager-offer__line"));
         var price = row.QuerySelector(".wager-offer__top .wager-offer__price")!;
         Assert.Equal("-105", price.TextContent.Trim());
-        Assert.Contains("book-picker", price.NextElementSibling!.ClassList);
+        Assert.Contains("price-picker", price.NextElementSibling!.ClassList);
         // No "Price" label: the echo is the label.
         Assert.DoesNotContain(row.QuerySelectorAll(".wgroup__label"), l => l.TextContent.Trim() == "Price");
     }

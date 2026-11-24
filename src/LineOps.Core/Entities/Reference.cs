@@ -110,6 +110,8 @@ public static class SourceLicences
     {
         // Display in a UI, including commercial display; derived values allowed.
         ["the-odds-api"] = SourceLicence.Displayable,
+        // The same provider and terms: its events and scores endpoints (ADR 0026).
+        [SourceAccounts.TheOddsApiSchedule] = SourceLicence.Displayable,
         // Public display and betting products expressly allowed.
         ["balldontlie"] = SourceLicence.Displayable,
         // Disney's terms prohibit automated extraction and commercial use.
@@ -122,6 +124,36 @@ public static class SourceLicences
 
     public static SourceLicence For(string sourceKey)
         => Known.TryGetValue(sourceKey, out var licence) ? licence : SourceLicence.PersonalUse;
+}
+
+/// <summary>
+/// Sources that are one provider account under two rows (ADR 0026): The Odds API's prices
+/// (<c>the-odds-api</c>, an odds source) and its fixtures and scores (<c>the-odds-api-schedule</c>,
+/// a stats source). Two rows, because the reliability layer reads freshness, success and volume per
+/// source and a schedule pass every half hour would otherwise hide a lines feed nobody has pulled;
+/// and because a stats source is believed about start times where a book is not. One account,
+/// because the key's 500 credits a month are spent by both: what one row spends, the other's budget
+/// counts (<c>MonthlyCredits</c>), and an event id one names, the other names the same game by.
+/// </summary>
+public static class SourceAccounts
+{
+    /// <summary>The Odds API's prices: the row that holds the account's budget and its alerts.</summary>
+    public const string TheOddsApi = "the-odds-api";
+
+    /// <summary>The Odds API's events (free) and scores (metered): the default stats source.</summary>
+    public const string TheOddsApiSchedule = "the-odds-api-schedule";
+
+    private static readonly string[][] Accounts = [[TheOddsApi, TheOddsApiSchedule]];
+
+    /// <summary>Every source key spending the same allowance as this one, itself included.</summary>
+    public static IReadOnlyList<string> Sharing(string sourceKey)
+        => Accounts.FirstOrDefault(a => a.Contains(sourceKey)) ?? [sourceKey];
+
+    /// <summary>
+    /// The row an account's budget is reported against — the first of its keys. A budget alert is
+    /// raised on that row only, so one spent month is one alert, not one per row.
+    /// </summary>
+    public static string Holder(string sourceKey) => Sharing(sourceKey)[0];
 }
 
 /// <summary>An external data provider. Rate limits and budgets are enforced against these rows.</summary>

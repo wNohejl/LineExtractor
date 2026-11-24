@@ -2,6 +2,7 @@
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
 @inject ILogger<PlayerRecentSnippet> Logger
+@implements IDisposable
 
 @*
     A player's last few games, line by line.
@@ -15,17 +16,17 @@
     widely reported keys win, which keeps the snippet narrow enough to sit under a row.
 *@
 
-@if (_loading)
+@if (_read.Loading)
 {
     <DeskSkeleton Lines="3" />
 }
-else if (_error is not null)
+else if (_read.Error is not null)
 {
-    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
 }
 else if (_rows.Count == 0)
 {
-    <EmptyState Kind="EmptyStateKind.New" Style="padding:6px 0">No appearances on record for this player.</EmptyState>
+    <EmptyState Kind="EmptyStateKind.New" Compact>No appearances on record for this player.</EmptyState>
 }
 else
 {
@@ -80,35 +81,43 @@ else
 
     private IReadOnlyList<PlayerGameRow> _rows = [];
     private List<string> _columns = [];
-    private bool _loading = true;
-    private string? _error;
+    private readonly SnippetRead _read = new();
+    private (int PlayerId, int Take, int MaxColumns)? _readFor;
 
-    protected override Task OnParametersSetAsync() => LoadAsync();
+    protected override Task OnParametersSetAsync()
+    {
+        // One read per player asked for: a parent redraw handing the same player back, as every
+        // signal behind the row does, reads nothing.
+        var key = (PlayerId, Take, MaxColumns);
+        if (_readFor == key)
+            return Task.CompletedTask;
+
+        _readFor = key;
+        return LoadAsync();
+    }
 
     /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        // Read into locals and handed over only by the latest read, so a slow read of the player
+        // the row moved on from cannot land last and draw that player's games.
+        var (playerId, take, maxColumns) = (PlayerId, Take, MaxColumns);
 
-        try
+        return _read.RunAsync(async ct =>
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            _rows = await log.PlayerGameLogAsync(PlayerId, Take);
-            _columns = DeriveColumns(_rows, MaxColumns);
-        }
-        catch (Exception ex)
+            var rows = await log.PlayerGameLogAsync(playerId, take, ct: ct);
+            return (Rows: rows, Columns: DeriveColumns(rows, maxColumns));
+        }, read =>
         {
-            Logger.LogError(ex, "Recent games did not load");
-            _error = "Recent games did not load.";
-        }
-        finally
-        {
-            _loading = false;
-        }
+            _rows = read.Rows;
+            _columns = read.Columns;
+        }, "Recent games did not load.", Logger);
     }
+
+    public void Dispose() => _read.Dispose();
 
     /// <summary>
     /// The keys filled in most of these games, headline numbers first (StatColumns): a

@@ -71,6 +71,13 @@ Elevation is a surface ramp — `--surface-0` through `--surface-3` — plus a h
 separate; they never outline. A border drawn around a panel is the Material habit this system
 is replacing, and it was doing the job the elevation ramp now does.
 
+*Amended.* In October 2026, after a borderless pass was rejected, a group or card took one 1px
+hairline edge (the grouped form macOS draws); what stays forbidden is the box inside the box. On
+2026-11-22 [ADR 0032](0032-a-window-s-sections-are-cards-in-a-flow.md) moved a group's name from
+a quiet line above it into a header bar inside it, divided from the rows by one full-width
+hairline — a divider inside the one card, not a second edge — and put a window's sections in a
+flow of cards that gains columns as it widens.
+
 ### The seam from ADR 0008 survives intact
 
 Three files, the same three jobs, with Apple contents:
@@ -250,6 +257,10 @@ the catalogue rather than of one pair:
 
 MudBlazor gets one `MudTheme` per family from `DeskTheme.For`, and charts take the showing
 `DeskPalette`, so a chart on a Nord desk is drawn in Nord.
+
+*2026-11-20.* Four more families — Catppuccin, Gruvbox, Tokyo Night and Dracula — landed exactly
+as the promise said: eight more blocks in `themes.css`, eight more palettes, four enum members.
+High contrast stays last in the picker; nothing below the token blocks changed.
 
 **Scale is two settings in the Window manager.** Interface (80–150%) is CSS `zoom` on `<html>`;
 Text (90–140%) multiplies the type ramp and every literal `font-size`. Both are kept with the desk

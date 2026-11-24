@@ -49,16 +49,37 @@ function teardown(state) {
 function flip(panel, root) {
     panel.removeAttribute('data-flip');
     panel.style.removeProperty('--popover-dx');
+    panel.style.removeProperty('max-height');
 
-    const rect = panel.getBoundingClientRect();
+    // Measured where the panel will settle, not where its entrance has it this frame: popover-in
+    // starts it a few pixels up (controls.css), which read as a gap that short and a panel
+    // allowed that much taller.
+    const rect = settled(panel.getBoundingClientRect(), liftOf(panel));
     const anchor = root.getBoundingClientRect();
     const bounds = boundsOf(root);
     const edges = [];
 
     // Up only when there is more room above than below; a panel taller than both stays down,
     // where it scrolls inside its own max-height.
-    if (rect.bottom > bounds.bottom - MARGIN && anchor.top - bounds.top > bounds.bottom - anchor.bottom) {
-        edges.push('up');
+    const below = bounds.bottom - anchor.bottom;
+    const above = anchor.top - bounds.top;
+    const up = rect.bottom > bounds.bottom - MARGIN && above > below;
+
+    if (up) edges.push('up');
+
+    // A panel taller than the room on the side it opened to is held to that room and scrolls
+    // inside it, rather than running past an edge that clips it: an open row of a table that
+    // scrolls sideways clips whatever hangs below the table. The gap between opener and panel
+    // is read from the panel's own offset, so this needs no copy of the stylesheet's spacing.
+    // Measured before any flip, so the panel still hangs below its opener and the gap is the
+    // same on either side.
+    const gap = Math.max(0, rect.top - anchor.bottom);
+    const room = (up ? above : below) - MARGIN - gap;
+
+    // Held to the room there is, however little: a panel given more than the room runs past the
+    // box that clips it, and is cut off with nothing to scroll to. Short, it still scrolls.
+    if (rect.height > room && room > 0) {
+        panel.style.setProperty('max-height', `${room / (panel.currentCSSZoom || 1)}px`);
     }
 
     if (rect.right > bounds.right - MARGIN) edges.push('end');
@@ -79,12 +100,59 @@ function flip(panel, root) {
     if (dx) panel.style.setProperty('--popover-dx', `${dx / (panel.currentCSSZoom || 1)}px`);
 }
 
+/// How far the panel's own transform moves it down this frame, in visual pixels: the entrance's
+/// translateY while it runs, nothing once it has settled. Its `translate` (the slide back inside,
+/// --popover-dx) is a separate property and sideways only.
+function liftOf(panel) {
+    const transform = getComputedStyle(panel).transform;
+    if (!transform || transform === 'none' || typeof DOMMatrixReadOnly !== 'function') return 0;
+
+    try {
+        return new DOMMatrixReadOnly(transform).m42 * (panel.currentCSSZoom || 1);
+    } catch {
+        return 0;
+    }
+}
+
+/// A rectangle with the panel's lift taken out.
+function settled(rect, lift) {
+    return {
+        top: rect.top - lift,
+        bottom: rect.bottom - lift,
+        left: rect.left,
+        right: rect.right,
+        height: rect.height
+    };
+}
+
 function boundsOf(root) {
     const host = root.closest('.win__body');
+    const outer = host
+        ? host.getBoundingClientRect()
+        : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
 
-    if (host) return host.getBoundingClientRect();
+    const clip = clipOf(root, host);
+    if (!clip) return outer;
 
-    return { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+    // Inside the window, the nearest box that clips (a table that scrolls sideways clips on
+    // both axes, as CSS has it) is the edge that matters, where it is nearer than the window's.
+    const inner = clip.getBoundingClientRect();
+    return {
+        top: Math.max(outer.top, inner.top),
+        left: Math.max(outer.left, inner.left),
+        right: Math.min(outer.right, inner.right),
+        bottom: Math.min(outer.bottom, inner.bottom)
+    };
+}
+
+/// The nearest ancestor between the opener and the window body that clips its overflow.
+function clipOf(root, host) {
+    for (let el = root.parentElement; el && el !== host && el !== document.body; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (style.overflowX !== 'visible' || style.overflowY !== 'visible') return el;
+    }
+
+    return null;
 }
 
 export function open(panel, root, dotNetRef) {
@@ -103,9 +171,11 @@ export function open(panel, root, dotNetRef) {
     };
 
     // Escape from inside the panel is the menu's, in C#. This catches the one from outside it —
-    // the opener still focused after a pointer open, before the menu took focus.
+    // the opener still focused after a pointer open, before the menu took focus. An Escape
+    // something nearer the key has already spent (the toast stack folding, toasts.js) is not
+    // this panel's to take.
     state.onKeyDown = event => {
-        if (event.key !== 'Escape' || panel.contains(event.target)) return;
+        if (event.key !== 'Escape' || event.defaultPrevented || panel.contains(event.target)) return;
 
         event.preventDefault();
         teardown(state);
@@ -138,6 +208,24 @@ export function close(root) {
     const lost = !active || active === document.body || !active.isConnected || state.panel.contains(active);
 
     if (lost) opener(root)?.focus({ preventScroll: true });
+}
+
+// ---- Menu button -----------------------------------------------------------------------
+
+const arrowKeys = new WeakSet();
+
+/// A menu button opens on Down and Up (WAI-ARIA's menu button), which C# hears; the browser must
+/// not also scroll whatever box holds the key. Enter and Space keep their default, the click.
+export function opensOnArrows(key) {
+    if (!key || arrowKeys.has(key)) return;
+
+    arrowKeys.add(key);
+    key.addEventListener('keydown', event => {
+        if ((event.key === 'ArrowDown' || event.key === 'ArrowUp')
+            && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+        }
+    });
 }
 
 // ---- Menu ------------------------------------------------------------------------------

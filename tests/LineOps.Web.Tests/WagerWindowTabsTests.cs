@@ -156,7 +156,7 @@ public class WagerWindowTabsTests : WagerTestContext
 
         var link = Step(cut, "Bet").QuerySelector(".wstep__change")!;
         Assert.Contains("desklink", link.ClassName);
-        Assert.StartsWith("ML · Chiefs · -128 at draftkings", System.Text.RegularExpressions.Regex.Replace(link.QuerySelector(".desklink__label")!.TextContent, @"\s+", " ").Trim());
+        Assert.StartsWith("ML · Chiefs · -128 at DraftKings", System.Text.RegularExpressions.Regex.Replace(link.QuerySelector(".desklink__label")!.TextContent, @"\s+", " ").Trim());
         Assert.Contains("change", link.QuerySelector(".desklink__shortcut")!.TextContent);
 
         link.Click();

@@ -79,63 +79,44 @@ public class UnsavedInputTests : SampleDeskTestContext
         Assert.Empty(desk.Windows);
     }
 
+    /// <summary>
+    /// Past the limit nothing closes, so a window holding input is never at risk from an open: the
+    /// new window is a tab, and the one it covers keeps its input behind it.
+    /// </summary>
     [Fact]
-    public void Eviction_skips_a_window_with_unsaved_input()
-    {
-        var desk = Desk(capacity: 2);
-        var notes = desk.Open(Window(SampleCatalog.Notes));
-        var list = desk.Open(Window(SampleCatalog.List));
-        desk.SetUnsaved(notes.Id, true, "this note");
-
-        // Notes is the one ignored longest, so it is the one LRU would have taken.
-        var health = desk.Open(Window(SampleCatalog.Health));
-
-        Assert.Equal(2, desk.OpenCount);
-        Assert.Contains(notes, desk.Windows);
-        Assert.Contains(health, desk.Windows);
-        Assert.DoesNotContain(list, desk.Windows);
-        Assert.Equal("Closed List to make room for Health.", desk.LastEviction);
-    }
-
-    [Fact]
-    public void Eviction_refuses_when_every_window_is_dirty()
+    public void An_open_past_the_limit_closes_nothing_and_keeps_the_input()
     {
         var desk = Desk(capacity: 2);
         var notes = desk.Open(Window(SampleCatalog.Notes));
         var list = desk.Open(Window(SampleCatalog.List));
         desk.SetUnsaved(notes.Id, true, "this note");
         desk.SetUnsaved(list.Id, true, "this order");
-        var depth = desk.HistoryDepth;
 
-        var landed = desk.Open(Window(SampleCatalog.Health));
+        var health = desk.Open(Window(SampleCatalog.Health));
 
-        Assert.Equal(2, desk.OpenCount);
-        Assert.DoesNotContain(desk.Windows, w => w.Definition.Key == SampleCatalog.Health);
-        Assert.Equal("Every window holds unsaved input; save or discard one to open Health.", desk.LastEviction);
-
-        // The operator is put in front of the window they have to deal with first, and an open
-        // that did not happen is not a step Back can undo.
-        Assert.Same(notes, landed);
-        Assert.Equal(notes.Id, desk.FocusedId);
-        Assert.Equal(depth, desk.HistoryDepth);
+        Assert.Equal(3, desk.OpenCount);
+        Assert.Equal(2, desk.ColumnCount);
+        Assert.True(notes.HasUnsavedInput);
+        Assert.True(list.HasUnsavedInput);
+        Assert.Equal(health.Id, desk.FocusedId);
+        Assert.Null(desk.Notice);
     }
 
     [Fact]
-    public void A_lowered_ceiling_closes_clean_windows_and_leaves_dirty_ones()
+    public void A_lowered_limit_folds_columns_into_tabs_and_closes_nothing()
     {
         var desk = Desk(capacity: 3);
         var notes = desk.Open(Window(SampleCatalog.Notes));
         var list = desk.Open(Window(SampleCatalog.List));
         var health = desk.Open(Window(SampleCatalog.Health));
         desk.SetUnsaved(notes.Id, true, "this note");
-        desk.SetUnsaved(list.Id, true, "this order");
 
         desk.UpdateSettings(s => s.MaxConcurrentWindows = 1);
 
-        // Over the limit, but nothing typed has gone.
-        Assert.DoesNotContain(health, desk.Windows);
-        Assert.Contains(notes, desk.Windows);
-        Assert.Contains(list, desk.Windows);
+        Assert.Equal(3, desk.OpenCount);
+        var column = Assert.Single(desk.Columns);
+        Assert.Equal([notes, list, health], column.Tabs);
+        Assert.True(notes.HasUnsavedInput);
     }
 
     [Fact]

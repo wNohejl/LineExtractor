@@ -30,7 +30,7 @@ public class WagerParlayLegTests : WagerTestContext
     private static void PickGame(IRenderedComponent<BoardWager> cut)
     {
         cut.Find("input[aria-label='Find a game']").Input("chiefs");
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".game-search__opt")), Settle);
         cut.FindAll(".game-search__opt")[0].Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".selection-chip")));
     }
@@ -99,9 +99,13 @@ public class WagerParlayLegTests : WagerTestContext
 
         PickGame(cut);
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "Spread · Chiefs -2.5").Click();
+
+        // The key is drawn by the render the chip's press asks for, which under a loaded parallel
+        // suite has not always landed when the click returns: waited for, then pressed.
+        cut.WaitForAssertion(() => Key(cut, "Add leg"), Settle);
         Key(cut, "Add leg").Click();
 
-        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".selection-chip")));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".selection-chip")), Settle);
         // The addition is a green toast that names the count, not a grey note above the steps.
         Assert.Contains("1 leg on the slip", LastToast.Message);
         Assert.Equal(DeskState.Positive, LastToast.State);
@@ -110,9 +114,10 @@ public class WagerParlayLegTests : WagerTestContext
         // A same-game second leg: the total on the game just used.
         PickGame(cut);
         cut.FindAll(".selection-chip").First(c => c.GetAttribute("aria-label") == "Total · Over o47.5").Click();
+        cut.WaitForAssertion(() => Key(cut, "Add leg"), Settle);
         Key(cut, "Add leg").Click();
 
-        cut.WaitForAssertion(() => Assert.Contains("2 legs on the slip", LastToast.Message));
+        cut.WaitForAssertion(() => Assert.Contains("2 legs on the slip", LastToast.Message), Settle);
         Assert.Equal([Markets.Spread, Markets.Total], Slip.Legs.Select(l => l.Market));
         Assert.True(Slip.IsSameGame);
         Assert.All(Slip.Items, i => Assert.Equal(0m, i.Stake));

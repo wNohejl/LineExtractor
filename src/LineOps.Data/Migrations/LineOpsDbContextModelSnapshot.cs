@@ -232,6 +232,13 @@ namespace LineOps.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<decimal?>("OpenLine")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<int?>("OpenPriceAmerican")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -499,6 +506,88 @@ namespace LineOps.Data.Migrations
                     b.ToTable("Games");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.GameContext", b =>
+                {
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Attendance")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AwayLineup")
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal?>("AwayWinPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTimeOffset>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DayNight")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("HomeLineup")
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal?>("HomeWinPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<bool?>("Indoor")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("MatchupQuality")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<int?>("PrecipitationPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Surface")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int?>("TemperatureF")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VenueCity")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("VenueName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("VenueState")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("WeatherCondition")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("WindDirection")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("WindSpeedMph")
+                        .HasColumnType("integer");
+
+                    b.HasKey("GameId", "SourceId");
+
+                    b.HasIndex("SourceId");
+
+                    b.ToTable("GameContexts");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.GameDrive", b =>
                 {
                     b.Property<long>("Id")
@@ -581,6 +670,49 @@ namespace LineOps.Data.Migrations
                         .HasDatabaseName("ux_game_drive");
 
                     b.ToTable("GameDrives");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GameOfficial", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(48)
+                        .HasColumnType("character varying(48)");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_game_official_name");
+
+                    b.HasIndex("SourceId");
+
+                    b.HasIndex("GameId", "SourceId", "Order")
+                        .IsUnique()
+                        .HasDatabaseName("ux_game_official");
+
+                    b.ToTable("GameOfficials");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.GamePlay", b =>
@@ -772,6 +904,9 @@ namespace LineOps.Data.Migrations
                         .HasColumnType("bigint");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly?>("ClosingScanDay")
+                        .HasColumnType("date");
 
                     b.Property<int>("CreditsSpent")
                         .HasColumnType("integer");
@@ -1526,6 +1661,25 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Sport");
                 });
 
+            modelBuilder.Entity("LineOps.Core.Entities.GameContext", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Source");
+                });
+
             modelBuilder.Entity("LineOps.Core.Entities.GameDrive", b =>
                 {
                     b.HasOne("LineOps.Core.Entities.Game", "Game")
@@ -1550,6 +1704,25 @@ namespace LineOps.Data.Migrations
                     b.Navigation("Source");
 
                     b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("LineOps.Core.Entities.GameOfficial", b =>
+                {
+                    b.HasOne("LineOps.Core.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LineOps.Core.Entities.Source", "Source")
+                        .WithMany()
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("Source");
                 });
 
             modelBuilder.Entity("LineOps.Core.Entities.GamePlay", b =>

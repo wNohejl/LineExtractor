@@ -1,0 +1,39 @@
+name: Pages
+
+# Publishes site/, the static landing page, to GitHub Pages (ADR 0031, Phase C).
+#
+# By hand only: there is no push trigger. Nothing is published until the owner enables Pages for
+# the repository with "GitHub Actions" as its source (Settings -> Pages) and runs this workflow.
+# The folder is uploaded exactly as it is: no build step, and nothing outside site/ is published.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a second run waits for the first rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

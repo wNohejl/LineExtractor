@@ -28,23 +28,30 @@ public class DeskHistoryTests
     private static string[] Row(WindowManager desk)
         => desk.Windows.OrderBy(w => w.Sequence).Select(w => w.Definition.Key).ToArray();
 
+    /// <summary>
+    /// Past the limit a window is a tab, and nothing closed for it: Back takes the tab away and the
+    /// window it covered is showing again, the same window it was.
+    /// </summary>
     [Fact]
-    public void A_window_closed_to_make_room_comes_back()
+    public void A_window_opened_as_a_tab_goes_on_Back_and_uncovers_the_one_beneath()
     {
         var desk = Desk(capacity: 2);
-        desk.Open(Window(SampleCatalog.Health));
+        var health = desk.Open(Window(SampleCatalog.Health));
         desk.Open(Window(SampleCatalog.Alerts));
-        var health = desk.Windows.Single(w => w.Definition.Key == SampleCatalog.Health);
 
-        desk.Open(Window(SampleCatalog.Jobs));
-        Assert.Equal([SampleCatalog.Alerts, SampleCatalog.Jobs], Row(desk));
-        Assert.NotNull(desk.LastEviction);
+        desk.Focus(desk.Columns[0].Showing.Id);
+
+        var jobs = desk.Open(Window(SampleCatalog.Jobs));
+        Assert.Equal(3, desk.OpenCount);
+        Assert.Equal(2, desk.ColumnCount);
+        Assert.Same(jobs, desk.ColumnOf(health.Id)!.Showing);
+        Assert.Null(desk.Notice);
 
         Assert.True(desk.Back());
 
         Assert.Equal([SampleCatalog.Health, SampleCatalog.Alerts], Row(desk));
-        Assert.Same(health, desk.Windows.Single(w => w.Definition.Key == SampleCatalog.Health));
-        Assert.Null(desk.LastEviction);
+        Assert.True(desk.IsShowing(health));
+        Assert.False(desk.ColumnOf(health.Id)!.IsGroup);
     }
 
     [Fact]
@@ -133,15 +140,17 @@ public class DeskHistoryTests
     {
         var desk = Desk(capacity: 1);
 
-        for (var i = 0; i < 60; i++)
-            desk.Open(Window(i % 2 == 0 ? SampleCatalog.Health : SampleCatalog.Jobs));
+        // An open and a close are a step each; nothing closes on its own any more, so the walk
+        // is made of both.
+        for (var i = 0; i < 30; i++)
+            desk.Close(desk.Open(Window(i % 2 == 0 ? SampleCatalog.Health : SampleCatalog.Jobs)).Id);
 
         // The browser numbers its entries by this; capping it would stop them matching.
         Assert.Equal(60, desk.HistoryDepth);
 
-        Assert.Equal([SampleCatalog.Jobs], Row(desk));
+        Assert.Empty(Row(desk));
 
         desk.TraverseTo(59);
-        Assert.Equal([SampleCatalog.Health], Row(desk));
+        Assert.Equal([SampleCatalog.Jobs], Row(desk));
     }
 }

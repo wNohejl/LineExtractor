@@ -1,7 +1,9 @@
 // Two gestures on the desk, deliberately on two different hit targets so neither is ever
 // triggered by accident:
 //
-//   - drag a TAB (a window's title bar)  -> reorders the row
+//   - drag a TAB (a window's title bar)  -> reorders the row, or, let go over the middle of
+//     another window, joins that window's column as a tab
+//   - drag a ROW of a tab group's menu onto another window -> joins that window's column
 //   - drag a DIVIDER (the gutter between two expanded columns) -> resizes the row
 //
 // Both run entirely in the browser and tell .NET only the final result, on pointerup.
@@ -21,7 +23,21 @@ export function initialise(dotNetRef) {
     window.addEventListener('resize', onResize, { passive: true });
     window.removeEventListener('keydown', deskHotkeys);
     window.addEventListener('keydown', deskHotkeys);
+    document.removeEventListener('keydown', holdTabStripKeys);
+    document.addEventListener('keydown', holdTabStripKeys);
+    document.removeEventListener('pointerdown', beginMenuTabDrag, true);
+    document.addEventListener('pointerdown', beginMenuTabDrag, true);
     reportViewport();
+}
+
+// A tab group's key opens its menu with Down or Up (WindowTabs.razor); the same keys scroll the
+// desk under it when the row overflows. Prevented here, as the divider's are, because Blazor's
+// preventDefault cannot tell these keys from Tab.
+const STRIP_KEYS = new Set(['ArrowDown', 'ArrowUp']);
+
+function holdTabStripKeys(e) {
+    if (!STRIP_KEYS.has(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target instanceof Element && e.target.closest('.wtabs__key')) e.preventDefault();
 }
 
 // The desk's chords, in one handler. This file only recognises them; what each one does — which
@@ -336,7 +352,11 @@ function beginTabDrag(event, win, handle) {
         const min = 0;
         const max = Math.max(min, deskWidth - width);
         win.style.left = `${Math.min(Math.max(originLeft + dx, min), max)}px`;
+
+        target = markTarget(target, tabTargetAt(desk, e.clientX, e.clientY, win, MERGE_ZONE));
     };
+
+    let target = null;
 
     const onUp = (e) => {
         handle.removeEventListener('pointermove', onMove);
@@ -348,9 +368,24 @@ function beginTabDrag(event, win, handle) {
 
         win.classList.remove('win--dragging-tab');
         document.body.classList.remove('tab-dragging');
+        markTarget(target, null);
 
-        const pointerCenter = e.clientX;
-        const orderedIds = computeDropOrder(desk, win.id, pointerCenter);
+        if (e.type === 'pointercancel') {
+            win.style.left = `${originLeft}px`;
+            return;
+        }
+
+        // Over the middle of another window: a tab in its column. The window's own box is put
+        // back first; the manager's redraw places it, and the row does not flash it mid-air.
+        const into = tabTargetAt(desk, e.clientX, e.clientY, win, MERGE_ZONE);
+
+        if (into) {
+            win.style.left = `${originLeft}px`;
+            dotNet?.invokeMethodAsync('OnTabDropped', managerId(win.id), managerId(into.id));
+            return;
+        }
+
+        const orderedIds = computeDropOrder(desk, win.id, e.clientX);
 
         if (dotNet && orderedIds) {
             dotNet.invokeMethodAsync('OnReordered', orderedIds);
@@ -370,7 +405,12 @@ function beginTabDrag(event, win, handle) {
  * ended up relative to their midpoints.
  */
 function computeDropOrder(desk, draggedElementId, pointerCenterX) {
-    const siblings = [...desk.querySelectorAll('.win')].filter((el) => el.id !== draggedElementId);
+    // One element per column: a tab behind another shares its column's box and is not a slot of
+    // its own. The page lists windows in the order they were opened, not the row's (Desk.razor
+    // keeps them still so none loses its scroll), so the slots are read left to right by place.
+    const siblings = [...desk.querySelectorAll('.win:not(.win--behind)')]
+        .filter((el) => el.id !== draggedElementId)
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
 
     let index = siblings.length;
 
@@ -387,8 +427,113 @@ function computeDropOrder(desk, draggedElementId, pointerCenterX) {
     const orderedElementIds = siblings.map((el) => el.id);
     orderedElementIds.splice(index, 0, draggedElementId);
 
-    // Strip the "win-" prefix the DOM id carries back down to the manager's own id.
-    return orderedElementIds.map((id) => id.replace(/^win-/, ''));
+    return orderedElementIds.map(managerId);
+}
+
+// Strip the "win-" prefix the DOM id carries back down to the manager's own id.
+function managerId(elementId) {
+    return elementId.replace(/^win-/, '');
+}
+
+// ------------------------------------------------------------- tabs (into a window) ----
+
+// How much of a window's width, centred, takes a dragged title bar as a tab. The outer quarters
+// on either side still mean "beside it", so reordering the row keeps working as it always has.
+const MERGE_ZONE = 0.5;
+
+/**
+ * The window a tab let go at (x, y) would join: one drawn in the row (not behind another, not
+ * the one being dragged, not the column the tab already belongs to), under the pointer, within
+ * the centred <zone> of its width. Read from boxes rather than elementFromPoint, because the
+ * dragged window floats over whatever it is above.
+ */
+function tabTargetAt(desk, x, y, exclude, zone) {
+    for (const el of desk.querySelectorAll('.win:not(.win--behind)')) {
+        if (el === exclude) continue;
+
+        const rect = el.getBoundingClientRect();
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) continue;
+
+        const margin = rect.width * (1 - zone) / 2;
+        return x >= rect.left + margin && x <= rect.right - margin ? el : null;
+    }
+
+    return null;
+}
+
+function markTarget(previous, next) {
+    if (previous === next) return next;
+    previous?.classList.remove('win--tab-target');
+    next?.classList.add('win--tab-target');
+    return next;
+}
+
+/**
+ * A row of a tab group's menu (WindowTabs.razor marks each with data-tab-drag-id) dragged onto
+ * another window. The window it names is behind in its group and has no box of its own, so a
+ * label lifted off the menu follows the pointer instead, and anywhere over another window takes
+ * it. Captured at the document, once, so rows drawn later need no wiring.
+ */
+function beginMenuTabDrag(event) {
+    if (event.button !== 0 || !(event.target instanceof Element)) return;
+
+    const row = event.target.closest('[data-tab-drag-id]');
+    // The row's close glyph is a click, never a drag.
+    if (!row || event.target.closest('.menu__remove')) return;
+
+    const desk = document.querySelector('[data-desk]');
+    if (!desk) return;
+
+    const id = row.getAttribute('data-tab-drag-id');
+    const home = row.closest('.win');
+    const startX = event.clientX;
+    const startY = event.clientY;
+
+    let ghost = null;
+    let target = null;
+
+    const onMove = (e) => {
+        if (!ghost) {
+            if (Math.hypot(e.clientX - startX, e.clientY - startY) < DRAG_THRESHOLD) return;
+
+            ghost = document.createElement('div');
+            ghost.className = 'tab-ghost';
+            ghost.textContent = row.querySelector('.menu__label, .menu-item__label')?.textContent?.trim()
+                || row.getAttribute('aria-label') || 'Tab';
+            document.body.appendChild(ghost);
+            document.body.classList.add('tab-dragging');
+        }
+
+        ghost.style.left = `${e.clientX}px`;
+        ghost.style.top = `${e.clientY}px`;
+        target = markTarget(target, tabTargetAt(desk, e.clientX, e.clientY, home, 1));
+    };
+
+    const onUp = (e) => {
+        document.removeEventListener('pointermove', onMove, true);
+        document.removeEventListener('pointerup', onUp, true);
+        document.removeEventListener('pointercancel', onUp, true);
+
+        if (!ghost) return;
+
+        ghost.remove();
+        document.body.classList.remove('tab-dragging');
+        markTarget(target, null);
+
+        // The press ended on a row as a drag: the click that follows must not also choose it.
+        const swallow = (c) => { c.stopPropagation(); c.preventDefault(); };
+        window.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 0);
+
+        if (e.type === 'pointercancel') return;
+
+        const into = tabTargetAt(desk, e.clientX, e.clientY, home, 1);
+        if (into && id) dotNet?.invokeMethodAsync('OnTabDropped', id, managerId(into.id));
+    };
+
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerup', onUp, true);
+    document.addEventListener('pointercancel', onUp, true);
 }
 
 // ---------------------------------------------------------------------------- shared ----

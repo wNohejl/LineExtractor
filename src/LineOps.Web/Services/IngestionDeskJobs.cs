@@ -55,7 +55,7 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
         IngestionJobs.EspnRange,
         "Pull a date range",
         "One league's games over the days you name, with each final's box score and closing line.",
-        "1 req a game day + 1 a final",
+        "free · 1 req a game day + 1 a final",
         Available: true,
         Unavailable: null);
 
@@ -79,16 +79,28 @@ public sealed class IngestionDeskJobs(IngestionJobs jobs) : IDeskJobs
 
     /// <summary>One pull as a menu entry, in its menu section.</summary>
     public static DeskJob Describe(IngestionJob job)
-        => new(job.Key, job.Label, job.Description, Cost(job), job.Available, job.Unavailable, Group: job.Group);
+        => new(job.Key, job.Label, job.Description, Cost(job), job.Available, job.Unavailable,
+            Group: job.Group, Confirm: job.Confirm, Hint: job.Hint);
 
     /// <summary>
     /// Credits where the provider bills in them, because that is the number that runs out — a
-    /// call costing one request can cost several credits.
+    /// call costing one request can cost several credits — with what is left this month where the
+    /// provider has said. Everything else says "free" first, so a metered pull and a free one are
+    /// told apart by the trailing text before either is pressed (ADR 0026); a free pull's requests
+    /// follow, since an unmetered provider's patience is still worth knowing.
     /// </summary>
     public static string Cost(IngestionJob job)
-        => job.EstimatedCredits > 0
-            ? $"{job.EstimatedCredits} credits"
-            : job.EstimatedRequests == 0 ? "no requests" : $"~{job.EstimatedRequests} req";
+        // A metered pull is never "free": with no key there is no price to quote, and what is true
+        // and useful in the price's place is what it is waiting for.
+        => job.Metered && (job.NeedsKey || job.EstimatedCredits <= 0)
+            ? NeedsKey
+            : job.EstimatedCredits > 0
+            ? $"{job.EstimatedCredits} {(job.EstimatedCredits == 1 ? "credit" : "credits")}"
+              + (job.CreditsLeft is { } left ? $" · {left:N0} left" : "")
+            : job.EstimatedRequests == 0 ? "free" : $"free · ~{job.EstimatedRequests} req";
+
+    /// <summary>The trailing text of a metered pull that has no key to price it with.</summary>
+    public const string NeedsKey = "needs a key";
 
     /// <summary>
     /// A pull's outcome as the sentence the desk toasts. Zero rows is not a failure — the scan may

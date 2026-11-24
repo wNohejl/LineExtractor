@@ -104,9 +104,15 @@ else
     }
     else
     {
-        @* The aggregate every other view shows, kept here beside the games behind it so the
+        @* Section cards in a .wflow (the Desk's grouping contract), each named in the bar at its
+           top. Both bodies are grids of their own — a strip of readings, a wide table — so each
+           takes the whole row; the table draws no second frame inside its card
+           (PlayerPanel.razor.css).
+           The aggregate every other view shows, kept here beside the games behind it so the
            two can be read against each other rather than one standing in for the other. *@
-        <PanelSection Title="Averages">
+        <div class="wflow player-flow">
+        <FormGroup Title="Averages" Span="DeskCardSpan.Row">
+            <div class="wgroup__row wgroup__row--pad player-averages">
             <div class="snippet__facts">
                 @foreach (var column in _columns.Take(6))
                 {
@@ -116,12 +122,13 @@ else
                     </div>
                 }
             </div>
-        </PanelSection>
+            </div>
+        </FormGroup>
 
         @* The log is the one view on the desk where sorting is the point rather than a
            convenience: "which were the big games" and "how did the away nights go" are both
            questions about this table, and neither can be asked of a fixed date order. *@
-        <PanelSection Title="Game log">
+        <FormGroup Title="Game log" Span="DeskCardSpan.Row" GroupClass="player-log">
         <div class="gridwrap">
             <DeskGrid T="PlayerGameRow" Items="_rows"
                       EmptyText="No appearances on record for this player.">
@@ -183,7 +190,8 @@ else
                 }
             </DeskGrid>
         </div>
-        </PanelSection>
+        </FormGroup>
+        </div>
     }
 }
 
@@ -193,6 +201,66 @@ else
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// Reloads only for a change to one of this player's games — a game of their current team, or
+    /// one they have a stat line in. The window used to read itself again on any score anywhere.
+    /// The games on screen cannot be the filter: the player's next game, or a box score landing
+    /// after the load, has an id the window never held, so the addressed ids are asked of the
+    /// database (<see cref="TeamPanel.AddressedGames"/> makes the same choice for a team). A bare
+    /// notice, or a refresh that does not say what changed, reloads as before.
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        if (await HeardOwnGameAsync(heard, PlaysInAnyAsync, _reads.Gone, "The player's"))
+            await LoadAsync();
+    }
+
+    /// <summary>
+    /// The check's query: those of the games, by primary key, that the player's current team played
+    /// in or that hold a stat line of theirs. The team is read in the query rather than taken from
+    /// the window, so a window whose load failed still asks the right question.
+    /// </summary>
+    public static IQueryable<Game> OwnGames(LineOpsDbContext db, int playerId, int[] ids, int[]? visible = null)
+    {
+        // Only stat lines from sources this reader may see (ADR 0024), as the window's own reads are.
+        var lines = db.PlayerGameStats.FromVisible(visible);
+
+        return db.Games.AsNoTracking()
+            .Where(g => ids.Contains(g.Id))
+            .Where(g => db.Players.Any(p => p.Id == playerId && p.TeamId != null
+                                            && (p.TeamId == g.HomeTeamId || p.TeamId == g.AwayTeamId))
+                        || lines.Any(s => s.GameId == g.Id && s.PlayerId == playerId));
+    }
+
+    /// <summary>
+    /// Whether any of these games is this player's, on a context of its own. Virtual so a test
+    /// bench can answer it without a database.
+    /// </summary>
+    protected virtual async Task<bool> PlaysInAnyAsync(int[] ids, CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        await using var scope = ScopeFactory.CreateAsyncScope();
+
+        // Who is reading, by tier; unregistered means a desk with one person at it.
+        LineOps.Core.Contracts.IDataTier tier = scope.ServiceProvider.GetService<LineOps.Core.Contracts.IDataTier>()
+            ?? LineOps.Core.Contracts.FullDataTier.Instance;
+
+        return await OwnGames(db, PlayerId, ids, await db.VisibleSourceIdsAsync(tier, ct)).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a season picked, or the window re-aimed,
+    /// while a load ran let the slower, superseded one hand over last and paint the old season.
+    /// Its <see cref="LatestRead.Gone"/> is for the own-game check, which is not a load.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
 
     /// <summary>
     /// The player this view is about. Taken as an id rather than an object so the view can be
@@ -235,45 +303,74 @@ else
     {
         await WithActivityAsync(async () =>
         {
-            await using var db = await DbFactory.CreateDbContextAsync();
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var playerId = PlayerId;
+            var asked = _seasonYear;
 
-            _player = await db.Players
-                .Include(p => p.Team)
-                .Include(p => p.Sport)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == PlayerId);
+            // Read into locals and handed over at once, and only by the latest load. Each read
+            // needs the one before it, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var db = await DbFactory.CreateDbContextAsync(ct);
 
-            if (_player is null)
-                return;
+                var player = await db.Players
+                    .Include(p => p.Team)
+                    .Include(p => p.Sport)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Id == playerId, ct);
 
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+                IReadOnlyList<int> seasons = [];
+                int? seasonYear = null;
+                IReadOnlyList<PlayerGameRow> rows = [];
 
-            _seasons = await log.SeasonsForPlayerAsync(PlayerId);
+                if (player is not null)
+                {
+                    await using var scope = ScopeFactory.CreateAsyncScope();
+                    var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
-                _seasonYear = _seasons.Count > 0 ? _seasons[0] : null;
+                    seasons = await log.SeasonsForPlayerAsync(playerId, ct);
 
-            var sport = _player.Sport?.Key ?? string.Empty;
-            _seasonOptions = _seasons
-                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
-                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
-                .ToList();
+                    seasonYear = PickSeason(seasons, asked);
 
-            _rows = await log.PlayerGameLogAsync(PlayerId, WholeSeason, _seasonYear);
+                    rows = await log.PlayerGameLogAsync(playerId, WholeSeason, seasonYear, ct);
+                }
 
-            _playedFor = _rows
-                .OrderBy(r => r.StartsAt)
-                .Select(r => r.Team)
-                .Distinct()
-                .ToList();
-
-            // Wider than the snippet's, because a window has the room and the whole point of
-            // opening it was that the snippet did not show enough.
-            _columns = Snippets.PlayerRecentSnippet.DeriveColumns(_rows, 8);
+                return (Player: player, Seasons: seasons, SeasonYear: seasonYear, Rows: rows);
+            },
+            read => HandOver(read.Player, read.Seasons, read.SeasonYear, read.Rows));
         },
         settle: () => _player is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _player is null ? "not found" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "game" : "games")}");
+    }
+
+    /// <summary>What the latest load read: the player, and for a player found, their season and its games.</summary>
+    private void HandOver(
+        Core.Entities.Player? player, IReadOnlyList<int> seasons, int? seasonYear, IReadOnlyList<PlayerGameRow> rows)
+    {
+        _player = player;
+
+        // A player not found leaves the rest as it was, as it always has: the window says
+        // "not found" from the player alone.
+        if (_player is null)
+            return;
+
+        _seasons = seasons;
+        _seasonYear = seasonYear;
+
+        _seasonOptions = SeasonOptions(_player.Sport?.Key, _seasons);
+
+        _rows = rows;
+
+        _playedFor = _rows
+            .OrderBy(r => r.StartsAt)
+            .Select(r => r.Team)
+            .Distinct()
+            .ToList();
+
+        // Wider than the snippet's, because a window has the room and the whole point of
+        // opening it was that the snippet did not show enough.
+        _columns = Snippets.PlayerRecentSnippet.DeriveColumns(_rows, 8);
     }
 
     private async Task OpenGameAsync(int gameId)

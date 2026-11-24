@@ -29,6 +29,11 @@ x-providers: &providers
   Ingestion__TheOddsApi__Markets__2: ${THE_ODDS_API_TOTALS-total}
   Ingestion__BallDontLie__ApiKey: ${BALLDONTLIE_KEY:-}
   Ingestion__BallDontLie__Enabled: ${BALLDONTLIE_ENABLED:-false}
+  # The stats source, off until the person running the stack opts in (ESPN_ENABLED=true in .env;
+  # .env.example says why). ESPN's terms license personal, non-commercial use and prohibit
+  # automated access, so a clone calls nothing until someone has read that and decided. The MLB
+  # Stats API follows this switch: it only annotates games ESPN has written.
+  Ingestion__Espn__Enabled: ${ESPN_ENABLED:-false}
 
 services:
   postgres:

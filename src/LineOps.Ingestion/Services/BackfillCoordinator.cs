@@ -112,7 +112,7 @@ public class BackfillCoordinator(
             LastReport = new BackfillReport(
                 Progress?.Walked ?? 0, Progress?.Skipped ?? 0, Progress?.Failed ?? 0,
                 Progress?.GamesFound ?? 0, Progress?.RowsIngested ?? 0,
-                $"{ex.GetType().Name}: {ex.Message}");
+                RunRecord.Describe(ex));
             logger.LogError(ex, "Backfill failed");
         }
         finally

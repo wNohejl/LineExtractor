@@ -31,3 +31,5 @@ deploy/backups/
 data/personal/
 # The clone of the private journal repository (CLAUDE.md, "The journal").
 /lineops-journal/
+# A database snapshot never enters this public repository: it lives in data/personal/snapshots.
+data/snapshots/

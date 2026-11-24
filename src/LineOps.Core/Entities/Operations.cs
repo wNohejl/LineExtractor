@@ -49,6 +49,16 @@ public class IngestionRun
 
     public string? Error { get; set; }
 
+    /// <summary>
+    /// The league day a closing scan counts against, when the run was one; null for every other
+    /// run, a paced scan or a press among them. The cap on closing scans a league a day is counted
+    /// from these rows rather than remembered, so a restart or a second host sharing the database
+    /// cannot grant another day's worth. A date rather than a flag, so the count is the column
+    /// itself and nobody recomputes a league day from a timestamp. Cleared on a run the budget
+    /// guard refused, which spent nothing and should not use up the cap.
+    /// </summary>
+    public DateOnly? ClosingScanDay { get; set; }
+
     public TimeSpan? Duration => FinishedAt is null ? null : FinishedAt - StartedAt;
 }
 

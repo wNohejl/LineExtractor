@@ -179,6 +179,19 @@ else
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
+    // Only the games on screen and the upcoming one they are measured against: a score anywhere
+    // else in the database used to re-read every meeting. A bare games notice still reloads.
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _held;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _held = HeldGames([]);
+
+    /// <summary>
+    /// The ids <see cref="WatchesIds"/> narrows the games topic to. Built once per load and
+    /// swapped whole, because the base reads it on the publisher's thread.
+    /// </summary>
+    public static IReadOnlyDictionary<string, IReadOnlySet<string>> HeldGames(IEnumerable<int> gameIds)
+        => NoticeTokens.Narrow(gameIds, DataTopics.Games);
+
     protected override Task RefreshAsync() => LoadAsync();
 
     /// <summary>
@@ -198,6 +211,18 @@ else
     private string? _awayAbbrev;
     private string _record = "0-0";
     private int _covered;
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a window re-aimed at another game, or
+    /// refreshed, while a load ran let the slower, superseded one hand over last.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
@@ -221,25 +246,44 @@ else
     {
         await WithActivityAsync(async () =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var board = scope.ServiceProvider.GetRequiredService<BoardService>();
-            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+            // Before the reads, so a window moved to another game, or one whose load fails,
+            // still hears its own game.
+            _held = HeldGames(_rows.Select(r => r.GameId).Append(GameId));
 
-            if (await board.GetRowAsync(GameId) is { } row)
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var (gameId, take) = (GameId, Take);
+
+            // Read into locals and handed over at once, and only by the latest load: the names
+            // were written before the meetings were read, so a window re-aimed mid-load showed the
+            // old game's meetings under the new game's names. The reads share the scope's one
+            // context, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
             {
-                _homeName = row.Game.HomeTeam?.Name ?? "Home";
-                _awayName = row.Game.AwayTeam?.Name ?? "Away";
-                _sport = row.Game.Sport?.Key;
-                _homeAbbrev = row.Game.HomeTeam?.Abbrev;
-                _awayAbbrev = row.Game.AwayTeam?.Abbrev;
-            }
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var board = scope.ServiceProvider.GetRequiredService<BoardService>();
+                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            _rows = await log.HeadToHeadAsync(GameId, Take);
+                var row = await board.GetRowAsync(gameId, ct);
+                var meetings = await log.HeadToHeadAsync(gameId, take, ct);
+                return (Game: row?.Game, Meetings: meetings);
+            },
+            read =>
+            {
+                _homeName = read.Game?.HomeTeam?.Name ?? "Home";
+                _awayName = read.Game?.AwayTeam?.Name ?? "Away";
+                _sport = read.Game?.Sport?.Key;
+                _homeAbbrev = read.Game?.HomeTeam?.Abbrev;
+                _awayAbbrev = read.Game?.AwayTeam?.Abbrev;
 
-            // Read from the upcoming home team's perspective throughout, which is what the
-            // service already did — so the record and the column agree.
-            _record = Record(_rows);
-            _covered = _rows.Count(r => r.HasClosingLine);
+                _rows = read.Meetings;
+                _held = HeldGames(_rows.Select(r => r.GameId).Append(gameId));
+
+                // Read from the upcoming home team's perspective throughout, which is what the
+                // service already did — so the record and the column agree.
+                _record = Record(_rows);
+                _covered = _rows.Count(r => r.HasClosingLine);
+            });
         },
         settle: () => _rows.Count == 0 ? PulseState.Idle : PulseState.Healthy,
         status: () => _rows.Count == 0 ? "no meetings" : $"{_rows.Count:N0} {(_rows.Count == 1 ? "meeting" : "meetings")}");

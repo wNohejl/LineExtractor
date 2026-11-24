@@ -12,6 +12,17 @@
     component: it holds its windows, spends the Desk's tokens, and wins a tie with any Desk rule
     on source order.
 *@
+@*  The browser's own chrome in the desk's ground. Declared here, empty, so it is in the head from
+    the first byte and a host's App.razor needs nothing of its own; theme-boot.js fills it from the
+    showing block's --surface-0 once the sheets below have arrived, and theme.js keeps it there on
+    every change. No colour is written here: the palette is the stylesheet's. *@
+<meta name="theme-color" content="" />
+@*  The boot script's tables — every family's slug, the accents with a block, every look's key and
+    values — written from the C# catalogue (DeskBoot) rather than copied into the script, and ahead
+    of it, so the script finds them as it runs. A data block is never executed, so the page's
+    script policy does not reach it; the JSON is escaped so nothing in it can close the element.
+    DeskHead renders statically in the head, so the tables are in the first response. *@
+<script type="application/json" id="@DeskBoot.ElementId">@((MarkupString)DeskBoot.Json)</script>
 <script src="@Assets[DeskAssets.Js("theme-boot.js")]"></script>
 @*  The regular face is on every page, and desk.css names it only once the sheet has arrived and
     parsed, so without this the font is the last request the head makes and the first paint is in

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -14,19 +15,13 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnStatsAdapterTests
 {
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        return JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone();
-    }
-
     private static (List<CanonicalPlayer> Players, List<CanonicalPlayerStat> Stats) Parse(
         string fixture, string sportKey)
     {
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
 
-        EspnStatsAdapter.ParseBoxScore(Load(fixture), sportKey, "game-1", players, stats);
+        EspnStatsAdapter.ParseBoxScore(Fixtures.Json(fixture), sportKey, "game-1", players, stats);
 
         return (players, stats);
     }
@@ -35,6 +30,31 @@ public class EspnStatsAdapterTests
         List<CanonicalPlayerStat> stats, string playerId)
         => JsonSerializer.Deserialize<Dictionary<string, string>>(
             stats.Single(s => s.SourcePlayerId == playerId).StatLineJson)!;
+
+    /// <summary>
+    /// ESPN's football box score lists the club itself among the athletes of some groups —
+    /// team fumbles and the like — as an athlete with a negative id and the name " Team". It
+    /// is not a person: taken as one it became a Chargers "player" called Team, with a stat
+    /// line, in the Players list (HIG audit, 17 November).
+    /// </summary>
+    [Fact]
+    public void ParseBoxScore_TakesNoPlayerForTheClubsOwnTeamLine()
+    {
+        const string json = """
+            {"boxscore":{"players":[{"team":{"id":"24","displayName":"Los Angeles Chargers"},
+              "statistics":[{"name":"fumbles","labels":["FUM","LOST","REC"],"athletes":[
+                {"athlete":{"id":"4038941","displayName":"Justin Herbert","position":{"abbreviation":"QB"}},"stats":["1","0","0"]},
+                {"athlete":{"id":"-8825","displayName":" Team"},"stats":["1","1","0"]}
+              ]}]}]}}
+            """;
+        var players = new List<CanonicalPlayer>();
+        var stats = new List<CanonicalPlayerStat>();
+
+        EspnStatsAdapter.ParseBoxScore(JsonDocument.Parse(json).RootElement, "nfl", "game-1", players, stats);
+
+        Assert.Equal("4038941", Assert.Single(players).SourcePlayerId);
+        Assert.Equal("4038941", Assert.Single(stats).SourcePlayerId);
+    }
 
     [Fact]
     public void ParseBoxScore_EmitsOneStatLinePerPlayerPerGame()

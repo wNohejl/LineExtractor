@@ -25,10 +25,19 @@ public class FormRowAdoptionTests
         Assert.Empty(spelled);
     }
 
+    /// <summary>
+    /// A label leading a split row's cell (<c>.wgroup__split &gt; .wgroup__cell</c>, the Desk's
+    /// grouping contract) is the one hand-spelled label: two compact controls in one row is not a
+    /// FormRow, and the contract spells each cell's label as a <c>span.wgroup__label</c> first in
+    /// its cell. Any other <c>wgroup__label</c> is a FormRow spelled by hand.
+    /// </summary>
     [Fact]
     public void No_row_label_is_spelled_by_hand()
     {
-        var spelled = Sources().Where(s => Regex.IsMatch(s.Text, @"class=""wgroup__label""")).Select(s => s.File);
+        var spelled = Sources()
+            .Where(s => Regex.Matches(s.Text, @"class=""wgroup__label""")
+                .Any(m => !Regex.IsMatch(s.Text[..m.Index], @"<div class=""wgroup__cell"">\s*<span\s*$")))
+            .Select(s => s.File);
 
         Assert.Empty(spelled);
     }

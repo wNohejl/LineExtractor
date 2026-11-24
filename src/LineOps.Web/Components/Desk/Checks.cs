@@ -148,10 +148,12 @@ public static class Checks
             ? $"{(int)span.TotalMinutes} min"
             : $"{(int)span.TotalHours}h {span.Minutes}m";
 
-    private static string Basis(FairPrice fair)
+    /// <summary>Where a fair price comes from, as the value check names it: "Pinnacle", "4-book consensus".</summary>
+    public static string Basis(FairPrice fair)
         => fair.Basis == FairValue.SharpBook ? "Pinnacle" : $"{fair.Books}-book consensus";
 
-    private static string Percent(double ev)
+    /// <summary>An edge as the value check writes it: "+2.1%", "−1.8%".</summary>
+    public static string Percent(double ev)
     {
         var percent = ev * 100;
         return (percent >= 0 ? "+" : "\u2212") + Math.Abs(percent).ToString("0.0", CultureInfo.InvariantCulture) + "%";

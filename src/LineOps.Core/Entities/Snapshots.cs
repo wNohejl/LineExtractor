@@ -102,6 +102,20 @@ public class ClosingLine : Contracts.IFromSource
 
     /// <summary>When promotion ran. Always at or after the game's start.</summary>
     public DateTimeOffset PromotedAt { get; set; }
+
+    /// <summary>
+    /// What this book's side opened at, where the provider stated it beside the close — ESPN does,
+    /// on the same block its close is read from. Kept on the close's row rather than a table of its
+    /// own because it is the same observation's other end: one book, one market, one side, and
+    /// "how far did it move" is a subtraction on one row. Null on every close promoted from the book
+    /// market, whose first scan is only the first time we looked, not the open; and null where the
+    /// provider stated no open. <see cref="Line"/> and <see cref="PriceAmerican"/> stay the close,
+    /// so every reader of the close reads exactly what it did before.
+    /// </summary>
+    public decimal? OpenLine { get; set; }
+
+    /// <summary>The opening price for the same side, where stated. See <see cref="OpenLine"/>.</summary>
+    public int? OpenPriceAmerican { get; set; }
 }
 
 /// <summary>Raw per-game stats payload. jsonb because stat shapes differ per sport and source.</summary>

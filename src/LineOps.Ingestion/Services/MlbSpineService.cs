@@ -8,7 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace LineOps.Ingestion.Services;
 
 /// <summary>What one day's pass matched and learned.</summary>
-public sealed record SpineOutcome(DateOnly Date, int Scheduled, int Matched, int Probables, int Unmatched);
+/// <param name="Contexts">Rows of game context and officials written or changed.</param>
+public sealed record SpineOutcome(DateOnly Date, int Scheduled, int Matched, int Probables, int Unmatched, int Contexts = 0);
 
 /// <summary>
 /// Joins MLB's own schedule to the games ESPN created: MLB's game id, the doubleheader number,
@@ -57,7 +58,14 @@ public class MlbSpineService(LineOpsDbContext db, MlbStatsApiAdapter adapter, IL
             .ToListAsync(ct);
 
         var claimed = new HashSet<int>();
-        int matched = 0, probables = 0, unmatched = 0;
+        int matched = 0, probables = 0, unmatched = 0, contexts = 0;
+
+        // What the hydrations state about a game is written under MLB's own source, so a reader can
+        // tell MLB's words from ESPN's and the data tier can hide them (ADR 0024). The row is made
+        // the first time there is something to write: MLB is no stats source in the registry, so
+        // nothing seeds it, and the reconciler keeps it disabled — it is never health-checked.
+        Source? source = null;
+        var writer = new GameContextWriter(db);
 
         // Game 1 before game 2, so a doubleheader's numbers are taken in the order they are played.
         foreach (var scheduled in slate.OrderBy(g => g.GameNumber).ThenBy(g => g.StartsAt))
@@ -101,6 +109,12 @@ public class MlbSpineService(LineOpsDbContext db, MlbStatsApiAdapter adapter, IL
 
             if (game.HomeProbablePitcher is not null || game.AwayProbablePitcher is not null)
                 probables++;
+
+            if (scheduled.Context is { } context)
+            {
+                source ??= await SourceAsync(ct);
+                contexts += await writer.UpsertAsync(game, source, context, ct);
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -109,7 +123,31 @@ public class MlbSpineService(LineOpsDbContext db, MlbStatsApiAdapter adapter, IL
             logger.LogInformation("{Source}: {Date} — {Unmatched} of {Count} MLB games have no ESPN fixture yet",
                 Key, date, unmatched, slate.Count);
 
-        return new SpineOutcome(date, slate.Count, matched, probables, unmatched);
+        return new SpineOutcome(date, slate.Count, matched, probables, unmatched, contexts);
+    }
+
+    /// <summary>MLB's source row, made on first need with the licence its terms give it.</summary>
+    private async Task<Source> SourceAsync(CancellationToken ct)
+    {
+        var source = await db.Sources.FirstOrDefaultAsync(s => s.Key == Key, ct);
+
+        if (source is null)
+        {
+            source = new Source
+            {
+                Key = Key,
+                Name = "MLB Stats API",
+                Kind = SourceKind.Stats,
+                BaseUrl = "https://statsapi.mlb.com/",
+                Licence = SourceLicences.For(Key),
+                Enabled = false
+            };
+
+            db.Sources.Add(source);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return source;
     }
 
     /// <summary>

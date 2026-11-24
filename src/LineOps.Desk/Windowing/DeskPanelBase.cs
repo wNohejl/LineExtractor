@@ -52,6 +52,9 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
     /// <summary>The host this panel last marked as holding its unsaved input, cleared on disposal.</summary>
     private string? _markedHost;
 
+    /// <summary>Whether this panel last marked its own window as holding unsaved input, cleared on disposal.</summary>
+    private bool _markedOwn;
+
     [Inject] protected WindowManager Manager { get; set; } = default!;
 
     [Inject] private DeskSignals Signals { get; set; } = default!;
@@ -270,6 +273,12 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
         if (_markedHost is not null)
             Manager.SetUnsaved(_markedHost, false);
 
+        // So does a window's own panel: a panel gone — its window's body torn down by a fault or
+        // its host — took the input with it, and a flag left behind would guard nothing while
+        // making every close of the window ask about input that is not there.
+        if (_markedOwn && WindowId is not null)
+            Manager.SetUnsaved(WindowId, false);
+
         OnDispose();
         GC.SuppressFinalize(this);
     }
@@ -283,8 +292,8 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
 
     /// <summary>
     /// Says whether the panel holds input that has not been saved, and what to call it —
-    /// "this draft". While it does, its window's close key asks before discarding it and
-    /// eviction passes the window by. Call it as the input changes, and with false once it is
+    /// "this draft". While it does, its window's close key (or its tab's) asks before discarding
+    /// it, and so do Close all and a workspace. Call it as the input changes, and with false once it is
     /// saved or cleared. In a follow-up dialog it marks the window the dialog sits over
     /// (<see cref="HostWindowId"/>). No-op when hosted outside any window.
     /// </summary>
@@ -293,6 +302,7 @@ public abstract class DeskPanelBase : ComponentBase, IDisposable
         if (WindowId is not null)
         {
             Manager.SetUnsaved(WindowId, dirty, label);
+            _markedOwn = dirty;
         }
         else if (HostWindowId is not null)
         {

@@ -22,6 +22,8 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
     public DbSet<GamePlay> GamePlays => Set<GamePlay>();
     public DbSet<GameDrive> GameDrives => Set<GameDrive>();
     public DbSet<GamecastBackportMiss> GamecastBackportMisses => Set<GamecastBackportMiss>();
+    public DbSet<GameContext> GameContexts => Set<GameContext>();
+    public DbSet<GameOfficial> GameOfficials => Set<GameOfficial>();
 
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<Parlay> Parlays => Set<Parlay>();
@@ -220,6 +222,7 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
             e.Property(x => x.Market).HasMaxLength(64).IsRequired();
             e.Property(x => x.Outcome).HasMaxLength(128).IsRequired();
             e.Property(x => x.Line).HasPrecision(10, 2);
+            e.Property(x => x.OpenLine).HasPrecision(10, 2);
 
             // One close per game/book/market/outcome. Promotion is idempotent because of this:
             // a second pass over an already-promoted game has nowhere to put a duplicate.
@@ -317,6 +320,46 @@ public class LineOpsDbContext(DbContextOptions<LineOpsDbContext> options) : DbCo
         {
             e.HasKey(x => x.GameId);
             e.Property(x => x.Reason).HasMaxLength(512);
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        // A game's circumstances as one provider states them: one row per game and source, so two
+        // providers describing one game never overwrite each other. Deleting the game takes it.
+        b.Entity<GameContext>(e =>
+        {
+            e.HasKey(x => new { x.GameId, x.SourceId });
+            e.Property(x => x.VenueName).HasMaxLength(GameContext.VenueNameLength);
+            e.Property(x => x.VenueCity).HasMaxLength(GameContext.VenueCityLength);
+            e.Property(x => x.VenueState).HasMaxLength(GameContext.VenueStateLength);
+            e.Property(x => x.Surface).HasMaxLength(GameContext.SurfaceLength);
+            e.Property(x => x.WeatherCondition).HasMaxLength(GameContext.WeatherConditionLength);
+            e.Property(x => x.WindDirection).HasMaxLength(GameContext.WindDirectionLength);
+            e.Property(x => x.DayNight).HasMaxLength(GameContext.DayNightLength);
+            e.Property(x => x.HomeWinPercent).HasPrecision(5, 2);
+            e.Property(x => x.AwayWinPercent).HasPrecision(5, 2);
+            e.Property(x => x.MatchupQuality).HasPrecision(5, 2);
+            e.Property(x => x.HomeLineup).HasColumnType("jsonb");
+            e.Property(x => x.AwayLineup).HasColumnType("jsonb");
+
+            e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Source).WithMany().HasForeignKey(x => x.SourceId);
+        });
+
+        // A game's officials, one row each. Read two ways: a game's crew (the first index) and an
+        // official's games (the second), which is what a referee or umpire tendency is asked by.
+        b.Entity<GameOfficial>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(GameOfficial.NameLength).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(GameOfficial.RoleLength);
+
+            e.HasIndex(x => new { x.GameId, x.SourceId, x.Order })
+                .IsUnique()
+                .HasDatabaseName("ux_game_official");
+            e.HasIndex(x => x.Name).HasDatabaseName("ix_game_official_name");
 
             e.HasOne(x => x.Game).WithMany().HasForeignKey(x => x.GameId)
                 .OnDelete(DeleteBehavior.Cascade);

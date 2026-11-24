@@ -16,10 +16,61 @@ public class IngestionDeskJobsTests
 
     [Theory]
     [InlineData(3, 12, "12 credits")]
-    [InlineData(0, 0, "no requests")]
-    [InlineData(7, 0, "~7 req")]
+    [InlineData(1, 1, "1 credit")]
+    [InlineData(0, 0, "free")]
+    [InlineData(7, 0, "free · ~7 req")]
     public void The_cost_is_quoted_in_the_unit_that_runs_out(int requests, int credits, string cost)
         => Assert.Equal(cost, IngestionDeskJobs.Describe(Job(requests, credits)).Cost);
+
+    /// <summary>A metered pull states what is left beside its price when the provider has said; a free one carries no credit mark.</summary>
+    [Fact]
+    public void A_metered_pull_says_what_is_left_and_a_free_one_never_mentions_credits()
+    {
+        var metered = IngestionDeskJobs.Describe(Job(1, 2) with { CreditsLeft = 412 });
+        var free = IngestionDeskJobs.Describe(Job(3));
+
+        Assert.Equal("2 credits · 412 left", metered.Cost);
+        Assert.StartsWith("free", free.Cost);
+        Assert.DoesNotContain("credit", free.Cost);
+    }
+
+    /// <summary>
+    /// A live desk on ESPN with no key listed "Pull lines — MLB · free · No odds source registered."
+    /// A metered pull with no source has no price to quote, and is never "free": it says it needs a
+    /// key, and its reason and tooltip say where the key goes.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]   // lines with no odds source: no adapter to quote a price
+    [InlineData(2)]   // scores with no key: the price is known, the pull still cannot run
+    public void A_metered_pull_without_a_key_never_says_free_and_names_the_key_as_the_remedy(int credits)
+    {
+        var job = new IngestionJob("odds:lines:mlb", "Pull lines — MLB", "Moneyline, spread across every book.", 0,
+            Available: false, Unavailable: IngestionJobs.NoOddsKey, EstimatedCredits: credits,
+            Group: JobGroups.Lines, Hint: "Pulls MLB prices from The Odds API, a credit per market. " + IngestionJobs.NoOddsKey,
+            Metered: true, NeedsKey: true);
+
+        var entry = IngestionDeskJobs.Describe(job);
+
+        Assert.Equal("needs a key", entry.Cost);
+        Assert.DoesNotContain("free", entry.Cost, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Ops → Odds feeds", entry.Unavailable);
+        Assert.Contains("The Odds API key", entry.Unavailable);
+        Assert.Contains("Ops → Odds feeds", entry.Hint);
+        Assert.DoesNotContain("registered", entry.Unavailable);
+    }
+
+    [Fact]
+    public void A_metered_pull_whose_price_is_zero_is_never_free_either()
+        => Assert.Equal("needs a key", IngestionDeskJobs.Describe(Job(0, 0) with { Metered = true }).Cost);
+
+    [Fact]
+    public void The_question_and_the_tooltip_reach_the_menu()
+    {
+        var job = IngestionDeskJobs.Describe(Job(1, 9) with { Confirm = "This spends 9 credits. Spend them?", Hint = "Calls the odds." });
+
+        Assert.Equal("This spends 9 credits. Spend them?", job.Confirm);
+        Assert.Equal("Calls the odds.", job.Hint);
+    }
 
     [Fact]
     public void An_unavailable_pull_keeps_its_reason()

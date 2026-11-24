@@ -72,11 +72,8 @@ public sealed class GameWindowData(IServiceScopeFactory scopes) : IGameWindowDat
     /// <summary>Wide on purpose: only reached when there is no season to bound by.</summary>
     private static readonly TimeSpan FallbackWindow = TimeSpan.FromDays(365);
 
-    public async Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<BoardService>().GetRowAsync(gameId, ct);
-    }
+    public Task<BoardRow?> RowAsync(int gameId, CancellationToken ct = default)
+        => scopes.InScopeAsync<BoardService, BoardRow?>(board => board.GetRowAsync(gameId, ct));
 
     public async Task<Game?> GameAsync(int gameId, CancellationToken ct = default)
     {
@@ -89,8 +86,9 @@ public sealed class GameWindowData(IServiceScopeFactory scopes) : IGameWindowDat
             .FirstOrDefaultAsync(g => g.Id == gameId, ct);
 
         // The state of play is ESPN's and the probables MLB's (ADR 0024): the same game the row
-        // carries, blanked for a visitor to a shared desk exactly as BoardService blanks it.
-        return game?.ForTier(scope.ServiceProvider.GetRequiredService<IDataTier>());
+        // carries, blanked for a visitor to a shared desk exactly as BoardService blanks it — and
+        // resolved as BoardService resolves it, the full tier where a host registers none.
+        return game?.ForTier(scope.ServiceProvider.GetService<IDataTier>() ?? FullDataTier.Instance);
     }
 
     public async Task<GameWindowDetail> DetailAsync(Game game, int? seasonYear, bool withBets, CancellationToken ct = default)
@@ -109,21 +107,22 @@ public sealed class GameWindowData(IServiceScopeFactory scopes) : IGameWindowDat
         var lookup = services.GetRequiredService<MatchupCrossReference>();
         var log = services.GetRequiredService<GameLogService>();
 
-        var home = await log.SeasonsForTeamAsync(game.HomeTeamId);
-        var away = await log.SeasonsForTeamAsync(game.AwayTeamId);
+        // Every read takes the token, so a load the window has superseded stops at its next query.
+        var home = await log.SeasonsForTeamAsync(game.HomeTeamId, ct);
+        var away = await log.SeasonsForTeamAsync(game.AwayTeamId, ct);
         var seasons = home.Concat(away).Distinct().OrderByDescending(y => y).Take(3).ToList();
         var season = GameWindowDetail.PickSeason(seasons, seasonYear, game.SeasonYear);
 
         // The box score is the answer once there is one; the season aggregate is the fallback
         // for a game that has not been played. Both are loaded because the fallback has to be
         // ready the moment the box score turns out to be empty.
-        var box = await log.BoxScoreAsync(game.Id);
-        var matchup = await lookup.GetAsync(game.Id, FallbackWindow, maxPlayersPerTeam: 8, seasonYear: season);
+        var box = await log.BoxScoreAsync(game.Id, ct);
+        var matchup = await lookup.GetAsync(game.Id, FallbackWindow, maxPlayersPerTeam: 8, seasonYear: season, ct: ct);
 
         // Only the recent record is wanted here — the roster comes from the matchup lookup
         // above, which resolves both sides in one query rather than two.
-        var homeForm = await lookup.GetTeamAsync(game.HomeTeamId, FallbackWindow, maxPlayers: 0, seasonYear: season);
-        var awayForm = await lookup.GetTeamAsync(game.AwayTeamId, FallbackWindow, maxPlayers: 0, seasonYear: season);
+        var homeForm = await lookup.GetTeamAsync(game.HomeTeamId, FallbackWindow, maxPlayers: 0, seasonYear: season, ct: ct);
+        var awayForm = await lookup.GetTeamAsync(game.AwayTeamId, FallbackWindow, maxPlayers: 0, seasonYear: season, ct: ct);
 
         return new GameWindowDetail(bout, bets, seasons, season, box, matchup, homeForm, awayForm);
     }

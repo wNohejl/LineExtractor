@@ -45,12 +45,11 @@
 
     /* --- Accent -------------------------------------------------------------
        One accent, systemBlue. Interactivity, focus, and selection — nothing
-       else. A second accent is how an interface stops meaning anything. */
+       else. A second accent is how an interface stops meaning anything. Its two
+       washes, and each state's, are the fill thinned: "Derived tokens", below. */
     --accent: #086FD7;
     --accent-hover: #0973DE;
     --accent-press: #0866C6;
-    --accent-wash: rgba(8, 111, 215, .15);
-    --accent-wash-strong: rgba(8, 111, 215, .24);
     --on-accent: #FFFFFF;
 
     /* --- Semantic state -----------------------------------------------------
@@ -58,14 +57,13 @@
        judgment where a state genuinely needs a colour — not as an always-on
        channel that tinted every control on the desk. */
     --state-positive: #30D158;
-    --state-negative: #FF453A;
-    /* Exists so a destructive fill can lighten on hover the same way --accent-hover
-       lets the accent one — a lit state colour, not a mix computed at the call site. */
-    --state-negative-hover: #FF6961;
+    --state-negative: #D73A31; /* systemRed deepened: the white destructive label reads 4.63:1 */
+    /* Exists so a destructive fill can answer the pointer the way --accent-hover lets
+       the accent one — a state colour, not a mix computed at the call site. It travels
+       away from its label: the rest fill leaves the white label no room to lighten
+       (a visible step lighter falls to 4.2:1), so this one deepens. */
+    --state-negative-hover: #C4342C; /* 1.17:1 from the rest fill, 5.42:1 under the label */
     --state-warning: #FF9F0A;
-    --state-positive-wash: rgba(48, 209, 88, .15);
-    --state-negative-wash: rgba(255, 69, 58, .15);
-    --state-warning-wash: rgba(255, 159, 10, .15);
 
     /* --- Ink ----------------------------------------------------------------
        The state colours and the accent above are fills: a dot, a wash, a filled
@@ -75,12 +73,12 @@
        glyph reads the ink while fills stay on the fill (HIG audit 2026-10-25,
        Accessibility). On this desk green, red and orange are already readable,
        so the ink lifts only what needs it: orange and red step to Apple's
-       lighter accessible tints, blue to #409CFF. Every block in themes.css
+       lighter accessible tints, blue to #449EFF. Every block in themes.css
        carries the same four; ThemeContrastTests measures each one. */
     --state-positive-ink: #30D158; /* 7.75:1 */
     --state-warning-ink: #FFB340; /* 8.79:1 */
     --state-negative-ink: #FF6961; /* 5.56:1 */
-    --accent-ink: #409CFF; /* 5.54:1 */
+    --accent-ink: #449EFF; /* 5.66:1, 4.51 on the strong wash */
 
     /* --- Chart neutrals -------------------------------------------------------
        Two steps of Apple's dark-mode system grey ramp (systemGray, systemGray2),
@@ -93,24 +91,20 @@
     /* --- Materials ----------------------------------------------------------
        Four tiers, thinnest to thickest, mirroring HIG materials. A material is
        for things that float — menus, dialogs, sheets, the rail. Flat panel
-       bodies stay opaque, because data legibility beats depth.
+       bodies stay opaque, because data legibility beats depth. The blur is an
+       optical constant, declared once under "Derived tokens".
        See "Material fallbacks" for the no-blur and Reduce Transparency paths. */
     --material-ultrathin: rgba(44, 44, 46, .55);
     --material-thin: rgba(40, 40, 42, .70);
     --material-regular: rgba(36, 36, 38, .82);
     --material-thick: rgba(30, 30, 32, .92);
-    --material-blur: saturate(180%) blur(30px);
 
     /* --- Type ---------------------------------------------------------------
-       SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
-       on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
-       metrics, and shipping it locally stops Windows falling through to Segoe.
-       One family for everything — Apple sets numbers in SF too, so there is no
-       second "data" face to name: a column of figures is this face plus
-       font-variant-numeric: tabular-nums, which is what .num and .mono below set. */
-    --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
+       The faces themselves (--face-ui, --face-display) are declared with the geometry
+       below the theme blocks, because the Typeface setting changes them and a swatch's
+       own data-theme must not reset them inside it.
 
-    /* The HIG text-style ramp. A call site names the style, never the pixels.
+       The HIG text-style ramp. A call site names the style, never the pixels.
        Each rung is multiplied by --text-scale, the operator's Text size from the
        Window manager — see "Scale" below the theme blocks. */
     --text-largetitle: calc(26px * var(--text-scale));
@@ -137,29 +131,9 @@
     --weight-semibold: 600;
     --weight-bold: 700;
 
-    /* --- Spacing ------------------------------------------------------------
-       One 4px ramp for the whole desk. Steps skip where the eye cannot tell the
-       difference, so every gap is a named rung. Unchanged from the old system —
-       it was already right, and DeskSpace in C# maps onto it. */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 20px;
-    --space-6: 24px;
-    --space-8: 32px;
-    --space-12: 48px;
-    --space-16: 64px;
-
-    --rail-size: 46px;
-    --titlebar-h: 34px;
-
-    /* --- Shape --------------------------------------------------------------
-       Apple's radii are larger than Material's and grow with the surface. */
-    --radius-sm: 5px; /* chips, tags, inline marks */
-    --radius: 7px; /* controls — buttons, fields, selects */
-    --radius-panel: 12px; /* windows, panels, popovers */
-    --radius-sheet: 14px; /* sheets and alerts */
+    /* Spacing, the chrome's heights, control heights and radii live with the geometry
+       below the theme blocks: Density and Shape rescale them, and a swatch's own
+       data-theme must not put them back inside it. */
 
     /* --- Motion -------------------------------------------------------------
        Motion says where a thing came from. A sheet rises, a popover scales out
@@ -206,17 +180,25 @@
        values are not simply paler versions of the dark ones. */
     --sheen: rgba(255, 255, 255, .18); /* over a control that is busy */
     --sheen-soft: rgba(255, 255, 255, .07); /* over a skeleton that is loading */
+    --knob: #FFFFFF; /* a switch's thumb: a light disc in every family, defined by its fill and its shadow, never by hue */
+    /* A key's finish (the buttons' recipe, "gloss"): a 1px light line along its top edge, a
+       sheen that fades out before the label's cap height (so it never stands behind the words
+       it would dim), and the inner shade a key takes while held. The line and the sheen are
+       derived ("Derived tokens", below); the shade is the family's own shadow ink, which no
+       other token carries alone, so every family declares it. */
+    --key-press: rgba(0, 0, 0, .30);
 
     /* Focus. One ring, everywhere, accent-coloured — Apple's own convention.
        ADR 0008 used a chalk ring because an iris ring on an iris key vanished;
        that problem is gone now that filled buttons are the only accent surface
        and the ring sits outside them on an offset. */
-    --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
+    /* The 1px stroke is the accent's ink, not its fill: the fill as a UI colour fell to 2.63:1 over --surface-2 (contrast audit, 20 November); every ink clears 4.5:1 there. */
+    --focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent-ink);
 
     /* The same ring drawn inward, for a row inside a list or a tab inside a strip,
        where the parent clips its overflow and an outer ring would be cut off at
        the edges. Same two strokes, same colours, mirrored — still one ring. */
-    --focus-ring-inset: inset 0 0 0 1px var(--accent), inset 0 0 0 3px var(--accent-wash-strong);
+    --focus-ring-inset: inset 0 0 0 1px var(--accent-ink), inset 0 0 0 3px var(--accent-wash-strong);
 
     /* --- Layers -------------------------------------------------------------
        Deliberately low at the desk level so anything floating has room. */
@@ -225,7 +207,7 @@
     --z-chrome: 8000; /* header, footer, side rail */
     --z-popover: 9000; /* menus anchored to chrome */
     --z-modal: 9500; /* scrim, sheets, alerts */
-    --z-toast: 9800; /* transient notices, always on top */
+    --z-toast: 9800; /* the connection banner and MudBlazor's tooltip tier; the desk's own notices sit in the header (ADR 0028) and spend no tier */
 }
 
 /* ============================================================================
@@ -307,12 +289,6 @@
     --accent-hover: #006ADE;
     --accent-press: #0063CE;
 
-    /* Washes are lighter than the dark desk's: a tint over white composites to a
-       far more saturated result than the same tint over near-black, so holding
-       .15 would have made "selected" shout. */
-    --accent-wash: rgba(0, 113, 235, .12);
-    --accent-wash-strong: rgba(0, 113, 235, .20);
-
     /* Unchanged, and not by accident: this is the ink for any saturated fill, and
        a filled systemBlue button is exactly as saturated in either theme. */
     --on-accent: #FFFFFF;
@@ -321,14 +297,11 @@
        Apple's light-mode system colours. Same rule as the dark desk: spent where
        a state genuinely needs a colour, never as an always-on channel. */
     --state-positive: #34C759;
-    --state-negative: #FF3B30;
+    --state-negative: #DF342A; /* systemRed deepened: the white destructive label reads 4.50:1 */
     /* Deepens rather than lightens, for the reason --accent-hover does. This is
        Apple's own accessible red for light backgrounds. */
     --state-negative-hover: #D70015;
     --state-warning: #FF9500;
-    --state-positive-wash: rgba(52, 199, 89, .15);
-    --state-negative-wash: rgba(255, 59, 48, .15);
-    --state-warning-wash: rgba(255, 149, 0, .15);
 
     /* Ink. Apple's light fills read as areas and fail as words: green 2.22:1,
        orange 2.20, red 3.55 and blue 4.02 on white. The inks are Apple's
@@ -336,7 +309,7 @@
     --state-positive-ink: #00762B; /* 4.61:1 raised, more on the panel */
     --state-warning-ink: #AA4800; /* 4.60:1 raised, more on the panel */
     --state-negative-ink: #CA1227; /* 4.61:1 raised, more on the panel */
-    --accent-ink: #0062CC; /* 5.80:1 */
+    --accent-ink: #0060C8; /* 5.99:1, 4.53 on the strong wash */
 
     /* --- Chart neutrals -----------------------------------------------------
        systemGray holds at #8E8E93 — it is the one step of the ramp that reads on
@@ -350,7 +323,7 @@
        Four tiers, thinnest to thickest, built on white instead of near-black. The
        opacities run a little higher than the dark desk's at every tier because a
        pale material over pale content loses its edge sooner than a dark one does.
-       The blur is identical — it is an optical constant, not a colour.
+       The blur is the dark desk's — an optical constant, declared once below.
 
        The material fallbacks (no blur, Reduce Transparency) need no light branch: every
        rule in them resolves a --surface-* token, and those are redeclared above. */
@@ -358,7 +331,6 @@
     --material-thin: rgba(250, 250, 252, .74);
     --material-regular: rgba(246, 246, 248, .86);
     --material-thick: rgba(242, 242, 247, .94);
-    --material-blur: saturate(180%) blur(30px);
 
     /* --- Depth --------------------------------------------------------------
        Much lighter. A shadow is contrast against the ground, and the dark desk's
@@ -375,6 +347,8 @@
     /* The sweep inverts outright — a white highlight is invisible on white. */
     --sheen: rgba(0, 0, 0, .10);
     --sheen-soft: rgba(0, 0, 0, .05);
+    --knob: #FFFFFF; /* shared with the dark desk, as on Apple's platforms: a switch's thumb is white in either appearance */
+    --key-press: rgba(0, 0, 0, .14);
 }
 
 /* Increase Contrast, on the Standard desk.
@@ -402,6 +376,291 @@
         --separator: rgba(0, 0, 0, .24);
         --text-secondary: rgba(0, 0, 0, .75);
     }
+}
+
+/* ============================================================================
+   Derived tokens — declared once, for every family.
+
+   Some colour tokens are not chosen, they follow: a wash is its fill thinned, a
+   key's top line and sheen are the family's light at a fixed strength, and the
+   blur is an optical constant. Every family used to write them out, value for
+   value, in each of its blocks. They are computed here instead, from the tokens a
+   block does declare, and a block says only the alpha where it departs from these.
+
+   Declared on :root and every [data-theme], never on :root alone. A custom property
+   is resolved where it is declared and inherits resolved: computed only on <html>,
+   a wash would reach a theme swatch or an accent swatch — each carries its own
+   data-theme, and data-accent with it — already mixed from <html>'s accent, not
+   the swatch's. Declared on the attribute, every element that names a family
+   recomputes from its own fill, and an accent block, which redeclares --accent at
+   (0,2,0), gets its washes recomputed with nothing more.
+
+   The alphas default by appearance, to the Standard desk's, and the light rule
+   follows the dark one so that <html> — matched by :root too — takes the light
+   values on a light desk. Every rule here weighs (0,1,0), and the family blocks in
+   themes.css come later at the same weight, so a block's own alpha wins; an accent
+   block's (0,2,0) wins over both. The heavier rules that set these specially still
+   win: Reduce Transparency's and the forced-colours block's blur, and High
+   contrast, whose keys carry their line and sheen at an alpha of 0.
+
+   Thinned with color-mix, which every browser the desk supports reads, rather
+   than relative colour (rgb(from …)), which arrived later: where a browser cannot
+   parse a value the property is invalid at computed time and paints nothing, so a
+   wash written in relative colour was transparent there, and --focus-ring, which
+   holds a wash, dropped whole — no ring at all. Mixed with transparent in sRGB a
+   colour keeps its channels and multiplies its alpha by the share, so an opaque
+   fill at calc(alpha * 100%) is exactly that fill at that alpha: every fill thinned
+   here is opaque in every block. The key's sheen by night is not (next rule).
+   ============================================================================ */
+:root,
+[data-theme] {
+    --accent-wash: color-mix(in srgb, var(--accent) calc(var(--accent-wash-alpha) * 100%), transparent);
+    --accent-wash-strong: color-mix(in srgb, var(--accent) calc(var(--accent-wash-strong-alpha) * 100%), transparent);
+    --state-positive-wash: color-mix(in srgb, var(--state-positive) calc(var(--state-positive-wash-alpha) * 100%), transparent);
+    --state-negative-wash: color-mix(in srgb, var(--state-negative) calc(var(--state-negative-wash-alpha) * 100%), transparent);
+    --state-warning-wash: color-mix(in srgb, var(--state-warning) calc(var(--state-warning-wash-alpha) * 100%), transparent);
+    --material-blur: saturate(180%) blur(30px);
+}
+
+/* By night the line and the sheen are the family's own sheen colour, at their own alpha
+   in place of the sheen's. --sheen is itself translucent, and color-mix would multiply the
+   two alphas rather than replace one with the other, so only relative colour states the
+   finish exactly: it does, in the @supports rule after this one. Here is what a browser
+   without relative colour draws instead — the sheen thinned by the same share, so fainter
+   than the finish but the same hue, and still nothing at an alpha of 0. Decoration only:
+   no ring or wash depends on it. */
+:root,
+[data-theme$="-dark"] {
+    --accent-wash-alpha: .15;
+    --accent-wash-strong-alpha: .24;
+    --state-positive-wash-alpha: .15;
+    --state-negative-wash-alpha: .15;
+    --state-warning-wash-alpha: .15;
+    --key-highlight-alpha: .16;
+    --key-gloss-alpha: .09;
+    --key-highlight: color-mix(in srgb, var(--sheen) calc(var(--key-highlight-alpha) * 100%), transparent);
+    --key-gloss: color-mix(in srgb, var(--sheen) calc(var(--key-gloss-alpha) * 100%), transparent);
+}
+
+/* The exact finish, where relative colour is read. Before the light rule: <html> matches
+   :root here too, and on a light desk the light rule's white must still come last. */
+@supports (color: rgb(from white r g b)) {
+    :root,
+    [data-theme$="-dark"] {
+        --key-highlight: rgb(from var(--sheen) r g b / var(--key-highlight-alpha));
+        --key-gloss: rgb(from var(--sheen) r g b / var(--key-gloss-alpha));
+    }
+}
+
+/* By day the accent washes are lighter: a tint over white composites to a far more
+   saturated result than the same tint over near-black, so holding .15 would have
+   made "selected" shout. The line and the sheen are white, which reads on any pale
+   fill, where the family's sheen is a shade. */
+[data-theme$="-light"] {
+    --accent-wash-alpha: .12;
+    --accent-wash-strong-alpha: .20;
+    --state-positive-wash-alpha: .15;
+    --state-negative-wash-alpha: .15;
+    --state-warning-wash-alpha: .15;
+    --key-highlight-alpha: .55;
+    --key-gloss-alpha: .18;
+    --key-highlight: rgb(255 255 255 / var(--key-highlight-alpha));
+    --key-gloss: rgb(255 255 255 / var(--key-gloss-alpha));
+}
+
+/* Asked for more contrast, every family's keys go flat, as High contrast's are: after the two
+   rules above at the same weight, so it wins over their alphas; no family block but High
+   contrast's (already 0) declares its own. The inner shade of a held key stays. */
+@media (prefers-contrast: more) {
+    :root,
+    [data-theme] {
+        --key-highlight-alpha: 0;
+        --key-gloss-alpha: 0;
+    }
+}
+
+/* ============================================================================
+   Geometry — the desk's make.
+
+   The tokens that are not colours and that the operator can change: the faces,
+   the spacing ramp, the chrome's and the controls' heights, a table cell's
+   padding, the radii and the ground's tint. They sit in a plain :root rule, not
+   in a theme block, for the reason the scales below do: a swatch in the Window
+   manager carries its own data-theme to paint itself, and a block that
+   redeclared these would put the default corners and air back inside it.
+
+   Each setting is one block per position after this one, keyed on its own
+   attribute on <html> — data-shape, data-density, data-font — and never on a
+   [data-theme]: a make belongs to every family. :root plus the attribute weighs
+   (0,2,0), so each wins over this rule wherever it sits. ThemeService stamps
+   them (DeskShape, DeskDensity, DeskTypeface) and theme-boot.js restores them
+   before the first paint; DeskThemeTests holds every enum member to its block
+   and every block to its member.
+   ============================================================================ */
+:root {
+    /* --- Type ---------------------------------------------------------------
+       SF Pro cannot be licensed off Apple platforms, so: real SF via -apple-system
+       on a Mac, bundled Inter everywhere else. Inter is the closest legal match on
+       metrics, and shipping it locally stops Windows falling through to Segoe.
+       One family for everything — Apple sets numbers in SF too, so there is no
+       second "data" face to name: a column of figures is this face plus
+       font-variant-numeric: tabular-nums, which is what .num and .mono below set.
+       --face-display is the titles' face; it is the same face until a Typeface
+       gives the titles a cut of their own. */
+    --face-ui: -apple-system, BlinkMacSystemFont, 'Inter var', 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --face-display: var(--face-ui);
+
+    /* --- Spacing ------------------------------------------------------------
+       One 4px ramp for the whole desk. Steps skip where the eye cannot tell the
+       difference, so every gap is a named rung. Unchanged from the old system —
+       it was already right, and DeskSpace in C# maps onto it. */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    --rail-size: 46px;
+    --titlebar-h: 34px;
+    --header-h: calc(var(--titlebar-h) + var(--space-4)); /* the header bar: a title bar plus a --space-4 of air */
+    --footer-h: 38px; /* the status bar under the desk; the connection banner stands above it */
+    /* A window body's padding: 14px at Standard, as it was before the spacing became tokens, and
+       half a --space-1 short of --space-4 at every density (10.5px Compact, 17.5px Roomy). Written
+       once because a pinned table header cancels it (.grid th's top), and two copies drifted. */
+    --win-pad: calc(var(--space-4) - var(--space-1) / 2);
+
+    /* --- Controls -----------------------------------------------------------
+       The heights every key, field, gate, pop-up and row is drawn at. 28px is the
+       toolbar control (audit §5); small is a key inside a 29px grid row; large
+       leads its window. --row-h is a settings row's floor. A table cell's
+       padding is its own pair rather than --space-1, because a grid row is a
+       target and must not shrink with the gaps around it. */
+    --control-h: 28px;
+    --control-h-sm: 24px;
+    --control-h-lg: 34px;
+    --row-h: 36px;
+    --cell-pad-y: 4px;
+    --cell-inset: 10px;
+
+    /* --- Shape --------------------------------------------------------------
+       Apple's radii are larger than Material's and grow with the surface.
+       --radius-xs is the plate inside a control — a tab's marble, a hover plate —
+       so it moves with the shape rather than staying 4px under a Sharp desk. */
+    --radius-xs: 4px; /* plates inside a control */
+    --radius-sm: 5px; /* chips, tags, inline marks */
+    --radius: 7px; /* controls — buttons, fields, selects */
+    --radius-panel: 12px; /* windows, panels, popovers */
+    --radius-sheet: 14px; /* sheets and alerts */
+    /* The air a container keeps round the rows inside it, and so what a row's corner gives up to
+       stay concentric with the container's: child radius = container radius - inset (HIG,
+       Toolbars). It is the containers' --space-1, so it follows Density as their padding does.
+       Where a container's corner is smaller than the inset (Sharp), the calc goes negative and
+       the browser clamps it to a square corner, which is the concentric answer. */
+    --radius-inset: var(--space-1);
+
+    /* --- Ground -------------------------------------------------------------
+       How much of the accent the Gradient backdrop mixes into the ground at its
+       brightest. ThemeContrastTests reads this figure and holds secondary text to
+       4.5:1 over the mix on every desk in every accent. */
+    --backdrop-tint: 9%;
+}
+
+/* ---- Shape ---------------------------------------------------------------------
+   DeskShape. Every radius moves together, so the ladder keeps its order and an
+   inner corner written from an outer one stays concentric. Switches, radios, dots
+   and swatches are circles and capsules (50%, 999px), not corners, and no shape
+   touches them: a square switch reads as a checkbox. */
+:root[data-shape="sharp"] {
+    --radius-xs: 1px;
+    --radius-sm: 2px;
+    --radius: 3px;
+    --radius-panel: 4px;
+    --radius-sheet: 6px;
+}
+
+:root[data-shape="round"] {
+    --radius-xs: 7px;
+    --radius-sm: 8px;
+    --radius: 11px;
+    --radius-panel: 18px;
+    --radius-sheet: 22px;
+}
+
+/* ---- Density -------------------------------------------------------------------
+   DeskDensity. Compact takes a quarter of the air out of the ramp and the chrome.
+   The toolbar control, the small key and a table cell's padding stay where Standard
+   has them; only the large key, a settings row's floor and the title bar come
+   down, to 30px, so nothing Standard draws at 28px or more falls under 28px.
+   Roomy adds a quarter of the air and grows the targets with it. --header-h is written from
+   --titlebar-h and --space-4 on the same element, so it follows on its own. */
+:root[data-density="compact"] {
+    --space-1: 3px;
+    --space-2: 6px;
+    --space-3: 9px;
+    --space-4: 12px;
+    --space-5: 15px;
+    --space-6: 18px;
+    --space-8: 24px;
+    --space-12: 36px;
+    --space-16: 48px;
+
+    --titlebar-h: 30px;
+    --footer-h: 32px;
+
+    --control-h: 28px;
+    --control-h-sm: 24px;
+    --control-h-lg: 30px;
+    --row-h: 30px;
+    --cell-pad-y: 4px;
+    --cell-inset: 8px;
+}
+
+:root[data-density="roomy"] {
+    --space-1: 5px;
+    --space-2: 10px;
+    --space-3: 15px;
+    --space-4: 20px;
+    --space-5: 25px;
+    --space-6: 30px;
+    --space-8: 40px;
+    --space-12: 60px;
+    --space-16: 80px;
+
+    --titlebar-h: 40px;
+    --footer-h: 44px;
+
+    --control-h: 32px;
+    --control-h-sm: 28px;
+    --control-h-lg: 38px;
+    --row-h: 44px;
+    --cell-pad-y: 8px;
+    --cell-inset: 12px;
+}
+
+/* ---- Typeface ------------------------------------------------------------------
+   DeskTypeface. Local stacks only — faces the machine already has, named in the
+   order a Mac, Windows 11 and the rest carry them — so choosing one fetches
+   nothing. Each lands on something visibly its own on Windows: Calibri, Sitka
+   (Cambria where it is missing), Cascadia Mono (Consolas). Cascadia Mono before
+   Cascadia Code, so no ligature joins two figures. Figures stay tabular: every
+   column that needs them sets tabular-nums itself, in whatever face. */
+:root[data-font="humanist"] {
+    --face-ui: Seravek, 'Gill Sans Nova', Ubuntu, Calibri, 'DejaVu Sans', 'Segoe UI', sans-serif;
+    --face-display: var(--face-ui);
+}
+
+:root[data-font="serif"] {
+    --face-ui: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+    --face-display: ui-serif, 'New York', Charter, 'Sitka Heading', Cambria, Georgia, serif;
+}
+
+:root[data-font="mono"] {
+    --face-ui: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', monospace;
+    --face-display: var(--face-ui);
 }
 
 /* ============================================================================
@@ -479,7 +738,23 @@ html, body {
     letter-spacing: 0;
 }
 
-/* Motion is a signal, not a flourish, so it goes away entirely when asked. */
+/* Selected text is a selection, so it takes the accent, as every other selection on the desk
+   does: the strong wash behind the primary ink, which DeskThemeTests holds above 4.5:1 on every
+   desk. The browser's own selection blue ignores the desk, and on half the families clashes with
+   it. The caret is the insertion point, the one place the eye is when typing, so it is the accent
+   too — its ink, as the focus ring's stroke is, because a one-pixel line is read as text is, and
+   --accent is a fill tuned for a label on it, not for a line on the panel. Both are forced to
+   system colours under a contrast theme, which is right. */
+::selection {
+    background: var(--accent-wash-strong);
+    color: var(--text-primary);
+}
+
+input, textarea, [contenteditable] { caret-color: var(--accent-ink); }
+
+/* Motion is a signal, not a flourish, so it goes away entirely when asked. The view-transition
+   pseudo-elements are not matched by *, so the theme switch's cross-fade is named here too
+   (theme.js also declines to start one under this preference; this is the stylesheet's half). */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         animation-duration: .01ms !important;
@@ -487,6 +762,24 @@ html, body {
         transition-duration: .01ms !important;
         scroll-behavior: auto !important;
     }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}
+
+/* The theme switch, cross-faded. ThemeService opens a view transition around an operator's
+   change of Mode, Theme, Accent or Glass (theme.js beginTransition): the browser photographs the
+   desk, the attribute changes under the photograph, and the old desk fades into the new. The
+   browser's own animation for the root is already a plain cross-fade; this only puts it on the
+   desk's tempo, a state change rather than a scene change. Nothing on the desk carries a
+   view-transition-name, so the whole page fades as one picture and nothing travels. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: var(--dur-base);
+    animation-timing-function: var(--ease-standard);
 }
 
 /* --------------------------------------------------------------- shell ---- */
@@ -513,7 +806,7 @@ html, body {
        them, which is where "jammed into itself" came from: a strip you could not
        hit and could not read. A title bar plus a --space-4 of air is the same
        measure the window below uses, so the chrome agrees with itself. */
-    height: calc(var(--titlebar-h) + var(--space-4));
+    height: var(--header-h);
     padding: 0 var(--space-3);
     position: relative;
     border-bottom: 1px solid var(--separator);
@@ -549,11 +842,10 @@ html, body {
     display: flex;
     align-items: center;
     gap: var(--space-1);
-    /* Shrinks only by the notice's sentence, the one thing in it that can give; every key
-       keeps its size. The large factor makes it give before the window strip does (.bar).
-       Its floor is the automatic one — its keys, the sentence having none — so once the
-       sentence is gone the strip gives way rather than the cluster spilling its keys and the
-       count past the header's edge. */
+    /* Every key keeps its size: nothing in the cluster can give (the notice's sentence that
+       once could is a toast in the Activities stack now, ADR 0028). Its floor is the automatic
+       one — its keys — so the strip, and before it the Activities slot, gives way rather than
+       the cluster spilling its keys and the count past the header's edge. */
     flex: 0 50 auto;
 }
 
@@ -577,7 +869,7 @@ html, body {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    height: 28px;
+    height: var(--control-h);
     padding: 0 var(--space-2) 0 0;
     background: none;
     border: 0;
@@ -658,10 +950,10 @@ html, body {
     display: flex;
     align-items: center;
     /* Based just above the width its group names need (the 700px container rule below folds
-       them to chevrons), so the header's other shrinkable thing — the notice's sentence, in
-       .hdr__tools, which shrinks fifty times as fast — gives way first. Based at auto, both
-       shrank in proportion and a notice folded every group name on a 1280px desk; based at
-       700px exactly, the bar's small share of the shrink still took it to 698. */
+       them to chevrons). Based at auto it shrank with whatever else could, and a notice once
+       folded every group name on a 1280px desk; based at 700px exactly, its small share of a
+       shrink still took it to 698. The Activities slot beside it is based at 0, so it only
+       ever takes width the bar's basis leaves over (ADR 0028). */
     flex: 1 1 720px;
     min-width: 0;
     /* The strip measures itself against the bar, not the viewport: what matters is
@@ -736,12 +1028,12 @@ html, body {
    --bar-tight, where the alternative is a strip that scrolls. */
 .bar__key {
     position: relative;
-    height: 28px;
+    height: var(--control-h);
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
     flex: 0 1 auto;
-    min-width: 28px;
+    min-width: var(--control-h);
     padding: 0 var(--space-2);
     background: none;
     border: 0;
@@ -850,14 +1142,14 @@ html, body {
 
 .bar__group {
     position: relative;
-    height: 28px;
+    height: var(--control-h);
     display: inline-flex;
     align-items: center;
     gap: 2px;
     padding: 0 var(--space-2) 0 var(--space-3);
     background: none;
     border: 0;
-    border-radius: var(--radius-sm);
+    border-radius: calc(var(--radius) - var(--radius-inset)); /* concentric with .bar__strip's */
     color: var(--text-secondary);
     cursor: pointer;
     font-family: var(--face-ui);
@@ -938,13 +1230,17 @@ html, body {
 .bar__menu:hover .bar__menu-panel,
 .bar__menu--pinned .bar__menu-panel { display: flex; }
 
-/* Inside a drawer every key is a full-width row, named. */
+/* Inside a drawer every key is a full-width row, named, its corner concentric with the
+   drawer's; the plate that glides under the rows wears the same corner. */
 .bar__menu-panel .bar__key {
     width: 100%;
-    height: 30px;
+    height: calc(var(--control-h) + 2px);
     justify-content: flex-start;
     padding: 0 var(--space-2);
+    border-radius: calc(var(--radius-panel) - var(--radius-inset));
 }
+
+.bar__menu-panel > .glide-plate { border-radius: calc(var(--radius-panel) - var(--radius-inset)); }
 
 .bar__menu-panel .bar__key-name { display: block; }
 
@@ -959,9 +1255,9 @@ html, body {
    specificity and a redeclaration here would silently win over — and undo — the rail
    decision, no matter what the base rule says. */
 .hdr__tools .rail__btn {
-    width: 28px;
-    height: 28px;
-    flex: 0 0 auto; /* the cluster may shrink for the eviction notice; its keys never do */
+    width: var(--control-h);
+    height: var(--control-h);
+    flex: 0 0 auto; /* the keys never shrink */
 }
 
 .hdr__tools .rail__btn svg { width: 17px; height: 17px; }
@@ -1008,80 +1304,350 @@ html, body {
 
 .hdr__count--full { color: var(--state-warning-ink); }
 
-/* A window closed to make room, said beside the count that closed it. It sat in the footer;
-   the HIG keeps a bottom bar for status that is never critical, and a window vanishing is
-   the one thing on the desk that must be seen. One line in the warning wash, which is its
-   whole grouping — an edge as well would frame the keys inside it. The sentence gives way
-   first and keeps its whole self as the title; the keys never do. So the notice's own floor
-   is its automatic one — the icon and the two keys, the sentence having none — and not 0,
-   which let it shrink under its keys at a 1024px window until "Reopen …" ran over the count
-   beside it (HIG audit, 17 November). */
-.hdr__notice {
+/* ---- Activities (DeskToastStack, ADR 0028) ---------------------------------
+   The desk's notices — "Activities" to the operator — live in the header bar, in the stretch the
+   window strip leaves free before the desk's own keys. The slot takes that stretch and nothing
+   else: it grows into free space (flex-basis 0) and never shrinks the strip, the wordmark or the
+   keys, so a notice never covers or displaces them. It is its own container, so what it draws
+   follows the width it was actually given, not the viewport's.
+
+   One capsule a title bar tall. The count's key leads (a bare figure while folded); the newest
+   is in front, its words and its key cut to one line; up to two more show as edges stepped out
+   to its right, the rest folded away. Pointing at the stack, focusing into it, or pressing the
+   count fans it: the capsule becomes the line "Activities · 4" with Clear all, and the list drops
+   beneath it as a popover would, newest at the top, every notice whole and wrapped.
+
+   Where the slot is too narrow for a notice, the capsule folds to its key alone, "Activities ·
+   4", which drops the same list. It never floats over the desk.
+
+   Layers: the slot is part of the header (inside .shell), so an open alert's or sheet's scrim and
+   the palette lie over it as they lie over the header. The fanned list has no z-index of its own:
+   the header's menus and drawers (z-index 1 and up inside the header) draw over it, so an open
+   menu is never covered by it.
+
+   The capsule is one floating material with one hairline, as a popover is; the state is on the
+   icon and the key, never a coloured panel. The fanned list is one such surface, its rows
+   divided by inset hairlines, not framed again. */
+.toasts {
+    --toast-step: 6px;
+
+    container: activities / inline-size;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 9 1 0;
+    /* Room for the key alone, "Activities · 12", where the stretch is narrowest: fifteen
+       characters at the key's footnote size and its two paddings. 128px held it in the system
+       face, but a monospace character is about .6em wide, so under Mono at a larger Text size the
+       words outgrew it; written in the key's own size, the floor grows with the words. */
+    min-width: max(128px, calc(var(--text-footnote) * 9.6 + 2 * var(--space-2)));
+    height: var(--titlebar-h);
+    font-family: var(--face-ui);
+}
+
+/* The capsule: the count, Clear all and the list — what the pointer and focus are heard on
+   (DeskToastStack), as wide as what it holds, at the slot's trailing end. The fanned list hangs
+   from it. */
+.toasts__capsule {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-1);
     flex: 0 1 auto;
-    max-width: 420px;
-    padding: 0 var(--space-1) 0 var(--space-2); /* its 24px keys set its height */
-    background: var(--state-warning-wash);
-    border-radius: var(--radius-sm);
-    color: var(--state-warning-ink);
-    font-size: var(--text-footnote);
+    min-width: 0;
+    max-width: 100%;
+    height: 100%;
 }
 
-.hdr__notice svg { width: 14px; height: 14px; flex: 0 0 auto; }
+/* The gap between the capsule and the list beneath it is part of the capsule, so a pointer
+   crossing it never leaves (the component also waits LeaveGrace before it hears a leave). */
+.toasts--fanned .toasts__capsule::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: calc(var(--space-2) + 1px);
+}
 
-/* One line, clamped, but allowed to wrap between words: an unwrappable sentence counts its
-   whole length as the least it can take, which became the tools cluster's floor and folded
-   the window strip to chevrons. Wrapping lets its least be one word ("Closed…"), and the
-   clamp keeps it to the line. */
-.hdr__notice-text {
+.toasts__list {
+    position: relative;
+    /* The layers' own order stays inside the capsule: their z-indexes must not reach the
+       header's, where they would stand over a drawer. */
+    isolation: isolate;
+    display: flex;
     flex: 0 1 auto;
     min-width: 0;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
+    max-width: 440px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-/* The way back, said where the closing is. A plain key: its semibold words on the wash say
-   it can be pressed, with no outline drawn inside the notice's fill. */
-.hdr__notice-undo {
-    flex: 0 0 auto;
-    height: 24px;
+/* Room to the right of the front notice for the two edges behind it. */
+.toasts--stacked:not(.toasts--fanned) .toasts__list { padding-right: calc(2 * var(--toast-step)); }
+
+.toast {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    height: var(--titlebar-h);
+    box-sizing: border-box;
+    padding: 0 var(--space-1) 0 var(--space-3);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    /* A panel's corner, held under three quarters of half the notice's height: Round's 18px is more
+       than half a 34px title bar, and a notice rounded past half its height is a capsule — a
+       control's shape, not a surface's. 12px at Standard as before; 12.75px at most under Round. */
+    border-radius: min(var(--radius-panel), calc(var(--titlebar-h) * .375));
+    box-shadow: var(--shadow-1);
+    color: var(--text-primary);
+    font-size: var(--text-subheadline);
+    transition: translate var(--dur-base) var(--ease-standard),
+                scale var(--dur-base) var(--ease-standard),
+                opacity var(--dur-base) var(--ease-standard);
+    animation: toast-arrive var(--dur-slow) var(--ease-enter);
+}
+
+/* The front notice is the capsule's size; those behind take its box and step out to its right,
+   a little shorter each, so their edges read as layers rather than a second capsule. */
+.toast--front { z-index: 3; flex: 0 1 auto; max-width: 100%; }
+
+.toast--behind {
+    position: absolute;
+    inset: 0 calc(2 * var(--toast-step)) 0 0; /* the front notice's box, inside the list's padding */
+    pointer-events: none;
+    box-shadow: none;
+}
+
+.toast--behind > * { visibility: hidden; }
+
+.toast--depth-1 { z-index: 2; translate: var(--toast-step) 0; scale: 1 .88; opacity: .9; }
+.toast--depth-2 { z-index: 1; translate: calc(2 * var(--toast-step)) 0; scale: 1 .76; opacity: .7; }
+.toast--deep { z-index: 0; translate: calc(2 * var(--toast-step)) 0; scale: 1 .76; opacity: 0; }
+
+/* Fanned (DeskToastStack.Fanned, the one source; .toasts--fanned): the list drops beneath the
+   capsule, newest at the top. Its height is held to half the screen, scrolling past that. */
+.toasts--fanned .toasts__list {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    flex-direction: column;
+    width: min(400px, calc(100vw - 2 * var(--space-4)));
+    max-width: none;
+    max-height: 50vh;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: var(--space-1);
+    background: var(--material-regular);
+    backdrop-filter: var(--material-blur);
+    -webkit-backdrop-filter: var(--material-blur);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-3);
+    scrollbar-width: thin;
+}
+
+.toasts--fanned .toast {
+    position: relative;
+    inset: auto;
+    translate: none;
+    scale: none;
+    opacity: 1;
+    pointer-events: auto;
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+    height: auto;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-1) var(--space-2) var(--space-2);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: none;
+    animation: none;
+}
+
+.toasts--fanned .toast > * { visibility: visible; }
+
+/* Rows parted by an inset hairline, the list's own edge being the one frame. */
+.toasts--fanned .toast + .toast::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--space-2);
+    right: var(--space-2);
+    height: 1px;
+    background: var(--separator);
+}
+
+.toast__icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--text-secondary);
+}
+
+.toast__icon svg { width: 16px; height: 16px; }
+
+.toast--positive .toast__icon { color: var(--state-positive-ink); }
+.toast--negative .toast__icon { color: var(--state-negative-ink); }
+.toast--warning .toast__icon { color: var(--state-warning-ink); }
+.toast--info .toast__icon { color: var(--accent-ink); }
+
+/* In the capsule the words are one line, cut with an ellipsis, and keep a few words' width
+   however long the key beside them: the key gives way first (max-width below). Fanned, they
+   wrap by words; never by letters, which is what overflow-wrap: anywhere did when a long key
+   left them a character's width — a notice 800px tall. */
+.toast__text {
+    flex: 1 1 auto;
+    min-width: 8ch;
+    margin: 0;
+    line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.toasts--fanned .toast__text {
+    flex: 1 1 12rem;
+    min-width: 12ch;
+    white-space: normal;
+    overflow: visible;
+    overflow-wrap: break-word;
+}
+
+/* The one key: plain, semibold, in the accent's ink — it is the notice's one interaction. The
+   count and the dismiss are quieter keys beside it. */
+.toast__action,
+.toasts__clear,
+.toast__count,
+.toast__dismiss {
+    flex: none;
+    height: var(--control-h);
+    margin: 0;
     padding: 0 var(--space-2);
-    background: none;
+    background: transparent;
     border: 0;
     border-radius: var(--radius-sm);
-    color: var(--state-warning-ink);
     font: inherit;
-    font-weight: var(--weight-semibold);
-    white-space: nowrap;
     cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
 }
 
-.hdr__notice-dismiss {
-    flex: 0 0 auto;
+.toast__action {
+    flex: 0 1 auto;
+    min-width: 0;
+    /* A long key is cut with an ellipsis rather than squeezing the words; its whole label is
+       its title and its name. Fanned, it may take a line of its own under the words. */
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--accent-ink);
+    font-weight: var(--weight-semibold);
+}
+
+.toasts--fanned .toast__action { max-width: 100%; }
+
+.toasts__clear {
+    display: none;
+    color: var(--accent-ink);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+}
+
+.toasts--fanned .toasts__clear { display: inline-flex; align-items: center; }
+
+/* How many are layered: a figure in secondary ink, not a badge (HIG, Notifications). Shown
+   beside the layers when there are layers; once fanned, or where only the key fits, it says
+   "Activities · 4" in words. */
+.toast__count {
+    display: none;
+    align-items: center;
+    min-width: var(--control-h);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.toasts--stacked .toast__count,
+.toasts--fanned .toast__count { display: inline-flex; }
+
+.toast__count .toasts__title { display: none; }
+.toasts--fanned .toast__count .toasts__title { display: inline; }
+.toasts--fanned .toast__count-figure { display: none; }
+
+.toast__dismiss {
     display: grid;
     place-items: center;
-    width: 24px;
-    height: 24px;
+    width: var(--control-h);
     padding: 0;
-    background: none;
-    border: 0;
-    border-radius: var(--radius-sm);
-    color: var(--state-warning-ink);
-    cursor: pointer;
+    color: var(--text-secondary);
 }
 
-.hdr__notice-dismiss svg { width: 13px; height: 13px; }
+.toast__dismiss svg { width: 14px; height: 14px; }
 
-.hdr__notice-undo:hover,
-.hdr__notice-dismiss:hover { color: var(--text-primary); }
+:is(.toast__action, .toasts__clear, .toast__count, .toast__dismiss):hover {
+    background: color-mix(in srgb, var(--text-primary) 9%, transparent);
+}
 
-.hdr__notice-undo:focus-visible,
-.hdr__notice-dismiss:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+:is(.toast__count, .toast__dismiss):hover { color: var(--text-primary); }
+
+:is(.toast__action, .toasts__clear, .toast__count, .toast__dismiss):focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Too narrow for a notice: the key alone, in words, which drops the list as the capsule does. */
+@container activities (max-width: 240px) {
+    .toasts:not(.toasts--fanned) .toasts__list { display: none; }
+    .toast__count { display: inline-flex; }
+    .toast__count .toasts__title { display: inline; }
+    .toast__count-figure { display: none; }
+}
+
+/* It slides in along the bar from the keys' side and settles, a little past and back: an
+   arrival the eye catches, over in a third of a second, without leaving the bar. */
+@keyframes toast-arrive {
+    from { opacity: 0; transform: translateX(16px) scale(.98); }
+    70% { opacity: 1; transform: translateX(-2px) scale(1); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes toast-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Reduced motion: no slide and no fan motion — the layers change place at once, and a notice fades. */
+@media (prefers-reduced-motion: reduce) {
+    .toast { transition: none; animation-name: toast-fade; }
+    :is(.toast__action, .toasts__clear, .toast__count, .toast__dismiss) { transition: none; }
+}
+
+/* Where the material cannot blur, the raised-row tier reads as a surface on its own. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .toast,
+    .toasts--fanned .toasts__list { background: var(--surface-2); }
+}
+
+/* An empty stack is on the page so that leaving it is always heard, and takes nothing. */
+/* An empty stack takes no room and no pointer: the strip and the keys keep the header to
+   themselves until there is something to say. */
+.toasts--empty {
+    flex: 0 0 0;
+    min-width: 0;
+    pointer-events: none;
+}
+
 
 /* ---- The marble -----------------------------------------------------------
    The travel shared by every control that holds one choice among a few: the
@@ -1174,7 +1740,7 @@ html, body {
     position: relative; /* above the cap */
     z-index: 1;
     padding: 0 var(--space-3);
-    height: 24px; /* + the track's 2px each side = a 28px control, the toolbar height (audit §5) */
+    height: calc(var(--control-h) - 4px); /* + the track's 2px each side = a --control-h control, the toolbar height (audit §5) */
     border: none;
     background: transparent;
     color: var(--text-secondary);
@@ -1200,10 +1766,10 @@ html, body {
 
 /* Small keeps the 24px option, so a small gate is still a 28px toolbar control (a log's and
    a list's filters sit in toolbars); it is smaller in type and padding, not in hit region. */
-.gate--sm .gate__opt { height: 24px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.gate--sm .gate__opt { height: calc(var(--control-h) - 4px); padding: 0 var(--space-2); font-size: var(--text-footnote); }
 /* Large is deliberately taller than a toolbar control: a 32px gate (28px + the track) for a
    choice that leads its window rather than sitting in a toolbar beside 28px keys. */
-.gate--lg .gate__opt { height: 28px; padding: 0 var(--space-4); font-size: var(--text-body); }
+.gate--lg .gate__opt { height: calc(var(--control-h-lg) - 6px); padding: 0 var(--space-4); font-size: var(--text-body); }
 
 @media (prefers-reduced-motion: reduce) {
     .marble.gate__cap { transition: none; }
@@ -1235,7 +1801,7 @@ html, body {
        tabs lead the content column the way a tab view's control sits over its pane. */
     max-width: 480px;
     padding: 3px 0;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
     border-bottom: 1px solid var(--separator);
 }
 
@@ -1249,18 +1815,18 @@ html, body {
     bottom: 3px;
     left: 0;
     background: var(--accent-wash);
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
 }
 
 /* Title-style nouns, as the HIG labels a tab view: "Order", "Cart · 2" — not an all-caps,
    tracked eyebrow, a label style the desk no longer uses anywhere. */
 .tabs__tab {
     min-width: 0;
-    height: 28px;
+    height: var(--control-h);
     padding: 0 var(--space-3);
     background: none;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     font-family: var(--face-ui);
     font-size: var(--text-subheadline);
@@ -1315,7 +1881,7 @@ html, body {
                                inside; that border is gone, and the plate is now sized
                                from JS in explicit pixels, so this only guards a future
                                variant that grows one back */
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: var(--surface-3);
     opacity: 0;
     pointer-events: none;
@@ -1343,10 +1909,11 @@ html, body {
    neutral hover fill as the default plate. The border is dropped outright: hairlines in
    this system separate, they never outline, and a filled plate with no border reads as a
    fill rather than an outlined chip. The current tab it slides past keeps its own accent
-   wash (.tab--current), and sits a layer above this plate. */
+   wash (.tab--current), and sits a layer above this plate. Its one host is the window strip's
+   run, so it wears the strip's keys' corner: concentric with the strip's. */
 .glide-plate--marble {
     background: var(--surface-3);
-    border-radius: var(--radius);
+    border-radius: calc(var(--radius) - var(--radius-inset));
 }
 
 /* While the plate is live it is the hover signal, so the per-control
@@ -1367,7 +1934,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    height: 38px;
+    height: var(--footer-h);
     padding: 0 var(--space-3);
     background: var(--material-thin);
     backdrop-filter: var(--material-blur);
@@ -1400,10 +1967,38 @@ html, body {
     overflow: auto;
 
     /* A faint dot grid. Windows read as *placed* rather than floating, and it gives
-       the eye a reference when dragging. Deliberately near-invisible. */
+       the eye a reference when dragging. Deliberately near-invisible. It is the Dots
+       backdrop, the default, so it stamps nothing; the others follow. */
     background-color: var(--surface-0);
     background-image: radial-gradient(var(--surface-3) 1px, transparent 1px);
     background-size: 22px 22px;
+    background-position: -1px -1px;
+}
+
+/* The backdrop (DeskBackdrop): what the ground carries behind the windows, on .desk alone.
+   Windows are opaque and chrome is material, so nothing printed on a window sits on it; the
+   empty desk's start screen does, and every pattern is a token its secondary text is already
+   held to — --surface-2 for the grid's lines, --surface-3 for the dots, and the accent mixed into
+   the ground at --backdrop-tint for the glow, which ThemeContrastTests measures on every desk in
+   every accent. Keyed on data-backdrop, never on a family: it is drawn in whichever is showing.
+   A Windows contrast theme gets the plain ground (the forced-colours block, at the end). */
+:root[data-backdrop="plain"] .desk { background-image: none; }
+
+:root[data-backdrop="gradient"] .desk {
+    background-image: radial-gradient(
+        120% 90% at 50% 0%,
+        color-mix(in srgb, var(--accent) var(--backdrop-tint), var(--surface-0)),
+        var(--surface-0) 72%);
+    background-size: auto;
+    background-position: 0 0;
+    background-attachment: local;
+}
+
+:root[data-backdrop="grid"] .desk {
+    background-image:
+        linear-gradient(var(--surface-2) 1px, transparent 1px),
+        linear-gradient(90deg, var(--surface-2) 1px, transparent 1px);
+    background-size: 24px 24px;
     background-position: -1px -1px;
 }
 
@@ -1422,22 +2017,40 @@ html, body {
     min-height: 100%;
 }
 
-/* Empty desk: an invitation to act, not a shrug. */
+/* Empty desk: a way into a workflow, not a paragraph about the desk (HIG, Onboarding).
+   One centred column held to a reading measure, so it reads the same at 2400px as at 700px:
+   the wordmark, a headline and one sentence; the first workspace as a card with the page's one
+   Filled key; the others as a grouped list of rows; a quieter line for a single window and the
+   palette; and the desk's mechanics folded into a disclosure. The column scrolls when the desk
+   is shorter than it, and centres when it is not. */
 .desk-empty {
     position: absolute;
     inset: 0;
     display: flex;
+    overflow-y: auto;
+    padding: var(--space-6) var(--space-4);
+}
+
+.desk-empty__inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    width: min(640px, 100%);
+    margin: auto;
+}
+
+.desk-empty__lead {
+    display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: var(--space-5);
+    gap: var(--space-2);
     text-align: center;
-    padding: var(--space-6);
 }
 
 .desk-empty__mark {
-    font-family: var(--face-ui);
-    font-size: clamp(38px, 7vw, 78px);
+    margin-bottom: var(--space-2);
+    font-family: var(--face-display);
+    font-size: clamp(32px, 5vw, 56px);
     font-weight: var(--weight-bold);
     font-stretch: 112%;
     letter-spacing: -.03em;
@@ -1451,10 +2064,216 @@ html, body {
     color: var(--accent-ink);
 }
 
-.desk-empty__hint {
+.desk-empty__headline {
+    font-family: var(--face-display);
+    margin: 0;
+    color: var(--text-primary);
+    font-size: var(--text-largetitle);
+    font-weight: var(--weight-bold);
+    line-height: 1.2;
+}
+
+.desk-empty__sub {
+    margin: 0;
+    max-width: 52ch;
     color: var(--text-secondary);
-    max-width: 44ch;
-    line-height: 1.55;
+    font-size: var(--text-body);
+    line-height: 1.5;
+}
+
+/* The first workspace: a card — the surface a window's body is, one hairline — with its icon in
+   an accent plate, its name, its sentence, the windows it opens and the Filled key. */
+.desk-empty__featured {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface-1);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+}
+
+.desk-empty__icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+}
+
+.desk-empty__icon svg { width: 18px; height: 18px; }
+
+.desk-empty__icon--featured {
+    width: 40px;
+    height: 40px;
+    background: var(--accent-wash);
+    color: var(--accent-ink);
+}
+
+.desk-empty__icon--featured svg { width: 22px; height: 22px; }
+
+.desk-empty__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    text-align: left;
+}
+
+.desk-empty__name {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    line-height: 1.35;
+}
+
+.desk-empty__featured .desk-empty__name { font-size: var(--text-title2); }
+
+.desk-empty__desc {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-subheadline);
+    line-height: 1.45;
+}
+
+.desk-empty__windows {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: var(--text-footnote);
+    line-height: 1.45;
+}
+
+.desk-empty__go { justify-self: end; }
+
+/* The other workspaces: one group, one hairline, rows parted by inset rules. */
+.desk-empty__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.desk-empty__heading {
+    margin: 0;
+    padding: 0 var(--space-3);
+    color: var(--text-secondary);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+}
+
+.desk-empty__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: var(--surface-1);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+}
+
+.desk-empty__item + .desk-empty__item .desk-empty__row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: calc(var(--space-4) + 28px + var(--space-3)); /* inset to the label's edge */
+    right: 0;
+    height: 1px;
+    background: var(--separator);
+}
+
+.desk-empty__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.desk-empty__row:hover { background: var(--accent-wash); }
+.desk-empty__row:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+
+.desk-empty__row .desk-empty__body { flex: 1 1 auto; }
+
+.desk-empty__chevron {
+    display: inline-flex;
+    flex: none;
+    color: var(--text-tertiary);
+}
+
+.desk-empty__chevron svg { width: 18px; height: 18px; }
+
+/* The quieter way in: one window, or the palette. */
+.desk-empty__single {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1) var(--space-2);
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--text-subheadline);
+}
+
+.desk-empty__single kbd {
+    display: inline-block;
+    min-width: 20px;
+    margin: 0 1px;
+    padding: 0 var(--space-1);
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--face-ui);
+    font-size: var(--text-footnote);
+    font-weight: var(--weight-semibold);
+    line-height: 18px;
+    text-align: center;
+}
+
+/* The desk's mechanics, for whoever wants them, and out of the way of whoever does not. */
+.desk-empty__how {
+    align-self: center;
+    max-width: 52ch;
+    color: var(--text-secondary);
+    font-size: var(--text-subheadline);
+}
+
+.desk-empty__facts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-4);
+    line-height: 1.5;
+}
+
+/* A narrow desk: the featured card stacks its key under its words, at the card's full width. */
+
+@media (max-width: 560px) {
+    .desk-empty__featured { grid-template-columns: auto 1fr; }
+    .desk-empty__go { grid-column: 1 / -1; justify-self: stretch; }
+}
+
+/* Under 720px the desk scrolls as one column with no fixed height, so the empty desk is in the
+   flow rather than laid over a surface that has none. */
+@media (max-width: 720px) {
+    .desk-empty { position: relative; inset: auto; padding: var(--space-4) var(--space-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .desk-empty__row { transition: none; }
 }
 
 /* -------------------------------------------------------------- window ---- */
@@ -1480,7 +2299,7 @@ html, body {
     overflow: clip;
     z-index: var(--z-window);
     /* left/width transition is what makes the row "settle" after a reorder, a resize
-       commit, an eviction, or a close — every tab slides to its new slot instead of
+       commit, a new column, or a close — every column slides to its new slot instead of
        jumping. Suppressed during the two live gestures below, where a transition would
        lag a frame behind the pointer instead of tracking it. */
     transition: left var(--dur-fast) var(--ease-standard), width var(--dur-fast) var(--ease-standard);
@@ -1498,6 +2317,37 @@ body.splitting .win, body.tab-dragging .win { transition: none; user-select: non
 }
 
 body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
+
+/* The window a dragged tab will join if let go now: the middle of a window takes it as a tab,
+   its outer quarters still move it beside (windowing.js). Washed and ringed in the accent, the
+   same answer the tab menu's selected row gives, so where it lands is said before the drop. */
+.win.win--tab-target::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--accent-wash);
+    box-shadow: inset 0 0 0 2px var(--accent);
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+/* A row of a tab menu, lifted off the menu and following the pointer to another window. */
+.tab-ghost {
+    position: fixed;
+    z-index: var(--z-toast);
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sheet);
+    pointer-events: none;
+    transform: translate(12px, 8px);
+}
+
+body.tab-dragging [data-tab-drag-id] { cursor: grabbing; }
 
 /* Collapsed: a slim, title-only tab. Still a full member of the row — there is no other
    list it could be sitting in instead. */
@@ -1572,8 +2422,8 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 
 /* 28px, the toolbar control's height, in a 34px bar. */
 .win__nav-btn {
-    width: 28px;
-    height: 28px;
+    width: var(--control-h);
+    height: var(--control-h);
     display: grid;
     place-items: center;
     padding: 0;
@@ -1616,6 +2466,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 .win__icon svg { width: 15px; height: 15px; }
 
 .win__title {
+    font-family: var(--face-display);
     font-size: var(--text-headline);
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
@@ -1681,8 +2532,8 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
    included: closing a window is dismissal, not destruction, and a window holding unsaved
    input asks before it goes. */
 .win__ctl {
-    width: 28px;
-    height: 28px;
+    width: var(--control-h);
+    height: var(--control-h);
     display: grid;
     place-items: center;
     padding: 0;
@@ -1703,6 +2554,227 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
 }
 
 .win__ctl:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ---- Tab groups ------------------------------------------------------------
+   Past the column limit a column holds several windows, one showing (ADR 0027). Every one is
+   still on the page, stacked in the column's box: the ones behind keep their panels, scroll and
+   input, and are taken out of sight, out of the tab order (inert) and out of the accessibility
+   tree. Visibility rather than display: a hidden box is still laid out, so a scrolled list is
+   still scrolled when its tab comes forward.
+   ------------------------------------------------------------------------- */
+
+.win--behind {
+    visibility: hidden;
+    pointer-events: none;
+    box-shadow: none;
+}
+
+/* The group's title is a pop-up key (WindowTabs): the window showing — its icon and its name,
+   set exactly as a plain window's title is — then the column's count and the up-and-down
+   chevron. It sits where a plain window's title sits, and the bar's width past it goes back to
+   the window's status and its own keys: the windows behind are in the key's menu, not along
+   the bar.
+
+   It reads as a stack (amended 21 November 2026, ADR 0027): the key is a gray key with the
+   Desk's finish (a top line and a sheen, "Finish" under the buttons), and an edge for each window
+   behind — two at most — steps out to its right, a little shorter each, as the Activities stack's
+   layers do (ADR 0028). The key is opaque, so only the edges show. Hover deepens it; open, the
+   accent rings it, as a pop-up's key is ringed while its list is up (controls.css, .popup__key). */
+.wtabs {
+    --tab-step: 4px;
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* Room for the edges, so the window's own figure never runs into them. */
+.wtabs--depth-1 { margin-right: var(--tab-step); }
+.wtabs--depth-2 { margin-right: calc(2 * var(--tab-step)); }
+
+.wtabs__layer {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 40%, transparent);
+    pointer-events: none;
+}
+
+.wtabs__layer--1 { translate: var(--tab-step) 0; scale: 1 .78; opacity: .8; }
+.wtabs__layer--2 { translate: calc(2 * var(--tab-step)) 0; scale: 1 .56; opacity: .55; }
+
+/* After the layers in the DOM, so it paints over them with no z-index: its menu's panel keeps
+   the popover tier it has everywhere. */
+.wtabs__popover {
+    position: relative;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.wtabs__key {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    max-width: 100%;
+    height: var(--control-h);
+    margin: 0;
+    padding: 0 var(--space-1) 0 3px; /* the icon's 22px plate centres in the 28px key */
+    background-color: var(--surface-3);
+    background-image: linear-gradient(to bottom, var(--key-gloss), transparent 38%);
+    border: 0;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 60%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.wtabs__key:hover { background-color: color-mix(in srgb, var(--surface-3), var(--text-primary) 8%); }
+.wtabs__key:active { background-image: none; box-shadow: inset 0 1px 2px var(--key-press); }
+/* The open key's ring is a stroke, so it is the accent's ink, as the focus ring is. */
+.wtabs__key[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent-ink); }
+.wtabs__key:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* The window's own reading, beside a group's key, stands a full step further off than a plain
+   title's, so "Window manager · 2 tabs" and "2 of 2 columns" are never read as one run. */
+.win__bar--group .win__status { margin-left: var(--space-3); }
+
+/* How many windows share the column, after the name and parted from it by a middle dot, in
+   words — "2 tabs" — so it cannot be read as part of the window's own figure: secondary ink,
+   never a capsule — a filled oval with a number is the platform's unread badge, and this is a
+   count of tabs, not of anything unread (HIG, Notifications). At a column's narrowest the word
+   goes and the figure stays (below). */
+.wtabs__count {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: var(--text-subheadline);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.wtabs__count::before {
+    content: '·';
+    margin-right: var(--space-1);
+    color: var(--text-tertiary);
+    font-weight: var(--weight-regular);
+}
+
+.wtabs__chevron {
+    display: inline-flex;
+    flex: none;
+    margin-left: calc(-1 * var(--space-1));
+    color: var(--text-secondary);
+}
+
+.wtabs__chevron svg { width: 14px; height: 14px; }
+
+/* A window behind that must be noticed is a mark on the closed key, told apart by shape as well
+   as hue: a ring for a warning, a filled dot for a breach (which also breathes, as the pulse
+   strip's critical does). The key's name says the same in words, its title repeats it for the
+   pointer, and the menu names the window in its row. */
+.wtabs__state {
+    flex: none;
+    box-sizing: border-box;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.wtabs__state.pulse--warn {
+    background: transparent;
+    border: 1.5px solid var(--state-warning);
+}
+
+@container winbar (max-width: 300px) {
+    .wtabs__count-word { display: none; }
+}
+
+/* The key's menu: each tab a key of its own, the same gray key with the same finish as the
+   title, so the stack on the bar and the keys in its menu read as one thing. Its title is one
+   line, cut with an ellipsis (the whole name is its tooltip and its accessible name), and the
+   window's own reading is a quiet line under it. The tab showing is the selected key: the
+   accent's wash, its name in the accent's ink, and its check — selection, never a Filled key,
+   so the context's one Filled key is untouched. Its close is a target of its own, drawn at rest
+   (Delete does the same from the keyboard). The two commands below the hairline stay plain
+   menu rows: they are commands, not tabs. */
+.wtabs__menu .wtabs__tab {
+    align-items: center;
+    margin: 0 0 2px;
+    min-height: 40px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
+    background-color: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    background-image: linear-gradient(to bottom, var(--key-gloss), transparent 38%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 60%, transparent);
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.wtabs__menu .wtabs__tab:hover { background-color: color-mix(in srgb, var(--text-primary) 11%, transparent); }
+
+.wtabs__menu .wtabs__tab:focus-visible {
+    background-color: color-mix(in srgb, var(--text-primary) 11%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 60%, transparent), var(--focus-ring);
+}
+
+.wtabs__menu .wtabs__tab:active {
+    background-image: none;
+    box-shadow: inset 0 1px 2px var(--key-press);
+}
+
+/* Held from the keyboard, the key keeps its ring with its shade. */
+.wtabs__menu .wtabs__tab:focus-visible:active {
+    box-shadow: inset 0 1px 2px var(--key-press), var(--focus-ring);
+}
+
+.wtabs__menu .wtabs__tab--showing,
+.wtabs__menu .wtabs__tab--showing:hover { background-color: var(--accent-wash-strong); }
+
+.wtabs__menu .wtabs__tab--showing .menu__label {
+    color: var(--accent-ink);
+    font-weight: var(--weight-semibold);
+}
+
+.wtabs__tab .menu__label,
+.wtabs__tab .menu__desc {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+.wtabs__tab .menu__check,
+.wtabs__tab .menu__icon { align-self: center; }
+
+.wtabs__tab .menu__remove {
+    width: var(--control-h);
+    height: var(--control-h);
+    margin: 0 calc(-1 * var(--space-1)) 0 0;
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wtabs__menu .wtabs__tab { transition: none; }
+}
+
+/* Collapsed, a group's stub says how many windows it holds under its icon. */
+.win__tabcount {
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wtabs__key { transition: none; }
+}
 
 /* ---- SIGNATURE: the pulse strip ------------------------------------------
    A 2px live band under every title bar, mirrored on the window's rail chip.
@@ -1759,7 +2831,7 @@ body.tab-dragging .win__bar[data-tab-handle] { cursor: grabbing; }
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
-    padding: 14px;
+    padding: var(--win-pad); /* 14px at Standard, moved with Density (the token's comment) */
     scrollbar-width: thin;
     scrollbar-color: var(--surface-3) transparent;
 }
@@ -1895,7 +2967,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     place-items: center;
     background: none;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     cursor: pointer;
     padding: 0;
@@ -1988,10 +3060,16 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
 
 /* ------------------------------------------------------------ launcher ---- */
 
+/* The launcher sits in a popover's panel, so its rows are inset twice: the panel's padding and
+   its own, both --space-1 (the inset), and their corner gives up both (concentric with the
+   panel's). The palette's rows share the class but sit in a sheet, and keep --radius-xs. */
 .launcher {
     min-width: 300px;
-    padding: 6px;
+    padding: var(--space-1);
 }
+
+.launcher .launcher__item,
+.launcher > .glide-plate { border-radius: calc(var(--radius-panel) - 2 * var(--radius-inset)); }
 
 /* A group header in a menu: sentence case ("Saved here"), footnote, semibold, secondary. */
 .launcher__group {
@@ -2012,7 +3090,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     padding: var(--space-2) var(--space-3);
     background: none;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--text-primary);
     text-align: left;
     cursor: pointer;
@@ -2060,13 +3138,13 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     margin: 0 0 var(--space-2);
 }
 
-.panel-h + .panel-h { margin-top: 18px; }
+.panel-h + .panel-h { margin-top: var(--space-6); }
 
 /* A heading after content opens a new section, so it gets a section's air whether or not the
    panel remembered Gap="Section". Without it the heading sat on the last table's hairline or
    the last line of prose and read as part of it — "By sport" looked like a row of "By market".
    Gap="Nested" and Tight set their own margin inline and still win. */
-.win__body :not(.panel-h) + .panel-h { margin-top: 18px; }
+.win__body :not(.panel-h) + .panel-h { margin-top: var(--space-6); }
 
 /* Metric: the number leads, the label explains. Not the other way round.
    State lands on the number and nowhere else — the tile itself stays neutral. The
@@ -2151,7 +3229,7 @@ body.splitting, body.splitting * { cursor: col-resize !important; }
     border-bottom: 1px solid var(--separator);
     white-space: nowrap;
     position: sticky;
-    top: -14px; /* cancels .win__body padding so the header pins while scrolling */
+    top: calc(-1 * var(--win-pad)); /* cancels .win__body's padding at every density, so the header pins flush with the scroll edge */
     background: var(--surface-2);
     z-index: 1;
 }
@@ -2327,7 +3405,7 @@ body.dialog-dragging { user-select: none; }
     padding: 0;
     background: none;
     border: 0;
-    border-radius: 3px;
+    border-radius: calc(var(--radius-xs) - 1px);
     color: inherit;
     font: inherit;
     text-align: left;
@@ -2506,7 +3584,7 @@ body.dialog-dragging { user-select: none; }
     align-items: center;
     justify-content: center;
     gap: var(--btn-gap);
-    height: 28px;
+    height: var(--control-h);
     min-width: 0;
     padding: 0 var(--space-3);
     box-sizing: border-box;
@@ -2599,20 +3677,99 @@ body.dialog-dragging { user-select: none; }
     --btn-fill: var(--state-negative-hover);
 }
 
+/* --- Finish. ---------------------------------------------------------------
+   The owner asked for keys with more finish (21 November 2026). Not ADR 0008's moulded caps,
+   which ADR 0016 retired because gloss had come to mean "pressable" on every key alike: the
+   weights above still carry the hierarchy, and this is the same finish on each of them, as a
+   macOS push button wears it. A 1px light line along the top edge (--key-highlight) and a
+   sheen that has faded out by 38% of the height (--key-gloss), so it lies above the label's
+   cap height and never behind the words; held down, the sheen goes and the key takes an inner
+   shade (--key-press) under the scale it already had. Filled wears it fully, Tinted lightly,
+   Plain only while pointed at — at rest it is still nothing, and no key gains an outline.
+   Every family declares the three tokens; High contrast declares them empty, so its keys are
+   flat. */
+.desk-btn--filled,
+.desk-btn--tinted {
+    background-image: linear-gradient(to bottom, var(--key-gloss), transparent 38%);
+}
+
+.desk-btn--filled { box-shadow: inset 0 1px 0 var(--key-highlight), var(--shadow-1); }
+.desk-btn--tinted { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 60%, transparent); }
+
+.desk-btn--plain:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 50%, transparent);
+}
+
+/* The focus ring keeps the Filled key's top line, so focus adds a ring rather than taking the
+   finish away. */
+.desk-btn--filled:focus-visible { box-shadow: inset 0 1px 0 var(--key-highlight), var(--focus-ring); }
+
+.desk-btn:active:not(:disabled),
+.btn:active:not(:disabled) {
+    background-image: none;
+    box-shadow: inset 0 1px 2px var(--key-press);
+}
+
+.desk-btn:disabled, .desk-btn[disabled] {
+    background-image: none;
+    box-shadow: none;
+}
+
+/* The ring is never the casualty. The hover and press rules above outweigh :focus-visible on
+   its own, so a focused key pointed at, or held down with Space, would lose its ring; these
+   carry the ring alongside whatever finish that moment draws. */
+.desk-btn:focus-visible:hover:not(:disabled) { box-shadow: var(--focus-ring); }
+
+.desk-btn--plain:focus-visible:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--key-highlight) 50%, transparent), var(--focus-ring);
+}
+
+.desk-btn--filled:focus-visible:hover:not(:disabled) {
+    box-shadow: inset 0 1px 0 var(--key-highlight), var(--focus-ring);
+}
+
+.desk-btn:focus-visible:active:not(:disabled),
+.btn:focus-visible:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px var(--key-press), var(--focus-ring);
+}
+
+/* Dimmed, not disabled: a key that must keep the focus it has when it stops acting — the Window
+   manager's "Reset appearance", pressed until there is nothing left to reset — is aria-disabled
+   and refuses the press itself. It looks as a disabled key does, and pointing at it or holding it
+   down moves nothing. */
+.desk-btn[aria-disabled="true"] {
+    opacity: .40;
+    cursor: not-allowed;
+    background-image: none;
+    box-shadow: none;
+}
+
+.desk-btn[aria-disabled="true"]:hover,
+.desk-btn[aria-disabled="true"]:active {
+    transform: none;
+    background-image: none;
+    box-shadow: none;
+}
+
+.desk-btn--plain[aria-disabled="true"]:hover {
+    --btn-fill: transparent;
+    --btn-ink: var(--text-secondary);
+}
+
 /* --- Sizes. The control changes height and padding; the recipe does not. --- */
 /* Small is a key inside a 29px grid row, so 24px; in a toolbar it is a toolbar control and
    takes the toolbar's 28px (audit §5: nothing on the desk is 22px or less). */
-.desk-btn--sm { height: 24px; padding: 0 var(--space-2); font-size: var(--text-footnote); }
+.desk-btn--sm { height: var(--control-h-sm); padding: 0 var(--space-2); font-size: var(--text-footnote); }
 .desk-btn--sm svg { width: 13px; height: 13px; }
-.ptoolbar .desk-btn--sm { height: 28px; }
-.ptoolbar .desk-btn--icon.desk-btn--sm { width: 28px; }
-.desk-btn--lg { height: 34px; padding: 0 var(--space-4); font-size: var(--text-title3); }
+.ptoolbar .desk-btn--sm { height: var(--control-h); }
+.ptoolbar .desk-btn--icon.desk-btn--sm { width: var(--control-h); }
+.desk-btn--lg { height: var(--control-h-lg); padding: 0 var(--space-4); font-size: var(--text-title3); }
 .desk-btn--lg svg { width: 17px; height: 17px; }
 
 /* --- Icon-only: square, so it reads as a control rather than a clipped button. */
-.desk-btn--icon { padding: 0; width: 28px; }
-.desk-btn--icon.desk-btn--sm { width: 24px; }
-.desk-btn--icon.desk-btn--lg { width: 34px; }
+.desk-btn--icon { padding: 0; width: var(--control-h); }
+.desk-btn--icon.desk-btn--sm { width: var(--control-h-sm); }
+.desk-btn--icon.desk-btn--lg { width: var(--control-h-lg); }
 
 /* --- Busy: occupied, not inert. Keeps its fill and runs a sheen across it. -- */
 .desk-btn--busy,
@@ -2652,7 +3809,7 @@ body.dialog-dragging { user-select: none; }
 .field {
     display: block;
     width: 100%;
-    height: 28px;
+    height: var(--control-h);
     padding: 0 var(--space-2);
     box-sizing: border-box;
 
@@ -2677,7 +3834,7 @@ body.dialog-dragging { user-select: none; }
 
 .field:focus, .field:focus-visible {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-ink); /* the ring's own stroke colour, so the edge and the ring are one line */
     box-shadow: var(--focus-ring);
 }
 
@@ -2711,7 +3868,7 @@ select.field option { background: var(--surface-2); color: var(--text-primary); 
 
 /* The small field: a picker beside small keys inside a 29px grid row, at their 24px and their
    footnote size. The caret moves up with the box. */
-.field--sm { height: 24px; font-size: var(--text-footnote); }
+.field--sm { height: var(--control-h-sm); font-size: var(--text-footnote); }
 select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px) 10px; }
 
 /* The count field: a small number beside its stepper, the one capsule DeskStepper draws, so
@@ -2781,7 +3938,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    height: 28px;
+    height: var(--control-h);
     color: var(--text-primary);
     font-size: var(--text-body);
     cursor: pointer;
@@ -2864,6 +4021,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .ptitle { margin: 0 0 var(--space-4); }
 .ptitle__row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); }
 .ptitle__name {
+    font-family: var(--face-display);
     margin: 0;
     font-size: var(--text-title2);
     font-weight: var(--weight-semibold);
@@ -2885,10 +4043,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .ptitle__text strong, .ptitle__em { color: var(--text-primary); font-weight: var(--weight-regular); }
 .ptitle__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 
-/* 2 · Toolbar. Pickers, then a search field that takes what is left, then a quiet
+/* 2 · Toolbar. Pickers, then a compact trailing search field (controls.css), then a quiet
    message, then the actions slot at the right edge — where the one Filled key lives
    in every window. A bare search field is an <input> straight in the row; a labelled
-   one is wrapped in .field-set. Either takes the remaining width. */
+   one is wrapped in .field-set. Either is sized like the compact search, not stretched. */
 /* The row is a container: a desk of two or three windows side by side gives a 1500px
    viewport 400px windows, so the toolbar asks how wide it is, not how wide the screen is.
    Nothing in it shrinks to fit (a picker or a key that does is clipped mid-word); the row
@@ -2898,7 +4056,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     container-type: inline-size;
     container-name: ptoolbar;
 }
-.ptoolbar > input.field, .ptoolbar > .field-set { flex: 1 1 160px; min-width: min(150px, 100%); }
+.ptoolbar > input.field, .ptoolbar > .field-set { flex: 0 1 calc(var(--text-body) * 17); min-width: min(calc(var(--text-body) * 11), 100%); }
 /* A select is sized to its words, not to the row: .field is width:100% for the forms
    it sits in, and a picker that took the whole toolbar would push everything after it
    onto the next line. Callers that want a longer picker still say so with max-width.
@@ -2932,13 +4090,13 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .psection__body > :not(.psection):not(.metrics):not(.note):not(.pform) + .psection { margin-top: var(--space-6); }
 .psection + .tabs { margin-top: var(--space-4); }
 /* A row of keys after a section — a log's Show more — sits under it as it would under a grid. */
-.psection + .row { margin-top: var(--space-2); }
+.psection + .row { margin-top: var(--space-3); }
 .psection__body > .row + .note, .psection__body > .stack + .note, .psection__body > .gridwrap + .note,
 .psection__body > .deskgrid + .note { margin-top: var(--space-2); }
 /* A picker on a rule's line is sized to its words, for the same reason a toolbar's is. */
 .psection__keys .field { width: auto; }
 .psection__head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
-.psection__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.psection__keys { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 .psection__meta {
     display: flex;
     align-items: baseline;
@@ -2992,6 +4150,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    nothing (user report, Oct 26). Group headers inside the form keep the quiet voice. */
 .pform--grouped > .pform__head { padding: 0 var(--space-1); }
 .pform--grouped > .pform__head > .panel-h {
+    font-family: var(--face-display);
     margin: 0;
     border: 0;
     font-size: var(--text-title3);
@@ -3005,20 +4164,54 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .pform--grouped .pform__keys { margin-left: 0; flex-direction: row-reverse; justify-content: flex-end; }
 
 /* ---- The grouped form: sections, groups and their rows ---------------------------------
-   Built as Apple's grouped list: a window is a column of SECTIONS, each a quiet header
-   (.panel-h) standing outside a filled group. The group is --surface-2 on the --surface-1
-   body — one step up the ramp — edged by one 1px hairline, the way macOS draws a grouped form.
-   Rows inside a group are divided by an inset hairline that starts where the text does, not at
-   the group's edge. Sections are spaced a full --space-6 apart and a
-   header sits --space-2 above its group, so the eye reads header-with-group, then the gap,
-   then the next section — the distinction is in the rhythm, not in boxes around boxes.
+   Built as Apple's grouped list: a window is a run of SECTIONS, each a filled group — a
+   section card. The group is --surface-2 on the --surface-1 body — one step up the ramp —
+   edged by one 1px hairline, the way macOS draws a grouped form. Its name sits inside it, in a
+   header bar at its top (.wgroup__bar: the title in the headline style, a key or filter
+   trailing), divided from the rows by one full-width hairline; rows inside are divided by an
+   inset hairline that starts where the text does, not at the group's edge. The footer that
+   explains a group sits under the card.
 
-   A settings column, a form of fields and a wizard's steps are all built from it; a check (a
-   mark leading a sentence) is one kind of row in it. */
+   The name used to be a quiet grey line standing outside the group (.wgroup__head, kept for
+   the windows that still spell it), and on a window of several sections they ran together
+   (user report, Nov 22): the card's own edge and its bar are what separate one section from
+   the next now, not a header floating in a gap.
+
+   Sections stack in a column (.wsections) or flow in cards (.wflow); a settings screen, a form
+   of fields and a wizard's steps are all built from them; a check (a mark leading a sentence)
+   is one kind of row in it. */
 
 .wsections { display: flex; flex-direction: column; gap: var(--space-6); }
 .wsection { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .wsection > .panel-h { margin: 0; padding: 0 var(--space-1); }
+
+/* The card flow: a window with several sections gives them as many columns as its width allows.
+   Each track is at least 420px — wide enough that a card's form rows keep their labels beside
+   their controls (they stack under 400px of card), a label column and a four-segment gate side
+   by side; at 360px every row of a settings card stacked and the card stood twice as tall — and
+   they share what is left, so a wide window gets more cards, never wider ones: at 1600px a
+   section is three cards across, not one box the width of the desk with its controls a screen apart (forms.md,
+   rule 8). auto-fill keeps the empty tracks, so two cards in a wide window stay two card-widths.
+   Cards align to the start of their row: a short card keeps its own height beside a tall
+   neighbour rather than stretching into an empty box. Under 420px the track is the window, and a ~680px window is one column. The
+   flow is a container, so a card that spans asks the flow's width, not the window's. */
+.wflow {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    align-items: start;
+    gap: var(--space-5) var(--space-4);
+    container-type: inline-size;
+    container-name: wflow;
+}
+/* A card whose body is a grid of its own (a library of tiles) takes the whole row. */
+.wflow > .wsection--span { grid-column: 1 / -1; }
+/* The one large card beside the card that leads the flow: the whole row while one track is all
+   there is, the rest of the first row once two fit (2 × 420px + the gap). It must be the flow's
+   second card; anything after it flows on beneath. */
+.wflow > .wsection--rest { grid-column: 1 / -1; }
+@container wflow (min-width: 856px) {
+    .wflow > .wsection--rest { grid-column: 2 / -1; }
+}
 
 /* The house rule on groups. A group is a fill one level above the body with one hairline edge:
    the HIG's grouped list (a secondary grouped background on the primary), drawn the way macOS
@@ -3042,7 +4235,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    min-height: 36px;
+    min-height: var(--row-h);
     padding: var(--space-2) var(--space-3);
     font-size: var(--text-body);
     line-height: var(--leading-body);
@@ -3059,6 +4252,107 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 .wgroup__row--pad { padding: var(--space-3); }
+
+/* The card's header bar: its name inside it, at its top, in the headline style — semibold, the
+   primary ink — with what qualifies the card trailing (a small key, a count, a segmented filter
+   over its rows). A full-width hairline divides it from the rows: it is the card's own threshold,
+   not a row, so it is not inset. Its fill sits between the card's and the body's — half a step
+   back down the ramp, in every family and both appearances, from the two tokens it lies between
+   — so the bar reads as the card's head and not as its first row. It wraps: in a narrow card the
+   filter drops beneath the title rather than squeezing it. */
+.wgroup__bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+    min-height: var(--row-h);
+    padding: var(--space-2) var(--space-4);
+    background: color-mix(in srgb, var(--surface-2) 50%, var(--surface-1));
+    border-bottom: 1px solid var(--separator);
+}
+.wgroup__title {
+    margin: 0;
+    font-size: var(--text-headline);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--text-primary);
+}
+.wgroup__keys {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-footnote);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.wgroup__keys > .gate { max-width: 100%; }
+/* A bar with nothing but its keys keeps them at the leading edge, where the rows start. */
+.wgroup__bar > .wgroup__keys:first-child { margin-left: 0; }
+
+/* The split row: two compact, related controls side by side in one row (a mode beside an
+   accent), each cell its own label leading its control, divided by a vertical hairline inset
+   top and bottom as the row hairlines are inset at the leading edge. Under 720px of card — two
+   cells that each fit a label column and a three-segment gate — the cells stack and the divider turns into the ordinary inset row hairline: see the @container
+   block after the form-row rules. A split row with one cell is that cell, the whole row. */
+.wgroup__row.wgroup__split {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+}
+.wgroup__cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    /* One line while the cells are side by side or stacked: the split stacks before a cell would
+       wrap, so the two cells always lay out alike. Only under 400px does a label go above its
+       control, in both cells at once. */
+    flex-wrap: nowrap;
+    gap: var(--space-2) var(--space-3);
+    min-width: 0;
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+}
+.wgroup__cell > .gate { max-width: 100%; }
+/* The first cell's label takes the group's label column, so its control lines up with the
+   controls of the rows beneath it; the second cell's label is as wide as its word. */
+.wgroup__cell > .wgroup__label { flex: none; }
+.wgroup__cell:first-child > .wgroup__label { min-width: var(--form-label, 88px); }
+.wgroup__cell + .wgroup__cell::before {
+    content: "";
+    position: absolute;
+    top: var(--space-2);
+    bottom: var(--space-2);
+    left: 0;
+    border-left: 1px solid var(--separator);
+}
+
+/* What a card holds that is not a row. Each window that put one of these in a card wrote the same
+   three rules in its own scoped sheet (Nov 22); they are the card's, so they are here, once.
+
+   A table in a card: the card is its frame. A DeskGrid that is the card's own content starts its
+   text where the bar's title does — the card's inset less the cell's own (--deskgrid-inset, on
+   .deskgrid in mud-bridge.css) — and its last row's hairline stands down, because the card's edge
+   is under it: two lines a pixel apart read as a box inside the box. The rows above keep theirs;
+   they are the table's dividers, not a frame. The hairline rule outranks mud-bridge.css's
+   `.deskgrid .mud-table-body .mud-table-cell` by weight, not by order, because mud-bridge.css
+   loads after this sheet (the seam, mudblazor-seam.md). */
+.wgroup > .deskgrid { padding-inline: calc(var(--space-4) - var(--deskgrid-inset)); }
+.wgroup .deskgrid .mud-table-body .mud-table-row:last-child > .mud-table-cell { border-bottom: 0; }
+
+/* A sentence that is the card's whole content — an all-clear, an empty timeline — sits at the
+   rows' inset, not against the card's edge. One inside a row is that row's, and keeps the row's
+   inset instead. */
+.wgroup .empty:not(.wgroup__row .empty) { margin: 0; padding: var(--space-3) var(--space-4); }
+
+/* An inline confirm that is a row of the card starts at the labels' edge, as the rows around it do. */
+.wgroup > .confirm { padding: var(--space-2) var(--space-4); }
 
 /* A form row: the label leads in one column the whole group shares, so the controls line
    up down the page; the control takes the rest. --form-label is the group's to set. */
@@ -3123,6 +4417,32 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .wgroup__row--form > .wgroup__label { font-size: var(--text-subheadline); color: var(--text-secondary); }
 }
 
+/* A split row in a card narrower than its two cells stacks them, the second under the first,
+   divided as any two rows are: by the inset hairline from the leading edge, not the vertical one. */
+@container (max-width: 720px) {
+    .wgroup__row.wgroup__split { grid-auto-flow: row; grid-auto-columns: auto; }
+    .wgroup__cell + .wgroup__cell::before {
+        top: 0;
+        bottom: auto;
+        left: var(--space-4);
+        right: 0;
+        border-left: 0;
+        border-top: 1px solid var(--separator);
+    }
+    .wgroup__cell > .wgroup__label { min-width: var(--form-label, 88px); }
+}
+/* Narrower still, a cell's label stacks above its control, as a form row's does at this width. */
+@container (max-width: 400px) {
+    .wgroup__cell { flex-wrap: wrap; }
+    .wgroup__cell > .wgroup__label,
+    .wgroup__cell:first-child > .wgroup__label {
+        flex-basis: 100%;
+        min-width: 0;
+        font-size: var(--text-subheadline);
+        color: var(--text-secondary);
+    }
+}
+
 /* ---- The checks: a grouped list of facts, a mark leading each row. */
 /* Wraps rather than squeezes: in a narrow window the remedy key drops beneath its sentence,
    right-aligned, instead of pinching the sentence into a column one word wide. */
@@ -3150,10 +4470,15 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .wsection__aside { margin-left: auto; font-size: var(--text-footnote); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
 /* A narrow group (a window beside two others, ~300-480px) gives its inset back to its
-   controls: the rows and the footer under the group take --space-3 rather than --space-4,
-   and the footer steps down to footnote size. */
+   controls: the rows, the bar, the split cells, a table, a lone sentence, a confirm and the
+   footer under the group take --space-3
+   rather than --space-4, and the footer steps down to footnote size. */
 @container (max-width: 480px) {
     .wgroup__row--form { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup__cell, .wgroup__bar { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup > .confirm { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup .empty:not(.wgroup__row .empty) { padding-left: var(--space-3); padding-right: var(--space-3); }
+    .wgroup > .deskgrid { padding-inline: calc(var(--space-3) - var(--deskgrid-inset)); }
     .wgroup__foot { padding: 0 var(--space-3); font-size: var(--text-footnote); }
 }
 
@@ -3252,7 +4577,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     display: block;
     position: relative;
     overflow: hidden;
-    border-radius: 3px;
+    border-radius: calc(var(--radius-xs) - 1px);
 
     /* One step up from the window body, so a placeholder reads as an absence in
        the surface rather than a new element painted on it. */
@@ -3290,16 +4615,17 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
 .deskgrid__skeleton { display: flex; flex-direction: column; }
 
-/* 29px with its hairline and the cell's 10px inset, which is what a real row measures
-   (mud-bridge.css: --space-1 either side of a 20px line box, plus the hairline). It was 30px
-   at an 8px inset, so a page of six rows landed 6px shorter than its placeholders and every
-   first bar started 2px left of the text that replaced it. The inset is the grid's own
-   (--deskgrid-inset, mud-bridge.css), so a narrow grid's placeholders narrow with its cells. */
+/* What a real row measures, from the same tokens (mud-bridge.css: --cell-pad-y either side of a
+   20px line box, plus the hairline) — 29px at Standard, 37px under Roomy. It was a literal 29px,
+   so under Roomy a page of placeholders stood 8px a row short of the rows that replaced it; before
+   that 30px at an 8px inset, and every first bar started 2px left of its text. The inset is the
+   grid's own (--deskgrid-inset, mud-bridge.css), so a narrow grid's placeholders narrow with its
+   cells. */
 .deskgrid__skeleton-row {
     display: flex;
     align-items: center;
     gap: var(--space-4);
-    height: 29px;
+    height: calc(20px + 2 * var(--cell-pad-y) + 1px);
     padding: 0 var(--deskgrid-inset, 10px);
     box-sizing: border-box;
     border-bottom: 1px solid var(--separator);
@@ -3396,16 +4722,18 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    it by writing display:block inline, which out-weighs this rule, so the sheet only ever
    hides it: until then it is out of the page and out of the accessibility tree. Shown, it
    is laid out like a toast — the raised surface, one hairline, the sheet's shadow, the
-   failure carried on a lit edge — and pinned where the toasts land, top-right under the
-   header at the offset mud-bridge.css gives the snackbar container, above everything,
-   because nothing on the desk works until it is answered. Its contents are laid out by a
-   row inside it rather than by its own display, which belongs to Blazor. */
+   failure carried on a lit edge — and pinned bottom-centre above the footer, above
+   everything, because nothing on the desk works until it is answered. (The desk's own notices
+   live in the header now, ADR 0028, so the two never share a place.) Its contents are laid out
+   by a row inside it rather than by its own display, which belongs to Blazor. */
 #blazor-error-ui {
     display: none;
     position: fixed;
-    inset: calc(var(--titlebar-h) + var(--space-4) + var(--space-3)) var(--space-4) auto auto;
+    left: 50%;
+    bottom: calc(var(--footer-h) + var(--space-8));
+    translate: -50% 0;
     z-index: var(--z-toast);
-    max-width: min(420px, calc(100vw - 2 * var(--space-4)));
+    width: min(440px, calc(100vw - 2 * var(--space-4)));
     box-sizing: border-box;
     padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
     background: var(--surface-2);
@@ -3462,12 +4790,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     }
 
     .hdr { height: auto; flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
-    /* The wrapped header has no fixed height; the banner takes the toasts' narrow offset
-       (mud-bridge.css), which assumes two rows. */
+    /* The banner keeps the page's narrow gutter, closer to the footer. */
     #blazor-error-ui {
-        top: calc(2 * var(--titlebar-h) + var(--space-4) + var(--space-3));
-        right: var(--space-2);
-        max-width: calc(100vw - 2 * var(--space-2));
+        bottom: calc(var(--footer-h) + var(--space-3));
+        width: calc(100vw - 2 * var(--space-2));
     }
     .ftr__stat:not(:last-child), .ftr__divider { display: none; }
 
@@ -3481,13 +4807,19 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 
     .win--collapsed { max-height: none; }
 
+    /* Stacked, a tab behind has no column box to share: kept hidden it would hold its own
+       height of blank page under the window it is behind. Out of the flow instead — still
+       mounted, input and all; only its scroll is not kept on a phone. */
+    .win--behind { display: none; }
+
     .divider { display: none; }
 }
 
 /* ---- Two-stage disclosure: row actions, snippets, log rows -----------------
    Opening a row shows what you can do with it; pressing one of those answers
    the question in place. Only if the answer is not enough does a window get
-   spent — which matters because spending one evicts something (ADR 0007), and
+   spent — which matters because past the column limit a new window covers another as a
+   tab (ADR 0027), and
    browsing must never rearrange the desk out from under the operator.
 
    The strip sits in one of two places. In a detail window's row it sits inside
@@ -3543,7 +4875,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     padding: var(--space-1) 0;
 }
 
-.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { height: 28px; }
+.deskgrid__child-cell > .rowacts > .rowacts__keys > .desk-btn--sm { height: var(--control-h); }
 
 /* A hit region of 44, drawn at 28 (HIG: a control's hit region may be larger than its visible
    bounds). The strip is where a finger lands on a touch screen beside the desk, and a 28px key
@@ -3605,18 +4937,18 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --btn-ink: var(--accent-ink);
 }
 
-/* The inline answer. Inset from the row so it reads as belonging to it rather
-   than as the next row along.
+/* The inline answer, on the section-card contract (ADR 0032). Inset from the row so it reads as
+   belonging to it rather than as the next row along.
 
-   A fill one step above the panel body (--surface-2, a grouped list's secondary
-   background) and no border: it opens inside a ruled table, and a framed block there is a
-   box inside the grid's rules. Its bar shares the fill and is parted from the body by
-   one hairline, as a grouped list's rows are. */
+   The shell itself draws nothing: it is a .wsection, and what it holds is either one card — the
+   default, .snippet__card, a .wgroup with the name in its header bar and the answer as its rows —
+   or, for content that draws cards of its own (.snippet--panes), an unframed pane header over
+   them, because a card inside a card is the one nesting the house rule forbids. Either way the
+   title is the card bar's title, in the headline voice, so a drawer under a row and a window's
+   sections read alike. It used to be a fill with no edge under a footnote-sized grey bar with a
+   symbol: the last frame on the desk that was not a card. */
 .snippet {
-    margin: 8px 0 4px;
-    background: var(--surface-2);
-    border-radius: var(--radius);
-    overflow: hidden;
+    margin: var(--space-2) 0 var(--space-1);
 }
 
 /* The snippet arrives rather than appears: it fades in from 4px above, the side its key is
@@ -3641,29 +4973,23 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     .snippet--arrive { animation-name: snippet-fade; }
 }
 
-.snippet__bar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--separator);
-    font-size: var(--text-footnote);
-}
-
-.snippet__icon { display: inline-flex; color: var(--text-secondary); }
+/* The bar is a card's bar (.wgroup__bar, .wgroup__title, .wgroup__keys); it only keeps the
+   escape's symbol sized and the note beside the title. */
+.snippet__bar { flex-wrap: nowrap; }
 
 /* Glyph draws a bare <svg> with no size of its own; in the bar's flex row it collapsed to
-   nothing beside a short title and swelled beside a long one. Sized as the bar's type. */
-.snippet__icon svg, .snippet__open svg { width: 14px; height: 14px; flex: 0 0 auto; }
-
-.snippet__title {
-    font-size: var(--text-footnote);
-    font-weight: var(--weight-semibold);
-    color: var(--text-secondary);
-}
+   nothing beside a short title and swelled beside a long one. Sized as the key's type. */
+.snippet__open svg { width: 14px; height: 14px; flex: 0 0 auto; }
 
 .snippet__note { color: var(--text-secondary); font-size: var(--text-footnote); min-width: 0; }
-.snippet__spacer { flex: 1 1 auto; }
+
+/* Over cards of its own the bar is a pane header: the same title and key, no fill and no edge,
+   aligned with the cards' own bars below it. */
+.snippet--panes > .snippet__bar {
+    padding-inline: var(--space-1);
+    background: none;
+    border-bottom: 0;
+}
 
 /* The snippet asks how wide it is, not the window: the same answer opens in a list's full-width
    row and in a window beside two others. A container of its own also means its content cannot
@@ -3683,25 +5009,24 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
         padding: 0; margin: -1px; overflow: hidden;
         clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
-    .snippet__open { flex: none; justify-content: center; width: 24px; padding: 0; }
+    .snippet__open { flex: none; justify-content: center; width: var(--control-h-sm); padding: 0; }
 
-    /* The note takes a line of its own under the title, starting where the title does (past
-       the 14px symbol and the bar's gap), rather than squeezing into a third of a line beside
-       it and breaking a short sentence over three. */
+    /* The note takes a line of its own under the title rather than squeezing into a third of a
+       line beside it and breaking a short sentence over three. */
     .snippet__bar { flex-wrap: wrap; row-gap: 0; }
-    .snippet__note { order: 1; flex: 1 1 100%; padding-left: calc(14px + var(--space-2)); }
+    .snippet__note { order: 1; flex: 1 1 100%; }
 }
 
-/* The escape hatch. Quiet by default — the snippet is usually the answer, and a
-   loud "open window" would suggest otherwise. */
+/* The escape hatch: the bar's one trailing key. Quiet by default — the snippet is usually the
+   answer, and a loud "open window" would suggest otherwise. */
 .snippet__open {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    height: 24px;
+    height: var(--control-h-sm);
     background: transparent;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     color: var(--text-secondary);
     font: inherit;
     font-size: var(--text-footnote);
@@ -3715,7 +5040,10 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    been chosen yet. */
 .snippet__open:hover { color: var(--text-primary); background: var(--surface-3); }
 
-.snippet__body { padding: var(--space-2); }
+/* In the card the answer is its rows, inset as a card's rows are; over cards of its own the
+   body adds nothing, and the cards bring their own padding. */
+.snippet__card > .snippet__body { padding: var(--space-2) var(--space-3); }
+.snippet--panes > .snippet__body { padding: 0; }
 
 /* A row of labelled readings, for a single record expanded. */
 .snippet__facts {
@@ -3865,8 +5193,20 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
    working in, so they keep to the width that is in view — the grid's (100cqw: the deskgrid
    container), less the cell's inset each side — rather than the table's, and never sit half past
    the scroll's edge. Wide, the grid is wider than either and nothing changes. */
-.deskgrid__child > .deskgrid__child-cell > .rowacts { max-width: calc(100cqw - 2 * var(--space-2)); }
-.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: min(100%, 720px, calc(100cqw - 2 * var(--space-2))); }
+.deskgrid__child > .deskgrid__child-cell > .rowacts { max-width: calc(100cqw - 2 * var(--deskgrid-inset)); }
+.deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: min(100%, 720px, calc(100cqw - 2 * var(--deskgrid-inset))); }
+
+/* That cap is the grid's whole width, but an indented child (ChildRowIndent) starts past its lead
+   cell, so in a column narrower than the indent plus the answer it ran off the trailing edge by
+   the lead's width: the answer's last keys sat past the scroll, the reason cut mid-word, and the
+   answer itself widened the table so the grid scrolled sideways. Below the width where the
+   indent and a full answer (720px) both fit, the lead gives up its cell and the child spans the
+   grid from its leading edge, so the cap above is exactly the width in view. The cap is spent
+   against the cell's own inset (--deskgrid-inset), not a step of the ramp, so the content box
+   never exceeds it. */
+@container deskgrid (max-width: 960px) {
+    .deskgrid__child > .deskgrid__child-lead { display: none; }
+}
 
 /* The row a child row opened under gives up its hairline: the two are one selection, and
    the one edge they share is the child row's, below both. */
@@ -3881,7 +5221,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .snippet__open:focus-visible {
     outline: none;
     box-shadow: var(--focus-ring-inset);
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
 }
 
 /* A log row's summary is also a disclosure's, whose ring (controls.css, loaded later) is
@@ -3905,7 +5245,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 /* The sparkline (DeskSparkline). Word-sized and inline, centred on the row's text so a
    20px plot sits in a 28px row without moving it. The path is the secondary ink and the
    last point the primary one, so the eye lands where the series ended; there is no state
-   colour, because a price moving is not good or bad and hue on this desk names a state. */
+   colour, because a figure moving is not good or bad and hue on this desk names a state. */
 .sparkline { display: inline-flex; align-items: center; vertical-align: middle; line-height: 0; }
 .sparkline svg { display: block; overflow: visible; }
 .sparkline__line {
@@ -3972,6 +5312,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .desk-sheet__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 
 .desk-sheet__title {
+    font-family: var(--face-display);
     font-size: var(--text-title3);
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
@@ -3983,8 +5324,8 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: var(--control-h);
+    height: var(--control-h);
     padding: 0;
     border: none;
     border-radius: 50%;
@@ -4035,6 +5376,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 }
 
 .desk-alert__heading {
+    font-family: var(--face-display);
     font-size: var(--text-title3);
     font-weight: var(--weight-semibold);
     color: var(--text-primary);
@@ -4132,7 +5474,7 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
 .swatch__pill {
     width: 22px;
     height: 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     background: var(--accent);
     margin-right: auto;
 }
@@ -4154,40 +5496,62 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     color: var(--text-secondary);
 }
 
-.swatch--on .swatch__name { color: var(--text-primary); }
+.swatch--on .swatch__name { color: var(--text-primary); font-weight: var(--weight-semibold); }
+
+/* The tile is positioned so the chosen one's tick can sit in its corner: a filled accent disc
+   with the family's own ink drawn as a check, so "this one" is said by a shape as well as by
+   the ring's hue and the name's weight. */
+.swatch { position: relative; }
+
+.swatch__tick {
+    position: absolute;
+    top: var(--space-1);
+    right: var(--space-1);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: var(--shadow-1);
+}
+
+.swatch__tick::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    width: 3px;
+    height: 7px;
+    border: solid var(--on-accent);
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+}
+
+/* The picker is one grid of tiles, as wide as it is given: ninety-six pixels a tile at least,
+   sharing what is left. It was four shelves under quiet headings, and the shelves were ragged —
+   rows of two, five, five and one; the headings are a filter over the one grid now
+   (DeskThemePicker's Group), so every row is full but the last. */
+.themes.swatches { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); min-width: 0; }
+.wgroup__row--pad > .themes { flex: 1 1 auto; }
 
 /* ---- The Window manager: grouped settings -------------------------------------
-   The Window manager is a settings screen, so it is the task windows' grouped form
-   (.wsections, .wgroup, .wgroup__row--form, .wgroup__foot) and nothing new: a column of
-   groups, each a fill with its labels leading in one column and its controls trailing, the
-   explanation as the group's footer. What is here is only what a settings column needs that
-   a task form does not.
+   The Window manager is a settings screen, so it is the task windows' grouped form in the card
+   flow (.wflow of FormGroup section cards, .wgroup__row--form, .wgroup__split, .wgroup__foot)
+   and nothing new: groups, each a card with its name in its bar, its labels leading in one
+   column and its controls trailing, the explanation as the card's footer. What is here is only
+   what a settings screen needs that a task form does not.
 
-   The column stops at a form's width (forms.md, rule 8). At 1600px the picker ran 1584px and
-   each sentence of explanation ran the whole window; a label and its control were a screen
-   apart. The label column is in ems so it grows with Text size rather than letting "Fits
-   readably" run into its value at 140%. */
-.wm { --form-label: 8em; max-width: 680px; }
+   It was one column stopped at a form's width (680px); at 1600px that left the right half of the
+   window empty and the sections stacked a long way down. The flow now caps each card, not the
+   window: more columns as it widens, so a label and its control stay within one glance and no
+   sentence of explanation runs the width of the desk. The label column is in ems so it grows
+   with Text size rather than letting "Fits readably" run into its value at 140%. */
+.wm { --form-label: 8em; }
 
 /* A pop-up is as wide as its longest choice, and a key as wide as its words: a grid item
    stretches by default, so both ran the whole control column. .field is width:100% for the
    forms it fills, which is why the select has to say so here. */
 .wm .wgroup__row--form > select.field { width: auto; max-width: 100%; justify-self: start; }
 .wm .wgroup__row--form > .desk-btn { justify-self: start; }
-
-/* A row whose control is taller than one line (the theme tiles) keeps its label beside the
-   first line, as macOS settings do, rather than centred on the whole block. Doubled with the
-   form row's class because .wgroup__row--form is declared later in this file and would
-   otherwise win at the same weight. Stacked in a narrow group, the label sits on the tiles. */
-.wgroup__row--form.wm-row--top { align-items: start; }
-.wm-row--top > .wgroup__label { padding-top: var(--space-3); }
-@container (max-width: 400px) {
-    .wm-row--top > .wgroup__label { padding-top: 0; }
-}
-
-/* The theme tiles inside the control column: five families fit one line at a form's width,
-   and wrap two to three a line in a narrow window. */
-.wm .swatches { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); padding: var(--space-2) 0; }
 
 /* A reading in a settings row: the value in the primary label colour, tabular, with its
    qualifier in secondary beside it. The warning ink lands on the number only, and the note
@@ -4311,4 +5675,266 @@ select.field--sm { background-position: calc(100% - 14px) 10px, calc(100% - 9px)
     --material-regular: var(--surface-2);
     --material-thick: var(--surface-2);
     --material-blur: none;
+}
+
+/* Glass: Tinted — the operator's step toward Reduce Transparency that stops short
+   of it (DeskGlass; macOS's Liquid Glass setting, Clear or Tinted). Every material
+   moves --glass-tint of the way from its family's own value to the opaque tier
+   Reduce Transparency uses, and keeps its blur: at the half step the Standard dark
+   desk's .55/.70/.82/.92 become about .78/.85/.91/.96, in the family's own hue.
+
+   Derived, never declared, so it holds for every family and names none: the mix
+   reads whatever the showing block set. A custom property cannot be mixed from
+   itself on one element (that is a cycle, and the declaration is dropped), so
+   <html> keeps each family value under a second name and <body> — where every
+   material is drawn — mixes from that inherited, already-resolved copy. Under
+   Reduce Transparency the copy is already --surface-2, so the mix is the opaque
+   tier and the blur stays none: the machine's setting wins whichever is stamped,
+   and ThemeService does not stamp this one under it. A swatch carrying its own
+   data-theme redeclares the materials inside it and shows them clear, which is
+   what a swatch is for. */
+:root[data-glass="tinted"] {
+    --glass-tint: 50%;
+    --glass-clear-ultrathin: var(--material-ultrathin);
+    --glass-clear-thin: var(--material-thin);
+    --glass-clear-regular: var(--material-regular);
+    --glass-clear-thick: var(--material-thick);
+}
+
+:root[data-glass="tinted"] > body {
+    --material-ultrathin: color-mix(in srgb, var(--glass-clear-ultrathin), var(--surface-2) var(--glass-tint));
+    --material-thin: color-mix(in srgb, var(--glass-clear-thin), var(--surface-2) var(--glass-tint));
+    --material-regular: color-mix(in srgb, var(--glass-clear-regular), var(--surface-2) var(--glass-tint));
+    --material-thick: color-mix(in srgb, var(--glass-clear-thick), var(--surface-2) var(--glass-tint));
+}
+
+/* ---- Forced colours: a Windows contrast theme -----------------------------------
+   Under forced-colors the browser replaces every colour with the operator's own system palette
+   and drops box-shadow, text-shadow and gradients. That costs the desk more than its looks: the
+   focus ring is a box-shadow, so it vanishes; selection and "on" are washes, so they vanish; a
+   Filled key and a Plain one become the same word on the same Canvas. This block restores the
+   distinctions and nothing else — it does not restyle the desk in system colours, which the
+   browser has already done. The guidance it follows is MDN's and Firefox's High Contrast Mode
+   notes: restore what was lost, and spend system colours in their pairs (Highlight with
+   HighlightText, ButtonFace with ButtonText, Canvas with CanvasText) so whatever palette the
+   operator chose, each pair still contrasts.
+
+   Weight, not !important. The block sits in desk.css, which loads before controls.css and the
+   bridge, so every rule here carries :root to outweigh the rule it answers wherever that lives.
+   The focus rule needs more: dozens of controls state their own `outline: none` beside their
+   ring, up to seven classes deep in the bridge, so it carries an id's weight through
+   :not(#\#) — a clause that matches every element and exists only to be heavier than they are.
+
+   One house rule gives way here, on purpose. Buttons, fields and segmented tracks carry no edge
+   at rest ("one edge"), because fill and shadow say "control" instead; a contrast theme takes
+   both away, and a control with no edge on Canvas is not a control. So each gets a 1px system
+   edge here — an outline drawn inset, so nothing moves by a pixel — and so does each surface that
+   was a card only by its fill. */
+@media (forced-colors: active) {
+    /* Focus: a real outline wherever the desk draws --focus-ring. The scrolling desk and page
+       take programmatic focus only, and stay unringed as they are everywhere else. */
+    :root :focus-visible:not(.desk[tabindex="-1"], .deskpage[tabindex="-1"], #\#) {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+    }
+
+    /* Inside a parent that clips (a tab strip, a launcher, a grid row), the ring goes inside,
+       as --focus-ring-inset does. */
+    :root :is(.tabs__tab, .launcher__item, .logrow__head, .snippet__open,
+              .deskgrid--clickable .mud-table-row):focus-visible:not(#\#) {
+        outline-offset: -2px;
+    }
+
+    /* The native input is transparent and the drawn shape beside it is what the eye reads, so
+       the ring goes on the shape. A field rings under the pointer too, as it does on the desk. */
+    :root .checkbox__input:focus-visible + .checkbox__box,
+    :root .toggle__input:focus-visible + .toggle__track,
+    :root .field:focus {
+        outline: 2px solid Highlight;
+        outline-offset: 2px;
+    }
+
+    /* Controls at rest: the sanctioned exception to "no outline at rest", above. */
+    :root .desk-btn,
+    :root .btn,
+    :root .popup__key,
+    :root .marble-row.gate,
+    :root .toggle__track,
+    :root .radio__mark {
+        outline: 1px solid ButtonBorder;
+        outline-offset: -1px;
+    }
+
+    /* Surfaces that were cards by their fill or their shadow alone: windows, floating panels,
+       sheets, notes and notices. A group, a metric or the answer under a row (a card) already carries
+       its one hairline, and the browser keeps it in CanvasText. */
+    :root .win,
+    :root .popover__panel,
+    :root .mud-popover.mud-popover-open,
+    :root .palette__panel,
+    :root .bar__menu .bar__menu-panel,
+    :root .deskdialog,
+    :root .mud-dialog.desk-sheet,
+    :root .desk-alert,
+    :root .toast,
+    :root .note {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+
+    /* A state tag keeps its word — the word was always the reading; hue only sharpened it — and
+       gets an edge, so it is still a tag and not loose text. */
+    :root .tag {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+
+    /* The attention marks keep their shapes in system colours. A fill would be dropped, so both
+       are drawn as borders, which the browser keeps: a ring for a warning, and for a breach a
+       border thick enough to fill the dot. */
+    :root :is(.wtabs__state.pulse--critical, .menu__attention--negative) { border: 4px solid CanvasText; }
+    :root :is(.wtabs__state.pulse--warn, .menu__attention--warning) { border: 1.5px solid CanvasText; }
+
+    /* Selected, on, current: Highlight behind HighlightText, the system's own selection. The
+       sliding caps and marbles that drew it are fills on fills, so they stand down and the
+       chosen option carries the pair itself. */
+    :root .marble.gate__cap,
+    :root .tabs__marble {
+        visibility: hidden;
+    }
+
+    :root .gate__opt--on,
+    :root .tabs__tab--on,
+    :root .bar__key--current,
+    :root .bar__group--current,
+    :root .rail__btn--accent,
+    :root .palette__item--active,
+    :root .menu__item:hover,
+    :root .menu__item:focus-visible,
+    :root .wstep--current .wstep__title {
+        background-color: Highlight;
+        color: HighlightText;
+    }
+
+    :root :is(.bar__key--current, .bar__group--current) svg {
+        color: HighlightText;
+    }
+
+    /* Open but not current, and a tab group's key while its menu is up: an edge, not the pair —
+       the pair is for the one place the operator is. */
+    :root .bar__key--open,
+    :root .bar__group--open,
+    :root .wtabs__key[aria-expanded="true"] {
+        outline: 1px solid CanvasText;
+        outline-offset: -1px;
+    }
+
+    /* No finish under forced colours: a key is the system's flat pair and its edge. */
+    :root :is(.desk-btn, .popup__key, .wtabs__key, .wtabs__tab) { background-image: none; }
+
+    /* The Filled key, and a key held down while its answer shows. Through the button's own
+       dials, so every hover and press rule that turns them keeps landing on the pair. */
+    :root .desk-btn--filled,
+    :root .desk-btn--filled:hover:not(:disabled),
+    :root .desk-btn--filled:active:not(:disabled),
+    :root .desk-btn--on,
+    :root .desk-btn--on:hover:not(:disabled) {
+        --btn-fill: Highlight;
+        --btn-ink: HighlightText;
+        outline-color: Highlight;
+    }
+
+    /* Checked toggle, ticked box, chosen radio: the pair again, with the moving part (thumb,
+       tick, dot) in the pair's ink so it reads on the fill. At rest the thumb is ButtonText on
+       the track's ButtonFace, where it would otherwise be forced to the Canvas it sits on. */
+    :root .toggle__track { background-color: ButtonFace; }
+    :root .toggle__thumb { background-color: ButtonText; }
+
+    :root .toggle__input:checked + .toggle__track,
+    :root .checkbox__input:checked + .checkbox__box,
+    :root .radio--on .radio__mark {
+        background-color: Highlight;
+        border-color: Highlight;
+        outline-color: Highlight;
+    }
+
+    :root .toggle__input:checked + .toggle__track .toggle__thumb,
+    :root .radio--on .radio__mark::after {
+        background-color: HighlightText;
+    }
+
+    :root .checkbox__input:checked + .checkbox__box::after { border-color: HighlightText; }
+
+    /* The open row's answer: an edge in Highlight rather than a fill, because what it holds is a
+       row of keys and words that the pair would repaint. */
+    :root .deskgrid__child > td {
+        outline: 1px solid Highlight;
+        outline-offset: -1px;
+    }
+
+    /* Disabled is GrayText, the system's word for it, edge and all. */
+    :root :is(button, input, select, textarea):disabled,
+    :root .desk-btn:disabled,
+    :root .tabs__tab--off {
+        --btn-ink: GrayText;
+        color: GrayText;
+        outline-color: GrayText;
+    }
+
+    /* A switch's input is the invisible sheet over its row, so the rule above greys nothing
+       anyone sees: the drawn parts take GrayText themselves — the track's edge, the thumb, the
+       words — and a switch that is on but cannot be changed gives up the Highlight pair for a
+       GrayText track under a Canvas thumb, so "on" never reads as "available". */
+    :root .toggle__input:disabled + .toggle__track { outline-color: GrayText; }
+    :root .toggle__input:disabled + .toggle__track .toggle__thumb { background-color: GrayText; }
+    :root .toggle__input:disabled ~ .toggle__label { color: GrayText; }
+
+    :root .toggle__input:disabled:checked + .toggle__track { background-color: GrayText; }
+    :root .toggle__input:disabled:checked + .toggle__track .toggle__thumb { background-color: Canvas; }
+
+    /* A link is LinkText. The desk's links are buttons that read as names (DeskLink), so they are
+       named here rather than found by element. */
+    :root a:not(.desk-btn),
+    :root .desklink,
+    :root .desklink__label,
+    :root .desklink__shortcut {
+        color: LinkText;
+    }
+
+    /* The drawn chevron is a gradient, which the browser drops; the native one comes back. */
+    :root select.field {
+        appearance: auto;
+        padding-right: var(--space-2);
+    }
+
+    /* No materials: a translucent Canvas over a blurred desk is the one thing a contrast theme
+       cannot read through. Every material and the blur are tokens, so the tokens go opaque and
+       the blur goes to none; html:root outweighs the theme blocks that declare them. */
+    /* The ground is plain whatever backdrop is chosen: a grid or a glow is decoration, and in a
+       contrast theme the Canvas behind the start screen's words is the operator's own. */
+    :root .desk,
+    :root[data-backdrop] .desk {
+        background-image: none;
+    }
+
+    html:root {
+        --material-ultrathin: Canvas;
+        --material-thin: Canvas;
+        --material-regular: Canvas;
+        --material-thick: Canvas;
+        --material-blur: none;
+    }
+
+    /* Colour is the information in a theme or accent swatch: forcing it would draw nine
+       identical tiles. These two, and nothing else, keep their own colours; the chosen one is
+       still marked in Highlight, which a contrast theme resolves even here. */
+    :root .swatch,
+    :root .accent-swatch {
+        forced-color-adjust: none;
+    }
+
+    :root .swatch--on { box-shadow: 0 0 0 3px Highlight; }
+    :root .swatch__tick { background-color: Highlight; }
+    :root .swatch__tick::after { border-color: HighlightText; }
+    :root .accent-swatch--on::after { border-color: Highlight; }
 }

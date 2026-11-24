@@ -1,6 +1,8 @@
 @using LineOps.Core.Entities
+@using LineOps.Data
 @using LineOps.Data.CrossReference
 @using LineOps.Desk.Primitives
+@using Microsoft.EntityFrameworkCore
 @using LineOps.Web.Components.Snippets
 @using LineOps.Desk.Windowing
 @inherits PanelBase
@@ -86,24 +88,57 @@ else
 
     @if (IsFight)
     {
+        @* The fighter's profile draws its own groups (FighterView), so it is not wrapped in a
+           card: a card around them would be a box around boxes. *@
         <PanelSection Title="Fighter">
             <FighterView TeamId="TeamId" />
         </PanelSection>
     }
 
-    <PanelSection Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
-                  Keys="@(_log.Count > 0 && !IsFight ? SplitKeys : null)"
-                  Detail="@(_log.Count > 0 ? RecordDetail : null)">
-        @* The splits strip, on the rule's own line. Every option filters the same loaded log,
-           so nothing here queries.
+    @* Section cards in a .wflow (the Desk's grouping contract): the log and the roster are two
+       cards, each named in the bar at its top, side by side in a window wide enough for two and
+       stacked in a narrow one. The lists inside draw no second frame (TeamPanel.razor.css). *@
+    <div class="wflow team-flow">
+    @* The record for what is on screen trails the title, so a split states its own result
+       rather than leaving the operator to count tags; what it was read against (ATS, totals,
+       how many games had a closing line) is the footer under the card. The keys and the footer
+       are handed over only when there is a log: a fragment that is present but empty would
+       still draw its slot over the "nothing recorded" line. *@
+    <FormGroup Title="@(IsFight ? "Bouts on the desk" : "Recent games")"
+               Keys="@(_log.Count > 0 ? RecordKeys : null)"
+               Footer="@(_log.Count > 0 ? RecordFooter : null)"
+               GroupClass="team-card">
+        @* The splits, as the card's first row: two compact filters side by side, each with its
+           label (a split row). Every option filters the same loaded log, so nothing here
+           queries. Picking an opponent is a filter the strip cannot express, so it answers by
+           standing every position up and showing no cap at all — which is true, and reads
+           better than leaving one lit under a filter it is not doing. *@
+        @if (_log.Count > 0 && !IsFight)
+        {
+            <div class="wgroup__row wgroup__split team-splits">
+                <div class="wgroup__cell">
+                    <span class="wgroup__label" aria-hidden="true">Games</span>
+                    <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
+                                Value="@(_opponent is null ? _split : null)"
+                                ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
+                </div>
+                @if (_opponents.Count > 1)
+                {
+                    <div class="wgroup__cell">
+                        <span class="wgroup__label" aria-hidden="true">Opponent</span>
+                        <DeskSelect TValue="string" Class="team-splits__pick" aria-label="Opponent"
+                                    Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
+                            <option value="">vs anyone</option>
+                            @foreach (var name in _opponents)
+                            {
+                                <option value="@name">vs @name</option>
+                            }
+                        </DeskSelect>
+                    </div>
+                }
+            </div>
+        }
 
-           Picking an opponent is a filter the strip cannot express, so it answers by
-           standing every position up and showing no cap at all — which is true, and
-           reads better than leaving one lit under a filter it is not doing. *@
-        @* The keys and the detail line are handed over only when there is a log to split:
-           a fragment that is present but empty would still draw its row and its margins
-           over the "nothing recorded" line. *@
-        <ChildContent>
         @if (_log.Count == 0)
         {
             <EmptyState Kind="EmptyStateKind.Filtered">No games on record for this season.</EmptyState>
@@ -114,8 +149,8 @@ else
         }
         else
         {
-            @* One group: the list carries the fill and the hairline edge, the rows only an
-               inset hairline between them. *@
+            @* The card is the group: the list inside it carries no fill or edge of its own,
+               the rows only an inset hairline between them. *@
             <div class="loglist">
                 @foreach (var row in _visible)
                 {
@@ -181,13 +216,12 @@ else
                 }
             </div>
         }
-        </ChildContent>
-    </PanelSection>
+    </FormGroup>
 
     @* A fighter is a side of one (ADR 0021): no roster — the profile leads, above. *@
     @if (!IsFight)
     {
-    <PanelSection Title="Roster form">
+    <FormGroup Title="Roster form" GroupClass="team-card">
     @if (_roster.Count == 0)
     {
         <EmptyState Kind="EmptyStateKind.Filtered">No appearances on record for this roster this season.</EmptyState>
@@ -227,8 +261,9 @@ else
             }
         </div>
     }
-    </PanelSection>
+    </FormGroup>
     }
+    </div>
 }
 
 <FollowUpLayer Launcher="_followUps" OnChanged="StateHasChanged" />
@@ -239,58 +274,91 @@ else
     private bool IsFight => FightSports.IsFight(_team?.Sport?.Key);
 
     /// <summary>
-    /// The splits strip, on the Recent games rule. Every option filters the same loaded log,
-    /// so nothing here queries. Picking an opponent is a filter the strip cannot express, so
-    /// it answers by standing every position up and showing no cap at all — which is true,
-    /// and reads better than leaving one lit under a filter it is not doing.
+    /// The record for whatever is on screen, on the log card's bar, so a split states its own
+    /// result rather than leaving the operator to count tags.
     /// </summary>
-    private RenderFragment SplitKeys => @<div class="splits">
-        <DeskSwitch Options="_splitOptions" Label="Game log split" Size="DeskKeySize.Small"
-                    Value="@(_opponent is null ? _split : null)"
-                    ValueChanged="@((GameLogSplits.Split? split) => SelectSplit(split!.Value))" />
-
-        @if (_opponents.Count > 1)
-        {
-            <DeskSelect TValue="string" Class="splits__pick" aria-label="Opponent"
-                        Value="@(_opponent ?? "")" ValueChanged="OnOpponentChanged">
-                <option value="">vs anyone</option>
-                @foreach (var name in _opponents)
-                {
-                    <option value="@name">vs @name</option>
-                }
-            </DeskSelect>
-        }
-    </div>;
+    private RenderFragment RecordKeys => @<span class="mono">@GameLogSplits.FormatRecord(_visible)</span>;
 
     /// <summary>
-    /// The record for whatever is on screen, so a split states its own result rather than
-    /// leaving the operator to count tags. ATS is only shown when there is market data
-    /// behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// What the record was read against, under the log card: against the spread and the total,
+    /// and how many of the games on screen had a closing line. ATS is only shown when there is
+    /// market data behind it — a 0-0-0 would read as "never covered" rather than "never priced".
+    /// Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021).
     /// </summary>
-    private RenderFragment RecordDetail => @<text>
-        <span class="mono">@GameLogSplits.FormatRecord(_visible)</span>
+    private RenderFragment RecordFooter => @<text>@string.Join(" · ", RecordReadings())</text>;
 
-        @* Home and away, a spread and a points total are a team's; a fighter has none (ADR 0021). *@
-        @if (!IsFight)
-        {
-
-        @if (_atsWins + _atsLosses + _atsPushes > 0)
-        {
-            <span>@_atsWins-@_atsLosses@(_atsPushes > 0 ? $"-{_atsPushes}" : "") ATS</span>
-        }
-
-        @if (_overs + _unders > 0)
-        {
-            <span>@_overs O / @_unders U</span>
-        }
-
-        }
-        <span class="psection__aside">@_covered of @_visible.Count with a closing line</span>
-    </text>;
+    private IEnumerable<string> RecordReadings()
+    {
+        if (!IsFight && _atsWins + _atsLosses + _atsPushes > 0)
+            yield return $"{_atsWins}-{_atsLosses}{(_atsPushes > 0 ? $"-{_atsPushes}" : "")} ATS";
+        if (!IsFight && _overs + _unders > 0)
+            yield return $"{_overs} O / {_unders} U";
+        yield return $"{_covered} of {_visible.Count} with a closing line";
+    }
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Games };
 
     protected override Task RefreshAsync() => LoadAsync();
+
+    /// <summary>
+    /// The most addressed games one refresh asks about before it reloads without asking. A notice
+    /// lists at most <see cref="DataTopics.MaxAddressed"/>, but the settle folds a burst of notices
+    /// into one refresh, and past this many the check stops being the cheap half of the choice.
+    /// </summary>
+    public const int MostGamesChecked = 4 * DataTopics.MaxAddressed;
+
+    /// <summary>
+    /// Reloads only for a change to one of this team's games. The window used to read all of
+    /// itself again — seasons, the roster aggregate, the log and its closes — on any score
+    /// anywhere: another league's live poll, a backfill. The games on screen cannot be the filter,
+    /// because the team's own new game (one that starts, a box score that lands after the load)
+    /// has an id the window never held; so the addressed ids are asked of the database instead.
+    /// A bare notice, or a refresh that does not say what changed, reloads as before.
+    /// </summary>
+    protected override async Task RefreshAsync(IReadOnlySet<string> heard)
+    {
+        if (await HeardOwnGameAsync(heard, PlaysInAnyAsync, _reads.Gone, "The team's"))
+            await LoadAsync();
+    }
+
+    /// <summary>
+    /// The games a refresh heard of, when every token addresses one under <c>games</c> and there
+    /// are few enough to ask about; null when the refresh must reload regardless — nothing said
+    /// what changed, a bare topic was heard, or more than <see cref="MostGamesChecked"/> games.
+    /// Shared with the Player window, which makes the same choice.
+    /// </summary>
+    public static int[]? AddressedGames(IReadOnlySet<string> heard)
+        => NoticeTokens.Addressed(heard, DataTopics.Games, MostGamesChecked);
+
+    /// <summary>The check's query: those of the games that this team played in, by primary key.</summary>
+    public static IQueryable<Game> OwnGames(LineOpsDbContext db, int teamId, int[] ids)
+        => db.Games.AsNoTracking()
+            .Where(g => ids.Contains(g.Id) && (g.HomeTeamId == teamId || g.AwayTeamId == teamId));
+
+    /// <summary>
+    /// Whether any of these games is this team's, on a context of its own. Virtual so a test
+    /// bench can answer it without a database.
+    /// </summary>
+    protected virtual async Task<bool> PlaysInAnyAsync(int[] ids, CancellationToken ct)
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+
+        return await OwnGames(db, TeamId, ids).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The load in flight, cancelled when the next starts: a season picked, or the window re-aimed,
+    /// while a load ran let the slower, superseded one hand over last and paint the old season.
+    /// Its <see cref="LatestRead.Gone"/> is for the own-game check, which is not a load.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    protected override void OnDispose()
+    {
+        _reads.Cancel();
+        base.OnDispose();
+    }
 
     /// <summary>
     /// The team this view is about. Taken as an id rather than an object so the view can be
@@ -361,33 +429,46 @@ else
     {
         await WithActivityAsync(async () =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
-            var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
+            // Taken inside the work so Try again, which repeats it, starts a read of its own.
+            var ct = _reads.Next();
+            var teamId = TeamId;
+            var asked = _seasonYear;
 
-            // The seasons this team has played in decide the gate; the newest is the default.
-            _seasons = await log.SeasonsForTeamAsync(TeamId);
+            // Read into locals and handed over at once, and only by the latest load. The reads
+            // share the scope's one context, so they stay one after another.
+            await LatestRead.HandOverAsync(ct, async () =>
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                var lookup = scope.ServiceProvider.GetRequiredService<MatchupCrossReference>();
+                var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            if (_seasonYear is null || !_seasons.Contains(_seasonYear.Value))
-                _seasonYear = _seasons.Count > 0 ? _seasons[0] : null;
+                // The seasons this team has played in decide the gate; the newest is the default.
+                var seasons = await log.SeasonsForTeamAsync(teamId, ct);
 
-            // The roster still comes from the aggregate side — per-player form over a season is
-            // exactly what it is for. Only the games are read at game grain.
-            var form = await lookup.GetTeamAsync(TeamId, FallbackWindow, maxPlayers: 15, seasonYear: _seasonYear);
+                var seasonYear = PickSeason(seasons, asked);
 
-            _team = form?.Team;
-            _roster = form?.Roster ?? [];
+                // The roster still comes from the aggregate side — per-player form over a season is
+                // exactly what it is for. Only the games are read at game grain.
+                var form = await lookup.GetTeamAsync(teamId, FallbackWindow, maxPlayers: 15, seasonYear: seasonYear, ct: ct);
 
-            var sport = _team?.Sport?.Key ?? string.Empty;
-            _seasonOptions = _seasons
-                .Select(y => new DeskSwitchOption<int>(y, SeasonCalendar.Label(sport, y),
-                    $"{sport.ToUpperInvariant()} {SeasonCalendar.Label(sport, y)} season"))
-                .ToList();
+                var games = await log.TeamGameLogAsync(teamId, FallbackWindow, seasonYear, ct);
 
-            _log = await log.TeamGameLogAsync(TeamId, FallbackWindow, _seasonYear);
-            _opponents = GameLogSplits.Opponents(_log);
+                return (Seasons: seasons, SeasonYear: seasonYear, Form: form, Games: games);
+            },
+            read =>
+            {
+                _seasons = read.Seasons;
+                _seasonYear = read.SeasonYear;
+                _team = read.Form?.Team;
+                _roster = read.Form?.Roster ?? [];
 
-            ApplySplit();
+                _seasonOptions = SeasonOptions(_team?.Sport?.Key, _seasons);
+
+                _log = read.Games;
+                _opponents = GameLogSplits.Opponents(_log);
+
+                ApplySplit();
+            });
         },
         settle: () => _team is null ? PulseState.Idle : PulseState.Healthy,
         status: () => _team is null ? "not found" : StateStatus(_log, SeasonLabel));

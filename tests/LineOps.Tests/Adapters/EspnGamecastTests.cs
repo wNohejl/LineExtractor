@@ -1,7 +1,7 @@
-using System.Net;
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LineOps.Tests.Adapters;
@@ -22,14 +22,8 @@ public class EspnGamecastTests
 {
     private const string GameId = "401873032";
 
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        return JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone();
-    }
-
     private static CanonicalGamecast Live()
-        => EspnStatsAdapter.ParseGamecast(Load("espn.summary.live.json"), GameId);
+        => EspnStatsAdapter.ParseGamecast(Fixtures.Json("espn.summary.live.json"), GameId);
 
     [Fact]
     public void ParseGamecast_StampsTheGameAndItsState()
@@ -148,7 +142,7 @@ public class EspnGamecastTests
     public void ParseGamecast_ASummaryWithNoDrivesIsAnEmptyGamecast()
     {
         // The box-score fixture: no drives, no win probability, no header.
-        var cast = EspnStatsAdapter.ParseGamecast(Load("espn.summary.json"), "game-1");
+        var cast = EspnStatsAdapter.ParseGamecast(Fixtures.Json("espn.summary.json"), "game-1");
 
         Assert.Equal("game-1", cast.SourceGameId);
         Assert.Empty(cast.Drives);
@@ -158,7 +152,7 @@ public class EspnGamecastTests
     [Fact]
     public void ParseProbabilities_KeysEachRowByThePlayInItsRef()
     {
-        var rows = EspnStatsAdapter.ParseProbabilities(Load("espn.probabilities.json"));
+        var rows = EspnStatsAdapter.ParseProbabilities(Fixtures.Json("espn.probabilities.json"));
 
         Assert.Equal(5, rows.Count);
 
@@ -172,7 +166,7 @@ public class EspnGamecastTests
     [Fact]
     public void MergeProbabilities_FillsTheSpreadAndTotalOntoTheirPlays()
     {
-        var rows = EspnStatsAdapter.ParseProbabilities(Load("espn.probabilities.json"));
+        var rows = EspnStatsAdapter.ParseProbabilities(Fixtures.Json("espn.probabilities.json"));
         var plays = EspnStatsAdapter.MergeProbabilities(Live(), rows).Plays.ToDictionary(p => p.SourcePlayId);
 
         Assert.Equal(0.5211m, plays["40187303240"].SpreadCoverPctHome);
@@ -192,29 +186,12 @@ public class EspnGamecastTests
         Assert.Empty(EspnStatsAdapter.ParseProbabilities(doc.RootElement));
     }
 
-    private sealed class RecordingHandler(Func<string, string> respond) : HttpMessageHandler
+    private static (IGamecastSource Source, StubHttp Handler) Adapter()
     {
-        public List<string> Urls { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var url = request.RequestUri!.ToString();
-            Urls.Add(url);
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(respond(url))
-            });
-        }
-    }
-
-    private static (IGamecastSource Source, RecordingHandler Handler) Adapter()
-    {
-        var summary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.summary.live.json"));
-        var probs = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.probabilities.json"));
-        var handler = new RecordingHandler(url => url.Contains("/probabilities") ? probs : summary);
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/") };
+        var summary = Fixtures.Text("espn.summary.live.json");
+        var probs = Fixtures.Text("espn.probabilities.json");
+        var handler = new StubHttp(url => url.Contains("/probabilities") ? probs : summary);
+        var http = handler.Client("https://site.api.espn.com/apis/site/v2/sports/");
 
         return (new EspnStatsAdapter(http, NullLogger<EspnStatsAdapter>.Instance), handler);
     }
@@ -276,10 +253,10 @@ public class EspnGamecastTests
     [Fact]
     public async Task FetchBoxScoreAsync_ReadsTheBoardThenOnlyThatGamesSummary()
     {
-        var board = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.scoreboard.json"));
-        var summary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.summary.json"));
-        var handler = new RecordingHandler(url => url.Contains("/scoreboard") ? board : summary);
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/") };
+        var board = Fixtures.Text("espn.scoreboard.json");
+        var summary = Fixtures.Text("espn.summary.json");
+        var handler = new StubHttp(url => url.Contains("/scoreboard") ? board : summary);
+        var http = handler.Client("https://site.api.espn.com/apis/site/v2/sports/");
         IGamecastSource source = new EspnStatsAdapter(http, NullLogger<EspnStatsAdapter>.Instance);
 
         var final = await source.FetchBoxScoreAsync("mlb", new DateOnly(2026, 9, 20), "401816200", CancellationToken.None);
@@ -289,7 +266,7 @@ public class EspnGamecastTests
         Assert.Contains("baseball/mlb/summary?event=401816200", handler.Urls[1]);
         Assert.DoesNotContain(handler.Urls, u => u.Contains("summary?event=401816201"));
 
-        handler.Urls.Clear();
+        handler.Asked.Clear();
 
         // Not final on the board: nothing to write, and no summary asked for.
         var scheduled = await source.FetchBoxScoreAsync("mlb", new DateOnly(2026, 9, 20), "401816201", CancellationToken.None);
@@ -311,7 +288,7 @@ public class EspnGamecastTests
     [Fact]
     public void ParseGamecast_ReadsAFinalsLinescoreAndStatusLineFromTheHeader()
     {
-        var cast = EspnStatsAdapter.ParseGamecast(Load("espn.summary.final.json"), "401872999");
+        var cast = EspnStatsAdapter.ParseGamecast(Fixtures.Json("espn.summary.final.json"), "401872999");
 
         // The summary states a period's points as a string, and overtime is a fifth period.
         Assert.Equal("final", cast.State);

@@ -6,7 +6,9 @@ using LineOps.Desk.Primitives;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
 using LineOps.Web.Components.Panels;
+using LineOps.Web.Tests.Support;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LineOps.Web.Tests;
@@ -24,18 +26,9 @@ public class OperationsWindowsTests : DeskTestContext
     public OperationsWindowsTests()
     {
         Services.AddScoped<DeskToasts>();
-        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new UnreachableFactory());
+        Services.AddSingleton<IDbContextFactory<LineOpsDbContext>>(new HangingDbFactory());
         Services.AddSingleton<HistoryBackfillService>();
         Services.AddSingleton<BackfillCoordinator>();
-    }
-
-    /// <summary>A database that never answers: the load stays in flight, or fails, as the panel reads it.</summary>
-    private sealed class UnreachableFactory : IDbContextFactory<LineOpsDbContext>
-    {
-        public LineOpsDbContext CreateDbContext() => throw new NotSupportedException();
-
-        public Task<LineOpsDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
-            => new TaskCompletionSource<LineOpsDbContext>().Task;
     }
 
     private static void Set(object panel, string field, object? value)
@@ -53,18 +46,25 @@ public class OperationsWindowsTests : DeskTestContext
     }
 
     /// <summary>Marks the panel as having read what the test has placed on it.</summary>
-    private static void Loaded(object panel)
-    {
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("LoadError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel, null);
-        typeof(LineOps.Desk.Windowing.DeskPanelBase).GetProperty("Loaded", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(panel, true);
-    }
+    private static void Loaded(object panel) => PanelProbe.MarkLoaded(panel);
 
-    private static string Section(IRenderedFragment panel, string title)
-        => panel.FindAll("section.psection")
-            .Single(s => s.QuerySelector(".psection__head")!.TextContent.Trim() == title)
-            .OuterHtml;
+    /// <summary>
+    /// A section card (the Desk's grouping contract, Nov 22) by the title in its bar: the section,
+    /// whose card is its first child and whose footers follow it.
+    /// </summary>
+    private static AngleSharp.Dom.IElement Card(IRenderedFragment panel, string title)
+        => panel.FindAll("section.wsection")
+            .Single(s => s.QuerySelector(":scope > .wgroup > .wgroup__bar > .wgroup__title")?.TextContent.Trim() == title);
+
+    private static string Section(IRenderedFragment panel, string title) => Card(panel, title).OuterHtml;
+
+    /// <summary>The cards' titles in a window's flows, in order.</summary>
+    private static IReadOnlyList<string> CardTitles(IRenderedFragment panel)
+        => panel.FindAll(".wflow > section.wsection > .wgroup > .wgroup__bar > .wgroup__title")
+            .Select(h => h.TextContent.Trim()).ToList();
+
+    private static string Words(string text)
+        => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     // ---- Ops ---------------------------------------------------------------------------------
 
@@ -109,9 +109,10 @@ public class OperationsWindowsTests : DeskTestContext
     {
         var panel = RenderOps(LiveFeed());
 
-        var section = panel.Find("section.wsection[aria-label=Scanning]");
+        // The card is named Scanning in its bar; its one row is the mode.
+        var section = Card(panel, "Scanning");
         var row = section.QuerySelector(".wgroup .wgroup__row--form")!;
-        Assert.Equal("Scanning", row.QuerySelector(".wgroup__label")!.TextContent.Trim());
+        Assert.Equal("Mode", row.QuerySelector(".wgroup__label")!.TextContent.Trim());
         Assert.NotNull(row.QuerySelector("[role=radiogroup]"));
 
         // The footer is the section's, directly under the group it prices.
@@ -135,7 +136,7 @@ public class OperationsWindowsTests : DeskTestContext
         Loaded(panel.Instance);
         panel.Render();
 
-        var faults = panel.Find("section.wsection[aria-label=Faults]");
+        var faults = Card(panel, "On-call drill");
         Assert.Equal("The Odds API", faults.QuerySelector(".wgroup__label")!.TextContent.Trim());
         Assert.Contains("Inject a fault, run an ingest", faults.QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
     }
@@ -160,7 +161,7 @@ public class OperationsWindowsTests : DeskTestContext
 
         // The window is still the window: its rows, its group, and no raw exception text.
         Assert.Contains("The Odds API", panel.Markup);
-        Assert.NotNull(panel.Find("section.wsection[aria-label=Scanning] .wgroup__row--form"));
+        Assert.NotNull(Card(panel, "Scanning").QuerySelector(".wgroup__row--form"));
         Assert.DoesNotContain("InvalidOperationException", panel.Markup);
     }
 
@@ -181,15 +182,223 @@ public class OperationsWindowsTests : DeskTestContext
             .GetAttribute("aria-checked"));
     }
 
+    /// <summary>With no switch to price, the prose that prices scanning is the Odds feeds card's footer.</summary>
     [Fact]
-    public void Ops_without_a_live_feed_keeps_the_prose_as_a_footnote()
+    public void Ops_without_a_live_feed_keeps_the_prose_as_the_feeds_footer()
     {
         var panel = RenderOps();
 
         Assert.Empty(panel.FindAll(".wgroup__label"));
-        var footnote = panel.Find(".opsfoot");
-        Assert.DoesNotContain("wgroup__foot", footnote.ClassName);
-        Assert.Contains("Lines are pulled on request only", footnote.TextContent);
+        Assert.DoesNotContain("Scanning", CardTitles(panel));
+        var footer = Card(panel, "Odds feeds").QuerySelector(":scope > .wgroup + .wgroup__foot")!;
+        Assert.Contains("Lines are pulled on request only", footer.TextContent);
+    }
+
+    /// <summary>
+    /// The Ops window is a flow of section cards: each section a card named in its bar, the tables
+    /// spanning the row so a column has the window's width, the short cards a track each. It was one
+    /// long column of bare heading rules, the sections running together.
+    /// </summary>
+    [Fact]
+    public void Ops_sections_are_cards_in_one_flow()
+    {
+        var panel = RenderOps(LiveFeed());
+
+        Assert.Equal(["Stats source", "Open alerts", "Source health", "Odds feeds", "Scanning", "On-call drill"],
+            CardTitles(panel));
+        Assert.Single(panel.FindAll(".wflow.opsflow"));
+        Assert.Empty(panel.FindAll("section.psection, .wgroup__head"));
+
+        // A table spans the row; the all-clear sentence and the forms take one track.
+        Assert.Contains("wsection--span", Card(panel, "Source health").ClassName);
+        Assert.Contains("wsection--span", Card(panel, "Odds feeds").ClassName);
+        Assert.DoesNotContain("wsection--span", Card(panel, "Open alerts").ClassName);
+        Assert.DoesNotContain("wsection--span", Card(panel, "Scanning").ClassName);
+
+        // One edge a section: no card inside a card, and the tiles stay a row of tiles outside them.
+        Assert.Empty(panel.FindAll(".wgroup .wgroup"));
+        Assert.Empty(panel.FindAll(".wgroup .metrics"));
+        Assert.NotNull(panel.Find(".metrics"));
+
+        // Every card is labelled by its bar's title.
+        foreach (var card in panel.FindAll(".wflow > section.wsection"))
+        {
+            var id = card.GetAttribute("aria-labelledby");
+            Assert.False(string.IsNullOrEmpty(id));
+            Assert.Equal(id, card.QuerySelector(".wgroup__title")!.Id);
+        }
+    }
+
+    /// <summary>
+    /// The feeds' Books keep a reading width: each book one name on one line, the list a block with
+    /// a floor (scoped CSS), so it wraps between books rather than stacking one word a line.
+    /// </summary>
+    [Fact]
+    public void Odds_feed_books_are_names_that_wrap_between_books()
+    {
+        var panel = RenderOps(LiveFeed());
+
+        var books = Card(panel, "Odds feeds").QuerySelector(".opsbooks")!;
+        var names = books.QuerySelectorAll(".opsbooks__name").Select(n => n.TextContent.Trim()).ToList();
+        Assert.Equal(2, names.Count);
+        Assert.EndsWith(",", names[0]);
+        Assert.DoesNotContain(",", names[1]);
+        Assert.Equal("1 of 1 live", Words(Card(panel, "Odds feeds").QuerySelector(".wgroup__keys")!.TextContent));
+    }
+
+    // ---- The stats source, three states (ADR 0026) ------------------------------------------
+
+    private static string StatsSection(IRenderedFragment panel) => Words(Card(panel, "Stats source").TextContent);
+
+    private static IReadOnlyList<string> Tooltips(IRenderedFragment panel)
+        => panel.FindComponents<DeskTooltip>().Select(t => t.Instance.Text).ToList();
+
+    /// <summary>
+    /// ESPN off and no key — a fresh clone: Ops says first that nothing supplies fixtures or scores
+    /// and that the fix is the key field below, then why ESPN is opt-in and exactly how to turn it on.
+    /// </summary>
+    [Fact]
+    public void Ops_with_espn_off_and_no_key_asks_for_a_key_and_says_how_espn_is_turned_on()
+    {
+        var panel = RenderOps();
+
+        Assert.Equal("Stats source", CardTitles(panel)[0]);
+
+        var section = Card(panel, "Stats source");
+        var text = StatsSection(panel);
+        Assert.Equal("None", section.QuerySelector(".wgroup__keys")!.TextContent.Trim());
+
+        Assert.Contains("No stats source: ESPN is off and no Odds API key is held", section.QuerySelector(".empty")!.TextContent);
+        Assert.Equal("0", section.QuerySelector(".empty")!.GetAttribute("tabindex"));
+        Assert.Contains("Enter your free key under Odds feeds below", text);
+        Assert.Contains("unofficial and undocumented", text);
+        Assert.Contains("personal, non-commercial use and prohibit automated access", text);
+        Assert.Contains("never to host, redistribute or sell it", text);
+        Assert.Contains("ESPN_ENABLED=true in .env", text);
+        Assert.Contains("start the stack again", text);
+        Assert.Contains("appsettings.Local.json", text);
+
+        // An empty state in the card and the notice under it: one edge, no grid, no second edge
+        // around the notice.
+        Assert.Single(section.QuerySelectorAll(".wgroup"));
+        Assert.Empty(section.QuerySelectorAll(".deskgrid, .note"));
+        Assert.Contains("unofficial and undocumented", section.QuerySelector(":scope > .wgroup + .wgroup__foot")!.TextContent);
+    }
+
+    [Fact]
+    public void Ops_with_a_key_and_espn_off_says_the_odds_api_supplies_fixtures_and_scores_and_what_needs_espn()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_port", StatsPort.TheOddsApi);
+        panel.Render();
+
+        var text = StatsSection(panel);
+        Assert.Equal("The Odds API", Card(panel, "Stats source").QuerySelector(".wgroup__keys")!.TextContent.Trim());
+        Assert.Contains("The Odds API is the stats source on this host, on your key.", text);
+        Assert.Contains("Fixtures are free", text);
+        Assert.Contains("Final scores cost 2 credits a league a pull", text);
+        Assert.Contains("Pull data → Pull scores", text);
+        Assert.Contains("Box scores, player stats, play-by-play, injuries and UFC need ESPN, which is off.", text);
+        Assert.Contains("ESPN_ENABLED=true in .env", text);
+
+        // Not an empty state: the desk has a source, it is said in prose.
+        Assert.DoesNotContain("No stats source", text);
+    }
+
+    [Fact]
+    public void Ops_with_espn_on_says_espn_is_the_stats_source_and_has_no_notice()
+    {
+        Services.Configure<LineOps.Ingestion.Configuration.IngestionOptions>(o => o.Espn.Enabled = true);
+
+        var panel = RenderOps();
+
+        Assert.Contains("ESPN is the stats source on this host", StatsSection(panel));
+        Assert.DoesNotContain("ESPN_ENABLED", panel.Markup);
+        Assert.DoesNotContain("No stats source", panel.Markup);
+    }
+
+    [Fact]
+    public void The_stats_source_statement_carries_a_tooltip_saying_what_a_stats_source_is()
+    {
+        var panel = RenderOps();
+
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("The stats source writes each game's schedule and result"));
+    }
+
+    // ---- The month in one place (owner's request, 2026-11-20) ---------------------------------
+
+    [Fact]
+    public void Ops_states_credits_left_by_whose_count_when_they_reset_and_what_scores_would_take()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_allowance", new AllowanceState(500, 88, true, 100, new DateOnly(2026, 12, 1)));
+        Set(panel.Instance, "_scores", new ScoresPlan(["nba", "nfl"], 2, 4, 11, Automatic: false));
+        panel.Render();
+
+        var section = Card(panel, "Scanning");
+        var text = Words(section.TextContent);
+
+        Assert.Contains("412 of 500 credits left this month, by The Odds API's own count; they reset on Dec 1.", text);
+        Assert.Contains("Scores cost 2 credits a league a pull; on Automatic they would take about 4 a day (NBA, NFL).", text);
+
+        // The figure explains itself on hover and focus; the figure itself is text.
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("The Odds API reports what is left on the key"));
+        Assert.NotEmpty(section.QuerySelectorAll("span[tabindex='0'] .num"));
+    }
+
+    [Fact]
+    public void On_automatic_the_scores_spend_to_the_months_end_is_stated_as_set_aside()
+    {
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_allowance", new AllowanceState(500, 300, false, 100, new DateOnly(2026, 12, 1)));
+        Set(panel.Instance, "_scores", new ScoresPlan(["nfl"], 2, 2, 11, Automatic: true));
+        panel.Render();
+
+        var text = Card(panel, "Scanning").TextContent;
+
+        Assert.Contains("by this desk's count", text);
+        Assert.Contains("about 2 a day, 22 to the month's end, set aside before lines are paced", text);
+    }
+
+    [Fact]
+    public void The_scanning_switch_carries_a_tooltip_and_its_segments_say_what_each_spends()
+    {
+        var panel = RenderOps(LiveFeed());
+
+        Assert.Contains(Tooltips(panel), t => t.StartsWith("On request spends nothing unless you choose a pull"));
+
+        var segments = panel.FindAll("[role=radio]").Select(b => b.GetAttribute("title")).ToList();
+        Assert.Contains(segments, t => t!.StartsWith("Nothing is spent unasked"));
+        Assert.Contains(segments, t => t!.Contains("scores") && t.Contains("once a night"));
+    }
+
+    [Fact]
+    public void The_odds_api_key_row_carries_a_tooltip_with_what_each_pull_costs()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "lineops-opskey-" + Guid.NewGuid().ToString("N"));
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [LineOps.Web.Services.DeskOddsKey.StorePathKey] = directory })
+            .Build();
+        var key = new LineOps.Web.Services.DeskOddsKey(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(), new RuntimeOddsKey(),
+            _ => Task.CompletedTask, new NoClients(), configuration,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<LineOps.Web.Services.DeskOddsKey>.Instance);
+
+        var panel = RenderOps(LiveFeed());
+        Set(panel.Instance, "_oddsKey", key);
+        panel.Render();
+
+        // The card is named for the key; its one row is the key's value, its field named in full.
+        var card = Card(panel, "The Odds API key");
+        Assert.Equal("Key", card.QuerySelector(".wgroup__label")!.TextContent.Trim());
+        Assert.NotNull(card.QuerySelector("input[type=password][aria-label='The Odds API key']"));
+        Assert.Contains("the-odds-api.com", card.QuerySelector(":scope > .wgroup + .wgroup__foot")!.TextContent);
+        Assert.Contains(Tooltips(panel), t => t.Contains("500 credits a month") && t.Contains("scores two a league") && t.Contains("fixtures nothing"));
+    }
+
+    private sealed class NoClients : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new NotSupportedException("No call is made in this test.");
     }
 
     // ---- Incidents ---------------------------------------------------------------------------
@@ -226,8 +435,12 @@ public class OperationsWindowsTests : DeskTestContext
             Incident(1, IncidentStatus.Open),
             Incident(2, IncidentStatus.Resolved, "A cause."));
 
-        var titles = panel.FindAll(".psection__head").Select(h => h.TextContent.Trim()).ToList();
-        Assert.Equal(["Open", "Resolved"], titles);
+        Assert.Equal(["Open", "Resolved"], CardTitles(panel));
+
+        // Two tables, each a card across the row of one flow, and the tiles outside them.
+        Assert.Single(panel.FindAll(".wflow.incflow"));
+        Assert.All(panel.FindAll(".wflow > section.wsection"), s => Assert.Contains("wsection--span", s.ClassName));
+        Assert.Empty(panel.FindAll("section.psection, .wgroup .metrics"));
 
         Assert.Contains("Incident 1", Section(panel, "Open"));
         Assert.DoesNotContain("Incident 2", Section(panel, "Open"));
@@ -239,11 +452,10 @@ public class OperationsWindowsTests : DeskTestContext
     {
         var panel = RenderIncidents(Incident(2, IncidentStatus.Resolved, "A cause."));
 
-        var titles = panel.FindAll(".psection__head").Select(h => h.TextContent.Trim()).ToList();
-        Assert.Equal(["Resolved"], titles);
+        Assert.Equal(["Resolved"], CardTitles(panel));
 
         // The record is quiet: no state capsule saying Resolved, no red severity, a written RCA in words.
-        var resolved = panel.FindAll("section.psection").Single();
+        var resolved = Card(panel, "Resolved");
         Assert.Empty(resolved.QuerySelectorAll(".tag"));
         Assert.Contains("Written", resolved.TextContent);
         Assert.Contains("1.5h", resolved.TextContent);
@@ -283,6 +495,42 @@ public class OperationsWindowsTests : DeskTestContext
 
         var filled = Assert.Single(form.QuerySelectorAll(".desk-btn--filled"));
         Assert.Contains("Resolve incident", filled.TextContent);
+    }
+
+    /// <summary>
+    /// An incident's timeline and its RCA are two cards of one flow — side by side in a wide
+    /// window — each named in its bar, rather than two bare rules down one column.
+    /// </summary>
+    [Fact]
+    public void The_timeline_and_the_rca_are_cards_of_one_flow()
+    {
+        var panel = RenderIncident(Incident(4, IncidentStatus.Open));
+
+        var flow = panel.Find(".wflow.incflow");
+        var titles = flow.QuerySelectorAll("section.wsection > .wgroup > .wgroup__bar > .wgroup__title")
+            .Select(h => h.TextContent.Trim()).ToList();
+        Assert.Equal(["Timeline", "Root-cause analysis"], titles);
+        Assert.Empty(panel.FindAll("section.psection, .wgroup .wgroup"));
+
+        // The composer is a row of the timeline card.
+        Assert.NotNull(Card(panel, "Timeline").QuerySelector(".wgroup input[aria-label='New timeline note']"));
+    }
+
+    /// <summary>A note that would not save is said under the timeline card, never inside it.</summary>
+    [Fact]
+    public void A_note_that_fails_is_said_under_the_timeline_card()
+    {
+        var panel = RenderIncident(Incident(4, IncidentStatus.Open));
+
+        panel.Find("input[aria-label='New timeline note']").Input("network blip");
+        panel.FindAll("button").Single(b => b.TextContent.Trim() == "Add").Click();
+
+        panel.WaitForAssertion(() =>
+        {
+            var timeline = Card(panel, "Timeline");
+            Assert.NotNull(timeline.QuerySelector(":scope > .wgroup + .note"));
+            Assert.Empty(timeline.QuerySelectorAll(".wgroup .note"));
+        });
     }
 
     /// <summary>
@@ -384,7 +632,9 @@ public class OperationsWindowsTests : DeskTestContext
     {
         var panel = RenderHistory();
 
-        var coverage = Section(panel, "Coverage");
+        // The tiles and their footnote stand on the window's body, outside every card.
+        var coverage = panel.Find(".metrics").OuterHtml + panel.Find(".metrics + .opsfoot").OuterHtml;
+        Assert.Empty(panel.FindAll(".wgroup .metrics"));
         Assert.Contains("3,054", coverage);
         Assert.Contains("211,159", coverage);
         Assert.Contains("of 3,200 wanted", coverage);
@@ -398,7 +648,7 @@ public class OperationsWindowsTests : DeskTestContext
     {
         var panel = RenderHistory();
 
-        var sources = panel.FindAll("section.psection").First(s => s.TextContent.Contains("Sources"));
+        var sources = Card(panel, "Sources");
         Assert.Equal("ESPN (unofficial)", sources.QuerySelector(".wgroup__label")!.TextContent.Trim());
         Assert.Empty(sources.QuerySelectorAll(".tag"));
     }
@@ -408,7 +658,7 @@ public class OperationsWindowsTests : DeskTestContext
     {
         var panel = RenderHistory();
 
-        var run = panel.Find("section.wsection[aria-label=Run]");
+        var run = Card(panel, "Run");
         var labels = run.QuerySelectorAll(".wgroup__label").Select(l => l.TextContent.Trim()).ToList();
         Assert.Equal(["Past days", "Held days", "Sports", "Dates", "Range"], labels);
         Assert.Contains("re-resolved onto themselves", run.QuerySelector(".wgroup + .wgroup__foot")!.TextContent);
@@ -432,13 +682,35 @@ public class OperationsWindowsTests : DeskTestContext
         panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk…").Click();
         panel.FindAll("button").Single(b => b.TextContent.Trim() == "Re-walk").Click();
 
-        var note = panel.WaitForElement("section.wsection[aria-label=Run] .note");
+        panel.WaitForAssertion(() => Assert.NotNull(Card(panel, "Run").QuerySelector(".note")));
+        var note = Card(panel, "Run").QuerySelector(".note")!;
         Assert.Contains("The walk did not start. Try again.", note.TextContent);
         Assert.Contains("note--warn", note.ClassName);
+        // Under the card, never inside it.
+        Assert.Empty(Card(panel, "Run").QuerySelectorAll(".wgroup .note"));
 
         // The keys are back, and the record the window holds is still on it.
         Assert.Contains(panel.FindAll("button"), b => b.TextContent.Trim() == "Re-walk…");
-        Assert.Contains("3,054", Section(panel, "Coverage"));
+        Assert.Contains("3,054", panel.Find(".metrics").TextContent);
+    }
+
+    /// <summary>
+    /// History is the tiles, then one flow of cards: the sources and the walk's form a track each,
+    /// the two record tables each across the row. It was four bare rules down one column.
+    /// </summary>
+    [Fact]
+    public void History_sections_are_cards_in_one_flow()
+    {
+        var panel = RenderHistory();
+
+        Assert.Equal(["Sources", "Run", "Seasons", "Recent days"], CardTitles(panel));
+        Assert.Single(panel.FindAll(".wflow.histflow"));
+        Assert.Empty(panel.FindAll("section.psection, .wgroup__head, .wgroup .wgroup"));
+
+        Assert.DoesNotContain("wsection--span", Card(panel, "Sources").ClassName);
+        Assert.DoesNotContain("wsection--span", Card(panel, "Run").ClassName);
+        Assert.Contains("wsection--span", Card(panel, "Seasons").ClassName);
+        Assert.Contains("wsection--span", Card(panel, "Recent days").ClassName);
     }
 
     /// <summary>

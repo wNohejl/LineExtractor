@@ -4,6 +4,22 @@ One VM, five containers, Caddy in front. What this is for and why it is shaped t
 [ADR 0019](../docs/adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) and the
 [going-public plan](../docs/superpowers/specs/2026-09-27-going-public-plan.md) §3.
 
+**Status, 2026-11-22.** Verified locally, never deployed. XLines 1.0 is a desk each person runs
+for themselves; this stack is for an optional hosted demo
+([ADR 0031](../docs/adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md), Phase D).
+Two desks can be hosted, and they are different things:
+
+| | A demo others may open | The owner's own desk, somewhere else |
+|---|---|---|
+| `ESPN_ENABLED` | `false`, and never turned on for this database | `true` |
+| `SHARING_MODE` | `Shared` | `Local` |
+| Who signs in | Reviewers with the guest code; the operator | The operator only |
+| What it shows | Fixtures, prices, closes and CLV from The Odds API (ADR 0026) | Everything |
+| First load | Nothing to restore: fixtures arrive on the key | The private snapshot, step 7 |
+
+The owner's snapshot holds ESPN-derived rows and is never restored into the first kind.
+Azure App Service instead of a VM is weighed in ADR 0031 §5; nothing here is written for it.
+
 | File | What it is |
 |---|---|
 | `compose.yml` | Caddy, web (the desk), worker (the only scheduler), Postgres, and a nightly backup |
@@ -58,6 +74,10 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
      on your own machine with `./scripts/new-access-code.ps1` (and `-Role Guest`). The codes
      are printed once; put them in a password manager. The server gets only the hashes.
    - `THE_ODDS_API_KEY`, with `THE_ODDS_API_ENABLED=true`, if the desk should price games.
+   - `ESPN_ENABLED`, the stats source, is `false` and the desk has no games until it is `true`;
+     read the notice above it in `.env.example` first, because ESPN's terms allow personal,
+     non-commercial use only, so a desk showing its data stays gated and `SHARING_MODE` stays
+     `Local`.
 
 5. **The registry.** A new GHCR package is private. Either make `lineops-web` and
    `lineops-worker` public (GitHub → Packages → Package settings), or log the server in
@@ -73,12 +93,20 @@ A 2 GB VM is the floor (web 512 MB, worker 384 MB, Postgres 512 MB, Caddy and ba
    ./deploy.sh
    ```
 
-7. **Load the data.** A fresh database has no history. Copy the development snapshot up and
-   restore it. The web and worker stop while it loads.
+7. **Load the data.** A fresh database has no history. The owner copies the development
+   snapshot up from the private journal clone and restores it; the web and worker stop while it
+   loads.
 
    ```bash
-   scp data/snapshots/lineops.dump server:/opt/lineops/     # from a clone
+   scp data/personal/snapshots/lineops.dump server:/opt/lineops/     # from the private clone
    ./restore.sh lineops.dump
+   ```
+
+   Anyone else has no snapshot. With `ESPN_ENABLED=true`, fill the database with the worker's
+   range job, one league at a time:
+
+   ```bash
+   docker compose run --rm worker --job espn:range --sport nfl --from 2025-09-04 --to 2025-09-30
    ```
 
 8. **Watch it from outside.** Add a free uptime monitor (Better Stack, UptimeRobot) on

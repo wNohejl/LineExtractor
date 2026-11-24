@@ -48,6 +48,8 @@ public abstract class DeskTestContext : TestContext
         Services.AddScoped<LineOps.Desk.Windowing.DeskFollowUps>();
         // Every menu sits in a popover, and a popover asks which one is open so it can close it.
         Services.AddScoped<LineOps.Desk.Primitives.DeskPopovers>();
+        // The layout draws the desk's toast stack, and the desk says its notices through it.
+        Services.AddScoped<LineOps.Desk.Primitives.DeskToasts>();
 
         JSInterop.Mode = JSRuntimeMode.Loose;
     }

@@ -1,0 +1,27 @@
+/* Under the table, inside its card: the count and order in footnote type, the key trailing. An
+   inset hairline divides it from the table's rows, as rows are divided (the table's last row
+   gives its own up inside a card). --bookmore-inset is the card's text inset, so the sentence
+   starts where the bar's title and the book names do; a host that is itself a row sets it to 0. */
+.bookmore {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--bookmore-inset, var(--space-4));
+    font-size: var(--text-footnote);
+    line-height: var(--leading-body);
+    color: var(--text-secondary);
+}
+
+.bookmore::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: var(--bookmore-inset, var(--space-4));
+    border-top: 1px solid var(--separator);
+}
+
+.bookmore__count { min-width: 0; }

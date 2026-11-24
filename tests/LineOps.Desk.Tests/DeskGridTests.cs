@@ -294,4 +294,22 @@ public class DeskGridHeadingTests : DeskTestContext
         Assert.NotNull(cut.Find(".deskgrid__skeleton"));
         Assert.Empty(cut.FindAll(".deskgrid__empty"));
     }
+
+    /// <summary>
+    /// An open row's answer keeps to the width in view. Its cap was the grid's whole width, but
+    /// an indented child starts past its lead cell, so in a 700px column the answer ran past the
+    /// trailing edge by the lead's width and its last key sat past the scroll. The sheet holds
+    /// both halves of the fix: the cap is spent against the cell's own inset, and below the width
+    /// where the indent and a full answer fit, the lead cell gives up its place. Read from the
+    /// sheet because bUnit lays nothing out.
+    /// </summary>
+    [Fact]
+    public void An_open_rows_answer_is_capped_to_the_grid_in_view_and_the_indent_folds_when_narrow()
+    {
+        var css = File.ReadAllText(Path.Combine(LineOps.Desk.Tests.Support.Repo.Root(), "src", "LineOps.Desk", "wwwroot", "css", "desk.css"));
+
+        Assert.Contains(".deskgrid__child > .deskgrid__child-cell > .rowacts__snippet { max-width: min(100%, 720px, calc(100cqw - 2 * var(--deskgrid-inset))); }", css);
+        Assert.Contains(".deskgrid__child > .deskgrid__child-cell > .rowacts { max-width: calc(100cqw - 2 * var(--deskgrid-inset)); }", css);
+        Assert.Matches(@"@container deskgrid \(max-width: 960px\) \{\s*\.deskgrid__child > \.deskgrid__child-lead \{ display: none; \}", css);
+    }
 }

@@ -3,6 +3,7 @@
 @using LineOps.Data.CrossReference
 @inject IServiceScopeFactory ScopeFactory
 @inject ILogger<HeadToHeadSnippet> Logger
+@implements IDisposable
 
 @*
     The last few meetings between these two sides, with what the market made of each.
@@ -17,17 +18,17 @@
     and the cells read "—", because hiding them would understate the record itself.
 *@
 
-@if (_loading)
+@if (_read.Loading)
 {
     <DeskSkeleton Lines="3" />
 }
-else if (_error is not null)
+else if (_read.Error is not null)
 {
-    <SnippetFailure Message="@_error" OnRetry="LoadAsync" />
+    <SnippetFailure Message="@_read.Error" OnRetry="LoadAsync" />
 }
 else if (_rows.Count == 0)
 {
-    <EmptyState Kind="EmptyStateKind.Filtered" Style="padding:6px 0">
+    <EmptyState Kind="EmptyStateKind.Filtered" Compact>
         No previous meeting on record. Either these sides have not met inside the history
         held, or the backfill has not reached that far.
     </EmptyState>
@@ -69,7 +70,7 @@ else
                         @* Graded from the over's point of view, so a win is an over and a loss an under. *@
                         @if (row.TotalResult is { } total && row.ClosingTotal is { } line && ResultTag.Of(total) is { } over)
                         {
-                            <ResultTag Result="@over">@(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @line</ResultTag>
+                            <ResultTag Result="@over">@(total == EntryResult.Win ? "O" : total == EntryResult.Loss ? "U" : "P") @Total(line)</ResultTag>
                         }
                         else
                         {
@@ -101,8 +102,7 @@ else
 
     private IReadOnlyList<HeadToHeadRow> _rows = [];
     private int _covered;
-    private bool _loading = true;
-    private string? _error;
+    private readonly SnippetRead _read = new();
 
     /// <summary>
     /// Meetings already read by the host — the Game window's head to head reads them once for
@@ -115,41 +115,43 @@ else
         if (Rows is null)
             return LoadAsync();
 
+        // The host's rows are the answer, so a read of this snippet's own still in flight is
+        // cancelled rather than left to land over them.
+        _read.Settle();
         _rows = Rows;
         _covered = _rows.Count(r => r.HasClosingLine);
-        _loading = false;
-        _error = null;
         return Task.CompletedTask;
     }
 
     /// <summary>The snippet's one read, run on arrival and again from Try again.</summary>
-    private async Task LoadAsync()
+    private Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        // Read into locals and handed over only by the latest read: a slow read of the game the
+        // row moved on from cannot land last. A snippet that fails must not take the row down with
+        // it — the other actions on this row still work, and the operator should be told which
+        // one did not.
+        var (gameId, take) = (GameId, Take);
 
-        try
+        return _read.RunAsync(async ct =>
         {
             await using var scope = ScopeFactory.CreateAsyncScope();
             var log = scope.ServiceProvider.GetRequiredService<GameLogService>();
 
-            _rows = await log.HeadToHeadAsync(GameId, Take);
-            _covered = _rows.Count(r => r.HasClosingLine);
-        }
-        catch (Exception ex)
+            return await log.HeadToHeadAsync(gameId, take, ct);
+        }, rows =>
         {
-            // A snippet that fails must not take the row down with it — the other actions on
-            // this row still work, and the operator should be told which one did not.
-            Logger.LogError(ex, "Previous meetings did not load");
-            _error = "Previous meetings did not load.";
-        }
-        finally
-        {
-            _loading = false;
-        }
+            _rows = rows;
+            _covered = rows.Count(r => r.HasClosingLine);
+        }, "Previous meetings did not load.", Logger);
     }
+
+    public void Dispose() => _read.Dispose();
 
     private static string Day(DateTimeOffset at) => DisplayTime.Format(at, "MMM d, yyyy");
 
-    private static string Line(decimal value) => value > 0 ? $"+{value}" : value.ToString();
+    /// <summary>A spread as every price table writes one: "+3.5", "-7", never "+3.50".</summary>
+    private static string Line(decimal value) => OddsMath.FormatLine(value, string.Empty);
+
+    /// <summary>A total as the Board writes the number: "47.5", never "47.50".</summary>
+    private static string Total(decimal value) => value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 }

@@ -2,6 +2,7 @@ using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 
 namespace LineOps.Tests.Adapters;
 
@@ -12,22 +13,16 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnFightTests
 {
-    private static JsonElement Load(string fixture)
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture);
-        return JsonDocument.Parse(File.ReadAllText(path)).RootElement.Clone();
-    }
-
     private static List<CanonicalGame> Card(List<CanonicalPlayer>? players = null, List<CanonicalPlayerStat>? stats = null)
     {
-        var rounds = EspnStatsAdapter.ReadScoreboardCards(Load("espn.ufc.scoreboard.json")).Single().Rounds;
-        return EspnStatsAdapter.ParseFightCenter(Load("espn.ufc.fightcenter.json"), "ufc", rounds, players, stats).ToList();
+        var rounds = EspnStatsAdapter.ReadScoreboardCards(Fixtures.Json("espn.ufc.scoreboard.json")).Single().Rounds;
+        return EspnStatsAdapter.ParseFightCenter(Fixtures.Json("espn.ufc.fightcenter.json"), "ufc", rounds, players, stats).ToList();
     }
 
     [Fact]
     public void TheScoreboardNamesTheCardAndEachBoutsDistance()
     {
-        var card = EspnStatsAdapter.ReadScoreboardCards(Load("espn.ufc.scoreboard.json")).Single();
+        var card = EspnStatsAdapter.ReadScoreboardCards(Fixtures.Json("espn.ufc.scoreboard.json")).Single();
 
         Assert.Equal("600041053", card.EventId);
         Assert.Equal(13, card.Rounds.Count);
@@ -142,7 +137,7 @@ public class EspnFightTests
     [Fact]
     public void TheScoreboardStandsInForAnUnreadableFightCenter()
     {
-        var bouts = EspnStatsAdapter.ParseScoreboardBouts(Load("espn.ufc.scoreboard.json"), "600041053", "ufc").ToList();
+        var bouts = EspnStatsAdapter.ParseScoreboardBouts(Fixtures.Json("espn.ufc.scoreboard.json"), "600041053", "ufc").ToList();
 
         Assert.Equal(13, bouts.Count);
 
@@ -161,7 +156,7 @@ public class EspnFightTests
     [Fact]
     public void AFightCloseIsReadFromTheAthleteOdds()
     {
-        var lines = EspnStatsAdapter.ParseCoreOdds(Load("espn.ufc.odds.json"), "401619309",
+        var lines = EspnStatsAdapter.ParseCoreOdds(Fixtures.Json("espn.ufc.odds.json"), "401619309",
             "Alex Pereira", "Jamahal Hill", DateTimeOffset.UnixEpoch).ToList();
 
         // The live feed is skipped, and so is a book with no close; Bet365's is the first close.
@@ -178,9 +173,9 @@ public class EspnFightTests
     [Fact]
     public void AFighterIsReadWithTheirWholeCareer()
     {
-        var sheets = EspnStatsAdapter.ParseFightSheets(Load("espn.ufc.athlete-stats.json"));
-        var rates = EspnStatsAdapter.ParseCareerRates(Load("espn.ufc.athlete-statistics.json"));
-        var fighter = EspnStatsAdapter.ParseFighter(Load("espn.ufc.athlete.json"), sheets, rates, Load("espn.ufc.athlete-records.json"))!;
+        var sheets = EspnStatsAdapter.ParseFightSheets(Fixtures.Json("espn.ufc.athlete-stats.json"));
+        var rates = EspnStatsAdapter.ParseCareerRates(Fixtures.Json("espn.ufc.athlete-statistics.json"));
+        var fighter = EspnStatsAdapter.ParseFighter(Fixtures.Json("espn.ufc.athlete.json"), sheets, rates, Fixtures.Json("espn.ufc.athlete-records.json"))!;
 
         Assert.Equal("4705658", fighter.SourceFighterId);
         Assert.Equal("Alex Pereira", fighter.FullName);

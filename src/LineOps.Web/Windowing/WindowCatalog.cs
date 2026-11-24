@@ -336,24 +336,40 @@ public static class WindowCatalog
     /// Named sets of windows, in row order. These are the "workflows" — a shape of desk for
     /// a task. Widths come from the horizontal layout, so a workspace works on any screen.
     /// </summary>
+    /// <remarks>
+    /// Line watch leads: it is the workspace the empty desk features, because watching prices is
+    /// the desk's daily work and the others are its before and after.
+    /// </remarks>
     public static readonly IReadOnlyList<Workspace> Workspaces =
     [
+        // The Board leads, wide, because it is where a game is chosen; Line movement beside it is
+        // what a press on the Board shows (LineWatch, ADR 0029). The Journal is a tab behind Line
+        // movement rather than a third column: at the default column limit a third column squeezed
+        // the Board below the width its six market cells need, and the Journal is consulted — what
+        // is open on this game, what was taken at what number — not watched. One tab away, with
+        // its pending entries first, it is there when a moving line makes an open bet matter.
+        new(
+            "Line watch",
+            "The board beside where every book stands on the game you press, with your open bets a tab away.",
+            [Board, Odds, Journal],
+            Columns: [0, 1, 1],
+            Icon: Icons.Material.Filled.ShowChart,
+            Tag: LineWatch.Tag),
         new(
             "Morning triage",
             "Health first, then what broke, then the runs behind it.",
-            [Ops, Incidents, Runs]),
-        new(
-            "Line watch",
-            "The board beside a movement chart.",
-            [Board, Odds]),
+            [Ops, Incidents, Runs],
+            Icon: Icons.Material.Filled.MonitorHeart),
         new(
             "Review",
             "Settled entries against the numbers they produced.",
-            [Journal, Performance]),
+            [Journal, Performance],
+            Icon: Icons.Material.Filled.MenuBook),
         new(
             "Bet a game",
             "The board to find it, the journal to log it, the numbers it adds to.",
-            [Board, Journal, Performance])
+            [Board, Journal, Performance],
+            Icon: Icons.Material.Filled.Bolt)
     ];
 }
 

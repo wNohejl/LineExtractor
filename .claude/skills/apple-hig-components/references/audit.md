@@ -14,11 +14,39 @@ Answer each with a yes, or fix it. Then take a screenshot at a narrow and a wide
 ## Grouping
 - [ ] Groups and cards are fills with **one 1px hairline edge** (house rule); rows inside are
       divided by hairlines and padding, never framed again; no box inside a box inside a box.
-- [ ] One inset hairline between rows; no vertical rules; no cell grid.
-- [ ] Labels lead in one aligned column; controls trail; footers explain under the group.
+- [ ] One inset hairline between rows; no cell grid. The only other lines inside a card are
+      the bar's one full-width hairline and a split row's short vertical divider.
+- [ ] Every section is **one distinct card** with its name **in a header bar inside it**
+      (headline style, sentence case) — never a grey line floating above the box, attached to
+      nothing. Can you tell, at a glance, where each section starts and ends?
+- [ ] The bar holds at most one trailing thing (a small key, a count, a 2–5 segment filter),
+      never the window's Filled key; nothing in the bar, a cell or a row draws a border or a
+      shadow.
+- [ ] A table in a card draws no second frame and no doubled bottom edge: the card is its
+      frame, its text starts where the bar's title does, and its last row has no hairline over
+      the card's edge.
+- [ ] Labels lead in one aligned column, and only where a label genuinely leads a control;
+      controls trail; no control floats in a group without a label or a row of its own.
+- [ ] Footers explain **under** the card, never inside it; a warning note sits between the card
+      and its footer.
+- [ ] Two compact, related controls (a short gate, a row of swatches) share a split row, each
+      with its own label; two full form rows are not squeezed into one.
 - [ ] Groups are separated by space, not lines.
-- [ ] Nothing wider than a reading width; nothing pinned to the far edge away from what it
-      belongs to.
+- [ ] Each card of form rows stays within a reading width; nothing pinned to the far edge away
+      from what it belongs to.
+
+## Sections in a window
+- [ ] A window of two or more sections lays them out as a flow of cards: at its widest,
+      the extra width became **more columns**, not wider cards, and no half of the window
+      stands empty beside a single capped column.
+- [ ] Cards align to the start of their row: a short card beside a tall one keeps its own
+      height, with no stretched empty box beneath its rows.
+- [ ] Only a card whose body is a grid of its own (tiles, a chart, a wide table) spans the
+      row or the rest of it; every card of form rows takes one track.
+- [ ] A long collection (a dozen tiles or more under headings) is one grid with a filter in
+      its card's bar (opening on All, not on a heading that leaves a wide card mostly empty),
+      and the footer names the current choice —
+      not shelves under sub-headings.
 
 ## Actions
 - [ ] One filled (prominent) button per view, non-destructive, verb-first label.
@@ -37,6 +65,9 @@ Answer each with a yes, or fix it. Then take a screenshot at a narrow and a wide
 - [ ] Screenshot at the window's widest and at ~300px (a window beside other windows).
 - [ ] Narrow: each label stacks above its control (HIG: adjacent views stack as space
       shrinks). Drive it from the group's own width (a container query), not the viewport.
+- [ ] Narrow: a split row's cells stack, the vertical divider turning into the ordinary inset
+      row hairline; the bar's filter drops beneath its title rather than squeezing it; the flow
+      is one card wide and nothing scrolls sideways.
 - [ ] Narrow: every segment of a control breaks in the same place; nothing clips to two
       letters and nothing runs into its neighbour.
 - [ ] An override that must win (a narrow-width rule) is placed after the rule it overrides
@@ -59,3 +90,17 @@ hairline, then a Price row (title 2 figure, pencil, book pop-up) with the value 
 age as the group's footer; step 2 a group of Stake (field + quick values) and Note rows
 with returns as its footer; step 3 the checks as rows with the sentence as footer and the
 one filled key leading. Same information, no outlines.
+
+## Worked example: the Window manager (November 2026)
+
+Before: one 680px column of seven groups, each under a quiet grey name standing above it, so a
+name sat nearer the box before it than its own and the sections ran together; at 1600px the
+right half of the window was empty. Appearance was one long group: Mode, Accent, then
+twenty-three theme tiles in four ragged shelves under floating headings, then the looks.
+
+After: a flow of cards, three across at 1600px and one at ~680px, each card's name in its header
+bar. Appearance leads with Mode beside Accent in one split row, then Glass and the makes as form
+rows; Themes is its own card taking the rest of the first row, one grid of tiles with a
+segmented filter (All, Built in, Character, Soft, Vivid) in its bar opening on All, and a
+footer naming the theme showing and its heading. Scale, Windows, Primary window,
+Resolution and Workspaces each take one track and keep their own height.

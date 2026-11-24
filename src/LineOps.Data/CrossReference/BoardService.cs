@@ -171,9 +171,15 @@ public class BoardService(LineOpsDbContext db, IDataTier? tier = null)
         var from = nfl.Min(g => g.StartsAt) - TimeSpan.FromDays(240);
         var to = nfl.Max(g => g.StartsAt);
 
+        // The league the slate's NFL rows already name. Without it the jsonb test below ran over
+        // every league's box scores for 240 days — a baseball season of lines — to find a
+        // handful of passers, since only the clubs were filtered and that after the join.
+        var sports = nfl.Select(g => g.SportId).Distinct().ToList();
+
         var rows = await db.PlayerGameStats.FromVisible(visible)
             // Through the slate's own games, not just before them: a game under way or over is
             // read from its own box score (Starters.Quarterback, ThisGameBasis).
+            .Where(s => sports.Contains(s.Game!.SportId))
             .Where(s => s.Game!.StartsAt >= from && s.Game.StartsAt <= to)
             .Where(s => EF.Functions.JsonExists(s.StatLine, "C/ATT"))
             .Select(s => new

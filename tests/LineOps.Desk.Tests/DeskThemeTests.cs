@@ -1,7 +1,9 @@
 using System.Text.RegularExpressions;
 using LineOps.Desk.Primitives;
+using LineOps.Desk.Tests.Support;
 using LineOps.Desk.Theming;
 using MudBlazor.Utilities;
+using static LineOps.Desk.Tests.Support.Wcag;
 
 namespace LineOps.Desk.Tests;
 
@@ -16,12 +18,10 @@ namespace LineOps.Desk.Tests;
 /// </summary>
 public class DeskThemeTests
 {
-    private static readonly string Css =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/desk.css"));
+    private static string Css => DeskCss.Desk;
 
     /// <summary>The other families' blocks, loaded after desk.css. See the "Every desk" section below.</summary>
-    private static readonly string ThemesCss =
-        File.ReadAllText(Path.Combine(RepoRoot(), "src/LineOps.Desk/wwwroot/css/themes.css"));
+    private static string ThemesCss => DeskCss.Themes;
 
     /// <summary>
     /// The two token blocks, comments stripped.
@@ -49,12 +49,12 @@ public class DeskThemeTests
     [InlineData("--surface-3", "#38383A")]
     [InlineData("--accent", "#086FD7")]
     [InlineData("--state-positive", "#30D158")]
-    [InlineData("--state-negative", "#FF453A")]
+    [InlineData("--state-negative", "#D73A31")]
     [InlineData("--state-warning", "#FF9F0A")]
     [InlineData("--state-positive-ink", "#30D158")]
     [InlineData("--state-warning-ink", "#FFB340")]
     [InlineData("--state-negative-ink", "#FF6961")]
-    [InlineData("--accent-ink", "#409CFF")]
+    [InlineData("--accent-ink", "#449EFF")]
     [InlineData("--text-primary", "rgba(255, 255, 255, .92)")]
     [InlineData("--text-secondary", "rgba(255, 255, 255, .55)")]
     [InlineData("--text-tertiary", "rgba(255, 255, 255, .30)")]
@@ -83,10 +83,6 @@ public class DeskThemeTests
     [InlineData("--state-positive", nameof(DeskTheme.StatePositive))]
     [InlineData("--state-negative", nameof(DeskTheme.StateNegative))]
     [InlineData("--state-warning", nameof(DeskTheme.StateWarning))]
-    [InlineData("--state-positive-ink", nameof(DeskTheme.StatePositiveInk))]
-    [InlineData("--state-warning-ink", nameof(DeskTheme.StateWarningInk))]
-    [InlineData("--state-negative-ink", nameof(DeskTheme.StateNegativeInk))]
-    [InlineData("--accent-ink", nameof(DeskTheme.AccentInk))]
     [InlineData("--text-primary", nameof(DeskTheme.TextPrimary))]
     [InlineData("--text-secondary", nameof(DeskTheme.TextSecondary))]
     [InlineData("--text-tertiary", nameof(DeskTheme.TextTertiary))]
@@ -155,12 +151,12 @@ public class DeskThemeTests
     [InlineData("--surface-3", "#D1D1D6")]
     [InlineData("--accent", "#0071EB")]
     [InlineData("--state-positive", "#34C759")]
-    [InlineData("--state-negative", "#FF3B30")]
+    [InlineData("--state-negative", "#DF342A")]
     [InlineData("--state-warning", "#FF9500")]
     [InlineData("--state-positive-ink", "#00762B")]
     [InlineData("--state-warning-ink", "#AA4800")]
     [InlineData("--state-negative-ink", "#CA1227")]
-    [InlineData("--accent-ink", "#0062CC")]
+    [InlineData("--accent-ink", "#0060C8")]
     [InlineData("--text-primary", "rgba(0, 0, 0, .88)")]
     [InlineData("--text-secondary", "rgba(0, 0, 0, .60)")]
     [InlineData("--text-tertiary", "rgba(0, 0, 0, .30)")]
@@ -183,10 +179,6 @@ public class DeskThemeTests
     [InlineData("--state-positive", nameof(DeskTheme.LightStatePositive))]
     [InlineData("--state-negative", nameof(DeskTheme.LightStateNegative))]
     [InlineData("--state-warning", nameof(DeskTheme.LightStateWarning))]
-    [InlineData("--state-positive-ink", nameof(DeskTheme.LightStatePositiveInk))]
-    [InlineData("--state-warning-ink", nameof(DeskTheme.LightStateWarningInk))]
-    [InlineData("--state-negative-ink", nameof(DeskTheme.LightStateNegativeInk))]
-    [InlineData("--accent-ink", nameof(DeskTheme.LightAccentInk))]
     [InlineData("--text-primary", nameof(DeskTheme.LightTextPrimary))]
     [InlineData("--text-secondary", nameof(DeskTheme.LightTextSecondary))]
     [InlineData("--text-tertiary", nameof(DeskTheme.LightTextTertiary))]
@@ -304,12 +296,14 @@ public class DeskThemeTests
     /// <c>--on-accent</c> is the ink for any saturated fill, and a filled systemBlue button
     /// is exactly as saturated in either theme. <c>--chart-neutral</c> is systemGray, the
     /// one step of Apple's ramp that reads on either ground, which is why Apple itself
-    /// gives it no light/dark variant. <c>--material-blur</c> is an optical constant.
+    /// gives it no light/dark variant. <c>--knob</c> is a switch's thumb, a white disc in either
+    /// appearance on Apple's platforms. (<c>--material-blur</c>, an optical constant, is no longer
+    /// in either block: it is declared once with the derived tokens.)
     /// </remarks>
     [Fact]
     public void Every_mirrored_colour_was_actually_re_derived()
     {
-        string[] deliberatelyShared = ["--on-accent", "--chart-neutral", "--material-blur"];
+        string[] deliberatelyShared = ["--on-accent", "--chart-neutral", "--knob"];
 
         var dark = Declarations(DarkBlock);
         var light = Declarations(LightBlock);
@@ -413,11 +407,11 @@ public class DeskThemeTests
 
     // ---- Every desk ---------------------------------------------------------
     //
-    // Five families, each with a dark and a light block — ten desks where there were two. The
+    // Twenty-two families, each with a dark and a light block — forty-four desks where there were two. The
     // gates above were written for one pair and each one is the same question asked of every
     // block: does it redeclare everything, invent nothing, match its C# mirror, and keep the
     // text hierarchy's promise. They are asked here by iterating the catalogue rather than by
-    // listing blocks, so an eleventh desk added to DeskThemeFamilies is checked without anyone
+    // listing blocks, so another desk added to DeskThemeFamilies is checked without anyone
     // remembering to add it here.
 
     public static TheoryData<DeskThemeFamily, bool> EveryDesk()
@@ -431,6 +425,17 @@ public class DeskThemeTests
         }
 
         return desks;
+    }
+
+    /// <summary>Every row of the catalogue — the one list every per-family test in the suite reads.</summary>
+    public static TheoryData<DeskThemeFamily> EveryFamily()
+    {
+        var families = new TheoryData<DeskThemeFamily>();
+
+        foreach (var family in DeskThemeFamilies.All)
+            families.Add(family);
+
+        return families;
     }
 
     public static TheoryData<DeskThemeFamily> EveryOtherFamily()
@@ -470,10 +475,110 @@ public class DeskThemeTests
             .Where(name => !desk.ContainsKey(name))
             .ToArray();
 
-        var invented = desk.Keys.Where(name => !standard.ContainsKey(name)).ToArray();
+        // A block may also state an alpha where it departs from its appearance's default; it may not
+        // declare a derived token, which is computed once (The_derived_tokens_are_declared_once).
+        var invented = desk.Keys.Where(name => !standard.ContainsKey(name) && !DeskCss.AlphaTokens.Contains(name)).ToArray();
 
         Assert.True(missing.Length == 0, $"{DeskThemeFamilies.Attribute(family, isDark)} does not redeclare: {string.Join(", ", missing)}");
         Assert.True(invented.Length == 0, $"{DeskThemeFamilies.Attribute(family, isDark)} invents: {string.Join(", ", invented)}");
+    }
+
+    // ---- The derived tokens -------------------------------------------------
+    //
+    // The washes, a key's top line and sheen, and the blur are computed once in desk.css
+    // ("Derived tokens") rather than written out in every block. These hold the rule's shape and
+    // what it computes; the contrast suites measure the computed colours (DeskCss resolves them).
+
+    /// <summary>
+    /// Every block declares exactly the declared set, and the derived set is declared once: on
+    /// <c>:root, [data-theme]</c> and the two appearance rules, never in a family or accent block —
+    /// a block that wrote one out again would freeze it, and a later fill would leave its wash behind.
+    /// </summary>
+    [Fact]
+    public void The_derived_tokens_are_declared_once()
+    {
+        string[] expected =
+        [
+            "--accent-wash", "--accent-wash-strong", "--key-gloss", "--key-highlight", "--material-blur",
+            "--state-negative-wash", "--state-positive-wash", "--state-warning-wash"
+        ];
+        Assert.Equal(expected, DeskCss.DerivedTokens);
+
+        foreach (var (name, tokens) in DeskCss.ThemeBlocks())
+            Assert.All(expected, token => Assert.False(tokens.ContainsKey(token), $"{name} declares the derived {token}"));
+        foreach (var (theme, accent, tokens) in DeskCss.AccentBlocks())
+            Assert.All(expected, token => Assert.False(tokens.ContainsKey(token), $"{theme} {accent} declares the derived {token}"));
+
+        // Nowhere in themes.css at all, inside a block or out of one.
+        foreach (var token in expected)
+            Assert.DoesNotMatch(Regex.Escape(token) + @"\s*:", ThemesCss);
+
+        // Both appearances default every alpha, so <html> never takes the other appearance's from :root.
+        Assert.Equal(DeskCss.AlphaTokens, DeskCss.LightDefaults.Keys.Where(DeskCss.IsAlpha).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// The defaults are the Standard desk's, so Standard's blocks state no alpha: its washes at
+    /// .15/.24 by night and .12/.20 by day, its states at .15, its key's line and sheen at .16/.09
+    /// on its sheen and .55/.18 white.
+    /// </summary>
+    [Theory]
+    [InlineData(true, ".15", ".24", ".15", ".16", ".09")]
+    [InlineData(false, ".12", ".20", ".15", ".55", ".18")]
+    public void The_alphas_default_to_the_Standard_desk_s(bool isDark, string wash, string strong, string state, string highlight, string gloss)
+    {
+        var defaults = isDark ? DeskCss.DarkDefaults : DeskCss.LightDefaults;
+
+        Assert.Equal(wash, defaults["--accent-wash-alpha"]);
+        Assert.Equal(strong, defaults["--accent-wash-strong-alpha"]);
+        Assert.All(new[] { "positive", "negative", "warning" }, s => Assert.Equal(state, defaults[$"--state-{s}-wash-alpha"]));
+        Assert.Equal(highlight, defaults["--key-highlight-alpha"]);
+        Assert.Equal(gloss, defaults["--key-gloss-alpha"]);
+
+        foreach (var block in new[] { DarkBlock, LightBlock })
+            Assert.DoesNotContain(Declarations(block).Keys, DeskCss.IsAlpha);
+    }
+
+    /// <summary>
+    /// What the derived rule computes, on every family block and every accent block: each wash is
+    /// its fill's own channels at the block's alpha token; a key's line and sheen are the family's
+    /// sheen by night and white by day, at theirs; the blur is the one constant. A block's own alpha
+    /// is what the cascade lands on, and an accent block's washes follow its new fill.
+    /// </summary>
+    [Fact]
+    public void Every_derived_token_resolves_to_its_source_at_its_alpha()
+    {
+        var failures = new List<string>();
+        var blocks = DeskCss.ResolvedThemeBlocks().Select(b => (Where: b.Name, Dark: b.Name.EndsWith("-dark", StringComparison.Ordinal), b.Tokens))
+            .Concat(DeskCss.ResolvedAccentBlocks().Select(b => (Where: $"{b.Theme} {b.Accent}", Dark: b.Theme.EndsWith("-dark", StringComparison.Ordinal), b.Tokens)))
+            .ToList();
+
+        Assert.Equal(DeskThemeFamilies.All.Count * 2 + DeskThemeFamilies.Catalog.Sum(f => f.Accents.Count - 1) * 2, blocks.Count);
+
+        foreach (var (where, dark, t) in blocks)
+        {
+            Expect(where, t, "--accent-wash", t["--accent"], "--accent-wash-alpha");
+            Expect(where, t, "--accent-wash-strong", t["--accent"], "--accent-wash-strong-alpha");
+            foreach (var state in new[] { "positive", "negative", "warning" })
+                Expect(where, t, $"--state-{state}-wash", t[$"--state-{state}"], $"--state-{state}-wash-alpha");
+            Expect(where, t, "--key-highlight", dark ? t["--sheen"] : "#FFFFFF", "--key-highlight-alpha");
+            Expect(where, t, "--key-gloss", dark ? t["--sheen"] : "#FFFFFF", "--key-gloss-alpha");
+
+            if (t["--material-blur"] != "saturate(180%) blur(30px)")
+                failures.Add($"{where} --material-blur is {t["--material-blur"]}");
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+
+        void Expect(string where, Dictionary<string, string> t, string token, string source, string alpha)
+        {
+            var (r, g, b, a) = Parse(t[token]);
+            var (sr, sg, sb, _) = Parse(source);
+            var expected = double.Parse(t[alpha], System.Globalization.CultureInfo.InvariantCulture);
+
+            if ((r, g, b) != (sr, sg, sb) || Math.Abs(a - expected) > 1e-9)
+                failures.Add($"{where} {token} resolves to {t[token]}, not {source} at {t[alpha]}");
+        }
     }
 
     /// <summary>
@@ -520,6 +625,10 @@ public class DeskThemeTests
             ("--state-positive", palette.StatePositive),
             ("--state-negative", palette.StateNegative),
             ("--state-warning", palette.StateWarning),
+            ("--state-positive-ink", palette.StatePositiveInk),
+            ("--state-warning-ink", palette.StateWarningInk),
+            ("--state-negative-ink", palette.StateNegativeInk),
+            ("--accent-ink", palette.AccentInk),
             ("--separator", palette.Separator),
             ("--chart-neutral", palette.ChartNeutral),
             ("--chart-neutral-dim", palette.ChartNeutralDim)
@@ -553,6 +662,48 @@ public class DeskThemeTests
         Assert.True(secondary >= 4.5, $"{where} --text-secondary measures {secondary:F2}:1");
         Assert.True(tertiary < 4.5, $"{where} --text-tertiary measures {tertiary:F2}:1 — a hint must not read as a value");
         Assert.True(primary > secondary && secondary > tertiary, $"{where} tiers out of order: {primary:F2} / {secondary:F2} / {tertiary:F2}");
+    }
+
+    /// <summary>
+    /// Selected text is drawn in the strong accent wash behind the primary ink (desk.css
+    /// <c>::selection</c>), and has to stay readable once selected: AA over the panel, the ground
+    /// every other ink in this file is measured on, on every desk. (On the raised --surface-2 tier
+    /// Rosé Pine light measures 4.47:1 — readable, a hair under AA; the palette's call, not this rule's.)
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryDesk))]
+    public void Selected_text_stays_readable_on_every_desk(DeskThemeFamily family, bool isDark)
+    {
+        var desk = Resolved(family, isDark);
+        var where = DeskThemeFamilies.Attribute(family, isDark);
+
+        AssertSelectionReads(desk["--text-primary"], desk["--accent-wash-strong"], [desk["--surface-1"]], where);
+    }
+
+    /// <summary>The same on every family's desk in each chosen accent, whose block brings its own wash.</summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Selected_text_stays_readable_in_every_accent(DeskThemeFamily family, string key, bool isDark)
+    {
+        var block = DeskBlock(family, isDark);
+        var where = DeskThemeFamilies.Attribute(family, isDark) + "/" + key;
+
+        AssertSelectionReads(
+            TokenValue(block, "--text-primary", where),
+            ResolvedAccent(family, key, isDark)["--accent-wash-strong"],
+            [TokenValue(block, "--surface-1", where)],
+            where);
+    }
+
+    private static void AssertSelectionReads(string ink, string wash, string[] grounds, string where)
+    {
+        foreach (var ground in grounds)
+        {
+            var selected = Composite(wash, ground);
+            var ratio = Contrast(ink, selected);
+
+            Assert.True(ratio >= 4.5, $"{where}: selected text measures {ratio:F2}:1 over {wash} on {ground}");
+        }
     }
 
     /// <summary>What High contrast is for: secondary text at AAA, not merely AA, in both appearances.</summary>
@@ -650,8 +801,60 @@ public class DeskThemeTests
             var standard = DeskChartPalette.For(chart, isDark);
 
             Assert.Contains(desk.ChartNeutralDim, colours);
-            Assert.Equal(Array.IndexOf(standard, isDark ? DeskTheme.Accent : DeskTheme.LightAccent), Array.IndexOf(colours, desk.Accent));
+
+            // The accent's slot is the same on every desk, whether it is drawn in the fill or the ink.
+            var slot = Array.IndexOf(colours, desk.Accent);
+            if (slot < 0)
+                slot = Array.IndexOf(colours, desk.AccentInk);
+            Assert.Equal(Array.IndexOf(standard, isDark ? DeskTheme.Accent : DeskTheme.LightAccent), slot);
         }
+    }
+
+    /// <summary>
+    /// A series is a graphical object, held to 3:1 on the panel it is drawn on (contrast audit,
+    /// 20 November, §4.1 item 7): every slot but the dim neutral, which is for reference lines, in
+    /// every family block. Six light desks' state fills measured 1.95 to 2.98:1 before the inks
+    /// crossed the seam; the order is the family's still, so each slot is either its fill or its ink.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryDesk))]
+    public void Every_chart_series_but_the_dim_clears_3_to_1_on_its_panel(DeskThemeFamily family, bool isDark)
+        => AssertSeriesRead(DeskThemeFamilies.Palette(family, isDark), DeskThemeFamilies.Attribute(family, isDark));
+
+    /// <summary>The same in every chosen accent, which brings its own fill and, where that fill is under 3:1, its own ink.</summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_chart_series_but_the_dim_clears_3_to_1_in_every_accent(DeskThemeFamily family, string key, bool isDark)
+    {
+        var chosen = DeskThemeFamilies.Info(family).FindAccent(key)!.For(isDark)!;
+
+        AssertSeriesRead(DeskThemeFamilies.Palette(family, isDark).WithAccent(chosen), $"{DeskThemeFamilies.Attribute(family, isDark)} {key}");
+    }
+
+    private static void AssertSeriesRead(DeskPalette desk, string where)
+    {
+        var failures = new List<string>();
+
+        foreach (var chart in Enum.GetValues<DeskChartFamily>())
+        {
+            var colours = DeskChartPalette.For(chart, desk);
+            var standard = DeskChartPalette.For(chart, DeskPalettes.AppleDark);
+
+            for (var slot = 0; slot < colours.Length; slot++)
+            {
+                if (standard[slot] == DeskTheme.ChartNeutralDim)
+                {
+                    Assert.Equal(desk.ChartNeutralDim, colours[slot]);
+                    continue;
+                }
+
+                var ratio = Contrast(colours[slot], desk.Surface1);
+                if (ratio < 3)
+                    failures.Add($"{where} {chart} slot {slot} {colours[slot]} measures {ratio:F2}:1 over {desk.Surface1}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 
     [Fact]
@@ -665,59 +868,78 @@ public class DeskThemeTests
     // ---- The chosen accent --------------------------------------------------
     //
     // A different kind of block. A family block redeclares every colour token; an accent block is
-    // a compound selector — [data-theme="apple-…"][data-accent="…"] — that redeclares exactly the
-    // six accent tokens and nothing else, on the Standard family alone. The gates above find a
-    // block by its bare [data-theme] selector, which a compound one never matches, so they are
-    // untouched by these; these hold the accent blocks to their own shape and to DeskAccents, the
-    // way the family blocks are held to the token list and to DeskPalettes.
+    // a compound selector — [data-theme="<slug>-dark|light"][data-accent="<key>"] — that redeclares
+    // exactly the four accent tokens Standard's do, and a wash alpha only where its hue departs from
+    // the family's; its washes are recomputed from its fill. The gates above find a block by
+    // its bare [data-theme] selector, which a compound one never matches, so they are untouched by
+    // these; these hold every family's accent blocks to their own shape and to the catalogue's
+    // rows, the way the family blocks are held to the token list and to DeskPalettes. They iterate
+    // the catalogue, so a family given accents later is checked the day its blocks are written.
 
-    /// <summary>The six tokens an accent block redeclares — all of them, and only them.</summary>
-    private static readonly string[] AccentTokens =
-        ["--accent", "--accent-hover", "--accent-press", "--accent-wash", "--accent-wash-strong", "--accent-ink"];
+    /// <summary>The four tokens an accent block redeclares — all of them, and beside them only its wash alphas.</summary>
+    private static readonly string[] AccentTokens = ["--accent", "--accent-hover", "--accent-press", "--accent-ink"];
+
+    /// <summary>What an accent block may add: the strength of its washes, where its hue wants another than its family's.</summary>
+    private static readonly string[] AccentAlphas = ["--accent-wash-alpha", "--accent-wash-strong-alpha"];
+
 
     /// <summary>Every compound accent block in both stylesheets: its theme, its accent, its tokens.</summary>
     private static List<(string Theme, string Accent, Dictionary<string, string> Tokens)> AccentBlocks()
-        => new[] { Css, ThemesCss }
-            .SelectMany(css => Regex.Matches(css, @"\[data-theme=""([a-z-]+)""\]\[data-accent=""([a-z-]+)""\]\s*\{([^}]*)\}").Cast<Match>())
-            .Select(m => (
-                m.Groups[1].Value,
-                m.Groups[2].Value,
-                Declarations(Regex.Replace(m.Groups[3].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline))))
-            .ToList();
+        => DeskCss.AccentBlocks().ToList();
 
-    private static Dictionary<string, string> AccentBlock(DeskAccent accent, bool isDark)
+    /// <summary>One family block as an element wearing it draws: its declarations and the derived tokens, resolved.</summary>
+    private static Dictionary<string, string> Resolved(DeskThemeFamily family, bool isDark)
     {
-        var theme = DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, isDark);
-        var key = DeskAccents.Key(accent);
+        var theme = DeskThemeFamilies.Attribute(family, isDark);
+        return DeskCss.ResolvedThemeBlocks().Single(b => b.Name == theme).Tokens;
+    }
+
+    /// <summary>One accent block laid over its family block, resolved.</summary>
+    private static Dictionary<string, string> ResolvedAccent(DeskThemeFamily family, string key, bool isDark)
+    {
+        var theme = DeskThemeFamilies.Attribute(family, isDark);
+        return DeskCss.ResolvedAccentBlocks().Single(b => b.Theme == theme && b.Accent == key).Tokens;
+    }
+
+    private static Dictionary<string, string> AccentBlock(DeskThemeFamily family, string key, bool isDark)
+    {
+        var theme = DeskThemeFamilies.Attribute(family, isDark);
 
         return AccentBlocks().Single(b => b.Theme == theme && b.Accent == key).Tokens;
     }
 
-    public static TheoryData<DeskAccent, bool> EveryChosenAccent()
+    /// <summary>Every accent of every family but its own, on each of its desks.</summary>
+    public static TheoryData<DeskThemeFamily, string, bool> EveryChosenAccent()
     {
-        var accents = new TheoryData<DeskAccent, bool>();
+        var accents = new TheoryData<DeskThemeFamily, string, bool>();
 
-        foreach (var accent in DeskAccents.All.Where(a => a != DeskAccent.Blue))
+        foreach (var info in DeskThemeFamilies.Catalog)
         {
-            accents.Add(accent, true);
-            accents.Add(accent, false);
+            foreach (var accent in info.Accents.Skip(1))
+            {
+                accents.Add(info.Family, accent.Key, true);
+                accents.Add(info.Family, accent.Key, false);
+            }
         }
 
         return accents;
     }
 
     /// <summary>
-    /// One block per hue per appearance, none for Blue (the Standard blocks are Blue), and none
-    /// on any family but Standard. A block keyed to Nord would be a palette nobody designed, and
-    /// a Blue block would be a second copy of the Standard accent to drift from the first.
+    /// One block per accent per appearance for every family, none for a family's own accent (its
+    /// blocks are that accent), and none an accent the catalogue does not list. A block with no row
+    /// would be a hue the picker never offers; a row with no block, a swatch that paints nothing.
     /// </summary>
     [Fact]
-    public void Every_chosen_accent_has_a_block_on_each_Standard_desk_and_nowhere_else()
+    public void Every_family_s_accents_are_its_blocks()
     {
         var blocks = AccentBlocks();
-        var expected = DeskAccents.All
-            .Where(a => a != DeskAccent.Blue)
-            .SelectMany(a => new[] { "apple-dark/" + DeskAccents.Key(a), "apple-light/" + DeskAccents.Key(a) })
+        var expected = DeskThemeFamilies.Catalog
+            .SelectMany(info => info.Accents.Skip(1).SelectMany(a => new[]
+            {
+                DeskThemeFamilies.Attribute(info.Family, true) + "/" + a.Key,
+                DeskThemeFamilies.Attribute(info.Family, false) + "/" + a.Key
+            }))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
@@ -730,122 +952,184 @@ public class DeskThemeTests
         Assert.Equal(blocks.Count, everyMention);
     }
 
-    [Theory]
-    [MemberData(nameof(EveryChosenAccent))]
-    public void Every_accent_block_redeclares_the_six_accent_tokens_and_nothing_else(DeskAccent accent, bool isDark)
-    {
-        Assert.Equal(AccentTokens.Order(StringComparer.Ordinal), AccentBlock(accent, isDark).Keys.Order(StringComparer.Ordinal));
-    }
-
     /// <summary>
-    /// The pairing seam, for accents: what MudBlazor and the charts are handed is the colour the
-    /// block declares, token for token, compared through MudColor as every other pair is.
+    /// The shape every accent block keeps, Standard's included: exactly the four accent tokens, and
+    /// a wash alpha only where it differs from what the family block already lands on — an override
+    /// that restates the family's strength is noise a reader has to check. --on-accent is the
+    /// family's, so a pale hue that needs dark ink is a hue its family cannot carry, not a fifth token.
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryChosenAccent))]
-    public void Every_accent_block_mirrors_DeskAccents(DeskAccent accent, bool isDark)
+    public void Every_accent_block_redeclares_the_four_accent_tokens_and_only_its_wash_alphas(DeskThemeFamily family, string key, bool isDark)
     {
-        var tokens = AccentBlock(accent, isDark);
-        var palette = DeskAccents.For(accent, isDark);
-        var where = $"{DeskThemeFamilies.Attribute(DeskThemeFamily.Standard, isDark)} {DeskAccents.Key(accent)}";
+        var block = AccentBlock(family, key, isDark);
+        var beneath = Resolved(family, isDark);
+
+        Assert.Equal(AccentTokens.Order(StringComparer.Ordinal), block.Keys.Where(k => !AccentAlphas.Contains(k)).Order(StringComparer.Ordinal));
+        foreach (var alpha in AccentAlphas.Where(block.ContainsKey))
+            Assert.True(block[alpha] != beneath[alpha], $"{DeskThemeFamilies.Attribute(family, isDark)} {key} restates its family's {alpha} {block[alpha]}");
+    }
+
+    /// <summary>
+    /// The pairing seam, for accents: what MudBlazor and the charts are handed — the fill and its
+    /// hover, all that crosses into C# — is the colour the block declares, compared through
+    /// MudColor as every other pair is.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryChosenAccent))]
+    public void Every_accent_block_mirrors_its_catalogue_row(DeskThemeFamily family, string key, bool isDark)
+    {
+        var tokens = ResolvedAccent(family, key, isDark);
+        var accent = DeskThemeFamilies.Info(family).FindAccent(key)!;
+        var where = $"{DeskThemeFamilies.Attribute(family, isDark)} {key}";
+        var palette = accent.For(isDark);
+
+        Assert.True(palette is not null, $"{where} has a block but no {(isDark ? "Dark" : "Light")} palette in its row");
+
+        // The ink crosses only where the fill is under 3:1 on the family's panel (AccentPalette.Ink):
+        // exactly there, and never anywhere else, so a carried ink is one a chart actually draws.
+        var panel = TokenValue(DeskBlock(family, isDark), "--surface-1", where);
+        Assert.True(
+            (palette.Ink is not null) == (Contrast(palette.Accent, panel) < 3),
+            $"{where} {(palette.Ink is null ? "carries no ink but its fill measures under 3:1" : "carries an ink its fill does not need")} on {panel}");
 
         (string Token, string Value)[] pairs =
         [
             ("--accent", palette.Accent),
             ("--accent-hover", palette.Hover),
-            ("--accent-press", palette.Press),
-            ("--accent-wash", palette.Wash),
-            ("--accent-wash-strong", palette.WashStrong),
-            ("--accent-ink", palette.Ink)
+            ("--accent-ink", palette.Ink ?? tokens["--accent-ink"])
         ];
 
         foreach (var (token, value) in pairs)
         {
             Assert.True(
                 ColorValue(tokens[token]) == ColorValue(value),
-                $"{where} {token} is {tokens[token]} in CSS but {value} in DeskAccents");
+                $"{where} {token} is {tokens[token]} in CSS but {value} in its row");
         }
     }
 
     /// <summary>
-    /// Blue has no block because the Standard blocks are Blue — so its row in DeskAccents has to be
-    /// what those blocks declare, or the picker's Blue and MudBlazor's Blue would disagree with the
-    /// desk the operator gets back by choosing it.
+    /// A family's own accent has no block because its family blocks are that accent — so where its
+    /// row carries palettes (Standard's Blue does), they have to be what those blocks declare, or
+    /// the picker's Blue and MudBlazor's Blue would disagree with the desk choosing it brings back.
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Blue_is_what_the_Standard_blocks_declare(bool isDark)
+    [MemberData(nameof(EveryDesk))]
+    public void A_family_s_own_accent_is_what_its_blocks_declare(DeskThemeFamily family, bool isDark)
     {
-        var block = isDark ? DarkBlock : LightBlock;
-        var blue = DeskAccents.For(DeskAccent.Blue, isDark);
-        string[] values = [blue.Accent, blue.Hover, blue.Press, blue.Wash, blue.WashStrong, blue.Ink];
+        var own = DeskThemeFamilies.Info(family).OwnAccent.For(isDark);
+        if (own is null)
+            return;
 
-        for (var i = 0; i < AccentTokens.Length; i++)
-            Assert.Equal(ColorValue(TokenValue(block, AccentTokens[i], "the Standard block")), ColorValue(values[i]), ignoreCase: true);
+        var block = Declarations(DeskBlock(family, isDark));
+
+        Assert.Equal(ColorValue(block["--accent"]), ColorValue(own.Accent), ignoreCase: true);
+        Assert.Equal(ColorValue(block["--accent-hover"]), ColorValue(own.Hover), ignoreCase: true);
     }
 
     /// <summary>
-    /// The direction rule from DeskAccents' remarks: on the dark desk hover lightens and press
-    /// deepens; on the light desk both deepen. Washes are the fill's own channels at .15/.24 dark
-    /// and .12/.20 light, so a selected row is tinted by the hue it is selected in.
+    /// The direction rule from DeskAccents' remarks, for every family's accents: on a dark desk hover
+    /// lightens and press deepens; on a light desk both deepen; and the washes are the fill's own
+    /// channels, so a selected row is tinted by the hue it is selected in. Standard's washes sit at
+    /// .15/.24 dark and .12/.20 light; another family keeps the alphas its own blocks use. Read from
+    /// the blocks as an element wearing them draws, since the press and the washes live there alone.
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryChosenAccent))]
-    public void Every_accent_travels_the_way_its_ground_demands(DeskAccent accent, bool isDark)
+    public void Every_accent_travels_the_way_its_ground_demands(DeskThemeFamily family, string key, bool isDark)
     {
-        var a = DeskAccents.For(accent, isDark);
+        var a = ResolvedAccent(family, key, isDark);
+        var where = $"{DeskThemeFamilies.Attribute(family, isDark)} {key}";
 
         if (isDark)
-            Assert.True(Lum(a.Hover) > Lum(a.Accent), $"{accent} dark hover does not lighten");
+            Assert.True(Luminance(a["--accent-hover"]) > Luminance(a["--accent"]), $"{where} dark hover does not lighten");
         else
-            Assert.True(Lum(a.Hover) < Lum(a.Accent), $"{accent} light hover does not deepen");
+            Assert.True(Luminance(a["--accent-hover"]) < Luminance(a["--accent"]), $"{where} light hover does not deepen");
 
-        Assert.True(Lum(a.Press) < Lum(a.Accent), $"{accent} press does not deepen");
+        Assert.True(Luminance(a["--accent-press"]) < Luminance(a["--accent"]), $"{where} press does not deepen");
 
-        var fill = new MudColor(a.Accent);
-        var wash = new MudColor(a.Wash);
-        var strong = new MudColor(a.WashStrong);
+        var fill = Parse(a["--accent"]);
+        var wash = Parse(a["--accent-wash"]);
+        var strong = Parse(a["--accent-wash-strong"]);
 
         Assert.Equal((fill.R, fill.G, fill.B), (wash.R, wash.G, wash.B));
         Assert.Equal((fill.R, fill.G, fill.B), (strong.R, strong.G, strong.B));
-        Assert.Equal(isDark ? .15 : .12, wash.A / 255d, 2);
-        Assert.Equal(isDark ? .24 : .20, strong.A / 255d, 2);
+        Assert.True(strong.A > wash.A, $"{where} strong wash is not stronger than the wash");
 
-        static double Lum(string colour)
+        if (family == DeskThemeFamily.Standard)
         {
-            var c = new MudColor(colour);
-            return Luminance(c.R, c.G, c.B);
+            Assert.Equal(isDark ? .15 : .12, wash.A, 2);
+            Assert.Equal(isDark ? .24 : .20, strong.A, 2);
         }
     }
 
     /// <summary>
-    /// MudBlazor and the charts cannot read the accent block, so the Standard theme and palette
-    /// they are handed carry the chosen accent — and every other family's are untouched by it, the
-    /// same instance whatever is chosen.
+    /// MudBlazor and the charts cannot read the accent block, so the theme and palette a family is
+    /// handed carry its chosen accent — and its own accent, or a key it does not offer, is the
+    /// family's theme itself, the same instance.
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryChosenAccent))]
-    public void The_Standard_theme_wears_the_chosen_accent_and_no_other_family_does(DeskAccent accent, bool isDark)
+    public void A_family_s_theme_wears_its_chosen_accent(DeskThemeFamily family, string key, bool isDark)
     {
-        var chosen = DeskAccents.For(accent, isDark);
-        var theme = DeskTheme.For(DeskThemeFamily.Standard, accent);
+        var info = DeskThemeFamilies.Info(family);
+        var chosen = info.FindAccent(key)!.For(isDark)!;
+        var theme = DeskTheme.For(family, key);
         MudBlazor.Palette mud = isDark ? theme.PaletteDark : theme.PaletteLight;
+        var desk = DeskThemeFamilies.Palette(family, isDark);
 
         Assert.Equal(ColorValue(chosen.Accent), mud.Primary.Value, ignoreCase: true);
-        Assert.Equal(ColorValue(DeskTheme.OnAccent), mud.PrimaryContrastText.Value, ignoreCase: true);
-        Assert.Equal(ColorValue(isDark ? DeskTheme.Surface1 : DeskTheme.LightSurface1), mud.Surface.Value, ignoreCase: true);
+        Assert.Equal(ColorValue(desk.OnAccent), mud.PrimaryContrastText.Value, ignoreCase: true);
+        Assert.Equal(ColorValue(desk.Surface1), mud.Surface.Value, ignoreCase: true);
 
-        var palette = DeskThemeFamilies.Palette(DeskThemeFamily.Standard, isDark).WithAccent(chosen);
+        var palette = desk.WithAccent(chosen);
         Assert.Equal(chosen.Accent, palette.Accent);
         Assert.Equal(chosen.Hover, palette.AccentHover);
-        Assert.Contains(chosen.Accent, DeskChartPalette.For(DeskChartFamily.Movement, palette));
+        Assert.Equal(chosen.Ink ?? chosen.Accent, palette.AccentInk);
+        Assert.Contains(chosen.Ink ?? chosen.Accent, DeskChartPalette.For(DeskChartFamily.Movement, palette));
 
-        foreach (var family in DeskThemeFamilies.All.Where(f => f != DeskThemeFamily.Standard))
-            Assert.Same(DeskTheme.For(family), DeskTheme.For(family, accent));
+        Assert.Same(theme, DeskTheme.For(family, key.ToUpperInvariant()));
+        Assert.Same(DeskTheme.For(family), DeskTheme.For(family, info.OwnAccent.Key));
+        Assert.Same(DeskTheme.For(family), DeskTheme.For(family, "no-such-accent"));
+    }
+
+    /// <summary>The Standard desk's named accents reach only Standard; every other family is untouched by them.</summary>
+    [Fact]
+    public void The_named_Standard_accents_belong_to_Standard_alone()
+    {
+        foreach (var accent in DeskAccents.All)
+        {
+            Assert.Same(DeskTheme.For(DeskThemeFamily.Standard, DeskAccents.Key(accent)), DeskTheme.For(DeskThemeFamily.Standard, accent));
+            foreach (var family in DeskThemeFamilies.All.Where(f => f != DeskThemeFamily.Standard))
+                Assert.Same(DeskTheme.For(family), DeskTheme.For(family, accent));
+        }
 
         Assert.Same(DeskTheme.Instance, DeskTheme.For(DeskThemeFamily.Standard, DeskAccent.Blue));
-        Assert.Same(theme, DeskTheme.For(DeskThemeFamily.Standard, accent));
+    }
+
+    /// <summary>
+    /// Every family's list is well formed: at least its own accent, keys lower-case and distinct,
+    /// names distinct, and every accent after the first carrying both palettes. Standard's list is
+    /// DeskAccents', Blue first.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryFamily))]
+    public void Every_family_s_accent_list_is_well_formed(DeskThemeFamily family)
+    {
+        var accents = DeskThemeFamilies.Accents(family);
+
+        Assert.NotEmpty(accents);
+        Assert.All(accents, a => Assert.Matches("^[a-z][a-z0-9-]*$", a.Key));
+        Assert.Equal(accents.Count, accents.Select(a => a.Key).Distinct().Count());
+        Assert.Equal(accents.Count, accents.Select(a => a.Name).Distinct().Count());
+        Assert.All(accents.Skip(1), a =>
+        {
+            Assert.NotNull(a.Dark);
+            Assert.NotNull(a.Light);
+        });
+
+        if (family == DeskThemeFamily.Standard)
+            Assert.Equal(DeskAccents.All.Select(DeskAccents.Key), accents.Select(a => a.Key));
     }
 
     [Fact]
@@ -857,6 +1141,259 @@ public class DeskThemeTests
         Assert.Equal(DeskAccent.Blue, DeskAccents.All[0]);
     }
 
+    // ---- The catalogue -----------------------------------------------------------------
+
+    /// <summary>
+    /// The catalogue is the one list: every enum member has exactly one row, every group heading
+    /// is a DeskThemeGroups constant with a family under it, and a group's families sit together,
+    /// so the picker's reading order is the catalogue's.
+    /// </summary>
+    [Fact]
+    public void The_catalogue_holds_every_family_once_grouped_together()
+    {
+        Assert.Equal(Enum.GetValues<DeskThemeFamily>().Order(), DeskThemeFamilies.All.Order());
+        Assert.Equal(DeskThemeFamily.Standard, DeskThemeFamilies.All[0]);
+
+        var groups = typeof(DeskThemeGroups).GetFields().Select(f => (string)f.GetRawConstantValue()!).ToArray();
+        Assert.All(DeskThemeFamilies.Catalog, f => Assert.Contains(f.Group, groups));
+
+        var runs = DeskThemeFamilies.Catalog.Select(f => f.Group)
+            .Where((g, i) => i == 0 || DeskThemeFamilies.Catalog[i - 1].Group != g)
+            .ToArray();
+        Assert.Equal(runs.Length, runs.Distinct().Count());
+    }
+
+    // ---- The makes: shape, density, typeface ---------------------------------------------
+
+    /// <summary>Every <c>:root[data-&lt;name&gt;="…"]</c> block in desk.css, value to its declarations.</summary>
+    private static Dictionary<string, Dictionary<string, string>> MakeBlocks(string attribute)
+        => Regex.Matches(Css, @":root\[data-" + attribute + @"=""([a-z-]+)""\]\s*\{([^{}]*)\}")
+            .ToDictionary(m => m.Groups[1].Value, m => Declarations(Regex.Replace(m.Groups[2].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline)));
+
+    /// <summary>The plain :root geometry block every make rescales.</summary>
+    private static Dictionary<string, string> Geometry()
+    {
+        var m = Regex.Match(Css, @"\n:root \{([^{}]*--control-h:[^{}]*)\}");
+        Assert.True(m.Success, "desk.css has no plain :root geometry block");
+        return Declarations(Regex.Replace(m.Groups[1].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline));
+    }
+
+    public static TheoryData<string, string[], string[]> EveryMakeAttribute() => new()
+    {
+        { "shape", Stampable<DeskShape>(DeskShape.Standard), ["--radius-xs", "--radius-sm", "--radius", "--radius-panel", "--radius-sheet"] },
+        {
+            "density", Stampable<DeskDensity>(DeskDensity.Standard),
+            ["--space-1", "--space-2", "--space-3", "--space-4", "--space-5", "--space-6", "--space-8", "--space-12", "--space-16",
+             "--titlebar-h", "--footer-h", "--control-h", "--control-h-sm", "--control-h-lg", "--row-h", "--cell-pad-y", "--cell-inset"]
+        },
+        { "font", Stampable<DeskTypeface>(DeskTypeface.System), ["--face-ui", "--face-display"] }
+    };
+
+    private static string[] Stampable<T>(T byDefault) where T : struct, Enum
+        => Enum.GetValues<T>().Where(v => !v.Equals(byDefault)).Select(v => v.ToString().ToLowerInvariant()).ToArray();
+
+    /// <summary>
+    /// Every member but the default has its block and every block its member; each block declares
+    /// exactly the tokens its make owns — every one, and nothing else — and the geometry block
+    /// declares each of them first, so the default is a value and not an absence.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryMakeAttribute))]
+    public void Every_make_has_one_block_per_position_declaring_exactly_its_tokens(string attribute, string[] values, string[] tokens)
+    {
+        var blocks = MakeBlocks(attribute);
+        var geometry = Geometry();
+
+        Assert.Equal(values.Order(StringComparer.Ordinal), blocks.Keys.Order(StringComparer.Ordinal));
+        Assert.All(tokens, token => Assert.True(geometry.ContainsKey(token), $"the geometry block does not declare {token}"));
+
+        foreach (var (value, declared) in blocks)
+            Assert.Equal(tokens.Order(StringComparer.Ordinal), declared.Keys.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>No make's token is redeclared by a theme block: a swatch's own data-theme would reset it inside the swatch.</summary>
+    [Theory]
+    [MemberData(nameof(EveryDesk))]
+    public void No_family_block_declares_a_make_s_token(DeskThemeFamily family, bool isDark)
+    {
+        var desk = Declarations(DeskBlock(family, isDark));
+        var owned = EveryMakeAttribute().SelectMany(row => (string[])row[2]).Append("--backdrop-tint");
+
+        Assert.All(owned, token => Assert.False(desk.ContainsKey(token), $"{DeskThemeFamilies.Attribute(family, isDark)} declares {token}"));
+    }
+
+    /// <summary>Shape keeps the ladder in order in every position, so an inner corner stays inside its outer one.</summary>
+    [Fact]
+    public void Every_shape_keeps_the_radius_ladder_in_order()
+    {
+        string[] ladder = ["--radius-xs", "--radius-sm", "--radius", "--radius-panel", "--radius-sheet"];
+        var shapes = MakeBlocks("shape").Values.Append(Geometry());
+
+        foreach (var shape in shapes)
+        {
+            var px = ladder.Select(t => double.Parse(shape[t].Replace("px", ""), System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            Assert.Equal(px.Order(), px);
+        }
+    }
+
+    /// <summary>
+    /// Compact takes out air and keeps targets pressable: the toolbar control, the small key and the
+    /// cell padding are at least Standard's, and the heights it does bring down — the large key, a
+    /// settings row, the title bar — stay at 28px or more. Roomy grows them.
+    /// </summary>
+    [Fact]
+    public void Compact_keeps_every_target_and_Roomy_grows_them()
+    {
+        string[] targets = ["--control-h", "--control-h-sm", "--cell-pad-y"];
+        var standard = Geometry();
+        var blocks = MakeBlocks("density");
+
+        foreach (var token in targets)
+        {
+            Assert.True(Px(blocks["compact"][token]) >= Px(standard[token]), $"Compact shrinks {token}");
+            Assert.True(Px(blocks["roomy"][token]) > Px(standard[token]), $"Roomy does not grow {token}");
+        }
+
+        foreach (var token in new[] { "--control-h", "--control-h-lg", "--row-h", "--titlebar-h" })
+            Assert.True(Px(blocks["compact"][token]) >= 28, $"Compact takes {token} under 28px");
+        Assert.True(Px(blocks["compact"]["--titlebar-h"]) >= Px(blocks["compact"]["--control-h"]));
+    }
+
+    private static double Px(string v) => double.Parse(v.Replace("px", ""), System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Every density's geometry: the plain :root block, then each block's values over it.</summary>
+    private static IEnumerable<(string Density, Dictionary<string, string> Tokens)> EveryDensity()
+    {
+        var standard = Geometry();
+        yield return ("standard", standard);
+
+        foreach (var (density, block) in MakeBlocks("density"))
+            yield return (density, new Dictionary<string, string>(standard.Concat(block).GroupBy(p => p.Key).Select(g => g.Last())));
+    }
+
+    /// <summary>The declarations of the first plain rule for <paramref name="selector"/> in desk.css.</summary>
+    private static Dictionary<string, string> Rule(string selector)
+    {
+        var m = Regex.Match(Css, @"\n" + Regex.Escape(selector) + @"\s*\{([^{}]*)\}");
+        Assert.True(m.Success, $"desk.css has no {selector} rule");
+        return Regex.Matches(Regex.Replace(m.Groups[1].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline), @"([a-z-]+)\s*:\s*([^;]+);")
+            .ToDictionary(p => p.Groups[1].Value, p => p.Groups[2].Value.Trim());
+    }
+
+    /// <summary>
+    /// A window's body keeps the 14px it had before the spacing became tokens, at Standard, and
+    /// moves with Density: the token move had made it --space-4, 16px.
+    /// </summary>
+    [Fact]
+    public void A_window_body_is_14px_at_Standard_and_follows_density()
+    {
+        Assert.Equal("var(--win-pad)", Rule(".win__body")["padding"]);
+
+        var pads = EveryDensity().ToDictionary(d => d.Density, d => Px(d.Tokens["--space-4"]) - Px(d.Tokens["--space-1"]) / 2);
+
+        Assert.Equal(14, pads["standard"]);
+        Assert.True(pads["compact"] < 14 && pads["roomy"] > 14, "the window body's padding does not follow density");
+    }
+
+    /// <summary>
+    /// A notice keeps a panel's corner and never becomes a capsule: its radius is held under half
+    /// its height (a title bar) in every shape at every density. Round's 18px was more than half
+    /// a 34px notice. Standard's 12px is untouched.
+    /// </summary>
+    [Fact]
+    public void A_notice_is_never_rounded_into_a_capsule()
+    {
+        Assert.Equal("min(var(--radius-panel), calc(var(--titlebar-h) * .375))", Rule(".toast")["border-radius"]);
+
+        var shapes = MakeBlocks("shape").Values.Append(Geometry()).Select(s => Px(s["--radius-panel"])).ToArray();
+        foreach (var (density, tokens) in EveryDensity())
+        {
+            var height = Px(tokens["--titlebar-h"]);
+            foreach (var panel in shapes)
+                Assert.True(Math.Min(panel, height * .375) < height / 2, $"a {density} notice is a capsule at a {panel}px panel radius");
+        }
+
+        Assert.Equal(12, Math.Min(Px(Geometry()["--radius-panel"]), Px(Geometry()["--titlebar-h"]) * .375));
+    }
+
+    /// <summary>
+    /// The Activities slot is never narrower than its key alone, "Activities · 12" — fifteen
+    /// characters at the key's footnote size and its two paddings — in the widest face, Mono, whose
+    /// characters are about .6em, at the largest Text size. 128px alone fell short there.
+    /// </summary>
+    [Fact]
+    public void The_activities_slot_holds_its_key_in_every_face_and_text_size()
+    {
+        const string floor = "max(128px, calc(var(--text-footnote) * 9.6 + 2 * var(--space-2)))";
+        Assert.Equal(floor, Rule(".toasts")["min-width"]);
+        Assert.Equal("Activities · 12", LineOps.Desk.Primitives.DeskToastStack.HeadLabel(12));
+
+        foreach (var (density, tokens) in EveryDensity())
+        {
+            var padding = 2 * Px(tokens["--space-2"]);
+            foreach (var scale in new[] { 1.0, 1.4 })
+            {
+                var footnote = Math.Max(10, 11 * scale);
+                var key = 15 * .6 * footnote + padding;
+                Assert.True(Math.Max(128, footnote * 9.6 + padding) >= key, $"the {density} slot is narrower than its key at {scale:P0}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// A grid's placeholder row stands as tall as the row that replaces it — --cell-pad-y either side
+    /// of the 20px line box mud-bridge.css sets, plus the hairline — at every density. It was a
+    /// literal 29px, 8px short of a Roomy row.
+    /// </summary>
+    [Fact]
+    public void A_skeleton_row_is_as_tall_as_a_real_row_at_every_density()
+    {
+        var bridge = DeskCss.Raw("mud-bridge.css");
+        var body = Regex.Match(bridge, @"\.deskgrid \.mud-table-body \.mud-table-cell \{([^}]*)\}").Groups[1].Value;
+        Assert.Contains("padding: var(--cell-pad-y) var(--deskgrid-inset);", body);
+        Assert.Contains("line-height: 20px;", body);
+        Assert.Contains("border-bottom: 1px solid", body);
+
+        Assert.Equal("calc(20px + 2 * var(--cell-pad-y) + 1px)", Rule(".deskgrid__skeleton-row")["height"]);
+
+        var standard = Px(Geometry()["--cell-pad-y"]) * 2 + 21;
+        Assert.Equal(29, standard);
+    }
+
+    /// <summary>
+    /// Every typeface is a local stack: no font is fetched for one — the only @font-face in the
+    /// Desk's sheets is the bundled Inter, which System alone names — and each ends on a generic.
+    /// </summary>
+    [Fact]
+    public void Every_typeface_is_local_and_ends_on_a_generic_family()
+    {
+        foreach (var name in DeskConventions.DeskSheetNames)
+        {
+            var sheet = DeskCss.Raw(name);
+            foreach (Match face in Regex.Matches(sheet, @"@font-face\s*\{([^}]*)\}"))
+                Assert.Contains("'Inter var'", face.Groups[1].Value);
+            Assert.DoesNotMatch(@"@import|fonts\.googleapis|https?://", Regex.Replace(sheet, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline));
+        }
+
+        foreach (var (value, block) in MakeBlocks("font"))
+        {
+            Assert.Matches(@"(serif|sans-serif|monospace)$", block["--face-ui"]);
+            Assert.DoesNotContain("Inter", block["--face-ui"]);
+        }
+    }
+
+    /// <summary>The backdrop's values are DeskBackdrop's members but Dots, the default, each with a rule on the ground.</summary>
+    [Fact]
+    public void Every_backdrop_but_the_default_draws_the_ground_and_names_no_family()
+    {
+        var rules = Regex.Matches(Css, @":root\[data-backdrop=""([a-z]+)""\] \.desk \{([^}]*)\}")
+            .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value);
+
+        Assert.Equal(Stampable<DeskBackdrop>(DeskBackdrop.Dots).Order(StringComparer.Ordinal), rules.Keys.Order(StringComparer.Ordinal));
+        Assert.All(rules.Values, body => Assert.Contains("background-image", body));
+        Assert.DoesNotMatch(@"\[data-theme[^\]]*\]\[data-backdrop|\[data-backdrop[^\]]*\]\[data-theme", Css);
+        Assert.Contains("color-mix(in srgb, var(--accent) var(--backdrop-tint), var(--surface-0))", rules["gradient"]);
+    }
     /// <summary>Normalizes a colour literal the same way MudColor does, for apples-to-apples comparison.</summary>
     private static string ColorValue(string cssColor) => new MudColor(cssColor).Value;
 
@@ -873,34 +1410,11 @@ public class DeskThemeTests
         return match.Groups[1].Value.Trim();
     }
 
-    /// <summary>
-    /// The body of one token block, with comments removed.
-    /// </summary>
-    /// <remarks>
-    /// <c>[^}]*</c> is safe only because neither block contains a nested rule or a closing
-    /// brace in its prose. If one ever does, this stops at the wrong place and takes half
-    /// the tokens with it — so the assertion below is not decoration: a block that has lost
-    /// its tail fails loudly here rather than quietly under-checking everywhere else.
-    /// </remarks>
-    private static string Block(string selectorPattern) => Block(Css, selectorPattern);
+    private static string Block(string selectorPattern) => DeskCss.Block(Css, selectorPattern);
 
-    private static string Block(string css, string selectorPattern)
-    {
-        var match = Regex.Match(css, selectorPattern + @"\s*\{([^}]*)\}");
+    private static string Block(string css, string selectorPattern) => DeskCss.Block(css, selectorPattern);
 
-        Assert.True(match.Success, $"no token block matched {selectorPattern} in desk.css");
-
-        var body = Regex.Replace(match.Groups[1].Value, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
-
-        Assert.Contains("--", body, StringComparison.Ordinal);
-
-        return body;
-    }
-
-    /// <summary>Every custom property a block declares, name to value.</summary>
-    private static Dictionary<string, string> Declarations(string block)
-        => Regex.Matches(block, @"(--[a-z0-9-]+)\s*:\s*([^;]+);")
-            .ToDictionary(m => m.Groups[1].Value, m => m.Groups[2].Value.Trim());
+    private static Dictionary<string, string> Declarations(string block) => DeskCss.Declarations(block);
 
     /// <summary>
     /// Whether a token's value names a colour, and therefore whether a second theme owes it
@@ -910,49 +1424,4 @@ public class DeskThemeTests
     private static bool IsColour(string value)
         => value.Contains('#', StringComparison.Ordinal)
            || value.Contains("rgb", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// WCAG 2.x contrast between a foreground that may be translucent and an opaque
-    /// background, composited the way a browser does before either is measured.
-    /// </summary>
-    private static double Contrast(string foreground, string background)
-    {
-        var over = new MudColor(background);
-        var ink = new MudColor(foreground);
-        var alpha = ink.A / 255d;
-
-        // Alpha compositing happens in gamma-encoded sRGB — the space the channels are
-        // already in — and linearisation comes after. Doing it the other way round is a
-        // plausible-looking mistake that shifts every ratio in the suite.
-        var r = ink.R * alpha + over.R * (1 - alpha);
-        var g = ink.G * alpha + over.G * (1 - alpha);
-        var b = ink.B * alpha + over.B * (1 - alpha);
-
-        var lighter = Math.Max(Luminance(r, g, b), Luminance(over.R, over.G, over.B));
-        var darker = Math.Min(Luminance(r, g, b), Luminance(over.R, over.G, over.B));
-
-        return (lighter + 0.05) / (darker + 0.05);
-    }
-
-    private static double Luminance(double r, double g, double b)
-        => 0.2126 * Linearize(r) + 0.7152 * Linearize(g) + 0.0722 * Linearize(b);
-
-    private static double Linearize(double channel)
-    {
-        var c = channel / 255d;
-
-        return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
-    }
-
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "LineOps.slnx")))
-            dir = dir.Parent;
-
-        Assert.NotNull(dir);
-
-        return dir!.FullName;
-    }
 }

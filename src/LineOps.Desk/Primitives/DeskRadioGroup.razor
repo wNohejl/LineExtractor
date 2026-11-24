@@ -28,6 +28,7 @@
      style="@DeskLayout.MergeStyle(null, Extra)"
      role="radiogroup"
      aria-label="@Label"
+     data-roving
      @onkeydown="OnKeyDownAsync"
      @attributes="DeskLayout.WithoutClassAndStyle(Extra)">
     @for (var i = 0; i < Options.Count; i++)
@@ -125,16 +126,7 @@
 
         var current = Math.Max(SelectedIndex, 0);
 
-        var next = e.Key switch
-        {
-            "ArrowRight" or "ArrowDown" => Math.Min(current + 1, Options.Count - 1),
-            "ArrowLeft" or "ArrowUp" => Math.Max(current - 1, 0),
-            "Home" => 0,
-            "End" => Options.Count - 1,
-            _ => current
-        };
-
-        if (next == current)
+        if (Roving.Next(current, Options.Count, e, wrap: false) is not { } next || next == current)
             return;
 
         await SelectAsync(next);

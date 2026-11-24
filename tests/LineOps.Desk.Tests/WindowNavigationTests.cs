@@ -95,7 +95,7 @@ public class WindowNavigationTests
         desk.Follow(item.Id, Window(SampleCatalog.Company), Company(7), "Seventh company");
 
         Assert.Equal(2, desk.Windows.Count);
-        Assert.Null(desk.LastEviction);
+        Assert.Null(desk.Notice);
     }
 
     [Fact]

@@ -13,20 +13,28 @@ public enum ResolutionMode
 /// <summary>
 /// Operator-controlled desk configuration, edited in the Window manager window.
 ///
-/// There is no layout setting: the desk is always a horizontal row of full-height columns,
-/// and every window is its own tab in that row — there is no separate taskbar to configure.
+/// There is no layout setting: the desk is always a horizontal row of full-height columns, and
+/// past the column limit windows share a column as tabs — there is no separate taskbar to configure.
 /// Freedom to place things arbitrarily belongs to modals and popovers layered above the
 /// desk, not to the desk itself.
 /// </summary>
 public class DeskSettings
 {
     /// <summary>
-    /// How many windows may be open at once. Reaching it does not refuse the next window —
-    /// the least recently used one is closed to make room, and the footer says which. A window
-    /// holding unsaved input is never the one closed; only when every window holds some is the
-    /// next one refused.
+    /// How many columns the row shows at once. Reaching it closes nothing: the next window joins
+    /// a column as a tab (<see cref="WindowManager"/>, ADR 0027), so the limit is how many windows
+    /// are in view side by side, not how many may be open. The name is the one a saved layout
+    /// already carries.
     /// </summary>
     public int MaxConcurrentWindows { get; set; } = 4;
+
+    /// <summary>
+    /// How many windows the desk holds in all, columns and tabs together. Every window stays
+    /// mounted — a tab keeps its panel, its scroll and its unsaved input — and each one costs the
+    /// circuit its panel's memory and its refreshes, so there is an end; it is set far past what a
+    /// person keeps in mind. At it, an open is refused and the header says why: nothing closes.
+    /// </summary>
+    public const int MaxOpenWindows = 24;
 
     /// <summary>
     /// The window that opens on an empty desk and takes the larger share of the row.
@@ -255,8 +263,8 @@ public class WindowInstance
 
     /// <summary>
     /// The panel holds input that has not been saved — a half-typed entry. Its close key asks
-    /// before discarding it, and eviction passes it by: a form the operator stepped away from to
-    /// look something up is exactly the window least recently used. Set by the panel through
+    /// before discarding it, and so do Close all, a workspace and a step Back that would take it.
+    /// Behind another tab it is kept, input and all. Set by the panel through
     /// <see cref="WindowManager.SetUnsaved"/>, nothing else.
     /// </summary>
     public bool HasUnsavedInput { get; internal set; }
@@ -267,25 +275,100 @@ public class WindowInstance
     /// </summary>
     public string? UnsavedInputLabel { get; internal set; }
 
-    /// <summary>
-    /// Drives least-recently-used eviction. Set on open and on every focus, so the window
-    /// closed to make room is always the one the operator has ignored longest.
-    /// </summary>
+    /// <summary>When the window was last opened, focused or shown. Read by nothing that decides; kept for the record.</summary>
     public DateTimeOffset LastFocusedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Position in the row, left to right. Mutable — dragging a window's tab past a neighbour
-    /// reassigns these for every window at once (see <see cref="WindowManager.Reorder"/>).
-    /// Focus alone never changes it: a row that reshuffles when clicked would be unusable.
+    /// The column's place in the row, left to right; every tab in a column shares it. Mutable —
+    /// dragging a column's bar past a neighbour reassigns these for every column at once (see
+    /// <see cref="WindowManager.Reorder"/>). Focus alone never changes it: a row that reshuffles
+    /// when clicked would be unusable.
     /// </summary>
     public long Sequence { get; set; }
+
+    /// <summary>
+    /// The column this window is in. Windows that share one are a tab group: one shows, the rest
+    /// wait behind it as tabs (<see cref="WindowColumn"/>). A window alone in its column is a
+    /// plain window. The manager owns it.
+    /// </summary>
+    public string ColumnId { get; internal set; } = string.Empty;
+
+    /// <summary>
+    /// When the window was last shown, as a count the manager keeps: the highest in a column is
+    /// the tab showing, and the rest follow in the order they were last shown. A count rather
+    /// than a clock, because two windows opened in one tick must still have an order.
+    /// </summary>
+    internal long Recency { get; set; }
 
     /// <summary>Arbitrary parameters passed to the hosted component, e.g. an order id.</summary>
     public Dictionary<string, object> Parameters { get; init; } = [];
 }
 
 /// <summary>
+/// One column of the row: the windows in it, the one showing first and the rest in the order they
+/// were last shown. A column of one is a plain window; of more, a tab group whose pop-up key is its
+/// title bar. A snapshot — the manager builds a fresh one whenever it is asked.
+/// </summary>
+public sealed class WindowColumn
+{
+    internal WindowColumn(string id, IReadOnlyList<WindowInstance> tabs, int position)
+    {
+        Id = id;
+        Tabs = tabs;
+        Position = position;
+    }
+
+    public string Id { get; }
+
+    /// <summary>Most recently shown first. Never empty.</summary>
+    public IReadOnlyList<WindowInstance> Tabs { get; }
+
+    /// <summary>The column's place in the row, from 0 at the left.</summary>
+    public int Position { get; }
+
+    /// <summary>The window in view; the one its tab key names.</summary>
+    public WindowInstance Showing => Tabs[0];
+
+    /// <summary>More than one window: drawn with a tab key in place of the title.</summary>
+    public bool IsGroup => Tabs.Count > 1;
+
+    /// <summary>The narrowest the column may be: its widest tab's minimum, so switching tabs never reflows the row.</summary>
+    public int MinWidth => Tabs.Max(t => t.Definition.MinWidth);
+}
+
+/// <summary>
 /// A named set of windows to open, in row order. Fractions are not stored — the horizontal
 /// layout decides widths, so a workspace saved anywhere works everywhere.
 /// </summary>
-public record Workspace(string Name, string Description, IReadOnlyList<string> WindowKeys);
+/// <param name="Name">What the brand menu lists it as.</param>
+/// <param name="Description">One line under the name.</param>
+/// <param name="WindowKeys">The catalogue keys to open, column by column, left to right.</param>
+/// <param name="Columns">
+/// Which column each key goes in, by index, when the workspace keeps tab groups; within a column
+/// the first key listed is the one showing. Null opens one column per key, and any past the limit
+/// fold into tabs left to right.
+/// </param>
+/// <param name="Icon">
+/// A Material icon string drawn beside the name where the workspace is offered as a choice — the
+/// empty desk, the brand menu. Null draws the generic workspace glyph.
+/// </param>
+/// <param name="Tag">
+/// A marker the application defines and reads; the Desk carries it and never interprets it.
+/// </param>
+/// <remarks>
+/// <see cref="Description"/> is the one sentence saying what the workspace is for. It is a
+/// non-null string for the constructions that already pass one; an empty string reads as absent.
+/// </remarks>
+public record Workspace(
+    string Name,
+    string Description,
+    IReadOnlyList<string> WindowKeys,
+    IReadOnlyList<int>? Columns = null,
+    string? Icon = null,
+    string? Tag = null);
+
+/// <summary>
+/// A workspace as an empty desk offers it: the workspace, the titles of the windows it opens that
+/// this person may see, in its order, and those titles as a sentence ("One, Two and Three").
+/// </summary>
+public sealed record OfferedWorkspace(Workspace Workspace, IReadOnlyList<string> Titles, string Windows);

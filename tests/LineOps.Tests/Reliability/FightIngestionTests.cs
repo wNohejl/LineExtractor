@@ -1,4 +1,3 @@
-using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Core.Entities;
 using LineOps.Data;
@@ -6,6 +5,7 @@ using LineOps.Data.CrossReference;
 using LineOps.Ingestion.Adapters;
 using LineOps.Ingestion.Services;
 using LineOps.Reliability;
+using LineOps.Tests.Support;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -34,16 +34,13 @@ public class FightIngestionTests(PostgresFixture fixture)
         public Task<OddsFetchResult> FetchSlateAsync(string s, IReadOnlyList<string> m, CancellationToken ct) => Task.FromResult(result);
     }
 
-    private static JsonElement Load(string fixture)
-        => JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture))).RootElement.Clone();
-
     /// <summary>UFC 300, with its ids made unique to this test so tests sharing the database do not meet.</summary>
     private static StatsFetchResult Ufc300(string tag)
     {
         var players = new List<CanonicalPlayer>();
         var stats = new List<CanonicalPlayerStat>();
-        var rounds = EspnStatsAdapter.ReadScoreboardCards(Load("espn.ufc.scoreboard.json")).Single().Rounds;
-        var games = EspnStatsAdapter.ParseFightCenter(Load("espn.ufc.fightcenter.json"), "ufc", rounds, players, stats).ToList();
+        var rounds = EspnStatsAdapter.ReadScoreboardCards(Fixtures.Json("espn.ufc.scoreboard.json")).Single().Rounds;
+        var games = EspnStatsAdapter.ParseFightCenter(Fixtures.Json("espn.ufc.fightcenter.json"), "ufc", rounds, players, stats).ToList();
 
         string Id(string id) => $"{id}-{tag}";
         string Name(string name) => Tagged(tag, name);
@@ -204,10 +201,10 @@ public class FightIngestionTests(PostgresFixture fixture)
         public Task<FighterFetchResult> FetchFighterAsync(string sportKey, string id, CancellationToken ct)
         {
             Asked++;
-            var fighter = EspnStatsAdapter.ParseFighter(Load("espn.ufc.athlete.json"),
-                EspnStatsAdapter.ParseFightSheets(Load("espn.ufc.athlete-stats.json")),
-                EspnStatsAdapter.ParseCareerRates(Load("espn.ufc.athlete-statistics.json")),
-                Load("espn.ufc.athlete-records.json"));
+            var fighter = EspnStatsAdapter.ParseFighter(Fixtures.Json("espn.ufc.athlete.json"),
+                EspnStatsAdapter.ParseFightSheets(Fixtures.Json("espn.ufc.athlete-stats.json")),
+                EspnStatsAdapter.ParseCareerRates(Fixtures.Json("espn.ufc.athlete-statistics.json")),
+                Fixtures.Json("espn.ufc.athlete-records.json"));
 
             return Task.FromResult(new FighterFetchResult(fighter! with { SourceFighterId = id }, new FetchCost(4)));
         }

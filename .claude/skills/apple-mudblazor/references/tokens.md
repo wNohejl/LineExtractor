@@ -74,12 +74,12 @@ sites, not a one-line token change.
 ## One accent
 
 ```css
---accent: #0A84FF;              /* systemBlue, dark */
---accent-hover: #3D9BFF;
---accent-press: #0871DB;
---accent-wash: rgba(10,132,255,.15);
---accent-wash-strong: rgba(10,132,255,.24);
+--accent: #086FD7;              /* systemBlue, the Standard dark desk's */
+--accent-hover: #0973DE;
+--accent-press: #0866C6;
+--accent-ink: #449EFF;          /* the accent as text and as a 1px stroke */
 --on-accent: #FFFFFF;
+/* --accent-wash, --accent-wash-strong: derived from --accent, never declared (below) */
 ```
 
 **Interactivity, focus, and selection — nothing else.** A second accent is how an
@@ -93,14 +93,27 @@ rather than restating white.
 The `-wash` pair exists so "selected" has a fill rather than a border. Selection
 is a wash; hover is a neutral surface step. See `components.md`.
 
+**A wash is its fill thinned, so it is derived, not declared.** The Desk computes
+every wash once, on `:root, [data-theme]`, with `color-mix` —
+`--accent-wash: color-mix(in srgb, var(--accent) calc(var(--accent-wash-alpha) * 100%), transparent)`,
+which for an opaque fill is exactly the fill at that alpha, and which browsers read well before
+relative colour (`rgb(from …)`): a wash a browser cannot parse is transparent, and the focus ring
+that holds it goes with it. Mixing multiplies an alpha the fill already has, so the one input
+that is translucent — the sheen a dark key's finish is drawn from — keeps relative colour inside
+`@supports (color: rgb(from white r g b))`, with the mix as the fainter fallback. A
+block states only `--accent-wash-alpha` (or `-strong-alpha`, `--state-*-wash-alpha`)
+where it departs from the appearance's default. Declared on the attribute rather
+than `:root` alone, because a custom property inherits already resolved: a swatch
+carrying its own `data-theme`/`data-accent` must recompute from its own fill.
+
 ---
 
 ## Semantic state — role-named, applied by judgment
 
 ```css
 --state-positive: #30D158;
---state-negative: #FF453A;
---state-negative-hover: #FF6961;
+--state-negative: #D73A31;        /* systemRed deepened: the white label reads 4.63:1 */
+--state-negative-hover: #C4342C;  /* deeper still: 1.17:1 from rest, 5.42:1 under the label */
 --state-warning:  #FF9F0A;
 --state-positive-wash / --state-negative-wash / --state-warning-wash
 ```
@@ -109,9 +122,13 @@ Apple's dark-mode system colours. Note the names: **positive/negative/warning**,
 not green/red/orange. A state token is spent when a state genuinely needs a
 colour, not as an always-on channel that tints every control.
 
-`--state-negative-hover` exists so a destructive fill can lighten on hover the way
-`--accent-hover` lets the accent one — a lit state colour, not a mix computed at
-the call site.
+`--state-negative-hover` exists so a destructive fill can answer the pointer the
+way `--accent-hover` lets the accent one — a state colour, not a mix computed at
+the call site. It travels away from its label, not by the ground: a red that
+carries white has no room to lighten (a visible step lighter drops the label under
+4.5:1), so it deepens even on a dark desk, and a red that carries dark ink lifts.
+`ThemeContrastTests` holds every block to that, to 4.5:1 under the label on both
+fills, and to a step of at least 1.1:1 between them, so the hover is seen.
 
 **Hue is the second channel, never the only one.** A tag carries its word; a
 metric carries its label and note; a toast carries its sentence. The state must be
@@ -150,7 +167,8 @@ reach.
 --material-blur: saturate(180%) blur(30px);
 ```
 
-Mirrors HIG's material tiers, thinnest to thickest.
+Mirrors HIG's material tiers, thinnest to thickest. The blur is an optical
+constant, declared once with the derived tokens rather than in every block.
 
 **Materials are for things that float** — menus, popovers, dialogs, sheets, fixed
 chrome. **Anything holding data stays opaque**, because legibility beats depth: a
@@ -218,7 +236,7 @@ one of the other three.
 
 ```css
 --space-1: 4px … --space-16: 64px   /* one 4px ramp, steps skipped where the eye cannot tell */
---radius-sm: 5px;    /* chips, tags, inline marks */
+--radius-sm: 5px;     /* chips, tags, inline marks */
 --radius: 7px;       /* controls — buttons, fields, selects */
 --radius-panel: 12px; /* windows, panels, popovers */
 --radius-sheet: 14px; /* sheets and alerts */
@@ -231,6 +249,22 @@ is probably one of the four already.
 
 The spacing ramp skips steps (no 20px, no 40px) on purpose: every gap is a **named
 rung**, so a layout re-tunes in one place.
+
+```css
+--radius-xs: 4px;     /* the plate inside a control: a tab's marble, a hover plate */
+--control-h: 28px;    /* the toolbar control; -sm 24px (inside a grid row), -lg 34px */
+--row-h: 36px;        /* a settings row's floor */
+--cell-pad-y: 4px;    /* a table cell, top and bottom; --cell-inset 10px at the sides */
+--face-display: var(--face-ui); /* the titles' face */
+```
+
+**The operator can rescale these** (ADR 0030): Shape (`data-shape`: sharp, round) moves the five
+radii together; Density (`data-density`: compact, roomy) moves the ramp, `--titlebar-h`,
+`--footer-h` and the heights above; Typeface (`data-font`: humanist, serif, mono) moves the two
+faces. They live in a plain `:root` block after the theme blocks, never in one. So: **never write
+28px, 24px or 34px for a control** — spend `--control-h` and its two siblings, or the control
+stays put when the desk grows. Compact never shortens a target; a circle (switch, radio, dot,
+swatch) is 50% or 999px and no shape touches it. Titles spend `--face-display`.
 
 ---
 
@@ -278,8 +312,11 @@ is not a preference.
 
 ```css
 --shadow-1 … --shadow-3, --shadow-sheet
---focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent);
+--focus-ring: 0 0 0 3px var(--accent-wash-strong), 0 0 0 1px var(--accent-ink);
 ```
+
+The 1px stroke is the accent's ink, not its fill: a fill as a UI colour can fall under 3:1 on a
+raised surface, and every ink is held to 4.5:1 there.
 
 Three shadow tiers plus a sheet tier, because a surface is either resting,
 floating, or modal. (MudBlazor's 24 elevation steps are collapsed onto these four
@@ -297,7 +334,10 @@ Never paint a ring on something that does not have focus. See `modality.md`.
 
 A light mode is one more block. The Desk's `themes.css` ships it, keyed on
 `[data-theme="apple-light"]` beside `[data-theme="apple-dark"]` — and the same pair again for
-each other family (contrast, nord, rose-pine, solarized) — and no component, selector or C# call
+each other family (ayu, catppuccin, contrast, dracula, everforest, gruvbox, kanagawa, midnight,
+monokai, night-owl, nord, obsidian, one, palenight, paper, primer, rose-pine, solarized, synthwave,
+terra, tokyo-night, zenburn: twenty-three families, filed under Built in, Character, Soft and Vivid) — and
+no component, selector or C# call
 site knows how many there are. If adding one requires touching anything below the token blocks,
 the token that made it necessary was named for a colour.
 
@@ -305,7 +345,9 @@ the token that made it necessary was named for a colour.
 spacing, radii, motion curves and z-layers are not theme-dependent; they stay in
 `:root` and fall through. `--focus-ring` falls through too, and that one is the
 proof the vocabulary is right: it is written entirely in `var()`s, so it
-re-resolves to the light accent without being mentioned twice.
+re-resolves to the light accent without being mentioned twice — on `<html>`, where the block is
+stamped. It is declared on `:root`, so a swatch carrying its own `data-theme` inherits `<html>`'s
+ring already resolved.
 
 **The surface ramp re-derives; it does not invert.** A light app cannot have a
 ground lighter than white, so it uses the arrangement macOS and iOS actually use —
@@ -324,7 +366,8 @@ until you remember these are roles rather than a lightness scale.
 `--accent-hover` is lighter than `--accent`. Against a white page a blue that
 lightens under the pointer reads as *fading*, so in light mode both states deepen.
 The names still mean "more prominent" — the direction that delivers it is a
-property of the ground, not of the token. `--state-negative-hover` follows.
+property of the ground, not of the token. `--state-negative-hover` is the one
+exception: it follows its label rather than its ground (above).
 
 **Washes come down, shadows come down further.** A tint over white composites to a
 far more saturated result than the same tint over near-black, so `--accent-wash`
@@ -336,8 +379,9 @@ carried onto white they stop reading as depth and start reading as dirt.
 ink for any saturated fill, and a filled systemBlue button is exactly as saturated
 either way. `--chart-neutral` is systemGray, the one step of Apple's ramp that
 reads on both grounds — which is why Apple gives it no light/dark variant.
-`--material-blur` is an optical constant. Anything else that survived the mirror
-unchanged is a copy-paste.
+`--knob` is a switch's thumb, white in either appearance. (`--material-blur`, an
+optical constant, is not in either block: it is derived once.) Anything else that
+survived the mirror unchanged is a copy-paste.
 
 **A scrim is the one thing that does not mirror.** The dark scrim is `--surface-0`
 at ~60%, because dimming a near-black app means laying more near-black over it.
@@ -384,22 +428,60 @@ hand and forgotten.
 
 The stylesheet is the whole mechanism: `data-theme` on `<html>` re-themes the app. Around it:
 
-- **`ThemeService`** (scoped, in the Desk's `Theming` namespace) holds three choices — `Mode`
-  (System / Dark / Light), `Family` and `Accent` — and derives `Attribute`
+- **`ThemeService`** (scoped, in the Desk's `Theming` namespace) holds the choices — `Mode`
+  (System / Dark / Light), `Family`, an `Accent` per family, `Glass` (Clear / Tinted) and the four
+  makes `Shape`, `Density`, `Backdrop`, `Typeface` (ADR 0030) — and derives `Attribute`
   (`DeskThemeFamilies.Attribute(ShowingFamily, IsDark)`) and `MudTheme`
-  (`DeskTheme.For(ShowingFamily, Accent)`). `MainLayout` hands both to `MudThemeProvider`,
+  (`DeskTheme.For(ShowingFamily, AccentAttribute)`). `MainLayout` hands both to `MudThemeProvider`,
   so MudBlazor and the stylesheet always flip from the one boolean.
+- **`DeskThemeFamilies.Catalog`** is the one list of families: member, name, slug, picker heading,
+  palettes, accents (its own first). The picker, `DeskTheme` and every per-family test read it.
 - **`theme.js`** reads and writes the choices in `localStorage` (`desk.theme`,
-  `desk.theme.family`, `desk.accent`), keeps a `matchMedia` listener so System stays live, and
-  sets `data-reduced-transparency` from the OS setting. **`theme-boot.js`** runs before first
-  paint and stamps the stored attribute, so the one frame of the wrong theme is never seen.
+  `desk.theme.family`, `desk.accent.<slug>` — Standard falling back to the old `desk.accent` —
+  `desk.glass`, `desk.shape`, `desk.density`, `desk.backdrop`, `desk.font`), keeps a `matchMedia`
+  listener so System stays live, and sets `data-reduced-transparency` from the OS setting,
+  `data-glass="tinted"` from the glass (never under Reduce Transparency, which wins) and
+  `data-shape`/`-density`/`-backdrop`/`-font` from the makes. **`theme-boot.js`** runs before first
+  paint and stamps the stored attributes, so the one frame of the wrong theme is never seen.
 - **The mirror is tested.** `DeskThemeTests` parses every family's two blocks and holds them to
-  the Standard dark block's colour-token list, its C# palette and its text contrast;
-  `ThemeContrastTests` holds the inks to 4.5:1; `ThemeBootTests` holds the boot script to the
-  family slugs. Add a token to one block and the test names the blocks that lack it.
+  the Standard dark block's colour-token list, its C# palette and its text contrast, every accent
+  block to its four tokens and its catalogue row, the derived tokens to being declared once and
+  resolving to their fill at their alpha, and every make's blocks to its enum;
+  `ThemeContrastTests` holds the inks to 4.5:1 in every family and accent; `ThemeBootTests` holds
+  the boot script's tables to the catalogue and the enums. Add a token to one block and the test
+  names the blocks that lack it.
 
 `<meta name="color-scheme" content="dark light">` and a `color-scheme` declaration in each
 block keep the browser's own scrollbars and canvas in the right theme.
+
+Three more things follow the theme, and none adds a token:
+
+- **`theme-color`** — `DeskHead` declares the meta empty; the boot script and every `theme.js`
+  stamp fill it from the computed `--surface-0` of the showing block. Read back, never tabled in
+  JS, so a new family needs nothing here.
+- **`::selection`** is `--accent-wash-strong` behind `--text-primary` (selection is a wash, as
+  everywhere), held to 4.5:1 on every desk and accent by `DeskThemeTests`; the caret is
+  `--accent-ink`, because a one-pixel stroke is read as text is — as the focus ring's stroke and an
+  open key's ring are. `--accent` is a fill, never a line.
+- **The switch cross-fades.** An operator's change is wrapped in a view transition on
+  `--dur-base`/`--ease-standard`; the first paint and the machine's own changes are instant, a
+  choice that moves no attribute on `<html>` opens none, the hold lets go shortly after the settle
+  even on a desk that never goes still, and the reduced-motion block stills `::view-transition-*`
+  as it stills everything else.
+
+### Forced colours
+
+A Windows contrast theme is not a fourth family: the browser replaces every colour with the
+operator's system palette and drops shadows and gradients — which is where the desk keeps its
+focus ring (`--focus-ring` is a box-shadow) and its selection (a wash). One
+`@media (forced-colors: active)` block at the end of `desk.css` restores the *distinctions*, not
+the looks: the ring as a 2px `Highlight` outline, "on" as `Highlight` with `HighlightText`
+(system colours always in their pairs), a 1px system edge on controls and cards — the one
+sanctioned outline at rest, because a control with neither fill nor edge on `Canvas` is not a
+control — `GrayText` for disabled, `LinkText` for links, opaque materials. It wins by weight
+(`:root`, and an id's weight on the focus rule), never `!important`, and names no theme. Only
+the theme and accent swatches opt out (`forced-color-adjust: none`), because there the colour is
+the information.
 
 ---
 

@@ -1,25 +1,31 @@
 ﻿<#
 .SYNOPSIS
-    Snapshot the local LineOps database into the repository, so another machine can restore
-    exactly the same data with one command.
+    Snapshot the local LineOps database into the owner's private journal repository, so another
+    of the owner's machines can restore exactly the same data with one command.
 
 .DESCRIPTION
     The desk's data lives in a Docker Postgres on this machine. To keep developing from a
     laptop against the same games, stats and closing lines, the database is published as a
-    compressed pg_dump under data/snapshots/ and committed alongside the code. At ~2–3 MB it
-    is cheap to version; each refresh replaces the file rather than accumulating.
+    compressed pg_dump under data/personal/snapshots/: inside the clone of the private
+    repository lineops-journal (CLAUDE.md, "The journal"), never in this public one. ESPN's and
+    MLB's data may not be redistributed, so a snapshot of it is the owner's alone; anyone else
+    fills their own database with the espn:range job. At a few MB it is cheap to version; each
+    refresh replaces the file rather than accumulating.
 
     Run from the repository root or anywhere; the script finds the repo from its own path.
 
 .PARAMETER Commit
-    Also commit the snapshot (author: your git identity, no trailer) and push to origin.
+    Also commit the snapshot inside the private clone at data/personal (author: your git
+    identity, no trailer) and push it to that clone's origin. Refuses if data/personal is not a
+    git work tree. Nothing is ever added or committed in this public repository.
 
 .PARAMETER IncludePersonal
     Also snapshot the rows that are yours rather than the market's: journal entries, parlays,
     operator settings (the bankroll, the polling switch), and the journal's deletions and audit
-    (ADR 0025). Left out by default because the snapshot is committed, and the repository is
-    public: a bet log is not market data. Their tables are still created on restore, empty, so
-    the schema matches the code either way. This machine's transfer log is never included.
+    (ADR 0025). Left out by default: the journal travels as journal.json through
+    publish-journal.ps1, and a bet log is not market data. Their tables are still created on
+    restore, empty, so the schema matches the code either way. This machine's transfer log is
+    never included.
 
 .PARAMETER DisplayableOnly
     Snapshot only the displayable tier (ADR 0024): what a source whose terms allow display
@@ -33,8 +39,8 @@
     "tier": "displayable". Not combined with -IncludePersonal.
 
 .PARAMETER OutDir
-    Where the dump and its manifest are written. data/snapshots by default; -Commit only
-    publishes from there.
+    Where the dump and its manifest are written. data/personal/snapshots by default; -Commit
+    only publishes from there.
 
 .EXAMPLE
     .\scripts\publish-data.ps1 -Commit
@@ -59,14 +65,28 @@ $ErrorActionPreference = "Stop"
 function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue"; & $Block }
 . (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
-$snapshots = Join-Path (Join-Path $root 'data') 'snapshots'
+# The snapshot lives in the clone of the private repository lineops-journal, never in this public
+# one: ESPN's and MLB's data may not be redistributed. .gitignore keeps data/personal out of here.
+$private = Join-Path (Join-Path $root 'data') 'personal'
+$snapshots = Join-Path $private 'snapshots'
 $dir = if ($OutDir) { $OutDir } else { $snapshots }
 
 if ($DisplayableOnly -and $IncludePersonal) { throw "-DisplayableOnly is for a snapshot others may read; it does not carry the journal (-IncludePersonal)." }
 
+# -Commit commits inside the private clone, so it must be one, and a clone of its own: a plain
+# folder inside this checkout would hand the commit to the public repository. Asked before the
+# dump is taken, so a refusal costs nothing.
+if ($Commit) {
+    $top = if (Test-Path $private) { Invoke-Native { git -C $private rev-parse --show-toplevel 2>$null } } else { $null }
+    $inside = if ($top) { Invoke-Native { git -C $private rev-parse --is-inside-work-tree 2>$null } } else { $null }
+    if ($inside -ne 'true' -or -not $top -or (Resolve-Path $top).Path -ne (Resolve-Path $private).Path) {
+        throw "data/personal is not a git clone of its own, so -Commit has nowhere private to publish. Clone the private journal repository there (CLAUDE.md, `"The journal`"): git clone https://github.com/wNohejl/lineops-journal.git data/personal. Or write the dump elsewhere with -OutDir and no -Commit."
+    }
+}
+
 New-Item -ItemType Directory -Force $dir | Out-Null
 $dir = (Resolve-Path $dir).Path
-if ($Commit -and $dir -ne (Resolve-Path $snapshots).Path) { throw "-Commit publishes data/snapshots only; -OutDir is for a dump that stays off the repository." }
+if ($Commit -and $dir -ne (Resolve-Path $snapshots).Path) { throw "-Commit publishes data/personal/snapshots only; -OutDir is for a dump that stays off every repository." }
 $dump = Join-Path $dir "lineops.dump"
 $manifest = Join-Path $dir "lineops.dump.json"
 
@@ -78,13 +98,13 @@ if ($LASTEXITCODE -ne 0) { throw "Container '$Container' is not running. Start i
 $pgPassword = Get-PgPassword $root
 $pgEnv = "PGPASSWORD=$pgPassword"
 
-# The dump is written by a sidecar into data/snapshots directly (scripts/_pg.ps1 says why),
+# The dump is written by a sidecar into the snapshot directory directly (scripts/_pg.ps1 says why),
 # first under a temporary name, so a failed or refused dump never replaces the last good one.
 #
 # Personal tables keep their schema and lose their rows (see -IncludePersonal). The names are
 # double-quoted for pg_dump, which folds an unquoted pattern to lower case. Then the archive is
-# listed and refused if it holds a row from any of them anyway: the repository is public, and
-# this is the one place a bet log could leave the machine. The journal's deletions and its audit
+# listed and refused if it holds a row from any of them anyway: the journal has its own way out
+# (publish-journal.ps1), and this is the one place a bet log could leave the machine unasked. The journal's deletions and its audit
 # (ADR 0025) are the journal's own and go where it goes.
 $personal = @('JournalEntries', 'Parlays', 'AppSettings', 'JournalTombstones', 'JournalAudit')
 $exclude = if ($IncludePersonal) { '' } else {
@@ -176,6 +196,14 @@ DELETE FROM "ClosingLineMisses" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown)
 DELETE FROM "OddsSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
 DELETE FROM "PlayerGameStats"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
 DELETE FROM "StatSnapshots"     WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+-- ESPN's and MLB's account of a game's circumstances: venue, weather, officials, lineups. A
+-- database from before migration GameContextAndOpeningLine has neither table.
+DO $$ BEGIN
+  IF to_regclass('public."GameOfficials"') IS NOT NULL THEN
+    DELETE FROM "GameOfficials" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+    DELETE FROM "GameContexts"  WHERE "SourceId" NOT IN (SELECT "Id" FROM shown);
+  END IF;
+END $$;
 
 -- ESPN's and MLB's own words about a game and a player. The schedule and the final score stay:
 -- every odds row hangs off a game.
@@ -193,6 +221,11 @@ DO $$ BEGIN
      OR EXISTS (SELECT 1 FROM "PlayerGameStats" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
      OR EXISTS (SELECT 1 FROM "StatSnapshots"   WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
      OR EXISTS (SELECT 1 FROM "FighterProfiles") THEN
+    RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
+  END IF;
+  IF to_regclass('public."GameOfficials"') IS NOT NULL
+     AND (EXISTS (SELECT 1 FROM "GameOfficials" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))
+          OR EXISTS (SELECT 1 FROM "GameContexts" WHERE "SourceId" NOT IN (SELECT "Id" FROM shown))) THEN
     RAISE EXCEPTION 'refused: personal-use rows survived the scrub';
   END IF;
 END $$;
@@ -241,14 +274,17 @@ Write-Host $counts
 Add-DataTransfer -Container $Container -Password $pgPassword -User $User -Database $Database `
     -Kind SnapshotPublished -File (Split-Path $dump -Leaf) -Manifest $counts
 
+# Committed and pushed inside the private clone only, every git call pinned to it with -C, and
+# by name relative to it: the dump and its manifest, nothing else that clone holds. Never in
+# this public repository.
 if ($Commit) {
-    Push-Location $root
-    try {
-        git add -- $dump $manifest
-        $date = Get-Date -Format "yyyy-MM-dd"
-        $what = if ($DisplayableOnly) { "data: displayable snapshot $date" } else { "data: snapshot $date" }
-        git commit -m $what -- $dump $manifest
-        git push
-    }
-    finally { Pop-Location }
+    $paths = @('snapshots/lineops.dump', 'snapshots/lineops.dump.json')
+    $date = Get-Date -Format "yyyy-MM-dd"
+    $what = if ($DisplayableOnly) { "data: displayable snapshot $date" } else { "data: snapshot $date" }
+    Invoke-Native { git -C $private add -- @paths }
+    if ($LASTEXITCODE -ne 0) { throw "git add failed in data/personal (exit $LASTEXITCODE)" }
+    Invoke-Native { git -C $private commit -m $what -- @paths }
+    if ($LASTEXITCODE -ne 0) { throw "git commit failed in data/personal (exit $LASTEXITCODE); is the snapshot unchanged since the last one?" }
+    Invoke-Native { git -C $private push }
+    if ($LASTEXITCODE -ne 0) { throw "git push failed in data/personal (exit $LASTEXITCODE); the commit is there, push it with: git -C data/personal push" }
 }

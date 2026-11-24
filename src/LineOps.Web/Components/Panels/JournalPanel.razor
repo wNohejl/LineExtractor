@@ -16,7 +16,7 @@
     The slip is a tab of the Journal, as it is of the wager window: the bets banked this session
     sit one click from the bets already logged, with the count on the tab, and no third window.
 *@
-<DeskTabs TValue="JournalTab" Tabs="Tabs" Label="Journal sections" Class="wtabs" Context="tab"
+<DeskTabs TValue="JournalTab" Tabs="Tabs" Label="Journal sections" Context="tab"
           Value="_tab" ValueChanged="@((JournalTab t) => _tab = t)">
 @if (tab == JournalTab.Slip)
 {
@@ -26,22 +26,22 @@ else
 {
 <PanelToolbar Message="@_message">
     <ChildContent>
-        <DeskSwitch Options="Statuses" Label="Status" Size="DeskKeySize.Small"
+        <DeskSwitch Options="Statuses" Label="Status"
                     Value="_status" ValueChanged="@((JournalStatus s) => FilterAsync(() => _status = s))" />
     </ChildContent>
     @* Period, sport and book are the narrower cuts; a narrow Journal folds them into More and
-       keeps status and the keys on the row, then folds the keys before Log entry as well. *@
+       keeps status and the keys on the row, then folds the keys before Place wager as well. *@
     <Overflow>
         <div class="ptoolbar__item">
             <span class="ptoolbar__label" aria-hidden="true">Placed within</span>
-            <DeskSwitch Options="Periods" Label="Placed within" Size="DeskKeySize.Small"
+            <DeskSwitch Options="Periods" Label="Placed within"
                         Value="_days" ValueChanged="@((int d) => FilterAsync(() => _days = d))" />
         </div>
         @* Two leagues and "all" is a fixed set of three, so it is a segment beside the other two
            rather than a pop-up that hides the alternatives (HIG: segmented controls). *@
         <div class="ptoolbar__item">
             <span class="ptoolbar__label" aria-hidden="true">Sport</span>
-            <DeskSwitch Options="SportOptions" Label="Sport" Size="DeskKeySize.Small"
+            <DeskSwitch Options="SportOptions" Label="Sport"
                         Value="@(_sport ?? "")" ValueChanged="@((string s) => FilterAsync(() => _sport = s is { Length: > 0 } ? s : null))" />
         </div>
         <div class="ptoolbar__item">
@@ -57,10 +57,10 @@ else
         </div>
     </Overflow>
     @* Secondary: the last thing to fold, into the top of More, when even the pickers there
-       leave the row too wide. Log entry, the key this window is for, never leaves it. *@
+       leave the row too wide. Place wager, the key this window is for, never leaves it. *@
     <SecondaryActions>
         @* Parlays are logged from the slip (spec §5.4), the tab beside this one. Build parlay
-           fills it leg by leg, from the same wager window Log entry opens. *@
+           fills it leg by leg, from the same wager window Place wager opens. *@
         <DeskButton Icon="@Icons.Material.Filled.Gavel" OnClick="SettleAsync" Busy="@_busy">
             Settle finished games
         </DeskButton>
@@ -72,13 +72,12 @@ else
     </SecondaryActions>
     <Actions>
         @* The same window the Board's Place wager opens, here on a game search: one form records
-           a bet, whichever door it is reached by. Tinted, not Filled: it opens a window rather
-           than committing anything here. *@
-        <DeskButton Emphasis="DeskEmphasis.Tinted" Icon="@Icons.Material.Filled.Add"
-                    Title="Find the game and log the bet in the wager window"
-                    OnClick="OpenWager">
-            Log entry
-        </DeskButton>
+           a bet, whichever door it is reached by, so the door has the one name and glyph every
+           window gives it (WagerKey). Tinted, not Filled: it opens a window rather than
+           committing anything here. *@
+        <WagerKey Kind="WagerKind.Place"
+                  Title="Find the game and log the bet in the wager window"
+                  OnClick="OpenWager" />
     </Actions>
 </PanelToolbar>
 
@@ -166,11 +165,13 @@ else
             </Note>
         }
 
-        @* Two sections, as the entry form is one: the parlay's money, then its legs. A group
-           sitting loose in the column beside a section is a group with no name. *@
-        <div class="wsections">
-            <section class="wsection" aria-label="Parlay">
-                <div class="wgroup jform">
+        @* Two section cards: the parlay's money, then its legs, each named in the bar at its top
+           (the Desk's grouping contract). A group sitting loose in the column beside a section is
+           a group with no name; a name floating above a group is a name attached to nothing.
+           They flow, so a form wider than two tracks would set them side by side. *@
+        <div class="wflow">
+            <FormGroup Title="Parlay" GroupClass="jform">
+                <ChildContent>
                     <FormRow Label="Book">
                         @BookPicker(edited.Book, SetParlayBookAsync)
                     </FormRow>
@@ -197,12 +198,12 @@ else
                                    placeholder="Optional" Value="edited.Note"
                                    ValueChanged="@((string? n) => Edit("note", () => edited.Note = n))" />
                     </FormRow>
-                </div>
-            </section>
+                </ChildContent>
+            </FormGroup>
 
-            <section class="wsection" aria-labelledby="parlay-legs-h">
-                <h4 class="wgroup__head" id="parlay-legs-h">Legs</h4>
-                <div class="wgroup jform">
+            @* No count on the bar: the form's detail line already says how many legs. *@
+            <FormGroup Title="Legs" GroupClass="jform">
+                <ChildContent>
                     @foreach (var (leg, n) in edited.Parlay.Legs.OrderBy(l => l.Id).Select((l, i) => (l, i + 1)))
                     {
                         var field = $"leg-{leg.Id}";
@@ -224,12 +225,12 @@ else
                             </DeskRow>
                         </FormRow>
                     }
-                </div>
-                <p class="wgroup__foot">
+                </ChildContent>
+                <Footer>
                     The price each leg was taken at. Without the book's price, settlement multiplies
                     them, and after a push it reprices the parlay on the legs that are left.
-                </p>
-            </section>
+                </Footer>
+            </FormGroup>
         </div>
 
     </ChildContent>
@@ -266,13 +267,22 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     <EmptyState Kind="@(Filtered ? EmptyStateKind.Filtered : EmptyStateKind.New)">
         @(Filtered
             ? "No entries match these filters."
-            : "No entries logged yet. Log entry finds the game and records the bet; Build parlay adds legs to the slip, where the parlay is logged.")
+            : "No entries logged yet. Place wager finds the game and records the bet; Build parlay adds legs to the slip, where the parlay is logged.")
     </EmptyState>
 }
 
+@* The two ledgers are section cards (the Desk's grouping contract): each table inside a card
+   named in the bar at its top, so Straight bets and Parlays read as two things with an edge
+   between them rather than two rules over one run of rows. A table is wide, so each card takes
+   the flow's whole row; the table draws no second frame inside it (JournalPanel.razor.css). *@
+@if (_entries.Count > 0 || _parlays.Count > 0)
+{
+<div class="wflow journal-lists">
 @if (_entries.Count > 0)
 {
-    <PanelSection Title="Entries">
+    @* "Straight bets", the counterpart of Parlays below: under a tab called Entries, a first
+       section called Entries named the tab a second time and told the reader nothing new. *@
+    <FormGroup Title="Straight bets" Span="DeskCardSpan.Row" GroupClass="journal-list">
     <DeskGrid T="JournalEntry" Items="_entries" EmptyText="No entries logged yet.">
         @* Ordered by when the bet closes — the game's start, when the line closes and CLV is read —
            newest first, as the service reads it: a bet placed days ahead on
@@ -395,12 +405,12 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
-    </PanelSection>
+    </FormGroup>
 }
 
 @if (_parlays.Count > 0)
 {
-    <PanelSection Title="Parlays">
+    <FormGroup Title="Parlays" Span="DeskCardSpan.Row" GroupClass="journal-list">
 
     <DeskGrid T="Parlay" Items="_parlays" EmptyText="No parlays.">
         @* A parlay is ordered by its last leg's game: it is open until that one is. *@
@@ -505,7 +515,9 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             </CellTemplate>
         </TemplateColumn>
     </DeskGrid>
-    </PanelSection>
+    </FormGroup>
+}
+</div>
 }
 
 @if (_entries.Count >= _take || _parlays.Count >= _take)
@@ -519,7 +531,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
    It used to be a filled note under the toolbar, wider than the form beneath it, and every
    form opened between the two read as a stack of boxes of three widths. *@
 <p class="wfoot journal-foot">
-    LineOps does not place wagers and has no connection to any sportsbook. Entries here are
+    XLines does not place wagers and has no connection to any sportsbook. Entries here are
     records of bets already placed elsewhere.
 </p>
 }
@@ -531,17 +543,37 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     private JournalTab _tab;
 
     // An empty slip cannot be opened: a tab that opens onto "nothing on the slip" is a click
-    // spent to learn so, and the Journal's Log entry key is the way to a wager. The tab keeps
+    // spent to learn so, and the Journal's Place wager key is the way to a wager. The tab keeps
     // its place in the bar, disabled, so the bar does not change shape as bets come and go;
     // it stays live while the operator is on it, so a slip just emptied by logging is not
     // pulled from under the report of what it logged.
+    // The first tab reads "Entries", not "Journal": the window's own tab in the title-bar strip
+    // already says Journal, and the two selected one above the other read as one word twice. The
+    // key stays JournalTab.Journal, so nothing that opens a tab by its key changes.
     private IReadOnlyList<DeskTab<JournalTab>> Tabs =>
     [
-        new(JournalTab.Journal, "Journal"),
+        new(JournalTab.Journal, "Entries"),
         new(JournalTab.Slip, "Slip", Count: Slip.Items.Count, Enabled: Slip.Items.Count > 0 || _tab == JournalTab.Slip)
     ];
 
     protected override IReadOnlySet<string> Watches { get; } = new HashSet<string> { DataTopics.Journal, DataTopics.Games };
+
+    // Games are watched for the entries' scores and finals, so only the games an entry or a leg
+    // on screen is on: a live poll of some other league used to re-read the whole journal. Every
+    // journal notice and a bare games notice still reload; a new entry arrives as a journal one.
+    protected override IReadOnlyDictionary<string, IReadOnlySet<string>> WatchesIds => _held;
+
+    private IReadOnlyDictionary<string, IReadOnlySet<string>> _held = HeldGames([], []);
+
+    /// <summary>
+    /// The ids <see cref="WatchesIds"/> narrows the games topic to: every game an entry or a
+    /// parlay's leg is on. Built once per load and swapped whole, because the base reads it on the
+    /// publisher's thread.
+    /// </summary>
+    public static IReadOnlyDictionary<string, IReadOnlySet<string>> HeldGames(
+        IEnumerable<JournalEntry> entries, IEnumerable<Parlay> parlays)
+        => NoticeTokens.Narrow(
+            entries.Concat(parlays.SelectMany(p => p.Legs)).Select(e => e.GameId).OfType<int>(), DataTopics.Games);
 
     protected override Task RefreshAsync() => LoadAsync();
 
@@ -677,9 +709,7 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// is on screen first, as the slip says it. Null for an American price, or nothing typed.
     /// </summary>
     public static string? DecimalEcho(decimal? typed)
-        => typed is { } t && Math.Abs(t) < 100 && OddsMath.ReadTypedPrice(t) is { } american
-            ? $"Decimal {t.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture)} = {Price(american)}"
-            : null;
+        => LineOps.Web.Components.Desk.TypedPrice.EchoOf(typed);
 
     public static string? StakeError(decimal stake)
         => stake <= 0 ? "Enter a stake above zero." : null;
@@ -817,10 +847,20 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     {
         // The tab's count follows the slip.
         Slip.Changed += OnSlipChanged;
+
+        // In Line watch the Journal starts on the bets a moving line still matters for: the ones
+        // not yet settled. A default, not a lock — the status switch shows everything again.
+        if (LineOps.Web.Windowing.LineWatch.IsActive(Manager))
+            _status = JournalStatus.Pending;
+
         await LoadAsync();
     }
 
-    protected override void OnDispose() => Slip.Changed -= OnSlipChanged;
+    protected override void OnDispose()
+    {
+        Slip.Changed -= OnSlipChanged;
+        _reads.Cancel();
+    }
 
     private void OnSlipChanged() => _ = InvokeAsync(StateHasChanged);
 
@@ -832,8 +872,30 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
         () => _pending > 0 ? PulseState.Warn : PulseState.Healthy,
         () => _entries.Count + _parlays.Count == 0 && !Filtered ? null : $"{_pending} pending");
 
+    /// <summary>
+    /// The load in flight, cancelled by the next. The base class's generation check kept a
+    /// superseded load from saying how the window stood, but not from handing over its rows, so a
+    /// slower read of the last filter could land last and paint it under the new one.
+    /// </summary>
+    private readonly LatestRead _reads = new();
+
+    /// <summary>
+    /// The token of the load in flight, for <see cref="FetchAsync"/> to pass to its reads. A
+    /// property rather than a parameter so a render test's override keeps its signature; it is
+    /// read before the fetch's first await, while it still names that fetch's load.
+    /// </summary>
+    protected CancellationToken ReadToken { get; private set; }
+
+    /// <summary>
+    /// Everything is read first and handed over at once, and only by the latest load: a newer
+    /// filter or notice cancels this one, and one that comes back anyway hands over nothing. The
+    /// token is taken inside the work so Try again, which repeats it, starts a read of its own.
+    /// </summary>
     private async Task ReadAsync()
     {
+        var ct = _reads.Next();
+        ReadToken = ct;
+
         var filter = new JournalFilter(
             _status,
             _sport,
@@ -841,13 +903,15 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
             _days == 0 ? null : DateTimeOffset.UtcNow.AddDays(-_days),
             _take);
 
-        var read = await FetchAsync(filter);
-
-        _entries = read.Entries.ToList();
-        _parlays = read.Parlays.ToList();
-        _books = read.Books.ToList();
-        _sports = read.Sports.ToList();
-        _pending = read.Pending;
+        await LatestRead.HandOverAsync(ct, () => FetchAsync(filter), read =>
+        {
+            _entries = read.Entries.ToList();
+            _parlays = read.Parlays.ToList();
+            _held = HeldGames(_entries, _parlays);
+            _books = read.Books.ToList();
+            _sports = read.Sports.ToList();
+            _pending = read.Pending;
+        });
     }
 
     /// <summary>Everything one load of the Journal shows: the rows under the filter, and the lists its pickers offer.</summary>
@@ -865,20 +929,44 @@ else if (_entries.Count == 0 && _parlays.Count == 0)
     /// </summary>
     protected virtual async Task<JournalRead> FetchAsync(JournalFilter filter)
     {
+        var ct = ReadToken;
+
+        // Two strands, each on a context of its own, so the wait is the slower one's. The
+        // journal's three reads share the scope's one context and stay one after another, as do
+        // the picker and the pending count on theirs. A failure in either still propagates.
+        var journalRead = ReadJournalAsync(filter, ct);
+        var pickerRead = ReadPickerAsync(ct);
+
+        await Task.WhenAll(journalRead, pickerRead);
+
+        var (entries, parlays, books) = await journalRead;
+        var (sports, pending) = await pickerRead;
+
+        return new JournalRead(entries, parlays, books, sports, pending);
+    }
+
+    private async Task<(IReadOnlyList<JournalEntry>, IReadOnlyList<Parlay>, IReadOnlyList<string>)> ReadJournalAsync(
+        JournalFilter filter, CancellationToken ct)
+    {
         await using var scope = ScopeFactory.CreateAsyncScope();
         var journal = scope.ServiceProvider.GetRequiredService<JournalService>();
 
-        var entries = await journal.EntriesAsync(filter);
-        var parlays = await journal.ParlaysAsync(filter);
-        var books = await journal.KnownBooksAsync();
+        var entries = await journal.EntriesAsync(filter, ct);
+        var parlays = await journal.ParlaysAsync(filter, ct);
+        var books = await journal.KnownBooksAsync(ct);
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync();
+        return (entries, parlays, books);
+    }
 
-        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null)
-                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending);
+    private async Task<(IReadOnlyList<string>, int)> ReadPickerAsync(CancellationToken ct)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        var sports = await db.Sports.AsNoTracking().Where(s => s.Enabled).OrderBy(s => s.Key).Select(s => s.Key).ToListAsync(ct);
 
-        return new JournalRead(entries, parlays, books, sports, pending);
+        var pending = await db.JournalEntries.CountAsync(e => e.Result == EntryResult.Pending && e.ParlayGroupId == null, ct)
+                      + await db.Parlays.CountAsync(p => p.Result == EntryResult.Pending, ct);
+
+        return (sports, pending);
     }
 
     /// <summary>The write behind the parlay form's Save. Virtual for the same render tests.</summary>

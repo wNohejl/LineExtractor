@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LineOps.Tests.Adapters;
@@ -15,41 +16,23 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnGameDaysTests
 {
-    private static string Fixture(string name)
-        => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
-
-    private sealed class RecordingHandler(Func<string, (HttpStatusCode, string)> respond) : HttpMessageHandler
+    private static (IGameDaySource Source, StubHttp Handler) Adapter(Func<string, (HttpStatusCode, string)> respond)
     {
-        public List<string> Urls { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var url = request.RequestUri!.ToString();
-            Urls.Add(url);
-            var (status, body) = respond(url);
-
-            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
-        }
-    }
-
-    private static (IGameDaySource Source, RecordingHandler Handler) Adapter(Func<string, (HttpStatusCode, string)> respond)
-    {
-        var handler = new RecordingHandler(respond);
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/") };
+        var handler = new StubHttp(respond);
+        var http = handler.Client("https://site.api.espn.com/apis/site/v2/sports/");
         return (new EspnStatsAdapter(http, NullLogger<EspnStatsAdapter>.Instance), handler);
     }
 
     /// <summary>The two NFL seasons the fixtures hold, by the year asked for.</summary>
     private static (HttpStatusCode, string) Nfl(string url)
-        => url.Contains("dates=2024") ? (HttpStatusCode.OK, Fixture("espn.nfl.calendar.2024.json"))
-            : url.Contains("dates=2025") ? (HttpStatusCode.OK, Fixture("espn.nfl.calendar.2025.json"))
+        => url.Contains("dates=2024") ? (HttpStatusCode.OK, Fixtures.Text("espn.nfl.calendar.2024.json"))
+            : url.Contains("dates=2025") ? (HttpStatusCode.OK, Fixtures.Text("espn.nfl.calendar.2025.json"))
             : (HttpStatusCode.NotFound, "{}");
 
     [Fact]
     public void ParseCalendar_reads_each_instant_as_the_league_day()
     {
-        using var doc = JsonDocument.Parse(Fixture("espn.nfl.calendar.2024.json"));
+        using var doc = JsonDocument.Parse(Fixtures.Text("espn.nfl.calendar.2024.json"));
 
         var calendar = EspnStatsAdapter.ParseCalendar(doc.RootElement);
 

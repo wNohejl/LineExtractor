@@ -20,7 +20,8 @@ namespace LineOps.Ingestion.Services;
 ///   <item><b>Lines</b> — paced by the provider's remaining allowance, so the day's quota is
 ///   spent evenly and never overrun. The old fixed three-hour cadence could not be right for
 ///   two providers with different ceilings, and left the budget guard as the only thing
-///   standing between the schedule and an overrun.</item>
+///   standing between the schedule and an overrun. League by league, each on its own next
+///   start, plus one closing scan just before a start (<see cref="Configuration.ClosingScanOptions"/>).</item>
 ///
 ///   <item><b>ESPN before a game</b> — the slate is refreshed when the next start is close.
 ///   Start times move, games get postponed, and a schedule fetched at 09:00 is stale by first
@@ -61,7 +62,18 @@ public class IngestionScheduler(
 {
     private readonly IngestionOptions _options = options.Value;
 
-    private DateTimeOffset? _lastLineScan;
+    /// <summary>
+    /// Each league's last scan as this host attempted it. Merged with the runs table every tick
+    /// (<see cref="LinePollPlanner.LastScansAsync"/>), which survives a restart; this covers an
+    /// attempt that wrote no run, so a scan refused before it reached the provider is not retried
+    /// every tick.
+    /// </summary>
+    private readonly Dictionary<string, DateTimeOffset> _lastLeagueScan = new(StringComparer.OrdinalIgnoreCase);
+
+    private DateTimeOffset? _lastLinePlan;
+
+    private TimeSpan PlanRefresh => Positive(_options.LinePolling.MinimumInterval, new LinePollingOptions().MinimumInterval);
+
     private DateTimeOffset? _lastSlateRefresh;
     private DateTimeOffset? _lastLivePoll;
     private DateTimeOffset? _lastResultsSweep;
@@ -69,14 +81,16 @@ public class IngestionScheduler(
     private DateTimeOffset? _lastFighterPass;
     private DateTimeOffset? _lastBackport;
 
-    private TimeSpan _lineInterval = TimeSpan.FromMinutes(30);
-
     /// <summary>The cadence currently in force, for the Ops surfaces.</summary>
     public PollPlan? CurrentPlan { get; private set; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Ingestion scheduler started");
+
+        if (!_options.Espn.Enabled)
+            logger.LogInformation("ESPN is off ({Switch} is false): fixtures and scores come from The Odds API while a key is held, and no box-score pass will run. ESPN is opt-in; see the desk's Ops window",
+                EspnOptIn.Switch);
 
         // Startup fetches the slate, which is free, and never the lines, which are not.
         //
@@ -213,17 +227,68 @@ public class IngestionScheduler(
             }
         }
 
+        // ESPN off: the default stats source (ADR 0026), if a key is held. Its fixtures are free and
+        // keep the schedule as the slate did; its scores are metered, so they run only when the
+        // operator chose automatic scanning, at most once a league a day, never into the reserve —
+        // the job decides each of those (IngestionJobs.RunScoresAsync), this only asks it often
+        // enough to notice a slate that has finished. With ESPN on, none of this runs.
+        if (!_options.Espn.Enabled && _options.GamePasses.Enabled && await HasScheduleSourceAsync(ct))
+        {
+            if (FixturesAreDue(now) || await FixturesAreDueForStartAsync(now, ct))
+            {
+                await RunJobAsync(IngestionJobs.OddsFixtures, ct);
+                _lastFixtures = now;
+            }
+
+            if (Due(_lastScoresCheck, ScoresCheck, now))
+            {
+                _lastScoresCheck = now;
+                await RunJobAsync(IngestionJobs.OddsScores, ct);
+            }
+        }
+
         // Lines are the one thing the scheduler will not fetch on its own initiative unless
         // explicitly told it may. Everything above this line is free; this is not.
         //
         // Asked of the data rather than of configuration, so a switch made in Ops reaches this
         // host and the worker alike without a restart — and switching back stops the spending
         // at the next tick.
-        if (Due(_lastLineScan, _lineInterval, now) && await LinesRunUnattendedAsync(ct))
-        {
-            await ScanLinesAsync(ct);
-            _lastLineScan = now;
-        }
+        //
+        // Asked every tick, league by league: each league keeps its own cadence and a closing scan
+        // has a ten-minute window to land in, so neither can wait on one shared interval.
+        if (await LinesRunUnattendedAsync(ct))
+            await ScanLinesAsync(now, ct);
+    }
+
+    private DateTimeOffset? _lastFixtures;
+    private DateTimeOffset? _lastScoresCheck;
+
+    /// <summary>The fixtures are read at least this often, games starting or not, so a week ahead stays filled.</summary>
+    private static readonly TimeSpan FixtureRefresh = TimeSpan.FromHours(6);
+
+    /// <summary>How often the scores job is asked whether a league is due. Asking costs nothing; the call does.</summary>
+    private static readonly TimeSpan ScoresCheck = TimeSpan.FromMinutes(15);
+
+    /// <summary>Whether a key is held for the default source, asked each time: one typed into the desk counts at once.</summary>
+    private async Task<bool> HasScheduleSourceAsync(CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return scope.ServiceProvider.GetRequiredService<SourceRegistry>().Port == StatsPort.TheOddsApi;
+    }
+
+    private bool FixturesAreDue(DateTimeOffset now) => Due(_lastFixtures, FixtureRefresh, now);
+
+    /// <summary>As the slate: a game starting within the pre-game lead, and not read in the last slate interval.</summary>
+    private async Task<bool> FixturesAreDueForStartAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        if (!Due(_lastFixtures, _options.GamePasses.SlateRefresh, now))
+            return false;
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();
+        var horizon = now + _options.GamePasses.PreGameLead;
+
+        return await db.Games.AnyAsync(g => g.StartsAt > now && g.StartsAt <= horizon, ct);
     }
 
     private async Task<bool> LinesRunUnattendedAsync(CancellationToken ct)
@@ -308,41 +373,87 @@ public class IngestionScheduler(
     }
 
     /// <summary>
-    /// Scans for movement at whatever cadence the remaining budget affords, and only when
-    /// something is close enough to starting for its price to still be moving.
+    /// Scans for movement league by league, each at the cadence the remaining budget affords it,
+    /// and only a league with something close enough to starting for its price to still be
+    /// moving; then any league owed its closing scan.
+    ///
+    /// <para>
+    /// This ran <c>odds:lines</c>, which prices every league, whenever any one league had a game
+    /// near — so one league's slate billed all of them. Each scan is now the league's own job,
+    /// <c>odds:lines:{sport}</c>, the one its Pull button runs: the budget guard and the reserve
+    /// see it exactly as they see a press.
+    /// </para>
     /// </summary>
-    private async Task ScanLinesAsync(CancellationToken ct)
+    private async Task ScanLinesAsync(DateTimeOffset now, CancellationToken ct)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var registry = scope.ServiceProvider.GetRequiredService<SourceRegistry>();
         var planner = scope.ServiceProvider.GetRequiredService<LinePollPlanner>();
 
-        var plan = await planner.PlanAsync(registry.OddsSources.Select(s => s.Key).ToList(), ct);
+        // Planned at most every minimum interval rather than every tick: no league's cadence is
+        // shorter than that, and a plan is half a dozen queries and, on a spent month, a warning.
+        if (CurrentPlan is null || Due(_lastLinePlan, PlanRefresh, now))
+        {
+            CurrentPlan = await planner.PlanAsync(registry.OddsSources.Select(s => s.Key).ToList(), ct);
+            _lastLinePlan = now;
+        }
 
-        if (plan is null)
+        if (CurrentPlan is not { } plan)
             return;
 
-        CurrentPlan = plan;
-        _lineInterval = plan.Interval;
-
-        if (!await planner.HasWatchableGamesAsync(ct))
+        if (plan.Leagues.Count == 0)
         {
             // Nothing starting soon. The budget is best kept for when there is.
             logger.LogDebug("No games inside the movement window; skipping the line scan");
             return;
         }
 
-        logger.LogInformation(
-            "Line scan: {Cost} requests, next in {Interval}{Bound}{Left}",
-            plan.CostPerScan, plan.Interval,
-            plan.BoundBy is null ? "" : $", paced by {plan.BoundBy}",
-            plan.ScansRemainingToday is null ? "" : $", {plan.ScansRemainingToday} scans left in {plan.WindowLabel} allowance");
+        var lastScans = LinePacing.Latest(await planner.LastScansAsync(ct), _lastLeagueScan);
+        var paced = LinePacing.DueLeagues(plan.Leagues, lastScans, now);
 
-        await RunJobAsync(IngestionJobs.OddsLines, ct);
+        foreach (var sport in paced)
+        {
+            var league = plan.Leagues.First(l => l.Sport == sport);
+
+            logger.LogInformation(
+                "Line scan, {Sport}: {Credits} credits, next in {Interval}{Bound}{Left}",
+                sport, league.CreditsPerScan, league.Interval,
+                plan.BoundBy is null ? "" : $", paced by {plan.BoundBy}",
+                plan.ScansRemainingToday is null ? "" : $", {plan.ScansRemainingToday} scans left in {plan.WindowLabel} allowance");
+
+            await ScanLeagueAsync(sport, now, ct);
+            lastScans[sport] = now;
+        }
+
+        // Asked after the paced scans, so a league one of them just priced is not bought twice.
+        // The day's cap is counted from the runs those scans leave, so it holds across a restart and
+        // across the Web and Worker hosts sharing the database.
+        foreach (var closing in await planner.ClosingScansDueAsync(now, lastScans, ct))
+        {
+            logger.LogInformation("Closing scan, {Sport}: {Start:t} starts within {Lead}",
+                closing.Sport, closing.Start, _options.LinePolling.ClosingScan.Lead);
+
+            _lastLeagueScan[closing.Sport] = now;
+
+            await using var jobScope = scopeFactory.CreateAsyncScope();
+            await jobScope.ServiceProvider.GetRequiredService<IngestionJobs>()
+                .RunClosingScanAsync(closing.Sport, closing.LeagueDay, ct);
+        }
+    }
+
+    private async Task ScanLeagueAsync(string sport, DateTimeOffset now, CancellationToken ct)
+    {
+        _lastLeagueScan[sport] = now;
+        await RunJobAsync(IngestionJobs.OddsLinesPrefix + sport, ct);
     }
 
     private async Task RunJobAsync(string key, CancellationToken ct)
     {
+        // ESPN off (EspnOptIn): its passes are not run at all, rather than run against no source
+        // and logged as empty every tick. Settlement and the lines are not ESPN's and still run.
+        if (!_options.Espn.Enabled && EspnOptIn.IsEspnJob(key))
+            return;
+
         await using var scope = scopeFactory.CreateAsyncScope();
         var jobs = scope.ServiceProvider.GetRequiredService<IngestionJobs>();
 

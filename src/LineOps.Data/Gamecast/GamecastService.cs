@@ -1,5 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
+using LineOps.Core.Analytics;
 using LineOps.Core.Entities;
 using LineOps.Data.CrossReference;
 using Microsoft.EntityFrameworkCore;
@@ -63,7 +63,7 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
             return null;
 
         var game = row.Game;
-        var (home, away) = Linescore(game.Linescore);
+        var (home, away) = Linescores.Parse(game.Linescore);
 
         var spread = row.Spread.First?.Line;
         var total = row.Total.First?.Line ?? row.Total.Second?.Line;
@@ -296,42 +296,6 @@ public class GamecastService(IDbContextFactory<LineOpsDbContext> contexts, LineO
         catch (JsonException)
         {
             return null;
-        }
-    }
-
-    /// <summary>
-    /// Points by period for each side, first period first. A side whose list is missing or holds
-    /// anything but whole numbers is empty: a linescore with a hole in it would put the third
-    /// quarter's points under the second, which is the adapter's rule too.
-    /// </summary>
-    private static (IReadOnlyList<int> Home, IReadOnlyList<int> Away) Linescore(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return ([], []);
-
-        try
-        {
-            return JsonNode.Parse(json) is JsonObject o ? (Side(o["home"]), Side(o["away"])) : ([], []);
-        }
-        catch (JsonException)
-        {
-            return ([], []);
-        }
-
-        static IReadOnlyList<int> Side(JsonNode? node)
-        {
-            if (node is not JsonArray periods)
-                return [];
-
-            var points = new List<int>(periods.Count);
-            foreach (var period in periods)
-            {
-                if (period is not JsonValue value || !value.TryGetValue<int>(out var n))
-                    return [];
-                points.Add(n);
-            }
-
-            return points;
         }
     }
 }

@@ -1,25 +1,39 @@
 ﻿<#
 .SYNOPSIS
-    Restore the committed database snapshot into the local Docker Postgres, so this machine
+    Restore the owner's database snapshot into the local Docker Postgres, so this machine
     holds exactly the data the snapshot was taken from.
 
 .DESCRIPTION
     Starts the dev Postgres if it is not running, waits for it to be healthy, then restores
-    data/snapshots/lineops.dump over the database. The restore is --clean: existing tables are
-    dropped and recreated from the archive, including the EF migration history, so the app
-    starts against a database that matches the code the snapshot was committed with.
+    data/personal/snapshots/lineops.dump over the database. That folder is the clone of the
+    owner's private repository lineops-journal (CLAUDE.md, "The journal"): ESPN's and MLB's data
+    may not be redistributed, so this public repository carries no snapshot. Anyone else fills
+    their own database instead, with the espn:range job or the Board's Date range key.
+
+    The restore replaces the schema: existing tables are dropped and recreated from the archive,
+    including the EF migration history, so the app starts against a database that matches the
+    code the snapshot was taken with.
 
     Refuses to overwrite a database that already holds games unless -Force is given, because
     a restore is not a merge: whatever this machine ingested since the snapshot is replaced.
 
+.PARAMETER InFile
+    A dump somewhere other than data/personal/snapshots/lineops.dump. Its manifest, if any, is
+    read from beside it (<file>.json).
+
 .EXAMPLE
+    git -C data/personal pull
     .\scripts\restore-data.ps1            # first time on a laptop
     .\scripts\restore-data.ps1 -Force     # replace local data with the latest snapshot
+
+.EXAMPLE
+    .\scripts\restore-data.ps1 -InFile D:\lineops.dump
 #>
 param(
     [string]$Container = "lineops-postgres",
     [string]$Database = "lineops",
     [string]$User = "lineops",
+    [string]$InFile,
     [switch]$Force
 )
 
@@ -30,9 +44,21 @@ $ErrorActionPreference = "Stop"
 function Invoke-Native([scriptblock]$Block) { $ErrorActionPreference = "Continue"; & $Block }
 . (Join-Path $PSScriptRoot '_pg.ps1')
 $root = Split-Path $PSScriptRoot -Parent
-$dump = Join-Path (Join-Path (Join-Path $root 'data') 'snapshots') 'lineops.dump'
+$dump = if ($InFile) { $InFile } else { Join-Path (Join-Path (Join-Path (Join-Path $root 'data') 'personal') 'snapshots') 'lineops.dump' }
 
-if (-not (Test-Path $dump)) { throw "No snapshot at $dump. Run scripts/publish-data.ps1 on the machine that has the data." }
+# No snapshot is the normal case for anyone but the owner: it travels only through the owner's
+# private repository. A new desk fills itself from ESPN instead.
+if (-not (Test-Path $dump -PathType Leaf)) {
+    throw @"
+No snapshot at $dump.
+The snapshot is the owner's and lives in a private repository; this public one carries none. A new desk fills itself instead:
+  the Board's Date range key on the desk, or
+  dotnet run --project src/LineOps.Worker -- --job espn:range --sport nfl --from <date> --to <date>
+  (Docker: docker compose run --rm worker --job espn:range --sport nfl --from <date> --to <date>)
+The owner: clone the private journal repository at data/personal and pull it, or name a dump with -InFile.
+"@
+}
+$dump = (Resolve-Path $dump).Path
 # The container enforces SCRAM for local connections too (docker-compose.yml's
 # POSTGRES_INITDB_ARGS), so psql and pg_restore need the password. It comes from .env, the
 # same place compose reads it, and reaches the tools through PGPASSWORD.
@@ -68,7 +94,7 @@ try {
     Invoke-Native { 'set client_min_messages = warning; drop schema public cascade; create schema public;' | docker exec -i -e $pgEnv $Container psql -U $User -d $Database -X -q -v ON_ERROR_STOP=1 }
     if ($LASTEXITCODE -ne 0) { throw "could not reset the public schema (exit $LASTEXITCODE)" }
 
-    # Read by a sidecar from data/snapshots, mounted read-only (scripts/_pg.ps1 says why), so the
+    # Read by a sidecar from the dump's own folder, mounted read-only (scripts/_pg.ps1 says why), so the
     # archive never crosses a shell pipe on any platform.
     $exit = Invoke-PgSidecar -Container $Container -Password $pgPassword -Directory (Split-Path $dump) -ReadOnly -Script @"
 pg_restore -U $User -d $Database --no-owner --no-privileges /snapshots/$(Split-Path $dump -Leaf)

@@ -1,7 +1,7 @@
-using System.Net;
 using System.Text.Json;
 using LineOps.Core.Contracts;
 using LineOps.Ingestion.Adapters;
+using LineOps.Tests.Support;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace LineOps.Tests.Adapters;
@@ -14,31 +14,16 @@ namespace LineOps.Tests.Adapters;
 /// </summary>
 public class EspnInjuriesTests
 {
-    private static string Fixture()
-        => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "espn.nfl.injuries.json"));
-
     private static List<CanonicalInjury> Report()
     {
-        using var doc = JsonDocument.Parse(Fixture());
+        using var doc = JsonDocument.Parse(Fixtures.Text("espn.nfl.injuries.json"));
         return EspnStatsAdapter.ParseInjuries(doc.RootElement).ToList();
     }
 
-    private sealed class RecordingHandler(string body) : HttpMessageHandler
+    private static (IInjurySource Source, StubHttp Handler) Adapter()
     {
-        public List<string> Urls { get; } = [];
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Urls.Add(request.RequestUri!.ToString());
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
-        }
-    }
-
-    private static (IInjurySource Source, RecordingHandler Handler) Adapter()
-    {
-        var handler = new RecordingHandler(Fixture());
-        var http = new HttpClient(handler) { BaseAddress = new Uri("https://site.api.espn.com/apis/site/v2/sports/") };
+        var handler = new StubHttp(Fixtures.Text("espn.nfl.injuries.json"));
+        var http = handler.Client("https://site.api.espn.com/apis/site/v2/sports/");
         return (new EspnStatsAdapter(http, NullLogger<EspnStatsAdapter>.Instance), handler);
     }
 

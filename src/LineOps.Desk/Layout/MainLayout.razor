@@ -21,9 +21,11 @@
 <MudThemeProvider IsDarkMode="Theme.IsDark" Theme="Theme.MudTheme" />
 <MudPopoverProvider />
 <MudDialogProvider />
-<MudSnackbarProvider />
 
 @Body
+
+@* The desk's notices (DeskToasts; "Activities" to the operator) are drawn in the header bar, by
+   DeskHeader, not here: they used to float over the page from this layout (ADR 0028). *@
 
 @*
     The framework's own banner for a circuit that failed. Blazor finds it by id, shows it by

@@ -20,6 +20,21 @@ public class IngestionOptions
 
     public static readonly string[] DefaultSports = ["nfl", "nba", "mlb", "nhl"];
 
+    /// <summary>
+    /// The leagues a lines pull can price. Every configured league with ESPN on; without it a fought
+    /// league is left out, because a book's fight is only ever attached to a bout ESPN created
+    /// (ADR 0021) — a UFC scan with ESPN off would bill its credits and attach nothing (ADR 0026).
+    /// </summary>
+    public string[] PricedSports => PricedSportsWith(espnRegistered: false);
+
+    /// <summary>
+    /// <see cref="PricedSports"/>, counting a registered ESPN-like stats source as ESPN on — which is
+    /// what the registry knows and configuration may not (a host or a test that registers its own).
+    /// </summary>
+    public string[] PricedSportsWith(bool espnRegistered) => Espn.Enabled || espnRegistered
+        ? EffectiveSports
+        : EffectiveSports.Where(s => !Core.Analytics.FightSports.IsFight(s)).ToArray();
+
     /// <summary>Only snapshot games starting inside this window, to conserve free-tier requests.</summary>
     public TimeSpan MovementWindow { get; set; } = TimeSpan.FromHours(36);
 
@@ -32,12 +47,17 @@ public class IngestionOptions
     public SourceOptions OddsApiIo { get; set; } = new();
     public SourceOptions TheOddsApi { get; set; } = new();
     public SourceOptions BallDontLie { get; set; } = new();
-    public SourceOptions Espn { get; set; } = new() { Enabled = true };
+    /// <summary>
+    /// The stats source, off until the operator opts in (<see cref="EspnOptIn"/>): its terms
+    /// prohibit automated access, so turning it on is a person's decision, never a default.
+    /// </summary>
+    public SourceOptions Espn { get; set; } = new() { Enabled = false };
 
     /// <summary>
     /// MLB's own schedule API: free, unauthenticated, and the issuer of the ids baseball runs on.
-    /// On by default because it is the entity spine rather than one more feed — every other
-    /// source resolves into its <c>gamePk</c> and MLBAM team and player ids.
+    /// Its own switch defaults on, but it registers only when <see cref="Espn"/> is on too: it
+    /// annotates games ESPN has written and is useless without them, and its data is licensed for
+    /// personal use as ESPN's is, so it rides the same opt-in rather than asking a second time.
     /// </summary>
     public SourceOptions MlbStatsApi { get; set; } = new()
     {
@@ -68,8 +88,17 @@ public class IngestionOptions
 /// excuse to go without one. The summary is up to half a megabyte, one per followed game every
 /// <see cref="Poll"/>; a full NFL Sunday afternoon is a dozen games at once, and one address
 /// asking for all of them every fifteen seconds for hours is the profile that gets blocked
-/// (spec §7). So the feed follows the earliest <see cref="MaxFollowedGames"/> and says when the
-/// ceiling bites.
+/// (spec §7). So the feed reads in two lanes: the fast lane, <see cref="MaxFollowedGames"/> games
+/// read every poll, watched games first and then the earliest; and the slow lane, every other game
+/// in play read in rotation, <see cref="SlowLanePerPoll"/> a poll, so no game on is left without
+/// plays. A poll asks at most <c>MaxFollowedGames + SlowLanePerPoll</c> summaries, about 47 KB each
+/// gzipped (measured 2026-11-22).
+/// </para>
+///
+/// <para>
+/// Conditional requests would not lower that. ESPN serves the summary with
+/// <c>Cache-Control: max-age=4</c> and no <c>ETag</c> or <c>Last-Modified</c>, so there is nothing
+/// to revalidate against: every read is the whole document. The ceiling is the only lever.
 /// </para>
 /// </summary>
 public class GamecastOptions
@@ -98,8 +127,19 @@ public class GamecastOptions
     /// </summary>
     public TimeSpan BoxPoll { get; set; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>The most games followed at once, earliest start first.</summary>
+    /// <summary>
+    /// The fast lane: the most games read every poll. Games a window is watching come first
+    /// (<c>GamecastLanes</c>), then the healthy before the ones in trouble, earliest start first.
+    /// </summary>
     public int MaxFollowedGames { get; set; } = 4;
+
+    /// <summary>
+    /// The slow lane: games past <see cref="MaxFollowedGames"/> read each poll, in turn by game id,
+    /// so with N of them each is read once every N ÷ this polls, rounded up. One by default — on a
+    /// seven-game window each of the three past the ceiling is read every forty-five seconds — and
+    /// zero switches the slow lane off, leaving the games past the ceiling unread.
+    /// </summary>
+    public int SlowLanePerPoll { get; set; } = 1;
 
     /// <summary>
     /// Leagues followed, by <see cref="Core.Entities.Sport.Key"/>. Empty by default and read
@@ -219,6 +259,57 @@ public class LinePollingOptions
 
     /// <summary>Back-off when the budget is spent, or when nothing is metered.</summary>
     public TimeSpan MaximumInterval { get; set; } = TimeSpan.FromHours(3);
+
+    /// <summary>The one scan taken just before a start, so the close is priced from a fresh read.</summary>
+    public ClosingScanOptions ClosingScan { get; set; } = new();
+}
+
+/// <summary>Which games earn a closing scan.</summary>
+public enum ClosingScanScope
+{
+    /// <summary>Only games carrying an unsettled journal entry, a parlay leg included: the closes CLV is measured on.</summary>
+    Wagered,
+
+    /// <summary>Every game in a priced league.</summary>
+    All
+}
+
+/// <summary>
+/// A scan of one league just before its games start, taken because CLV is measured against the
+/// close and the paced cadence does not know when the close is.
+///
+/// <para>
+/// Paced scans land wherever the budget puts them, which on a 500-credit month can be hours
+/// apart — so the last price before first pitch, the one a closing line is promoted from, was
+/// often taken mid-afternoon for an evening game. One scan inside <see cref="Lead"/> of a start
+/// fixes that for every game in the league starting in that window, since a league scan prices
+/// the whole slate.
+/// </para>
+///
+/// <para>
+/// It runs only while lines run unattended, through the same job as any scan, so the budget
+/// guard and the reserve still apply; and it is capped a league a day, because a slate of
+/// staggered starts would otherwise ask for one every few minutes all evening.
+/// </para>
+/// </summary>
+public class ClosingScanOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>How long before a start the closing scan is taken: late enough to be the close, early enough to land before it.</summary>
+    public TimeSpan Lead { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Wagered by default: a close nobody bet against is a number for the history, and the
+    /// paced scans already give it one; a close a bet is graded against is worth the credits.
+    /// </summary>
+    public ClosingScanScope Scope { get; set; } = ClosingScanScope.Wagered;
+
+    /// <summary>
+    /// The most closing scans one league is given in a league day, counted from the runs table so
+    /// a restart or a second host does not start the count again.
+    /// </summary>
+    public int MaxPerLeaguePerDay { get; set; } = 3;
 }
 
 /// <summary>

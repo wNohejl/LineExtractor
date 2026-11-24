@@ -36,7 +36,9 @@ public class GamePickerTests : WagerTestContext
     private static void Type(IRenderedComponent<GamePicker> cut, string text)
     {
         cut.Find("input").Input(text);
-        cut.WaitForAssertion(() => cut.Find("[role=listbox]"), TimeSpan.FromSeconds(3));
+        // Until the options are drawn, not only the list: the list opens on the render before
+        // the search's answer lands, and under a loaded suite a test read it empty.
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[role=listbox] [role=option]")), Settle);
     }
 
     [Fact]
@@ -134,7 +136,7 @@ public class GamePickerTests : WagerTestContext
         Type(cut, "ste");
 
         await cut.FindAll("[role=option]")[1].ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => Assert.Equal([2], picked), TimeSpan.FromSeconds(3));
+        cut.WaitForAssertion(() => Assert.Equal([2], picked), Settle);
 
         Assert.Equal([2], picked);
     }

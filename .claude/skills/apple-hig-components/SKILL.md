@@ -32,6 +32,11 @@ and colours, and run `references/audit.md` before calling a screen done.
    define subgroups can make the interface feel busy and constrained". Rows inside a group
    are divided by **inset separators** and padding, never framed again; a card may hold
    groups and a group holds rows, and nothing below that carries an edge.
+   **A section is one card with its name inside it** (November 2026): a header bar at its top,
+   the title in the headline style and at most one quiet thing trailing, divided from the rows
+   by one full-width hairline — a divider inside the one card, not a second box. The footer that
+   explains it sits under the card. A window of several sections flows them as cards: **more
+   width is more columns, never wider cards**. `references/forms.md` has the rules.
 
 3. **One prominent action per view.** Prominence is style, not size. At most one or two
    prominent buttons; the rest are plain. The primary role goes to the likely, non-destructive
@@ -72,10 +77,12 @@ and colours, and run `references/audit.md` before calling a screen done.
 In any application on the Desk, the **Parts bin** window is the live reference: its Anatomy,
 Form group, Steps, Key row and Inline confirm sections draw `references/forms.md` and
 `references/wizards.md` with the Desk's own primitives — `FormGroup` and `FormRow` for a grouped
-form (label column leading, controls trailing, the footer under the group, one hairline per
-group), `DeskSteps` for a wizard, `KeyRow` for the keys and the reason the Filled one waits.
-Build a new form or wizard from those primitives rather than from class names, and it lands in
-the shape.
+form (the name in the card's header bar, label column leading, controls trailing, the footer
+under the card, one hairline per group), `DeskSteps` for a wizard, `KeyRow` for the keys and the
+reason the Filled one waits. Build a new form or wizard from those primitives rather than from
+class names, and it lands in the shape. The **Window manager** is the live reference for a window
+of several sections: section cards in a flow that gains columns as it widens, a split row, a
+card that takes the rest of the row for a grid of tiles, and a filter in a card's bar.
 
 In the Desk's own repository, the LineOps wager window (`BoardWager.razor`) is the worked
 example the references cite: a grouped form in three steps, a segmented control per market,

@@ -35,7 +35,7 @@ public class DeskJobMenuTests : DeskTestContext
     }
 
     private List<string> Toasts()
-        => Services.GetRequiredService<ISnackbar>().ShownSnackbars.Select(s => s.Message ?? string.Empty).ToList();
+        => Services.GetRequiredService<DeskToasts>().Shown.Select(s => s.Message).ToList();
 
     [Fact]
     public void Lists_each_run_with_its_cost()
@@ -71,14 +71,14 @@ public class DeskJobMenuTests : DeskTestContext
 
         cut.FindAll("[role=menuitem]")[0].Click();
 
-        var toast = Assert.Single(Services.GetRequiredService<ISnackbar>().ShownSnackbars);
+        var toast = Assert.Single(Services.GetRequiredService<DeskToasts>().Shown);
         Assert.Equal(summary, toast.Message);
         Assert.Equal(result switch
         {
-            DeskJobResult.Done => Severity.Success,
-            DeskJobResult.Nothing => Severity.Info,
-            _ => Severity.Warning
-        }, toast.Severity);
+            DeskJobResult.Done => DeskState.Positive,
+            DeskJobResult.Nothing => DeskState.Info,
+            _ => DeskState.Warning
+        }, toast.State);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class DeskJobMenuTests : DeskTestContext
         cut.FindAll("[role=menuitem]")[0].Click();
 
         Assert.Equal(["Refresh the index did not finish. Try again."], Toasts());
-        Assert.Equal(Severity.Error, Services.GetRequiredService<ISnackbar>().ShownSnackbars.Single().Severity);
+        Assert.Equal(DeskState.Negative, Services.GetRequiredService<DeskToasts>().Shown.Single().State);
     }
 
     [Fact]
@@ -312,6 +312,79 @@ public class DeskJobMenuTests : DeskTestContext
         var cut = Open(Menu());
 
         Assert.Contains("menu--wide", cut.Find("[role=menu]").ClassList);
+    }
+
+    // ---- A run that asks first ----------------------------------------------------------------
+
+    private static DeskJob Spend => new("spend", "Spend units", "Uses the metered service", "9 units", true, null,
+        Confirm: "This spends 9 units and leaves 41. Spend them?", Hint: "Calls the metered service; units come back monthly.");
+
+    [Fact]
+    public void A_run_that_asks_first_asks_beside_the_key_and_spends_nothing_until_confirmed()
+    {
+        var jobs = new FakeJobs { Many = [Spend, new("free", "Read the list", "Costs nothing", "free", true, null)] };
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, jobs)));
+
+        cut.FindAll("[role=menuitem]")[0].Click();
+
+        Assert.Empty(jobs.Ran);
+        var confirm = cut.Find(".confirm");
+        Assert.Contains("This spends 9 units and leaves 41. Spend them?", confirm.TextContent);
+        Assert.Equal(["Cancel", "Spend units"], confirm.QuerySelectorAll("button").Select(b => b.TextContent.Trim()));
+
+        confirm.QuerySelectorAll("button")[1].Click();
+
+        Assert.Equal(["spend"], jobs.Ran);
+        Assert.Empty(cut.FindAll(".confirm"));
+    }
+
+    [Fact]
+    public void Cancel_runs_nothing_and_puts_the_question_away()
+    {
+        var jobs = new FakeJobs { Only = Spend };
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, jobs)));
+
+        cut.FindAll("[role=menuitem]")[0].Click();
+        cut.Find(".confirm button").Click();
+
+        Assert.Empty(jobs.Ran);
+        Assert.Empty(cut.FindAll(".confirm"));
+    }
+
+    [Fact]
+    public void A_run_that_asks_nothing_runs_on_the_press()
+    {
+        var jobs = new FakeJobs { Only = new("free", "Read the list", "Costs nothing", "free", true, null) };
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, jobs)));
+
+        cut.FindAll("[role=menuitem]")[0].Click();
+
+        Assert.Equal(["free"], jobs.Ran);
+        Assert.Empty(cut.FindAll(".confirm"));
+    }
+
+    [Fact]
+    public void A_runs_hint_is_its_rows_tooltip_and_a_dimmed_rows_is_its_reason()
+    {
+        var jobs = new FakeJobs { Many = [Spend, Spend with { Key = "off", Available = false, Unavailable = "None left this month." }] };
+        var cut = Open(Menu(p => p.Add(x => x.Jobs, jobs)));
+
+        var rows = cut.FindAll("[role=menuitem]");
+        Assert.Equal("Calls the metered service; units come back monthly.", rows[0].GetAttribute("title"));
+        Assert.Equal("None left this month.", rows[1].GetAttribute("title"));
+
+        // The price is text in the row as well: the tooltip explains, it never carries the cost alone.
+        Assert.Equal("9 units", rows[0].QuerySelector(".menu__detail")?.TextContent);
+    }
+
+    [Fact]
+    public async Task A_key_outside_the_menu_never_starts_a_run_that_asks_first()
+    {
+        Services.AddSingleton<IDeskJobs>(new FakeJobs { Only = Spend });
+        var runner = Services.GetRequiredService<DeskJobRunner>();
+
+        Assert.False(await runner.RunAsync("spend"));
+        Assert.Contains(Toasts(), t => t.Contains("asks before it runs"));
     }
 
     private static IEnumerable<string> Labels(AngleSharp.Dom.IElement group)

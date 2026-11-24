@@ -66,6 +66,10 @@ Rules:
 7. **Headers and footers sit outside the stroke**: header 11px semibold secondary
    (`rgba(235,235,245,.60)`), `6px` above the group, indented `12px`; footer 11–12px
    secondary, `6px` below, indented `12px`. Space between groups `20px`; no line.
+   **Superseded on this Desk for the header (November 2026, ADR 0032):** a group's name is in a
+   header bar *inside* the stroke, headline style, divided from the rows by one full-width
+   hairline (`forms.md`, rule 5) — a header outside the stroke left sections running together.
+   The footer still sits outside, under the group.
 8. **NSBox primary style** (memory): a light fill (`quaternarySystemFill`-like, ≈ `.05`
    white in dark) with a hairline stroke (≈ `.10` white) and a ~5–6pt radius, title above
    it in 11pt. It is the right look for a single box in a pane, and the one this desk
@@ -114,7 +118,10 @@ CSS container (`container-type: inline-size` on the window body) and `@container
 
 - Never stretch a form past `680px`; empty margin at 1920px is correct when the content
   is centred and the summary fills the second column. A sea of space comes from a
-  560px form pinned to the left, not from centring.
+  560px form pinned to the left, not from centring. This cap is for **one form** — a wizard's
+  single column of steps. A window of several independent sections (a settings screen) is not
+  one form: it flows its sections as cards and gains columns as it widens (`forms.md`,
+  "Sections in a window").
 - The summary column (c) is a bordered card titled "Your wager": rows for Bet, Price
   (with book), Stake, To win, and the Review checks (mark + sentence each), then the
   **Log** key (filled) at its foot. In (c) the Log key lives here only; in (a)/(b) it is
@@ -173,7 +180,7 @@ One object: "what you are betting and what it pays". In the card look it is the
 expanded step's content; in the grouped-form look it is one stroked group.
 
 ```
-Your bet                                          ← header, outside the group
+Your bet                                          ← header (this Desk: in the group's bar, rule 7)
 ┌─────────────────────────────────────────────────────┐
 │ Moneyline   ( NYY −135   |   BOS +115 )             │ 36px rows, label col 120px
 │   ─────────────────────────────────────────         │ inset hairline .08

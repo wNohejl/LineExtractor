@@ -5,6 +5,7 @@
 @inject IServiceScopeFactory ScopeFactory
 @inject DeskJobRunner Runner
 @inject IDeskAccess Access
+@implements IDisposable
 
 @*
     Two fighters side by side (ADR 0021): the red corner on the left, the blue on the right, what
@@ -23,7 +24,7 @@
 {
     @if (_missing)
     {
-        <Note State="DeskState.Warning" Style="margin:0">This game is not a fight on the desk.</Note>
+        <Note State="DeskState.Warning">This game is not a fight on the desk.</Note>
     }
     else
     {
@@ -151,34 +152,49 @@ else
         }
     }
 
+    private readonly SnippetRead _read = new();
+
     private async Task LoadAsync()
     {
         var gameId = GameId;
         _loadedGameId = gameId;
 
-        FightTape? tape;
+        // Read into locals and handed over only by the latest read: the bout the page turned from,
+        // or one the window closed on, is cancelled, and a slow answer for it draws nothing.
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failed = null;
 
-        try
+        await _read.RunAsync(async ct =>
         {
-            await using var scope = ScopeFactory.CreateAsyncScope();
-            tape = await scope.ServiceProvider.GetRequiredService<FightService>().TapeAsync(gameId);
-        }
-        catch
+            try
+            {
+                await using var scope = ScopeFactory.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<FightService>().TapeAsync(gameId, ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                failed = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex);
+                throw;
+            }
+        }, tape =>
         {
-            // Not held as read, so the next render asks again, as it did before the key.
-            if (_loadedGameId == gameId)
-                _loadedGameId = null;
+            _tape = tape;
+            _missing = tape is null;
+        }, "The tale of the tape did not load.", Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
-            throw;
-        }
-
-        // The page turned while this bout was read: the newer read owns the tape.
-        if (gameId != GameId)
+        // Only the latest read's failure is news; a superseded one's is dropped with it.
+        if (failed is null || _read.Error is null)
             return;
 
-        _tape = tape;
-        _missing = _tape is null;
+        // Not held as read, so the next render asks again, as it did before the key.
+        if (_loadedGameId == gameId)
+            _loadedGameId = null;
+
+        // The tape draws no failure of its own, so it still reaches the window's boundary, which
+        // logs it and offers Try again, as before; the read is not logged twice.
+        failed.Throw();
     }
+
+    public void Dispose() => _read.Dispose();
 
     private RenderFragment Corner(FighterCard card, string corner) => @<div class="tape__corner tape__corner--@corner">
         <span class="tape__corner-name">

@@ -1,0 +1,83 @@
+/* The line score (Linescore.razor): a small table in a group of its own, as wide as its figures
+   and no wider. Not .wgroup, whose size containment collapses a box sized to its content; the
+   fill and the one hairline are the group's. The side that is ahead is in the primary ink and
+   the other steps back. A long game (extra innings) scrolls inside the group. */
+.linescore {
+    width: fit-content;
+    max-width: 100%;
+    margin-bottom: var(--space-4);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--separator-strong);
+    border-radius: var(--radius-panel);
+    background: var(--surface-2);
+    overflow-x: auto;
+}
+
+.linescore__table {
+    border-collapse: collapse;
+    font-size: var(--text-subheadline);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+}
+
+.linescore__table th,
+.linescore__table td {
+    padding: var(--space-1) var(--space-2);
+    font-weight: var(--weight-regular);
+}
+
+.linescore__table thead th {
+    font-size: var(--text-footnote);
+}
+
+.linescore__table tbody tr + tr > * {
+    border-top: 1px solid var(--separator);
+}
+
+.linescore__team {
+    min-width: calc(18px + var(--space-2) + 5ch);
+    padding-left: 0;
+    text-align: start;
+    white-space: nowrap;
+}
+
+.linescore__n {
+    min-width: 3ch;
+    text-align: right;
+}
+
+.linescore__table th.linescore__total,
+.linescore__table td.linescore__total {
+    padding-left: var(--space-4);
+    padding-right: 0;
+}
+
+.linescore__table td.linescore__total {
+    font-weight: var(--weight-semibold);
+}
+
+.linescore__ahead > th,
+.linescore__ahead > td {
+    color: var(--text-primary);
+}
+
+.linescore__table .linescore__ahead > th {
+    font-weight: var(--weight-semibold);
+}
+
+/* Inset: the line score as the body of a card that is already the group (the Game window's
+   score card), so it gives up its own fill, edge and margin — a box in a box otherwise — and
+   its table takes the card's width, the totals at the card's trailing inset. The Gamecast keeps
+   the framed one. */
+.linescore.linescore--inset {
+    width: auto;
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    border-radius: 0;
+    background: none;
+}
+
+.linescore--inset .linescore__table {
+    width: 100%;
+}

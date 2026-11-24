@@ -51,7 +51,7 @@
     /// <summary>
     /// The window this layer is drawn in, passed on as <c>HostWindowId</c>. Unsaved input in a
     /// dialog still marks it: closing the host takes the dialog with it, so the host's close key
-    /// and eviction must know there is typing to lose. Null for the desk's own layer.
+    /// and closing must know there is typing to lose. Null for the desk's own layer.
     /// </summary>
     [CascadingParameter(Name = "WindowId")]
     public string? HostWindowId { get; set; }

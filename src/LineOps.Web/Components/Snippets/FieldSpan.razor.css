@@ -1,0 +1,35 @@
+/* The field in one line (FieldSpan.razor). The track is a pressed fill, midfield a hairline,
+   the run ink — or the positive state when it scored. Whether a narrow row keeps it is the
+   row's decision, not this part's. */
+.fieldspan {
+    position: relative;
+    flex: 0 0 auto;
+    display: inline-block;
+    width: 96px;
+    height: 6px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+}
+
+.fieldspan::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: 50%;
+    border-left: 1px solid var(--separator-strong);
+}
+
+.fieldspan__run {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--from) * 1%);
+    width: calc(var(--len) * 1%);
+    border-radius: inherit;
+    background: var(--text-secondary);
+}
+
+.fieldspan--score .fieldspan__run {
+    background: var(--state-positive);
+}

@@ -99,6 +99,14 @@ public static class StatColumns
     }
 
     /// <summary>
+    /// A stat is a rate on this side if anyone recorded a value for it that is not a count: its
+    /// column is then headed per game. One definition for the Board's form, the Game window's
+    /// roster and Line movement's, which each asked it for themselves.
+    /// </summary>
+    public static bool IsRate(IReadOnlyList<LineOps.Data.CrossReference.PlayerForm> side, string key)
+        => side.Any(p => p.Totals.ContainsKey(key) && !p.IsCounting(key));
+
+    /// <summary>
     /// The columns for a set of lines: keys filled on at least half of them first, so a column
     /// is mostly numbers rather than dashes; then by rank, by how often they were reported, and
     /// by name.

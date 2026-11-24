@@ -126,7 +126,7 @@ public class DeskWiringTests : DeskTestContext
         => Assert.Equal("Search", new DeskBrand("A", "B", "c").SearchPlaceholder);
 
     [Fact]
-    public void AddDesk_registers_MudBlazor_with_the_desk_s_snackbar_and_lets_the_app_change_it()
+    public void AddDesk_registers_MudBlazor_and_the_desk_s_own_toasts_and_lets_the_app_change_Mud()
     {
         var services = new ServiceCollection();
         services.AddDesk(new DeskBrand("A", "B", "c"), mud: o => o.SnackbarConfiguration.MaxDisplayedSnackbars = 2);
@@ -134,8 +134,9 @@ public class DeskWiringTests : DeskTestContext
         using var provider = services.BuildServiceProvider();
         var snackbar = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MudBlazor.SnackbarConfiguration>>().Value;
 
-        Assert.Equal(MudBlazor.Defaults.Classes.Position.TopRight, snackbar.PositionClass);
-        Assert.Equal(120, snackbar.ShowTransitionDuration);
+        // The application's word on MudBlazor still lands; the desk's notices are its own (ADR 0028).
         Assert.Equal(2, snackbar.MaxDisplayedSnackbars);
+        using var scope = provider.CreateScope();
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<LineOps.Desk.Primitives.DeskToasts>());
     }
 }

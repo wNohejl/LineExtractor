@@ -35,7 +35,13 @@ public sealed class ReferenceReconciler(
     IOptions<IngestionOptions> options,
     ILogger<ReferenceReconciler> logger) : IHostedService
 {
-    public async Task StartAsync(CancellationToken ct)
+    public Task StartAsync(CancellationToken ct) => ReconcileAsync(ct);
+
+    /// <summary>
+    /// The same pass, on request: a key supplied or removed while the host runs changes which
+    /// sources are configured, and the reference rows follow at once rather than at next start.
+    /// </summary>
+    public async Task ReconcileAsync(CancellationToken ct = default)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LineOpsDbContext>();

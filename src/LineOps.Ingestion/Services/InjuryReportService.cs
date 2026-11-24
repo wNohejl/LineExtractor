@@ -49,8 +49,7 @@ public class InjuryReportService(
         if (sport is null)
             return new IngestionOutcome(0, RunStatus.Success, 0, null);
 
-        var sourceRow = await db.Sources.FirstOrDefaultAsync(s => s.Key == source.Key, ct)
-            ?? throw new InvalidOperationException($"Source '{source.Key}' is not registered.");
+        var sourceRow = await RunRecord.SourceRowAsync(db, source.Key, ct);
 
         var run = new IngestionRun
         {
@@ -76,7 +75,7 @@ public class InjuryReportService(
             run.RequestsMade = 1;
             run.FinishedAt = DateTimeOffset.UtcNow;
             run.Status = RunStatus.Failed;
-            run.Error = $"{ex.GetType().Name}: {ex.Message}";
+            run.Error = RunRecord.Describe(ex);
             await db.SaveChangesAsync(ct);
 
             return new IngestionOutcome(run.Id, run.Status, 0, run.Error);
@@ -109,8 +108,8 @@ public class InjuryReportService(
                 continue;
             }
 
-            player.InjuryStatus = Truncate(entry.Status, 32);
-            player.InjuryNote = Truncate(entry.Note, 512);
+            player.InjuryStatus = ColumnText.Fit(entry.Status, 32);
+            player.InjuryNote = ColumnText.Fit(entry.Note, 512);
             player.InjuryUpdatedAt = now;
 
             // A player the report named and the roster matched by name alone now carries the
@@ -161,7 +160,4 @@ public class InjuryReportService(
     private static bool OnClub(Team team, string sourceKey, CanonicalInjury entry)
         => (entry.SourceTeamId is { } id && team.ExternalIds.TryGetValue(sourceKey, out var known) && known == id)
            || string.Equals(team.Name, entry.TeamName, StringComparison.OrdinalIgnoreCase);
-
-    private static string? Truncate(string? value, int max)
-        => value is null || value.Length <= max ? value : value[..max];
 }
