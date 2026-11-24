@@ -202,5 +202,5 @@ delete `.vs/` and `LineOps.slnLaunch.user`, reopen, and set LineOps.Web as the s
 - The Worker host starts (`dotnet run --project src/LineOps.Worker`); its `appsettings.json`
   comment keys must be unique (`"//1"`, `"//2"` …) or the configuration provider refuses it.
 - For data changes: the coverage queries in
-  `docs/superpowers/specs/2026-09-04-mlb-nfl-seasons-research.md` §2 — finals without stats
+  `docs/specs/2026-09-04-mlb-nfl-seasons-research.md` §2 — finals without stats
   and stuck Live games should both be zero for MLB.

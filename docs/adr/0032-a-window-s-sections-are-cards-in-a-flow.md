@@ -13,7 +13,7 @@ whose theme picker drew its families under plain headings; and the Window manage
 
 ## Context
 
-The owner's mock-up of the Window manager (`docs/styling_improvements_2.pdf`, pages 1 to 3, with
+The owner's mock-up of the Window manager (`docs/evidence/styling_improvements_2.pdf`, pages 1 to 3, with
 a note on pages 4 and 5 not to stretch the boxes) named three faults, and each was a rule of the
 system working as written:
 

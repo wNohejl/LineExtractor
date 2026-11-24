@@ -127,7 +127,7 @@ rewritten. The league-key `.ToUpperInvariant()` calls stay: MLB, NFL and UFC are
 **Proof.** A browser walk of all nineteen windows at 1280×800 and 1920×1080, dark and light,
 against this machine's database. The screenshots show the operator's own journal and are
 **not committed**: they stay in the session's scratchpad, and what is committed is
-`docs/superpowers/evidence/2026-10-desk-final.md`, a table of window × size × theme with the
+`docs/evidence/2026-10-desk-final.md`, a table of window × size × theme with the
 checklist result and any defect found. An axe-core pass is run by hand through the browser
 pane's script tool (the page's CSP allows no CDN, and no test project is added for it), with no
 serious or critical violation; its summary goes in the same table. The walk is the acceptance test
@@ -258,8 +258,8 @@ grid-child styles, `DeskPanelBase`, `PanelLoadFailure`, `DeskTime`, the job menu
 and not-found pages — moves into the Desk, the access gate and edge headers into a new
 `LineOps.Desk.Hosting` package, and `KeyRow` and `InlineConfirm` close the HIG review's first
 and third findings at every site it cited. The design is
-`docs/superpowers/specs/2026-10-30-desk-shared-phase-e-design.md` and the task plan
-`docs/superpowers/plans/2026-10-30-desk-final-e-shared.md`.
+`docs/specs/2026-10-30-desk-shared-phase-e-design.md` and the task plan
+`docs/plans/2026-10-30-desk-final-e-shared.md`.
 
 ## What is left to the builder
 

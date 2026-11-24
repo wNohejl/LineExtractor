@@ -34,11 +34,11 @@ observation instead of an odds snapshot. Most of the work is the domain, not the
 
 The design is recorded in three ADRs, which the new project should adopt as written:
 
-- [ADR 0007](../../adr/0007-window-manager-ui.md) — one route, fixed header and footer, one
+- [ADR 0007](../adr/0007-window-manager-ui.md) — one route, fixed header and footer, one
   horizontal row of full-height windows, eviction never silent.
-- [ADR 0013](../../adr/0013-the-board-and-the-floating-layer.md) — a board of best numbers
+- [ADR 0013](../adr/0013-the-board-and-the-floating-layer.md) — a board of best numbers
   with a spread rail, and a floating layer for comparison that is never modal.
-- [ADR 0016](../../adr/0016-apple-feel-design-system.md) — weight over hue, materials over
+- [ADR 0016](../adr/0016-apple-feel-design-system.md) — weight over hue, materials over
   moulding, sheets and alerts as the modal tier, one accent.
 
 ### 1.1 Where the domain leaks into the chrome

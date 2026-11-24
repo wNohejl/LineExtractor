@@ -6,7 +6,7 @@
 credit budget is the thing a second scheduler spends, and [ADR 0019](0019-one-vm-caddy-in-front-the-worker-schedules.md),
 whose rule that one process schedules is the rule this ADR carries to two machines.
 
-**Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §4 and §10b: the
+**Plan:** [Going public](../specs/2026-09-27-going-public-plan.md) §4 and §10b: the
 project stays local, and the work that matters is portability.
 
 ## Context
@@ -146,7 +146,7 @@ list for a machine whose overlays are not the ones `.env` implies.
 ## Amendment, 2026-11-15: the database is forwarded, not published
 
 Research against Tailscale's and Docker's own documentation (recorded in
-`docs/superpowers/specs/2026-11-14-multi-device-access-research.md` §6) found the overlay's
+`docs/specs/2026-11-14-multi-device-access-research.md` §6) found the overlay's
 premise weak on the machine it was written for. Docker Desktop on Windows does not document
 binding a published port to a VPN adapter's address; the address does not exist until
 Tailscale connects, and Docker does not retry a bind that failed at boot; and the inbound

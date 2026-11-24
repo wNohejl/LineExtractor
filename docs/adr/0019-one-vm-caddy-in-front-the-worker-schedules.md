@@ -5,7 +5,7 @@
 **Amends:** [ADR 0006](0006-container-security-and-https.md) for the hosted case only. The laptop
 stack keeps HTTPS-only on loopback.
 
-**Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §3.
+**Plan:** [Going public](../specs/2026-09-27-going-public-plan.md) §3.
 
 ## Context
 

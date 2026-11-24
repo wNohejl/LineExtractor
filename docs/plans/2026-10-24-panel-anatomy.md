@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Blazor Server, MudBlazor 9.7, bUnit on `DeskTestContext`, Windows PowerShell for build/test.
 
-**Spec:** `docs/superpowers/specs/2026-10-24-panel-anatomy-design.md`
+**Spec:** `docs/specs/2026-10-24-panel-anatomy-design.md`
 
 ## Global Constraints
 

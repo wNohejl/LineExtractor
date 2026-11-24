@@ -669,7 +669,10 @@ docs/
   INFRASTRUCTURE.md       What runs, where, and on what
   adr/                    Architecture decision records (0031: the name, the repository, hosting)
   runbook.md              What each alert means and how to triage it
-  superpowers/            Dated research, plans and evidence; the record, not the present
+  specs/                  Dated research and designs; the record, not the present
+  plans/                  Implementation plans, as written before each build
+  evidence/               What was measured, and the mock-ups the styling ADRs answer
+  desk/                   The nuget.config the Desk template ships to a consumer
 ```
 
 ## Tests

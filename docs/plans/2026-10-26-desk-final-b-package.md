@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10 Blazor Server RCL (`Microsoft.NET.Sdk.Razor`), MudBlazor 9.7, bUnit + xUnit.
 
-**Spec:** `docs/superpowers/specs/2026-10-26-desk-finalisation-design.md` (Phase B).
+**Spec:** `docs/specs/2026-10-26-desk-finalisation-design.md` (Phase B).
 
 ## Global Constraints
 

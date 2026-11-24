@@ -6,7 +6,7 @@
 every device but the desktop, and [ADR 0019](0019-one-vm-caddy-in-front-the-worker-schedules.md),
 whose proxy-in-front posture this reuses with Tailscale in Caddy's place.
 
-**Plan:** [Going public](../superpowers/specs/2026-09-27-going-public-plan.md) §4 and §10b.
+**Plan:** [Going public](../specs/2026-09-27-going-public-plan.md) §4 and §10b.
 
 ## Context
 

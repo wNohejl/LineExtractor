@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-22
 **For:** [the 1.0 styling triage](../specs/2026-11-22-xlines-1-0-styling.md), item 6, and
-[ADR 0031](../../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md) Phase A.
+[ADR 0031](../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md) Phase A.
 **How:** the desk run from this tree on `http://localhost:5264` with its scheduler and evaluator
 off, against the local database; values are computed styles read from the page, not from the
 sheets. No screenshot is filed: every window that was open shows the owner's journal, which does

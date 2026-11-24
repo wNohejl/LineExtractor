@@ -1,5 +1,5 @@
 # The hosted desk: one VM, four containers, one published pair of ports. See ADR 0019 and
-# deploy/README.md; the plan behind it is docs/superpowers/specs/2026-09-27-going-public-plan.md.
+# deploy/README.md; the plan behind it is docs/specs/2026-09-27-going-public-plan.md.
 #
 #   Internet :443 ─► caddy ─► web :8080 (the desk, no scheduler)
 #                                 │

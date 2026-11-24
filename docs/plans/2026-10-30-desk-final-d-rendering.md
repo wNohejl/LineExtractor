@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10 Blazor Server, bUnit (`RenderCount`), the Desk's JS modules, `read_network_requests` in the browser pane for byte counts.
 
-**Spec:** `docs/superpowers/specs/2026-10-26-desk-finalisation-design.md` (Phase D).
+**Spec:** `docs/specs/2026-10-26-desk-finalisation-design.md` (Phase D).
 
 ## Global Constraints
 
@@ -79,5 +79,5 @@
 
 ### Task 5: Measure, record, verify
 
-- [ ] Browser, port 5271, 1280×800 dark: `read_network_requests` for the head's CSS bytes excluding MudBlazor (target < 350 KB uncompressed — note the desk is now `desk.css` + `controls.css` + `themes.css` + `mud-bridge.css` + app `lineops.css`), no `lib/` request, the font preloaded before the first stylesheet; a resize burst via `resize_window` three times quickly then `preview_logs`/console shows one `OnViewportChanged` per frame (instrument by reading `performance.getEntries`… or accept the test as the proof and say so); open two windows and change one's pulse (a refresh) — `read_console_messages` shows no error; append a "Phase D" section to `docs/superpowers/evidence/2026-10-desk-final.md` with the numbers.
+- [ ] Browser, port 5271, 1280×800 dark: `read_network_requests` for the head's CSS bytes excluding MudBlazor (target < 350 KB uncompressed — note the desk is now `desk.css` + `controls.css` + `themes.css` + `mud-bridge.css` + app `lineops.css`), no `lib/` request, the font preloaded before the first stylesheet; a resize burst via `resize_window` three times quickly then `preview_logs`/console shows one `OnViewportChanged` per frame (instrument by reading `performance.getEntries`… or accept the test as the proof and say so); open two windows and change one's pulse (a refresh) — `read_console_messages` shows no error; append a "Phase D" section to `docs/evidence/2026-10-desk-final.md` with the numbers.
 - [ ] Builds, all tests, `dotnet pack`, `dotnet format` in the Linux container, the Worker starts; push.

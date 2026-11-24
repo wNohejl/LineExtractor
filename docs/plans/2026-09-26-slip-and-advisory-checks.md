@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Blazor Interactive Server, MudBlazor 9.7 behind the `LineOps.Desk` primitives, EF Core 10 + Npgsql, xunit 2.9, bUnit 1.40, Testcontainers.PostgreSql 4.15.
 
-**Spec:** `docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md` (read it before starting; section numbers below refer to it).
+**Spec:** `docs/specs/2026-09-26-slip-and-advisory-checks-design.md` (read it before starting; section numbers below refer to it).
 
 ## Global Constraints
 
@@ -102,7 +102,7 @@ All commands are PowerShell, run from `C:\Deploy\LineOps`. Testcontainers tests 
 
 ### Task 0: Commit the spec and this plan
 
-**Files:** `docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md`, `docs/superpowers/plans/2026-09-26-slip-and-advisory-checks.md` (both untracked).
+**Files:** `docs/specs/2026-09-26-slip-and-advisory-checks-design.md`, `docs/plans/2026-09-26-slip-and-advisory-checks.md` (both untracked).
 
 - [ ] **Step 1: Confirm the branch and a clean tree apart from these docs and the seed script**
 
@@ -112,7 +112,7 @@ Expected: `LineX_Improvements`; untracked are the spec, this plan and `scripts/s
 - [ ] **Step 2: Commit**
 
 ```powershell
-git add docs/superpowers/specs/2026-09-26-slip-and-advisory-checks-design.md docs/superpowers/plans/2026-09-26-slip-and-advisory-checks.md
+git add docs/specs/2026-09-26-slip-and-advisory-checks-design.md docs/plans/2026-09-26-slip-and-advisory-checks.md
 git commit -m "docs(slip): the slip and advisory checks design, and the plan that builds it" -m "The wager window keeps one screen, gains checks that run before the key is pressed, and banks wagers onto a slip that belongs to the desk session, which is where parlays are logged from now on. The plan records where the design and the code disagreed and what was chosen."
 ```
 

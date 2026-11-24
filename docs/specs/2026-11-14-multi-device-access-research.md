@@ -1,7 +1,7 @@
 # Reaching the desk from more than one device — research and trials
 
 **Date:** 2026-11-14
-**Status:** Research done; the three trials and the second round are built and merged (§5, §6; ADRs 0022 to 0025). The open decisions in §5 and "What remains" in §6 are taken up by [ADR 0031](../../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md); the snapshot left the public repository on 2026-11-20 and the displayable spine was built as ADR 0026.
+**Status:** Research done; the three trials and the second round are built and merged (§5, §6; ADRs 0022 to 0025). The open decisions in §5 and "What remains" in §6 are taken up by [ADR 0031](../adr/0031-xlines-the-name-its-own-repository-and-where-1-0-runs.md); the snapshot left the public repository on 2026-11-20 and the displayable spine was built as ADR 0026.
 **Builds on:** the going-public plan (`2026-09-27-going-public-plan.md` §4, §10b), ADR 0018
 (an operator and visitors), ADR 0019 (one VM, Caddy in front).
 

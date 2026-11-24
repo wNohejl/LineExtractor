@@ -2885,7 +2885,7 @@ Cover, at minimum:
 Add near the top, after its Status line:
 
 ```markdown
-**Amended by:** [ADR 0016](0016-apple-feel-design-system.md), which adds a modal tier
+**Amended by:** [ADR 0016](../adr/0016-apple-feel-design-system.md), which adds a modal tier
 (sheets and alerts) beside the floating layer. The floating layer's reasoning is
 unchanged — comparison is still never modal.
 ```
@@ -2895,7 +2895,7 @@ unchanged — comparison is still never modal.
 Add near the top, after its Status line:
 
 ```markdown
-**Superseded in part by:** [ADR 0016](0016-apple-feel-design-system.md). The gloss and
+**Superseded in part by:** [ADR 0016](../adr/0016-apple-feel-design-system.md). The gloss and
 hue rules below are no longer in force. The MudBlazor seam this ADR established — three
 files, and the `:root:root` reasoning — is unchanged and still current.
 ```
@@ -3164,4 +3164,4 @@ Summarize for the user: what shipped per phase, the contrast ratio measured in T
 
 ## Execution
 
-Plan complete and saved to `docs/superpowers/plans/2026-08-29-apple-feel-design-system.md`.
+Plan complete and saved to `docs/plans/2026-08-29-apple-feel-design-system.md`.

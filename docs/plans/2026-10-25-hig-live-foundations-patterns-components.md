@@ -8,7 +8,7 @@
 
 **Tech Stack:** .NET 10, Blazor Server, MudBlazor 9.7, bUnit on `DeskTestContext` (`tests/LineOps.Web.Tests`), PowerShell 7.
 
-**Spec:** `docs/superpowers/specs/2026-10-25-hig-live-audit-foundations-patterns.md` and `docs/superpowers/specs/2026-10-25-hig-live-audit-components.md` (line numbers at commit `195e41e`). Rulebook: `.claude/skills/apple-hig-components` (SKILL.md, `references/*`). The sibling plan `2026-10-25-hig-desk-quality.md` Tasks 11–14 are being implemented in another session at the same time; see "Two waves".
+**Spec:** `docs/specs/2026-10-25-hig-live-audit-foundations-patterns.md` and `docs/specs/2026-10-25-hig-live-audit-components.md` (line numbers at commit `195e41e`). Rulebook: `.claude/skills/apple-hig-components` (SKILL.md, `references/*`). The sibling plan `2026-10-25-hig-desk-quality.md` Tasks 11–14 are being implemented in another session at the same time; see "Two waves".
 
 ## Two waves, because another session shares this checkout
 
@@ -205,4 +205,4 @@ Tasks 1–5 landed as commits `93949a6`, `87c3ee3`, `b8cfaa6`, `903bcdd`, `67d41
 
 - `dotnet build src/LineOps.Web -nologo -v q` clean; `dotnet test tests/LineOps.Web.Tests` and `tests/LineOps.Tests` green; `dotnet run --project src/LineOps.Worker` starts (CLAUDE.md).
 - Browser pass on port 5271 at 1280px and at a 300px-wide window, dark and light, `contrast-dark` family, with Windows "Reduce transparency" emulated via the `data-reduced-transparency` attribute: every menu drives from the keyboard; a dirty Journal asks before closing; the Board toolbar stays on one line; focus rings are one shape everywhere.
-- `docs/superpowers/specs/2026-10-24-panel-anatomy-design.md` gains one line under "Constraints" naming `controls.css` as the home of control primitives' styles.
+- `docs/specs/2026-10-24-panel-anatomy-design.md` gains one line under "Constraints" naming `controls.css` as the home of control primitives' styles.

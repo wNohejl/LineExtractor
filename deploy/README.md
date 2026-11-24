@@ -2,7 +2,7 @@
 
 One VM, five containers, Caddy in front. What this is for and why it is shaped this way:
 [ADR 0019](../docs/adr/0019-one-vm-caddy-in-front-the-worker-schedules.md) and the
-[going-public plan](../docs/superpowers/specs/2026-09-27-going-public-plan.md) §3.
+[going-public plan](../docs/specs/2026-09-27-going-public-plan.md) §3.
 
 **Status, 2026-11-22.** Verified locally, never deployed. XLines 1.0 is a desk each person runs
 for themselves; this stack is for an optional hosted demo
